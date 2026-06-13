@@ -10,7 +10,9 @@ use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<UserFactory> */
+	use HasRoles;
+
+	/** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
     /**
@@ -34,7 +36,11 @@ class User extends Authenticatable
         'remember_token',
     ];
 
-    /**
+
+	protected $guarded = [];
+
+
+	/**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
