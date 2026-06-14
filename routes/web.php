@@ -21,7 +21,7 @@ Route::group([
 
 
 Route::middleware('auth')->group(function () {
-	Route::get('/admin/dashboard', [AdminController::class, 'dashboard']);
+	Route::get('/admin/dashboard', [\App\Http\Controllers\Admin\DashboardController::class, 'dashboard'])->name('dashboard');
 });
 require __DIR__.'/auth.php';
 

@@ -6,24 +6,28 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
 
 class AdminUserSeeder extends Seeder
 {
 	public function run(): void
 	{
-		$admin = User::updateOrCreate(
+		// 1. Create role first
+		$role = Role::firstOrCreate([
+			                            'name' => 'admin',
+			                            'guard_name' => 'web',
+		                            ]);
+
+		// 2. Create user
+		$user = User::firstOrCreate(
+			['email' => 'admin@test.com'],
 			[
-				'email' => 'admin@syncro.com'
-			],
-			[
-				'name'     => 'Super Admin',
-				'password' => Hash::make('password123'), // change later
+				'name' => 'Admin',
+				'password' => bcrypt('password'),
 			]
 		);
 
-		// If using Spatie Roles (recommended)
-		if (method_exists($admin, 'assignRole')) {
-			$admin->assignRole('admin');
-		}
+		// 3. Assign role
+		$user->assignRole($role);
 	}
 }
