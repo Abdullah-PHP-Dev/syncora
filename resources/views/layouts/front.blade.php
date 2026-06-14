@@ -8,7 +8,7 @@
     <!-- Bootstrap 5.3 CDN -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-    @vite(['resources/js/app.js'])
+    {{--@vite(['resources/js/app.js'])--}}
 
     <style>
 
