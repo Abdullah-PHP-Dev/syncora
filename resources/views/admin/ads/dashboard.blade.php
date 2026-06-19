@@ -10,12 +10,14 @@
                 <div class="d-flex align-items-start row">
                     <div class="col-sm-7">
                         <div class="card-body">
-                            <h5 class="card-title text-primary mb-3">Congratulations John! 🎉</h5>
+                            <h5 class="card-title text-primary mb-3">{{__('admin.marketing_tools.ads.accounts.connect_header')}} 🎉</h5>
                             <p class="mb-6">
-                                You have done 72% more sales today.<br />Check your new badge in your profile.
+                                {{__('admin.marketing_tools.ads.accounts.connect_description')}}
                             </p>
-
-                            <a href="javascript:;" class="btn btn-sm btn-outline-primary">View Badges</a>
+                            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#socialConnectModal">
+                                <i class="icon-link bx bx-link"></i>
+                                {{__('admin.marketing_tools.ads.accounts.connect_account')}}
+                            </button>
                         </div>
                     </div>
                     <div class="col-sm-5 text-center text-sm-left">
@@ -505,6 +507,169 @@
                             </div>
                         </li>
                     </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="socialConnectModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg social-modal">
+
+                <div class="modal-header border-0 pb-0 mt-0 pt-0">
+                    <div>
+                        <h4 class="mb-1 font-weight-bold mb-0 mt-0">{{__('admin.marketing_tools.ads.accounts.connect_header')}}</h4>
+                        <small class="text-muted">{{__('admin.marketing_tools.ads.accounts.manage_account_description')}}</small>
+                    </div>
+
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal">
+                    </button>
+                </div>
+
+                <div class="modal-body pt-4">
+                    <div class="row">
+
+                        <!-- Facebook -->
+                        <div class="col-6 col-md-2 mb-3">
+                            <div class="social-card-mini">
+                                <a href="{{ route('admin.ads.redirect', 'facebook') }}">
+                                    <div class="social-icon-mini facebook">
+                                        <i class="bx bxl-facebook"></i>
+                                    </div>
+
+                                    <h6 class="mt-2 mb-1">{{__('admin.marketing_tools.ads.accounts.facebook.header')}}</h6>
+                                    {{-- @if ($mediaAccounts->where('platform', 'facebook')->whereNotNull('page_token')->count())
+                                    <small class="connected-text">
+                                            Connected
+                                    </small> --}}
+                                    {{-- @else --}}
+                                        <small class="disconnected-text">{{__('admin.marketing_tools.ads.accounts.connect')}}</small>
+                                    {{-- @endif --}}
+                                </a>
+
+                            </div>
+                        </div>
+
+                        <!-- Instagram -->
+                        <div class="col-6 col-md-2 mb-3">
+                            <div class="social-card-mini">
+                                <a href="{{ route('admin.ads.redirect', 'instagram') }}">
+                                    <div class="social-icon-mini instagram">
+                                        <i class="bx bxl-instagram"></i>
+                                    </div>
+
+                                    <h6 class="mt-2 mb-1">{{__('admin.marketing_tools.ads.accounts.instagram.header')}}</h6>
+                                    {{-- @if ($mediaAccounts->where('platform', 'instagram')->whereNotNull('page_token')->count())
+                                    <small class="connected-text">
+                                            Connected
+                                    </small>
+                                    @else --}}
+                                        <small class="disconnected-text">{{__('admin.marketing_tools.ads.accounts.connect')}}</small>
+                                    {{-- @endif --}}
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Twitter -->
+                        <div class="col-6 col-md-2 mb-3">
+                            <div class="social-card-mini">
+                                <a href="{{ route('admin.ads.redirect', 'x') }}">
+                                    <div class="social-icon-mini instagram">
+                                        <i class="bx bxl-twitter"></i>
+                                    </div>
+
+                                    <h6 class="mt-2 mb-1">{{__('admin.marketing_tools.ads.accounts.x.header')}}</h6>
+                                    {{-- @if ($mediaAccounts->where('platform', 'x')->whereNotNull('page_token')->count())
+                                    <small class="connected-text">
+                                            Connected
+                                    </small>
+                                    @else --}}
+                                        <small class="disconnected-text">{{__('admin.marketing_tools.ads.accounts.connect')}}</small>
+                                    {{-- @endif --}}
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- TikTok -->
+                        <div class="col-6 col-md-2 mb-3">
+                            <div class="social-card-mini">
+                                <a href="{{ route('admin.ads.redirect', 'tiktok') }}">
+                                    <div class="social-icon-mini tiktok">
+                                        <i class="bx bxl-tiktok"></i>
+                                    </div>
+
+                                    <h6 class="mt-2 mb-1">{{__('admin.marketing_tools.ads.accounts.tiktok.header')}}</h6>
+                                    {{-- @if ($mediaAccounts->where('platform', 'tiktok')->whereNotNull('page_token')->count())
+                                    <small class="connected-text">
+                                            Connected
+                                    </small>
+                                    @else --}}
+                                        <small class="disconnected-text">{{__('admin.marketing_tools.ads.accounts.connect')}}</small>
+                                    {{-- @endif --}}
+                                </a>
+                            </div>
+                        </div>
+                        <!-- Google -->
+                        <div class="col-6 col-md-2 mb-3">
+                            <div class="social-card-mini">
+                                <a href="{{ route('admin.ads.redirect', 'google') }}">
+                                    <div class="social-icon-mini google">
+                                        <i class="bx bxl-google"></i>
+                                    </div>
+
+                                    <h6 class="mt-2 mb-1">{{__('admin.marketing_tools.ads.accounts.google.header')}}</h6>
+                                    {{-- @if ($mediaAccounts->where('platform', 'google')->whereNotNull('page_token')->count())
+                                    <small class="connected-text">
+                                            Connected
+                                    </small>
+                                    @else --}}
+                                        <small class="disconnected-text">{{__('admin.marketing_tools.ads.accounts.connect')}}</small>
+                                    {{-- @endif --}}
+                                </a>
+                            </div>
+                        </div>
+                        <!-- YouTube -->
+                        <div class="col-6 col-md-2 mb-3">
+                            <div class="social-card-mini">
+                                <a href="{{ route('admin.ads.redirect', 'youtube') }}">
+                                    <div class="social-icon-mini youtube">
+                                        <i class="bx bxl-youtube"></i>
+                                    </div>
+
+                                    <h6 class="mt-2 mb-1">{{__('admin.marketing_tools.ads.accounts.youtube.header')}}</h6>
+                                    {{-- @if ($mediaAccounts->where('platform', 'youtube')->whereNotNull('page_token')->count())
+                                    <small class="connected-text">
+                                            Connected
+                                    </small>
+                                    @else --}}
+                                        <small class="disconnected-text">{{__('admin.marketing_tools.ads.accounts.connect')}}</small>
+                                    {{-- @endif --}}
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- LinkedIn -->
+                        <div class="col-6 col-md-2 mb-3">
+                            <div class="social-card-mini">
+                                <a href="{{ route('admin.ads.redirect', 'linkedin') }}">
+                                    <div class="social-icon-mini linkedin">
+                                        <i class="bx bxl-linkedin"></i>
+                                    </div>
+
+                                    <h6 class="mt-2 mb-1">{{__('admin.marketing_tools.ads.accounts.linkedin.header')}}</h6>
+                                    {{-- @if ($mediaAccounts->where('platform', 'linkedin')->whereNotNull('page_token')->count())
+                                    <small class="connected-text">
+                                            Connected
+                                    </small>
+                                    @else --}}
+                                        <small class="disconnected-text">{{__('admin.marketing_tools.ads.accounts.connect')}}</small>
+                                    {{-- @endif --}}
+                                </a>
+                            </div>
+                        </div>
+
+                    </div>
                 </div>
             </div>
         </div>

@@ -86,9 +86,9 @@
 
                     <!-- Profile -->
                     <li>
-                        <a class="dropdown-item" href="#">
+                        <a class="dropdown-item" href="{{route('admin.profiles.show', ['profile' => Auth::user()->id])}}">
                             <i class="icon-base bx bx-user icon-md me-3"></i>
-                            <span>My Profile</span>
+                            <span>{{ __('admin.profile.my_profile') }}</span>
                         </a>
                     </li>
 
@@ -96,7 +96,7 @@
                     <li>
                         <a class="dropdown-item" href="#">
                             <i class="icon-base bx bx-cog icon-md me-3"></i>
-                            <span>Settings</span>
+                            <span>{{ __('admin.setting.header') }}</span>
                         </a>
                     </li>
 
@@ -105,7 +105,7 @@
                         <a class="dropdown-item" href="#">
                             <span class="d-flex align-items-center">
                                 <i class="icon-base bx bx-credit-card icon-md me-3"></i>
-                                <span class="flex-grow-1">Billing Plan</span>
+                                <span class="flex-grow-1">{{ __('admin.setting.billing_plan') }}</span>
                                 <span class="badge rounded-pill bg-danger">4</span>
                             </span>
                         </a>
@@ -119,7 +119,7 @@
                            onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
 
                             <i class="icon-base bx bx-power-off icon-md me-3"></i>
-                            <span>Log Out</span>
+                            <span>{{ __('admin.setting.logout') }}</span>
                         </a>
 
                         <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
