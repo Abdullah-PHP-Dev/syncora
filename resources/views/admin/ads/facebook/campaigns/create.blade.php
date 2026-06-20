@@ -193,8 +193,9 @@
                                     <div class="campaign-steps">
                                         <div class="step active">Campaign</div>
                                         <div class="step">Budget</div>
-                                        <div class="step">Audience</div>
+                                        <div class="step">Goal</div>
                                         <div class="step">Creative</div>
+                                        <div class="step">Audience</div>
                                         <div class="step">Review</div>
                                     </div>
                                 </div>
@@ -243,6 +244,7 @@
                                                     </div>
                                                 </div>
                                             </div>
+                                            <br>
                                             <div class="row">
                                                 <div class="col-md-6">
                                                     <label>Campaign Name</label>
@@ -318,7 +320,55 @@
                                             </div>
 
                                         </div>
+                                        <div class="builder-card">
 
+                                            <h5>Goal Setup</h5>
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <select id="optimization_gaol" class="form-select">
+                                                        <option value="">Optimization Gaol</option>
+                                                        <option value="LEARN_MORE">Learn More</option>
+                                                        <option value="SHOP_NOW">Shop Now</option>
+                                                        <option value="SIGN_UP">Sign Up</option>
+                                                        <option value="BOOK_NOW">Book Now</option>
+                                                        <option value="CONTACT_US">Contact Us</option>
+                                                        <option value="CALL_NOW">Call Now</option>
+                                                        <option value="SEND_MESSAGE">Send Message</option>
+                                                        <option value="DOWNLOAD">Download</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <select id="billing_event" class="form-select">
+                                                        <option value="">Billing Event</option>
+                                                        <option value="male">Male</option>
+                                                        <option value="female">Female</option>
+                                                        <option value="both">Both</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <br>
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <select id="destination_type" class="form-select">
+                                                        <option value="">Destination Type</option>
+                                                        <option value="18">18</option>
+                                                        <option value="19">19</option>
+                                                        <option value="20">20</option>
+                                                        <option value="21">21</option>
+                                                        <option value="22">22</option>
+                                                        <option value="23">23</option>
+                                                        <option value="24">24</option>
+                                                        <option value="25">25</option>
+                                                        <option value="26">26</option>
+                                                        <option value="27">27</option>
+                                                        <option value="28">28</option>
+                                                        <option value="29">29</option>
+                                                        <option value="30">30</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                        </div>
                                         <div class="builder-card">
 
                                             <h5>Ad Creative</h5>
@@ -372,7 +422,7 @@
                                             <h5>Audience</h5>
                                             <div class="row">
                                                 <div class="col-md-6">
-                                                    <select id="ctaType" class="form-select">
+                                                    <select id="call_to_action" class="form-select">
                                                         <option value="">Call To Action</option>
                                                         <option value="LEARN_MORE">Learn More</option>
                                                         <option value="SHOP_NOW">Shop Now</option>
@@ -385,7 +435,7 @@
                                                     </select>
                                                 </div>
                                                 <div class="col-md-6">
-                                                    <select id="ctaType" class="form-select">
+                                                    <select id="gender" class="form-select">
                                                         <option value="">Gender</option>
                                                         <option value="male">Male</option>
                                                         <option value="female">Female</option>
@@ -396,11 +446,42 @@
                                             <br>
                                             <div class="row">
                                                 <div class="col-md-6">
-                                                    <select id="ctaType" class="form-select">
-                                                        <option value="">Gender</option>
-                                                        <option value="male">Male</option>
-                                                        <option value="female">Female</option>
-                                                        <option value="both">Both</option>
+                                                    <select id="age_from" class="form-select">
+                                                        <option value="">Age From</option>
+                                                        <option value="18">18</option>
+                                                        <option value="19">19</option>
+                                                        <option value="20">20</option>
+                                                        <option value="21">21</option>
+                                                        <option value="22">22</option>
+                                                        <option value="23">23</option>
+                                                        <option value="24">24</option>
+                                                        <option value="25">25</option>
+                                                        <option value="26">26</option>
+                                                        <option value="27">27</option>
+                                                        <option value="28">28</option>
+                                                        <option value="29">29</option>
+                                                        <option value="30">30</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <select id="age_to" class="form-select">
+                                                        <option value="">Age To</option>
+                                                        <option value="31">31</option>
+                                                        <option value="32">32</option>
+                                                        <option value="33">33</option>
+                                                        <option value="34">34</option>
+                                                        <option value="35">35</option>
+                                                        <option value="36">36</option>
+                                                        <option value="37">37</option>
+                                                        <option value="38">38</option>
+                                                        <option value="39">39</option>
+                                                        <option value="40">40</option>
+                                                        <option value="41">41</option>
+                                                        <option value="42">42</option>
+                                                        <option value="43">43</option>
+                                                        <option value="44">44</option>
+                                                        <option value="45">45</option>
+                                                        <option value="45+">45+</option>
                                                     </select>
                                                 </div>
                                             </div>
@@ -438,21 +519,6 @@
                                                 </div>
                                                 
                                             </div>
-                                           
-                                            <div class="mt-4">
-
-                                                <label>Description</label>
-
-                                                <textarea id="adDescription" rows="4" class="form-control"></textarea>
-
-                                            </div>
-                                            <div class="mt-4">
-                                                <label>Target URL</label>
-
-                                                <input type="url" id="targetLink" class="form-control"
-                                                    placeholder="https://example.com">
-                                            </div>
-
                                         </div>
                                     </div>
 
@@ -471,7 +537,7 @@
                                                     <div class="avatar"></div>
 
                                                     <div>
-                                                        <strong>Twsaa</strong>
+                                                        <strong>Socialeaz</strong>
                                                         <div>Sponsored</div>
                                                     </div>
                                                 </div>
@@ -607,7 +673,7 @@
 
         });
 
-        document.getElementById('ctaType').addEventListener('change', function() {
+        document.getElementById('call_to_action').addEventListener('change', function() {
             let text = this.options[this.selectedIndex].text;
 
             document.getElementById('previewCTA')
