@@ -6,14 +6,17 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Http\Requests\AdCampaignRequest;
 use App\Models\Admin\AdCampaign;
+use App\Models\Admin\AdAccount;
+
 
 class AdCampaignController extends Controller
 {
-    protected $adCampaignModel;
+    protected $adCampaignModel, $adAccountModel;
 
-    public function __construct(AdCampaign $adCampaignModel)
+    public function __construct(AdCampaign $adCampaignModel, AdAccount $adAccountModel)
     {
         $this->adCampaignModel = $adCampaignModel;
+        $this->adAccountModel = $adAccountModel;
     }
     /**
      * Display a listing of the resource.
@@ -30,7 +33,8 @@ class AdCampaignController extends Controller
      */
     public function create($platform)
     {
-        return view('admin.ads.'.$platform.'.campaigns.create', compact('platform'));
+        $account = $this->adAccountModel->where('platform', $platform)->first();
+        return view('admin.ads.'.$platform.'.campaigns.create', compact('platform', 'account'));
     }
 
     /**

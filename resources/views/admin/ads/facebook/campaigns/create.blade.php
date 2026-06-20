@@ -160,403 +160,429 @@
 </style>
 @section('content')
     <div class="col-xxl-12 mb-0">
-            <div class="authentication-wrapper authentication-basic container-p-y">
-                <div class="authentication-inner">
-                    <div class="card px-sm-6 px-0">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-end mb-3">
-                                <a href="{{ route('admin.ads.campaigns.index', ['platform' => $platform]) }}">
-                                    <button class="btn btn-primary btn-sm">
-                                        <i class="bx bx-list-ul"></i> {{ __('admin.marketing_tools.ads.campaign.header') }}
-                                    </button>
-                                </a>
-                            </div>
-                            <div class="campaign-builder">
+        <div class="authentication-wrapper authentication-basic container-p-y">
+            <div class="authentication-inner">
+                <div class="card px-sm-6 px-0">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-end mb-3">
+                            <a href="{{ route('admin.ads.campaigns.index', ['platform' => $platform]) }}">
+                                <button class="btn btn-primary btn-sm">
+                                    <i class="bx bx-list-ul"></i> {{ __('admin.marketing_tools.ads.campaign.header') }}
+                                </button>
+                            </a>
+                        </div>
+                        <div class="campaign-builder">
 
-                                <div class="builder-header">
-                                    <div class="meta-logo">
-                                        <i class="bx bxl-facebook-circle"></i>
-                                        <i class="bx bxl-instagram-alt"></i>
+                            <div class="builder-header">
+                                <div class="meta-logo">
+                                    <i class="bx bxl-facebook-circle"></i>
+                                    <i class="bx bxl-instagram-alt"></i>
+                                </div>
+
+                                <h2>Create Meta Campaign</h2>
+
+                                <div class="campaign-steps">
+                                    <div class="step active">Campaign</div>
+                                    <div class="step">Budget</div>
+                                    <div class="step">Goal</div>
+                                    <div class="step">Creative</div>
+                                    <div class="step">Audience</div>
+                                    <div class="step">Review</div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+
+                                <!-- LEFT SIDE -->
+                                <div class="col-lg-8">
+
+                                    <div class="builder-card">
+
+                                        <h5>Campaign Information</h5>
+
+                                        <div class="row">
+
+                                            <div class="col-md-12">
+                                                <label>Platforms</label>
+
+                                                <div class="platform-group">
+
+                                                    <div class="platform-card">
+                                                        <div class="form-check form-switch">
+                                                            <input class="form-check-input platform-switch" type="checkbox"
+                                                                id="facebook" checked>
+
+                                                            <label class="form-check-label ms-2" for="facebook">
+                                                                <i class="bx bxl-facebook text-primary"></i>
+                                                                Facebook
+                                                            </label>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="platform-card">
+                                                        <div class="form-check form-switch">
+                                                            <input class="form-check-input platform-switch" type="checkbox"
+                                                                id="instagram">
+
+                                                            <label class="form-check-label ms-2" for="instagram">
+                                                                <i class="bx bxl-instagram text-danger"></i>
+                                                                Instagram
+                                                            </label>
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <br>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <label>Campaign Name</label>
+                                                <input type="text" id="campaignName" class="form-control">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label>Objective</label>
+                                                <select id="objective" class="form-select">
+                                                    <option value="OUTCOME_TRAFFIC">Traffic</option>
+                                                    <option value="OUTCOME_SALES">Sales</option>
+                                                    <option value="OUTCOME_ENGAGEMENT">Engagement</option>
+                                                    <option value="OUTCOME_AWARENESS">Awareness</option>
+                                                    <option value="OUTCOME_APP_PROMOTION">App promotion</option>
+                                                    <option value="OUTCOME_LEADS">Leads</option>
+                                                </select>
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <h2>Create Meta Campaign</h2>
+                                    <div class="builder-card">
 
-                                    <div class="campaign-steps">
-                                        <div class="step active">Campaign</div>
-                                        <div class="step">Budget</div>
-                                        <div class="step">Goal</div>
-                                        <div class="step">Creative</div>
-                                        <div class="step">Audience</div>
-                                        <div class="step">Review</div>
+                                        <h5>Budget & Schedule</h5>
+
+                                        <div class="row mt-4">
+
+                                            <div class="col-md-6">
+                                                <label>Start Date</label>
+                                                <input type="date" id="start_time" name="start_time"
+                                                    class="form-control">
+                                            </div>
+
+                                            <div class="col-md-6">
+                                                <label>End Date</label>
+                                                <input type="date" id="end_time" name="end_time" class="form-control">
+                                            </div>
+
+                                        </div>
+
+                                        <div class="row mt-4">
+
+                                            <div class="col-md-4">
+                                                <label>Budget Type</label>
+                                                <select class="form-select">
+                                                    <option>Daily Budget</option>
+                                                    <option>Lifetime Budget</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="col-md-4">
+                                                <label>Budget</label>
+                                                <div class="input-group">
+                                                    <span class="input-group-text">{{ $account->currency }}</span>
+                                                    <input class="form-control">
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-4">
+                                                <label>Bid Amount</label>
+                                                <div class="input-group">
+                                                    <span class="input-group-text">{{ $account->currency }}</span>
+                                                    <input class="form-control">
+                                                </div>
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+                                    <div class="builder-card">
+
+                                        <h5>Goal Setup</h5>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <select id="destination_type" class="form-select">
+                                                    <option value="">Destination Type</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <select id="optimization_goal" class="form-select">
+                                                    <option value="">Optimization Gaol</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <br>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <select id="billing_event" class="form-select">
+                                                    <option value="">Billing Event</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                    <div class="builder-card">
+
+                                        <h5>Ad Creative</h5>
+                                        <div class="duration-buttons">
+
+                                            <button type="button" class="duration-btn active" data-type="image">
+                                                Image
+                                            </button>
+
+                                            <button type="button" class="duration-btn" data-type="carousel">
+                                                Carousel
+                                            </button>
+
+                                            <button type="button" class="duration-btn" data-type="video">
+                                                Video
+                                            </button>
+
+                                        </div>
+                                        <br>
+                                        <div class="upload-zone">
+                                            <i class="bx bx-cloud-upload"></i>
+
+                                            <h6>Drag & Drop Media</h6>
+
+                                            <p>Upload image or video</p>
+
+                                            <input type="file" id="mediaInput" hidden accept="image/*,video/*">
+
+                                            <button type="button" class="btn btn-primary" onclick="mediaInput.click()">
+                                                Upload Media
+                                            </button>
+                                        </div>
+
+                                        <div class="mt-4">
+
+                                            <label>Description</label>
+
+                                            <textarea id="adDescription" rows="4" class="form-control"></textarea>
+
+                                        </div>
+                                        <div class="mt-4">
+                                            <label>Target URL</label>
+
+                                            <input type="url" id="targetLink" class="form-control"
+                                                placeholder="https://example.com">
+                                        </div>
+
+                                    </div>
+                                    <div class="builder-card">
+
+                                        <h5>Audience</h5>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <select id="call_to_action" class="form-select">
+                                                    <option value="">Call To Action</option>
+                                                    <option value="LEARN_MORE">Learn More</option>
+                                                    <option value="SHOP_NOW">Shop Now</option>
+                                                    <option value="SIGN_UP">Sign Up</option>
+                                                    <option value="BOOK_NOW">Book Now</option>
+                                                    <option value="CONTACT_US">Contact Us</option>
+                                                    <option value="CALL_NOW">Call Now</option>
+                                                    <option value="SEND_MESSAGE">Send Message</option>
+                                                    <option value="DOWNLOAD">Download</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <select id="gender" class="form-select">
+                                                    <option value="">Gender</option>
+                                                    <option value="male">Male</option>
+                                                    <option value="female">Female</option>
+                                                    <option value="both">Both</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <br>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <select id="age_from" class="form-select">
+                                                    <option value="">Age From</option>
+                                                    <option value="18">18</option>
+                                                    <option value="19">19</option>
+                                                    <option value="20">20</option>
+                                                    <option value="21">21</option>
+                                                    <option value="22">22</option>
+                                                    <option value="23">23</option>
+                                                    <option value="24">24</option>
+                                                    <option value="25">25</option>
+                                                    <option value="26">26</option>
+                                                    <option value="27">27</option>
+                                                    <option value="28">28</option>
+                                                    <option value="29">29</option>
+                                                    <option value="30">30</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <select id="age_to" class="form-select">
+                                                    <option value="">Age To</option>
+                                                    <option value="31">31</option>
+                                                    <option value="32">32</option>
+                                                    <option value="33">33</option>
+                                                    <option value="34">34</option>
+                                                    <option value="35">35</option>
+                                                    <option value="36">36</option>
+                                                    <option value="37">37</option>
+                                                    <option value="38">38</option>
+                                                    <option value="39">39</option>
+                                                    <option value="40">40</option>
+                                                    <option value="41">41</option>
+                                                    <option value="42">42</option>
+                                                    <option value="43">43</option>
+                                                    <option value="44">44</option>
+                                                    <option value="45">45</option>
+                                                    <option value="45+">45+</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <br>
+                                        <div class="row">
+                                            <div class="col-md-12">
+                                                <label>Languages</label>
+
+                                                <div class="platform-group">
+
+                                                    <div class="platform-card">
+                                                        <div class="form-check form-switch">
+                                                            <input class="form-check-input platform-switch"
+                                                                type="checkbox" name="langauges[]" value="english"
+                                                                id="english" checked>
+
+                                                            <label class="form-check-label ms-2" for="english">
+                                                                English
+                                                            </label>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="platform-card">
+                                                        <div class="form-check form-switch">
+                                                            <input class="form-check-input platform-switch"
+                                                                type="checkbox" id="instagramPlatform" name="langauges[]"
+                                                                value="arabic">
+
+                                                            <label class="form-check-label ms-2" for="arabic">
+                                                                Arabic
+                                                            </label>
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div class="row">
+                                <!-- RIGHT SIDE -->
+                                <div class="col-lg-4">
 
-                                    <!-- LEFT SIDE -->
-                                    <div class="col-lg-8">
+                                    <div class="preview-card">
 
-                                        <div class="builder-card">
-
-                                            <h5>Campaign Information</h5>
-
-                                            <div class="row">
-
-                                                <div class="col-md-12">
-                                                    <label>Platforms</label>
-
-                                                    <div class="platform-group">
-
-                                                        <div class="platform-card">
-                                                            <div class="form-check form-switch">
-                                                                <input class="form-check-input platform-switch"
-                                                                    type="checkbox" id="facebookPlatform" checked>
-
-                                                                <label class="form-check-label ms-2" for="facebookPlatform">
-                                                                    <i class="bx bxl-facebook text-primary"></i>
-                                                                    Facebook
-                                                                </label>
-                                                            </div>
-                                                        </div>
-
-                                                        <div class="platform-card">
-                                                            <div class="form-check form-switch">
-                                                                <input class="form-check-input platform-switch"
-                                                                    type="checkbox" id="instagramPlatform">
-
-                                                                <label class="form-check-label ms-2"
-                                                                    for="instagramPlatform">
-                                                                    <i class="bx bxl-instagram text-danger"></i>
-                                                                    Instagram
-                                                                </label>
-                                                            </div>
-                                                        </div>
-
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <br>
-                                            <div class="row">
-                                                <div class="col-md-6">
-                                                    <label>Campaign Name</label>
-                                                    <input type="text" id="campaignName" class="form-control">
-                                                </div>
-                                            </div>
+                                        <div class="preview-header">
+                                            Live Preview
                                         </div>
 
-                                        <div class="builder-card">
+                                        <div class="facebook-preview">
 
-                                            <h5>Budget & Schedule</h5>
+                                            <div class="preview-top">
+                                                <div class="avatar"></div>
 
-                                            <div class="duration-buttons">
-
-                                                <button type="button" class="duration-btn active">
-                                                    1 Week
-                                                </button>
-
-                                                <button type="button" class="duration-btn">
-                                                    2 Weeks
-                                                </button>
-
-                                                <button type="button" class="duration-btn">
-                                                    1 Month
-                                                </button>
-
-                                                <button type="button" class="duration-btn">
-                                                    Custom
-                                                </button>
-
-                                            </div>
-
-                                            <div class="row mt-4">
-
-                                                <div class="col-md-6">
-                                                    <label>Start Date</label>
-                                                    <input type="date" class="form-control">
-                                                </div>
-
-                                                <div class="col-md-6">
-                                                    <label>End Date</label>
-                                                    <input type="date" class="form-control">
-                                                </div>
-
-                                            </div>
-
-                                            <div class="row mt-4">
-
-                                                <div class="col-md-4">
-                                                    <label>Budget Type</label>
-                                                    <select class="form-select">
-                                                        <option>Daily Budget</option>
-                                                        <option>Lifetime Budget</option>
-                                                    </select>
-                                                </div>
-
-                                                <div class="col-md-4">
-                                                    <label>Budget</label>
-                                                    <div class="input-group">
-                                                        <span class="input-group-text">SAR</span>
-                                                        <input class="form-control">
-                                                    </div>
-                                                </div>
-
-                                                <div class="col-md-4">
-                                                    <label>Bid Amount</label>
-                                                    <div class="input-group">
-                                                        <span class="input-group-text">SAR</span>
-                                                        <input class="form-control">
-                                                    </div>
-                                                </div>
-
-                                            </div>
-
-                                        </div>
-                                        <div class="builder-card">
-
-                                            <h5>Goal Setup</h5>
-                                            <div class="row">
-                                                <div class="col-md-6">
-                                                    <select id="optimization_gaol" class="form-select">
-                                                        <option value="">Optimization Gaol</option>
-                                                        <option value="LEARN_MORE">Learn More</option>
-                                                        <option value="SHOP_NOW">Shop Now</option>
-                                                        <option value="SIGN_UP">Sign Up</option>
-                                                        <option value="BOOK_NOW">Book Now</option>
-                                                        <option value="CONTACT_US">Contact Us</option>
-                                                        <option value="CALL_NOW">Call Now</option>
-                                                        <option value="SEND_MESSAGE">Send Message</option>
-                                                        <option value="DOWNLOAD">Download</option>
-                                                    </select>
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <select id="billing_event" class="form-select">
-                                                        <option value="">Billing Event</option>
-                                                        <option value="male">Male</option>
-                                                        <option value="female">Female</option>
-                                                        <option value="both">Both</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <br>
-                                            <div class="row">
-                                                <div class="col-md-6">
-                                                    <select id="destination_type" class="form-select">
-                                                        <option value="">Destination Type</option>
-                                                        <option value="18">18</option>
-                                                        <option value="19">19</option>
-                                                        <option value="20">20</option>
-                                                        <option value="21">21</option>
-                                                        <option value="22">22</option>
-                                                        <option value="23">23</option>
-                                                        <option value="24">24</option>
-                                                        <option value="25">25</option>
-                                                        <option value="26">26</option>
-                                                        <option value="27">27</option>
-                                                        <option value="28">28</option>
-                                                        <option value="29">29</option>
-                                                        <option value="30">30</option>
-                                                    </select>
+                                                <div>
+                                                    <strong>{{ $account->name }}</strong>
+                                                    <div>Sponsored</div>
                                                 </div>
                                             </div>
 
-                                        </div>
-                                        <div class="builder-card">
+                                            <img id="previewImage" class="preview-image" style="display:none">
 
-                                            <h5>Ad Creative</h5>
-                                            <div class="duration-buttons">
+                                            <video id="previewVideo" class="preview-image" controls
+                                                style="display:none;width:100%;border-radius:12px;">
+                                            </video>
+                                            <div id="carouselPreview" style="display:none">
 
-                                                <button type="button" class="duration-btn active">
-                                                    Image
-                                                </button>
 
-                                                <button type="button" class="duration-btn">
-                                                    Carousel
-                                                </button>
+                                                <img id="carouselImage" class="preview-image">
 
-                                                <button type="button" class="duration-btn">
-                                                    Video
-                                                </button>
 
-                                            </div>
-                                            <br>
-                                            <div class="upload-zone">
-                                                <i class="bx bx-cloud-upload"></i>
+                                                <div class="mt-3">
 
-                                                <h6>Drag & Drop Media</h6>
+                                                    <label>Title</label>
 
-                                                <p>Upload image or video</p>
+                                                    <input type="text" id="carouselTitle" class="form-control"
+                                                        placeholder="Card title">
 
-                                                <input type="file" id="mediaInput" hidden>
-
-                                                <button type="button" class="btn btn-primary" onclick="mediaInput.click()">
-                                                    Upload Media
-                                                </button>
-                                            </div>
-
-                                            <div class="mt-4">
-
-                                                <label>Description</label>
-
-                                                <textarea id="adDescription" rows="4" class="form-control"></textarea>
-
-                                            </div>
-                                            <div class="mt-4">
-                                                <label>Target URL</label>
-
-                                                <input type="url" id="targetLink" class="form-control"
-                                                    placeholder="https://example.com">
-                                            </div>
-
-                                        </div>
-                                        <div class="builder-card">
-
-                                            <h5>Audience</h5>
-                                            <div class="row">
-                                                <div class="col-md-6">
-                                                    <select id="call_to_action" class="form-select">
-                                                        <option value="">Call To Action</option>
-                                                        <option value="LEARN_MORE">Learn More</option>
-                                                        <option value="SHOP_NOW">Shop Now</option>
-                                                        <option value="SIGN_UP">Sign Up</option>
-                                                        <option value="BOOK_NOW">Book Now</option>
-                                                        <option value="CONTACT_US">Contact Us</option>
-                                                        <option value="CALL_NOW">Call Now</option>
-                                                        <option value="SEND_MESSAGE">Send Message</option>
-                                                        <option value="DOWNLOAD">Download</option>
-                                                    </select>
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <select id="gender" class="form-select">
-                                                        <option value="">Gender</option>
-                                                        <option value="male">Male</option>
-                                                        <option value="female">Female</option>
-                                                        <option value="both">Both</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <br>
-                                            <div class="row">
-                                                <div class="col-md-6">
-                                                    <select id="age_from" class="form-select">
-                                                        <option value="">Age From</option>
-                                                        <option value="18">18</option>
-                                                        <option value="19">19</option>
-                                                        <option value="20">20</option>
-                                                        <option value="21">21</option>
-                                                        <option value="22">22</option>
-                                                        <option value="23">23</option>
-                                                        <option value="24">24</option>
-                                                        <option value="25">25</option>
-                                                        <option value="26">26</option>
-                                                        <option value="27">27</option>
-                                                        <option value="28">28</option>
-                                                        <option value="29">29</option>
-                                                        <option value="30">30</option>
-                                                    </select>
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <select id="age_to" class="form-select">
-                                                        <option value="">Age To</option>
-                                                        <option value="31">31</option>
-                                                        <option value="32">32</option>
-                                                        <option value="33">33</option>
-                                                        <option value="34">34</option>
-                                                        <option value="35">35</option>
-                                                        <option value="36">36</option>
-                                                        <option value="37">37</option>
-                                                        <option value="38">38</option>
-                                                        <option value="39">39</option>
-                                                        <option value="40">40</option>
-                                                        <option value="41">41</option>
-                                                        <option value="42">42</option>
-                                                        <option value="43">43</option>
-                                                        <option value="44">44</option>
-                                                        <option value="45">45</option>
-                                                        <option value="45+">45+</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <br>
-                                            <div class="row">
-                                                <div class="col-md-12">
-                                                    <label>Languages</label>
-
-                                                    <div class="platform-group">
-
-                                                        <div class="platform-card">
-                                                            <div class="form-check form-switch">
-                                                                <input class="form-check-input platform-switch"
-                                                                    type="checkbox" name="langauges[]" value="english" id="facebookPlatform" checked>
-
-                                                                <label class="form-check-label ms-2" for="facebookPlatform">
-                                                                    English
-                                                                </label>
-                                                            </div>
-                                                        </div>
-
-                                                        <div class="platform-card">
-                                                            <div class="form-check form-switch">
-                                                                <input class="form-check-input platform-switch"
-                                                                    type="checkbox" id="instagramPlatform" name="langauges[]" value="arabic">
-
-                                                                <label class="form-check-label ms-2"
-                                                                    for="instagramPlatform">
-                                                                    Arabic
-                                                                </label>
-                                                            </div>
-                                                        </div>
-
-                                                    </div>
-                                                </div>
-                                                
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- RIGHT SIDE -->
-                                    <div class="col-lg-4">
-
-                                        <div class="preview-card">
-
-                                            <div class="preview-header">
-                                                Live Preview
-                                            </div>
-
-                                            <div class="facebook-preview">
-
-                                                <div class="preview-top">
-                                                    <div class="avatar"></div>
-
-                                                    <div>
-                                                        <strong>Socialeaz</strong>
-                                                        <div>Sponsored</div>
-                                                    </div>
-                                                </div>
-
-                                                <img id="previewImage" class="preview-image" style="display:none">
-
-                                                <video id="previewVideo" class="preview-image" controls
-                                                    style="display:none;width:100%;border-radius:12px;">
-                                                </video>
-
-                                                <div class="preview-content">
-
-                                                    <h6 id="previewTitle">
-                                                        Campaign Name
-                                                    </h6>
-
-                                                    <p id="previewDescription">
-                                                        Ad description will appear here...
-                                                    </p>
 
                                                 </div>
 
-                                                <a id="previewCTA" href="#" target="_blank"
-                                                    class="btn btn-primary w-100">
-                                                    Learn More
-                                                </a>
+
+                                                <div class="mt-3">
+
+                                                    <label>Description</label>
+
+                                                    <textarea id="carouselDescription" class="form-control" rows="3" placeholder="Card description"></textarea>
+
+
+                                                </div>
+
+
+                                                <div class="mt-3">
+
+                                                    <label>Card URL</label>
+
+                                                    <input type="url" id="carouselLink" class="form-control"
+                                                        placeholder="https://example.com">
+
+                                                </div>
+
+
+                                                <div class="d-flex justify-content-between mt-3">
+
+
+                                                    <button type="button" class="btn btn-primary" id="prevImage">
+
+                                                        Previous
+
+                                                    </button>
+
+
+                                                    <span id="carouselCounter"></span>
+
+
+                                                    <button type="button" class="btn btn-primary" id="nextImage">
+
+                                                        Next
+
+                                                    </button>
+
+
+                                                </div>
+
 
                                             </div>
+                                            <div class="preview-content">
+
+                                                <h6 id="previewTitle">
+                                                    Campaign Name
+                                                </h6>
+
+                                                <p id="previewDescription">
+                                                    Ad description will appear here...
+                                                </p>
+
+                                            </div>
+
+                                            <a id="previewCTA" href="#" target="_blank"
+                                                class="btn btn-primary w-100">
+                                                Learn More
+                                            </a>
 
                                         </div>
 
@@ -567,10 +593,12 @@
                             </div>
 
                         </div>
-                    </div>
 
+                    </div>
                 </div>
+
             </div>
+        </div>
     </div>
 @endsection
 
@@ -609,31 +637,155 @@
 
         });
 
-        document.getElementById('mediaInput').addEventListener('change', function(e) {
+        let creativeType = 'image';
+        let carouselItems = [];
+        let currentIndex = 0;
+        let mediaInput = document.getElementById('mediaInput');
+        let carousel = document.getElementById('carouselPreview');
 
-            let file = e.target.files[0];
 
-            if (!file) return;
 
-            let image = document.getElementById('previewImage');
-            let video = document.getElementById('previewVideo');
+        document.querySelectorAll('.duration-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
 
-            image.style.display = 'none';
-            video.style.display = 'none';
+                document.querySelectorAll('.duration-btn')
+                    .forEach(x => x.classList.remove('active'));
 
-            let fileURL = URL.createObjectURL(file);
+                this.classList.add('active');
 
-            if (file.type.startsWith('image/')) {
+                creativeType = this.dataset.type;
 
-                image.src = fileURL;
-                image.style.display = 'block';
+                let input = document.getElementById('mediaInput');
 
-            } else if (file.type.startsWith('video/')) {
+                if (creativeType === 'carousel') {
 
-                video.src = fileURL;
-                video.style.display = 'block';
+                    input.setAttribute('multiple', true);
+                    input.accept = "image/*";
+
+                    carouselItems = [];
+                    currentIndex = 0;
+
+                } else if (creativeType === 'image') {
+
+                    input.removeAttribute('multiple');
+                    input.accept = "image/*";
+
+                } else {
+
+                    input.removeAttribute('multiple');
+                    input.accept = "video/*";
+                }
+            });
+        });
+
+        function loadCarouselItem() {
+
+            if (!carouselItems.length) return;
+
+            let item = carouselItems[currentIndex];
+
+            document.getElementById('carouselImage').src = item.image;
+            document.getElementById('carouselTitle').value = item.title;
+            document.getElementById('carouselDescription').value = item.description;
+            document.getElementById('carouselLink').value = item.link;
+
+            document.getElementById('carouselCounter').innerHTML =
+                `${currentIndex + 1} / ${carouselItems.length}`;
+        }
+        document.getElementById('carouselTitle').addEventListener('input', function() {
+
+
+            carouselItems[currentIndex].title = this.value;
+
+
+        });
+
+
+
+        document.getElementById('carouselDescription').addEventListener('input', function() {
+
+
+            carouselItems[currentIndex].description = this.value;
+
+
+        });
+
+
+
+        document.getElementById('carouselLink').addEventListener('input', function() {
+
+
+            carouselItems[currentIndex].link = this.value;
+
+
+        });
+
+
+        document.getElementById('mediaInput')
+            .addEventListener('change', function(e) {
+
+                let files = Array.from(e.target.files);
+
+                let image = document.getElementById('previewImage');
+                let video = document.getElementById('previewVideo');
+
+                image.style.display = 'none';
+                video.style.display = 'none';
+                carousel.style.display = 'none';
+
+                if (creativeType === 'carousel') {
+
+                    carouselItems = files.map(file => ({
+                        image: URL.createObjectURL(file),
+                        title: '',
+                        description: '',
+                        link: ''
+                    }));
+
+                    currentIndex = 0;
+
+                    loadCarouselItem();
+                    carousel.style.display = 'block';
+
+                } else {
+
+                    let file = files[0];
+                    if (!file) return;
+
+                    let url = URL.createObjectURL(file);
+
+                    if (file.type.startsWith('image/')) {
+                        image.src = url;
+                        image.style.display = 'block';
+                    } else {
+                        video.src = url;
+                        video.style.display = 'block';
+                    }
+                }
+            });
+
+        document.getElementById('nextImage').addEventListener('click', function() {
+            if (currentIndex < carouselItems.length - 1) {
+                currentIndex++;
+                loadCarouselItem();
+            }
+        });
+
+
+
+
+
+        document.getElementById('prevImage').addEventListener('click', function() {
+
+
+            if (currentIndex > 0) {
+
+                currentIndex--;
+
+                loadCarouselItem();
 
             }
+
 
         });
         document.getElementById('targetLink').addEventListener('keyup', function() {
@@ -685,14 +837,201 @@
             });
         }
 
-        document.querySelectorAll('.platform-switch')
-            .forEach(item => {
+        document.querySelectorAll('.platform-switch').forEach(item => {
 
-                item.addEventListener('change', updatePlatformCards);
+            item.addEventListener('change', updatePlatformCards);
+
+        });
+
+        updatePlatformCards();
+
+
+        const objectiveMap = {
+
+            OUTCOME_AWARENESS: {
+                destinationTypes: [],
+                optimizationGoals: [
+                    'REACH',
+                    'IMPRESSIONS',
+                    'AD_RECALL_LIFT'
+                ],
+                billingEvents: [
+                    'IMPRESSIONS'
+                ],
+                ctas: [
+                    'LEARN_MORE'
+                ]
+            },
+
+            OUTCOME_TRAFFIC: {
+                destinationTypes: [
+                    'WEBSITE',
+                    'APP',
+                    'MESSENGER',
+                    'WHATSAPP'
+                ],
+                optimizationGoals: [
+                    'LINK_CLICKS',
+                    'LANDING_PAGE_VIEWS'
+                ],
+                billingEvents: [
+                    'IMPRESSIONS'
+                ],
+                ctas: [
+                    'LEARN_MORE',
+                    'SHOP_NOW',
+                    'CONTACT_US'
+                ]
+            },
+
+            OUTCOME_ENGAGEMENT: {
+                destinationTypes: [
+                    'MESSENGER',
+                    'WHATSAPP'
+                ],
+                optimizationGoals: [
+                    'POST_ENGAGEMENT',
+                    'VIDEO_VIEWS',
+                    'THRUPLAY'
+                ],
+                billingEvents: [
+                    'IMPRESSIONS'
+                ],
+                ctas: [
+                    'SEND_MESSAGE'
+                ]
+            },
+
+            OUTCOME_LEADS: {
+                conversionLocations: [
+                    'WEBSITE',
+                    'INSTANT_FORM',
+                    'MESSENGER',
+                    'WHATSAPP'
+                ],
+                optimizationGoals: [
+                    'LEADS',
+                    'QUALITY_LEADS'
+                ],
+                billingEvents: [
+                    'IMPRESSIONS'
+                ],
+                ctas: [
+                    'SIGN_UP',
+                    'APPLY_NOW',
+                    'BOOK_NOW'
+                ]
+            },
+
+            OUTCOME_APP_PROMOTION: {
+                destinationTypes: [
+                    'APP'
+                ],
+                optimizationGoals: [
+                    'APP_INSTALLS',
+                    'APP_EVENTS'
+                ],
+                billingEvents: [
+                    'IMPRESSIONS'
+                ],
+                ctas: [
+                    'DOWNLOAD'
+                ]
+            },
+
+            OUTCOME_SALES: {
+                conversionLocations: [
+                    'WEBSITE',
+                    'APP',
+                    'SHOP'
+                ],
+                optimizationGoals: [
+                    'OFFSITE_CONVERSIONS',
+                    'PURCHASE'
+                ],
+                billingEvents: [
+                    'IMPRESSIONS'
+                ],
+                ctas: [
+                    'SHOP_NOW',
+                    'BUY_NOW'
+                ]
+            }
+        };
+        populateFields(objectiveMap['OUTCOME_TRAFFIC']);
+        $('#objective').on('change', function() {
+            let objective = $(this).val();
+            console.log(objectiveMap[objective])
+            populateFields(objectiveMap[objective]);
+        });
+
+        function populateFields(data) {
+            var billingEvents = data['billingEvents'];
+            let options = '<option value="">Billing Event</option>';
+            // Billing Event
+            $.each(billingEvents, function(index, value) {
+
+                options += `
+                    <option value="${value}">
+                         ${beautifyLabel(value)}
+                    </option>
+                `;
+
+            });
+            $('#billing_event').html(options);
+
+            // Optimization Goal code
+            var optimizationGaols = data['optimizationGoals'];
+            let goalOptions = '<option value="">Optimization Goal</option>';
+
+            $.each(optimizationGaols, function(index, value) {
+
+                goalOptions += `
+                    <option value="${value}">
+                        ${beautifyLabel(value)}
+                    </option>
+                `;
+
+            });
+            $('#optimization_goal').html(goalOptions);
+
+            // destination Type
+            var destinationTypes = data['destinationTypes'];
+            let destinationTypeOptions = '<option value="">Destination Type</option>';
+
+            $.each(destinationTypes, function(index, value) {
+
+                destinationTypeOptions += `
+                    <option value="${value}">
+                        ${beautifyLabel(value)}
+                    </option>
+                `;
+            });
+            $('#destination_type').html(destinationTypeOptions);
+
+            // CTA
+            var ctas = data['ctas'];
+            let ctaOptions = '<option value="">Call To Action</option>';
+
+            $.each(ctas, function(index, value) {
+
+                ctaOptions += `
+                    <option value="${value}">
+                        ${beautifyLabel(value)}
+                    </option>
+                `;
 
             });
 
-        updatePlatformCards();
+            $('#call_to_action').html(ctaOptions);
+        }
+
+        function beautifyLabel(value) {
+            return value
+                .toLowerCase()
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, char => char.toUpperCase());
+        }
     </script>
 
     <script src="{{ asset('assets/js/admin/api.js') }}"></script>
