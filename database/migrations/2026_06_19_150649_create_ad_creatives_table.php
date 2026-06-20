@@ -34,9 +34,9 @@ return new class extends Migration
             
             
             
-            $table->foreignId('company_id')
-            ->constrained()
-            ->cascadeOnDelete();
+            // $table->foreignId('company_id')
+            // ->constrained()
+            // ->cascadeOnDelete();
             
             
             

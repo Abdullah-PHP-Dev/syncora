@@ -14,9 +14,9 @@ return new class extends Migration
             $table->string('platform');
             $table->string('name')->nullable();
 
-            $table->foreignId('company_id')
-                ->constrained()
-                ->cascadeOnDelete();
+            // $table->foreignId('company_id')
+            //     ->constrained()
+            //     ->cascadeOnDelete();
 
             $table->string('currency')->nullable();
 

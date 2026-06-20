@@ -539,13 +539,13 @@
                                     </div>
 
                                     <h6 class="mt-2 mb-1">{{__('admin.marketing_tools.ads.accounts.facebook.header')}}</h6>
-                                    {{-- @if ($mediaAccounts->where('platform', 'facebook')->whereNotNull('page_token')->count())
+                                    @if ($mediaAccounts->where('platform', 'facebook')->whereNotNull('page_token')->count())
                                     <small class="connected-text">
                                             Connected
-                                    </small> --}}
-                                    {{-- @else --}}
+                                    </small>
+                                    @else
                                         <small class="disconnected-text">{{__('admin.marketing_tools.ads.accounts.connect')}}</small>
-                                    {{-- @endif --}}
+                                    @endif
                                 </a>
 
                             </div>

@@ -16,9 +16,9 @@ return new class extends Migration
             $table->id();
         
         
-            $table->foreignId('ad_company_id')
-                ->constrained('companies')
-                ->cascadeOnDelete();
+            // $table->foreignId('ad_company_id')
+            //     ->constrained('companies')
+            //     ->cascadeOnDelete();
         
         
             $table->foreignId('ad_account_id')

@@ -15,9 +15,9 @@ return new class extends Migration
             $table->id();
             $table->string('ad_media_id');
             $table->string('platform');
-            $table->foreignId('company_id')
-            ->constrained()
-            ->cascadeOnDelete();
+            // $table->foreignId('company_id')
+            // ->constrained()
+            // ->cascadeOnDelete();
             $table->foreignId('ad_account_id')
             ->constrained()
             ->cascadeOnDelete();
