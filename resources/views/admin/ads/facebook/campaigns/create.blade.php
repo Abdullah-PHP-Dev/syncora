@@ -171,14 +171,6 @@
                                     </button>
                                 </a>
                             </div>
-                            <!-- Logo -->
-                            <div class="app-brand justify-content-center mb-4">
-                                <a href="{{ url('/') }}" class="app-brand-link gap-2">
-                                    <span class="app-brand-text demo text-heading fw-bold">
-                                        {{ config('app.name') }}
-                                    </span>
-                                </a>
-                            </div>
                             <div class="campaign-builder">
 
                                 <div class="builder-header">
