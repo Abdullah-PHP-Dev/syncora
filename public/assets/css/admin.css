@@ -1,6 +1,9 @@
 .error-message {
     color: red;
 }
+.swal2-container {
+    z-index: 20000 !important;
+}
 .social-post-widget {
     background: transparent;
 }

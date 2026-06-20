@@ -1,7 +1,20 @@
 <?php
 
 return [
+    'table' => [
+        'action' => 'Action',
+        'edit' => 'Edit',
+        'delete' => 'Delete',
+    ],
+    'api' => [
+        'header' => 'API',
+        'create_header' => 'Create API Integration',
+        'create_description' => 'Configure a new API connection to securely communicate with external services, platforms, and applications.',
+        'create_api' => 'Add',
+        'key' => 'Key',
+        'value' => 'Value',
 
+    ],
     'marketing_tools' => [
         'header' => 'Marketing tools',
         'ads'    => [
@@ -76,6 +89,11 @@ return [
         'error' => "Error",
         'success' => 'Success',
         'changes-not-saved' => "Changes are not saved",
+        'are-you-sure' => 'Are You Sure?',
+        'record-has-been-deleted' => 'Record has been deleted.',
+        'deleted' => 'Deleted!',
+        'you-wont-be-able-to-revert-this' => "You would not be able to revert this!",
+        'yes-delete-it' => 'Yes delete it!',
     ],
     'dashboard' => 'Dashboard',
     'logout' => 'Logout',

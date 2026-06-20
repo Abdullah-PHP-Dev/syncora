@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\PostController;
 use App\Http\Controllers\Admin\ChatController;
 use App\Http\Controllers\Admin\CommentController;
 use App\Http\Controllers\Admin\ProfileController;
+use App\Http\Controllers\Admin\AdminAPIController;
 
 Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	'web',
@@ -54,7 +55,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 			->name('comments.dashboard');
 			Route::get('ads/{platform}/redirect', [AdController::class, 'redirect'])->name('ads.redirect');
 			Route::get('ads/{platform}/callback', [AdController::class, 'callback']);
-
+			Route::resource('/apis', AdminAPIController::class);
 			//profile
 			Route::resource('/profiles', ProfileController::class);
 		});

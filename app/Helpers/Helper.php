@@ -2,7 +2,7 @@
 
 use App\Models\Admin\AdminSetting;
 
-if (! function_exists('setting')) {
+if (! function_exists('adminSetting')) {
 
     /**
      * Get setting value
@@ -19,7 +19,7 @@ if (! function_exists('setting')) {
     }
 }
 
-if (! function_exists('set_setting')) {
+if (! function_exists('set_adminSetting')) {
 
     /**
      * Create or update setting
@@ -39,12 +39,12 @@ if (! function_exists('set_setting')) {
     }
 }
 
-if (! function_exists('delete_setting')) {
+if (! function_exists('deleteAdminSetting')) {
 
     /**
      * Delete setting
      */
-    function delete_adminSetting(string $key): bool
+    function deleteAdminSetting(string $key): bool
     {
         return AdminSetting::where('key', $key)->delete();
     }

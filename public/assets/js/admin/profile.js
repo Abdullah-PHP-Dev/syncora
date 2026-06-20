@@ -19,14 +19,33 @@ $(document).ready(function () {
                     url: updateUrl,
                     data: profile,
                     success: function (res) {
-                        console.log(res);
-
                         Swal.fire(saveHeader+"!", "", "success");
                     },
                     error: function (xhr) {
-                        console.log(xhr.responseText);
 
-                        Swal.fire(error+"!", wentWrong, "error");
+                        $('.error-message').html('');
+                        $('.form-control').removeClass('is-invalid');
+                    
+                        if (xhr.status === 422) {
+                    
+                            let errors = xhr.responseJSON.errors;
+                    
+                            $.each(errors, function (field, messages) {
+                    
+                                // Add error text
+                                $('.error-' + field).html(messages[0]);
+                    
+                                // Add invalid class to input
+                                $('input[name="' + field + '"]')
+                                    .addClass('is-invalid');
+                    
+                            });
+                    
+                        } else {
+                    
+                            Swal.fire(error+"!", wentWrong, "error");
+                    
+                        }
                     }
                 });
 

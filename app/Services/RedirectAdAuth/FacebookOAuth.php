@@ -58,14 +58,12 @@ class FacebookOAuth
 
         $accountId = str_replace('act_', '', $response['facebook_account_id']);
         $instagramId = $response['instagram_account_id'];
-
     
         $InstagramDataToInsert = [
             'access_token' => $accessToken,
+            'refresh_token_token' =>  data_get($data, 'refresh_token') ?? null,
             'account_id' => $instagramId,
             'expires_at' => Carbon::now()->addSeconds($expiresIn),
-            'app_id' => $mediaAccount->app_id ?? time(),
-            'app_secret' => $mediaAccount->app_secret ?? time(),
         ];
     }
 

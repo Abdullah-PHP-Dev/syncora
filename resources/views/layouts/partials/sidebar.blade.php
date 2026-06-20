@@ -106,7 +106,7 @@
         <li class="menu-header small text-uppercase">
             <span class="menu-header-text">Apps & Pages</span>
         </li>
-
+        <li class="menu-item {{ request()->routeIs('admin.apis.*')  ? 'active' : '' }}"><a href="{{route('admin.apis.index')}}" class="menu-link"><i class="bx bx-chat me-2"></i>{{__('admin.api.header')}}</a></li>
         <li class="menu-item"><a href="#" class="menu-link"><i class="bx bx-envelope me-2"></i>Email</a></li>
         <li class="menu-item"><a href="#" class="menu-link"><i class="bx bx-chat me-2"></i>Chat</a></li>
         <li class="menu-item"><a href="#" class="menu-link"><i class="bx bx-calendar me-2"></i>Calendar</a></li>
