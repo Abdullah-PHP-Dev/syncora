@@ -60,9 +60,9 @@ $(document).ready(function () {
                                                 <i class="icon-base bx bx-dots-vertical-rounded icon-md text-body"></i>
                                             </a>
                                             <div class="dropdown-menu dropdown-menu-end">
-                                                <a href="javascript:void(0);" class="dropdown-item"> ${edit}</a>
+                                                <a href="javascript:void(0);" data-key="${key}" class="dropdown-item edit"> ${edit}</a>
                                                 <div class="dropdown-divider"></div>
-                                                <a href="javascript:;" class="dropdown-item delete-record text-danger">${deletebutton}</a>
+                                                <a href="javascript:;" data-key="${key}" class="dropdown-item delete-record text-danger">${deletebutton}</a>
                                             </div>
                                         </div>
                                     </div>
