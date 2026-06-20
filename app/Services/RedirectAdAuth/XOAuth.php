@@ -9,8 +9,8 @@ class XOAuth
 {
     public function redirect($state)
     {
-        $clientId = config('services.ads.x.app_id');
-        $secret = config('ads.x.app_secret');
+        $clientId = adminSetting('ads.x.client_id');
+        $secret = adminSetting('ads.x.client_secret');
 
         $oauthTimestamp = time();
 

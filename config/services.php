@@ -69,39 +69,5 @@ return [
     //         'app_secret' => ''
     //     ],
     // ],
-    // 'ads' => [
-    //     'facebook' => [
-    //         'app_id' => '910004983387413',
-    //         'app_secret' => '641598ba8098464ff1b15d8e80c68d27'
-    //     ],
-    //     'instagram' => [
-    //         'app_id' => '910004983387413',
-    //         'app_secret' => '641598ba8098464ff1b15d8e80c68d27'
-    //     ],
-    //     'google' => [
-    //         'app_id' => '805156061921-ljvqjli5sq75scg311r6m791l1mn4bor.apps.googleusercontent.com',
-    //         'app_secret' => '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'
-    //     ],
-    //     'youtube' => [
-    //         'app_id' => '805156061921-ljvqjli5sq75scg311r6m791l1mn4bor.apps.googleusercontent.com',
-    //         'app_secret' => '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'
-    //     ],
-    //     'tiktok' => [
-    //         'app_id' => '7480839935793037328',
-    //         'app_secret' => 'c773f651a4e44b49c8e657738a3d50cf15bff365'
-    //     ],
-    //     'snapchat' => [
-    //         'app_id' => '7f009f97-95d9-48ed-9cd8-4a1e2b4e8020',
-    //         'app_secret' => '95f067f0eb1b26b954de'
-    //     ],
-    //     'x' => [
-    //         'app_id' => 'GwMY8ViF593RKigiqWiHzN4Ao',
-    //         'app_secret' => 'BbI5xjGEQsoSZFAleipk9O7sU7F1hsBQcNgtwrNZtzR57kT7B9'
-    //     ],
-    //     'linkedin' => [
-    //         'app_id' => '',
-    //         'app_secret' => ''
-    //     ],
-    // ]
 
 ];

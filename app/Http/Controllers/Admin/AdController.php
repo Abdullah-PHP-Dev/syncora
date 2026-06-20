@@ -4,14 +4,36 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\AdAccount;
+use App\Models\Admin\AdAccount;
+use Carbon\Carbon;
+
 use App\Services\RedirectAdAuth\SocialAuthManager;
 
 class AdController extends Controller
 {
+    protected $adAccountModel;
+
+    public function __construct(AdAccount $adAccountModel)
+    {
+        $this->adAccountModel = $adAccountModel;
+    }
+
     public function dashboard()
     {
-        return view('admin.ads.dashboard');
+        $accounts = $this->adAccountModel->whereNotNull('access_token')
+            ->where('expires_at', '>', now())
+            ->get()
+            ->groupBy('platform');
+
+        $platforms = ['facebook','instagram','google','youtube','tiktok','snapchat','x','linkedin'];
+
+        $connected = [];
+
+        foreach ($platforms as $platform) {
+            $connected[$platform] = $accounts->get($platform, collect())->count();
+        }
+
+        return view('admin.ads.dashboard', compact('accounts', 'connected' ));
     }
     
     /**

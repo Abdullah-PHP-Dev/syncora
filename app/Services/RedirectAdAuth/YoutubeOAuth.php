@@ -8,7 +8,7 @@ class YoutubeOAuth
 {
     public function redirect($state)
     {
-        $clientId = config('services.ads.google.app_id');
+        $clientId = adminSetting('ads.youtube.client_id');
 
         $url = "https://accounts.google.com/o/oauth2/v2/auth?" . http_build_query([
 

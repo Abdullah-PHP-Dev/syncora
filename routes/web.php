@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\ChatController;
 use App\Http\Controllers\Admin\CommentController;
 use App\Http\Controllers\Admin\ProfileController;
 use App\Http\Controllers\Admin\AdminAPIController;
+use App\Http\Controllers\Admin\AdCampaignController;
 
 Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	'web',
@@ -51,6 +52,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 			Route::get('chats/dashboard', [ChatController::class, 'dashboard'])
 			->name('chats.dashboard');
 			Route::resource('/platform/comments', CommentController::class);
+			Route::resource('ads/{platform}/campaigns', AdCampaignController::class)
+			->names('ads.campaigns');
 			Route::get('comments/dashboard', [CommentController::class, 'dashboard'])
 			->name('comments.dashboard');
 			Route::get('ads/{platform}/redirect', [AdController::class, 'redirect'])->name('ads.redirect');

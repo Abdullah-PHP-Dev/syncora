@@ -21,9 +21,16 @@ return [
             'header' => 'Social Media Ads',
             'campaign' => [
                 'header' => 'Campaigns',
+                'name' => 'Name',
+                'start_time' => 'Start Date',
+                'end_time' => 'End Time',
+                'objective' => 'Objective',
+                'status' => 'Status',
+                'action' => 'Action',
             ],
             'accounts' => [
                 'connect_header' => 'Connect Social Accounts',
+                'see_all_running_campaigns' => 'See All running campaigns',
                 'connect_description' => 'You are one click away to launch a campaign',
                 'connect_account' => 'Connect Accounts',
                 'manage_account_description' => 'Manage all your connected platforms',

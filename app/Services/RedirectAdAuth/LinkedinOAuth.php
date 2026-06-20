@@ -8,7 +8,7 @@ class LinkedinOAuth
 {
     public function redirect($state)
     {
-        $clientId = config('services.ads.linkedin.app_id');
+        $clientId = adminSetting('ads.google.client_id');
 
         $url = "https://accounts.google.com/o/oauth2/v2/auth?" . http_build_query([
 

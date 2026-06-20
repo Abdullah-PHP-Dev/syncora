@@ -3,7 +3,7 @@
 namespace App\Services\RedirectAdAuth;
 
 use Illuminate\Support\Facades\Redirect;
-use App\Models\AdAccount;
+use App\Models\Admin\AdAccount;
 use Illuminate\Support\Facades\Http;
 use Carbon\Carbon;
 
@@ -11,9 +11,8 @@ class FacebookOAuth
 {
     protected $platform, $adAccountModel, $mediaAccountModel, $config, $httpClient;
 
-    public function __construct($platform, AdAccount $adAccountModel)
+    public function __construct(AdAccount $adAccountModel)
     {
-        $this->platform = $platform;
         $this->adAccountModel = $adAccountModel;
         $this->config = config("services.ads.facebook");
         $this->httpClient =  Http::class;
@@ -21,7 +20,7 @@ class FacebookOAuth
 
     public function redirect($platform, $state, $codeVerifier)
     {
-        $clientId = $this->config['app_id'];
+        $clientId = adminSetting('ads.facebook.client_id');
 
         return redirect("https://www.facebook.com/v25.0/dialog/oauth?client_id={$clientId}&redirect_uri={$this->getCallbackUrl()}&state={$state}&code_verifier={$codeVerifier}&scope=ads_management,ads_read");
     }
@@ -39,8 +38,8 @@ class FacebookOAuth
         $endpoint = adminSetting('ads.facebook.endpoint.access_token');
 
         $response = $this->httpClient::get($endpoint, [
-            'client_id' => $this->config['app_id'],
-            'client_secret' => $this->config['app_secret'],
+            'client_id' => adminSetting('ads.facebook.client_id'),
+            'client_secret' => adminSetting('ads.facebook.client_secret'),
             'grant_type' => 'authorization_code',
             'redirect_uri' => $redirectUri,
             'code' => $code, // this must be from the Facebook callback

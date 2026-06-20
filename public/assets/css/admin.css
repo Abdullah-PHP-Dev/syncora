@@ -258,6 +258,8 @@ span.stats-value.stats {
 }
 
 .facebook { background: #1877f2; }
+.snapchat { background: #FFFC00;color: #000;}
+.google {background: #DB4437;color: #fff;}
 .instagram { background: linear-gradient(135deg,#f58529,#dd2a7b,#8134af); }
 .twitter { background: #111111; }
 .tiktok { background: #111; }

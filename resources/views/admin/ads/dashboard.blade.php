@@ -529,20 +529,19 @@
 
                 <div class="modal-body pt-4">
                     <div class="row">
-
                         <!-- Facebook -->
                         <div class="col-6 col-md-2 mb-3">
                             <div class="social-card-mini">
-                                <a href="{{ route('admin.ads.redirect', 'facebook') }}">
+                                <a href="{{ $connected['facebook'] == 1 ? route('admin.ads.campaigns.index', ['platform' => 'facebook']) : route('admin.ads.redirect', 'facebook') }}">
                                     <div class="social-icon-mini facebook">
                                         <i class="bx bxl-facebook"></i>
                                     </div>
 
                                     <h6 class="mt-2 mb-1">{{__('admin.marketing_tools.ads.accounts.facebook.header')}}</h6>
-                                    @if ($mediaAccounts->where('platform', 'facebook')->whereNotNull('page_token')->count())
-                                    <small class="connected-text">
-                                            Connected
-                                    </small>
+                                    @if ($connected['facebook'] == 1)
+                                        <small class="connected-text">
+                                            {{__('admin.marketing_tools.ads.accounts.see_all_running_campaigns')}}
+                                        </small>
                                     @else
                                         <small class="disconnected-text">{{__('admin.marketing_tools.ads.accounts.connect')}}</small>
                                     @endif
@@ -550,23 +549,28 @@
 
                             </div>
                         </div>
-
+                        @php
+                            $instagramConnected = $accounts->where('platform', 'instagram')
+                                ->whereNotNull('access_token')
+                                ->where('expires_at', '>', now())
+                                ->count();
+                        @endphp
                         <!-- Instagram -->
                         <div class="col-6 col-md-2 mb-3">
                             <div class="social-card-mini">
-                                <a href="{{ route('admin.ads.redirect', 'instagram') }}">
+                                <a href="{{ $connected['instagram'] == 1 ? route('admin.ads.campaigns.index', ['platform' => 'instagram']) : route('admin.ads.redirect', 'instagram') }}">
                                     <div class="social-icon-mini instagram">
                                         <i class="bx bxl-instagram"></i>
                                     </div>
 
                                     <h6 class="mt-2 mb-1">{{__('admin.marketing_tools.ads.accounts.instagram.header')}}</h6>
-                                    {{-- @if ($mediaAccounts->where('platform', 'instagram')->whereNotNull('page_token')->count())
-                                    <small class="connected-text">
-                                            Connected
-                                    </small>
-                                    @else --}}
+                                    @if ($connected['instagram'] == 1)
+                                        <small class="connected-text">
+                                            {{__('admin.marketing_tools.ads.accounts.see_all_running_campaigns')}}
+                                        </small>
+                                    @else
                                         <small class="disconnected-text">{{__('admin.marketing_tools.ads.accounts.connect')}}</small>
-                                    {{-- @endif --}}
+                                    @endif
                                 </a>
                             </div>
                         </div>
@@ -574,77 +578,95 @@
                         <!-- Twitter -->
                         <div class="col-6 col-md-2 mb-3">
                             <div class="social-card-mini">
-                                <a href="{{ route('admin.ads.redirect', 'x') }}">
-                                    <div class="social-icon-mini instagram">
+                                <a href="{{ $connected['x'] == 1 ? route('admin.ads.campaigns.index', ['platform' => 'x']) : route('admin.ads.redirect', 'x') }}">
+                                    <div class="social-icon-mini twitter">
                                         <i class="bx bxl-twitter"></i>
                                     </div>
 
                                     <h6 class="mt-2 mb-1">{{__('admin.marketing_tools.ads.accounts.x.header')}}</h6>
-                                    {{-- @if ($mediaAccounts->where('platform', 'x')->whereNotNull('page_token')->count())
-                                    <small class="connected-text">
-                                            Connected
-                                    </small>
-                                    @else --}}
+                                    @if ($connected['x'] == 1)
+                                        <small class="connected-text">
+                                            {{__('admin.marketing_tools.ads.accounts.see_all_running_campaigns')}}
+                                        </small>
+                                    @else
                                         <small class="disconnected-text">{{__('admin.marketing_tools.ads.accounts.connect')}}</small>
-                                    {{-- @endif --}}
+                                    @endif
                                 </a>
                             </div>
                         </div>
+                        <!-- Snapchat -->
+                        <div class="col-6 col-md-2 mb-3">
+                            <div class="social-card-mini">
+                                <a href="{{ $connected['snapchat'] == 1 ? route('admin.ads.campaigns.index', ['platform' => 'snapchat']) : route('admin.ads.redirect', 'snapchat') }}">
+                                    <div class="social-icon-mini snapchat">
+                                        <i class="bx bxl-snapchat"></i>
+                                    </div>
 
+                                    <h6 class="mt-2 mb-1">{{__('admin.marketing_tools.ads.accounts.snapchat.header')}}</h6>
+                                    @if ($connected['snapchat'] == 1)
+                                        <small class="connected-text">
+                                            {{__('admin.marketing_tools.ads.accounts.see_all_running_campaigns')}}
+                                        </small>
+                                    @else
+                                        <small class="disconnected-text">{{__('admin.marketing_tools.ads.accounts.connect')}}</small>
+                                    @endif
+                                </a>
+                            </div>
+                        </div>
                         <!-- TikTok -->
                         <div class="col-6 col-md-2 mb-3">
                             <div class="social-card-mini">
-                                <a href="{{ route('admin.ads.redirect', 'tiktok') }}">
+                                <a href="{{ $connected['tiktok'] == 1 ? route('admin.ads.campaigns.index', ['platform' => 'tiktok']) : route('admin.ads.redirect', 'tiktok') }}">
                                     <div class="social-icon-mini tiktok">
                                         <i class="bx bxl-tiktok"></i>
                                     </div>
 
                                     <h6 class="mt-2 mb-1">{{__('admin.marketing_tools.ads.accounts.tiktok.header')}}</h6>
-                                    {{-- @if ($mediaAccounts->where('platform', 'tiktok')->whereNotNull('page_token')->count())
-                                    <small class="connected-text">
-                                            Connected
-                                    </small>
-                                    @else --}}
+                                    @if ($connected['tiktok'] == 1)
+                                        <small class="connected-text">
+                                            {{__('admin.marketing_tools.ads.accounts.see_all_running_campaigns')}}
+                                        </small>
+                                    @else
                                         <small class="disconnected-text">{{__('admin.marketing_tools.ads.accounts.connect')}}</small>
-                                    {{-- @endif --}}
+                                    @endif
                                 </a>
                             </div>
                         </div>
                         <!-- Google -->
                         <div class="col-6 col-md-2 mb-3">
                             <div class="social-card-mini">
-                                <a href="{{ route('admin.ads.redirect', 'google') }}">
+                                <a href="{{ $connected['google'] == 1 ? route('admin.ads.campaigns.index', ['platform' => 'google']) : route('admin.ads.redirect', 'google') }}">
                                     <div class="social-icon-mini google">
                                         <i class="bx bxl-google"></i>
                                     </div>
 
                                     <h6 class="mt-2 mb-1">{{__('admin.marketing_tools.ads.accounts.google.header')}}</h6>
-                                    {{-- @if ($mediaAccounts->where('platform', 'google')->whereNotNull('page_token')->count())
+                                    @if ($connected['google'] == 1)
                                     <small class="connected-text">
-                                            Connected
+                                        {{__('admin.marketing_tools.ads.accounts.see_all_running_campaigns')}}
                                     </small>
-                                    @else --}}
-                                        <small class="disconnected-text">{{__('admin.marketing_tools.ads.accounts.connect')}}</small>
-                                    {{-- @endif --}}
+                                @else
+                                    <small class="disconnected-text">{{__('admin.marketing_tools.ads.accounts.connect')}}</small>
+                                @endif
                                 </a>
                             </div>
                         </div>
                         <!-- YouTube -->
                         <div class="col-6 col-md-2 mb-3">
                             <div class="social-card-mini">
-                                <a href="{{ route('admin.ads.redirect', 'youtube') }}">
+                                <a href="{{ $connected['youtube'] == 1 ? route('admin.ads.campaigns.index', ['platform' => 'youtube']) : route('admin.ads.redirect', 'youtube') }}">
                                     <div class="social-icon-mini youtube">
                                         <i class="bx bxl-youtube"></i>
                                     </div>
 
                                     <h6 class="mt-2 mb-1">{{__('admin.marketing_tools.ads.accounts.youtube.header')}}</h6>
-                                    {{-- @if ($mediaAccounts->where('platform', 'youtube')->whereNotNull('page_token')->count())
-                                    <small class="connected-text">
-                                            Connected
-                                    </small>
-                                    @else --}}
+                                    @if ($connected['youtube'] == 1)
+                                        <small class="connected-text">
+                                            {{__('admin.marketing_tools.ads.accounts.see_all_running_campaigns')}}
+                                        </small>
+                                    @else
                                         <small class="disconnected-text">{{__('admin.marketing_tools.ads.accounts.connect')}}</small>
-                                    {{-- @endif --}}
+                                    @endif
                                 </a>
                             </div>
                         </div>
@@ -652,19 +674,19 @@
                         <!-- LinkedIn -->
                         <div class="col-6 col-md-2 mb-3">
                             <div class="social-card-mini">
-                                <a href="{{ route('admin.ads.redirect', 'linkedin') }}">
+                                <a href="{{ $connected['linkedin'] == 1 ? route('admin.ads.campaigns.index', ['platform' => 'linkedin']) : route('admin.ads.redirect', 'linkedin') }}">
                                     <div class="social-icon-mini linkedin">
                                         <i class="bx bxl-linkedin"></i>
                                     </div>
 
                                     <h6 class="mt-2 mb-1">{{__('admin.marketing_tools.ads.accounts.linkedin.header')}}</h6>
-                                    {{-- @if ($mediaAccounts->where('platform', 'linkedin')->whereNotNull('page_token')->count())
-                                    <small class="connected-text">
-                                            Connected
-                                    </small>
-                                    @else --}}
+                                    @if ($connected['linkedin'] == 1)
+                                        <small class="connected-text">
+                                            {{__('admin.marketing_tools.ads.accounts.see_all_running_campaigns')}}
+                                        </small>
+                                    @else
                                         <small class="disconnected-text">{{__('admin.marketing_tools.ads.accounts.connect')}}</small>
-                                    {{-- @endif --}}
+                                    @endif
                                 </a>
                             </div>
                         </div>

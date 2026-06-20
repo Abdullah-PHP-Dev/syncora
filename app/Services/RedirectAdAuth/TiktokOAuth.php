@@ -8,7 +8,7 @@ class TiktokOAuth
 {
     public function redirect($state)
     {
-        $clientId = config('services.ads.tiktok.app_id');
+        $clientId = adminSetting('ads.tiktok.client_id');
 
         $tiktokAuthUrl = "https://business-api.tiktok.com/portal/auth?" . http_build_query([
             'app_id' => $clientId,

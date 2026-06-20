@@ -9,7 +9,7 @@ class SnapchatOAuth
 {
     public function redirect($state)
     {
-        $clientId = config('services.ads.snapchat.app_id');
+        $clientId = adminSetting('ads.snapchat.client_id');
 
         $url = 'https://accounts.snapchat.com/login/oauth2/authorize?' . http_build_query([
             'client_id'     => $clientId,
