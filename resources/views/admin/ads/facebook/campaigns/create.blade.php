@@ -160,7 +160,6 @@
 </style>
 @section('content')
     <div class="col-xxl-12 mb-0">
-        <div class="card">
             <div class="authentication-wrapper authentication-basic container-p-y">
                 <div class="authentication-inner">
                     <div class="card px-sm-6 px-0">
@@ -580,7 +579,6 @@
 
                 </div>
             </div>
-        </div>
     </div>
 @endsection
 
