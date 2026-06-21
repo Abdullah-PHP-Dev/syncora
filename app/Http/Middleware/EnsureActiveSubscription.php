@@ -24,7 +24,7 @@ class EnsureActiveSubscription
 
 
 		if (!$bundle) {
-			return redirect('/subscription/select')
+			return redirect('/admin/subscription/select')
 				->with('error', 'Please choose a subscription plan');
 		}
 

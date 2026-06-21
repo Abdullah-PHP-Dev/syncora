@@ -35,16 +35,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 	Route::middleware(['auth'])->group(function () {
 
-		/*
-		|--------------------------------------------------------------------------
-		| SUBSCRIPTION FLOW (ALWAYS ACCESSIBLE)
-		|--------------------------------------------------------------------------
-		*/
-		// subscription flow (NO middleware restriction)
-		Route::get('/subscription/select', [SubscriptionController::class, 'select']);
-		Route::post('/subscription/checkout', [SubscriptionController::class, 'checkout']);
-		Route::post('/subscription/activate', [SubscriptionController::class, 'activate']);
-		Route::post('/subscription/cancel', [SubscriptionController::class, 'cancel']);
+
 
 
 		/*
@@ -55,6 +46,16 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 		Route::prefix('admin')
 			->name('admin.')
 			->group(function () {
+				/*
+		|--------------------------------------------------------------------------
+		| SUBSCRIPTION FLOW (ALWAYS ACCESSIBLE)
+		|--------------------------------------------------------------------------
+		*/
+				// subscription flow (NO middleware restriction)
+				Route::get('/subscription/select', [SubscriptionController::class, 'select']);
+				Route::post('/subscription/checkout', [SubscriptionController::class, 'checkout']);
+				Route::post('/subscription/activate', [SubscriptionController::class, 'activate']);
+				Route::post('/subscription/cancel', [SubscriptionController::class, 'cancel']);
 
 				Route::get('/dashboard', [\App\Http\Controllers\Admin\DashboardController::class, 'dashboard'])
 					->name('dashboard');

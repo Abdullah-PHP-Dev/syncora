@@ -102,11 +102,11 @@
 
                     <!-- Billing -->
                     <li>
-                        <a class="dropdown-item" href="#">
+                        <a class="dropdown-item" href="{{url('admin/subscription/select')}}">
                             <span class="d-flex align-items-center">
                                 <i class="icon-base bx bx-credit-card icon-md me-3"></i>
                                 <span class="flex-grow-1">{{ __('admin.setting.billing_plan') }}</span>
-                                <span class="badge rounded-pill bg-danger">4</span>
+
                             </span>
                         </a>
                     </li>
