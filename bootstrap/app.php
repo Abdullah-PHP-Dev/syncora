@@ -13,9 +13,14 @@ return tap(
             health: '/up',
         )
         ->withMiddleware(function (Middleware $middleware) {
+
             $middleware->web(append: [
                 \App\Http\Middleware\SetLocale::class,
             ]);
+
+	        $middleware->alias([
+		                           'subscription' => \App\Http\Middleware\EnsureActiveSubscription::class,
+	                           ]);
         })
         ->withExceptions(function (Exceptions $exceptions) {
             //

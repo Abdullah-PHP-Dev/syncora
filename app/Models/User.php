@@ -54,4 +54,9 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+	public function bundle()
+	{
+		return $this->hasOne(SellerBundle::class);
+	}
 }
