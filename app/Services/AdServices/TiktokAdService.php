@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Services\RedirectAdAuth;
+namespace App\Services\AdServices;
 
 use Illuminate\Support\Facades\Redirect;
 
-class TiktokOAuth
+class TiktokAdService
 {
     public function redirect($state)
     {

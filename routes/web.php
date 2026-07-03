@@ -18,12 +18,12 @@ use App\Http\Controllers\Admin\SubscriptionController;
 
 Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	'web',
-    LaravelLocalizationRoutes::class,
-    LocaleSessionRedirect::class,
-    LocaleCookieRedirect::class,
-    LaravelLocalizationRedirectFilter::class,
-    LaravelLocalizationViewPath::class,
-	]], function () {
+	LaravelLocalizationRoutes::class,
+	LocaleSessionRedirect::class,
+	LocaleCookieRedirect::class,
+	LaravelLocalizationRedirectFilter::class,
+	LaravelLocalizationViewPath::class,
+]], function () {
 
 	Route::view('/', 'front.pages.home');
 	Route::view('/about', 'front.pages.about');
@@ -34,10 +34,6 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 
 	Route::middleware(['auth'])->group(function () {
-
-
-
-
 		/*
 		|--------------------------------------------------------------------------
 		| DASHBOARD (NO SUBSCRIPTION REQUIRED)

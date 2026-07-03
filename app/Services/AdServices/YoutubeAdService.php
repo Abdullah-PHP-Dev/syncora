@@ -1,16 +1,16 @@
 <?php
 
-namespace App\Services\RedirectAdAuth;
+namespace App\Services\AdServices;
 
 use Illuminate\Support\Facades\Redirect;
 
-class LinkedinOAuth
+class YoutubeAdService
 {
     public function redirect($state)
     {
-        $clientId = adminSetting('ads.google.client_id');
+        $clientId = adminSetting('ads.youtube.client_id');
 
-        $url = "https://accounts.google.com/o/oauth2/v2/auth?" . http_build_query([
+        $url = "https://accounts.google.com/o/AdService2/v2/auth?" . http_build_query([
 
             'client_id' => $clientId,
             'access_type' => 'offline',
@@ -28,7 +28,7 @@ class LinkedinOAuth
 
     private function getCallbackUrl()
     {
-        return config('services.app_url') . '/admin/social/auth/linkedin/callback';
-     //   return config('app.url') . '/admin/ads/linkedin/callback';
+        return config('services.app_url') . '/admin/social/auth/google/callback';
+     //   return config('app.url') . '/admin/ads/google/callback';
     }
 }

@@ -23,7 +23,7 @@
 
     <!-- Iconify Icons -->
     <link rel="stylesheet" href="{{ asset('assets/vendor/fonts/iconify-icons.css') }}" />
-
+    <link rel="stylesheet" href="{{ asset('assets/css/plugins/select2.css') }}"></script>
     <!-- Core CSS -->
     <link rel="stylesheet" href="{{ asset('assets/vendor/css/core.css') }}" />
     <link rel="stylesheet" href="{{ asset('assets/css/demo.css') }}" />
@@ -120,6 +120,8 @@
 <script src="{{ asset('assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js') }}"></script>
 <script src="{{ asset('assets/vendor/js/menu.js') }}"></script>
 <script src="{{ asset('assets/js/plugins/sweet-alert.js') }}"></script>
+<script src="{{ asset('assets/js/plugins/select2.js') }}"></script>
+<script src="{{ asset('assets/js/plugins/select2.min.js') }}"></script>
 <!-- Vendors JS -->
 <script src="{{ asset('assets/vendor/libs/apex-charts/apexcharts.js') }}"></script>
 

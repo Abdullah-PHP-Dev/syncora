@@ -1,45 +1,45 @@
 <?php
 
-namespace App\Services\RedirectAdAuth;
+namespace App\Services\AdServices;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Redirect;
 
-class XOAuth
+class XAdService
 {
     public function redirect($state)
     {
         $clientId = adminSetting('ads.x.client_id');
         $secret = adminSetting('ads.x.client_secret');
 
-        $oauthTimestamp = time();
+        $AdServiceTimestamp = time();
 
-            // Step 1: Build initial OAuth parameters
-            $oauthParams = [
-                'oauth_callback' => $this->getCallbackUrl(),
-                'oauth_consumer_key' => $clientId,
-                'oauth_nonce' => $state,
-                'oauth_signature_method' => 'HMAC-SHA1',
-                'oauth_timestamp' => $oauthTimestamp,
-                'oauth_version' => '1.0',
+            // Step 1: Build initial AdService parameters
+            $AdServiceParams = [
+                'AdService_callback' => $this->getCallbackUrl(),
+                'AdService_consumer_key' => $clientId,
+                'AdService_nonce' => $state,
+                'AdService_signature_method' => 'HMAC-SHA1',
+                'AdService_timestamp' => $AdServiceTimestamp,
+                'AdService_version' => '1.0',
             ];
      
             // Step 2: Create base string for signature
             $baseString = $this->buildBaseString(
-                'https://api.x.com/oauth/request_token',
+                'https://api.x.com/AdService/request_token',
                 'POST',
-                $oauthParams
+                $AdServiceParams
             );
 
             // Step 3: Create composite key
             $compositeKey = rawurlencode($secret) . '&';
 
             // Step 4: Generate signature
-            $oauthSignature = base64_encode(hash_hmac('sha1', $baseString, $compositeKey, true));
-            $oauthParams['oauth_signature'] = $oauthSignature;
+            $AdServiceSignature = base64_encode(hash_hmac('sha1', $baseString, $compositeKey, true));
+            $AdServiceParams['AdService_signature'] = $AdServiceSignature;
 
             // Step 5: Build Authorization header
-            $authHeader = 'OAuth ' . collect($oauthParams)->map(function ($value, $key) {
+            $authHeader = 'AdService ' . collect($AdServiceParams)->map(function ($value, $key) {
                 return rawurlencode($key) . '="' . rawurlencode($value) . '"';
             })->implode(', ');
 
@@ -47,7 +47,7 @@ class XOAuth
             $response = Http::withHeaders([
                 'Authorization' => $authHeader,
                 // 'Content-Type' => 'application/x-www-form-urlencoded',
-            ])->post('https://api.x.com/oauth/request_token');
+            ])->post('https://api.x.com/AdService/request_token');
 
             if ($response->failed()) {
                 return response()->json(['error' => 'Failed to get request token', 'details' => $response->json()['errors'][0]['message'] ?? 'X Authorization error'], 401);
@@ -55,13 +55,13 @@ class XOAuth
 
             parse_str($response->body(), $tokens);
 
-            if (!isset($tokens['oauth_token'])) {
-                return response()->json(['error' => 'Missing oauth_token', 'raw' => $tokens], 400);
+            if (!isset($tokens['AdService_token'])) {
+                return response()->json(['error' => 'Missing AdService_token', 'raw' => $tokens], 400);
             }
 
-            session(['oauth_token_secret' => $tokens['oauth_token_secret'], 'x_state' => $state]);
+            session(['AdService_token_secret' => $tokens['AdService_token_secret'], 'x_state' => $state]);
 
-            return redirect('https://api.x.com/oauth/authorize?oauth_token=' . $tokens['oauth_token']);
+            return redirect('https://api.x.com/AdService/authorize?AdService_token=' . $tokens['AdService_token']);
     }
 
     private function getCallbackUrl()

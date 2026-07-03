@@ -4,28 +4,32 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Http\Requests\AdCampaignRequest;
+use App\Http\Requests\Admin\AdCampaignRequest;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAccount;
+use App\Models\Country;
+use App\Services\AdServices\SocialAdManagerService;
 
 
 class AdCampaignController extends Controller
 {
-    protected $adCampaignModel, $adAccountModel;
+    protected $adCampaignModel, $adAccountModel, $countryModel, $socialAdManager;
 
-    public function __construct(AdCampaign $adCampaignModel, AdAccount $adAccountModel)
+    public function __construct(AdCampaign $adCampaignModel, AdAccount $adAccountModel, Country $countryModel, SocialAdManagerService $socialAdManager)
     {
         $this->adCampaignModel = $adCampaignModel;
         $this->adAccountModel = $adAccountModel;
+        $this->countryModel = $countryModel;
+        $this->socialAdManager = $socialAdManager;
     }
     /**
      * Display a listing of the resource.
      */
     public function index($platform)
     {
-        $campaigns = $this->adCampaignModel->where('platform', $platform)->where('start_time', '<=', now())->where('end_time', '>=', now())->paginate(50);
-        
-        return view('admin.ads.'.$platform.'.campaigns.index', compact('campaigns', 'platform'));
+        $campaigns = $this->adCampaignModel->where('platform', $platform)->where('end_time', '>=', now())->orderBy('id', 'desc')->paginate(50);
+    
+        return view('admin.ads.' . $platform . '.campaigns.index', compact('campaigns', 'platform'));
     }
 
     /**
@@ -34,7 +38,9 @@ class AdCampaignController extends Controller
     public function create($platform)
     {
         $account = $this->adAccountModel->where('platform', $platform)->first();
-        return view('admin.ads.'.$platform.'.campaigns.create', compact('platform', 'account'));
+        $countries = $this->countryModel->all();
+        
+        return view('admin.ads.' . $platform . '.campaigns.create', compact('platform', 'account', 'countries'));
     }
 
     /**
@@ -42,7 +48,9 @@ class AdCampaignController extends Controller
      */
     public function store($platform, AdCampaignRequest $request)
     {
-        //
+        $request = $request->validated();
+
+        return $this->socialAdManager->store($platform, $request);
     }
 
     /**
@@ -56,24 +64,30 @@ class AdCampaignController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(string $id)
+    public function edit($platform, string $id)
     {
-        //
+        $account = $this->adAccountModel->where('platform', $platform)->first();
+        $countries = $this->countryModel->all();
+        $campaign = $this->adCampaignModel->with(['adAccount', 'adGroups', 'adGroups.creatives', 'adGroups.creatives.media', 'ads'])->find($id);
+    
+       return view('admin.ads.' . $platform . '.campaigns.edit', compact('platform', 'account', 'countries', 'campaign'));
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update($platform, AdCampaignRequest $request, string $id)
     {
-        //
+        $request = $request->validated();
+
+        return $this->socialAdManager->update($platform, $id, $request);
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy($platform, string $id)
     {
-        //
+        return $this->socialAdManager->destroy($platform, $id);
     }
 }

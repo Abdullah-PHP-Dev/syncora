@@ -194,13 +194,23 @@
                                         <div class="builder-card">
                                             <h5>Campaign Information</h5>
                                             <div class="row">
+                                                @php
+                                                    $adGroup = $campaign->adGroups->first();
+                                                    $ageGroup = json_decode($adGroup->age_groups);
+                                                    $creative = $adGroup->creatives->first();
+                                                    $ad = $creative->ads->first();
+                                                    $media = $creative->media;
+                                                    $publisherPlatforms = json_decode($adGroup->publisher_platforms);
+                                                    $languages = json_decode($adGroup->languages); 
+                                                    $selectedCountries = json_decode($adGroup->location_ids);                                             
+                                                @endphp
                                                 <div class="col-md-12">
                                                     <label>Platforms</label>
                                                     <div class="platform-group">
                                                         <div class="platform-card">
                                                             <div class="form-check form-switch">
                                                                 <input class="form-check-input platform-switch"
-                                                                    type="checkbox" id="facebook" name="facebook" checked>
+                                                                    type="checkbox" id="facebook" name="facebook" {{ in_array('facebook', $publisherPlatforms) ? 'checked' : '' }}>
 
                                                                 <label class="form-check-label ms-2" for="facebook">
                                                                     <i class="bx bxl-facebook text-primary"></i>
@@ -211,7 +221,7 @@
                                                         <div class="platform-card">
                                                             <div class="form-check form-switch">
                                                                 <input class="form-check-input platform-switch"
-                                                                    type="checkbox" id="instagram" name="instagram">
+                                                                    type="checkbox" id="instagram" name="instagram"  {{ in_array('instagram', $publisherPlatforms) ? 'checked' : '' }}>
 
                                                                 <label class="form-check-label ms-2" for="instagram">
                                                                     <i class="bx bxl-instagram text-danger"></i>
@@ -227,19 +237,30 @@
                                             <div class="row">
                                                 <div class="col-md-6">
                                                     <label>Campaign Name</label>
-                                                    <input type="text" name="name" id="name"
-                                                        class="form-control">
+                                                    <input type="text" name="name" id="name" value="{{ old('name', $campaign->name) }}" class="form-control">
                                                     <p class="error-message error-name"></p>
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label>Objective</label>
                                                     <select id="objective" name="objective" class="form-select">
-                                                        <option value="OUTCOME_TRAFFIC">Traffic</option>
-                                                        <option value="OUTCOME_SALES">Sales</option>
-                                                        <option value="OUTCOME_ENGAGEMENT">Engagement</option>
-                                                        <option value="OUTCOME_AWARENESS">Awareness</option>
-                                                        <option value="OUTCOME_APP_PROMOTION">App promotion</option>
-                                                        <option value="OUTCOME_LEADS">Leads</option>
+                                                        <option value="OUTCOME_TRAFFIC" @selected(old('objective', $campaign->objective) == 'OUTCOME_TRAFFIC')>
+                                                            Traffic
+                                                        </option>
+                                                        <option value="OUTCOME_SALES" @selected(old('objective', $campaign->objective) == 'OUTCOME_SALES')>
+                                                            Sales
+                                                        </option>
+                                                        <option value="OUTCOME_ENGAGEMENT" @selected(old('objective', $campaign->objective) == 'OUTCOME_ENGAGEMENT')>
+                                                            Engagement
+                                                        </option>
+                                                        <option value="OUTCOME_AWARENESS" @selected(old('objective', $campaign->objective) == 'OUTCOME_AWARENESS')>
+                                                            Awareness
+                                                        </option>
+                                                        <option value="OUTCOME_APP_PROMOTION" @selected(old('objective', $campaign->objective) == 'OUTCOME_APP_PROMOTION')>
+                                                            App promotion
+                                                        </option>
+                                                        <option value="OUTCOME_LEADS" @selected(old('objective', $campaign->objective) == 'OUTCOME_LEADS')>
+                                                            Leads
+                                                        </option>
                                                     </select>
                                                     <p class="error-message error-objective"></p>
                                                 </div>
@@ -249,20 +270,16 @@
                                         <div class="builder-card">
 
                                             <h5>Budget & Schedule</h5>
-
                                             <div class="row mt-4">
-
                                                 <div class="col-md-6">
                                                     <label>Start Date</label>
-                                                    <input type="date" id="start_time" name="start_time"
-                                                        class="form-control">
+                                                    <input type="date" id="start_time" name="start_time" value="{{ \Carbon\Carbon::parse($campaign->start_time)->format('Y-m-d') }}" class="form-control">
                                                     <p class="error-message error-start_time"></p>
                                                 </div>
 
                                                 <div class="col-md-6">
                                                     <label>End Date</label>
-                                                    <input type="date" id="end_time" name="end_time"
-                                                        class="form-control">
+                                                    <input type="date" id="end_time" name="end_time" class="form-control"  value="{{ \Carbon\Carbon::parse($campaign->end_time)->format('Y-m-d') }}">
                                                     <p class="error-message error-end_time"></p>
                                                 </div>
 
@@ -273,8 +290,8 @@
                                                 <div class="col-md-4">
                                                     <label>Budget Type</label>
                                                     <select class="form-select" name="budget_mode" id="budget_mode">
-                                                        <option value="daily_budget">Daily Budget</option>
-                                                        <option value="lifetime_budget">Lifetime Budget</option>
+                                                        <option value="daily_budget" @selected(old('budget_mode', $campaign->budget_mode) == 'daily_budget')>Daily Budget</option>
+                                                        <option value="lifetime_budget" @selected(old('budget_mode', $campaign->budget_mode) == 'lifetime_budget')>Lifetime Budget</option>
                                                     </select>
                                                     <p class="error-message error-budget_mode"></p>
                                                 </div>
@@ -285,7 +302,7 @@
                                                     <div class="input-group">
                                                         <span class="input-group-text">{{ $account->currency }}</span>
                                                         <input class="form-control" name="budget" id="budget"
-                                                            type="number" step="0.01">
+                                                            type="number" step="0.01" value="{{$adGroup->budget}}">
                                                     </div>
                                                     <p class="error-message error-budget"></p>
                                                 </div>
@@ -295,7 +312,7 @@
                                                     <label>Bid Amount</label>
                                                     <div class="input-group">
                                                         <span class="input-group-text">{{ $account->currency }}</span>
-                                                        <input class="form-control" name="bid_amount" id="bid_amount"
+                                                        <input class="form-control" name="bid_amount" value="{{$adGroup->bid_price}}" id="bid_amount"
                                                             type="number" step="0.01">
                                                     </div>
                                                     <p class="error-message error-bid_amount"></p>
@@ -320,7 +337,6 @@
                                                                     <span id="budget_amount">0.00</span>
                                                                 </strong>
                                                             </div>
-
 
                                                             <div class="d-flex justify-content-between mb-2 text-muted">
                                                                 <span>VAT (15%)</span>
@@ -359,15 +375,13 @@
                                             <div class="row">
                                                 <div class="col-md-6">
                                                     <label>Destination Type</label>
-                                                    <select name="destination_type" id="destination_type"
-                                                        class="form-select">
+                                                    <select name="destination_type" id="destination_type" class="form-select">
                                                     </select>
                                                     <p class="error-message error-destination_type"></p>
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label>Optimization Gaol</label>
-                                                    <select id="optimization_goal" name="optimization_goal"
-                                                        class="form-select">
+                                                    <select id="optimization_goal" name="optimization_goal" class="form-select">
                                                     </select>
                                                     <p class="error-message error-optimization_goal"></p>
                                                 </div>
@@ -385,7 +399,7 @@
                                                     <select id="countries" name="countries[]" multiple
                                                         class="form-select">
                                                         @foreach ($countries as $country)
-                                                            <option value="{{ $country->id }}">{{ $country->name }}
+                                                            <option value="{{ $country->id }}" {{ in_array($country->code, $selectedCountries) ? 'selected' : '' }}>{{ $country->name }}
                                                             </option>
                                                         @endforeach
                                                     </select>
@@ -397,8 +411,7 @@
                                                 <div class="col-md-6">
                                                     <label>Page Id</label>
                                                     <div class="input-group">
-                                                        <input class="form-control" name="page_id" id="page_id"
-                                                            type="text" step="0.01">
+                                                        <input class="form-control" name="page_id" id="page_id" value="{{$creative->page_id}}" type="text" step="0.01">
                                                     </div>
                                                     <p class="error-message error-page_id"></p>
                                                 </div>
@@ -433,7 +446,11 @@
 
                                                 <p>Upload image or video</p>
 
-                                                <input type="file" name="media[]" id="mediaInput" hidden
+                                                @foreach ($media as $each)
+                                                    <input type="hidden" name="old_media_id[]" value="{{$each->id}}">
+                                                @endforeach
+
+                                                <input type="file" name="media[]" id="mediaInput" value="" hidden
                                                     accept="image/*,video/*">
 
                                                 <button type="button" class="btn btn-primary"
@@ -448,14 +465,13 @@
 
                                                 <label>Description</label>
 
-                                                <textarea id="adDescription" name="description" rows="4" class="form-control"></textarea>
+                                                <textarea id="adDescription" name="description" rows="4" class="form-control">{{$creative->message}}</textarea>
                                                 <p class="error-message error-description"></p>
                                             </div>
                                             <div class="mt-4">
                                                 <label>Target URL</label>
 
-                                                <input type="url" name="target_link" id="targetLink"
-                                                    class="form-control" placeholder="https://example.com">
+                                                <input type="url" name="target_link" id="targetLink" value="{{$creative->url}}" class="form-control" placeholder="https://example.com">
                                                 <p class="error-message error-target_link"></p>
                                             </div>
 
@@ -481,9 +497,9 @@
                                                 <div class="col-md-6">
                                                     <select id="gender" name="gender" class="form-select">
                                                         <option value="">Gender</option>
-                                                        <option value="male">Male</option>
-                                                        <option value="female">Female</option>
-                                                        <option value="both">Both</option>
+                                                        <option value="male" @selected(old('gender', $adGroup->gender) == 'male')>Male</option>
+                                                        <option value="female" @selected(old('gender', $adGroup->gender) == 'female')>Female</option>
+                                                        <option value="both" @selected(old('gender', $adGroup->gender) == 'both')>Both</option>
                                                     </select>
                                                     <p class="error-message error-gender"></p>
                                                 </div>
@@ -493,42 +509,35 @@
                                                 <div class="col-md-6">
                                                     <select id="age_from" name="age_from" class="form-select">
                                                         <option value="">Age From</option>
-                                                        <option value="18">18</option>
-                                                        <option value="19">19</option>
-                                                        <option value="20">20</option>
-                                                        <option value="21">21</option>
-                                                        <option value="22">22</option>
-                                                        <option value="23">23</option>
-                                                        <option value="24">24</option>
-                                                        <option value="25">25</option>
-                                                        <option value="26">26</option>
-                                                        <option value="27">27</option>
-                                                        <option value="28">28</option>
-                                                        <option value="29">29</option>
-                                                        <option value="30">30</option>
+                                                    
+                                                        @for($age = 18; $age <= 65; $age++)
+                                                            <option value="{{ $age }}" 
+                                                                @selected(old('age_from', $ageGroup->age_from) == $age)>
+                                                                {{ $age }}
+                                                            </option>
+                                                        @endfor
+                                                    
                                                     </select>
                                                     <p class="error-message error-age_from"></p>
                                                 </div>
                                                 <div class="col-md-6">
                                                     <select id="age_to" name="age_to" class="form-select">
                                                         <option value="">Age To</option>
-                                                        <option value="31">31</option>
-                                                        <option value="32">32</option>
-                                                        <option value="33">33</option>
-                                                        <option value="34">34</option>
-                                                        <option value="35">35</option>
-                                                        <option value="36">36</option>
-                                                        <option value="37">37</option>
-                                                        <option value="38">38</option>
-                                                        <option value="39">39</option>
-                                                        <option value="40">40</option>
-                                                        <option value="41">41</option>
-                                                        <option value="42">42</option>
-                                                        <option value="43">43</option>
-                                                        <option value="44">44</option>
-                                                        <option value="45">45</option>
-                                                        <option value="45+">45+</option>
+                                                
+                                                        @for($age = 31; $age <= 65; $age++)
+                                                            <option value="{{ $age }}"
+                                                                @selected(old('age_to', $ageGroup->age_to) == $age)>
+                                                                {{ $age }}
+                                                            </option>
+                                                        @endfor
+                                                
+                                                        <option value="45+"
+                                                            @selected(old('age_to', $adGroup->age_to) == '65+')>
+                                                            65+
+                                                        </option>
+                                                
                                                     </select>
+                                                
                                                     <p class="error-message error-age_to"></p>
                                                 </div>
                                             </div>
@@ -543,7 +552,7 @@
                                                             <div class="form-check form-switch">
                                                                 <input class="form-check-input platform-switch"
                                                                     type="checkbox" name="languages[]" value="english"
-                                                                    id="english" checked>
+                                                                    id="english" {{ in_array('english', $languages) ? 'checked' : '' }}>
 
                                                                 <label class="form-check-label ms-2" for="english">
                                                                     English
@@ -556,7 +565,7 @@
                                                             <div class="form-check form-switch">
                                                                 <input class="form-check-input platform-switch"
                                                                     type="checkbox" id="instagramPlatform"
-                                                                    name="languages[]" value="arabic">
+                                                                    name="languages[]" value="arabic" {{ in_array('arabic', $languages) ? 'checked' : '' }}>
 
                                                                 <label class="form-check-label ms-2" for="arabic">
                                                                     Arabic
@@ -590,9 +599,8 @@
                                                     <div>Sponsored</div>
                                                 </div>
                                             </div>
-                                            <img id="previewImage" class="preview-image" style="display:none">
-                                            <video id="previewVideo" class="preview-image" controls
-                                                style="display:none;width:100%;border-radius:12px;">
+                                            <img @if ($media->first()->type === 'IMAGE') src="{{$media->first()->url}}"  style="display:block" @else  style="display:none" @endif id="previewImage" class="preview-image">
+                                            <video @if ($media->first()->type === 'VIDEO') src="{{$media->first()->url}}" style="display:block;width:100%;border-radius:12px;" @else  style="display:none;width:100%;border-radius:12px;" @endif id="previewVideo" class="preview-image" controls>
                                             </video>
                                             <div id="carouselPreview" style="display:none">
                                                 <img id="carouselImage" class="preview-image">
@@ -603,7 +611,7 @@
                                                 </div>
                                                 <div class="mt-3">
                                                     <label>Description</label>
-                                                    <textarea id="carouselDescription" class="form-control" rows="3" placeholder="Card description"></textarea>
+                                                    <textarea id="carouselDescription" class="form-control" rows="3" placeholder="Card description">{{$creative->message}}</textarea>
                                                 </div>
                                                 <div class="mt-3">
                                                     <label>Card URL</label>
@@ -622,15 +630,15 @@
                                             </div>
                                             <div class="preview-content">
                                                 <h6 id="previewTitle">
-                                                    Campaign Name
+                                                    {{$campaign->name}}
                                                 </h6>
                                                 <p id="previewDescription">
-                                                    Ad description will appear here...
+                                                    {{$creative->message}}
                                                 </p>
                                             </div>
                                             <a id="previewCTA" href="#" target="_blank"
                                                 class="btn btn-primary w-100">
-                                                Learn More
+                                                {{ ucwords(strtolower(str_replace('_', ' ', $ad->call_to_action))) }}
                                             </a>
                                         </div>
                                     </div>
@@ -646,7 +654,13 @@
 
 @push('scripts')
     <script>
+        var campaignId = @json($campaign->id);
         var areYouSure = "{{ __('admin.sweet-alert.are-you-sure') }}";
+        var selectedObjective = "{{ $campaign->objective }}";
+        var selectedDestinationType = "{{ $adGroup->destination_type }}";
+        var selectedOptimizationGoal = "{{ $adGroup->optimization_goal }}";
+        var selectedBillingEvent = "{{ $adGroup->billing_event }}";
+        var selectedCTA = "{{ $ad->call_to_action }}";
         var YouWontBeAbleToRevertThis = "{{ __('admin.sweet-alert.you-wont-be-able-to-revert-this') }}";
         var YesDeleteIt = "{{ __('admin.sweet-alert.yes-delete-it') }}";
         var recordHasBeenDelete = "{{ __('admin.sweet-alert.record-has-been-deleted') }}";
@@ -661,11 +675,12 @@
         var changesNotSaved = "{{ __('admin.sweet-alert.changes-not-saved') }}";
         var apiUrl = "{{ route('admin.apis.store') }}";
         var getAPIUrl = "{{ route('admin.apis.show', ['api' => ':API']) }}";
-        var updateAPIUrl = "{{ route('admin.apis.update', ['api' => ':API']) }}";
+        var url = "{{ route('admin.ads.campaigns.update', ['platform' => 'facebook', 'campaign' => '__ID__']) }}";
+        url = url.replace('__ID__', campaignId);       
         var destroyAPIUrl = "{{ route('admin.apis.destroy', ['api' => ':API']) }}";
-        var url = "{{ route('admin.ads.campaigns.store', ['platform' => 'facebook']) }}";
         var redirectUrl = "{{ route('admin.ads.campaigns.index', ['platform' => 'facebook']) }}";
-        var method = 'POST';
+        //  var url = "{{ route('admin.ads.campaigns.store', ['platform' => 'facebook']) }}";
+        var method = 'PUT';
         var edit = "{{ __('admin.table.edit') }}";
         var deletebutton = "{{ __('admin.table.delete') }}";
         $('#countries').select2();
@@ -977,10 +992,9 @@
                 ]
             }
         };
-        populateFields(objectiveMap['OUTCOME_TRAFFIC']);
+        populateFields(objectiveMap[selectedObjective]);
         $('#objective').on('change', function() {
             let objective = $(this).val();
-            console.log(objectiveMap[objective])
             populateFields(objectiveMap[objective]);
         });
 
@@ -989,9 +1003,8 @@
             let options = '<option value="">Billing Event</option>';
             // Billing Event
             $.each(billingEvents, function(index, value) {
-
                 options += `
-                    <option value="${value}">
+                    <option value="${value}" ${selectedBillingEvent == value ? 'selected' : ''}>
                          ${beautifyLabel(value)}
                     </option>
                 `;
@@ -1000,13 +1013,12 @@
             $('#billing_event').html(options);
 
             // Optimization Goal code
-            var optimizationGaols = data['optimizationGoals'];
+            var optimizationGoals = data['optimizationGoals'];
             let goalOptions = '<option value="">Optimization Goal</option>';
 
-            $.each(optimizationGaols, function(index, value) {
-
+            $.each(optimizationGoals, function(index, value) {
                 goalOptions += `
-                    <option value="${value}">
+                    <option value="${value}" ${selectedOptimizationGoal == value ? 'selected' : ''}>
                         ${beautifyLabel(value)}
                     </option>
                 `;
@@ -1019,9 +1031,8 @@
             let destinationTypeOptions = '<option value="">Destination Type</option>';
 
             $.each(destinationTypes, function(index, value) {
-
                 destinationTypeOptions += `
-                    <option value="${value}">
+                    <option value="${value}" ${selectedDestinationType == value ? 'selected' : ''} >
                         ${beautifyLabel(value)}
                     </option>
                 `;
@@ -1035,7 +1046,7 @@
             $.each(ctas, function(index, value) {
 
                 ctaOptions += `
-                    <option value="${value}">
+                    <option value="${value}" ${selectedCTA == value ? 'selected' : ''}>
                         ${beautifyLabel(value)}
                     </option>
                 `;
@@ -1052,11 +1063,13 @@
                 .replace(/\b\w/g, char => char.toUpperCase());
         }
 
+        calculateBudget();
+        
         function calculateBudget() {
-            let budgetMode = document.getElementById('budget_mode').value;
-            let budget = parseFloat(document.getElementById('budget').value) || 0;
-            let startDate = document.getElementById('start_time').value;
-            let endDate = document.getElementById('end_time').value;
+            let budgetMode = document.getElementById('budget_mode').value ?? '{{$adGroup->budget_mode}}';
+            let budget = parseFloat(document.getElementById('budget').value) || {{ $adGroup->budget ?? 0 }};
+            let startDate = document.getElementById('start_time').value ?? '{{$adGroup->start_time}}';
+            let endDate = document.getElementById('end_time').value ?? '{{$adGroup->end_time}}';
             let allocatedBudget = budget;
             // Daily Budget Calculation
             if (budgetMode === 'daily' && startDate && endDate) {

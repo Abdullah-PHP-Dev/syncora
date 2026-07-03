@@ -11,77 +11,26 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('ad_ads',function(Blueprint $table){
-
-
+        Schema::create('ads',function(Blueprint $table){
             $table->id();
-            
-            
-            $table->string('ad_ad_id');
-            
-            
+            $table->string('ad_id');
             $table->string('platform');
-            
-            
-            
-            $table->foreignId('ad_account_id')
-            ->constrained()
-            ->cascadeOnDelete();
-            
-            
-            $table->foreignId('ad_campaign_id')
-            ->constrained()
-            ->cascadeOnDelete();
-            
-            
-            $table->foreignId('ad_adgroup_id')
-            ->constrained('ad_groups')
-            ->cascadeOnDelete();
-            
-            
-            
-            // $table->foreignId('company_id')
-            // ->nullable()
-            // ->constrained()
-            // ->cascadeOnDelete();
-            
-            
-            
-            $table->foreignId('creative_id')
-            ->nullable()
-            ->constrained('ad_creatives')
-            ->cascadeOnDelete();
-            
-            
-            
+            $table->foreignId('user_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->foreignId('ad_account_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('ad_campaign_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('ad_adgroup_id')->constrained('ad_adgroups')->cascadeOnDelete();
+            $table->foreignId('ad_creative_id')->nullable()->constrained('ad_creatives')->cascadeOnDelete();
             $table->string('type')->nullable();
-            
-            
+            $table->string('name')->nullable();
             $table->string('status')->nullable();
-            
-            
             $table->longText('text')->nullable();
-            
-            
             $table->string('ad_format')->nullable();
-            
-            
             $table->string('call_to_action')->nullable();
-            
-            
-            
-            $table->json('final_urls');
-            
-            $table->json('headlines');
-            
-            
+            $table->json('final_urls')->nullable();
+            $table->json('headlines')->nullable();
             $table->timestamps();
             
-            
-            
-            $table->index('ad_ad_id');
-            
-            
+            $table->index('ad_id');
             });
     }
 

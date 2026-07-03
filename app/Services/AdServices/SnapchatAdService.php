@@ -1,17 +1,17 @@
 <?php
 
-namespace App\Services\RedirectAdAuth;
+namespace App\Services\AdServices;
 
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Http;
 
-class SnapchatOAuth
+class SnapchatAdService
 {
     public function redirect($state)
     {
         $clientId = adminSetting('ads.snapchat.client_id');
 
-        $url = 'https://accounts.snapchat.com/login/oauth2/authorize?' . http_build_query([
+        $url = 'https://accounts.snapchat.com/login/AdService2/authorize?' . http_build_query([
             'client_id'     => $clientId,
             'redirect_uri'  => $this->getCallbackUrl(),
             'response_type' => 'code',

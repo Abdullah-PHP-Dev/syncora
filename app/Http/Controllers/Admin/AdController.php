@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Admin\AdAccount;
 use Carbon\Carbon;
 
-use App\Services\RedirectAdAuth\SocialAuthManager;
+use App\Services\AdServices\SocialAdManagerService;
 
 class AdController extends Controller
 {
@@ -57,7 +57,7 @@ class AdController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        
     }
 
     /**
@@ -93,7 +93,7 @@ class AdController extends Controller
     }
     public function redirect(
         string $platform,
-        SocialAuthManager $manager
+        SocialAdManagerService $manager
     ) {
     
         return $manager->redirect($platform);
@@ -102,7 +102,7 @@ class AdController extends Controller
 
     public function callback(
         string $platform,
-        SocialAuthManager $manager
+        SocialAdManagerService $manager
     ) {
     
         return $manager->callback($platform);

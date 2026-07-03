@@ -1,16 +1,16 @@
 <?php
 
-namespace App\Services\RedirectAdAuth;
+namespace App\Services\AdServices;
 
 use Illuminate\Support\Facades\Redirect;
 
-class GoogleOAuth
+class GoogleAdService
 {
     public function redirect($state)
     {
         $clientId = adminSetting('ads.google.client_id');
 
-        $url = "https://accounts.google.com/o/oauth2/v2/auth?" . http_build_query([
+        $url = "https://accounts.google.com/o/AdService2/v2/auth?" . http_build_query([
 
             'client_id' => $clientId,
             'access_type' => 'offline',

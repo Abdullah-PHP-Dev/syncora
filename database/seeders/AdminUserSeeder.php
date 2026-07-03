@@ -14,9 +14,9 @@ class AdminUserSeeder extends Seeder
 	{
 		// 1. Create role first
 		$role = Role::firstOrCreate([
-			                            'name' => 'admin',
-			                            'guard_name' => 'web',
-		                            ]);
+			'name' => 'admin',
+			'guard_name' => 'web',
+		]);
 
 		// 2. Create user
 		$user = User::firstOrCreate(

@@ -11,9 +11,9 @@ use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-	use HasRoles;
+    use HasRoles;
 
-	/** @use HasFactory<UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
     protected $table = 'users';
@@ -39,10 +39,10 @@ class User extends Authenticatable
     ];
 
 
-	protected $guarded = [];
+    protected $guarded = [];
 
 
-	/**
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -55,8 +55,8 @@ class User extends Authenticatable
         ];
     }
 
-	public function bundle()
-	{
-		return $this->hasOne(SellerBundle::class);
-	}
+    public function bundle()
+    {
+        return $this->hasOne(SellerBundle::class);
+    }
 }

@@ -26,17 +26,17 @@ $(document).ready(function () {
             confirmButtonText: saveHeader,
             denyButtonText: dontSave
         }).then((result) => {
-    
+
             if (result.isConfirmed) {
-    
+
                 $.ajax({
                     method: method,
                     url: apiUrl,
                     data: api,
-    
+
                     success: function (res) {
                         let setting = res.data;
-    
+
                         if (!setting) {
                             Swal.fire("Error", "Invalid response from server", "error");
                             return;
@@ -69,39 +69,39 @@ $(document).ready(function () {
                                 </td>
                             </tr>
                         `;
-    
-                        $('#apiTable').append(row);
-    
-                        form[0].reset();
-                        $('.error-message').html('');
-                        $('.form-control').removeClass('is-invalid');
-                        $('#apiModal').modal('hide');
-    
-                        Swal.fire("Success", "", "success");
+
+                            $('#apiTable').append(row);
+
+                            form[0].reset();
+                            $('.error-message').html('');
+                            $('.form-control').removeClass('is-invalid');
+                            $('#apiModal').modal('hide');
+
+                            Swal.fire("Success", "", "success");
                         }
-                        
+
                     },
-    
+
                     error: function (xhr) {
-    
+
                         $('.error-message').html('');
                         $('.form-control').removeClass('is-invalid');
-    
+
                         if (xhr.status === 422) {
-    
+
                             let errors = xhr.responseJSON.errors;
-    
+
                             $.each(errors, function (field, messages) {
                                 $('.error-' + field).html(messages[0]);
                                 $('input[name="' + field + '"]').addClass('is-invalid');
                             });
-    
+
                         } else {
                             Swal.fire("Error!", "Something went wrong", "error");
                         }
                     }
                 });
-    
+
             } else if (result.isDenied) {
                 Swal.fire("Changes not saved", "", "info");
             }
@@ -110,16 +110,13 @@ $(document).ready(function () {
 
     $(document).on('click', '.edit', function (e) {
         e.preventDefault();
-    
         let key = $(this).data('key');
-    
         // IMPORTANT: do not overwrite global variable
         let url = getAPIUrl.replace(':API', key);
-    
         $.ajax({
             method: 'GET',
             url: url,
-    
+
             success: function (res) {
                 let setting = res.data;
                 console.log(setting);
@@ -127,31 +124,31 @@ $(document).ready(function () {
                     Swal.fire("Error", "Invalid response from server", "error");
                     return;
                 }
-    
+
                 $('#key').val(key);
                 $('#api_id').val(key);
                 $('#form_mode').val('update'); // 🔥 switch mode
                 $('#hidden_update').html('<input type="hidden" value="hidden" name="hidden_update" class="hidden_update">');
                 $('#value').val(setting);
-    
+
                 // correct modal id
                 $('#apiModal').modal('show');
             },
-    
+
             error: function (xhr) {
-    
+
                 $('.error-message').html('');
                 $('.form-control').removeClass('is-invalid');
-    
+
                 if (xhr.status === 422) {
-    
+
                     let errors = xhr.responseJSON.errors;
-    
+
                     $.each(errors, function (field, messages) {
                         $('.error-' + field).html(messages[0]);
                         $('input[name="' + field + '"]').addClass('is-invalid');
                     });
-    
+
                 } else {
                     Swal.fire("Error!", "Something went wrong", "error");
                 }
@@ -161,13 +158,14 @@ $(document).ready(function () {
 
     $(document).on('click', '.delete-record', function (e) {
         e.preventDefault();
-    
+
         let key = $(this).data('key');
+
         let row = $(this).closest('tr'); // store row reference
-    
+
         // never mutate global URL
         let url = destroyAPIUrl.replace(':API', key);
-    
+  
         Swal.fire({
             title: areYouSure,
             text: YouWontBeAbleToRevertThis,
@@ -177,27 +175,27 @@ $(document).ready(function () {
             cancelButtonColor: "#d33",
             confirmButtonText: YesDeleteIt
         }).then((result) => {
-    
+
             if (result.isConfirmed) {
-    
+
                 $.ajax({
                     method: 'DELETE',
                     url: url,
-    
+
                     success: function (res) {
-    
+
                         Swal.fire({
                             title: "Deleted!",
                             text: "Record has been deleted.",
                             icon: "success"
                         });
-    
+
                         // remove row safely
                         row.remove();
                     },
-    
+
                     error: function (xhr) {
-    
+
                         Swal.fire(
                             "Error!",
                             "Something went wrong while deleting.",
@@ -205,6 +203,98 @@ $(document).ready(function () {
                         );
                     }
                 });
+            }
+        });
+    });
+
+    $(document).on('submit', '#campaign',function (e){
+        e.preventDefault();
+        var formData = new FormData(this);
+        if (method === 'PUT') {
+            formData.append('_method', 'PUT');
+        }
+
+        $.ajax({
+            url: url,
+            type: 'POST',          // ALWAYS POST
+            data: formData,
+            contentType: false,
+            processData: false,
+            dataType: "json",
+            success: function(response) {
+                if (response.success === true){
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Success!',
+                        text: response.message || 'Campaign has been launched successfully.',
+                        showConfirmButton: true,
+                    }).then(() => {
+                    window.location.href = redirectUrl;
+                });
+                } else if (response.success === false && response.message === "No active token found.") {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: response.message || 'Something went wrong!',
+                        showConfirmButton: true,
+                    }).then(() => {
+                        window.location.href = redirectUrl;
+                    });
+                } else if (response.success === false && response.message !== "No active token found.") {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: response.message || response.error || 'Something went wrong!',
+                    });
+                    $('#responseMessage').html('<li class="text-red-800" style="color:red">' + response.message + '</li>');
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: response.message || response.error,
+                    });
+                    $('#responseMessage').html('<li class="text-red-800" style="color:red">' + response.message + '</li>');
+                }
+            },
+            error: function(xhr) {
+                Swal.close();
+                console.log(xhr, xhr.responseJSON);
+                if (xhr.status === 422) { // Laravel validation error status code
+                    let errors = xhr.responseJSON.data ?? xhr.responseJSON.errors;
+                    console.log(errors);
+                    $.each(errors, function (field, messages) {
+                        $('.error-' + field).text(messages[0]); // Display first error message
+                    });
+                    const rawError = xhr.responseJSON?.error;
+
+                    const errorMessage =
+                        typeof rawError === 'string' && rawError.trim() !== ''
+                            ? rawError
+                            : 'Please fix the highlighted errors.';
+        
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Validation Error',
+                        text: errorMessage,
+                    });
+                } else {
+                    let message =
+                    xhr.responseJSON?.message ||
+                    xhr.responseJSON?.error ||
+                    'Something went wrong';
+
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Server Error',
+                        text: message,
+                    });
+
+                    $('#responseMessage').html(
+                        '<li class="text-red-800" style="color:red">' +
+                        message +
+                        '</li>'
+                    );
+                }
             }
         });
     });

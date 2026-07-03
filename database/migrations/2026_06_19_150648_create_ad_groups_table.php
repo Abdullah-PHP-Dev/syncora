@@ -11,131 +11,54 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('ad_groups', function(Blueprint $table){
-
-
+        Schema::create('ad_adgroups', function(Blueprint $table){
             $table->id();
-            
-            
-            $table->bigInteger('ad_adgroup_id');
-            
-            
+            $table->foreignId('user_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->bigInteger('ad_adgroup_id')->nullable();
             $table->string('platform')->nullable();
-            
-            
-            
             $table->foreignId('ad_account_id')
             ->constrained('ad_accounts')
             ->cascadeOnDelete();
-            
-            
-            
             $table->foreignId('ad_campaign_id')
             ->constrained('ad_campaigns')
             ->cascadeOnDelete();
-            
-            
-            
-            // $table->foreignId('company_id')
-            // ->constrained('companies')
-            // ->cascadeOnDelete();
-            
-            
-            
-            $table->string('name');
-            
-            
-            
-            $table->string('promotion_type');
-            
-            $table->string('promotion_target_type');
-            
-            $table->string('placement_type');
-            
-            
-            $table->string('placements');
-            
-            
-            $table->json('location_ids');
-            
-            
-            $table->string('gender');
-            
-            $table->string('operating_systems');
-            
-            $table->string('audience_type');
-            
-            
-            $table->string('budget_mode');
-            
-            
-            $table->decimal('budget',12,2);
-            
-            
-            
-            $table->string('schedule_type');
-            
-            
-            $table->timestamp('schedule_start_time');
-            
-            $table->timestamp('schedule_end_time');
-            
-            
-            
-            $table->string('optimization_goal');
-            
-            
-            $table->string('bid_type');
-            
-            $table->string('bid_price');
-            
-            
-            $table->decimal('conversion_bid_price',12,2);
-            
-            
-            $table->string('deep_bid_type');
-            
-            
-            $table->decimal('roas_bid',12,2);
-            
-            
-            
-            $table->string('bid_display_mode');
-            
-            
-            $table->string('billing_event');
-            
-            $table->string('pacing');
-            
-            
-            $table->string('status');
-            
-            
-            
-            $table->longText('age_groups');
-            
-            
-            
-            $table->string('primary_web_event_tag');
-            
-            $table->string('ios');
-            
-            $table->string('android');
-            
+            $table->string('name')->nullable();
+            $table->string('promotion_type')->nullable();
+            $table->string('promotion_target_type')->nullable();
+            $table->string('placement_type')->nullable();
+            $table->string('placements')->nullable();
+            $table->json('location_ids')->nullable();
+            $table->string('gender')->nullable();
+            $table->string('operating_systems')->nullable();
+            $table->string('audience_type')->nullable();
+            $table->string('budget_mode')->nullable();
+            $table->decimal('budget',12,2)->nullable();
+            $table->string('schedule_type')->nullable();
+            $table->timestamp('schedule_start_time')->nullable();
+            $table->timestamp('schedule_end_time')->nullable();
+            $table->string('optimization_goal')->nullable();
+            $table->string('destination_type')->nullable();
+            $table->string('bid_type')->nullable();
+            $table->string('bid_price')->nullable();
+            $table->decimal('conversion_bid_price',12,2)->nullable();
+            $table->string('deep_bid_type')->nullable();
+            $table->decimal('roas_bid',12,2)->nullable();
+            $table->string('bid_display_mode')->nullable();
+            $table->string('billing_event')->nullable();
+            $table->string('pacing')->nullable();
+            $table->string('status')->nullable();
+            $table->longText('age_groups')->nullable();
+            $table->string('primary_web_event_tag')->nullable();
+            $table->string('ios')->nullable();
+            $table->string('android')->nullable();
             $table->string('app_store_identifier')->nullable();
-            
-            
-            $table->string('objective');
-            
-            
+            $table->string('objective')->nullable();
+            $table->json('publisher_platforms')->nullable();
+            $table->json('languages')->nullable();
             $table->timestamps();
             
-            
-            
             $table->index('ad_adgroup_id');
-            
-            
-            });
+        });
     }
 
     /**
@@ -143,6 +66,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('ad_groups');
+        Schema::dropIfExists('ad_adgroups');
     }
 };

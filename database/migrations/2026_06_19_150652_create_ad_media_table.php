@@ -13,17 +13,11 @@ return new class extends Migration
     {
         Schema::create('ad_media',function(Blueprint $table){
             $table->id();
-            $table->string('ad_media_id');
+            $table->string('ad_media_id')->nullable();
             $table->string('platform');
-            // $table->foreignId('company_id')
-            // ->constrained()
-            // ->cascadeOnDelete();
-            $table->foreignId('ad_account_id')
-            ->constrained()
-            ->cascadeOnDelete();
-            $table->foreignId('ad_campaign_id')
-            ->constrained()
-            ->cascadeOnDelete();
+		    $table->foreignId('user_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->foreignId('ad_account_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('ad_campaign_id')->constrained()->cascadeOnDelete();
             $table->string('name')->nullable();
             $table->string('file_name')->nullable();
             $table->text('download_link')->nullable();
@@ -32,12 +26,13 @@ return new class extends Migration
             $table->string('image_category')->nullable();
             $table->text('url')->nullable();
             $table->string('upload_by_type')->nullable();
-            $table->string('ad_format');
-            $table->string('signature');
-            $table->bigInteger('file_id');
+            $table->string('ad_format')->nullable();
+            $table->string('signature')->nullable();
+            $table->string('file_id')->nullable();
             $table->timestamps();
+            
             $table->index('ad_media_id');
-            });
+        });
     }
 
     /**

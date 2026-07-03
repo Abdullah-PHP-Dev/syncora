@@ -55,7 +55,7 @@ return [
                 ],
                 'x' => [
                     'header' => 'X',
-                ], 
+                ],
                 'linkedin' => [
                     'header' => 'Linkedin',
                 ]
@@ -72,21 +72,21 @@ return [
         ],
     ],
     'profile' => [
-            'my_profile' => 'My Profile',
-            'profile_description' => 'Profile Description',
-            'name' => 'Full Name',
-            'email' => 'Email',
-            'password' => 'Password',
-            'confirm_password' => 'Confirm Password',
-            'update_profile' => 'Update'
+        'my_profile' => 'My Profile',
+        'profile_description' => 'Profile Description',
+        'name' => 'Full Name',
+        'email' => 'Email',
+        'password' => 'Password',
+        'confirm_password' => 'Confirm Password',
+        'update_profile' => 'Update'
     ],
     'setting' => [
-            'header' => 'Setting',
-            'billing_plan' => 'Billing Plan',
-            'logout' => 'Log Out',
-            'password' => 'Password',
-            'confirm_password' => 'Confirm Password',
-    ],  
+        'header' => 'Setting',
+        'billing_plan' => 'Billing Plan',
+        'logout' => 'Log Out',
+        'password' => 'Password',
+        'confirm_password' => 'Confirm Password',
+    ],
     'sweet-alert' => [
         'save-description' => 'Do you want to save the changes?',
         'save-header' => 'Save',

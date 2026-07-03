@@ -12,99 +12,37 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('ad_creatives',function(Blueprint $table){
-
-
             $table->id();
-            
-            
-            $table->bigInteger('ad_adgroup_id');
-            
-            
+            $table->foreignId('user_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->bigInteger('ad_adgroup_id')->nullable();
             $table->string('platform')->nullable();
-            
-            
-            $table->foreignId('ad_account_id')
-            ->constrained()
-            ->cascadeOnDelete();
-            
-            
-            $table->foreignId('ad_campaign_id')
-            ->constrained()
-            ->cascadeOnDelete();
-            
-            
-            
-            // $table->foreignId('company_id')
-            // ->constrained()
-            // ->cascadeOnDelete();
-            
-            
-            
-            $table->string('name');
-            
-            
-            $table->bigInteger('top_snap_media_id');
-            
-            $table->string('brand_name');
-            
-            
-            $table->string('creative_id');
-            
-            
-            $table->string('profile_id');
-            
-            
-            $table->string('headline');
-            
-            
-            $table->string('ad_format');
-            
-            
-            $table->string('page_id');
-            
-            
-            $table->text('message');
-            
-            
-            $table->json('ad_media_files');
-            
-            
-            $table->text('url');
-            
-            $table->string('type');
-            
-            
-            $table->string('top_snap_crop_position');
-            
-            $table->string('call_to_action');
-            
-            
-            
-            $table->json('chat_properties');
-            
-            $table->json('web_view_properties');
-            
-            $table->json('app_install_properties');
-            
-            $table->json('deep_link_properties');
-            
-            $table->json('ad_to_lens_properties');
-            
-            $table->json('ad_to_call_properties');
-            
-            $table->json('ad_to_message_properties');
-            
-            $table->json('lead_generation_form_id');
-            
-            $table->json('composite_properties');
-            
-            $table->json('preview_properties');
-            
-            
+            $table->foreignId('ad_account_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('ad_campaign_id')->constrained()->cascadeOnDelete();
+            $table->string('name')->nullable();
+            $table->bigInteger('top_snap_media_id')->nullable();
+            $table->string('brand_name')->nullable();
+            $table->string('ad_creative_id')->nullable();
+            $table->string('profile_id')->nullable();
+            $table->string('headline')->nullable();
+            $table->string('ad_format')->nullable();
+            $table->string('page_id')->nullable();
+            $table->text('message')->nullable();
+            $table->text('url')->nullable();
+            $table->string('type')->nullable();
+            $table->string('top_snap_crop_position')->nullable();
+            $table->string('call_to_action')->nullable();
+            $table->json('chat_properties')->nullable();
+            $table->json('web_view_properties')->nullable();
+            $table->json('app_install_properties')->nullable();
+            $table->json('deep_link_properties')->nullable();
+            $table->json('ad_to_lens_properties')->nullable();
+            $table->json('ad_to_call_properties')->nullable();
+            $table->json('ad_to_message_properties')->nullable();
+            $table->json('lead_generation_form_id')->nullable();
+            $table->json('composite_properties')->nullable();
+            $table->json('preview_properties')->nullable();
             $table->timestamps();
-            
-            
-            });
+        });
     }
 
     /**
