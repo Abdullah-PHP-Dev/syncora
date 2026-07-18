@@ -198,7 +198,7 @@
                     </h2>
 
                     <p class="text-muted mt-3">
-                        Syncora combines marketplace, CRM, analytics, and automation tools into one unified SaaS system.
+                        Socialeaz combines marketplace, CRM, analytics, and automation tools into one unified SaaS system.
                         Designed for scalability like Stripe and usability like SocialBee.
                     </p>
 
@@ -312,7 +312,7 @@
             </h2>
 
             <p class="text-white-75">
-                Join Syncora and scale your business like never before
+                Join Socialeaz and scale your business like never before
             </p>
 
             <a href="/register" class="btn btn-light btn-lg mt-3 px-4">

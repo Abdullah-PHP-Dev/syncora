@@ -15,6 +15,8 @@ use App\Http\Controllers\Admin\ProfileController;
 use App\Http\Controllers\Admin\AdminAPIController;
 use App\Http\Controllers\Admin\AdCampaignController;
 use App\Http\Controllers\Admin\SubscriptionController;
+use App\Http\Controllers\Admin\PostCategoryController;
+
 
 Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	'web',
@@ -86,9 +88,10 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 
 				// POSTS
-				Route::resource('/platform/posts', PostController::class);
-				Route::get('posts/dashboard', [PostController::class, 'dashboard'])
-					->name('posts.dashboard');
+				Route::get('posts/dashboard', [PostController::class, 'dashboard'])->defaults('_config', ['view' => 'admin.posts.dashboard'])->name('posts.dashboard');
+				Route::get('posts', [PostController::class, 'dashboard']);
+				Route::resource('posts', PostController::class);
+				Route::resource('categories', PostCategoryController::class);
 
 
 				// CHATS

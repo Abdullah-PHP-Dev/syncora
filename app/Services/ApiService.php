@@ -54,6 +54,7 @@ class ApiService
             /**
              * Request Body Type
              */ 
+         
             switch ($type) {
                 case 'json':
                     $client = $client->asJson();

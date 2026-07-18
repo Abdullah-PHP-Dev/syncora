@@ -66,7 +66,7 @@ class FacebookAdService
 
         $data = $response['data'];
 
-        if (!$response->successful()) {
+        if (!$response['success']) {
             return $this->errorResponse($data);
         }
 
@@ -170,6 +170,10 @@ class FacebookAdService
 
         // Step 4: create creative
         $response = $this->storeCreative($platform, $request);
+
+        if (!$response['success']) {
+            return $response;
+        }
 
         $request['creative_id'] = $response['data']['ad_creative_id'];
         $request['ad_creative_id'] = $response['data']['id'];
@@ -458,7 +462,7 @@ class FacebookAdService
         }
 
         $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
-
+    
         if (!$response['success']) {
             return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
         }
@@ -1257,7 +1261,43 @@ class FacebookAdService
         $media =  $creative->media;
    
         $ad = $campaign->ads->first();
-            
+       
+        // Delete Ad
+        if ($ad) {
+
+            $endpoint = "https://graph.facebook.com/v25.0/{$ad->ad_id}";
+    
+            $response = $this->apiService->delete(
+                $endpoint,
+                $this->header['data']
+            );
+    
+            if (!$response['success']) {
+                dd($response['data']);
+                return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
+            }
+
+            $ad->delete();
+        }
+       
+        // Delete Creative
+        if ($creative) {
+
+            $endpoint = "https://graph.facebook.com/v25.0/{$creative->ad_creative_id}";
+         
+            $response = $this->apiService->delete(
+                $endpoint,
+                $this->header['data']
+            );
+
+            if (!$response['success']) {
+                dd($response['data']);
+                return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
+            }
+
+            $creative->delete();
+        }
+
         // Delete Creative
         if (count($media)) {
             foreach ($media as $each) {
@@ -1283,39 +1323,9 @@ class FacebookAdService
             }
         }
       
-        // Delete Ad
-        if ($ad) {
 
-            $endpoint = "https://graph.facebook.com/v25.0/{$ad->ad_id}";
-    
-            $response = $this->apiService->delete(
-                $endpoint,
-                $this->header['data']
-            );
-    
-            if (!$response['success']) {
-                return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
-            }
 
-            $ad->delete();
-        }
 
-        // Delete Creative
-        if ($creative) {
-
-            $endpoint = "https://graph.facebook.com/v25.0/{$creative->ad_creative_id}";
-    
-            $response = $this->apiService->delete(
-                $endpoint,
-                $this->header['data']
-            );
-
-            if (!$response['success']) {
-                return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
-            }
-
-            $creative->delete();
-        }
 
         // Delete Ad Group
         if ($adGroup) {
