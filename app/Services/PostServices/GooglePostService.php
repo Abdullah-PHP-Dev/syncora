@@ -61,8 +61,8 @@ class GooglePostService
 
         $account->update([
             'access_token'     => $tokenData['access_token'],
-            'post_refresh_token' => $tokenData['refresh_token'] ?? $account->refresh_token,
-            'post_expires_in'  => now()->addSeconds($tokenData['expires_in']),
+            'refresh_token' => $tokenData['refresh_token'] ?? $account->refresh_token,
+            'expires_in'  => now()->addSeconds($tokenData['expires_in']),
         ]);
 
         $account->refresh();
@@ -125,7 +125,7 @@ class GooglePostService
                     'user_id' => Auth::user()->id,
                     'post_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
-                    'page_id' => $page->external_id,
+                    'page_id' => $page->account_id,
                     'content' => $data['content'] ?? null,
                     'schedule_mode' => $data['schedule_mode'] ?? 0,
                     'schedule_at' => $data['schedule_at'] ?? null,
@@ -165,7 +165,7 @@ class GooglePostService
                 $results[] = $post;
             } catch (\Exception $e) {
                 $errors[] = [
-                    'page_id' => $page->external_id,
+                    'page_id' => $page->account_id,
                     'page_name' => $page->page_name ?? $page->name,
                     'message' => $e->getMessage()
                 ];
@@ -457,7 +457,7 @@ class GooglePostService
         try {
             $response = $this->api->request(
                 'get',
-                "{$this->accountBaseUrl}accounts/{$account->parent_external_id}/locations?read_mask=name,title,metadata,state",
+                "{$this->accountBaseUrl}accounts/{$account->parent_account_id}/locations?read_mask=name,title,metadata,state",
                 [
                     'Content-Type' => 'application/json',
                     'Authorization' => 'Bearer ' . $account->access_token
@@ -490,7 +490,7 @@ class GooglePostService
     public function getPosts($locationId, $page)
     {
         $this->ensureValidToken($page);
-        $endpoint = "{$this->baseUrl}accounts/{$page->external_id}/locations/{$locationId}/localPosts";
+        $endpoint = "{$this->baseUrl}accounts/{$page->account_id}/locations/{$locationId}/localPosts";
 
         $response = $this->api->request(
             'get',
@@ -521,7 +521,7 @@ class GooglePostService
     public function getPost($post, $page)
     {
         $this->ensureValidToken($page);
-        $endpoint = "{$this->baseUrl}accounts/{$page->parent_external_id}/locations/{$page->external_id}/localPosts/{$post->page_post_id}";
+        $endpoint = "{$this->baseUrl}accounts/{$page->parent_account_id}/locations/{$page->account_id}/localPosts/{$post->post_id}";
 
         $response = $this->api->request(
             'get',
@@ -556,14 +556,14 @@ class GooglePostService
      */
     public function destroy($post)
     {
-        $this->ensureValidToken($post->socialPublishAccount);
-        $endpoint = "{$this->baseUrl}accounts/{$post->socialPublishAccount->parent_external_id}/locations/{$post->socialPublishAccount->external_id}/localPosts/{$post->page_post_id}";
+        $this->ensureValidToken($post->postAccount);
+        $endpoint = "{$this->baseUrl}accounts/{$post->postAccount->parent_account_id}/locations/{$post->postAccount->account_id}/localPosts/{$post->post_id}";
 
         $response = $this->api->request(
             'delete',
             $endpoint,
             [
-                'Authorization' => 'Bearer ' . $post->socialPublishAccount->access_token
+                'Authorization' => 'Bearer ' . $post->postAccount->access_token
             ],
             []
         );

@@ -37,10 +37,10 @@ class PublishPosts extends Command
             'facebook'  => $metaService,
             'instagram' => $instagramService,
             'google'    => $googleService,
+            'tiktok'    => $tiktokService,
             'youtube'   => $youtubeService,
             'x'         => $xService,
             'linkedin'  => $linkedinService,
-            'tiktok'    => $tiktokService,
         ];
     }
 
@@ -68,8 +68,8 @@ class PublishPosts extends Command
                             if ($scheduleTime->isFuture()) {
                                 continue;
                             }
-                        }
-
+                        }   
+                      
                         $response = $this->services[$post->platform]->publishPost($post);
                      
                         if (!($response['success'] ?? false)) {

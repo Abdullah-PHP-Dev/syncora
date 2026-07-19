@@ -117,7 +117,7 @@ class XPostService
                     'user_id' => Auth::user()->id,
                     'post_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
-                    'page_id' => $page->external_id,
+                    'page_id' => $page->account_id,
                     'content' => $data['content'] ?? null,
                     'schedule_mode' => $data['schedule_mode'] ?? 0,
                     'schedule_at' => $data['schedule_at'] ?? null,
@@ -156,7 +156,7 @@ class XPostService
                 $results[] = $post;
             } catch (\Exception $e) {
                 $errors[] = [
-                    'page_id' => $page->external_id,
+                    'page_id' => $page->account_id,
                     'page_name' => $page->page_name ?? $page->name,
                     'message' => $e->getMessage()
                 ];
@@ -339,7 +339,7 @@ class XPostService
     
             $uploadedMediaIds[] = $mediaResult['media_id'];
         }
-    
+   
         // 2. Attach the collected array of media IDs if they exist
         if (!empty($uploadedMediaIds)) {
             $payload['media'] = [
@@ -403,7 +403,7 @@ class XPostService
                     'media_id' => $post->post_id,
                 ]
             );
-    
+           
             if ($response->successful()) {
                 $data = $response->json()['data'];
                 $processingInfo = data_get($data, 'processing_info');
@@ -468,7 +468,7 @@ class XPostService
             $response = Http::timeout(600)
                 ->withOptions(['sink' => $tempFile])
                 ->get($url);
-    
+                
             if (!file_exists($tempFile) || filesize($tempFile) === 0) {
                 return [
                     'success' => false,
@@ -518,16 +518,17 @@ class XPostService
                 $segmentIndex++;
             }
             fclose($handle);
-    
+           
             $finalize = Http::withToken($account->access_token)
-                ->post("https://api.x.com/2/media/upload/{$mediaId}/finalize");
-    
+            ->withBody('{}', 'application/json')
+            ->post("https://api.x.com/2/media/upload/{$mediaId}/finalize");
+
             if (!$finalize->successful()) {
                 return $this->errorResponse($post, $finalize);
             }
             
             $finalResponse = $finalize->json()['data'] ?? [];
-    
+  
             if (!empty($finalResponse)) {
                 $status = $finalResponse['processing_info']['state'];
                 if (in_array($status, ['pending', 'in_progress'])) {
@@ -609,14 +610,14 @@ class XPostService
      */
     public function destroy($post)
     {
-        $this->ensureValidToken($post->socialPublishAccount);
+        $this->ensureValidToken($post->postAccount);
         $endpoint = 'https://api.x.com/2/tweets/' . $post->post_id;
 
         $response = $this->api->request(
             'delete',
             $endpoint,
             [
-                'Authorization' => 'Bearer ' . $post->socialPublishAccount->access_token,
+                'Authorization' => 'Bearer ' . $post->postAccount->access_token,
                 'Content-Type' => 'application/json'
             ],
             []
@@ -646,7 +647,7 @@ class XPostService
      */
     public function publishComment($chat, $data)
     {
-        $this->ensureValidToken($chat->socialPublishAccount);
+        $this->ensureValidToken($chat->postAccount);
         $endpoint = 'https://api.x.com/2/tweets';
         $payload = [
             'text' => $data['body'] ?? '',
@@ -659,7 +660,7 @@ class XPostService
             'post',
             $endpoint,
             [
-                'Authorization' => 'Bearer ' . $chat->socialPublishAccount->access_token,
+                'Authorization' => 'Bearer ' . $chat->postAccount->access_token,
                 'Content-Type' => 'application/json'
             ],
             $payload
@@ -677,14 +678,14 @@ class XPostService
      */
     public function destroyComment($chat)
     {
-        $this->ensureValidToken($chat->socialPublishAccount);
+        $this->ensureValidToken($chat->postAccount);
         $endpoint = 'https://api.x.com/2/tweets/' . $chat->comment_id;
 
         $response = $this->api->request(
             'delete',
             $endpoint,
             [
-                'Authorization' => 'Bearer ' . $chat->socialPublishAccount->access_token,
+                'Authorization' => 'Bearer ' . $chat->postAccount->access_token,
                 'Content-Type' => 'application/json'
             ],
             []
@@ -716,7 +717,7 @@ class XPostService
             'file'            => '',
             'comment_id'      => $commentId,
             'social_post_id'  => $chat->socialPost?->id,
-            'social_publish_account_id' => $chat->socialPublishAccount?->id,
+            'social_publish_account_id' => $chat->postAccount?->id,
         ]);
 
         return [

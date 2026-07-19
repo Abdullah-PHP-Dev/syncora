@@ -31,19 +31,23 @@ class YoutubePostService
     /**
      * Ensure valid access token by refreshing if needed
      */
-    protected function ensureValidToken($account)
+    protected function ensureValidToken($post)
     {
 
-        // Token still valid
+        $account = $post->postAccount;
         if (
-            !empty($account->expires_in)
-            && Carbon::parse($account->expires_in)->gt(now()->addMinutes(5))
+            $account->expires_in &&
+            now()->lt(Carbon::parse($account->expires_in)->subMinutes(5))
         ) {
             return true;
         }
 
-        $clientId = core()->superConfig("admin.twsaa.google.posts.app_id");
-        $clientSecret = core()->superConfig("admin.twsaa.google.posts.app_secret");
+        if (empty($account->refresh_token)) {
+            return false;
+        }
+
+        $clientId = adminSetting('posts.google.client_id');
+        $clientSecret = adminSetting('posts.google.client_secret');
 
         $response = Http::post('https://oauth2.googleapis.com/token', [
             'grant_type'    => 'refresh_token',
@@ -53,7 +57,7 @@ class YoutubePostService
         ]);
 
         if (!$response->successful()) {
-            return $this->errorResponse($response);
+            return $this->errorResponse($post, $response);
         }
 
         $tokenData = $response->json();
@@ -94,10 +98,6 @@ class YoutubePostService
             }
         }
 
-        // Remove the uploaded file from data to avoid serialization issues
-        $jobData = $data;
-        unset($jobData['media']); // Remove the file object
-
         // Create post record and dispatch jobs for each page
         foreach ($pages as $page) {
             try {
@@ -110,7 +110,7 @@ class YoutubePostService
                     'user_id' => Auth::user()->id,
                     'post_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
-                    'page_id' => $page->external_id,
+                    'page_id' => $page->account_id,
                     'content' => $data['content'] ?? null,
                     'schedule_mode' => $data['schedule_mode'] ?? 0,
                     'schedule_at' => $data['schedule_at'] ?? null,
@@ -143,14 +143,11 @@ class YoutubePostService
                     }
                 }
 
-                // Dispatch job to process this post (without the file)
-                //  ProcessFacebookPostJob::dispatch($post, $page)->onQueue('high');
-
                 $successCount++;
                 $results[] = $post;
             } catch (\Exception $e) {
                 $errors[] = [
-                    'page_id' => $page->external_id,
+                    'page_id' => $page->account_id,
                     'page_name' => $page->page_name ?? $page->name,
                     'message' => $e->getMessage()
                 ];
@@ -301,35 +298,183 @@ class YoutubePostService
         }
     }
 
-    /**
-     * Create schedule record in database
-     */
-    protected function createScheduleRecord($data, $page, $mediaResult): SocialPost
+    public function publishPost($post)
     {
-        $mediaData = [
-            'url' => $mediaResult['url'],
-            'ext' => $mediaResult['ext']
-        ];
+        try {
+            $account = $post->postAccount;
+            if (!$this->ensureValidToken($post)) {
+                $post->update([
+                    'status' => 'failed',
+                    'error_message' => 'Failed to refresh access token'
+                ]);
+                return ['success' => false];
+            }
 
-        return SocialPost::create([
-            'page_post_id'          => null,
-            'company_id'            => company()->id(),
-            'social_publish_account_id'      => $page->id,
-            'social_category_id'    => $data['category_id'] ?? 1,
-            'page_id'               => $page->external_id,
-            'content'               => $data['content'] ?? null,
-            'media'                 => json_encode($mediaData),
-            'url'                   => json_encode($mediaData),
-            'status'                => 'scheduled',
-            'schedule_mode'         => $data['schedule_mode'] ?? 0,
-            'schedule_at'           => isset($data['schedule_at']) ? Carbon::parse($data['schedule_at']) : null,
-            'expiry_mode'           => $data['expiry_mode'] ?? 0,
-            'expiry_at'             => isset($data['expiry_at']) ? Carbon::parse($data['expiry_at']) : null,
-        ]);
+            if ($post->media->isEmpty()) {
+                throw new \Exception('No media found for this post.');
+            }
+
+            $tempDir = storage_path('app/temp');
+            if (!is_dir($tempDir)) {
+                mkdir($tempDir, 0777, true);
+            }
+
+            $uploadedVideoIds = [];
+            $content = trim($post->content ?? '');
+
+            // ==========================================
+            // LOOP THROUGH EACH ATTACHED VIDEO
+            // ==========================================
+            foreach ($post->media as $index => $mediaItem) {
+                $mediaUrl = $mediaItem->media_url;
+
+                $fileExtension = strtolower(pathinfo(parse_url($mediaUrl, PHP_URL_PATH), PATHINFO_EXTENSION));
+                $tempPath = $tempDir . '/' . uniqid() . '.' . $fileExtension;
+
+                // Download media from S3/CDN to temp directory
+                $downloadSuccess = file_put_contents($tempPath, file_get_contents($mediaUrl));
+
+                if (!$downloadSuccess || !file_exists($tempPath)) {
+                    throw new \Exception('Unable to download media from: ' . $mediaUrl);
+                }
+
+                $mime = mime_content_type($tempPath);
+                $videoSize = filesize($tempPath);
+
+                if ($videoSize === 0) {
+                    if (file_exists($tempPath)) { unlink($tempPath); }
+                    throw new \Exception('Downloaded video file is empty.');
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | Title Generation (Unique per video index if multiple)
+                |--------------------------------------------------------------------------
+                */
+                $dotPosition = mb_strpos($content, '.');
+                $baseTitle = ($dotPosition !== false && $dotPosition < 90)
+                    ? mb_substr($content, 0, $dotPosition + 1)
+                    : mb_substr($content, 0, 90);
+
+                if (empty($baseTitle)) {
+                    $baseTitle = 'Video ' . date('Y-m-d H:i:s');
+                }
+
+                // If uploading multiple videos, append a part number so they don't look identical
+                $title = count($post->media) > 1 ? "{$baseTitle} (Part " . ($index + 1) . ")" : $baseTitle;
+
+                $categoryId = '22'; // Default: People & Blogs
+                try {
+                    if (isset($post->socialCategory) && $post->socialCategory) {
+                        $categoryId = '22';
+                    }
+                } catch (\Exception $e) {}
+
+                $payload = [
+                    'snippet' => [
+                        'title' => mb_substr($title, 0, 100),
+                        'description' => $post->content ?? '',
+                        'categoryId' => $categoryId
+                    ],
+                    'status' => [
+                        'privacyStatus' => 'public'
+                    ]
+                ];
+
+                /*
+                |--------------------------------------------------------------------------
+                | Create Resumable Upload Session
+                |--------------------------------------------------------------------------
+                */
+                $sessionResponse = Http::timeout(300)
+                    ->withHeaders([
+                        'Authorization' => 'Bearer ' . $account->access_token,
+                        'Content-Type' => 'application/json',
+                        'X-Upload-Content-Type' => $mime,
+                        'X-Upload-Content-Length' => $videoSize,
+                    ])
+                    ->post(
+                        'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
+                        $payload
+                    );
+
+                if (!$sessionResponse->successful()) {
+                    if (file_exists($tempPath)) { unlink($tempPath); }
+                    $errorBody = $sessionResponse->body();
+                    throw new \Exception('YouTube session creation failed: ' . $errorBody);
+                }
+
+                $uploadUrl = $sessionResponse->header('Location');
+                if (empty($uploadUrl)) {
+                    if (file_exists($tempPath)) { unlink($tempPath); }
+                    throw new \Exception('No upload URL received from YouTube.');
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | Upload Video Data Stream
+                |--------------------------------------------------------------------------
+                */
+                $stream = fopen($tempPath, 'r');
+                $uploadResponse = Http::timeout(3600)
+                    ->withHeaders([
+                        'Authorization' => 'Bearer ' . $account->access_token,
+                        'Content-Type' => $mime,
+                        'Content-Length' => $videoSize,
+                    ])
+                    ->withBody($stream, $mime)
+                    ->send('PUT', $uploadUrl);
+
+                fclose($stream);
+                if (file_exists($tempPath)) {
+                    unlink($tempPath); // Always clean up temporary files immediately
+                }
+
+                if (!$uploadResponse->successful()) {
+                    throw new \Exception('Video chunk upload failed: ' . $uploadResponse->body());
+                }
+
+                $youtubeData = $uploadResponse->json();
+                $videoId = $youtubeData['id'] ?? null;
+
+                if (!$videoId) {
+                    throw new \Exception('YouTube video ID missing from response payload.');
+                }
+
+                $uploadedVideoIds[] = $videoId;
+                
+                // Optional: Save individual ID to its specific media record
+                $mediaItem->update(['media_id' => $videoId]);
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Finalize Post State
+            |--------------------------------------------------------------------------
+            */
+            // Store all IDs as a comma-separated string inside your main post layout record
+            $post->update([
+                'post_id' => $uploadedVideoIds[0],
+                'status' => 'completed',
+                'error_message' => null
+            ]);
+
+            return ['success' => true, 'video_ids' => $uploadedVideoIds];
+
+        } catch (\Exception $e) {
+
+
+            $post->update([
+                'status' => 'failed',
+                'error_message' => $e->getMessage()
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
+        }
     }
-
-
-
     /**
      * Get posts for a channel
      */
@@ -366,18 +511,18 @@ class YoutubePostService
     public function destroy($post)
     {
         try {
-            if (empty($post->page_post_id)) {
+            if (empty($post->post_id)) {
                 return [
                     'success' => false,
                     'message' => 'Post ID is required to delete'
                 ];
             }
 
-            $this->ensureValidToken($post->socialPublishAccount);
+            $this->ensureValidToken($post->postAccount);
 
-            $endpoint = "{$this->baseUrl}/videos?id={$post->page_post_id}";
+            $endpoint = "{$this->baseUrl}/videos?id={$post->post_id}";
 
-            $response = Http::withToken($post->socialPublishAccount->access_token)
+            $response = Http::withToken($post->postAccount->access_token)
                 ->delete($endpoint);
 
             $responseData = $response->json();
@@ -521,7 +666,7 @@ class YoutubePostService
     /**
      * Error response handler
      */
-    private function errorResponse($response)
+    private function errorResponse($model, $response)
     {
         $data = $response->json() ?? $response;
 
@@ -532,6 +677,9 @@ class YoutubePostService
             ?? $data['error_description']
             ?? 'Unknown error';
 
+            $model->status = 'failed';
+            $model->error_message = $message ?? 'Unknown error';
+            $model->save();
         return [
             'success' => false,
             'message' => $message
@@ -543,7 +691,7 @@ class YoutubePostService
      */
     public function publishComment($chat, $data)
     {
-        $this->ensureValidToken($chat->socialPublishAccount);
+        $this->ensureValidToken($chat->postAccount);
         $endpoint = 'https://www.googleapis.com/youtube/v3/comments?part=snippet';
         $payload = [
             'snippet' => [
@@ -556,7 +704,7 @@ class YoutubePostService
             'post',
             $endpoint,
             [
-                'Authorization' => 'Bearer ' . $chat->socialPublishAccount->access_token,
+                'Authorization' => 'Bearer ' . $chat->postAccount->access_token,
                 'Content-Type' => 'application/json'
             ],
             $payload
@@ -617,7 +765,7 @@ class YoutubePostService
             'file'            => '',
             'comment_id'      => $commentId,
             'social_post_id'  => $chat->socialPost?->id,
-            'social_publish_account_id' => $chat->socialPublishAccount?->id,
+            'social_publish_account_id' => $chat->postAccount?->id,
         ]);
 
         return [
@@ -632,7 +780,7 @@ class YoutubePostService
      */
     public function destroyComment($chat)
     {
-        $this->ensureValidToken($chat->socialPublishAccount);
+        $this->ensureValidToken($chat->postAccount);
 
         $endpoint = 'https://www.googleapis.com/youtube/v3/comments?id=' . $chat->comment_id;
 
@@ -642,7 +790,7 @@ class YoutubePostService
             'delete',
             $endpoint,
             [
-                'Authorization' => 'Bearer ' . $chat->socialPublishAccount->access_token,
+                'Authorization' => 'Bearer ' . $chat->postAccount->access_token,
             ],
             [
                 'id' => $chat->comment_id

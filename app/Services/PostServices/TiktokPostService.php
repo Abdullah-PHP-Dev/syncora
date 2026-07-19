@@ -25,8 +25,9 @@ class TiktokPostService
     /**
      * Ensure valid access token by refreshing if needed
      */
-    protected function ensureValidToken($account)
+    protected function ensureValidToken($post)
     {
+        $account = $post->postAccount;
         // Token still valid
         if (
             !empty($account->expires_in)
@@ -35,8 +36,8 @@ class TiktokPostService
             return true;
         }
 
-        $clientId = core()->superConfig("admin.twsaa.tiktok.posts.app_id");
-        $clientSecret = core()->superConfig("admin.twsaa.tiktok.posts.app_secret");
+        $clientId = adminSetting('posts.tiktok.client_id');
+        $clientSecret = adminSetting('posts.tiktok.client_secret');
 
         $response = Http::asForm()->post('https://open.tiktokapis.com/v2/oauth/token/', [
             'client_key' => $clientId,
@@ -46,7 +47,7 @@ class TiktokPostService
         ]);
 
         if (!$response->successful()) {
-            return $this->errorResponse($response);
+            return $this->errorResponse($post, $response);
         }
 
         $tokenData = $response->json();
@@ -102,7 +103,7 @@ class TiktokPostService
                     'user_id' => Auth::user()->id,
                     'post_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
-                    'page_id' => $page->external_id,
+                    'page_id' => $page->account_id,
                     'content' => $data['content'] ?? null,
                     'schedule_mode' => $data['schedule_mode'] ?? 0,
                     'schedule_at' => $data['schedule_at'] ?? null,
@@ -141,7 +142,7 @@ class TiktokPostService
                 $results[] = $post;
             } catch (\Exception $e) {
                 $errors[] = [
-                    'page_id' => $page->external_id,
+                    'page_id' => $page->account_id,
                     'page_name' => $page->page_name ?? $page->name,
                     'message' => $e->getMessage()
                 ];
@@ -292,25 +293,49 @@ class TiktokPostService
         }
     }
 
-    /**
-     * Get creator info for a page
-     */
-    protected function getCreatorInfo($page): array
+    public function publishPost($post)
     {
         try {
-            $response = Http::withToken($page->access_token)
+            $account = $post->postAccount;
+            if (!$this->ensureValidToken($post)) {
+                $post->update([
+                    'status' => 'failed',
+                    'error_message' => 'Failed to refresh access token'
+                ]);
+
+                return ['success' => false];
+            }
+
+            // Fetch current creator configuration limits
+            $creatorResponse = Http::withToken($account->access_token)
                 ->asJson()
                 ->withBody('{}', 'application/json')
                 ->post("{$this->baseUrl}/post/publish/creator_info/query/");
 
-            if (!$response->successful()) {
-                return $this->errorResponse($response);
+            if (!$creatorResponse->successful()) {
+                return $this->errorResponse($creatorResponse, $account->platform);
             }
 
-            return [
-                'success' => true,
-                'data' => $response->json()['data']
-            ];
+            $creatorResponseData = $creatorResponse->json()['data'] ?? [];
+
+            // Trigger the media router
+            $result = $this->pushMediaToTiktok($post, $creatorResponseData, $account);
+
+            if (!$result['success']) {
+                $post->update([
+                    'status' => 'failed',
+                    'error_message' => $result['message'] ?? 'TikTok publishing failed.'
+                ]);
+                return $result;
+            }
+
+            $post->update([
+                'status' => 'completed',
+                'post_id' => $result['publish_id'],
+                'error_message' => null
+            ]);
+
+            return ['success' => true, 'id' => $result['publish_id']];
         } catch (\Exception $e) {
             return [
                 'success' => false,
@@ -319,38 +344,48 @@ class TiktokPostService
         }
     }
 
-    /**
-     * Upload Media to S3
-     */
-    protected function uploadMedia($file): string
+    public function pushMediaToTiktok($post, $creatorResponseData, $account)
     {
-        $extension = strtolower($file->getClientOriginalExtension());
-        $fileName = uniqid() . '.' . $extension;
-        $path = "uploads/tiktok/{$fileName}";
+        $mediaCount = count($post->media);
+        if ($mediaCount === 0) {
+            return ['success' => false, 'message' => 'No media files attached to this post.'];
+        }
 
-        Storage::disk('s3')->put(
-            $path,
-            file_get_contents($file->getRealPath()),
-            [
-                'visibility' => 'public',
-                'ContentType' => $file->getMimeType(),
-            ]
-        );
+        // Detect if the post contains any video items
+        $hasVideo = $post->media->contains(function ($media) {
+            $extension = strtolower(pathinfo(parse_url($media->media_url, PHP_URL_PATH), PATHINFO_EXTENSION));
+            return in_array($extension, ['mp4', 'mov', 'webm']);
+        });
 
-        return Storage::disk('s3')->url($path);
+        // Guardrails for TikTok API restrictions
+        if ($hasVideo) {
+            if ($mediaCount > 1) {
+                return ['success' => false, 'message' => 'TikTok does not allow multiple videos or mixing photos and videos in a single post.'];
+            }
+
+            $videoUrl = $post->media->first()->media_url;
+            return $this->publishVideo($account->access_token, $post, $videoUrl, $creatorResponseData);
+        }
+
+        // Photo processing track (Handles single or multiple photos seamlessly)
+        $photoUrls = $post->media->pluck('media_url')->toArray();
+
+        if (count($photoUrls) > 35) {
+            return ['success' => false, 'message' => 'TikTok allows a maximum of 35 photos per post.'];
+        }
+
+        return $this->publishPhoto($account->access_token, $post, $photoUrls, $creatorResponseData);
     }
 
     /**
-     * Publish Photo Post
+     * Publish Photo Post (Single or Multiple)
      */
-    protected function publishPhoto($page, $data, $photoUrls, $creatorResponseData): array
+    protected function publishPhoto($token, $post, array $photoUrls, $creatorResponseData): array
     {
         try {
-            $content = trim($data['content'] ?? '');
-            $dotPosition = mb_strpos($content, '.');
+            $content = trim($post->content ?? '');
             $contentWithoutHashtags = preg_replace('/#\S+/u', '', $content);
             $contentWithoutHashtags = preg_replace('/\s+/', ' ', trim($contentWithoutHashtags));
-
             $dotPosition = mb_strpos($contentWithoutHashtags, '.');
 
             $title = ($dotPosition !== false && $dotPosition < 85)
@@ -359,27 +394,27 @@ class TiktokPostService
 
             $payload = [
                 'post_info' => [
-                    'title' => $title,
-                    'description' => $data['content'] ?? '',
+                    'title' => $title ?: 'Post Image',
+                    'description' => $post->content ?? '',
                     'privacy_level' => $creatorResponseData['privacy_level_options'][0] ?? 'PUBLIC',
                     'disable_comment' => false,
-                    'auto_add_music' => true,
+                    'auto_add_music' => false,
                 ],
                 'source_info' => [
                     'source' => 'PULL_FROM_URL',
                     'photo_cover_index' => 0,
-                    'photo_images' => is_array($photoUrls) ? $photoUrls : [$photoUrls],
+                    'photo_images' => $photoUrls,
                 ],
                 'post_mode' => 'DIRECT_POST',
                 'media_type' => 'PHOTO',
             ];
 
-            $response = Http::withToken($page->access_token)
+            $response = Http::withToken($token)
                 ->acceptJson()
                 ->post("{$this->baseUrl}/post/publish/content/init/", $payload);
 
             if (!$response->successful()) {
-                return $this->errorResponse($response);
+                return ['success' => false, 'message' => $response->json()['error']['message'] ?? 'Failed initialization for photo upload.'];
             }
 
             return [
@@ -395,17 +430,14 @@ class TiktokPostService
     }
 
     /**
-     * Publish Video Post
+     * Publish Video Post (Exactly 1 Video)
      */
-    protected function publishVideo($page, $data, $videoUrls, $creatorResponseData): array
+    protected function publishVideo($token, $post, string $videoUrl, $creatorResponseData): array
     {
         try {
-            // Use first video URL if multiple provided
-            $videoUrl = is_array($videoUrls) ? $videoUrls[0] : $videoUrls;
-
             $payload = [
                 'post_info' => [
-                    'title' => $data['content'] ?? '',
+                    'title' => mb_substr($post->content ?? '', 0, 150), // Title string field setup
                     'privacy_level' => $creatorResponseData['privacy_level_options'][0] ?? 'PUBLIC',
                     'disable_duet' => false,
                     'disable_comment' => false,
@@ -417,12 +449,12 @@ class TiktokPostService
                 ],
             ];
 
-            $response = Http::withToken($page->access_token)
+            $response = Http::withToken($token)
                 ->acceptJson()
                 ->post("{$this->baseUrl}/post/publish/video/init/", $payload);
 
             if (!$response->successful()) {
-                return $this->errorResponse($response);
+                return ['success' => false, 'message' => $response->json()['error']['message'] ?? 'Failed initialization for video upload.'];
             }
 
             return [
@@ -435,58 +467,6 @@ class TiktokPostService
                 'message' => $e->getMessage()
             ];
         }
-    }
-
-    /**
-     * Get Publish Status
-     */
-    public function getPublishStatus(string $publishId, string $accessToken): array
-    {
-        try {
-            $response = Http::withToken($accessToken)
-                ->post("{$this->baseUrl}/post/publish/status/fetch/", [
-                    'publish_id' => $publishId
-                ]);
-
-            if (!$response->successful()) {
-                return $this->errorResponse($response);
-            }
-
-            return [
-                'success' => true,
-                'data' => $response->json(),
-            ];
-        } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'message' => $e->getMessage()
-            ];
-        }
-    }
-
-    /**
-     * Save Social Post to Database
-     */
-    protected function saveSocialPost($publishId, $mediaUrls, array $data, $page): SocialPost
-    {
-        // Store media URLs as JSON
-        $mediaJson = is_array($mediaUrls) ? json_encode($mediaUrls) : $mediaUrls;
-
-        return SocialPost::create([
-            'company_id' => company()->id(),
-            'social_publish_account_id' => $page->id,
-            'social_category_id' => $data['category_id'] ?? 1,
-            'page_post_id' => $publishId,
-            'page_id' => $page->external_id,
-            'content' => $data['content'] ?? null,
-            'media' => $mediaJson,
-            'url' => $mediaJson,
-            'status' => 'processing',
-            'schedule_mode' => $data['schedule_mode'] ?? 0,
-            'schedule_at' => isset($data['schedule_at']) ? Carbon::parse($data['schedule_at']) : null,
-            'expiry_at' => isset($data['expiry_at']) ? Carbon::parse($data['expiry_at']) : null,
-            'expiry_mode' => $data['expiry_mode'] ?? 0,
-        ]);
     }
 
     /**
@@ -516,11 +496,11 @@ class TiktokPostService
      */
     public function publishComment($chat, $data)
     {
-        $this->ensureValidToken($chat->socialPublishAccount);
+        $this->ensureValidToken($chat->postAccount);
         $endpoint = 'https://business-api.tiktok.com/open_api/v1.3/business/comment/list/';
         $payload = [
-            "business_id" => $chat->socialPublishAccount->external_id,
-            "video_id" => $chat->socialPublishAccount->page_post_id,
+            "business_id" => $chat->postAccount->account_id,
+            "video_id" => $chat->postAccount->post_id,
             "status" => "PUBLIC"
         ];
 
@@ -528,7 +508,7 @@ class TiktokPostService
             'post',
             $endpoint,
             [
-                'Authorization' => 'Bearer ' . $chat->socialPublishAccount->access_token,
+                'Authorization' => 'Bearer ' . $chat->postAccount->access_token,
                 'Content-Type' => 'application/json'
             ],
             $payload
@@ -567,7 +547,7 @@ class TiktokPostService
             ->get(
                 'https://business-api.tiktok.com/open_api/v1.3/business/comment/list/',
                 [
-                    "business_id" => $account->external_id,
+                    "business_id" => $account->account_id,
                     "video_id" => $videoId,
                     "status" => "PUBLIC"
                 ]
@@ -590,16 +570,20 @@ class TiktokPostService
     /**
      * Error Response Handler
      */
-    protected function errorResponse($response): array
+    protected function errorResponse($model, $response): array
     {
         $data = $response->json() ?? $response;
-
-        return [
-            'success' => false,
-            'message' => $data['error']['message']
+        $message = $data['error']['message']
                 ?? $data['error']
                 ?? $data['message']
-                ?? 'TikTok API Error',
+                ?? 'TikTok API Error';
+
+        $model->status = 'failed';
+        $model->error_message = $message ?? 'TikTok API Error';
+        $model->save();
+        return [
+            'success' => false,
+            'message' => $message?? 'TikTok API Error',
             'response' => $data,
         ];
     }
@@ -617,7 +601,7 @@ class TiktokPostService
             'file'            => '',
             'comment_id'      => $commentId,
             'social_post_id'  => $chat->socialPost?->id,
-            'social_publish_account_id' => $chat->socialPublishAccount?->id,
+            'social_publish_account_id' => $chat->postAccount?->id,
         ]);
 
         return [

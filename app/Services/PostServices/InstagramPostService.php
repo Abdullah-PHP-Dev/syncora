@@ -114,7 +114,7 @@ class InstagramPostService
                     'user_id' => Auth::user()->id,
                     'post_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
-                    'page_id' => $page->external_id,
+                    'page_id' => $page->account_id,
                     'content' => $data['content'] ?? null,
                     'schedule_mode' => $data['schedule_mode'] ?? 0,
                     'schedule_at' => $data['schedule_at'] ?? null,
@@ -153,7 +153,7 @@ class InstagramPostService
                 $results[] = $post;
             } catch (\Exception $e) {
                 $errors[] = [
-                    'page_id' => $page->external_id,
+                    'page_id' => $page->account_id,
                     'page_name' => $page->page_name ?? $page->name,
                     'message' => $e->getMessage()
                 ];
@@ -309,7 +309,8 @@ class InstagramPostService
      * Publish Post
      */
 
-    public function publishPost($post) {
+    public function publishPost($post)
+    {
         $account = $post->postAccount;
         if (!$this->ensureValidToken($post)) {
             $post->update([
@@ -321,19 +322,35 @@ class InstagramPostService
         }
 
         $media = $this->createMediaContainer($post);
-        
+
         if (!$media['success']) {
             $post->status = 'failed';
-            $post->error_message = $media['message'] ?? $media['error'] ?? 'Facebook media publish faced an error.';  
+            $post->error_message = $media['message'] ?? $media['error'] ?? 'Instagram media publish faced an error.';
             $post->save();
 
             return $media;
         }
 
-        $checkContainer = $this->checkContainerStatus($media['container_id'], $post);
-     
-        if (!$checkContainer['success'] || $checkContainer['status'] != 'FINISHED') {
+        $isMainReady = false;
+        $mainAttempts = 0;
+
+        while (!$isMainReady && $mainAttempts < 10) {
             $checkContainer = $this->checkContainerStatus($media['container_id'], $post);
+
+            if ($checkContainer['success'] && $checkContainer['status'] == 'FINISHED') {
+                $isMainReady = true;
+            } else {
+                $mainAttempts++;
+                sleep(2);
+            }
+        }
+
+        if (!$isMainReady) {
+            $post->update([
+                'status' => 'failed',
+                'error_message' => 'Main carousel container processing timed out.'
+            ]);
+            return ['success' => false];
         }
 
         $endpoint = "{$this->baseUrl}{$account->account_id}/media_publish?access_token={$account->access_token}";
@@ -347,7 +364,7 @@ class InstagramPostService
             ],
             'form'
         );
-        
+
         if (!$response->successful()) {
             return $this->errorResponse($post, $response);
         }
@@ -363,7 +380,7 @@ class InstagramPostService
     }
 
     /**
-     * Create media container for Instagram
+     * Create media container for Instagram (Handles Single & Multiple Media)
      */
     public function createMediaContainer($post)
     {
@@ -371,44 +388,110 @@ class InstagramPostService
             $account = $post->postAccount;
             $endpoint = "{$this->baseUrl}{$account->account_id}/media?access_token={$account->access_token}";
 
-            
-            $children = [];
+            $mediaCount = count($post->media);
 
-            foreach ($post->media as $media) {
-            
-                $payload = [
-                    'is_carousel_item' => true,
+            if ($mediaCount === 0) {
+                return [
+                    'success' => false,
+                    'message' => 'No media items found for this post.'
                 ];
-            
-                if ($media->media_type == 'image') {
-            
-                    $payload['image_url'] = $media->media_url;
-            
+            }
+
+            // ==========================================
+            // CASE 1: SINGLE MEDIA (IMAGE OR VIDEO)
+            // ==========================================
+            if ($mediaCount === 1) {
+                $mediaItem = $post->media->first(); // Adjust to $post->media[0] if it's an array instead of a Collection
+
+                $payload = [
+                    'caption' => $post->content,
+                ];
+
+                if ($mediaItem->media_type == 'image') {
+                    $payload['image_url'] = $mediaItem->media_url;
                 } else {
-            
-                    $payload['video_url'] = $media->media_url;
+                    $payload['video_url'] = $mediaItem->media_url;
                     $payload['media_type'] = 'VIDEO';
-            
                 }
 
-                $response = $this->api->request(
-                    'post',
-                    $endpoint,
-                    [],
-                    $payload,
-                    'form'
-                );
+                $response = $this->api->request('post', $endpoint, [], $payload, 'form');
 
                 if (!$response->successful()) {
                     return $this->errorResponse($post, $response);
                 }
 
-                $media->media_id = $response->json()['id'];
-                $media->save();
+                $containerId = $response->json()['id'];
+                $mediaItem->media_id = $containerId;
+                $mediaItem->save();
 
-                $children[] = $response->json()['id'];
+                return [
+                    'success' => true,
+                    'container_id' => $containerId,
+                ];
             }
 
+            // ==========================================
+            // CASE 2: MULTIPLE MEDIA (CAROUSEL)
+            // ==========================================
+            $children = [];
+
+            // Step 1: Create all individual child containers
+            foreach ($post->media as $media) {
+                $payload = [
+                    'is_carousel_item' => true,
+                ];
+
+                if ($media->media_type == 'image') {
+                    $payload['image_url'] = $media->media_url;
+                } else {
+                    $payload['video_url'] = $media->media_url;
+                    $payload['media_type'] = 'VIDEO';
+                }
+
+                $response = $this->api->request('post', $endpoint, [], $payload, 'form');
+
+                if (!$response->successful()) {
+                    return $this->errorResponse($post, $response);
+                }
+
+                $childId = $response->json()['id'];
+                $media->media_id = $childId;
+                $media->save();
+
+                $children[] = $childId;
+            }
+
+            // Step 2: WAIT for all child containers to finish processing
+            foreach ($children as $childId) {
+                $isReady = false;
+                $attempts = 0;
+                $maxAttempts = 15;
+
+                while (!$isReady && $attempts < $maxAttempts) {
+                    $statusCheck = $this->checkContainerStatus($childId, $post);
+
+                    if ($statusCheck['success'] && $statusCheck['status'] === 'FINISHED') {
+                        $isReady = true;
+                    } elseif ($statusCheck['success'] && $statusCheck['status'] === 'ERROR') {
+                        return [
+                            'success' => false,
+                            'message' => "Child media container {$childId} failed processing on Instagram."
+                        ];
+                    } else {
+                        $attempts++;
+                        sleep(3);
+                    }
+                }
+
+                if (!$isReady) {
+                    return [
+                        'success' => false,
+                        'message' => "Media container item processing timed out."
+                    ];
+                }
+            }
+
+            // Step 3: Create the final Carousel container
             $response = $this->api->request(
                 'post',
                 $endpoint,
@@ -432,7 +515,6 @@ class InstagramPostService
                 'container_id' => $containerId,
             ];
         } catch (\Exception $e) {
-            dd($e->getMessage());
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -456,7 +538,7 @@ class InstagramPostService
                     'access_token' => $account->access_token,
                 ]
             );
-            
+
             if (!$response->successful()) {
                 return $this->errorResponse($post, $response);
             }
@@ -488,7 +570,7 @@ class InstagramPostService
             'applicable_type' => 'instagram',
             'file'            => '',
             'social_post_id'       => $chat->socialPost?->id,
-            'social_publish_account_id' => $chat->socialPublishAccount?->id,
+            'social_publish_account_id' => $chat->postAccount?->id,
         ]);
 
         return [
@@ -503,7 +585,7 @@ class InstagramPostService
      */
     public function publishComment($chat, $data)
     {
-        $this->ensureValidToken($chat->socialPublishAccount);
+        $this->ensureValidToken($chat->postAccount);
         $endpoint = $this->baseUrl . $chat->instagramChat->message_id . "/replies";
 
         $payload = [
@@ -512,7 +594,7 @@ class InstagramPostService
 
         $response = $this->api->request(
             'post',
-            $endpoint . "?access_token={$chat->socialPublishAccount->access_token}",
+            $endpoint . "?access_token={$chat->postAccount->access_token}",
             [],
             $payload,
             'form'
@@ -530,7 +612,7 @@ class InstagramPostService
      */
     public function getPosts($pageId, $pageToken)
     {
-        $account = MediaAccount::where('external_id', $pageId)->first();
+        $account = MediaAccount::where('account_id', $pageId)->first();
         $this->ensureValidToken($account);
         $endpoint = "https://graph.facebook.com/v25.0/{$pageId}/media";
 
@@ -558,12 +640,12 @@ class InstagramPostService
      */
     public function destroy($post)
     {
-        $this->ensureValidToken($post->socialPublishAccount);
-        $endpoint = $this->baseUrl . $post->page_post_id;
+        $this->ensureValidToken($post->postAccount);
+        $endpoint = $this->baseUrl . $post->post_id;
 
         $response = $this->api->request(
             'delete',
-            $endpoint . "?access_token={$post->socialPublishAccount->access_token}",
+            $endpoint . "?access_token={$post->postAccount->access_token}",
             []
         );
 
@@ -589,7 +671,7 @@ class InstagramPostService
      */
     public function destroyComment($chat)
     {
-        $this->ensureValidToken($chat->socialPublishAccount);
+        $this->ensureValidToken($chat->postAccount);
         $endpoint = $this->baseUrl . $chat->comment_id;
 
         $response = $this->api->request(
@@ -620,8 +702,8 @@ class InstagramPostService
      */
     public function updatePost($postId, $data, $token)
     {
-        $account = SocialPost::with('socialPublishAccount')->where('page_post_id', $postId)->first();
-        $this->ensureValidToken($account->socialPublishAccount);
+        $account = SocialPost::with('postAccount')->where('post_id', $postId)->first();
+        $this->ensureValidToken($account->postAccount);
 
         $payload = [
             'message' => $data['content'],

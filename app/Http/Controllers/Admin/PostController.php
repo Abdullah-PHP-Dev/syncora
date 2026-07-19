@@ -4,12 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Storage;
-use App\Models\FacebookChat;
-use App\Http\Requests\Admin\PostCategoryRequest;
 use Illuminate\Http\Request;
 use App\Http\Requests\Admin\PostRequest;
-use Illuminate\Support\Facades\Http;
-use App\Models\MediaAccount;
 use App\Models\Post;
 use App\Services\PostServices\MetaPostService;
 use App\Services\PostServices\InstagramPostService;
@@ -22,7 +18,6 @@ use App\Models\PostCategory;
 use App\Models\PostAccount;
 use App\Models\PostMedia;
 use App\Models\PostComment;
-use App\Libs\NanoBanana;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 
@@ -143,7 +138,6 @@ class PostController extends Controller
     }
     public function index(Request $request)
     {
-        dd('ok');
         $platform = strtolower($request->platform);
         if ($request->platform === null) {
             $platform = session('platform');
@@ -151,22 +145,18 @@ class PostController extends Controller
         
         session(['platform' => $platform]);
         // $pageId = $request->page_id;
-        $mediaAccounts = MediaAccount::with(['posts'])->whereCompanyIdAndPlatform(company()->id(), $platform)->whereNotNull('page_id')->get();
 
-        $categories = SocialCategory::with(['mediaAccount', 'socialPosts'])->where([
-            'company_id' => company()->id()
+        $categories = PostCategory::with(['postAccount', 'posts'])->where([
+            'user_id' => Auth::user()->id
         ])->orderBy('id', 'desc')->paginate(50);
  
-        $posts = SocialPost::with(['mediaAccount', 'socialCategory', 'socialPublishAccount'])
-        ->where('company_id', company()->id())
-        ->whereHas('socialPublishAccount', function ($query) use ($platform) {
-            $query->where('platform', $platform);
-        })
-        // ->where('page_id', $pageId)
+        $posts = Post::with(['postAccount', 'postCategory'])
+        ->where('user_id', Auth::user()->id)
+        ->where('platform', $platform)
         ->latest()
         ->paginate(50);
        
-        return view($this->_config['view'], compact('posts', 'categories', 'mediaAccounts', 'platform'));
+        return view($this->_config['view'], compact('posts', 'categories', 'platform'));
     }
 
     public function create(Request $request)
@@ -313,25 +303,9 @@ class PostController extends Controller
         ]);
     }
 
-    public function storeCategory(SocialCategoryRequest $request)
-    {
-        $validated = $request->validated();
-
-        $category = SocialCategory::Create([
-            'company_id' => company()->id(),
-            'name' => $validated['name'],
-            'description' => $validated['description'],
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'data' => $category,
-        ]);
-    }
-
     public function destroy($postId)
     {
-        $post = SocialPost::with('socialPublishAccount', 'chats' ,'facebookChat','instagramChat','xChat','linkedinChat','tiktokChat','youtubeChat','googleChat')->find($postId);
+        $post = Post::with('postAccount', 'chats' ,'facebookChat','instagramChat','xChat','linkedinChat','tiktokChat','youtubeChat','googleChat')->find($postId);
         $error = [];
         if (!$post) {
             return response()->json([
@@ -341,7 +315,7 @@ class PostController extends Controller
         }
 
         try {
-            switch ($post->socialPublishAccount->platform) {
+            switch ($post->postAccount->platform) {
                 case 'facebook':
                     $response = $this->metaService->destroy($post);
                     break;
@@ -366,7 +340,6 @@ class PostController extends Controller
                 //     $response = $this->tiktokService->destroy($post);
                 //     break;
                 case 'linkedin':
-            
                     $response = $this->linkedinService->destroy($post);
                     break;
                 default:
@@ -375,9 +348,9 @@ class PostController extends Controller
                         'data' => "Unsupported platform: {$post->socialPublishAccount->platform}"
                     ], 400);
             }
-
+           
             // Check external API response
-            if (!$response || !$response['success']) {
+            if ((!$response || !$response['success']) && !in_array($response['status'], ['400', '404'])) {
                 return response()->json([
                     'success' => false,
                     'data' => 'Failed to delete post from platform',
@@ -386,8 +359,9 @@ class PostController extends Controller
             }
       
             // Delete locally
+            Storage::disk('s3')->delete($post->media);
             $post->delete();
-    
+          
             return response()->json([
                 'success' => true,
                 'data' => 'Post deleted successfully'

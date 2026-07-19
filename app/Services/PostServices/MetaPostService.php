@@ -99,7 +99,7 @@ class MetaPostService
                     'post_account_id' => $page->id,
                     'post_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
-                    'page_id' => $page->external_id,
+                    'page_id' => $page->account_id,
                     'content' => $data['content'] ?? null,
                     'schedule_mode' => $data['schedule_mode'] ?? 0,
                     'schedule_at' => $data['schedule_at'] ?? null,
@@ -135,7 +135,7 @@ class MetaPostService
                 $results[] = $post;
             } catch (\Exception $e) {
                 $errors[] = [
-                    'page_id' => $page->external_id,
+                    'page_id' => $page->account_id,
                     'page_name' => $page->page_name ?? $page->name,
                     'message' => $e->getMessage()
                 ];
@@ -306,7 +306,7 @@ class MetaPostService
 
         if ($result['success']) {
             $post->update([
-                'page_post_id' => $result['post_id'],
+                'post_id' => $result['post_id'],
                 'status' => 'completed'
             ]);
             return ['success' => true];
@@ -339,6 +339,17 @@ class MetaPostService
 
                 return $media;
             }
+
+            // If it was a video that published directly, complete the process here
+            if (isset($media['direct_published']) && $media['direct_published']) {
+                $post->update([
+                    'post_id' => $media['id'],
+                    'error_message' => '',  
+                    'status' => 'completed'
+                ]);
+
+                return ['success' => true];
+            }
            
             $payload['attached_media'] = $media['media'];
         }
@@ -363,32 +374,46 @@ class MetaPostService
         $payload = [];
      
         foreach ($post->media as $key => $each) {
-            
-            $payload['published'] = false;
+            // If it's an image, we upload it as unpublished to attach later
             if ($each->media_type == 'image') {
+                $payload['published'] = false;
                 $endpoint = $this->baseUrl . $post->postAccount->account_id . "/photos";
                 $payload['url'] = $each->media_url;
+                
+                $response = $this->api->request('post', $endpoint . "?access_token={$accessToken}", ['Content-Type' => 'application/json'], $payload, 'json');
+    
+                if (!$response->successful()) {
+                    return $this->errorResponse($post, $response);
+                }
+    
+                $attachedMedia[] = [
+                    'media_fbid' => $response->json()['id']
+                ];
             } else {
+                // CRITICAL: For videos, you typically must publish them directly to the /videos endpoint
+                // rather than attaching them via `attached_media` to the /feed endpoint.
                 $endpoint = $this->baseUrl . $post->postAccount->account_id . "/videos";
                 $payload['file_url'] = $each->media_url;
+                $payload['description'] = $post->content; // The video description becomes the post body
+                
+                $response = $this->api->request('post', $endpoint . "?access_token={$accessToken}", ['Content-Type' => 'application/json'], $payload, 'json');
+    
+                if (!$response->successful()) {
+                    return $this->errorResponse($post, $response);
+                }
+                
+                // Because /videos publishes immediately, we don't need to hit the /feed endpoint later
+                return [
+                    'success' => true,
+                    'direct_published' => true,
+                    'id' => $response->json()['id']
+                ];
             }  
-
-            $response = $this->api->request('post', $endpoint . "?access_token={$accessToken}", ['Content-Type' => 'application/json'],$payload, 'json');
-
-            if (!$response->successful()) {
-                return $this->errorResponse($post, $response);
-            }
-
-            $each->media_id = $response->json()['id'];
-            $each->save();
-
-            $attachedMedia[] = [
-                'media_fbid' => $response->json()['id']
-            ];
         }
-
+    
         return [
             'success' => true,
+            'direct_published' => false,
             'media' => $attachedMedia,
         ];
     }
@@ -420,12 +445,12 @@ class MetaPostService
 
     public function destroy($post)
     {
-        $this->ensureValidToken($post->socialPublishAccount);
-        $endpoint = $this->baseUrl . $post->page_post_id;
+        $this->ensureValidToken($post->postAccount);
+        $endpoint = $this->baseUrl . $post->post_id;
 
         $response = $this->api->request(
             'delete',
-            $endpoint . "?access_token={$post->socialPublishAccount->page_token}",
+            $endpoint . "?access_token={$post->postAccount->access_token}",
             []
         );
 
@@ -510,7 +535,7 @@ class MetaPostService
 
         $response = $this->api->request(
             'post',
-            $endpoint . "?access_token={$chat->mediaAccount->page_token}",
+            $endpoint . "?access_token={$chat->mediaAccount->access_token}",
             [],
             $payload,
             'form'
@@ -553,7 +578,7 @@ class MetaPostService
 
         $response = $this->api->request(
             'delete',
-            $endpoint . "?access_token={$chat->mediaAccount->page_token}",
+            $endpoint . "?access_token={$chat->mediaAccount->access_token}",
             []
         );
 
