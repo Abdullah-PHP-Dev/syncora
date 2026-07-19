@@ -640,7 +640,7 @@ class InstagramPostService
      */
     public function destroy($post)
     {
-        $this->ensureValidToken($post->postAccount);
+        $this->ensureValidToken($post);
         $endpoint = $this->baseUrl . $post->post_id;
 
         $response = $this->api->request(
@@ -652,17 +652,15 @@ class InstagramPostService
         if (!$response->successful()) {
             return [
                 'success' => false,
-                'message' => $response->json()['error']['message'] ?? 'Unknown error'
+                'message' => $response->json()['error']['message'] ?? 'Unknown error',
+                'status' => $response->status()
             ];
-        }
-
-        if ($post->media) {
-            Storage::disk('s3')->delete($post->media);
         }
 
         return [
             'success' => true,
-            'data' => $response->json()
+            'data' => $response->json(),
+            'status' => $response->status()
         ];
     }
 

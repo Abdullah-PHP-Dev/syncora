@@ -537,27 +537,12 @@ class YoutubePostService
                 }
             }
 
-            // Delete media from S3 if exists
-            if ($post->media) {
-                $mediaUrls = json_decode($post->media, true) ?? [$post->media];
-                foreach ((array)$mediaUrls as $mediaUrl) {
-                    if ($mediaUrl) {
-                        $path = parse_url($mediaUrl, PHP_URL_PATH);
-                        if ($path) {
-                            // S3 usually prefers paths without the leading slash
-                            $path = ltrim($path, '/');
-                            Storage::disk('s3')->delete($path);
-                        }
-                    }
-                }
-            }
-
             // Delete table data (the SocialPost model)
             //$post->delete();
 
             return [
                 'success' => true,
-                // Return actual data if successful, or a custom message if it was a 404
+                'status' => $response->status(),
                 'data' => $response->successful() ? $responseData : ['message' => 'Post was already deleted directly on Google. Local data cleaned up.']
             ];
         } catch (\Exception $e) {

@@ -569,41 +569,20 @@ class GooglePostService
         );
 
         $responseData = $response->json();
-
+        $errorCode = $responseData['error']['code'] ?? null;
         if (!$response->successful()) {
-            $errorCode = $responseData['error']['code'] ?? null;
-
-            // If the error is NOT a 404, stop and return the error
-            // If it IS a 404, we ignore the error and proceed to cleanup
             if ($errorCode !== 404) {
                 return [
                     'success' => false,
+                    'status' => $errorCode,
                     'message' => $responseData['error']['message'] ?? 'Unknown error'
                 ];
             }
         }
 
-        // Delete media from S3 if exists
-        if ($post->media) {
-            $mediaUrls = json_decode($post->media, true) ?? [$post->media];
-            foreach ((array)$mediaUrls as $mediaUrl) {
-                if ($mediaUrl) {
-                    $path = parse_url($mediaUrl, PHP_URL_PATH);
-                    if ($path) {
-                        // S3 usually prefers paths without the leading slash
-                        $path = ltrim($path, '/');
-                        Storage::disk('s3')->delete($path);
-                    }
-                }
-            }
-        }
-
-        // Delete table data (the SocialPost model)
-        $post->delete();
-
         return [
             'success' => true,
-            // Return actual data if successful, or a custom message if it was a 404
+            'status' => $errorCode,
             'data' => $response->successful() ? $responseData : ['message' => 'Post was already deleted directly on Google. Local data cleaned up.']
         ];
     }

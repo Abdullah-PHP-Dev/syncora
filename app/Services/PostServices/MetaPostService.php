@@ -454,16 +454,19 @@ class MetaPostService
             []
         );
 
+        
         if (!$response->successful()) {
             return [
                 'success' => false,
-                'message' => $response->json()['error']['message'] ?? 'Unknown error'
+                'message' => $response->json()['error']['message'] ?? 'Unknown error',
+                'status' => $response->status()
             ];
         }
-        Storage::disk('s3')->delete($post->media);
+
         return [
             'success' => true,
-            'data' => $response->json()
+            'data' => $response->json(),
+            'status' => $response->status()
         ];
     }
 

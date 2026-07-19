@@ -624,20 +624,12 @@ class XPostService
         );
 
         if (!$response->successful()) {
-            return $this->errorResponse($response);
-        }
-
-        // Delete media from S3 if exists
-        if ($post->media) {
-            $path = parse_url($post->media, PHP_URL_PATH);
-
-            if ($path) {
-                Storage::disk('s3')->delete($path);
-            }
+            return $this->errorResponse($post, $response);
         }
 
         return [
             'success' => true,
+            'status' => $response->status(),
             'data' => $response->json()['data'] ?? []
         ];
     }
@@ -740,6 +732,7 @@ class XPostService
 
         return [
             'success' => false,
+            'status' => $response->status(),
             'message' => $message ?? 'Unknown error'
         ];
     }

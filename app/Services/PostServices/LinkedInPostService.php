@@ -655,16 +655,12 @@ class LinkedInPostService
                 ->delete("{$this->baseUrl}posts/" . urlencode($post->account_id));
 
             if (!$response->successful()) {
-                return $this->errorResponse($response);
-            }
-
-            // Delete media from S3 if exists
-            if ($post->media) {
-                Storage::disk('s3')->delete($post->media);
+                return $this->errorResponse($post, $response);
             }
 
             return [
                 'success' => true,
+                'status' => $response->status(),
                 'message' => 'Post deleted successfully'
             ];
         } catch (\Exception $e) {
@@ -728,6 +724,7 @@ class LinkedInPostService
 
         return [
             'success' => false,
+            'status' => $response->status(),
             'message' => $message,
             'response' => $data,
         ];

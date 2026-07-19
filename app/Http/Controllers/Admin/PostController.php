@@ -305,7 +305,7 @@ class PostController extends Controller
 
     public function destroy($postId)
     {
-        $post = Post::with('postAccount', 'chats' ,'facebookChat','instagramChat','xChat','linkedinChat','tiktokChat','youtubeChat','googleChat')->find($postId);
+        $post = Post::with('postAccount', 'comments' ,'media')->find($postId);
         $error = [];
         if (!$post) {
             return response()->json([
@@ -315,7 +315,7 @@ class PostController extends Controller
         }
 
         try {
-            switch ($post->postAccount->platform) {
+            switch ($post->platform) {
                 case 'facebook':
                     $response = $this->metaService->destroy($post);
                     break;
@@ -345,7 +345,7 @@ class PostController extends Controller
                 default:
                     return response()->json([
                         'success' => false,
-                        'data' => "Unsupported platform: {$post->socialPublishAccount->platform}"
+                        'data' => "Unsupported platform: {$post->platform}"
                     ], 400);
             }
            
@@ -359,7 +359,15 @@ class PostController extends Controller
             }
       
             // Delete locally
-            Storage::disk('s3')->delete($post->media);
+            if (count($post->media)) {
+                foreach ($post->media as $media) {
+                    $path = parse_url($media->media_url, PHP_URL_PATH);
+                    if ($path) {
+                        $path = ltrim($path, '/'); 
+                        Storage::disk('s3')->delete($path);
+                    }
+                }
+            }
             $post->delete();
           
             return response()->json([
