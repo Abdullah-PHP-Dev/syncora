@@ -248,7 +248,7 @@ class Post extends Model
     /**
      * Get the comments for this post.
      */
-    public function comments(): HasMany
+    public function postComments(): HasMany
     {
         return $this->hasMany(PostComment::class);
     }
@@ -498,18 +498,37 @@ class Post extends Model
         if ($this->post_url) {
             return $this->post_url;
         }
-
-        // Generate platform-specific URL if possible
+    
+        $platform = strtolower($this->platform ?? '');
+    
+        // Handle Google / Google Business Profile (GBP) posts
+        if (in_array($platform, ['google', 'gmb', 'google_my_business', 'google_business_profile'])) {
+            // If your model stores the location ID separately or inside post_account metadata:
+            $locationId = $this->postAccount->account_id ?? null;
+    
+            if ($locationId) {
+                // Business Profile Manager direct post URL
+                return "https://business.google.com/posts/l/{$locationId}/p/{$this->post_id}";
+            }
+    
+            // Fallback search/maps view URL for Google posts
+            return "https://www.google.com/search?q={$this->post_id}";
+        }
+    
+        // Generate platform-specific URL map
         $urls = [
-            'facebook' => "https://facebook.com/{$this->post_id}",
+            'facebook'  => "https://facebook.com/{$this->post_id}",
             'instagram' => "https://instagram.com/p/{$this->post_id}",
-            'twitter' => "https://twitter.com/i/status/{$this->post_id}",
-            'linkedin' => "https://linkedin.com/posts/{$this->post_id}",
-            'tiktok' => "https://tiktok.com/@user/video/{$this->post_id}",
-            'youtube' => "https://youtube.com/watch?v={$this->post_id}",
+            'twitter'   => "https://x.com/i/status/{$this->post_id}",
+            'x'         => "https://x.com/i/status/{$this->post_id}",
+            'linkedin'  => "https://linkedin.com/feed/update/urn:li:share:{$this->post_id}",
+            'tiktok'    => "https://tiktok.com/video/{$this->post_id}",
+            'youtube'   => "https://youtube.com/watch?v={$this->post_id}",
+            'pinterest' => "https://pinterest.com/pin/{$this->post_id}",
+            'threads'   => "https://threads.net/post/{$this->post_id}",
         ];
-
-        return $urls[$this->platform] ?? null;
+    
+        return $urls[$platform] ?? null;
     }
 
     /**

@@ -10,6 +10,7 @@ use Webkul\Core\Models\Chat;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use getID3;
+use App\Models\PostComment;
 
 class InstagramPostService
 {
@@ -556,21 +557,50 @@ class InstagramPostService
     }
 
     /**
+     * Publish comment
+     */
+    public function publishComment($data, $comment)
+    {
+        $this->ensureValidToken($comment->post);
+        $endpoint = $this->baseUrl . $comment->comment_id . "/replies";
+
+        $payload = [
+            "message" => $data['body'] . ' --. '
+        ];
+
+        $response = $this->api->request(
+            'post',
+            $endpoint . "?access_token={$comment->postAccount->access_token}",
+            [],
+            $payload,
+            'form'
+        );
+
+        if (!$response->successful()) {
+            return $this->errorResponse($comment, $response);
+        }
+
+        return $this->storeComment($comment, $data, $response->json()['id']);
+    }
+
+    /**
      * Store comment
      */
-    private function storeComment($chat, $data, $commentId)
+    private function storeComment($comment, $data, $commentId)
     {
-        $comment = Chat::create([
-            'body'            => $data['body'] ?? '',
+        $comment = PostComment::create([
+            'content'            => $data['body'] ?? '',
             'sender_type'     => 'support',
-            'sender_name'     => $chat->instagramChat->profile_name ?? '',
-            'applicable_id'   => $chat->instagramChat->id,
+            'platform'        => 'instagram',
+            'parent_comment_id' => $data['comment_id'],
+            'user_id'         => Auth::user()->id,
+            'sender_name'     => Auth::user()->name,
+            'post_id'   => $comment->post?->id,
             'is_read'         => 0,
-            'type'            => 'comment',
-            'applicable_type' => 'instagram',
-            'file'            => '',
-            'social_post_id'       => $chat->socialPost?->id,
-            'social_publish_account_id' => $chat->postAccount?->id,
+            'is_reply' => true,
+            'user_name'            => 'support',
+            'comment_id' => $commentId,
+            'post_account_id'  => $comment->postAccount?->id
         ]);
 
         return [
@@ -580,32 +610,6 @@ class InstagramPostService
         ];
     }
 
-    /**
-     * Publish comment
-     */
-    public function publishComment($chat, $data)
-    {
-        $this->ensureValidToken($chat->postAccount);
-        $endpoint = $this->baseUrl . $chat->instagramChat->message_id . "/replies";
-
-        $payload = [
-            "message" => $data['body'] . ' --. '
-        ];
-
-        $response = $this->api->request(
-            'post',
-            $endpoint . "?access_token={$chat->postAccount->access_token}",
-            [],
-            $payload,
-            'form'
-        );
-
-        if (!$response->successful()) {
-            return $this->errorResponse($response);
-        }
-
-        return $this->storeComment($chat, $data, $response->json()['id']);
-    }
 
     /**
      * Get posts

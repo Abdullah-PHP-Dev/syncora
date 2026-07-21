@@ -7,6 +7,7 @@ use Carbon\Carbon;
 use Webkul\Core\Models\Chat;
 use App\Models\Post;
 use App\Models\PostMedia;
+use App\Models\PostComment;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use getID3;
@@ -445,7 +446,7 @@ class MetaPostService
 
     public function destroy($post)
     {
-        $this->ensureValidToken($post->postAccount);
+        $this->ensureValidToken($post);
         $endpoint = $this->baseUrl . $post->post_id;
 
         $response = $this->api->request(
@@ -527,10 +528,10 @@ class MetaPostService
         ];
     }
 
-    public function publishComment($chat, $data)
+    public function publishComment($data, $comment)
     {
-        $this->ensureValidToken($chat->mediaAccount);
-        $endpoint =  $this->baseUrl . $chat->comment_id . "/comments";
+        $this->ensureValidToken($comment->post);
+        $endpoint =  $this->baseUrl . $comment->comment_id . "/comments";
 
         $payload = [
             "message" => $data['body'] . ' --. '
@@ -538,33 +539,34 @@ class MetaPostService
 
         $response = $this->api->request(
             'post',
-            $endpoint . "?access_token={$chat->mediaAccount->access_token}",
+            $endpoint . "?access_token={$comment->postAccount->access_token}",
             [],
             $payload,
             'form'
         );
 
         if (!$response->successful()) {
-            return $this->errorResponse($chat, $response);
+            return $this->errorResponse($comment, $response);
         }
 
-        return $this->storeComment($chat, $data, $response->json()['id']);
+        return $this->storeComment($comment, $data, $response->json()['id']);
     }
 
-    private function storeComment($chat, $data, $commentId)
+    private function storeComment($comment, $data, $commentId)
     {
-        $comment = Chat::create([
-            'body'            => $data['body'] ?? '',
+        $comment = PostComment::create([
+            'content'            => $data['body'] ?? '',
             'sender_type'     => 'support',
-            'sender_name'     => $chat->facebookChat?->profile_name ?? '',
-            'applicable_id'   => $chat->facebookChat?->id,
+            'platform'        => 'facebook',
+            'parent_comment_id' => $data['comment_id'],
+            'user_id'         => Auth::user()->id,
+            'sender_name'     => Auth::user()->name,
+            'post_id'   => $comment->post?->id,
             'is_read'         => 0,
-            'type'            => 'comment',
-            'applicable_type' => 'facebook',
-            'file'            => '',
+            'is_reply' => true,
+            'user_name'            => 'support',
             'comment_id' => $commentId,
-            'social_post_id'  => $chat->socialPost?->id,
-            'media_account_id' => $chat->mediaAccount?->id,
+            'post_account_id'  => $comment->postAccount?->id
         ]);
 
         return [

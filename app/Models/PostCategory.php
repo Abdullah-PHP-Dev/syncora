@@ -36,6 +36,15 @@ class PostCategory extends Model
     }
 
     /**
+     * Get all accounts in this category (many-to-many via pivot table).
+     * If you use a pivot table 'post_accounts'.
+     */
+    public function postAccount()
+    {
+        return $this->belongsTo(PostAccount::class, 'post_account_id');
+    }
+
+    /**
      * Optionally, if a post can have only one primary category,
      * you can add a hasMany relationship from category to posts
      * using the foreign key 'post_category_id' on the posts table.

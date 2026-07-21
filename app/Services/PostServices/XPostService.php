@@ -11,6 +11,7 @@ use App\Models\Post;
 use Illuminate\Support\Facades\Auth;
 use App\Models\PostMedia;
 use getID3;
+use App\Models\PostComment;
 
 class XPostService
 {
@@ -49,7 +50,7 @@ class XPostService
             'client_id'     => adminSetting('posts.x.client_id'),
             'client_secret' => adminSetting('posts.x.client_secret')
         ];
-
+     
         $response = $this->api->request('post', $endpoint, [], $payload, 'form');
 
 
@@ -610,7 +611,8 @@ class XPostService
      */
     public function destroy($post)
     {
-        $this->ensureValidToken($post->postAccount);
+
+        $this->ensureValidToken($post);
         $endpoint = 'https://api.x.com/2/tweets/' . $post->post_id;
 
         $response = $this->api->request(
@@ -634,17 +636,19 @@ class XPostService
         ];
     }
 
-    /**
-     * Publish a comment/reply
+/**
+     * Publish a comment/reply to X (Twitter)
      */
-    public function publishComment($chat, $data)
+    public function publishComment($data, $comment)
     {
-        $this->ensureValidToken($chat->postAccount);
+        $this->ensureValidToken($comment->post);
+        
         $endpoint = 'https://api.x.com/2/tweets';
+        
         $payload = [
             'text' => $data['body'] ?? '',
             'reply' => [
-                'in_reply_to_tweet_id' => $chat->comment_id
+                'in_reply_to_tweet_id' => $comment->comment_id
             ]
         ];
 
@@ -652,19 +656,50 @@ class XPostService
             'post',
             $endpoint,
             [
-                'Authorization' => 'Bearer ' . $chat->postAccount->access_token,
+                'Authorization' => 'Bearer ' . $comment->postAccount->access_token,
                 'Content-Type' => 'application/json'
             ],
-            $payload
+            $payload,
+            'json'
         );
 
         if (!$response->successful()) {
-            return $this->errorResponse($response);
+            return $this->errorResponse($comment, $response);
         }
 
-        return $this->storeComment($chat, $data, $response->json()['data']['id']);
+        $responseData = $response->json();
+        $tweetId = $responseData['data']['id'] ?? null;
+
+        return $this->storeComment($comment, $data, $tweetId);
     }
 
+    /**
+     * Store comment in database
+     */
+    private function storeComment($comment, $data, $commentId)
+    {
+        $createdComment = PostComment::create([
+            'content'           => $data['body'] ?? '',
+            'sender_type'       => 'support',
+            'platform'          => 'x', // Fixed platform name (was tiktok)
+            'parent_comment_id' => $comment->id,
+            'user_id'           => Auth::id(),
+            'sender_name'       => Auth::user()?->name ?? 'Support',
+            'post_id'           => $comment->post?->id,
+            'is_read'           => 1,
+            'is_reply'          => true,
+            'user_name'         => Auth::user()?->name ?? 'Support',
+            'comment_id'        => $commentId,
+            'post_account_id'   => $comment->postAccount?->id
+        ]);
+
+        return [
+            'message' => 'Reply posted successfully',
+            'success' => true,
+            'data'    => $createdComment
+        ];
+    }
+    
     /**
      * Delete a comment
      */
@@ -690,32 +725,6 @@ class XPostService
         return [
             'success' => true,
             'data' => $response->json()['data'] ?? []
-        ];
-    }
-
-    /**
-     * Store comment in database
-     */
-    private function storeComment($chat, $data, $commentId)
-    {
-        $comment = Chat::create([
-            'body'            => $data['body'] ?? '',
-            'sender_type'     => 'support',
-            'sender_name'     => $chat->xChat?->profile_name ?? '',
-            'applicable_id'   => $chat->xChat?->id,
-            'is_read'         => 0,
-            'type'            => 'comment',
-            'applicable_type' => 'x',
-            'file'            => '',
-            'comment_id'      => $commentId,
-            'social_post_id'  => $chat->socialPost?->id,
-            'social_publish_account_id' => $chat->postAccount?->id,
-        ]);
-
-        return [
-            'message' => '',
-            'success' => true,
-            'data'    => $comment
         ];
     }
 

@@ -75,6 +75,7 @@ class PostComment extends Model
         'moderated_by',
         'moderated_at',
         'moderation_notes',
+        'sender_type'
     ];
 
     /**
@@ -176,7 +177,7 @@ class PostComment extends Model
     /**
      * Get the post account this comment belongs to.
      */
-    public function socialAccount(): BelongsTo
+    public function postAccount(): BelongsTo
     {
         return $this->belongsTo(PostAccount::class, 'post_account_id');
     }
@@ -628,7 +629,8 @@ class PostComment extends Model
             'pending' => (clone $query)->where('status', 'pending')->count(),
             'flagged' => (clone $query)->where('is_flagged', true)->count(),
             'spam' => (clone $query)->where('is_spam', true)->count(),
-            'replies' => (clone $query)->where('is_reply', true)->count(),
+         //   'replies' => (clone $query)->where('is_reply', true)->count(),
+            'replies' => (clone $query)->where('sender_type', 'customer')->count(),
             'total_likes' => (clone $query)->sum('likes'),
             'avg_sentiment' => (clone $query)->avg('sentiment_score'),
             'positive_sentiment' => (clone $query)->positiveSentiment()->count(),

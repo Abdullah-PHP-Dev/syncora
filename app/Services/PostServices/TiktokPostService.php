@@ -8,8 +8,8 @@ use Illuminate\Support\Facades\Storage;
 use App\Models\Post;
 use Illuminate\Support\Facades\Auth;
 use App\Models\PostMedia;
-use Webkul\Core\Models\Chat;
 use getID3;
+use App\Models\PostComment;
 
 class TiktokPostService
 {
@@ -492,35 +492,72 @@ class TiktokPostService
     }
 
     /**
-     * Publish a comment/reply
+     * Publish a comment reply on TikTok
      */
-    public function publishComment($chat, $data)
+    public function publishComment($data, $comment)
     {
-        $this->ensureValidToken($chat->postAccount);
-        $endpoint = 'https://business-api.tiktok.com/open_api/v1.3/business/comment/list/';
+        $account = $comment->postAccount;
+
+        $this->ensureValidToken($comment->post);
+
+        // TikTok Business API endpoint for creating a reply to an existing comment
+        $endpoint = 'https://business-api.tiktok.com/open_api/v1.3/business/comment/reply/create/';
+
         $payload = [
-            "business_id" => $chat->postAccount->account_id,
-            "video_id" => $chat->postAccount->post_id,
-            "status" => "PUBLIC"
+            "business_id" => $account->account_id,
+            "video_id"    => $comment->post?->post_id ?? $data['video_id'], // TikTok item_id / video_id
+            "comment_id"  => $comment->comment_id,                          // Parent comment ID to reply to
+            "text"        => $data['body'] ?? ''                             // Reply content
         ];
 
         $response = $this->api->request(
             'post',
             $endpoint,
             [
-                'Authorization' => 'Bearer ' . $chat->postAccount->access_token,
-                'Content-Type' => 'application/json'
+                'Access-Token'  => $account->access_token, // TikTok uses 'Access-Token' header or Bearer token
+                'Authorization' => 'Bearer ' . $account->access_token,
+                'Content-Type'  => 'application/json'
             ],
-            $payload
+            $payload,
+            'json'
         );
 
-        if (!$response->successful()) {
-            return $this->errorResponse($response);
+        if (!$response->successful() || ($response->json()['code'] ?? 0) !== 0) {
+            return $this->errorResponse($comment, $response);
         }
 
-        return $this->storeComment($chat, $data, $response->json()['id']);
+        // TikTok returns the new created reply ID inside 'data.comment_id'
+        $newCommentId = $response->json()['data']['comment_id'] ?? null;
+
+        return $this->storeComment($comment, $data, $newCommentId);
     }
 
+    /**
+     * Store the reply comment locally in the database
+     */
+    private function storeComment($comment, $data, $commentId)
+    {
+        $createdComment = PostComment::create([
+            'content'           => $data['body'] ?? '',
+            'sender_type'       => 'support',
+            'platform'          => 'tiktok', // Fixed typo ("titkok" -> "tiktok")
+            'parent_comment_id' => $comment->id,
+            'user_id'           => Auth::id(),
+            'sender_name'       => Auth::user()?->name ?? 'Support',
+            'post_id'           => $comment->post?->id,
+            'is_read'           => 1,
+            'is_reply'          => true,
+            'user_name'         => Auth::user()?->name ?? 'Support',
+            'comment_id'        => $commentId,
+            'post_account_id'   => $comment->postAccount?->id
+        ]);
+
+        return [
+            'message' => 'Reply posted successfully',
+            'success' => true,
+            'data'    => $createdComment
+        ];
+    }
 
     public function getComments($videoId, $account)
     {
@@ -588,26 +625,5 @@ class TiktokPostService
         ];
     }
 
-    private function storeComment($chat, $data, $commentId)
-    {
-        $comment = Chat::create([
-            'body'            => $data['body'] ?? '',
-            'sender_type'     => 'support',
-            'sender_name'     => $chat->youtubeChat?->profile_name ?? '',
-            'applicable_id'   => $chat->youtubeChat?->id,
-            'is_read'         => 0,
-            'type'            => 'comment',
-            'applicable_type' => 'youtube',
-            'file'            => '',
-            'comment_id'      => $commentId,
-            'social_post_id'  => $chat->socialPost?->id,
-            'social_publish_account_id' => $chat->postAccount?->id,
-        ]);
 
-        return [
-            'message' => '',
-            'success' => true,
-            'data'    => $comment
-        ];
-    }
 }

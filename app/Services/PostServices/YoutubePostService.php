@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Http;
 use Webkul\Admin\Models\MediaAccount;
 use Illuminate\Support\Facades\Storage;
 use getID3;
+use App\Models\PostComment;
 
 
 class YoutubePostService
@@ -672,16 +673,21 @@ class YoutubePostService
     }
 
     /**
-     * Publish a comment/reply
+     * Publish a comment reply to YouTube
      */
-    public function publishComment($chat, $data)
+    public function publishComment($comment, $data)
     {
-        $this->ensureValidToken($chat->postAccount);
+        $account = $comment->postAccount;
+
+        $this->ensureValidToken($comment->post);
+
+        // YouTube Data API v3 comments:insert endpoint
         $endpoint = 'https://www.googleapis.com/youtube/v3/comments?part=snippet';
+
         $payload = [
             'snippet' => [
-                'parentId' => $chat->comment_id,
-                'textOriginal' => $data['body'],
+                'parentId'     => $comment->comment_id, // Top-level comment thread ID
+                'textOriginal' => $data['body'] ?? '',
             ]
         ];
 
@@ -689,17 +695,47 @@ class YoutubePostService
             'post',
             $endpoint,
             [
-                'Authorization' => 'Bearer ' . $chat->postAccount->access_token,
-                'Content-Type' => 'application/json'
+                'Authorization' => 'Bearer ' . $account->access_token,
+                'Content-Type'  => 'application/json'
             ],
-            $payload
+            $payload,
+            'json'
         );
 
         if (!$response->successful()) {
-            return $this->errorResponse($response);
+            return $this->errorResponse($comment, $response);
         }
 
-        return $this->storeComment($chat, $data, $response->json()['id']);
+        $newCommentId = $response->json()['id'] ?? null;
+
+        return $this->storeComment($comment, $data, $newCommentId);
+    }
+
+    /**
+     * Store comment in database
+     */
+    private function storeComment($comment, $data, $commentId)
+    {
+        $createdComment = PostComment::create([
+            'content'           => $data['body'] ?? '',
+            'sender_type'       => 'support',
+            'platform'          => 'youtube', // Fixed platform name (was 'x')
+            'parent_comment_id' => $comment->id,
+            'user_id'           => Auth::id(),
+            'sender_name'       => Auth::user()?->name ?? 'Support',
+            'post_id'           => $comment->post?->id,
+            'is_read'           => 1,
+            'is_reply'          => true,
+            'user_name'         => Auth::user()?->name ?? 'Support',
+            'comment_id'        => $commentId,
+            'post_account_id'   => $comment->postAccount?->id
+        ]);
+
+        return [
+            'message' => 'Reply posted successfully',
+            'success' => true,
+            'data'    => $createdComment
+        ];
     }
 
     public function getComments($videoId, $account)
@@ -734,29 +770,6 @@ class YoutubePostService
         return [
             'success' => true,
             'data' => $data['items']
-        ];
-    }
-
-    private function storeComment($chat, $data, $commentId)
-    {
-        $comment = Chat::create([
-            'body'            => $data['body'] ?? '',
-            'sender_type'     => 'support',
-            'sender_name'     => $chat->youtubeChat?->profile_name ?? '',
-            'applicable_id'   => $chat->youtubeChat?->id,
-            'is_read'         => 0,
-            'type'            => 'comment',
-            'applicable_type' => 'youtube',
-            'file'            => '',
-            'comment_id'      => $commentId,
-            'social_post_id'  => $chat->socialPost?->id,
-            'social_publish_account_id' => $chat->postAccount?->id,
-        ]);
-
-        return [
-            'message' => '',
-            'success' => true,
-            'data'    => $comment
         ];
     }
 

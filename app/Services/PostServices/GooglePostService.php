@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Webkul\Admin\Models\MediaAccount;
 use App\Jobs\ProcessingGooglePostJob;
 use getID3;
+use App\Models\PostComment;
 
 class GooglePostService
 {
@@ -109,10 +110,6 @@ class GooglePostService
             }
         }
 
-        // Remove the uploaded file from data to avoid serialization issues
-        $jobData = $data;
-        unset($jobData['media']);
-
         // Loop through each page and create container
         foreach ($pages as $page) {
             try {
@@ -157,9 +154,6 @@ class GooglePostService
                         ]);
                     }
                 }
-
-                // Dispatch job to process this post (without the file)
-                //  ProcessFacebookPostJob::dispatch($post, $page)->onQueue('high');
 
                 $successCount++;
                 $results[] = $post;
@@ -551,12 +545,78 @@ class GooglePostService
         ];
     }
 
+
+    /**
+     * Send a reply to a Google Business Profile Review
+     *
+     * @param string $data   The incoming request data
+     * @param string $comment  The comment to which the reply will send
+     * @return array
+     */
+    public function publishComment($data, $comment): array
+    {
+        try {
+            $this->ensureValidToken($comment->post);
+            $account = $comment->postAccount;
+            $endpoint = "https://mybusiness.googleapis.com/v4/accounts/{$account->parent_account_id}/locations/{$account->account_id}/reviews/{$comment->comment_id}/reply";
+
+            $payload = [
+                'comment' => $data['body'],
+            ];
+
+            $response = $this->api->request(
+                'put',
+                $endpoint,
+                [
+                    'Content-Type'  => 'application/json',
+                    'Authorization' => 'Bearer ' . $account->access_token,
+                ],
+                $payload,
+                'json'
+            );
+
+            if (!$response->successful()) {
+                return $this->errorResponse($comment, $response);
+            }
+    
+            return $this->storeComment($comment, $data, $response->json()['id']);
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    private function storeComment($comment, $data, $commentId)
+    {
+        $comment = PostComment::create([
+            'content'            => $data['body'] ?? '',
+            'sender_type'     => 'support',
+            'platform'        => 'google',
+            'parent_comment_id' => $data['comment_id'],
+            'user_id'         => Auth::user()->id,
+            'sender_name'     => Auth::user()->name,
+            'post_id'   => $comment->post?->id,
+            'is_read'         => 0,
+            'is_reply' => true,
+            'user_name'            => 'support',
+            'comment_id' => $commentId,
+            'post_account_id'  => $comment->postAccount?->id
+        ]);
+
+        return [
+            'message' => '',
+            'success' => true,
+            'data'    => $comment
+        ];
+    }
     /**
      * Delete a post
      */
     public function destroy($post)
     {
-        $this->ensureValidToken($post->postAccount);
+        $this->ensureValidToken($post);
         $endpoint = "{$this->baseUrl}accounts/{$post->postAccount->parent_account_id}/locations/{$post->postAccount->account_id}/localPosts/{$post->post_id}";
 
         $response = $this->api->request(

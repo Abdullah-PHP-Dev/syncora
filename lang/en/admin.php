@@ -145,6 +145,11 @@ return [
             'send' => 'Send',
             'platform' => 'Platform',
             'no_posts' => 'No posts found for this category.',
+            'status' => 'Status',
+            'facebook' => [
+                'header' => 'Facebook',
+                ''
+            ]
         ],
         'categories' => [
             'header' => 'Categories',

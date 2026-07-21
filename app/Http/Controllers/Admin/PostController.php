@@ -30,7 +30,6 @@ class PostController extends Controller
      */
 
     protected $metaService, $instagramService, $googleService, $_config, $youtubeService, $tiktokService, $xService, $linkedinService, $nanoBananaAI;
-    // public function __construct(MetaService $metaService, InstagramService $instagramService, GoogleService $googleService, YoutubeService $youtubeService, TiktokService $tiktokService, XService $xService, LinkedInService $linkedinService, NanoBanana $nanoBananaAI)
 
     public function __construct(MetaPostService $metaService, InstagramPostService $instagramService, GooglePostService $googleService, YoutubePostService $youtubeService, TiktokPostService $tiktokService, XPostService $xService, LinkedInPostService $linkedinService)
     {
@@ -59,7 +58,6 @@ class PostController extends Controller
         $accountsByPlatform = $accounts->groupBy('platform')->map->count();
     
         // ---- Posts Query ----
-        $postQuery = Post::where('user_id', $userId);
         $postQuery = Post::where('user_id', $userId);
         // Status counts
         $totalPosts = (clone $postQuery)->count();
@@ -138,25 +136,20 @@ class PostController extends Controller
     }
     public function index(Request $request)
     {
-        $platform = strtolower($request->platform);
+        $platform = strtolower($request->platform) ?? 'facebook';
         if ($request->platform === null) {
             $platform = session('platform');
         }
         
-        session(['platform' => $platform]);
-        // $pageId = $request->page_id;
-
-        $categories = PostCategory::with(['postAccount', 'posts'])->where([
-            'user_id' => Auth::user()->id
-        ])->orderBy('id', 'desc')->paginate(50);
+        $platform = $platform ?? 'facebook';
  
-        $posts = Post::with(['postAccount', 'postCategory'])
+        $posts = Post::with(['postAccount', 'category', 'media'])
         ->where('user_id', Auth::user()->id)
-        ->where('platform', $platform)
+        // ->where('platform', $platform)
         ->latest()
-        ->paginate(50);
-       
-        return view($this->_config['view'], compact('posts', 'categories', 'platform'));
+        ->paginate(10);
+        
+        return view('admin.posts.index', compact('posts', 'platform'));
     }
 
     public function create(Request $request)
@@ -305,7 +298,7 @@ class PostController extends Controller
 
     public function destroy($postId)
     {
-        $post = Post::with('postAccount', 'comments' ,'media')->find($postId);
+        $post = Post::with('postAccount', 'postComments' ,'media')->find($postId);
         $error = [];
         if (!$post) {
             return response()->json([
@@ -386,17 +379,35 @@ class PostController extends Controller
 
     public function show($postId, Request $request)
     {
-        $socialPlatform = $request->query('platform', session('platform'));
+        $post = Post::with([
+            'user',
+            'postAccount',
+           // 'category',
+            'category',
+            'media',
+            'postComments' => function ($query) {
+                // Fetch top-level parent comments and eager load nested replies with their authors
+                $query->topLevel()->with(['replies.user', 'user']);
+            }
+        ])->findOrFail($postId);
 
-        $relationName = $socialPlatform . 'Chat';
-
-        $post = Post::with([$relationName, 'chats', 'socialCategory'])->find($postId);
+        return view('admin.posts.show', compact('post'));
+        // $post = Post::with('postAccount')->findOrFail($postId);
+        // $socialPlatform = $post->postAccount->platform;
     
-        return view($this->_config['view'],  compact('post', 'relationName', 'socialPlatform'));
+        // $post->load([
+        //     'postComments',
+        //     'category',
+        // ]);
+
+        // return view('admin.posts.show', compact(
+        //     'post',
+        //     'socialPlatform'
+        // ));
     }
 
     public function getTypePost(Request $request) {
-        $query = SocialPost::with(['mediaAccount', 'socialCategory', 'socialPublishAccount']) ->where('company_id', company()->id());
+        $query = Post::with(['media', 'postAccount']) ->where('user_id', Auth::user()->id);
         $type = $request->type;
 
         switch ($type) {
@@ -420,8 +431,8 @@ class PostController extends Controller
         
         $posts = $query->paginate(10);
 
-        $categories = SocialCategory::with(['mediaAccount', 'socialPosts'])->where([
-            'company_id' => company()->id()
+        $categories = PostCategory::with(['postAccount', 'posts'])->where([
+            'user_id' => Auth::user()->id
         ])->orderBy('id', 'desc')->paginate(50);
 
         return view($this->_config['view'], compact('posts', 'categories', 'type'));

@@ -10,6 +10,7 @@ use App\Models\PostMedia;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use getID3;
+use App\Models\PostComment;
 
 class LinkedInPostService
 {
@@ -25,8 +26,9 @@ class LinkedInPostService
         $this->baseUrl = adminSetting('posts.linkedin.base_url');
     }
 
-    protected function ensureValidToken($account)
+    protected function ensureValidToken($post)
     {
+        $account = $post->postAccount;
         // Token still valid
         if (
             !empty($account->expires_in)
@@ -46,9 +48,9 @@ class LinkedInPostService
         ];
 
         $response = $this->api->request('post', $endpoint, [], $payload, 'form');
-
+    
         if (!$response->successful()) {
-            return $this->errorResponse($response);
+            return $this->errorResponse($post, $response);
         }
 
         $tokenData = $response->json();
@@ -310,6 +312,7 @@ class LinkedInPostService
 
     public function publishPost($post)
     {
+        $this->ensureValidToken($post);
         $account = $post->postAccount;
         // Build post payload handles multiple media processing
         $payload = $this->buildLinkedinPostPayload($account, $post);
@@ -324,7 +327,7 @@ class LinkedInPostService
             'Linkedin-Version' => $this->linkedinVersion,
             'Content-Type' => 'application/json'
         ])->post($this->baseUrl . "posts", $payload);
-        
+       
         if (!$response->successful()) {
             return $this->errorResponse($post, $response, $account->platform);
         }
@@ -607,6 +610,76 @@ class LinkedInPostService
        }
    }
 
+
+   /**
+     * Publish comment reply on LinkedIn
+     */
+    public function publishComment($data, $comment)
+    {
+        $this->ensureValidToken($comment->post);
+        
+        // LinkedIn nested comments endpoint format: /rest/socialActions/{parentCommentUrn}/comments
+        $parentCommentUrn = urlencode($comment->comment_id);
+        $endpoint = $this->baseUrl . "/socialActions/{$parentCommentUrn}/comments";
+
+        // LinkedIn expects actor URN and message text in JSON format
+        $payload = [
+            'actor' => $comment->postAccount->account_id, // e.g., 'urn:li:person:XXXX' or 'urn:li:organization:XXXX'
+            'message' => [
+                'text' => $data['body']
+            ]
+        ];
+
+        $response = $this->api->request(
+            'post',
+            $endpoint,
+            [
+                'Authorization' => "Bearer {$comment->postAccount->access_token}",
+                'Content-Type'  => 'application/json',
+                'LinkedIn-Version' => '202401', // Update to your target API version
+                'X-Restli-Protocol-Version' => '2.0.0'
+            ],
+            $payload,
+            'json'
+        );
+
+        if (!$response->successful()) {
+            return $this->errorResponse($comment, $response);
+        }
+
+        // LinkedIn returns the new comment URN in the response header 'x-restli-id' or body
+        $newCommentId = $response->header('x-restli-id') ?? $response->json()['id'] ?? null;
+
+        return $this->storeComment($comment, $data, $newCommentId);
+    }
+
+    /**
+     * Store comment
+     */
+    private function storeComment($comment, $data, $commentId)
+    {
+        $comment = PostComment::create([
+            'content'           => $data['body'] ?? '',
+            'sender_type'       => 'support',
+            'platform'          => 'linkedin',
+            'parent_comment_id' => $data['comment_id'],
+            'user_id'           => Auth::user()->id,
+            'sender_name'       => Auth::user()->name,
+            'post_id'           => $comment->post?->id,
+            'is_read'           => 0,
+            'is_reply'          => true,
+            'user_name'         => 'support',
+            'comment_id'        => $commentId,
+            'post_account_id'   => $comment->postAccount?->id
+        ]);
+
+        return [
+            'message' => '',
+            'success' => true,
+            'data'    => $comment
+        ];
+    }
+
     /**
      * Extract error message from response
      */
@@ -635,17 +708,10 @@ class LinkedInPostService
     public function destroy($post): array
     {
         try {
-            $account = $post->mediaAccount;
+            $account = $post->postAccount;
 
-            if (!$account) {
-                return [
-                    'success' => false,
-                    'message' => 'Account not found'
-                ];
-            }
-
-            $this->ensureValidToken($account);
-
+            $this->ensureValidToken($post);
+   
             $response = Http::withToken($account->access_token)
                 ->withHeaders([
                     'LinkedIn-Version' => $this->linkedinVersion,
@@ -653,7 +719,7 @@ class LinkedInPostService
                     'X-RestLi-Method' => 'DELETE'
                 ])
                 ->delete("{$this->baseUrl}posts/" . urlencode($post->account_id));
-
+                   
             if (!$response->successful()) {
                 return $this->errorResponse($post, $response);
             }
@@ -664,8 +730,10 @@ class LinkedInPostService
                 'message' => 'Post deleted successfully'
             ];
         } catch (\Exception $e) {
+          
             return [
                 'success' => false,
+                'status' => 500,
                 'message' => $e->getMessage()
             ];
         }
@@ -716,17 +784,18 @@ class LinkedInPostService
     /**
      * Error response handler
      */
-    protected function errorResponse($response): array
+    protected function errorResponse($model, $response): array
     {
-        $data = $response->json() ?? [];
-
         $message = $this->extractErrorMessage($response);
-
+        $model->status = 'failed';
+        $model->error_message = $message ?? 'Unknown error';
+        $model->save();
+        
         return [
             'success' => false,
             'status' => $response->status(),
             'message' => $message,
-            'response' => $data,
+            'response' => $response->json() ?? [],
         ];
     }
 }

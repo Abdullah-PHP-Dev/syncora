@@ -82,7 +82,7 @@ class PublishPosts extends Command
                         $this->info("Published Post #{$post->id}");
 
                     } catch (\Throwable $e) {
-                        dd($e->getMessage());
+                       
                         Log::error(
                             "Post {$post->id} Exception: {$e->getMessage()}",
                             [

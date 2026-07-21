@@ -10,7 +10,7 @@ use Mcamara\LaravelLocalization\Facades\LaravelLocalization;
 use App\Http\Controllers\Admin\AdController;
 use App\Http\Controllers\Admin\PostController;
 use App\Http\Controllers\Admin\ChatController;
-use App\Http\Controllers\Admin\CommentController;
+use App\Http\Controllers\Admin\PostCommentController;
 use App\Http\Controllers\Admin\ProfileController;
 use App\Http\Controllers\Admin\AdminAPIController;
 use App\Http\Controllers\Admin\AdCampaignController;
@@ -101,8 +101,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 
 				// COMMENTS
-				Route::resource('/platform/comments', CommentController::class);
-				Route::get('comments/dashboard', [CommentController::class, 'dashboard'])
+				Route::resource('/platform/comments', PostCommentController::class);
+				Route::get('comments/dashboard', [PostCommentController::class, 'dashboard'])
 					->name('comments.dashboard');
 
 
