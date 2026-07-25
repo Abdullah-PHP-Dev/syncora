@@ -6,7 +6,6 @@ use App\Services\PostServices\ApiPostService;
 use Carbon\Carbon;
 use App\Models\Post;
 use App\Models\PostMedia;
-use Webkul\Core\Models\Chat;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use getID3;

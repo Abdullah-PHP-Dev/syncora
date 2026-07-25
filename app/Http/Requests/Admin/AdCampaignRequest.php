@@ -27,7 +27,7 @@ class AdCampaignRequest extends FormRequest
 
         $requiredIfPost = $isPost ? ['required'] : ['sometimes'];
         $requiredIfUpdate = $isPost ? ['sometimes'] : ['required'];
-
+       
         $validations = [];
         if ($platform === 'tiktok') {
             $validations = $this->getTikTokRules($requiredIfPost);
@@ -284,6 +284,162 @@ class AdCampaignRequest extends FormRequest
             //     },
 
             // ]
+        ];
+    }
+
+    private function getSnapchatRules(array $requiredIfPost): array
+    {
+        $callToActionMapping = [
+            "APP_INSTALL" => ["BOOK_NOW", "DONATE", "DOWNLOAD", "GET_NOW", "INSTALL_NOW", "ORDER_NOW", "PLAY", "SHOP_NOW", "SIGN_UP", "TRY", "USE_APP", "WATCH", "VOTE", "DIRECTIONS", "PLAY_GAME"],
+            "LENS_APP_INSTALL" => ["BOOK_NOW", "DONATE", "DOWNLOAD", "GET_NOW", "INSTALL_NOW", "ORDER_NOW", "PLAY", "SHOP_NOW", "SIGN_UP", "TRY", "USE_APP", "WATCH", "PLAY_GAME"],
+            "DEEP_LINK" => ["DONATE", "PLAY", "SHOP_NOW", "SIGN_UP", "USE_APP", "MORE", "OPEN_APP", "TRY", "WATCH", "VIEW_PROFILE", "VOTE", "DIRECTIONS", "PRE_REGISTER", "PLAY_GAME", "DOWNLOAD"],
+            "LEAD_GENERATION" => ["APPLY_NOW", "MORE", "BOOK_NOW", "GET_NOW", "SIGN_UP", "TEST_DRIVE", "REQUEST_APPOINTMENT", "REQUEST_QUOTE", "FREE_TRIAL", "CLAIM_SAMPLE", "GET_COUPON"],
+            "LENS_DEEP_LINK" => ["DONATE", "PLAY", "SHOP_NOW", "SIGN_UP", "USE_APP", "MORE", "OPEN_APP", "TRY", "WATCH", "VIEW_PROFILE", "VOTE", "DIRECTIONS", "VIEW_MENU", "PRE_REGISTER", "PLAY_GAME"],
+            "WEB_VIEW" => ["APPLY_NOW", "MORE", "ORDER_NOW", "PLAY", "READ", "SHOP_NOW", "SHOW", "SIGN_UP", "VIEW", "SHOW", "WATCH", "DONATE", "DOWNLOAD", "APPLY_NOW", "ORDER_NOW", "RESPOND", "BUY_TICKETS", "SHOWTIMES", "BOOK_NOW", "GET_NOW", "LISTEN", "TRY", "VOTE", "VIEW_MENU", "PRE_REGISTER", "PLAY_GAME"],
+            "LENS_WEB_VIEW" => ["APPLY_NOW", "MORE", "ORDER_NOW", "PLAY", "READ", "SHOP_NOW", "SHOW", "SIGN_UP", "VIEW", "SHOW", "WATCH", "DONATE", "DOWNLOAD", "APPLY_NOW", "ORDER_NOW", "RESPOND", "BUY_TICKETS", "SHOWTIMES", "BOOK_NOW", "GET_NOW", "LISTEN", "TRY", "VOTE", "DIRECTIONS", "VIEW_MENU", "PRE_REGISTER", "PLAY_GAME"],
+            "AD_TO_LENS" => ["PLAY", "TRY", "SHOP_NOW", "VOTE"],
+            "AD_TO_MESSAGE" => ["MESSAGE_NOW", "OPEN_APP"],
+            "AD_TO_CALL" => ["CALL_NOW", "OPEN_APP"],
+            "AD_TO_PLACE" => ["SEE_PLACE", "DIRECTIONS", "VIEW_MENU"]
+        ];
+
+        return [
+            'name' => ['required'],
+            'target_link'  => ['required', 'url'],
+            'final_budget' => ['nullable'],
+            // 'status' => array_merge($requiredIfPost, ['in:ACTIVE,PAUSED']),
+            'start_time' => ['required', 'date_format:Y-m-d', 'before:end_time'],
+            'end_time'   => ['required', 'date_format:Y-m-d', 'after:start_time'],
+            'ios_app_id' => ['nullable', 'required_if:objective,APP_INSTALL'],
+            'android_app_url' => ['nullable', 'required_if:objective,APP_INSTALL'],
+            'objective' => array_merge($requiredIfPost, [
+                'in:AWARENESS_AND_ENGAGEMENT,APP_PROMOTION,SALES,LEADS,TRAFFIC'
+            ]),
+            'budget' => ['required', 'gt:0'],
+            'platform' => ['sometimes'],
+            'description' => ['required', 'string', 'max:34'],
+            // 'selected_link_type' => ['required'],
+            // 'store_url'  => ['required_without_all:product_id,custom_url'],
+            // 'product_id' => ['required_without_all:store_url,custom_url'],
+            // 'custom_url' => ['required_without_all:store_url,product_id'],
+            'countries' => ['array', 'required'],
+            'city_id' => ['sometimes'],
+            // 'age_from' => ['required'],
+            // 'age_to' => ['required'],
+            'age_range' => ['required', 'array'],
+            'languages'   => ['nullable', 'array'],
+            'languages.*' => ['in:en,ar,es,fr'],
+            'gender'   => ['required', 'in:male,female,both'],
+           // 'gender.*' => ['required', 'in:male,female,both'],
+            'media' => array_merge($requiredIfPost, ['array']),
+            'media.*' => ['file', 'max:2048'],
+            'budget_mode' => ['in:daily,life_time'],
+           // 'type' => ['required', 'in:SNAP_ADS,LENS,FILTER'],
+            'ios_app_id' => ['nullable', 'required_if:objective,APP_INSTALL'],
+            'app_id' => ['nullable', 'required_if:optimization_goal,APP_INSTALLS,APP_PURCHASE,APP_SIGNUP,APP_ADD_TO_CART'],
+            'android_app_url' => ['nullable', 'required_if:objective,APP_INSTALL'],
+            'optimization_goal'    => array_merge($requiredIfPost, ['in:LEAD_FORM_SUBMISSIONS,IMPRESSIONS,SWIPES,APP_INSTALLS,VIDEO_VIEWS,VIDEO_VIEWS_15_SEC,USES,STORY_OPENS,PIXEL_PAGE_VIEW,PIXEL_ADD_TO_CART,LANDING_PAGE_VIEW,PIXEL_PURCHASE,PIXEL_SIGNUP,APP_ADD_TO_CART,APP_PURCHASE,APP_SIGNUP']),
+            'bid_strategy' => array_merge($requiredIfPost, [
+                'in:AUTO_BID,LOWEST_COST_WITH_MAX_BID,MIN_ROAS,TARGET_COST'
+            ]),
+
+            'bid_amount' => [
+                'required_if:bid_strategy,LOWEST_COST_WITH_MAX_BID,TARGET_COST',
+                'nullable',
+                'numeric',
+                'min:0.01',
+                'max:500'
+            ],
+            'pixel_id'     => ['required_if:optimization_goal,PIXEL_PURCHASE,PIXEL_SIGNUP,PIXEL_PAGE_VIEW,PIXEL_ADD_TO_CART'],
+            // Ad Squad Validation
+            'optimization_goal'    => array_merge($requiredIfPost, ['in:LEAD_FORM_SUBMISSIONS,IMPRESSIONS,SWIPES,APP_INSTALLS,VIDEO_VIEWS,VIDEO_VIEWS_15_SEC,USES,STORY_OPENS,PIXEL_PAGE_VIEW,PIXEL_ADD_TO_CART,LANDING_PAGE_VIEW,PIXEL_PURCHASE,PIXEL_SIGNUP,APP_ADD_TO_CART,APP_PURCHASE,APP_SIGNUP']),
+           // 'type'                 => array_merge($requiredIfPost, ['in:SNAP_ADS,LENS,FILTER']),
+            //creative validations
+            'top_snap_crop_position'  => ['nullable', 'in:OPTIMIZED,MIDDLE,TOP,BOTTOM'],
+            'creative_type' => array_merge($requiredIfPost, ['in:REMINDER,SNAP_AD,APP_INSTALL,WEB_VIEW,DEEP_LINK,AD_TO_LENS,AD_TO_CALL,AD_TO_MESSAGE,PREVIEW,COMPOSITE,LENS,LENS_WEB_VIEW,LENS_APP_INSTALL,LENS_DEEP_LINK,COLLECTION,LEAD_GENERATION,AD_TO_PLACE']),
+            'call_to_action' => [
+                'required_if:type,DEEP_LINK,APP_INSTALL,LENS_APP_INSTALL,LEAD_GENERATION,LENS_DEEP_LINK,WEB_VIEW,LENS_WEB_VIEW,AD_TO_LENS,AD_TO_MESSAGE,AD_TO_CALL,AD_TO_PLACE', 
+                function ($attribute, $value, $fail) {
+                    $type = $this->input('type');
+                    $callToActionMapping = [
+                        "APP_INSTALL" => ["BOOK_NOW", "DONATE", "DOWNLOAD", "GET_NOW", "INSTALL_NOW", "ORDER_NOW", "PLAY", "SHOP_NOW", "SIGN_UP", "TRY", "USE_APP", "WATCH", "VOTE", "DIRECTIONS", "PLAY_GAME"],
+                        "LENS_APP_INSTALL" => ["BOOK_NOW", "DONATE", "DOWNLOAD", "GET_NOW", "INSTALL_NOW", "ORDER_NOW", "PLAY", "SHOP_NOW", "SIGN_UP", "TRY", "USE_APP", "WATCH", "PLAY_GAME"],
+                        "DEEP_LINK" => ["DONATE", "PLAY", "SHOP_NOW", "SIGN_UP", "USE_APP", "MORE", "OPEN_APP", "TRY", "WATCH", "VIEW_PROFILE", "VOTE", "DIRECTIONS", "PRE_REGISTER", "PLAY_GAME", "DOWNLOAD"],
+                        "LEAD_GENERATION" => ["APPLY_NOW", "MORE", "BOOK_NOW", "GET_NOW", "SIGN_UP", "TEST_DRIVE", "REQUEST_APPOINTMENT", "REQUEST_QUOTE", "FREE_TRIAL", "CLAIM_SAMPLE", "GET_COUPON"],
+                        "LENS_DEEP_LINK" => ["DONATE", "PLAY", "SHOP_NOW", "SIGN_UP", "USE_APP", "MORE", "OPEN_APP", "TRY", "WATCH", "VIEW_PROFILE", "VOTE", "DIRECTIONS", "VIEW_MENU", "PRE_REGISTER", "PLAY_GAME"],
+                        "WEB_VIEW" => ["APPLY_NOW", "MORE", "ORDER_NOW", "PLAY", "READ", "SHOP_NOW", "SHOW", "SIGN_UP", "VIEW", "SHOW", "WATCH", "DONATE", "DOWNLOAD", "APPLY_NOW", "ORDER_NOW", "RESPOND", "BUY_TICKETS", "SHOWTIMES", "BOOK_NOW", "GET_NOW", "LISTEN", "TRY", "VOTE", "VIEW_MENU", "PRE_REGISTER", "PLAY_GAME"],
+                        "LENS_WEB_VIEW" => ["APPLY_NOW", "MORE", "ORDER_NOW", "PLAY", "READ", "SHOP_NOW", "SHOW", "SIGN_UP", "VIEW", "SHOW", "WATCH", "DONATE", "DOWNLOAD", "APPLY_NOW", "ORDER_NOW", "RESPOND", "BUY_TICKETS", "SHOWTIMES", "BOOK_NOW", "GET_NOW", "LISTEN", "TRY", "VOTE", "DIRECTIONS", "VIEW_MENU", "PRE_REGISTER", "PLAY_GAME"],
+                        "AD_TO_LENS" => ["PLAY", "TRY", "SHOP_NOW", "VOTE"],
+                        "AD_TO_MESSAGE" => ["MESSAGE_NOW", "OPEN_APP"],
+                        "AD_TO_CALL" => ["CALL_NOW", "OPEN_APP"],
+                        "AD_TO_PLACE" => ["SEE_PLACE", "DIRECTIONS", "VIEW_MENU"]
+                    ];
+
+                    // Ensure the call_to_action value matches the valid options for the selected type
+                    if ($type && isset($callToActionMapping[$type]) && !in_array($value, $callToActionMapping[$type])) {
+                        $fail("The selected call to action is invalid for the selected type.");
+                    }
+                }
+            ],
+            'icon' => [
+                'required_if:type,APP_INSTALL,LENS_APP_INSTALL,DEEP_LINK,LENS_DEEP_LINK',
+                'nullable',
+            ],
+            'app_name' => [
+                'required_if:type,APP_INSTALL,LENS_APP_INSTALL,DEEP_LINK,LENS_DEEP_LINK'
+            ],
+            'ios_app_id' => [
+                'sometimes',
+                function ($attribute, $value, $fail) {
+                    if (in_array($this->input('type'), ['APP_INSTALL', 'LENS_APP_INSTALL', 'DEEP_LINK', 'LENS_DEEP_LINK'])) {
+                        if (empty($value) && empty($this->input('android_app_url'))) {
+                            $fail('Either ios_app_id or android_app_url is required when type is APP_INSTALL, LENS_APP_INSTALL, DEEP_LINK, or LENS_DEEP_LINK.');
+                        }
+                    }
+                }
+            ],
+            'android_app_url' => [
+                'sometimes',
+                function ($attribute, $value, $fail) {
+                    // Only check when the type is one of the specific values
+                    if (in_array($this->input('type'), ['APP_INSTALL', 'LENS_APP_INSTALL', 'DEEP_LINK', 'LENS_DEEP_LINK'])) {
+                        // Ensure that either ios_app_id or android_app_url is provided
+                        if (empty($value) && empty($this->input('ios_app_id'))) {
+                            $fail('Either ios_app_id or android_app_url is required when type is APP_INSTALL, LENS_APP_INSTALL, DEEP_LINK, or LENS_DEEP_LINK.');
+                        }
+                    }
+                }
+            ],
+            'deep_link_uri' => [
+                'required_if:type,DEEP_LINK,LENS_DEEP_LINK'
+            ],
+            'fallback_type' => [
+                'required_if:type,DEEP_LINK,LENS_DEEP_LINK'
+            ],
+            'web_view_fallback_url' => [
+                'required_if:type,DEEP_LINK,LENS_DEEP_LINK'
+            ],
+            'preview_media_id' => [
+                'required_if:type,PREVIEW'
+            ],
+            'logo_media_id' => [
+                'required_if:type,PREVIEW'
+            ],
+            'preview_headline' => [
+                'required_if:type,PREVIEW'
+            ],
+            'creative_ids' => [
+                'required_if:type,COMPOSITE', 
+                'array'
+            ],
+            'creative_ids.*' => [
+                'required_if:type,COMPOSITE',
+            ],
+            'url' => [
+                'required_if:type,WEB_VIEW,LENS_WEB_VIEW', 
+                'url',
+                'nullable'
+            ],
         ];
     }
 }

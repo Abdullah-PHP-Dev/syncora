@@ -1053,23 +1053,20 @@
         }
 
         function calculateBudget() {
+   
             let budgetMode = document.getElementById('budget_mode').value;
             let budget = parseFloat(document.getElementById('budget').value) || 0;
             let startDate = document.getElementById('start_time').value;
             let endDate = document.getElementById('end_time').value;
             let allocatedBudget = budget;
-            // Daily Budget Calculation
-            if (budgetMode === 'daily' && startDate && endDate) {
+            if (budgetMode === 'daily_budget' && startDate && endDate) {
                 let start = new Date(startDate);
                 let end = new Date(endDate);
-                let difference = end - start;
-                let days = Math.ceil(difference / (1000 * 60 * 60 * 24)) + 1;
-                if (days > 0) {
-                    allocatedBudget = budget * days;
-                } else {
-                    allocatedBudget = 0;
-                }
+                let days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+                if (days > 0) allocatedBudget = budget * days;
+                else allocatedBudget = 0;
             }
+
             let vat = allocatedBudget * 0.15;
             let total = allocatedBudget + vat;
             document.getElementById('budget_amount').innerText = allocatedBudget.toFixed(2);
@@ -1077,11 +1074,11 @@
             document.getElementById('total_budget').innerText = total.toFixed(2);
             document.getElementById('final_budget').value = total.toFixed(2);
         }
-        // Events
-        document.getElementById('budget').addEventListener('input', calculateBudget);
-        document.getElementById('budget_mode').addEventListener('change', calculateBudget);
-        document.getElementById('start_time').addEventListener('change', calculateBudget);
-        document.getElementById('end_time').addEventListener('change', calculateBudget);
+
+            document.getElementById('budget').addEventListener('input', calculateBudget);
+            document.getElementById('budget_mode').addEventListener('change', calculateBudget);
+            document.getElementById('start_time').addEventListener('change', calculateBudget);
+            document.getElementById('end_time').addEventListener('change', calculateBudget);
     </script>
 
     <script src="{{ asset('assets/js/admin/api.js') }}"></script>

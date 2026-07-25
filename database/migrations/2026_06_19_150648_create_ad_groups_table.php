@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('ad_adgroups', function(Blueprint $table){
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained()->cascadeOnDelete();
-            $table->bigInteger('ad_adgroup_id')->nullable();
+            $table->string('ad_adgroup_id')->nullable();
             $table->string('platform')->nullable();
             $table->foreignId('ad_account_id')
             ->constrained('ad_accounts')

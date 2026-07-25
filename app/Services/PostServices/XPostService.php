@@ -4,7 +4,6 @@ namespace App\Services\PostServices;
 
 use App\Services\PostServices\ApiPostService;
 use Carbon\Carbon;
-use Webkul\Core\Models\Chat;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Http;
 use App\Models\Post;

@@ -1,5 +1,5 @@
 <?php
-namespace Webkul\Admin\Http\Requests\Admin;
+namespace App\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\DB;

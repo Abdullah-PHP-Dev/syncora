@@ -6,7 +6,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Models\PostComment;
 use App\Models\Post;
-use Webkul\Admin\Models\SocialPublishAccount;
 
 class FacebookController
 {

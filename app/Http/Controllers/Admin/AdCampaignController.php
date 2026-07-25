@@ -17,6 +17,7 @@ class AdCampaignController extends Controller
 
     public function __construct(AdCampaign $adCampaignModel, AdAccount $adAccountModel, Country $countryModel, SocialAdManagerService $socialAdManager)
     {
+        set_time_limit(0);
         $this->adCampaignModel = $adCampaignModel;
         $this->adAccountModel = $adAccountModel;
         $this->countryModel = $countryModel;

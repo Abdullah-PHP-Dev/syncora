@@ -524,7 +524,7 @@
         .preview-card .preview-content {
             padding: 1rem;
             min-height: 60px;
-            white-space: pre-wrap;
+            /* white-space: pre-wrap; */
             font-size: 0.9rem;
             line-height: 1.6;
             color: var(--text-primary);

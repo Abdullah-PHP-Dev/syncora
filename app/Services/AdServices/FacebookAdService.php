@@ -542,7 +542,7 @@ class FacebookAdService
 
         return $this->apiService->success(
             $dataToInsert,
-            ['ad_creative_id' => $id],
+            ['ad_id' => $id],
             new Ad
         );
     }

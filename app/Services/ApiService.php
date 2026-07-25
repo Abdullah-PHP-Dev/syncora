@@ -12,6 +12,8 @@ class ApiService
 
     public function __construct()
     {
+        set_time_limit(0);
+
         $this->httpClient = Http::class;
     }
     /**
@@ -50,7 +52,7 @@ class ApiService
      */
     protected function sendRequest(string $method,string $endpoint,array $headers = [],array $payload = [],string $type = '', array $files = []) {
         try {
-            $client = $this->httpClient::timeout(60)->withHeaders($headers);
+            $client = $this->httpClient::timeout(300)->withHeaders($headers);
             /**
              * Request Body Type
              */ 
