@@ -57,7 +57,7 @@
 
             <!-- Content -->
             <div class="content-wrapper">
-                <div class="container-xxl flex-grow-1 container-p-y">
+                <div id="app"class="container-xxl flex-grow-1 container-p-y">
 
                     @yield('content')
 
@@ -127,7 +127,7 @@
 
 <!-- Main JS -->
 <script src="{{ asset('assets/js/main.js') }}"></script>
-
+@vite(['resources/css/app.css', 'resources/js/app.js'])
 
 @stack('scripts')
 
