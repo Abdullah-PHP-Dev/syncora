@@ -152,6 +152,24 @@ class PostController extends Controller
         return view('admin.posts.index', compact('posts', 'platform'));
     }
 
+	public function index_vue(Request $request)
+    {
+        $platform = strtolower($request->platform) ?? 'facebook';
+        if ($request->platform === null) {
+            $platform = session('platform');
+        }
+
+        $platform = $platform ?? 'facebook';
+
+        $posts = Post::with(['postAccount', 'category', 'media'])
+        ->where('user_id', Auth::user()->id)
+        // ->where('platform', $platform)
+        ->latest()
+        ->paginate(10);
+
+        return view('admin.posts.index_vue', compact('posts', 'platform'));
+    }
+
     public function create(Request $request)
     {
         $userId = Auth::id();
