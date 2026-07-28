@@ -48,58 +48,72 @@ class AdCampaignRequest extends FormRequest
     {
         return [
             'name' => ['required'],
-            'final_budget' => ['nullable'],
-            'budget' => ['required'],
+            'final_budget' => ['required'],
+            'budget' => ['required', 'numeric', 'min:0.01'],
             'start_time' => ['required', 'date_format:Y-m-d', 'before:end_time'],
             'end_time'   => ['required', 'date_format:Y-m-d', 'after:start_time'],
-            //  'brand_name' => ['required', 'string'],
             'media' => array_merge($requiredIfPost, ['array']),
-            'media.*' => ['file', 'max:1024'],
+            'media.*' => [
+                'file',
+                function ($attribute, $value, $fail) {
+                    $isVideo = $this->input('media_type') === 'VIDEO';
+                    $maxKb = $isVideo ? 512000 : 30720; // 500MB video / 30MB image
+
+                    if ($value->getSize() / 1024 > $maxKb) {
+                        $fail("The {$attribute} may not be greater than " . ($isVideo ? '500MB' : '30MB') . '.');
+                    }
+
+                    $allowedMimes = $isVideo
+                        ? ['video/mp4', 'video/quicktime', 'video/x-m4v']
+                        : ['image/jpeg', 'image/png', 'image/gif', 'image/bmp'];
+
+                    if (!in_array($value->getMimeType(), $allowedMimes, true)) {
+                        $fail("The {$attribute} must be a valid " . ($isVideo ? 'video (mp4/mov)' : 'image (jpg/png/gif/bmp)') . ' file.');
+                    }
+                },
+            ],
             'media_type' => ['required', 'in:IMAGE,VIDEO,CAROUSEL'],
-            //  'music' => ['required_with:ad_format,CAROUSEL'],
-            //'video' => ['required_if:media_type,VIDEO'],
+            'thumbnail' => ['nullable', 'required_if:media_type,VIDEO', 'image', 'max:8192'],
             'description' => ['required', 'string'],
             'facebook' => ['nullable', 'required_without:instagram'],
             'instagram' => ['nullable', 'required_without:facebook'],
             'target_link'  => ['required', 'url'],
-            //'ad_format' => ['required', 'in:FEED,STORIES,SEARCH_RESULTS,MARKET_PLACE'],
             'countries' => ['array', 'required'],
             'budget_mode' => ['required', 'in:daily_budget,lifetime_budget'],
-            'call_to_action' => array_merge($requiredIfPost, ['in:SHOP_NOW,BOOK_TRAVEL,CONTACT_US,DONATE,DONATE_NOW,GET_DIRECTIONS,GO_LIVE,
-                                INTERESTED,LEARN_MORE,LIKE_PAGE,MESSAGE_PAGE,
-                                RAISE_MONEY,SAVE,SEND_TIP,VIEW_INSTAGRAM_PROFILE,INSTAGRAM_MESSAGE,
-                                LOYALTY_LEARN_MORE,PURCHASE_GIFT_CARDS,PAY_TO_ACCESS,SEE_MORE,TRY_IN_CAMERA,
-                                WHATSAPP_LINK,GET_IN_TOUCH,BOOK_NOW,CHECK_AVAILABILITY,
-                                WHATSAPP_MESSAGE,GET_MOBILE_APP,INSTALL_MOBILE_APP,USE_MOBILE_APP,INSTALL_APP,
-                                WATCH_VIDEO,WATCH_MORE,OPEN_LINK,NO_BUTTON,LISTEN_MUSIC,MOBILE_DOWNLOAD,
-                                GET_OFFER,GET_OFFER_VIEW,BUY_NOW,
-                                UPDATE_APP,BET_NOW,ADD_TO_CART,SELL_NOW,GET_SHOWTIMES,LISTEN_NOW,
-                                GET_EVENT_TICKETS,REMIND_ME,SEARCH_MORE,PRE_REGISTER,SWIPE_UP_PRODUCT,
-                                SWIPE_UP_SHOP,
-                                PLAY_GAME_ON_FACEBOOK,VISIT_WORLD,OPEN_INSTANT_APP,JOIN_GROUP,GET_PROMOTIONS,
-                                SEND_UPDATES,INQUIRE_NOW,VISIT_PROFILE,CHAT_ON_WHATSAPP,EXPLORE_MORE,
-                                CONFIRM,JOIN_CHANNEL,
-                                MAKE_AN_APPOINTMENT,ASK_ABOUT_SERVICES,BOOK_A_CONSULTATION,GET_A_QUOTE,
-                                BUY_VIA_MESSAGE,ASK_FOR_MORE_INFO,CHAT_WITH_US,VIEW_PRODUCT,VIEW_CHANNEL,
-                                CALL,MISSED_CALL,CALL_ME,BUY,GET_QUOTE,SUBSCRIBE,RECORD_NOW,VOTE_NOW,
-                                GIVE_FREE_RIDES,REGISTER_NOW,OPEN_MESSENGER_EXT,
-                                EVENT_RSVP,CIVIC_ACTION,SEND_INVITES,REFER_FRIENDS,REQUEST_TIME,SEE_MENU,
-                                SEARCH,TRY_IT,TRY_ON,LINK_CARD,DIAL_CODE,FIND_YOUR_GROUPS,START_ORDER']),       
-            //'account_to_use' => ['required', 'in:Twsaa,Store'],
-            'optimization_goal'    => array_merge($requiredIfPost, ['in:LINK_CLICKS,LANDING_PAGE_VIEWS,REACH,IMPRESSIONS']),
+            'call_to_action' => array_merge($requiredIfPost, ['in:' . implode(',', [
+                'OPEN_LINK', 'LIKE_PAGE', 'SHOP_NOW', 'PLAY_GAME', 'INSTALL_APP', 'USE_APP', 'CALL', 'CALL_ME',
+                'VIDEO_CALL', 'INSTALL_MOBILE_APP', 'USE_MOBILE_APP', 'MOBILE_DOWNLOAD', 'BOOK_TRAVEL',
+                'LISTEN_MUSIC', 'WATCH_VIDEO', 'LEARN_MORE', 'SIGN_UP', 'DOWNLOAD', 'WATCH_MORE', 'NO_BUTTON',
+                'VISIT_PAGES_FEED', 'CALL_NOW', 'APPLY_NOW', 'CONTACT', 'BUY_NOW', 'GET_OFFER', 'GET_OFFER_VIEW',
+                'BUY_TICKETS', 'UPDATE_APP', 'GET_DIRECTIONS', 'BUY', 'SEND_UPDATES', 'MESSAGE_PAGE', 'SEND_MESSAGE',
+                'DONATE', 'SUBSCRIBE', 'SAY_THANKS', 'SELL_NOW', 'SHARE', 'DONATE_NOW', 'GET_QUOTE', 'CONTACT_US',
+                'ORDER_NOW', 'START_ORDER', 'ADD_TO_CART', 'VIEW_CART', 'VIEW_IN_CART', 'RECORD_NOW', 'INQUIRE_NOW',
+                'CONFIRM', 'REFER_FRIENDS', 'REQUEST_TIME', 'GET_SHOWTIMES', 'LISTEN_NOW', 'RAISE_MONEY',
+                'GET_DETAILS', 'FIND_OUT_MORE', 'VISIT_WEBSITE', 'EVENT_RSVP', 'WHATSAPP_MESSAGE', 'SEE_MORE',
+                'BOOK_NOW', 'FIND_A_GROUP', 'FIND_YOUR_GROUPS', 'PAY_TO_ACCESS', 'PURCHASE_GIFT_CARDS',
+                'FOLLOW_PAGE', 'SEND_A_GIFT', 'SWIPE_UP_SHOP', 'SWIPE_UP_PRODUCT', 'PLAY_GAME_ON_FACEBOOK',
+                'GET_STARTED', 'OPEN_INSTANT_APP', 'GET_PROMOTIONS', 'JOIN_CHANNEL', 'MAKE_AN_APPOINTMENT',
+                'ASK_ABOUT_SERVICES', 'BOOK_A_CONSULTATION', 'GET_A_QUOTE', 'BUY_VIA_MESSAGE', 'ASK_FOR_MORE_INFO',
+                'CHAT_WITH_US', 'VIEW_PRODUCT', 'VIEW_CHANNEL', 'GET_IN_TOUCH', 'ASK_A_QUESTION', 'START_A_CHAT',
+                'CHAT_NOW', 'WATCH_LIVE_VIDEO', 'JOIN_LIVE_VIDEO', 'VIEW_INSTAGRAM_PROFILE', 'INSTAGRAM_MESSAGE',
+            ])]),
+            'optimization_goal' => array_merge($requiredIfPost, ['in:' . implode(',', [
+                'LINK_CLICKS', 'LANDING_PAGE_VIEWS', 'REACH', 'IMPRESSIONS', 'AD_RECALL_LIFT',
+                'POST_ENGAGEMENT', 'VIDEO_VIEWS', 'THRUPLAY', 'TWO_SECOND_CONTINUOUS_VIDEO_VIEWS',
+                'LEADS', 'QUALITY_LEADS', 'APP_INSTALLS', 'APP_EVENTS', 'OFFSITE_CONVERSIONS', 'PURCHASE',
+            ])]),
             'billing_event'    => array_merge($requiredIfPost, ['in:NONE,CLICKS,IMPRESSIONS,LINK_CLICKS,OFFER_CLAIMS,PAGE_LIKES,POST_ENGAGEMENT,THRUPLAY,PURCHASE,LISTING_INTERACTION']),
-            'destination_type'    => ['nullable'],
-            'bid_amount'    => array_merge($requiredIfPost),
+            'destination_type'    => ['nullable', 'in:WEBSITE,APP,MESSENGER,WHATSAPP'],
+            'bid_amount'    => array_merge($requiredIfPost, ['numeric', 'min:0.01']),
             'pixel_id'           => ['string', 'max:255', 'nullable'],
-            'page_id'            => ['string', 'max:255', 'nullable'],
+            'page_id'            => ['required', 'string', 'max:255'],
             'application_id'     => ['string', 'max:255', 'nullable'],
             'custom_event_type'     => ['string', 'max:255', 'nullable'],
-            'age_to'     => ['required'],
-            'age_from'     => ['required'],
-            'gender'     => ['required'],
+            'age_to'     => ['required', 'integer', 'min:13', 'max:65', 'gte:age_from'],
+            'age_from'     => ['required', 'integer', 'min:13', 'max:65'],
+            'gender'     => ['required', 'in:male,female,both'],
             'languages'     => ['required', 'array'],
-            'final_budget' => ['required'],
-            'objective' => ['required']
+            'objective' => ['required', 'in:OUTCOME_TRAFFIC,OUTCOME_SALES,OUTCOME_ENGAGEMENT,OUTCOME_AWARENESS,OUTCOME_APP_PROMOTION,OUTCOME_LEADS'],
         ];
     }
 

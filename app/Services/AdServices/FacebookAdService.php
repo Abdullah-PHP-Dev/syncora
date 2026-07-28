@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
 use App\Models\Country;
 
 class FacebookAdService
@@ -46,8 +47,7 @@ class FacebookAdService
 
     private function getCallbackUrl()
     {
-        return config('services.app_url') . '/admin/social/auth/facebook/callback';
-        //   return config('app.url') . '/admin/ads/facebook/callback';
+        return config('services.app_url') . '/admin/ads/facebook/callback';
     }
 
     public function callback($state)
@@ -67,22 +67,53 @@ class FacebookAdService
         $data = $response['data'];
 
         if (!$response['success']) {
-            return $this->errorResponse($data);
+            return $this->oauthFailureRedirect($data['error']['message'] ?? 'Failed to authorize the Facebook account.');
         }
 
         $accessToken = data_get($data, 'access_token');
         $expiresIn = data_get($data, 'expires_in', 3600); // Default to 3600 seconds if not found
-        $response = $this->getFBAdAccount($accessToken);
+        $accountResponse = $this->getFBAdAccount($accessToken);
 
-        $accountId = str_replace('act_', '', $response['facebook_account_id']);
-        $instagramId = $response['instagram_account_id'];
+        if (!($accountResponse['success'] ?? false)) {
+            return $this->oauthFailureRedirect($accountResponse['error'] ?? 'No active Facebook ad account was found.');
+        }
 
-        $InstagramDataToInsert = [
-            'access_token' => $accessToken,
-            'refresh_token_token' =>  data_get($data, 'refresh_token') ?? null,
-            'account_id' => $instagramId,
-            'expires_at' => Carbon::now()->addSeconds($expiresIn),
-        ];
+        $accountId = str_replace('act_', '', $accountResponse['facebook_account_id']);
+        $instagramId = $accountResponse['instagram_account_id'] ?? null;
+        $expiresAt = Carbon::now()->addSeconds($expiresIn);
+        $refreshToken = data_get($data, 'refresh_token');
+
+        AdAccount::updateOrCreate(
+            ['platform' => 'facebook', 'user_id' => Auth::id(), 'ad_account_id' => $accountId],
+            [
+                'access_token'  => $accessToken,
+                'refresh_token' => $refreshToken,
+                'status'        => 'active',
+                'expires_at'    => $expiresAt,
+            ]
+        );
+
+        if ($instagramId) {
+            AdAccount::updateOrCreate(
+                ['platform' => 'instagram', 'user_id' => Auth::id()],
+                [
+                    'ad_account_id' => $instagramId,
+                    'access_token'  => $accessToken,
+                    'refresh_token' => $refreshToken,
+                    'status'        => 'active',
+                    'expires_at'    => $expiresAt,
+                ]
+            );
+        }
+
+        return redirect(Session::pull('previous_url', route('admin.ads.dashboard')))
+            ->with('success', 'Facebook ad account connected successfully.');
+    }
+
+    private function oauthFailureRedirect($message)
+    {
+        return redirect(route('admin.ads.dashboard'))
+            ->with('error', is_array($message) ? json_encode($message) : $message);
     }
 
     private function getFBAdAccount($accessToken)
@@ -108,10 +139,10 @@ class FacebookAdService
         foreach ($account['data'] as $account) {
             if ($account['account_status']) {
                 $accountId = $account['id'];
-                $endpoint = adminSetting('ads.instagram.account.endpoint');
-                // $this->config['base_url'] . $accountId . '/instagram_accounts',
+                $instagramEndpoint = str_replace('{accountId}', $accountId, adminSetting('ads.instagram.account.endpoint'));
+
                 $response = $this->httpClient::get(
-                    $this->config['base_url'] . $accountId . '/instagram_accounts',
+                    $instagramEndpoint,
                     [
                         'access_token' => $accessToken,
                     ]
@@ -123,15 +154,19 @@ class FacebookAdService
                     return $this->errorResponse($instaRes['error']['error_user_title'] ?? $instaRes['error']['message']);
                 }
 
-                if (!empty($response->json()['data'])) {
+                if (!empty($instaRes['data'])) {
                     $accounts = [
                         'facebook_account_id' => $accountId,
-                        'instagram_account_id' => $response->json()['data'][0]['id'],
+                        'instagram_account_id' => $instaRes['data'][0]['id'],
                     ];
 
                     break;
                 }
             }
+        }
+
+        if (empty($accounts)) {
+            return $this->errorResponse('No active Facebook ad account with a linked Instagram account was found.');
         }
 
         return ['success' => true, 'facebook_account_id' => $accounts['facebook_account_id'], 'instagram_account_id' => $accounts['instagram_account_id']];
@@ -168,6 +203,17 @@ class FacebookAdService
 
         $request['media'] = $response['data'];
 
+        // Video creatives require a thumbnail image alongside the video_id.
+        if ($request['media_type'] === 'VIDEO' && !empty($request['thumbnail'])) {
+            $thumbnailResponse = $this->uploadImage($platform, $request, $request['thumbnail'], strtolower($request['thumbnail']->getClientOriginalExtension()));
+
+            if (!$thumbnailResponse['success']) {
+                return $thumbnailResponse;
+            }
+
+            $request['thumbnail_hash'] = $thumbnailResponse['data']['media_id'];
+        }
+
         // Step 4: create creative
         $response = $this->storeCreative($platform, $request);
 
@@ -191,7 +237,6 @@ class FacebookAdService
             'status'              => 'PAUSED',
             'start_time'          => Carbon::parse($request['start_time'])->utc()->format('Y-m-d\TH:i:s.v\Z'),
             'stop_time'           => Carbon::parse($request['end_time'])->utc()->format('Y-m-d\TH:i:s.v\Z'),
-            'creation_state'      => 'PUBLISHED',
             'special_ad_categories' => [],
             'is_adset_budget_sharing_enabled' => false,
             'objective' => $request['objective'],
@@ -245,7 +290,7 @@ class FacebookAdService
         $payload = [
             'campaign_id'       => $request['campaign_id'],
             'name'              => $request['name'],
-            'bid_amount'        => $request['bid_amount'],
+            'bid_amount'        => $this->toMinorUnits($request['bid_amount']),
             'billing_event'     => $request['billing_event'] ?? null,
             'optimization_goal' => $request['optimization_goal'],
             'status'            => 'PAUSED',
@@ -258,10 +303,8 @@ class FacebookAdService
                 ],
                 'genders' => $genders,
                 'locales' => $locales,
-                "age_range" => [
-                    $request['age_from'],
-                    $request['age_to']
-                ],
+                'age_min' => (int) $request['age_from'],
+                'age_max' => (int) $request['age_to'],
                 "device_platforms" => ["mobile", "desktop"],
                 "targeting_automation" => [
                     "advantage_audience" => 1,
@@ -277,9 +320,9 @@ class FacebookAdService
         ];
 
         if ($request['budget_mode'] == 'daily_budget') {
-            $payload['daily_budget'] = $request['budget'] * 1000;
+            $payload['daily_budget'] = $this->toMinorUnits($request['budget']);
         } else {
-            $payload['lifetime_budget'] = $request['budget'] * 1000;
+            $payload['lifetime_budget'] = $this->toMinorUnits($request['budget']);
         }
 
         if ($adSetObjects['shouldUnsetDestinationType']) {
@@ -334,77 +377,157 @@ class FacebookAdService
 
         foreach ($request['media'] as $media) {
             $extension = strtolower($media->getClientOriginalExtension());
-            $mediaType = $this->getMediaType($extension); // image | video   
-            $fileName = time() . '.' . $extension;
-            $s3Path = "uploads/{$platform}/{$mediaType}/{$fileName}";
-            Storage::disk('s3')->put(
-                $s3Path,
-                file_get_contents($media->getRealPath()),
-                ['visibility' => 'public']
-            );
+            $mediaType = $this->getMediaType($extension); // IMAGE | VIDEO
 
-            $filePath = Storage::disk('s3')->url($s3Path);
+            $result = $mediaType === 'VIDEO'
+                ? $this->uploadVideo($platform, $request, $media, $extension)
+                : $this->uploadImage($platform, $request, $media, $extension);
 
-            $payload = [
-                "file_name" => $fileName,
-                "bytes" => base64_encode(
-                    file_get_contents($media->getRealPath())
-                )
-            ];
-
-            if ($mediaType === 'IMAGE') {
-                $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adimages';
-            } else if ($mediaType === 'VIDEO') {
-                $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/advideos';
-            } else if ($mediaType === 'CAROUSEL') {
+            if (!$result['success']) {
+                return $result;
             }
 
-            $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
-
-            $media = $response['data'];
-
-            if (!$response['success']) {
-                return $this->errorResponse($media['error']['message']);
-            }
-
-            $image = $media['images']['bytes'];
-
-            $dataToInsert = [
-                'ad_media_id'       => $image['hash'],
-                'ad_account_id'     => $this->account->id,
-                'ad_campaign_id'    => $request['ad_campaign_id'],
-                'platform'          => 'facebook',
-                'name'              => $fileName,
-                'url'               => $image['url'],
-                'download_link'     => $image['url'],
-                'type'              => $mediaType,
-                'status'            => false,
-                'file_name'         => $fileName,
-                'image_category'    => $mediaType,
-                'signature'         => $image['hash'],
-                'upload_by_type'    => 'UPLOAD_BY_FILE',
-                'file_id'           => $image['hash'],
-                'user_id'           => Auth::user()->id,
-                'ad_format'         => 'FEED',
-            ];
-
-            $medias = $this->apiService->success(
-                $dataToInsert,
-                ['ad_media_id' => $image['hash']],
-                new AdMedia
-            );
-
-            $mediaIds[] = [
-                'ad_media_id' => $medias['data']['id'],
-                'media_id' => $medias['data']['ad_media_id']
-            ];
-
-            // $media['ad_media_id'][] = $media['data']['id'];
-            // $media['media_id'][] = $media['data']['ad_media_id'];
+            $mediaIds[] = $result['data'];
         }
 
         return ['success' => true, 'data' => $mediaIds];
-        // $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
+    }
+
+    /**
+     * Upload a single image to S3 (for our own records) and to Meta's /adimages
+     * endpoint, returning the image_hash needed by AdCreative link_data/video_data.
+     */
+    private function uploadImage($platform, $request, $media, $extension)
+    {
+        $fileName = time() . '_' . uniqid() . '.' . $extension;
+        $s3Path = "uploads/{$platform}/IMAGE/{$fileName}";
+
+        Storage::disk('s3')->put(
+            $s3Path,
+            file_get_contents($media->getRealPath()),
+            ['visibility' => 'public']
+        );
+
+        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adimages';
+
+        $payload = [
+            'file_name' => $fileName,
+            'bytes'     => base64_encode(file_get_contents($media->getRealPath())),
+        ];
+
+        $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
+        $result = $response['data'];
+
+        if (!$response['success']) {
+            return $this->errorResponse($result['error']['error_user_msg'] ?? $result['error']['message'] ?? 'Failed to upload image.');
+        }
+
+        $image = $result['images']['bytes'];
+
+        $dataToInsert = [
+            'ad_media_id'       => $image['hash'],
+            'ad_account_id'     => $this->account->id,
+            'ad_campaign_id'    => $request['ad_campaign_id'],
+            'platform'          => 'facebook',
+            'name'              => $fileName,
+            'url'               => $image['url'],
+            'download_link'     => $image['url'],
+            'type'              => 'IMAGE',
+            'status'            => false,
+            'file_name'         => $fileName,
+            'image_category'    => 'IMAGE',
+            'signature'         => $image['hash'],
+            'upload_by_type'    => 'UPLOAD_BY_FILE',
+            'file_id'           => $image['hash'],
+            'user_id'           => Auth::user()->id,
+            'ad_format'         => 'FEED',
+        ];
+
+        $medias = $this->apiService->success(
+            $dataToInsert,
+            ['ad_media_id' => $image['hash']],
+            new AdMedia
+        );
+
+        return ['success' => true, 'data' => [
+            'ad_media_id' => $medias['data']['id'],
+            'media_id'    => $image['hash'],
+            'type'        => 'IMAGE',
+        ]];
+    }
+
+    /**
+     * Upload a video to Meta's /advideos endpoint. Unlike /adimages, this endpoint
+     * requires an actual multipart file upload (a base64 "bytes" JSON body — the
+     * approach adimages uses — is not a supported way to upload video source).
+     */
+    private function uploadVideo($platform, $request, $media, $extension)
+    {
+        $fileName = time() . '_' . uniqid() . '.' . $extension;
+        $s3Path = "uploads/{$platform}/VIDEO/{$fileName}";
+
+        Storage::disk('s3')->put(
+            $s3Path,
+            file_get_contents($media->getRealPath()),
+            ['visibility' => 'public']
+        );
+
+        $filePath = Storage::disk('s3')->url($s3Path);
+        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/advideos';
+
+        // Multipart upload must not carry a JSON content-type header.
+        $authHeader = ['Authorization' => $this->header['data']['Authorization']];
+
+        $response = $this->apiService->post(
+            $endpoint,
+            $authHeader,
+            ['name' => $fileName],
+            'multipart',
+            [[
+                'name'       => 'source',
+                'media_file' => $media->getRealPath(),
+                'file_name'  => $fileName,
+            ]]
+        );
+
+        $result = $response['data'];
+
+        if (!$response['success']) {
+            return $this->errorResponse($result['error']['error_user_msg'] ?? $result['error']['message'] ?? 'Failed to upload video.');
+        }
+
+        $videoId = $result['id'];
+
+        $dataToInsert = [
+            'ad_media_id'       => $videoId,
+            'ad_account_id'     => $this->account->id,
+            'ad_campaign_id'    => $request['ad_campaign_id'],
+            'platform'          => 'facebook',
+            'name'              => $fileName,
+            'url'               => $filePath,
+            'download_link'     => $filePath,
+            'type'              => 'VIDEO',
+            'status'            => false,
+            'file_name'         => $fileName,
+            'image_category'    => 'VIDEO',
+            'signature'         => $videoId,
+            'upload_by_type'    => 'UPLOAD_BY_FILE',
+            'file_id'           => $videoId,
+            'user_id'           => Auth::user()->id,
+            'ad_format'         => 'FEED',
+        ];
+
+        $medias = $this->apiService->success(
+            $dataToInsert,
+            ['ad_media_id' => $videoId],
+            new AdMedia
+        );
+
+        return ['success' => true, 'data' => [
+            'ad_media_id' => $medias['data']['id'],
+            'media_id'    => $videoId,
+            'type'        => 'VIDEO',
+        ]];
     }
 
     private function storeCreative($platform, $request)
@@ -420,7 +543,7 @@ class FacebookAdService
         if (isset($request['instagram'])) {
             $loginUser = AdAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
             if ($loginUser) {
-                $payload['object_story_spec']['instagram_user_id'] = $loginUser->account_id;
+                $payload['object_story_spec']['instagram_user_id'] = $loginUser->ad_account_id;
             }
         }
 
@@ -431,10 +554,13 @@ class FacebookAdService
                 'link' => $request['target_link'],
             ];
 
-            $linkData['child_attachments'] = [['image_hash' => $request['admedia_id'], 'link' => $request['target_link']]];
-            $linkData['call_to_action'] =     $request['call_to_action'];
+            $linkData['child_attachments'] = array_map(
+                fn ($media) => ['image_hash' => $media['media_id'], 'link' => $request['target_link']],
+                $request['media']
+            );
+            $linkData['call_to_action'] = $this->buildFacebookCTAPayload($request['call_to_action'], $request['target_link']);
 
-            $newPayload['object_story_spec']['link_data'] = $linkData;
+            $payload['object_story_spec']['link_data'] = $linkData;
         } else if ($request['media_type'] === 'IMAGE') {
 
             $linkData = [
@@ -449,20 +575,22 @@ class FacebookAdService
         } else if ($request['media_type'] === 'VIDEO') {
 
             $linkData = [
-                'image_url' => $request['image_url'],
-                'video_id' => $request['video_id'],
-                'description' => $request['description'],
-                //"link_description" => "Come check out our new store in Menlo Park!", 
-
+                'video_id' => $request['media'][0]['media_id'],
+                'title' => $request['name'],
+                'link_description' => $request['description'],
             ];
-            $linkData['call_to_action'] = $this->buildFacebookCTAPayload($request['call_to_action'], $request['target_link']);
 
+            if (!empty($request['thumbnail_hash'])) {
+                $linkData['image_hash'] = $request['thumbnail_hash'];
+            }
+
+            $linkData['call_to_action'] = $this->buildFacebookCTAPayload($request['call_to_action'], $request['target_link']);
 
             $payload['object_story_spec']['video_data'] = $linkData;
         }
 
         $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
-    
+
         if (!$response['success']) {
             return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
         }
@@ -619,51 +747,51 @@ class FacebookAdService
 
     private function getPromotedObject($request)
     {
+        // NOTE: previously this hard-coded $objective = 'OUTCOME_TRAFFIC' regardless
+        // of what the advertiser actually selected, which meant Awareness/Sales/Leads/
+        // Engagement/App Promotion campaigns always built their promoted_object (and
+        // destination_type) as if they were Traffic campaigns. Must read the real value.
+        $objective = $request['objective'] ?? 'OUTCOME_TRAFFIC';
+        $goal = $request['optimization_goal'] ?? null;
+        $destinationType = $request['destination_type'] ?? null;
+
         $promotedObjectRules = [
             'OUTCOME_AWARENESS' => [
                 'default' => ['page_id'],
-                'IMPRESSIONS' => ['page_id'],
-                'REACH' => ['page_id'],
-                'VIDEO_VIEWS' => ['page_id'],
-                'THRUPLAY' => ['page_id'],
-                'TWO_SECOND_CONTINUOUS_VIDEO_VIEWS' => ['page_id'],
             ],
             'OUTCOME_TRAFFIC' => [
-                'LINK_CLICKS' => ['application_id', 'object_store_url'],
-                'REACH' => ['application_id', 'object_store_url'],
+                'default' => [],
             ],
             'OUTCOME_ENGAGEMENT' => [
-                'PAGE_LIKES' => ['page_id'],
-                'QUALITY_LEAD' => ['page_id'],
-                'LINK_CLICKS' => ['page_id'],
-                'CONVERSIONS' => ['page_id'],
-                'LEAD_GENERATION' => ['page_id'],
-                'OFFSITE_CONVERSIONS' => ['pixel_id', 'custom_event_type', 'application_id', 'object_store_url'],
+                'OFFSITE_CONVERSIONS' => ['pixel_id', 'custom_event_type'],
+                'default' => ['page_id'],
             ],
             'OUTCOME_APP_PROMOTION' => [
-                'LINK_CLICKS' => ['application_id', 'object_store_url'],
-                'APP_INSTALLS' => ['application_id', 'object_store_url'],
-                'OFFSITE_CONVERSIONS' => ['application_id', 'object_store_url'],
+                'default' => ['application_id', 'object_store_url'],
             ],
             'OUTCOME_LEADS' => [
-                'LEAD_GENERATION' => ['page_id'],
-                'QUALITY_LEAD' => ['page_id'],
-                'OFFSITE_CONVERSIONS' => ['pixel_id', 'custom_event_type', 'application_id', 'object_store_url'],
+                'OFFSITE_CONVERSIONS' => ['pixel_id', 'custom_event_type'],
+                'default' => ['page_id'],
             ],
             'OUTCOME_SALES' => [
-                'OFFSITE_CONVERSIONS' => ['pixel_id', 'application_id', 'object_store_url'],
-                'CONVERSIONS' => ['page_id', 'pixel_id', 'custom_event_type'],
-                'LINK_CLICKS' => ['product_catalog_id', 'product_set_id', 'custom_event_type'],
+                'default' => ['pixel_id', 'custom_event_type'],
             ],
         ];
 
-        $promotedObject = [];
-
-        $objective = 'OUTCOME_TRAFFIC';
-        $goal = $request['optimization_goal'];
-
         $fields = $promotedObjectRules[$objective][$goal]
             ?? ($promotedObjectRules[$objective]['default'] ?? []);
+
+        // A website/app destination on Traffic needs its own promoted_object fields,
+        // independent of the objective-level rules above.
+        if ($objective === 'OUTCOME_TRAFFIC') {
+            if ($destinationType === 'APP') {
+                $fields = ['application_id', 'object_store_url'];
+            } elseif (in_array($destinationType, ['MESSENGER', 'WHATSAPP'], true)) {
+                $fields = ['page_id'];
+            }
+        }
+
+        $promotedObject = [];
 
         foreach ($fields as $field) {
             if (!empty($request[$field])) {
@@ -671,19 +799,11 @@ class FacebookAdService
             }
         }
 
-        $goal = $request['optimization_goal'] ?? null;
-
-        $outcomeLeadsGoals = ['OFFSITE_CONVERSIONS', 'LINK_CLICKS', 'REACH', 'LANDING_PAGE_VIEWS', 'IMPRESSIONS'];
-        $outcomeEngagementGoals = ['OFFSITE_CONVERSIONS', 'LINK_CLICKS', 'REACH', 'LANDING_PAGE_VIEWS', 'IMPRESSIONS'];
-        $outcomeTrafficGoals = ['LINK_CLICKS', 'LANDING_PAGE_VIEWS', 'REACH', 'IMPRESSIONS'];
-
-
-        $shouldUnsetDestinationType =
-            $objective === 'OUTCOME_AWARENESS' ||
-            ($objective === 'OUTCOME_SALES' && $goal === 'OFFSITE_CONVERSIONS') ||
-            ($objective === 'OUTCOME_LEADS' && in_array($goal, $outcomeLeadsGoals, true)) ||
-            ($objective === 'OUTCOME_ENGAGEMENT' && in_array($goal, $outcomeEngagementGoals, true)) ||
-            ($objective === 'OUTCOME_TRAFFIC' && in_array($goal, $outcomeTrafficGoals, true));
+        // destination_type only applies to AdSets built around Traffic (website/app/
+        // messaging destinations) or Engagement (messaging); every other objective
+        // must not send it at all.
+        $shouldUnsetDestinationType = empty($destinationType)
+            || !in_array($objective, ['OUTCOME_TRAFFIC', 'OUTCOME_ENGAGEMENT'], true);
 
         return [
             'promoted_objects' => $promotedObject,
@@ -691,21 +811,45 @@ class FacebookAdService
         ];
     }
 
+    /**
+     * Convert a decimal advertiser-facing amount into the ad account currency's
+     * smallest billable unit, per Meta's documented currency offsets
+     * (https://developers.facebook.com/docs/marketing-api/currencies/).
+     */
+    private function toMinorUnits(float $amount): int
+    {
+        $zeroDecimalCurrencies = [
+            'CLP', 'COP', 'CRC', 'HUF', 'ISK', 'IDR', 'JPY', 'KRW', 'PYG', 'TWD', 'VND',
+        ];
+
+        $currency = strtoupper($this->account->currency ?? 'USD');
+        $offset = in_array($currency, $zeroDecimalCurrencies, true) ? 1 : 100;
+
+        return (int) round($amount * $offset);
+    }
+
     private function getLocale($languages)
     {
         $endpoint = 'https://graph.facebook.com/v22.0/search?type=adlocale&q=';
-        $locals = [];
-        foreach ($languages as $language) {
-            $response = $this->apiService->get($endpoint, $this->header['data'], [
-                'type' => 'adlocale',
-                'q' => $language == 'english' ? 'en' : 'ar',
-                'limit' => 2,
-            ]);
+        $languageCodes = ['english' => 'en', 'arabic' => 'ar'];
 
-            $locals[] = $response['data']['data'][0]['key'];
-        }
+        return collect($languages)
+            ->map(function ($language) use ($endpoint, $languageCodes) {
+                $code = $languageCodes[$language] ?? $language;
 
-        return $locals;
+                return Cache::remember("facebook_ad_locale_{$code}", now()->addDay(), function () use ($endpoint, $code) {
+                    $response = $this->apiService->get($endpoint, $this->header['data'], [
+                        'type' => 'adlocale',
+                        'q' => $code,
+                        'limit' => 2,
+                    ]);
+
+                    return $response['data']['data'][0]['key'] ?? null;
+                });
+            })
+            ->filter()
+            ->values()
+            ->all();
     }
 
     private function getMediaType($fileExtension)
@@ -728,203 +872,21 @@ class FacebookAdService
         return 'IMAGE';
     }
 
+    /**
+     * Almost every AdCreativeLinkDataCallToAction type takes the destination
+     * link in value.link; only these carry no link (no-op / page-native actions).
+     */
     private function buildFacebookCTAPayload($ctaType, $url)
     {
+        $noLinkTypes = ['INTERESTED', 'NO_BUTTON', 'OPEN_INSTANT_APP'];
+
         $ctaPayload = [
             'type' => $ctaType,
-            'value' => []
+            'value' => [],
         ];
 
-        switch ($ctaType) {
-            case 'BOOK_TRAVEL':
-            case 'BOOK_NOW':
-            case 'BUY_NOW':
-            case 'PURCHASE_GIFT_CARDS':
-            case 'GET_EVENT_TICKETS':
-            case 'BUY_VIA_MESSAGE':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'CONTACT_US':
-            case 'GET_IN_TOUCH':
-            case 'MAKE_AN_APPOINTMENT':
-            case 'BOOK_A_CONSULTATION':
-            case 'ASK_ABOUT_SERVICES':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'DONATE':
-            case 'DONATE_NOW':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'GET_DIRECTIONS':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'INTERESTED':
-                // Here you might want to add custom handling for "INTERESTED" CTA
-                break;
-
-            case 'LEARN_MORE':
-            case 'SEE_MORE':
-            case 'OPEN_LINK':
-            case 'VISIT_PROFILE':
-            case 'VIEW_PRODUCT':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'LIKE_PAGE':
-            case 'VISIT_WORLD':
-            case 'JOIN_GROUP':
-            case 'JOIN_CHANNEL':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'MESSAGE_PAGE':
-            case 'WHATSAPP_MESSAGE':
-            case 'CHAT_ON_WHATSAPP':
-            case 'SEND_UPDATES':
-            case 'CHAT_WITH_US':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'RAISE_MONEY':
-            case 'SEND_TIP':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'VIEW_INSTAGRAM_PROFILE':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'INSTAGRAM_MESSAGE':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'LOYALTY_LEARN_MORE':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'PAY_TO_ACCESS':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'TRY_IN_CAMERA':
-            case 'SWIPE_UP_PRODUCT':
-            case 'SWIPE_UP_SHOP':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'GET_MOBILE_APP':
-            case 'INSTALL_MOBILE_APP':
-            case 'USE_MOBILE_APP':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'WATCH_VIDEO':
-            case 'WATCH_MORE':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'NO_BUTTON':
-                // No link for no button CTA
-                break;
-
-            case 'MOBILE_DOWNLOAD':
-            case 'GET_OFFER':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'GET_OFFER_VIEW':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'UPDATE_APP':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'BET_NOW':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'ADD_TO_CART':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'SELL_NOW':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'GET_SHOWTIMES':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'LISTEN_NOW':
-            case 'LISTEN_MUSIC':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'VOTE_NOW':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'REGISTER_NOW':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'OPEN_INSTANT_APP':
-                // Handle special cases like opening instant apps
-                break;
-
-            case 'EVENT_RSVP':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'CIVIC_ACTION':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'SEND_INVITES':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'REFER_FRIENDS':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'REQUEST_TIME':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'SEARCH_MORE':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'TRY_IT':
-            case 'TRY_ON':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'LINK_CARD':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'DIAL_CODE':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'FIND_YOUR_GROUPS':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'START_ORDER':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            default:
-                // Handle unrecognized CTA types or if there's no CTA
-                break;
+        if (!in_array($ctaType, $noLinkTypes, true)) {
+            $ctaPayload['value']['link'] = $url;
         }
 
         return $ctaPayload;
@@ -954,12 +916,22 @@ class FacebookAdService
         // Step 3: update Media
         if (!empty($request['media'])) {
             $response = $this->storeMedia($platform, $request);
-            
+
             if (!$response['success']) {
                 return $response;
             }
-    
+
             $request['media'] = $response['data'];
+        }
+
+        if ($request['media_type'] === 'VIDEO' && !empty($request['thumbnail'])) {
+            $thumbnailResponse = $this->uploadImage($platform, $request, $request['thumbnail'], strtolower($request['thumbnail']->getClientOriginalExtension()));
+
+            if (!$thumbnailResponse['success']) {
+                return $thumbnailResponse;
+            }
+
+            $request['thumbnail_hash'] = $thumbnailResponse['data']['media_id'];
         }
 
         // Step 4: update creative
@@ -1028,7 +1000,7 @@ class FacebookAdService
         $payload = [
            // 'campaign_id'       => $request['campaign_id'],
             'name'              => $request['name'],
-            'bid_amount'        => $request['bid_amount'],
+            'bid_amount'        => $this->toMinorUnits($request['bid_amount']),
             'billing_event'     => $request['billing_event'] ?? null,
             'optimization_goal' => $request['optimization_goal'],
             'status'            => 'PAUSED',
@@ -1041,10 +1013,8 @@ class FacebookAdService
                 ],
                 'genders' => $genders,
                 'locales' => $locales,
-                "age_range" => [
-                    $request['age_from'],
-                    $request['age_to']
-                ],
+                'age_min' => (int) $request['age_from'],
+                'age_max' => (int) $request['age_to'],
                 "device_platforms" => ["mobile", "desktop"],
                 "targeting_automation" => [
                     "advantage_audience" => 1,
@@ -1060,9 +1030,9 @@ class FacebookAdService
         ];
 
         if ($request['budget_mode'] == 'daily_budget') {
-            $payload['daily_budget'] = $request['budget'] * 1000;
+            $payload['daily_budget'] = $this->toMinorUnits($request['budget']);
         } else {
-            $payload['lifetime_budget'] = $request['budget'] * 1000;
+            $payload['lifetime_budget'] = $this->toMinorUnits($request['budget']);
         }
 
         if ($adSetObjects['shouldUnsetDestinationType']) {
@@ -1070,7 +1040,7 @@ class FacebookAdService
         }
 
         $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
-       
+
         if (!$response['success']) {
             return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
         }
@@ -1123,7 +1093,7 @@ class FacebookAdService
         if (isset($request['instagram'])) {
             $loginUser = AdAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
             if ($loginUser) {
-                $payload['object_story_spec']['instagram_user_id'] = $loginUser->account_id;
+                $payload['object_story_spec']['instagram_user_id'] = $loginUser->ad_account_id;
             }
         }
 
@@ -1134,10 +1104,13 @@ class FacebookAdService
                 'link' => $request['target_link'],
             ];
 
-            $linkData['child_attachments'] = [['image_hash' => $request['admedia_id'], 'link' => $request['target_link']]];
-            $linkData['call_to_action'] =     $request['call_to_action'];
+            $linkData['child_attachments'] = array_map(
+                fn ($media) => ['image_hash' => $media['media_id'], 'link' => $request['target_link']],
+                $request['media']
+            );
+            $linkData['call_to_action'] = $this->buildFacebookCTAPayload($request['call_to_action'], $request['target_link']);
 
-            $newPayload['object_story_spec']['link_data'] = $linkData;
+            $payload['object_story_spec']['link_data'] = $linkData;
         } else if ($request['media_type'] === 'IMAGE') {
             $linkData = [
                 'link' => $request['target_link'],
@@ -1151,14 +1124,16 @@ class FacebookAdService
         } else if ($request['media_type'] === 'VIDEO') {
 
             $linkData = [
-                'image_url' => $request['image_url'],
-                'video_id' => $request['video_id'],
-                'description' => $request['description'],
-                //"link_description" => "Come check out our new store in Menlo Park!", 
-
+                'video_id' => $request['media'][0]['media_id'],
+                'title' => $request['name'],
+                'link_description' => $request['description'],
             ];
-            $linkData['call_to_action'] = $this->buildFacebookCTAPayload($request['call_to_action'], $request['target_link']);
 
+            if (!empty($request['thumbnail_hash'])) {
+                $linkData['image_hash'] = $request['thumbnail_hash'];
+            }
+
+            $linkData['call_to_action'] = $this->buildFacebookCTAPayload($request['call_to_action'], $request['target_link']);
 
             $payload['object_story_spec']['video_data'] = $linkData;
         }
@@ -1273,49 +1248,45 @@ class FacebookAdService
             );
     
             if (!$response['success']) {
-                dd($response['data']);
                 return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
             }
 
             $ad->delete();
         }
-       
+
         // Delete Creative
         if ($creative) {
 
             $endpoint = "https://graph.facebook.com/v25.0/{$creative->ad_creative_id}";
-         
+
             $response = $this->apiService->delete(
                 $endpoint,
                 $this->header['data']
             );
 
             if (!$response['success']) {
-                dd($response['data']);
                 return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
             }
 
             $creative->delete();
         }
 
-        // Delete Creative
+        // Delete Media (images/videos are per-file, so branch on each item's own type)
         if (count($media)) {
             foreach ($media as $each) {
-                if ($creative->type === 'IMAGE') {
-                    $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adimages';
-                } else if ($creative->type === 'VIDEO') {
+                if ($each->type === 'VIDEO') {
                     $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/advideos';
-                } else if ($creative->type === 'CAROUSEL') {
+                } else {
+                    $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adimages';
                 }
-    
+
                 $response = $this->apiService->delete(
                     $endpoint,
                     $this->header['data'],
                     ['hash' => $each->ad_media_id]
                 );
-               
+
                 if (!$response['success']) {
-                    dd($endpoint, $response);
                     return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
                 }
 

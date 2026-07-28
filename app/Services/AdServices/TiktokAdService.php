@@ -2,7 +2,6 @@
 
 namespace App\Services\AdServices;
 
-use Illuminate\Support\Facades\Redirect;
 use App\Models\Admin\AdAccount;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
@@ -56,8 +55,85 @@ class TiktokAdService
 
     private function getCallbackUrl()
     {
-        return config('services.app_url') . '/admin/social/auth/tiktok/callback';
-     //   return config('app.url') . '/admin/ads/tiktok/callback';
+        return config('services.app_url') . '/admin/ads/tiktok/callback';
+    }
+
+    public function callback($state)
+    {
+        $code = request()->input('auth_code') ?? request()->input('code');
+
+        $response = $this->apiService->post(
+            'https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/',
+            ['Content-Type' => 'application/json'],
+            [
+                'app_id'    => adminSetting('ads.tiktok.client_id'),
+                'secret'    => adminSetting('ads.tiktok.client_secret'),
+                'auth_code' => $code,
+            ]
+        );
+
+        $data = $response['data'];
+
+        if (!$this->tiktokSucceeded($response)) {
+            return $this->oauthFailureRedirect($this->tiktokError($response));
+        }
+
+        $accessToken = data_get($data, 'data.access_token');
+        $advertiserIds = data_get($data, 'data.advertiser_ids', []);
+
+        if (empty($advertiserIds)) {
+            return $this->oauthFailureRedirect('No TikTok advertiser account is authorized for this app.');
+        }
+
+        $advertiserId = $advertiserIds[0];
+
+        $infoResponse = $this->apiService->get(
+            'https://business-api.tiktok.com/open_api/v1.3/advertiser/info/',
+            ['Access-Token' => $accessToken, 'Content-Type' => 'application/json'],
+            ['advertiser_ids' => json_encode([$advertiserId])]
+        );
+
+        $advertiserInfo = $this->tiktokSucceeded($infoResponse)
+            ? data_get($infoResponse, 'data.data.list.0', [])
+            : [];
+
+        AdAccount::updateOrCreate(
+            ['platform' => 'tiktok', 'user_id' => Auth::id(), 'ad_account_id' => $advertiserId],
+            [
+                'name'         => $advertiserInfo['name'] ?? 'TikTok Ad Account',
+                'currency'     => $advertiserInfo['currency'] ?? 'USD',
+                'access_token' => $accessToken,
+                'status'       => 'active',
+                // TikTok access tokens issued via this flow don't expire on a fixed
+                // schedule the way Facebook's do and have no refresh_token grant in
+                // the standard self-serve API - set a generous horizon so tokenIsValid()
+                // doesn't force refreshToken() (which can't actually refresh anything).
+                'expires_at'   => Carbon::now()->addYear(),
+            ]
+        );
+
+        return redirect(Session::pull('previous_url', route('admin.ads.dashboard')))
+            ->with('success', 'TikTok ad account connected successfully.');
+    }
+
+    private function oauthFailureRedirect($message)
+    {
+        return redirect(route('admin.ads.dashboard'))
+            ->with('error', is_array($message) ? json_encode($message) : $message);
+    }
+
+    /**
+     * TikTok almost always returns HTTP 200 even on API-level errors, encoding the
+     * real result in a `code` field inside the JSON body (0 = success).
+     */
+    private function tiktokSucceeded(array $response): bool
+    {
+        return ($response['success'] ?? false) && (($response['data']['code'] ?? null) === 0);
+    }
+
+    private function tiktokError(array $response): string
+    {
+        return $response['data']['message'] ?? ($response['error'] ?? 'Unknown TikTok API error');
     }
 
     public function store($platform, $request)
@@ -107,41 +183,45 @@ class TiktokAdService
 
     private function storeCampaign($platform, $request)
     {
-        $endpoint = $this->config . 'campaign/create';
+        $endpoint = $this->config . 'campaign/create/';
 
         $payload = [
-            'campaign_name' => $request['name'] . time(),
-            'advertiser_id' => $this->account->ad_account_id,
-            'operation_status' => 'DISABLE', //ENABLE
-            'budget_optimize_on' => false,
-            // REQUIRED FIELDS
-            'objective_type' => $request['objective'],
-            'budget_mode' => $request['budget_mode'],
-            'budget' => $request['budget']
+            'advertiser_id'    => $this->account->ad_account_id,
+            'campaign_name'    => $request['name'],
+            'objective_type'   => $request['objective'],
+            'budget_mode'      => $request['budget_mode'],
+            'operation_status' => 'DISABLE',
         ];
 
-        if ($request['objective'] ==  'APP_PROMOTION') {
-            $payload['app_promotion_type'] = $request['app_promotion_type'];
-        }
-        
-        $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
-        dd($response, $endpoint, $this->header['data'], $payload);
-        if (!$response['success']) {
-            return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
+        if ($request['budget_mode'] !== 'BUDGET_MODE_INFINITE') {
+            $payload['budget'] = (float) $request['budget'];
         }
 
-        $id = $response['data']['id'];
+        if ($request['objective'] === 'APP_PROMOTION' && !empty($request['app_promotion_type'])) {
+            $payload['app_promotion_type'] = $request['app_promotion_type'];
+        }
+
+        $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
+
+        if (!$this->tiktokSucceeded($response)) {
+            return $this->errorResponse($this->tiktokError($response));
+        }
+
+        $id = $response['data']['data']['campaign_id'];
 
         $dataToInsert = [
             'ad_campaign_id'     => $id,
-            'user_id'         => Auth::user()->id,
-            'ad_account_id'   => $this->account->id,
-            'name' => $request['name'],
-            'objective' => $request['objective'],
-            'platform' => $platform,
-            'start_time' => $request['start_time'],
-            'end_time' => $request['end_time'],
-            'status' => false,
+            'user_id'            => Auth::id(),
+            'ad_account_id'      => $this->account->id,
+            'name'               => $request['name'],
+            'objective'          => $request['objective'],
+            'app_promotion_type' => $request['app_promotion_type'] ?? null,
+            'budget_mode'        => $request['budget_mode'],
+            'budget'             => $request['budget'],
+            'platform'           => $platform,
+            'start_time'         => $request['start_time'],
+            'end_time'           => $request['end_time'],
+            'status'             => false,
         ];
 
         return $this->apiService->success(
@@ -151,101 +231,142 @@ class TiktokAdService
         );
     }
 
+    /**
+     * TikTok's adgroup.location_ids expects TikTok's own numeric region ids, not
+     * ISO country codes - our countries table only stores ISO codes. Resolve by
+     * matching country names against TikTok's live region tree.
+     */
+    private function resolveLocationIds(array $countryIds): array
+    {
+        $names = Country::whereIn('id', $countryIds)
+            ->pluck('name')
+            ->map(fn ($name) => strtolower(trim($name)))
+            ->toArray();
+
+        if (empty($names)) {
+            return [];
+        }
+
+        $response = $this->apiService->get($this->config . 'tool/region/', $this->header['data'], [
+            'advertiser_id' => $this->account->ad_account_id,
+            'placements'    => json_encode(['PLACEMENT_TIKTOK']),
+        ]);
+
+        if (!$this->tiktokSucceeded($response)) {
+            return [];
+        }
+
+        $found = [];
+        $this->collectCountryLocationIds($response['data']['data']['region_info'] ?? [], $names, $found);
+
+        return $found;
+    }
+
+    private function collectCountryLocationIds(array $nodes, array $names, array &$found): void
+    {
+        foreach ($nodes as $node) {
+            if (($node['type'] ?? null) === 'COUNTRY' && in_array(strtolower(trim($node['name'] ?? '')), $names, true)) {
+                $found[] = $node['location_id'];
+            }
+
+            if (!empty($node['children'])) {
+                $this->collectCountryLocationIds($node['children'], $names, $found);
+            }
+        }
+    }
+
     private function storeAdGroup($platform, $request)
     {
-        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adsets';
-        $adSetObjects = $this->getPromotedObject($request);
-        $publisherPlatforms = [];
+        $endpoint = $this->config . 'adgroup/create/';
 
-        if (isset($request['facebook'])) {
-            $publisherPlatforms[] = 'facebook';
-        }
-
-        if (isset($request['instagram'])) {
-            $publisherPlatforms[] = 'instagram';
-        }
-        $countries = Country::whereIn('id', $request['countries'])->pluck('code')->toArray();
-        $genders = $request['gender'] == 'male' ? [1] : ($request['gender'] == 'female' ? [2] : [1, 2]);
-        $locales = $this->getLocale($request['languages']);
-        // $locales = collect($request['langauges'] ?? [])->map(fn($lang) => $localeMap[$lang] ?? null)->filter()->values()->toArray();
+        $locationIds = $this->resolveLocationIds($request['countries']);
+        $ageGroups = $request['age_range'] ?? [];
+        $languages = $request['languages'] ?? [];
 
         $payload = [
-            'campaign_id'       => $request['campaign_id'],
-            'name'              => $request['name'],
-            'bid_amount'        => $request['bid_amount'],
-            'billing_event'     => $request['billing_event'] ?? null,
-            'optimization_goal' => $request['optimization_goal'],
-            'status'            => 'PAUSED',
-            'start_time'          => Carbon::parse($request['start_time'])->utc()->format('Y-m-d\TH:i:s.v\Z'),
-            'end_time'           => Carbon::parse($request['end_time'])->utc()->format('Y-m-d\TH:i:s.v\Z'),
-            'destination_type'  => $request['destination_type'],
-            'targeting'         => [
-                'geo_locations' => [
-                    'countries' => $countries,
-                ],
-                'genders' => $genders,
-                'locales' => $locales,
-                "age_range" => [
-                    $request['age_from'],
-                    $request['age_to']
-                ],
-                "device_platforms" => ["mobile", "desktop"],
-                "targeting_automation" => [
-                    "advantage_audience" => 1,
-                    "individual_setting" => [
-                        "age" => 1,
-                        "gender" => 1
-                    ]
-                ],
-                'publisher_platforms' => $publisherPlatforms,
-            ],
-            'promoted_object'   => $adSetObjects['promoted_objects'],
-            'is_adset_budget_sharing_enabled' => false,
+            'advertiser_id'       => $this->account->ad_account_id,
+            'campaign_id'         => $request['campaign_id'],
+            'adgroup_name'        => $request['name'],
+            'promotion_type'      => $request['promotion_type'],
+            'placement_type'      => 'PLACEMENT_TYPE_AUTOMATIC',
+            'location_ids'        => $locationIds,
+            'gender'              => $request['gender'] ?? 'GENDER_UNLIMITED',
+            'age_groups'          => $ageGroups,
+            'languages'           => $languages,
+            'budget_mode'         => $request['budget_mode'],
+            'schedule_type'       => 'SCHEDULE_START_END',
+            'schedule_start_time' => Carbon::parse($request['start_time'])->format('Y-m-d 00:00:00'),
+            'schedule_end_time'   => Carbon::parse($request['end_time'])->format('Y-m-d 23:59:59'),
+            'optimization_goal'   => $request['optimization_goal'],
+            'billing_event'       => $request['billing_event'],
+            'pacing'              => 'PACING_MODE_SMOOTH',
+            'operation_status'    => 'DISABLE',
         ];
 
-        if ($request['budget_mode'] == 'daily_budget') {
-            $payload['daily_budget'] = $request['budget'] * 1000;
-        } else {
-            $payload['lifetime_budget'] = $request['budget'] * 1000;
+        if ($request['budget_mode'] !== 'BUDGET_MODE_INFINITE') {
+            $payload['budget'] = (float) $request['budget'];
         }
 
-        if ($adSetObjects['shouldUnsetDestinationType']) {
-            unset($payload['destination_type']);
+        if (!empty($request['bid_amount'])) {
+            $payload['bid_type'] = 'BID_TYPE_CUSTOM';
+            $payload['bid_price'] = (float) $request['bid_amount'];
+        } else {
+            $payload['bid_type'] = 'BID_TYPE_NO_BID';
+        }
+
+        if (!empty($request['app_id'])) {
+            $payload['app_id'] = $request['app_id'];
+        }
+
+        if (!empty($request['pixel_id'])) {
+            $payload['pixel_id'] = $request['pixel_id'];
+        }
+
+        if (!empty($request['promotion_target_type'])) {
+            $payload['promotion_target_type'] = $request['promotion_target_type'];
+        }
+
+        if (!empty($request['messaging_app_type'])) {
+            $payload['messaging_app_type'] = $request['messaging_app_type'];
+            $payload['messaging_app_account_id'] = $request['messaging_app_account_id'] ?? null;
+            $payload['phone_region_code'] = $request['phone_region_code'] ?? null;
+            $payload['phone_number'] = $request['phone_number'] ?? null;
         }
 
         $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
 
-        if (!$response['success']) {
-            return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
+        if (!$this->tiktokSucceeded($response)) {
+            return $this->errorResponse($this->tiktokError($response));
         }
 
-        $id = $response['data']['id'];
+        $id = $response['data']['data']['adgroup_id'];
 
         $dataToInsert = [
-            'ad_campaign_id'     => $request['ad_campaign_id'],
-            'user_id'         => Auth::user()->id,
+            'ad_campaign_id'        => $request['ad_campaign_id'],
+            'user_id'               => Auth::id(),
             'ad_adgroup_id'         => $id,
-            'ad_account_id'   => $this->account->id,
-            'name' => $request['name'],
-            'location_ids' => json_encode($countries),
-            'promotion_target_type' => json_encode($adSetObjects['promoted_objects']),
-            'platform' => $platform,
-            'gender' => $request['gender'],
-            'languages' => json_encode($request['languages']),
-            'budget_mode' => $request['budget_mode'],
-            'bid_price'        => $request['bid_amount'],
-            'destination_type' => $request['destination_type'],
-            'billing_event'     => $request['billing_event'] ?? null,
-            'optimization_goal' => $request['optimization_goal'],
-            'schedule_start_time' => $request['start_time'],
-            'schedule_end_time' => $request['end_time'],
-            'budget' => $request['final_budget'],
-            'age_groups' => json_encode([
-                'age_from' => $request['age_from'],
-                'age_to' => $request['age_to'],
-            ]),
-            'publisher_platforms' => json_encode($publisherPlatforms),
-            'status' => false
+            'ad_account_id'         => $this->account->id,
+            'name'                  => $request['name'],
+            'promotion_type'        => $request['promotion_type'],
+            'promotion_target_type' => $request['promotion_target_type'] ?? null,
+            'placement_type'        => 'PLACEMENT_TYPE_AUTOMATIC',
+            'location_ids'          => json_encode($request['countries']),
+            'gender'                => $request['gender'] ?? null,
+            'budget_mode'           => $request['budget_mode'],
+            'budget'                => $request['final_budget'] ?? $request['budget'],
+            'schedule_type'         => 'SCHEDULE_START_END',
+            'schedule_start_time'   => $request['start_time'],
+            'schedule_end_time'     => $request['end_time'],
+            'optimization_goal'     => $request['optimization_goal'],
+            'bid_type'              => $payload['bid_type'],
+            'bid_price'             => $request['bid_amount'] ?? null,
+            'billing_event'         => $request['billing_event'],
+            'pacing'                => 'PACING_MODE_SMOOTH',
+            'age_groups'            => json_encode($ageGroups),
+            'languages'             => json_encode($languages),
+            'objective'             => $request['objective'] ?? null,
+            'platform'              => $platform,
+            'status'                => false,
         ];
 
         return $this->apiService->success(
@@ -261,8 +382,9 @@ class TiktokAdService
 
         foreach ($request['media'] as $media) {
             $extension = strtolower($media->getClientOriginalExtension());
-            $mediaType = $this->getMediaType($extension); // image | video   
-            $fileName = time() . '.' . $extension;
+            $mediaType = $this->getMediaType($extension); // IMAGE | VIDEO
+            $fileName = time() . '_' . uniqid() . '.' . $extension;
+
             $s3Path = "uploads/{$platform}/{$mediaType}/{$fileName}";
             Storage::disk('s3')->put(
                 $s3Path,
@@ -272,161 +394,91 @@ class TiktokAdService
 
             $filePath = Storage::disk('s3')->url($s3Path);
 
-            $payload = [
-                "file_name" => $fileName,
-                "bytes" => base64_encode(
-                    file_get_contents($media->getRealPath())
-                )
+            $isVideo = $mediaType === 'VIDEO';
+            $endpoint = $this->config . ($isVideo ? 'file/video/ad/upload/' : 'file/image/ad/upload/');
+
+            $formFields = [
+                'advertiser_id' => $this->account->ad_account_id,
+                'upload_type'   => 'UPLOAD_BY_FILE',
             ];
 
-            if ($mediaType === 'IMAGE') {
-                $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adimages';
-            } else if ($mediaType === 'VIDEO') {
-                $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/advideos';
-            } else if ($mediaType === 'CAROUSEL') {
+            $filePayload = [[
+                'name'       => $isVideo ? 'video_file' : 'image_file',
+                'file_name'  => $fileName,
+                'media_file' => $media->getRealPath(),
+            ]];
+
+            $response = $this->apiService->post($endpoint, $this->header['data'], $formFields, 'multipart', $filePayload);
+
+            if (!$this->tiktokSucceeded($response)) {
+                return $this->errorResponse($this->tiktokError($response));
             }
 
-            $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
-
-            $media = $response['data'];
-
-            if (!$response['success']) {
-                return $this->errorResponse($media['error']['message']);
-            }
-
-            $image = $media['images']['bytes'];
+            $result = $response['data']['data'];
+            $result = $isVideo && isset($result[0]) ? $result[0] : $result;
+            $tiktokMediaId = $isVideo ? $result['video_id'] : $result['image_id'];
 
             $dataToInsert = [
-                'ad_media_id'       => $image['hash'],
-                'ad_account_id'     => $this->account->id,
-                'ad_campaign_id'    => $request['ad_campaign_id'],
-                'platform'          => 'facebook',
-                'name'              => $fileName,
-                'url'               => $image['url'],
-                'download_link'     => $image['url'],
-                'type'              => $mediaType,
-                'status'            => false,
-                'file_name'         => $fileName,
-                'image_category'    => $mediaType,
-                'signature'         => $image['hash'],
-                'upload_by_type'    => 'UPLOAD_BY_FILE',
-                'file_id'           => $image['hash'],
-                'user_id'           => Auth::user()->id,
-                'ad_format'         => 'FEED',
+                'ad_media_id'    => $tiktokMediaId,
+                'ad_account_id'  => $this->account->id,
+                'ad_campaign_id' => $request['ad_campaign_id'],
+                'platform'       => 'tiktok',
+                'name'           => $fileName,
+                'url'            => $filePath,
+                'download_link'  => $filePath,
+                'type'           => $mediaType,
+                'status'         => true,
+                'file_name'      => $fileName,
+                'image_category' => $mediaType,
+                'upload_by_type' => 'UPLOAD_BY_FILE',
+                'user_id'        => Auth::id(),
             ];
 
-            $medias = $this->apiService->success(
+            $localMedia = $this->apiService->success(
                 $dataToInsert,
-                ['ad_media_id' => $image['hash']],
+                ['ad_media_id' => $tiktokMediaId],
                 new AdMedia
             );
 
             $mediaIds[] = [
-                'ad_media_id' => $medias['data']['id'],
-                'media_id' => $medias['data']['ad_media_id']
+                'ad_media_id' => $localMedia['data']['id'],
+                'media_id'    => $tiktokMediaId,
             ];
-
-            // $media['ad_media_id'][] = $media['data']['id'];
-            // $media['media_id'][] = $media['data']['ad_media_id'];
         }
 
         return ['success' => true, 'data' => $mediaIds];
-        // $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
     }
 
     private function storeCreative($platform, $request)
     {
-        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adcreatives';
-        $payload = [
-            'name' => $request['name'],
-            'object_story_spec' => [
-                'page_id' => $request['page_id'],
-            ],
-        ];
+        $mediaList = $request['media'] ?? [];
 
-        if (isset($request['instagram'])) {
-            $loginUser = AdAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
-            if ($loginUser) {
-                $payload['object_story_spec']['instagram_user_id'] = $loginUser->account_id;
-            }
+        if (empty($mediaList)) {
+            return $this->errorResponse('At least one media file is required to create a creative.');
         }
-
-        if ($request['media_type'] === 'CAROUSEL') {
-            $linkData = [
-                'message' => $request['description'],
-                'description' => $request['description'],
-                'link' => $request['target_link'],
-            ];
-
-            $linkData['child_attachments'] = [['image_hash' => $request['admedia_id'], 'link' => $request['target_link']]];
-            $linkData['call_to_action'] =     $request['call_to_action'];
-
-            $newPayload['object_story_spec']['link_data'] = $linkData;
-        } else if ($request['media_type'] === 'IMAGE') {
-
-            $linkData = [
-                'link' => $request['target_link'],
-                "description" => $request['description'],
-                "message" => $request['description'],
-                'image_hash' => $request['media'][0]['media_id']
-            ];
-
-            $linkData['call_to_action'] = $this->buildFacebookCTAPayload($request['call_to_action'], $request['target_link']);
-            $payload['object_story_spec']['link_data'] = $linkData;
-        } else if ($request['media_type'] === 'VIDEO') {
-
-            $linkData = [
-                'image_url' => $request['image_url'],
-                'video_id' => $request['video_id'],
-                'description' => $request['description'],
-                //"link_description" => "Come check out our new store in Menlo Park!", 
-
-            ];
-            $linkData['call_to_action'] = $this->buildFacebookCTAPayload($request['call_to_action'], $request['target_link']);
-
-
-            $payload['object_story_spec']['video_data'] = $linkData;
-        }
-
-        $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
-    
-        if (!$response['success']) {
-            return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
-        }
-
-        $id = $response['data']['id'];
 
         $dataToInsert = [
-            'user_id'                  => Auth::user()->id,
-            'ad_adgroup_id'            => $request['ad_adgroup_id'],
-            'ad_creative_id'              => $id,
-            'platform'                 => 'facebook',
-            'ad_account_id'            => $this->account->id,
-            'ad_campaign_id'           => $request['ad_campaign_id'],
-            'name'                     => $request['name'],
-            'ad_format'                => $request['ad_format'] ?? null,
-            'message'                  => $request['description'] ?? null,
-            'page_id'                  => $request['page_id'] ?? null,
-            'call_to_action'           => $request['call_to_action'] ?? null,
-            'url'                      => $request['target_link'] ?? null,
-            'type'                     => $request['media_type'],
+            'user_id'        => Auth::id(),
+            'platform'       => 'tiktok',
+            'ad_account_id'  => $this->account->id,
+            'ad_campaign_id' => $request['ad_campaign_id'],
+            'ad_adgroup_id'  => $request['ad_adgroup_id'],
+            'name'           => $request['name'],
+            'ad_format'      => $request['media_type'],
+            'message'        => $request['description'],
+            'call_to_action' => $request['call_to_action'],
+            'url'            => $request['target_link'],
+            'type'           => $request['media_type'],
         ];
 
+        // TikTok has no standalone creative-create endpoint - the creative is
+        // submitted together with the ad via ad/create. This row is a local
+        // placeholder that storeAd() fills in with the real TikTok ad id.
+        $creative = $this->apiService->success($dataToInsert, [], new AdCreative);
 
-
-        $creative  = $this->apiService->success(
-            $dataToInsert,
-            ['ad_creative_id' => $id],
-            new AdCreative
-        );
-
-        foreach ($request['media'] as $media) {
+        foreach ($mediaList as $media) {
             $mediaToInsert = ['ad_media_id' => $media['ad_media_id'], 'ad_creative_id' => $creative['data']['id']];
-            $this->apiService->success(
-                $mediaToInsert,
-                ['ad_media_id' => $media['ad_media_id'], 'ad_creative_id' => $creative['data']['id']],
-                new AdCreativeMedia
-            );
+            $this->apiService->success($mediaToInsert, $mediaToInsert, new AdCreativeMedia);
         }
 
         return $creative;
@@ -434,42 +486,62 @@ class TiktokAdService
 
     private function storeAd($platform, $request)
     {
-        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/ads';
+        $mediaList = $request['media'] ?? [];
+        $mediaIds = array_column($mediaList, 'media_id');
+        $adFormat = ($request['media_type'] ?? 'IMAGE') === 'VIDEO' ? 'SINGLE_VIDEO' : 'SINGLE_IMAGE';
 
+        $creative = [
+            'ad_name'          => $request['name'],
+            'ad_format'        => $adFormat,
+            'ad_text'          => $request['description'],
+            'call_to_action'   => $request['call_to_action'],
+            'landing_page_url' => $request['target_link'],
+        ];
+
+        if ($adFormat === 'SINGLE_VIDEO') {
+            $creative['video_id'] = $mediaIds[0] ?? null;
+        } else {
+            $creative['image_ids'] = $mediaIds;
+        }
+
+        $endpoint = $this->config . 'ad/create/';
 
         $payload = [
-            'name' => $request['name'],
-            'adset_id' => $request['adgroup_id'],
-            'status' => 'PAUSED',
-            'creative' => [
-                'creative_id' => $request['creative_id'],
-            ],
+            'advertiser_id' => $this->account->ad_account_id,
+            'adgroup_id'    => $request['adgroup_id'],
+            'creatives'     => [$creative],
         ];
 
         $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
 
-        if (!$response['success']) {
-            return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
+        if (!$this->tiktokSucceeded($response)) {
+            return $this->errorResponse($this->tiktokError($response));
         }
 
-        $id = $response['data']['id'];
+        $adId = $response['data']['data']['ad_ids'][0] ?? null;
+
+        if (!$adId) {
+            return $this->errorResponse('TikTok did not return an ad id.');
+        }
+
+        AdCreative::where('id', $request['ad_creative_id'])->update(['ad_creative_id' => $adId]);
 
         $dataToInsert = [
-            'user_id'                  => Auth::user()->id,
-            'ad_adgroup_id'            => $request['ad_adgroup_id'],
-            'ad_creative_id'           => $request['ad_creative_id'],
-            'ad_id'                    => $id,
-            'status'                   => false,
-            'platform'                 => 'facebook',
-            'ad_account_id'            => $this->account->id,
-            'ad_campaign_id'           => $request['ad_campaign_id'],
-            'name'                     => $request['name'],
-            'call_to_action'           => $request['call_to_action'],
+            'user_id'        => Auth::id(),
+            'ad_adgroup_id'  => $request['ad_adgroup_id'],
+            'ad_creative_id' => $request['ad_creative_id'],
+            'ad_id'          => $adId,
+            'status'         => false,
+            'platform'       => 'tiktok',
+            'ad_account_id'  => $this->account->id,
+            'ad_campaign_id' => $request['ad_campaign_id'],
+            'name'           => $request['name'],
+            'call_to_action' => $request['call_to_action'],
         ];
 
         return $this->apiService->success(
             $dataToInsert,
-            ['ad_creative_id' => $id],
+            ['ad_id' => $adId],
             new Ad
         );
     }
@@ -509,29 +581,10 @@ class TiktokAdService
 
     public function refreshToken($accessToken)
     {
-        $endpoint = adminSetting('ads.facebook.access_token');
-        $response = $this->apiService->get($endpoint, [], [
-            'grant_type' => 'fb_exchange_token',
-            'client_id' => adminSetting('ads.facebook.client_id'),
-            'client_secret' => adminSetting('ads.facebook.client_secret'),
-            'fb_exchange_token' => $accessToken,
-        ]);
-
-
-        if ($response['success']) {
-            $this->account->access_token = $response['data']['access_token'];
-            $this->account->expires_at = Carbon::now()->addSeconds(3600);
-
-            $this->account->save();
-
-            $this->account->refresh();
-
-            return $this->successResponse($this->account->access_token);
-        }
-
-        if (!$response['success']) {
-            return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
-        }
+        // TikTok's Business API does not support refreshing access tokens issued
+        // through the standard OAuth authorize flow - they're valid until revoked.
+        // If tokenIsValid() ever lapses, the user needs to reconnect the account.
+        return $this->errorResponse('TikTok access token has expired. Please reconnect the TikTok ad account.');
     }
 
     private function errorResponse($error)
@@ -542,97 +595,6 @@ class TiktokAdService
     private function successResponse($data)
     {
         return ['success' => true, 'data' => $data];
-    }
-
-    private function getPromotedObject($request)
-    {
-        $promotedObjectRules = [
-            'OUTCOME_AWARENESS' => [
-                'default' => ['page_id'],
-                'IMPRESSIONS' => ['page_id'],
-                'REACH' => ['page_id'],
-                'VIDEO_VIEWS' => ['page_id'],
-                'THRUPLAY' => ['page_id'],
-                'TWO_SECOND_CONTINUOUS_VIDEO_VIEWS' => ['page_id'],
-            ],
-            'OUTCOME_TRAFFIC' => [
-                'LINK_CLICKS' => ['application_id', 'object_store_url'],
-                'REACH' => ['application_id', 'object_store_url'],
-            ],
-            'OUTCOME_ENGAGEMENT' => [
-                'PAGE_LIKES' => ['page_id'],
-                'QUALITY_LEAD' => ['page_id'],
-                'LINK_CLICKS' => ['page_id'],
-                'CONVERSIONS' => ['page_id'],
-                'LEAD_GENERATION' => ['page_id'],
-                'OFFSITE_CONVERSIONS' => ['pixel_id', 'custom_event_type', 'application_id', 'object_store_url'],
-            ],
-            'OUTCOME_APP_PROMOTION' => [
-                'LINK_CLICKS' => ['application_id', 'object_store_url'],
-                'APP_INSTALLS' => ['application_id', 'object_store_url'],
-                'OFFSITE_CONVERSIONS' => ['application_id', 'object_store_url'],
-            ],
-            'OUTCOME_LEADS' => [
-                'LEAD_GENERATION' => ['page_id'],
-                'QUALITY_LEAD' => ['page_id'],
-                'OFFSITE_CONVERSIONS' => ['pixel_id', 'custom_event_type', 'application_id', 'object_store_url'],
-            ],
-            'OUTCOME_SALES' => [
-                'OFFSITE_CONVERSIONS' => ['pixel_id', 'application_id', 'object_store_url'],
-                'CONVERSIONS' => ['page_id', 'pixel_id', 'custom_event_type'],
-                'LINK_CLICKS' => ['product_catalog_id', 'product_set_id', 'custom_event_type'],
-            ],
-        ];
-
-        $promotedObject = [];
-
-        $objective = 'OUTCOME_TRAFFIC';
-        $goal = $request['optimization_goal'];
-
-        $fields = $promotedObjectRules[$objective][$goal]
-            ?? ($promotedObjectRules[$objective]['default'] ?? []);
-
-        foreach ($fields as $field) {
-            if (!empty($request[$field])) {
-                $promotedObject[$field] = $request[$field];
-            }
-        }
-
-        $goal = $request['optimization_goal'] ?? null;
-
-        $outcomeLeadsGoals = ['OFFSITE_CONVERSIONS', 'LINK_CLICKS', 'REACH', 'LANDING_PAGE_VIEWS', 'IMPRESSIONS'];
-        $outcomeEngagementGoals = ['OFFSITE_CONVERSIONS', 'LINK_CLICKS', 'REACH', 'LANDING_PAGE_VIEWS', 'IMPRESSIONS'];
-        $outcomeTrafficGoals = ['LINK_CLICKS', 'LANDING_PAGE_VIEWS', 'REACH', 'IMPRESSIONS'];
-
-
-        $shouldUnsetDestinationType =
-            $objective === 'OUTCOME_AWARENESS' ||
-            ($objective === 'OUTCOME_SALES' && $goal === 'OFFSITE_CONVERSIONS') ||
-            ($objective === 'OUTCOME_LEADS' && in_array($goal, $outcomeLeadsGoals, true)) ||
-            ($objective === 'OUTCOME_ENGAGEMENT' && in_array($goal, $outcomeEngagementGoals, true)) ||
-            ($objective === 'OUTCOME_TRAFFIC' && in_array($goal, $outcomeTrafficGoals, true));
-
-        return [
-            'promoted_objects' => $promotedObject,
-            'shouldUnsetDestinationType' => $shouldUnsetDestinationType
-        ];
-    }
-
-    private function getLocale($languages)
-    {
-        $endpoint = 'https://graph.facebook.com/v22.0/search?type=adlocale&q=';
-        $locals = [];
-        foreach ($languages as $language) {
-            $response = $this->apiService->get($endpoint, $this->header['data'], [
-                'type' => 'adlocale',
-                'q' => $language == 'english' ? 'en' : 'ar',
-                'limit' => 2,
-            ]);
-
-            $locals[] = $response['data']['data'][0]['key'];
-        }
-
-        return $locals;
     }
 
     private function getMediaType($fileExtension)
@@ -655,270 +617,58 @@ class TiktokAdService
         return 'IMAGE';
     }
 
-    private function buildFacebookCTAPayload($ctaType, $url)
+    public function update($platform, $id, $request)
     {
-        $ctaPayload = [
-            'type' => $ctaType,
-            'value' => []
-        ];
-
-        switch ($ctaType) {
-            case 'BOOK_TRAVEL':
-            case 'BOOK_NOW':
-            case 'BUY_NOW':
-            case 'PURCHASE_GIFT_CARDS':
-            case 'GET_EVENT_TICKETS':
-            case 'BUY_VIA_MESSAGE':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'CONTACT_US':
-            case 'GET_IN_TOUCH':
-            case 'MAKE_AN_APPOINTMENT':
-            case 'BOOK_A_CONSULTATION':
-            case 'ASK_ABOUT_SERVICES':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'DONATE':
-            case 'DONATE_NOW':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'GET_DIRECTIONS':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'INTERESTED':
-                // Here you might want to add custom handling for "INTERESTED" CTA
-                break;
-
-            case 'LEARN_MORE':
-            case 'SEE_MORE':
-            case 'OPEN_LINK':
-            case 'VISIT_PROFILE':
-            case 'VIEW_PRODUCT':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'LIKE_PAGE':
-            case 'VISIT_WORLD':
-            case 'JOIN_GROUP':
-            case 'JOIN_CHANNEL':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'MESSAGE_PAGE':
-            case 'WHATSAPP_MESSAGE':
-            case 'CHAT_ON_WHATSAPP':
-            case 'SEND_UPDATES':
-            case 'CHAT_WITH_US':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'RAISE_MONEY':
-            case 'SEND_TIP':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'VIEW_INSTAGRAM_PROFILE':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'INSTAGRAM_MESSAGE':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'LOYALTY_LEARN_MORE':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'PAY_TO_ACCESS':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'TRY_IN_CAMERA':
-            case 'SWIPE_UP_PRODUCT':
-            case 'SWIPE_UP_SHOP':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'GET_MOBILE_APP':
-            case 'INSTALL_MOBILE_APP':
-            case 'USE_MOBILE_APP':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'WATCH_VIDEO':
-            case 'WATCH_MORE':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'NO_BUTTON':
-                // No link for no button CTA
-                break;
-
-            case 'MOBILE_DOWNLOAD':
-            case 'GET_OFFER':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'GET_OFFER_VIEW':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'UPDATE_APP':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'BET_NOW':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'ADD_TO_CART':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'SELL_NOW':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'GET_SHOWTIMES':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'LISTEN_NOW':
-            case 'LISTEN_MUSIC':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'VOTE_NOW':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'REGISTER_NOW':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'OPEN_INSTANT_APP':
-                // Handle special cases like opening instant apps
-                break;
-
-            case 'EVENT_RSVP':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'CIVIC_ACTION':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'SEND_INVITES':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'REFER_FRIENDS':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'REQUEST_TIME':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'SEARCH_MORE':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'TRY_IT':
-            case 'TRY_ON':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'LINK_CARD':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'DIAL_CODE':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'FIND_YOUR_GROUPS':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            case 'START_ORDER':
-                $ctaPayload['value']['link'] = $url;
-                break;
-
-            default:
-                // Handle unrecognized CTA types or if there's no CTA
-                break;
-        }
-
-        return $ctaPayload;
-    }
-
-    public function update($platform, $id, $request) {
-        // Step 2: create campaign
         $response = $this->updateCampaign($platform, $id, $request);
 
         if (!$response['success']) {
             return $response;
         }
+
         $campaign = $response['data'];
-        $request['campaign_id'] = $campaign['ad_campaign_id'];
         $request['ad_campaign_id'] = $campaign['id'];
 
-        // Step 2: update Ad Group
         $adGroupResponse = $this->updateAdGroup($platform, $campaign['id'], $request);
-      
+
         if (!$adGroupResponse['success']) {
             return $adGroupResponse;
         }
 
-        $request['adgroup_id'] = $adGroupResponse['data']['ad_adgroup_id'];
-        $request['ad_adgroup_id'] = $adGroupResponse['data']['id'];
-
-        // Step 3: update Media
         if (!empty($request['media'])) {
-            $response = $this->storeMedia($platform, $request);
-            
-            if (!$response['success']) {
-                return $response;
+            $mediaResponse = $this->storeMedia($platform, $request);
+
+            if (!$mediaResponse['success']) {
+                return $mediaResponse;
             }
-    
-            $request['media'] = $response['data'];
+
+            $request['media'] = $mediaResponse['data'];
+        } else {
+            $request['media'] = [];
         }
 
-        // Step 4: update creative
-        $response = $this->updateCreative($platform, $request, $adGroupResponse['data']);
-        
-        $request['creative_id'] = $response['data']['ad_creative_id'];
-        $request['ad_creative_id'] = $response['data']['id'];
-
-        // Step 4: update Ad
-        return $this->updateAd($platform, $request, $campaign);
-        
+        return $this->updateAd($platform, $request, $adGroupResponse['data']);
     }
 
     private function updateCampaign($platform, $id, $request)
     {
-        $campaign = AdCampaign::find($id);
+        $campaign = AdCampaign::findOrFail($id);
 
-        $endpoint = "https://graph.facebook.com/v25.0/{$campaign->ad_campaign_id}";
-      
+        $endpoint = $this->config . 'campaign/update/';
+
         $payload = [
-            'name'                => $request['name'],
-            'status'              => 'PAUSED',
+            'advertiser_id' => $this->account->ad_account_id,
+            'campaign_id'   => $campaign->ad_campaign_id,
+            'campaign_name' => $request['name'],
         ];
 
         $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
 
-        if (!$response['success']) {
-            return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
+        if (!$this->tiktokSucceeded($response)) {
+            return $this->errorResponse($this->tiktokError($response));
         }
 
         $dataToInsert = [
-            'name' => $request['name'],
+            'name'   => $request['name'],
             'status' => false,
         ];
 
@@ -929,104 +679,72 @@ class TiktokAdService
         );
     }
 
-
     private function updateAdGroup($platform, $campaignId, $request)
     {
-        $adGroup = AdAdGroup::whereAdCampaignId($campaignId)->first();
-       
-        $endpoint = "https://graph.facebook.com/v25.0/{$adGroup->ad_adgroup_id}";
-        $adSetObjects = $this->getPromotedObject($request);
-       
-        $publisherPlatforms = [];
+        $adGroup = AdAdGroup::where('ad_campaign_id', $campaignId)->firstOrFail();
 
-        if (isset($request['facebook'])) {
-            $publisherPlatforms[] = 'facebook';
-        }
+        $endpoint = $this->config . 'adgroup/update/';
 
-        if (isset($request['instagram'])) {
-            $publisherPlatforms[] = 'instagram';
-        }
-        $countries = Country::whereIn('id', $request['countries'])->pluck('code')->toArray();
-       
-        $genders = $request['gender'] == 'male' ? [1] : ($request['gender'] == 'female' ? [2] : [1, 2]);
-        $locales = $this->getLocale($request['languages']);
-        // $locales = collect($request['langauges'] ?? [])->map(fn($lang) => $localeMap[$lang] ?? null)->filter()->values()->toArray();
+        $locationIds = $this->resolveLocationIds($request['countries']);
+        $ageGroups = $request['age_range'] ?? [];
+        $languages = $request['languages'] ?? [];
 
         $payload = [
-           // 'campaign_id'       => $request['campaign_id'],
-            'name'              => $request['name'],
-            'bid_amount'        => $request['bid_amount'],
-            'billing_event'     => $request['billing_event'] ?? null,
-            'optimization_goal' => $request['optimization_goal'],
-            'status'            => 'PAUSED',
-            'start_time'          => Carbon::parse($request['start_time'])->utc()->format('Y-m-d\TH:i:s.v\Z'),
-            'end_time'           => Carbon::parse($request['end_time'])->utc()->format('Y-m-d\TH:i:s.v\Z'),
-            'destination_type'  => $request['destination_type'],
-            'targeting'         => [
-                'geo_locations' => [
-                    'countries' => $countries,
-                ],
-                'genders' => $genders,
-                'locales' => $locales,
-                "age_range" => [
-                    $request['age_from'],
-                    $request['age_to']
-                ],
-                "device_platforms" => ["mobile", "desktop"],
-                "targeting_automation" => [
-                    "advantage_audience" => 1,
-                    "individual_setting" => [
-                        "age" => 1,
-                        "gender" => 1
-                    ]
-                ],
-                'publisher_platforms' => $publisherPlatforms,
-            ],
-            'promoted_object'   => $adSetObjects['promoted_objects'],
-            'is_adset_budget_sharing_enabled' => false,
+            'advertiser_id'       => $this->account->ad_account_id,
+            'adgroup_id'          => $adGroup->ad_adgroup_id,
+            'adgroup_name'        => $request['name'],
+            'location_ids'        => $locationIds,
+            'gender'              => $request['gender'] ?? 'GENDER_UNLIMITED',
+            'age_groups'          => $ageGroups,
+            'languages'           => $languages,
+            'schedule_start_time' => Carbon::parse($request['start_time'])->format('Y-m-d 00:00:00'),
+            'schedule_end_time'   => Carbon::parse($request['end_time'])->format('Y-m-d 23:59:59'),
+            'optimization_goal'   => $request['optimization_goal'],
+            'billing_event'       => $request['billing_event'],
         ];
 
-        if ($request['budget_mode'] == 'daily_budget') {
-            $payload['daily_budget'] = $request['budget'] * 1000;
-        } else {
-            $payload['lifetime_budget'] = $request['budget'] * 1000;
+        if (($request['budget_mode'] ?? null) !== 'BUDGET_MODE_INFINITE' && isset($request['budget'])) {
+            $payload['budget'] = (float) $request['budget'];
         }
 
-        if ($adSetObjects['shouldUnsetDestinationType']) {
-            unset($payload['destination_type']);
+        if (!empty($request['bid_amount'])) {
+            $payload['bid_type'] = 'BID_TYPE_CUSTOM';
+            $payload['bid_price'] = (float) $request['bid_amount'];
+        } else {
+            $payload['bid_type'] = 'BID_TYPE_NO_BID';
+        }
+
+        if (!empty($request['pixel_id'])) {
+            $payload['pixel_id'] = $request['pixel_id'];
         }
 
         $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
-       
-        if (!$response['success']) {
-            return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
+
+        if (!$this->tiktokSucceeded($response)) {
+            return $this->errorResponse($this->tiktokError($response));
         }
 
         $dataToInsert = [
-            'ad_campaign_id'     => $campaignId,
-            'user_id'         => Auth::user()->id,
-            'ad_adgroup_id'         => $adGroup->ad_adgroup_id,
-            'ad_account_id'   => $this->account->id,
-            'name' => $request['name'],
-            'location_ids' => json_encode($countries),
-            'promotion_target_type' => json_encode($adSetObjects['promoted_objects']),
-            'platform' => $platform,
-            'gender' => $request['gender'],
-            'languages' => json_encode($request['languages']),
-            'budget_mode' => $request['budget_mode'],
-            'bid_price'        => $request['bid_amount'],
-            'destination_type' => $request['destination_type'],
-            'billing_event'     => $request['billing_event'] ?? null,
-            'optimization_goal' => $request['optimization_goal'],
+            'ad_campaign_id'      => $campaignId,
+            'user_id'             => Auth::id(),
+            'ad_adgroup_id'       => $adGroup->ad_adgroup_id,
+            'ad_account_id'       => $this->account->id,
+            'name'                => $request['name'],
+            'promotion_type'      => $request['promotion_type'] ?? $adGroup->promotion_type,
+            'location_ids'        => json_encode($request['countries']),
+            'gender'              => $request['gender'] ?? null,
+            'budget_mode'         => $request['budget_mode'] ?? $adGroup->budget_mode,
+            'budget'              => $request['final_budget'] ?? $request['budget'] ?? $adGroup->budget,
             'schedule_start_time' => $request['start_time'],
-            'schedule_end_time' => $request['end_time'],
-            'budget' => $request['final_budget'],
-            'age_groups' => json_encode([
-                'age_from' => $request['age_from'],
-                'age_to' => $request['age_to'],
-            ]),
-            'publisher_platforms' => json_encode($publisherPlatforms),
-            'status' => false
+            'schedule_end_time'   => $request['end_time'],
+            'optimization_goal'   => $request['optimization_goal'],
+            'bid_type'            => $payload['bid_type'],
+            'bid_price'           => $request['bid_amount'] ?? null,
+            'billing_event'       => $request['billing_event'],
+            'age_groups'          => json_encode($ageGroups),
+            'languages'           => json_encode($languages),
+            'platform'            => $platform,
+            'status'              => false,
         ];
 
         return $this->apiService->success(
@@ -1036,134 +754,74 @@ class TiktokAdService
         );
     }
 
-    private function updateCreative($platform, $request, $adGroup)
+    private function updateAd($platform, $request, $adGroup)
     {
-        $creativeId = $adGroup->creatives->first()->ad_creative_id;
-        $endpoint = "https://graph.facebook.com/v25.0/{$creativeId}";
-        $payload = [
-            'name' => $request['name'],
-            'object_story_spec' => [
-                'page_id' => $request['page_id'],
-            ],
+        $creative = $adGroup->creatives->first();
+        $ad = $adGroup->ads->first();
+
+        if (!$creative || !$ad) {
+            return $this->errorResponse('Existing creative or ad record not found for this campaign.');
+        }
+
+        $mediaList = $request['media'] ?? [];
+        $mediaIds = array_column($mediaList, 'media_id');
+        $adFormat = ($request['media_type'] ?? $creative->type) === 'VIDEO' ? 'SINGLE_VIDEO' : 'SINGLE_IMAGE';
+
+        $creativePayload = [
+            'ad_id'            => $ad->ad_id,
+            'ad_name'          => $request['name'],
+            'ad_text'          => $request['description'],
+            'call_to_action'   => $request['call_to_action'],
+            'landing_page_url' => $request['target_link'],
         ];
 
-        if (isset($request['instagram'])) {
-            $loginUser = AdAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
-            if ($loginUser) {
-                $payload['object_story_spec']['instagram_user_id'] = $loginUser->account_id;
+        if (!empty($mediaIds)) {
+            if ($adFormat === 'SINGLE_VIDEO') {
+                $creativePayload['video_id'] = $mediaIds[0];
+            } else {
+                $creativePayload['image_ids'] = $mediaIds;
             }
         }
 
-        if ($request['media_type'] === 'CAROUSEL') {
-            $linkData = [
-                'message' => $request['description'],
-                'description' => $request['description'],
-                'link' => $request['target_link'],
-            ];
-
-            $linkData['child_attachments'] = [['image_hash' => $request['admedia_id'], 'link' => $request['target_link']]];
-            $linkData['call_to_action'] =     $request['call_to_action'];
-
-            $newPayload['object_story_spec']['link_data'] = $linkData;
-        } else if ($request['media_type'] === 'IMAGE') {
-            $linkData = [
-                'link' => $request['target_link'],
-                "description" => $request['description'],
-                "message" => $request['description'],
-                'image_hash' => $request['media'][0]['media_id']
-            ];
-
-            $linkData['call_to_action'] = $this->buildFacebookCTAPayload($request['call_to_action'], $request['target_link']);
-            $payload['object_story_spec']['link_data'] = $linkData;
-        } else if ($request['media_type'] === 'VIDEO') {
-
-            $linkData = [
-                'image_url' => $request['image_url'],
-                'video_id' => $request['video_id'],
-                'description' => $request['description'],
-                //"link_description" => "Come check out our new store in Menlo Park!", 
-
-            ];
-            $linkData['call_to_action'] = $this->buildFacebookCTAPayload($request['call_to_action'], $request['target_link']);
-
-
-            $payload['object_story_spec']['video_data'] = $linkData;
-        }
-
-        $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
-       
-        if (!$response['success']) {
-            return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
-        }
-
-        $dataToInsert = [
-            'user_id'                  => Auth::user()->id,
-            'ad_adgroup_id'            => $request['ad_adgroup_id'],
-            'ad_creative_id'              => $creativeId,
-            'platform'                 => 'facebook',
-            'ad_account_id'            => $this->account->id,
-            'ad_campaign_id'           => $request['ad_campaign_id'],
-            'name'                     => $request['name'],
-            'ad_format'                => $request['ad_format'] ?? null,
-            'message'                  => $request['description'] ?? null,
-            'page_id'                  => $request['page_id'] ?? null,
-            'call_to_action'           => $request['call_to_action'] ?? null,
-            'url'                      => $request['target_link'] ?? null
-        ];
-
-
-
-        $creative  = $this->apiService->success(
-            $dataToInsert,
-            ['ad_creative_id' => $creativeId],
-            new AdCreative
-        );
-
-        foreach ($request['media'] as $media) {
-            $mediaToInsert = ['ad_media_id' => $media['ad_media_id'], 'ad_creative_id' => $creative['data']['id']];
-            $this->apiService->success(
-                $mediaToInsert,
-                ['ad_media_id' => $media['ad_media_id']],
-                new AdCreativeMedia
-            );
-        }
-
-        return $creative;
-    }
-
-    private function updateAd($platform, $request, $campaign)
-    {
-        $ad = $campaign->ads->first();
-
-        $endpoint = "https://graph.facebook.com/v25.0/{$ad->ad_id}";
-
+        $endpoint = $this->config . 'ad/update/';
 
         $payload = [
-            'name' => $request['name'],
-            'adset_id' => $request['adgroup_id'],
-            'status' => 'PAUSED',
-            'creative' => [
-                'creative_id' => $request['creative_id'],
-            ],
+            'advertiser_id' => $this->account->ad_account_id,
+            'adgroup_id'    => $adGroup->ad_adgroup_id,
+            'creatives'     => [$creativePayload],
         ];
 
         $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
 
-        if (!$response['success']) {
-            return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
+        if (!$this->tiktokSucceeded($response)) {
+            return $this->errorResponse($this->tiktokError($response));
+        }
+
+        $creative->update([
+            'name'           => $request['name'],
+            'message'        => $request['description'],
+            'call_to_action' => $request['call_to_action'],
+            'url'            => $request['target_link'],
+            'type'           => $request['media_type'] ?? $creative->type,
+            'ad_format'      => $adFormat,
+        ]);
+
+        foreach ($mediaList as $media) {
+            $mediaToInsert = ['ad_media_id' => $media['ad_media_id'], 'ad_creative_id' => $creative->id];
+            $this->apiService->success($mediaToInsert, $mediaToInsert, new AdCreativeMedia);
         }
 
         $dataToInsert = [
-            'user_id'                  => Auth::user()->id,
-            'ad_adgroup_id'            => $request['ad_adgroup_id'],
-            'ad_creative_id'           => $request['ad_creative_id'],
-            'ad_id'                    => $ad->ad_id,
-            'status'                   => false,
-            'platform'                 => 'facebook',
-            'ad_account_id'            => $this->account->id,
-            'ad_campaign_id'           => $request['ad_campaign_id'],
-            'name'                     => $request['name'],
-            'call_to_action'           => $request['call_to_action'],
+            'user_id'        => Auth::id(),
+            'ad_adgroup_id'  => $adGroup->id,
+            'ad_creative_id' => $creative->id,
+            'ad_id'          => $ad->ad_id,
+            'status'         => false,
+            'platform'       => 'tiktok',
+            'ad_account_id'  => $this->account->id,
+            'ad_campaign_id' => $request['ad_campaign_id'],
+            'name'           => $request['name'],
+            'call_to_action' => $request['call_to_action'],
         ];
 
         return $this->apiService->success(
@@ -1173,124 +831,55 @@ class TiktokAdService
         );
     }
 
-
     public function destroy($platform, $id)
     {
-        $campaign = AdCampaign::with([
-            'adGroups.creatives.media',
-            'ads'
-        ])->findOrFail($id);
-    
-    
+        $campaign = AdCampaign::with(['adGroups', 'ads'])->findOrFail($id);
         $adGroup = $campaign->adGroups->first();
-    
-        $creative = $adGroup?->creatives->first();
-        $media =  $creative->media;
-   
         $ad = $campaign->ads->first();
-       
-        // Delete Ad
+
+        // TikTok has no hard-delete endpoint for campaigns/adgroups/ads - the
+        // equivalent is setting operation_status to DELETE via the status/update
+        // endpoints, in ad -> adgroup -> campaign order.
         if ($ad) {
+            $response = $this->apiService->post($this->config . 'ad/status/update/', $this->header['data'], [
+                'advertiser_id'     => $this->account->ad_account_id,
+                'adgroup_id'        => $adGroup->ad_adgroup_id ?? null,
+                'ad_ids'            => [$ad->ad_id],
+                'operation_status'  => 'DELETE',
+            ]);
 
-            $endpoint = "https://graph.facebook.com/v25.0/{$ad->ad_id}";
-    
-            $response = $this->apiService->delete(
-                $endpoint,
-                $this->header['data']
-            );
-    
-            if (!$response['success']) {
-                dd($response['data']);
-                return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
-            }
-
-            $ad->delete();
-        }
-       
-        // Delete Creative
-        if ($creative) {
-
-            $endpoint = "https://graph.facebook.com/v25.0/{$creative->ad_creative_id}";
-         
-            $response = $this->apiService->delete(
-                $endpoint,
-                $this->header['data']
-            );
-
-            if (!$response['success']) {
-                dd($response['data']);
-                return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
-            }
-
-            $creative->delete();
-        }
-
-        // Delete Creative
-        if (count($media)) {
-            foreach ($media as $each) {
-                if ($creative->type === 'IMAGE') {
-                    $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adimages';
-                } else if ($creative->type === 'VIDEO') {
-                    $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/advideos';
-                } else if ($creative->type === 'CAROUSEL') {
-                }
-    
-                $response = $this->apiService->delete(
-                    $endpoint,
-                    $this->header['data'],
-                    ['hash' => $each->ad_media_id]
-                );
-               
-                if (!$response['success']) {
-                    dd($endpoint, $response);
-                    return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
-                }
-
-                $each->delete();
+            if (!$this->tiktokSucceeded($response)) {
+                return $this->errorResponse($this->tiktokError($response));
             }
         }
-      
 
-
-
-
-        // Delete Ad Group
         if ($adGroup) {
-    
-            $endpoint = "https://graph.facebook.com/v25.0/{$adGroup->ad_adgroup_id}";
-    
-            $response = $this->apiService->delete(
-                $endpoint,
-                $this->header['data']
-            );
-    
-            if (!$response['success']) {
-                return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
-            }
+            $response = $this->apiService->post($this->config . 'adgroup/status/update/', $this->header['data'], [
+                'advertiser_id'    => $this->account->ad_account_id,
+                'adgroup_ids'      => [$adGroup->ad_adgroup_id],
+                'operation_status' => 'DELETE',
+            ]);
 
-            $adGroup->delete();
+            if (!$this->tiktokSucceeded($response)) {
+                return $this->errorResponse($this->tiktokError($response));
+            }
         }
-    
-    
-        // Delete Campaign
+
         if ($campaign->ad_campaign_id) {
-    
-            $endpoint = "https://graph.facebook.com/v25.0/{$campaign->ad_campaign_id}";
-    
-            $response = $this->apiService->delete(
-                $endpoint,
-                $this->header['data']
-            );
+            $response = $this->apiService->post($this->config . 'campaign/status/update/', $this->header['data'], [
+                'advertiser_id'    => $this->account->ad_account_id,
+                'campaign_ids'     => [$campaign->ad_campaign_id],
+                'operation_status' => 'DELETE',
+            ]);
 
-            if (!$response['success']) {
-                return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
+            if (!$this->tiktokSucceeded($response)) {
+                return $this->errorResponse($this->tiktokError($response));
             }
         }
-    
-    
+
         $campaign->delete();
-    
-    
-        return $response;
+
+        return ['success' => true, 'data' => null];
     }
 }
+

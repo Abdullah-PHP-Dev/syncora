@@ -422,18 +422,18 @@
 
                                             <h5>Ad Creative</h5>
                                             <div class="duration-buttons">
-                                                <input type="hidden" name="media_type" id="media_type" value="IMAGE">
-                                                <button type="button" class="duration-btn media-type active"
+                                                <input type="hidden" name="media_type" id="media_type" value="{{ $creative->type ?? 'IMAGE' }}">
+                                                <button type="button" class="duration-btn media-type @if(($creative->type ?? 'IMAGE') === 'IMAGE') active @endif"
                                                     data-type="IMAGE">
                                                     Image
                                                 </button>
 
-                                                <button type="button" class="duration-btn media-type"
+                                                <button type="button" class="duration-btn media-type @if(($creative->type ?? '') === 'CAROUSEL') active @endif"
                                                     data-type="CAROUSEL">
                                                     Carousel
                                                 </button>
 
-                                                <button type="button" class="duration-btn media-type" data-type="VIDEO">
+                                                <button type="button" class="duration-btn media-type @if(($creative->type ?? '') === 'VIDEO') active @endif" data-type="VIDEO">
                                                     Video
                                                 </button>
                                                 <p class="error-message error-media_type"></p>
@@ -458,6 +458,23 @@
                                                     Upload Media
                                                 </button>
                                                 <p class="error-message error-media"></p>
+                                            </div>
+
+                                            <div class="upload-zone mt-3" id="thumbnailZone" style="display:none;">
+                                                <i class="bx bx-image"></i>
+
+                                                <h6>Video Thumbnail</h6>
+
+                                                <p>Facebook requires a still image to represent your video in feed</p>
+
+                                                <input type="file" name="thumbnail" id="thumbnailInput" hidden
+                                                    accept="image/*">
+
+                                                <button type="button" class="btn btn-outline-primary"
+                                                    onclick="thumbnailInput.click()">
+                                                    Upload Thumbnail
+                                                </button>
+                                                <p class="error-message error-thumbnail"></p>
                                             </div>
 
 
@@ -507,37 +524,34 @@
                                             <br>
                                             <div class="row">
                                                 <div class="col-md-6">
+                                                    <label>Age From</label>
                                                     <select id="age_from" name="age_from" class="form-select">
                                                         <option value="">Age From</option>
-                                                    
-                                                        @for($age = 18; $age <= 65; $age++)
-                                                            <option value="{{ $age }}" 
+
+                                                        @for($age = 13; $age <= 65; $age++)
+                                                            <option value="{{ $age }}"
                                                                 @selected(old('age_from', $ageGroup->age_from) == $age)>
                                                                 {{ $age }}
                                                             </option>
                                                         @endfor
-                                                    
+
                                                     </select>
                                                     <p class="error-message error-age_from"></p>
                                                 </div>
                                                 <div class="col-md-6">
+                                                    <label>Age To</label>
                                                     <select id="age_to" name="age_to" class="form-select">
                                                         <option value="">Age To</option>
-                                                
-                                                        @for($age = 31; $age <= 65; $age++)
+
+                                                        @for($age = 13; $age <= 65; $age++)
                                                             <option value="{{ $age }}"
                                                                 @selected(old('age_to', $ageGroup->age_to) == $age)>
-                                                                {{ $age }}
+                                                                {{ $age === 65 ? '65+' : $age }}
                                                             </option>
                                                         @endfor
-                                                
-                                                        <option value="45+"
-                                                            @selected(old('age_to', $adGroup->age_to) == '65+')>
-                                                            65+
-                                                        </option>
-                                                
+
                                                     </select>
-                                                
+
                                                     <p class="error-message error-age_to"></p>
                                                 </div>
                                             </div>
@@ -698,11 +712,14 @@
 
         });
 
-        let creativeType = 'IMAGE';
+        let creativeType = document.getElementById('media_type').value || 'IMAGE';
         let carouselItems = [];
         let currentIndex = 0;
         let mediaInput = document.getElementById('mediaInput');
         let carousel = document.getElementById('carouselPreview');
+
+        document.getElementById('thumbnailZone').style.display =
+            creativeType === 'VIDEO' ? 'block' : 'none';
 
 
 
@@ -737,6 +754,9 @@
                     input.removeAttribute('multiple');
                     input.accept = "video/*";
                 }
+
+                document.getElementById('thumbnailZone').style.display =
+                    creativeType === 'VIDEO' ? 'block' : 'none';
             });
         });
 
@@ -937,12 +957,7 @@
             },
 
             OUTCOME_LEADS: {
-                conversionLocations: [
-                    'WEBSITE',
-                    'INSTANT_FORM',
-                    'MESSENGER',
-                    'WHATSAPP'
-                ],
+                destinationTypes: [],
                 optimizationGoals: [
                     'LEADS',
                     'QUALITY_LEADS'
@@ -974,11 +989,7 @@
             },
 
             OUTCOME_SALES: {
-                conversionLocations: [
-                    'WEBSITE',
-                    'APP',
-                    'SHOP'
-                ],
+                destinationTypes: [],
                 optimizationGoals: [
                     'OFFSITE_CONVERSIONS',
                     'PURCHASE'

@@ -48,7 +48,7 @@ class SnapchatAdService
     {
         $clientId = adminSetting('ads.snapchat.client_id');
 
-        $url = 'https://accounts.snapchat.com/login/AdService2/authorize?' . http_build_query([
+        $url = 'https://accounts.snapchat.com/login/oauth2/authorize?' . http_build_query([
             'client_id'     => $clientId,
             'redirect_uri'  => $this->getCallbackUrl(),
             'response_type' => 'code',
@@ -61,8 +61,102 @@ class SnapchatAdService
 
     private function getCallbackUrl()
     {
-        return config('services.app_url') . '/admin/social/auth/snapchat/callback';
-     //   return config('app.url') . '/admin/ads/snapchat/callback';
+        return config('services.app_url') . '/admin/ads/snapchat/callback';
+    }
+
+    public function callback($state)
+    {
+        $code = request()->input('code');
+        $endpoint = adminSetting('ads.snapchat.access_token');
+
+        $response = $this->apiService->post($endpoint, ['Content-Type' => 'application/x-www-form-urlencoded'], [
+            'client_id'     => adminSetting('ads.snapchat.client_id'),
+            'client_secret' => adminSetting('ads.snapchat.client_secret'),
+            'code'          => $code,
+            'grant_type'    => 'authorization_code',
+            'redirect_uri'  => $this->getCallbackUrl(),
+        ], 'form');
+
+        $data = $response['data'];
+
+        if (!$response['success']) {
+            return $this->oauthFailureRedirect($data['error_description'] ?? 'Failed to authorize the Snapchat account.');
+        }
+
+        $accessToken = data_get($data, 'access_token');
+        $refreshToken = data_get($data, 'refresh_token');
+        $expiresIn = data_get($data, 'expires_in', 1800);
+
+        $accountResponse = $this->getSnapchatAdAccount($accessToken);
+
+        if (!($accountResponse['success'] ?? false)) {
+            return $this->oauthFailureRedirect($accountResponse['error'] ?? 'No Snapchat ad account was found.');
+        }
+
+        AdAccount::updateOrCreate(
+            ['platform' => 'snapchat', 'user_id' => Auth::id(), 'ad_account_id' => $accountResponse['ad_account_id']],
+            [
+                'name'          => $accountResponse['name'] ?? 'Snapchat Ad Account',
+                'currency'      => $accountResponse['currency'] ?? 'USD',
+                'access_token'  => $accessToken,
+                'refresh_token' => $refreshToken,
+                'profile_id'    => $accountResponse['profile_id'] ?? null,
+                'status'        => 'active',
+                'expires_at'    => Carbon::now()->addSeconds($expiresIn),
+            ]
+        );
+
+        return redirect(Session::pull('previous_url', route('admin.ads.dashboard')))
+            ->with('success', 'Snapchat ad account connected successfully.');
+    }
+
+    private function oauthFailureRedirect($message)
+    {
+        return redirect(route('admin.ads.dashboard'))
+            ->with('error', is_array($message) ? json_encode($message) : $message);
+    }
+
+    /**
+     * Resolves the ad account, org-level currency/name, and the Public Profile id
+     * Snapchat's creative API requires (profile_properties.profile_id). Field names
+     * here follow Snapchat Marketing API v1 - worth a live-account sanity check.
+     */
+    private function getSnapchatAdAccount($accessToken)
+    {
+        $headers = ['Authorization' => "Bearer {$accessToken}"];
+
+        $orgResponse = $this->apiService->get($this->config . 'me/organizations', $headers);
+
+        if (!$orgResponse['success'] || empty($orgResponse['data']['organizations'])) {
+            return $this->errorResponse('No Snapchat organization is linked to this account.');
+        }
+
+        $organizationId = $orgResponse['data']['organizations'][0]['organization']['id'];
+
+        $accountsResponse = $this->apiService->get($this->config . "organizations/{$organizationId}/adaccounts", $headers);
+
+        if (!$accountsResponse['success'] || empty($accountsResponse['data']['adaccounts'])) {
+            return $this->errorResponse('No Snapchat ad account is linked to this organization.');
+        }
+
+        $adAccount = $accountsResponse['data']['adaccounts'][0]['adaccount'];
+        $adAccountId = $adAccount['id'];
+
+        $profileId = null;
+        $profilesResponse = $this->apiService->get($this->config . "adaccounts/{$adAccountId}/profiles", $headers);
+
+        if ($profilesResponse['success'] && !empty($profilesResponse['data']['results'])) {
+            $profile = $profilesResponse['data']['results'][0];
+            $profileId = $profile['public_profile']['id'] ?? $profile['organic_profile']['id'] ?? null;
+        }
+
+        return [
+            'success'       => true,
+            'ad_account_id' => $adAccountId,
+            'name'          => $adAccount['name'] ?? null,
+            'currency'      => $adAccount['currency'] ?? null,
+            'profile_id'    => $profileId,
+        ];
     }
 
     public function store($platform, $request)
@@ -171,11 +265,12 @@ class SnapchatAdService
         );
     }
 
-    private function storeAdGroup($platform, $request)
+    /**
+     * Shared audience targeting builder used by both storeAdGroup and updateAdGroup,
+     * since Snapchat's demographic/geo targeting shape must match on create and update.
+     */
+    private function buildAudienceTargeting(array $request): array
     {
-        // dd($request);
-        $endpoint = $this->config . 'campaigns/' . $request['campaign_id'] . '/adsquads';
-       // 1. Map Gender (Snapchat accepts 'MALE', 'FEMALE', or omit for ALL)
         $genderMap = [
             'male'   => 'MALE',
             'female' => 'FEMALE',
@@ -185,22 +280,18 @@ class SnapchatAdService
             'Arabic'  => 'ar',
             'Spanish' => 'es',
             'French'  => 'fr',
-            // add additional languages as needed
         ];
-        $gender = isset($request['gender'], $genderMap[$request['gender']]) 
-            ? $genderMap[$request['gender']] 
+
+        $gender = isset($request['gender'], $genderMap[$request['gender']])
+            ? $genderMap[$request['gender']]
             : null;
 
         $ageGroups = [];
 
         if (!empty($request['age_range']) && is_array($request['age_range'])) {
             foreach ($request['age_range'] as $range) {
-                if (isset($ageGroupMap[$range])) {
-                    $ageGroups[] = $ageGroupMap[$range];
-                } else {
-                    // Dynamic fallback: transforms "AGE_18_24" -> "18-24"
-                    $ageGroups[] = str_replace(['AGE_', '_'], ['', '-'], $range);
-                }
+                // transforms "AGE_18_24" -> "18-24"
+                $ageGroups[] = str_replace(['AGE_', '_'], ['', '-'], $range);
             }
         }
 
@@ -208,13 +299,12 @@ class SnapchatAdService
 
         if (!empty($request['languages']) && is_array($request['languages'])) {
             foreach ($request['languages'] as $lang) {
-                // Checks if input is key ('English') or already ISO code ('en')
-                $code = $languageMap[$lang] ?? strtolower($lang);
-                $languages[] = $code; // Store plain string instead of ['code' => $code]
+                $languages[] = $languageMap[$lang] ?? strtolower($lang);
             }
         }
-        
-        // Ensure values are unique and reset array keys
+
+        $demographicSpec = [];
+
         if (!empty($languages)) {
             $demographicSpec['languages'] = array_values(array_unique($languages));
         }
@@ -226,21 +316,26 @@ class SnapchatAdService
         if (!empty($ageGroups)) {
             $demographicSpec['age_groups'] = array_values(array_unique($ageGroups));
         }
-    
-        // 4. Construct Geos block (Country targeting)
-        // Note: Pass country code as ISO-2 string (e.g., "SA", "US"). Ensure country lookup maps '187' to ISO code if needed.
-        $countCodes = [];
-      //  foreach ($request['countries'] as $country) {
+
+        // Country targeting - pass country code as lowercase ISO-2 string (e.g., "sa", "us").
         $countries = Country::whereIn('id', $request['countries'])
             ->pluck('code')
             ->toArray();
-        
-        // Map each code into its own ['country_code' => 'xx'] array
+
         $geos = array_map(function ($code) {
             return [
                 'country_code' => strtolower($code)
             ];
         }, $countries);
+
+        return [$demographicSpec, $geos, $countries];
+    }
+
+    private function storeAdGroup($platform, $request)
+    {
+        $endpoint = $this->config . 'campaigns/' . $request['campaign_id'] . '/adsquads';
+
+        [$demographicSpec, $geos, $countries] = $this->buildAudienceTargeting($request);
 
         // 5. Build Final AdSquad Payload
         $adSquad = [
@@ -718,97 +813,6 @@ class SnapchatAdService
         return ['success' => true, 'data' => $data];
     }
 
-    private function getPromotedObject($request)
-    {
-        $promotedObjectRules = [
-            'OUTCOME_AWARENESS' => [
-                'default' => ['page_id'],
-                'IMPRESSIONS' => ['page_id'],
-                'REACH' => ['page_id'],
-                'VIDEO_VIEWS' => ['page_id'],
-                'THRUPLAY' => ['page_id'],
-                'TWO_SECOND_CONTINUOUS_VIDEO_VIEWS' => ['page_id'],
-            ],
-            'OUTCOME_TRAFFIC' => [
-                'LINK_CLICKS' => ['application_id', 'object_store_url'],
-                'REACH' => ['application_id', 'object_store_url'],
-            ],
-            'OUTCOME_ENGAGEMENT' => [
-                'PAGE_LIKES' => ['page_id'],
-                'QUALITY_LEAD' => ['page_id'],
-                'LINK_CLICKS' => ['page_id'],
-                'CONVERSIONS' => ['page_id'],
-                'LEAD_GENERATION' => ['page_id'],
-                'OFFSITE_CONVERSIONS' => ['pixel_id', 'custom_event_type', 'application_id', 'object_store_url'],
-            ],
-            'OUTCOME_APP_PROMOTION' => [
-                'LINK_CLICKS' => ['application_id', 'object_store_url'],
-                'APP_INSTALLS' => ['application_id', 'object_store_url'],
-                'OFFSITE_CONVERSIONS' => ['application_id', 'object_store_url'],
-            ],
-            'OUTCOME_LEADS' => [
-                'LEAD_GENERATION' => ['page_id'],
-                'QUALITY_LEAD' => ['page_id'],
-                'OFFSITE_CONVERSIONS' => ['pixel_id', 'custom_event_type', 'application_id', 'object_store_url'],
-            ],
-            'OUTCOME_SALES' => [
-                'OFFSITE_CONVERSIONS' => ['pixel_id', 'application_id', 'object_store_url'],
-                'CONVERSIONS' => ['page_id', 'pixel_id', 'custom_event_type'],
-                'LINK_CLICKS' => ['product_catalog_id', 'product_set_id', 'custom_event_type'],
-            ],
-        ];
-
-        $promotedObject = [];
-
-        $objective = 'OUTCOME_TRAFFIC';
-        $goal = $request['optimization_goal'];
-
-        $fields = $promotedObjectRules[$objective][$goal]
-            ?? ($promotedObjectRules[$objective]['default'] ?? []);
-
-        foreach ($fields as $field) {
-            if (!empty($request[$field])) {
-                $promotedObject[$field] = $request[$field];
-            }
-        }
-
-        $goal = $request['optimization_goal'] ?? null;
-
-        $outcomeLeadsGoals = ['OFFSITE_CONVERSIONS', 'LINK_CLICKS', 'REACH', 'LANDING_PAGE_VIEWS', 'IMPRESSIONS'];
-        $outcomeEngagementGoals = ['OFFSITE_CONVERSIONS', 'LINK_CLICKS', 'REACH', 'LANDING_PAGE_VIEWS', 'IMPRESSIONS'];
-        $outcomeTrafficGoals = ['LINK_CLICKS', 'LANDING_PAGE_VIEWS', 'REACH', 'IMPRESSIONS'];
-
-
-        $shouldUnsetDestinationType =
-            $objective === 'OUTCOME_AWARENESS' ||
-            ($objective === 'OUTCOME_SALES' && $goal === 'OFFSITE_CONVERSIONS') ||
-            ($objective === 'OUTCOME_LEADS' && in_array($goal, $outcomeLeadsGoals, true)) ||
-            ($objective === 'OUTCOME_ENGAGEMENT' && in_array($goal, $outcomeEngagementGoals, true)) ||
-            ($objective === 'OUTCOME_TRAFFIC' && in_array($goal, $outcomeTrafficGoals, true));
-
-        return [
-            'promoted_objects' => $promotedObject,
-            'shouldUnsetDestinationType' => $shouldUnsetDestinationType
-        ];
-    }
-
-    private function getLocale($languages)
-    {
-        $endpoint = 'https://graph.snapchat.com/v22.0/search?type=adlocale&q=';
-        $locals = [];
-        foreach ($languages as $language) {
-            $response = $this->apiService->get($endpoint, $this->header['data'], [
-                'type' => 'adlocale',
-                'q' => $language == 'english' ? 'en' : 'ar',
-                'limit' => 2,
-            ]);
-
-            $locals[] = $response['data']['data'][0]['key'];
-        }
-
-        return $locals;
-    }
-
     private function getMediaType($fileExtension)
     {
         // Define media types based on file extensions
@@ -863,7 +867,11 @@ class SnapchatAdService
         
         // Step 4: update creative
         $response = $this->updateCreative($platform, $request, $adGroupResponse['data']);
-        dd($response);
+
+        if (!$response['success']) {
+            return $response;
+        }
+
         $request['creative_id'] = $response['data']['ad_creative_id'];
         $request['ad_creative_id'] = $response['data']['id'];
 
@@ -874,19 +882,26 @@ class SnapchatAdService
 
     private function updateCampaign($platform, $id, $request)
     {
-        $campaign = AdCampaign::find($id);
+        $campaign = AdCampaign::findOrFail($id);
 
-        $endpoint = "https://graph.snapchat.com/v25.0/{$campaign->ad_campaign_id}";
-      
+        $endpoint = $this->config . 'campaigns/' . $campaign->ad_campaign_id;
+
         $payload = [
-            'name'                => $request['name'],
-            'status'              => 'PAUSED',
+            'campaigns' => [
+                [
+                    'id'     => $campaign->ad_campaign_id,
+                    'name'   => $request['name'],
+                    'status' => 'PAUSED',
+                ]
+            ]
         ];
 
-        $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
+        $response = $this->apiService->put($endpoint, $this->header['data'], $payload);
 
         if (!$response['success']) {
-            return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
+            return $this->errorResponse($response['data']['display_message'] ?? $response['data']['debug_message'] ?? 'Failed to update campaign');
+        } else if (($response['data']['request_status'] ?? null) === 'ERROR') {
+            return $this->errorResponse($response['data']['campaigns'][0]['sub_request_error_reason'] ?? 'Failed to update campaign');
         }
 
         $dataToInsert = [
@@ -904,101 +919,82 @@ class SnapchatAdService
 
     private function updateAdGroup($platform, $campaignId, $request)
     {
-        $adGroup = AdAdGroup::whereAdCampaignId($campaignId)->first();
-       
-        $endpoint = "https://graph.snapchat.com/v25.0/{$adGroup->ad_adgroup_id}";
-        $adSetObjects = $this->getPromotedObject($request);
-       
-        $publisherPlatforms = [];
+        $adGroup = AdAdGroup::where('ad_campaign_id', $campaignId)->firstOrFail();
 
-        if (isset($request['snapchat'])) {
-            $publisherPlatforms[] = 'snapchat';
-        }
+        $endpoint = $this->config . 'adsquads/' . $adGroup->ad_adgroup_id;
 
-        if (isset($request['instagram'])) {
-            $publisherPlatforms[] = 'instagram';
-        }
-        $countries = Country::whereIn('id', $request['countries'])->pluck('code')->toArray();
-       
-        $genders = $request['gender'] == 'male' ? [1] : ($request['gender'] == 'female' ? [2] : [1, 2]);
-        $locales = $this->getLocale($request['languages']);
-        // $locales = collect($request['langauges'] ?? [])->map(fn($lang) => $localeMap[$lang] ?? null)->filter()->values()->toArray();
+        [$demographicSpec, $geos, $countries] = $this->buildAudienceTargeting($request);
 
-        $payload = [
-           // 'campaign_id'       => $request['campaign_id'],
-            'name'              => $request['name'],
-            'bid_amount'        => $request['bid_amount'],
-            'billing_event'     => $request['billing_event'] ?? null,
-            'optimization_goal' => $request['optimization_goal'],
-            'status'            => 'PAUSED',
-            'start_time'          => Carbon::parse($request['start_time'])->utc()->format('Y-m-d\TH:i:s.v\Z'),
-            'end_time'           => Carbon::parse($request['end_time'])->utc()->format('Y-m-d\TH:i:s.v\Z'),
-            'destination_type'  => $request['destination_type'],
-            'targeting'         => [
-                'geo_locations' => [
-                    'countries' => $countries,
-                ],
-                'genders' => $genders,
-                'locales' => $locales,
-                "age_range" => [
-                    $request['age_from'],
-                    $request['age_to']
-                ],
-                "device_platforms" => ["mobile", "desktop"],
-                "targeting_automation" => [
-                    "advantage_audience" => 1,
-                    "individual_setting" => [
-                        "age" => 1,
-                        "gender" => 1
-                    ]
-                ],
-                'publisher_platforms' => $publisherPlatforms,
+        $adSquad = [
+            'id'                  => $adGroup->ad_adgroup_id,
+            'name'                => $request['name'],
+            'status'              => 'PAUSED',
+            'targeting'           => [
+                'demographics' => [$demographicSpec],
+                'geos'         => $geos,
             ],
-            'promoted_object'   => $adSetObjects['promoted_objects'],
-            'is_adset_budget_sharing_enabled' => false,
+            'billing_event'       => 'IMPRESSION',
+            'bid_strategy'        => $request['bid_strategy'],
+            'start_time'          => Carbon::parse($request['start_time'])->utc()->format("Y-m-d\TH:i:s.v\Z"),
+            'end_time'            => Carbon::parse($request['end_time'])->utc()->format("Y-m-d\TH:i:s.v\Z"),
+            'optimization_goal'   => $request['optimization_goal'],
+            'pacing_type'         => 'STANDARD',
         ];
 
-        if ($request['budget_mode'] == 'daily_budget') {
-            $payload['daily_budget'] = $request['budget'] * 1000;
+        $budgetInMicros = (int) $request['budget'] * 1000000;
+
+        if (($request['budget_mode'] ?? 'daily') === 'daily') {
+            $adSquad['daily_budget_micro'] = $budgetInMicros;
         } else {
-            $payload['lifetime_budget'] = $request['budget'] * 1000;
+            $adSquad['lifetime_budget_micro'] = $budgetInMicros;
         }
 
-        if ($adSetObjects['shouldUnsetDestinationType']) {
-            unset($payload['destination_type']);
+        if ($request['bid_strategy'] == 'TARGET_COST') {
+            $adSquad['target_bid'] = true;
+            $adSquad['auto_bid'] = false;
+            $adSquad['bid_micro'] = (int) bcmul((string) $request['bid_amount'], '1000000', 0);
+        } else if ($request['bid_strategy'] == 'LOWEST_COST_WITH_MAX_BID') {
+            $adSquad['target_bid'] = false;
+            $adSquad['auto_bid'] = false;
+            $adSquad['bid_micro'] = (int) bcmul((string) $request['bid_amount'], '1000000', 0);
+        } else if ($request['bid_strategy'] == 'AUTO_BID') {
+            $adSquad['target_bid'] = false;
+            $adSquad['auto_bid'] = true;
         }
 
-        $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
-       
+        if (!empty($request['pixel_id'])) {
+            $adSquad['pixel_id'] = $request['pixel_id'];
+        }
+
+        $payload = ['adsquads' => [$adSquad]];
+
+        $response = $this->apiService->put($endpoint, $this->header['data'], $payload);
+
         if (!$response['success']) {
-            return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
+            return $this->errorResponse($response['data']['debug_message'] ?? $response['data']['display_message'] ?? 'Failed to update ad squad');
+        } else if (($response['data']['request_status'] ?? null) === 'ERROR') {
+            return $this->errorResponse($response['data']['adsquads'][0]['sub_request_error_reason'] ?? 'Failed to update ad squad');
         }
 
         $dataToInsert = [
-            'ad_campaign_id'     => $campaignId,
-            'user_id'         => Auth::user()->id,
-            'ad_adgroup_id'         => $adGroup->ad_adgroup_id,
-            'ad_account_id'   => $this->account->id,
-            'name' => $request['name'],
-            'location_ids' => json_encode($countries),
-            'promotion_target_type' => json_encode($adSetObjects['promoted_objects']),
-            'platform' => $platform,
-            'gender' => $request['gender'],
-            'languages' => json_encode($request['languages']),
-            'budget_mode' => $request['budget_mode'],
-            'bid_price'        => $request['bid_amount'],
-            'destination_type' => $request['destination_type'],
-            'billing_event'     => $request['billing_event'] ?? null,
-            'optimization_goal' => $request['optimization_goal'],
+            'ad_campaign_id'      => $campaignId,
+            'user_id'             => Auth::id(),
+            'ad_adgroup_id'       => $adGroup->ad_adgroup_id,
+            'ad_account_id'       => $this->account->id,
+            'name'                => $request['name'],
+            'location_ids'        => json_encode($countries),
+            'platform'            => $platform,
+            'gender'              => $request['gender'],
+            'languages'           => json_encode($request['languages']),
+            'budget_mode'         => $request['budget_mode'],
+            'pixel_id'            => $request['pixel_id'] ?? '',
+            'bid_price'           => $request['bid_amount'],
+            'optimization_goal'   => $request['optimization_goal'],
             'schedule_start_time' => $request['start_time'],
-            'schedule_end_time' => $request['end_time'],
-            'budget' => $request['final_budget'],
-            'age_groups' => json_encode([
-                'age_from' => $request['age_from'],
-                'age_to' => $request['age_to'],
-            ]),
-            'publisher_platforms' => json_encode($publisherPlatforms),
-            'status' => false
+            'schedule_end_time'   => $request['end_time'],
+            'budget'              => $request['final_budget'],
+            'age_groups'          => json_encode($request['age_range']),
+            'status'              => false
         ];
 
         return $this->apiService->success(
@@ -1010,123 +1006,106 @@ class SnapchatAdService
 
     private function updateCreative($platform, $request, $adGroup)
     {
-        $creativeId = $adGroup->creatives->first()->ad_creative_id;
-        $endpoint = "https://graph.snapchat.com/v25.0/{$creativeId}";
-        $payload = [
-            'name' => $request['name'],
-            'object_story_spec' => [
-                'page_id' => $request['page_id'],
-            ],
-        ];
+        $creative = $adGroup->creatives->first();
+        $creativeId = $creative->ad_creative_id;
 
-        if (isset($request['instagram'])) {
-            $loginUser = AdAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
-            if ($loginUser) {
-                $payload['object_story_spec']['instagram_user_id'] = $loginUser->account_id;
+        $mediaList = $request['media'] ?? [];
+        $mediaIds = array_column($mediaList, 'media_id');
+
+        foreach ($mediaIds as $mediaId) {
+            if (!$this->ensureMediaIsReady($mediaId)) {
+                return $this->errorResponse("Media ID {$mediaId} is not ready yet. Please try again.");
             }
         }
 
-        if ($request['media_type'] === 'CAROUSEL') {
-            $linkData = [
-                'message' => $request['description'],
-                'description' => $request['description'],
-                'link' => $request['target_link'],
-            ];
+        $payload = [
+            'id'         => $creativeId,
+            'name'       => $request['name'],
+            'headline'   => $request['description'],
+            'brand_name' => $request['name'],
+        ];
 
-            $linkData['child_attachments'] = [['image_hash' => $request['admedia_id'], 'link' => $request['target_link']]];
-            $linkData['call_to_action'] =     $request['call_to_action'];
-
-            $newPayload['object_story_spec']['link_data'] = $linkData;
-        } else if ($request['media_type'] === 'IMAGE') {
-            $linkData = [
-                'link' => $request['target_link'],
-                "description" => $request['description'],
-                "message" => $request['description'],
-                'image_hash' => $request['media'][0]['media_id']
-            ];
-
-            $linkData['call_to_action'] = $this->buildsnapchatCTAPayload($request['call_to_action'], $request['target_link']);
-            $payload['object_story_spec']['link_data'] = $linkData;
-        } else if ($request['media_type'] === 'VIDEO') {
-
-            $linkData = [
-                'image_url' => $request['image_url'],
-                'video_id' => $request['video_id'],
-                'description' => $request['description'],
-                //"link_description" => "Come check out our new store in Menlo Park!", 
-
-            ];
-            $linkData['call_to_action'] = $this->buildsnapchatCTAPayload($request['call_to_action'], $request['target_link']);
-
-
-            $payload['object_story_spec']['video_data'] = $linkData;
+        if (!empty($mediaIds)) {
+            if (count($mediaIds) > 1) {
+                $payload['top_snap_media_ids'] = $mediaIds;
+            } else {
+                $payload['top_snap_media_id'] = $mediaIds[0];
+            }
         }
 
-        $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
-       
+        $payload = array_merge($payload, $this->creativeProperties($request));
+
+        $endpoint = $this->config . "creatives/{$creativeId}";
+        $response = $this->apiService->put($endpoint, $this->header['data'], ['creatives' => [$payload]]);
+
         if (!$response['success']) {
-            return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
+            return $this->errorResponse($response['data']['debug_message'] ?? $response['data']['display_message'] ?? 'Failed to update creative');
+        } else if (($response['data']['request_status'] ?? null) === 'ERROR') {
+            return $this->errorResponse($response['data']['creatives'][0]['sub_request_error_reason'] ?? 'Failed to update creative');
         }
 
         $dataToInsert = [
-            'user_id'                  => Auth::user()->id,
-            'ad_adgroup_id'            => $request['ad_adgroup_id'],
-            'ad_creative_id'              => $creativeId,
-            'platform'                 => 'snapchat',
-            'ad_account_id'            => $this->account->id,
-            'ad_campaign_id'           => $request['ad_campaign_id'],
-            'name'                     => $request['name'],
-            'ad_format'                => $request['ad_format'] ?? null,
-            'message'                  => $request['description'] ?? null,
-            'page_id'                  => $request['page_id'] ?? null,
-            'call_to_action'           => $request['call_to_action'] ?? null,
-            'url'                      => $request['target_link'] ?? null
+            'user_id'         => Auth::id(),
+            'ad_adgroup_id'   => $request['ad_adgroup_id'],
+            'ad_creative_id'  => $creativeId,
+            'platform'        => 'snapchat',
+            'ad_account_id'   => $this->account->id,
+            'ad_campaign_id'  => $request['ad_campaign_id'],
+            'name'            => $request['name'],
+            'message'         => $request['description'] ?? null,
+            'call_to_action'  => $request['call_to_action'] ?? null,
+            'url'             => $request['target_link'] ?? null,
+            'type'            => $request['creative_type'] ?? $creative->type,
+            'headline'        => $request['description'],
+            'brand_name'      => $request['name'],
         ];
 
-
-
-        $creative  = $this->apiService->success(
+        $updated = $this->apiService->success(
             $dataToInsert,
             ['ad_creative_id' => $creativeId],
             new AdCreative
         );
 
-        foreach ($request['media'] as $media) {
-            $mediaToInsert = ['ad_media_id' => $media['ad_media_id'], 'ad_creative_id' => $creative['data']['id']];
+        foreach ($mediaList as $media) {
+            $mediaToInsert = ['ad_media_id' => $media['ad_media_id'], 'ad_creative_id' => $updated['data']['id']];
             $this->apiService->success(
                 $mediaToInsert,
-                ['ad_media_id' => $media['ad_media_id']],
+                $mediaToInsert,
                 new AdCreativeMedia
             );
         }
 
-        return $creative;
+        return $updated;
     }
 
     private function updateAd($platform, $request, $campaign)
     {
         $ad = $campaign->ads->first();
 
-        $endpoint = "https://graph.snapchat.com/v25.0/{$ad->ad_id}";
-
+        $endpoint = $this->config . "ads/{$ad->ad_id}";
 
         $payload = [
-            'name' => $request['name'],
-            'adset_id' => $request['adgroup_id'],
-            'status' => 'PAUSED',
-            'creative' => [
-                'creative_id' => $request['creative_id'],
-            ],
+            'ads' => [
+                [
+                    'id'          => $ad->ad_id,
+                    'name'        => $request['name'],
+                    'ad_squad_id' => $request['adgroup_id'],
+                    'creative_id' => $request['creative_id'],
+                    'status'      => 'PAUSED',
+                ]
+            ]
         ];
 
-        $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
+        $response = $this->apiService->put($endpoint, $this->header['data'], $payload);
 
         if (!$response['success']) {
-            return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
+            return $this->errorResponse($response['data']['debug_message'] ?? $response['data']['display_message'] ?? 'Failed to update ad');
+        } else if (($response['data']['request_status'] ?? null) === 'ERROR') {
+            return $this->errorResponse($response['data']['ads'][0]['sub_request_error_reason'] ?? 'Failed to update ad');
         }
 
         $dataToInsert = [
-            'user_id'                  => Auth::user()->id,
+            'user_id'                  => Auth::id(),
             'ad_adgroup_id'            => $request['ad_adgroup_id'],
             'ad_creative_id'           => $request['ad_creative_id'],
             'ad_id'                    => $ad->ad_id,
@@ -1135,7 +1114,7 @@ class SnapchatAdService
             'ad_account_id'            => $this->account->id,
             'ad_campaign_id'           => $request['ad_campaign_id'],
             'name'                     => $request['name'],
-            'call_to_action'           => $request['call_to_action'],
+            'call_to_action'           => $request['call_to_action'] ?? null,
         ];
 
         return $this->apiService->success(
@@ -1152,117 +1131,77 @@ class SnapchatAdService
             'adGroups.creatives.media',
             'ads'
         ])->findOrFail($id);
-    
-    
-        $adGroup = $campaign->adGroups->first();
-    
-        $creative = $adGroup?->creatives->first();
-        $media =  $creative->media;
-   
-        $ad = $campaign->ads->first();
-       
-        // Delete Ad
-        if ($ad) {
 
-            $endpoint = "https://graph.snapchat.com/v25.0/{$ad->ad_id}";
-    
-            $response = $this->apiService->delete(
-                $endpoint,
-                $this->header['data']
-            );
-    
+        $adGroup = $campaign->adGroups->first();
+        $creative = $adGroup?->creatives->first();
+        $media = $creative->media ?? collect();
+        $ad = $campaign->ads->first();
+
+        // Snapchat has no hard-delete for ads/ad squads/campaigns - the
+        // equivalent is setting status to DELETED via PUT, in
+        // ad -> ad squad -> campaign order. Creatives and media do support DELETE.
+        if ($ad) {
+            $response = $this->apiService->put($this->config . "ads/{$ad->ad_id}", $this->header['data'], [
+                'ads' => [['id' => $ad->ad_id, 'status' => 'DELETED']]
+            ]);
+
             if (!$response['success']) {
-                dd($response['data']);
-                return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
+                return $this->errorResponse($response['data']['debug_message'] ?? $response['data']['display_message'] ?? 'Failed to delete ad');
+            } else if (($response['data']['request_status'] ?? null) === 'ERROR') {
+                return $this->errorResponse($response['data']['ads'][0]['sub_request_error_reason'] ?? 'Failed to delete ad');
             }
 
             $ad->delete();
         }
-       
-        // Delete Creative
-        if ($creative) {
 
-            $endpoint = "https://graph.snapchat.com/v25.0/{$creative->ad_creative_id}";
-         
-            $response = $this->apiService->delete(
-                $endpoint,
-                $this->header['data']
-            );
+        if ($creative) {
+            $response = $this->apiService->delete($this->config . "creatives/{$creative->ad_creative_id}", $this->header['data']);
 
             if (!$response['success']) {
-                dd($response['data']);
-                return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
+                return $this->errorResponse($response['data']['debug_message'] ?? $response['data']['display_message'] ?? 'Failed to delete creative');
             }
 
             $creative->delete();
         }
 
-        // Delete Creative
-        if (count($media)) {
-            foreach ($media as $each) {
-                if ($creative->type === 'IMAGE') {
-                    $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adimages';
-                } else if ($creative->type === 'VIDEO') {
-                    $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/advideos';
-                } else if ($creative->type === 'CAROUSEL') {
-                }
-    
-                $response = $this->apiService->delete(
-                    $endpoint,
-                    $this->header['data'],
-                    ['hash' => $each->ad_media_id]
-                );
-               
-                if (!$response['success']) {
-                    dd($endpoint, $response);
-                    return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
-                }
+        foreach ($media as $each) {
+            $response = $this->apiService->delete($this->config . "media/{$each->ad_media_id}", $this->header['data']);
 
-                $each->delete();
-            }
-        }
-      
-
-
-
-
-        // Delete Ad Group
-        if ($adGroup) {
-    
-            $endpoint = "https://graph.snapchat.com/v25.0/{$adGroup->ad_adgroup_id}";
-    
-            $response = $this->apiService->delete(
-                $endpoint,
-                $this->header['data']
-            );
-    
             if (!$response['success']) {
-                return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
+                return $this->errorResponse($response['data']['debug_message'] ?? $response['data']['display_message'] ?? 'Failed to delete media');
+            }
+
+            $each->delete();
+        }
+
+        if ($adGroup) {
+            $response = $this->apiService->put($this->config . "adsquads/{$adGroup->ad_adgroup_id}", $this->header['data'], [
+                'adsquads' => [['id' => $adGroup->ad_adgroup_id, 'status' => 'DELETED']]
+            ]);
+
+            if (!$response['success']) {
+                return $this->errorResponse($response['data']['debug_message'] ?? $response['data']['display_message'] ?? 'Failed to delete ad squad');
+            } else if (($response['data']['request_status'] ?? null) === 'ERROR') {
+                return $this->errorResponse($response['data']['adsquads'][0]['sub_request_error_reason'] ?? 'Failed to delete ad squad');
             }
 
             $adGroup->delete();
         }
-    
-    
-        // Delete Campaign
+
         if ($campaign->ad_campaign_id) {
-    
-            $endpoint = "https://graph.snapchat.com/v25.0/{$campaign->ad_campaign_id}";
-    
-            $response = $this->apiService->delete(
-                $endpoint,
-                $this->header['data']
-            );
+            $response = $this->apiService->put($this->config . "campaigns/{$campaign->ad_campaign_id}", $this->header['data'], [
+                'campaigns' => [['id' => $campaign->ad_campaign_id, 'status' => 'DELETED']]
+            ]);
 
             if (!$response['success']) {
-                return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
+                return $this->errorResponse($response['data']['debug_message'] ?? $response['data']['display_message'] ?? 'Failed to delete campaign');
+            } else if (($response['data']['request_status'] ?? null) === 'ERROR') {
+                return $this->errorResponse($response['data']['campaigns'][0]['sub_request_error_reason'] ?? 'Failed to delete campaign');
             }
         }
-    
-    
+
         $campaign->delete();
-    
-    
-        return $response;
+
+        return ['success' => true, 'data' => null];
     }
 }

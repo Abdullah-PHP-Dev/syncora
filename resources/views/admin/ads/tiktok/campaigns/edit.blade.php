@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
-@section('title', 'Dashboard')
+@section('title', 'Edit TikTok Campaign')
+
 <style>
     .campaign-builder {
         max-width: 1400px;
@@ -12,32 +13,18 @@
         margin-bottom: 30px;
     }
 
-    .meta-logo {
-        font-size: 42px;
-    }
-
-    .meta-logo i:first-child {
-        color: #1877F2;
-    }
-
-    .meta-logo i:last-child {
-        color: #E1306C;
-    }
-
     .campaign-steps {
         display: flex;
         justify-content: center;
         gap: 15px;
         margin-top: 20px;
+        flex-wrap: wrap;
     }
 
     .step {
         background: #f3f5f8;
         padding: 10px 20px;
         border-radius: 30px;
-    }
-
-    .step {
         cursor: pointer;
         transition: .3s;
     }
@@ -67,7 +54,7 @@
     }
 
     .platform-card {
-        min-width: 220px;
+        min-width: 200px;
         padding: 15px 20px;
         border: 1px solid #e5e7eb;
         border-radius: 14px;
@@ -81,11 +68,6 @@
         box-shadow: 0 4px 15px rgba(24, 119, 242, .12);
     }
 
-    .platform-card i {
-        font-size: 24px;
-        vertical-align: middle;
-    }
-
     .platform-switch {
         cursor: pointer;
     }
@@ -93,6 +75,7 @@
     .duration-buttons {
         display: flex;
         gap: 10px;
+        flex-wrap: wrap;
     }
 
     .duration-btn {
@@ -157,7 +140,15 @@
         margin: 15px 0;
         border-radius: 12px;
     }
+
+    .error-message {
+        color: red;
+        font-size: 0.8rem;
+        margin-top: 5px;
+        display: none;
+    }
 </style>
+
 @section('content')
     <div class="col-xxl-12 mb-0">
         <div class="authentication-wrapper authentication-basic container-p-y">
@@ -165,19 +156,30 @@
                 <div class="card px-sm-6 px-0">
                     <div class="card-body">
                         <div class="d-flex justify-content-end mb-3">
-                            <a href="{{ route('admin.ads.campaigns.index', ['platform' => $platform]) }}">
+                            <a href="{{ route('admin.ads.campaigns.index', ['platform' => 'tiktok']) }}">
                                 <button class="btn btn-primary btn-sm">
                                     <i class="bx bx-list-ul"></i> {{ __('admin.marketing_tools.ads.campaign.header') }}
                                 </button>
                             </a>
                         </div>
+
+                        @php
+                            $adGroup = $campaign->adGroups->first();
+                            $creative = $adGroup?->creatives->first();
+                            $ad = $campaign->ads->first();
+                            $media = $creative?->media ?? collect();
+                            $firstMedia = $media->first();
+                            $ageGroups = json_decode($adGroup->age_groups ?? '[]', true) ?? [];
+                            $languages = json_decode($adGroup->languages ?? '[]', true) ?? [];
+                            $selectedCountries = json_decode($adGroup->location_ids ?? '[]', true) ?? [];
+                        @endphp
+
                         <div class="campaign-builder">
                             <div class="builder-header">
-                                <div class="meta-logo">
-                                    <i class="bx bxl-facebook-circle"></i>
-                                    <i class="bx bxl-instagram-alt"></i>
+                                <div class="social-icon-mini tiktok">
+                                    <i class="bx bxl-tiktok"></i>
                                 </div>
-                                <h2>Create Meta Campaign</h2>
+                                <h2>Edit TikTok Campaign</h2>
                                 <div class="campaign-steps">
                                     <div class="step active">Campaign</div>
                                     <div class="step">Budget</div>
@@ -187,458 +189,376 @@
                                     <div class="step">Review</div>
                                 </div>
                             </div>
+
                             <div class="row">
-                                <!-- LEFT SIDE -->
+                                <!-- LEFT: Form -->
                                 <div class="col-lg-8">
-                                    <form id="campaign">
+                                    <form id="campaign" enctype="multipart/form-data">
+                                        @csrf
+
+                                        <!-- ============================================================ -->
+                                        <!-- 1. CAMPAIGN INFORMATION                                       -->
+                                        <!-- ============================================================ -->
                                         <div class="builder-card">
                                             <h5>Campaign Information</h5>
                                             <div class="row">
-                                                @php
-                                                    $adGroup = $campaign->adGroups->first();
-                                                    $ageGroup = json_decode($adGroup->age_groups);
-                                                    $creative = $adGroup->creatives->first();
-                                                    $ad = $creative->ads->first();
-                                                    $media = $creative->media;
-                                                    $publisherPlatforms = json_decode($adGroup->publisher_platforms);
-                                                    $languages = json_decode($adGroup->languages); 
-                                                    $selectedCountries = json_decode($adGroup->location_ids);                                             
-                                                @endphp
-                                                <div class="col-md-12">
-                                                    <label>Platforms</label>
-                                                    <div class="platform-group">
-                                                        <div class="platform-card">
-                                                            <div class="form-check form-switch">
-                                                                <input class="form-check-input platform-switch"
-                                                                    type="checkbox" id="facebook" name="facebook" {{ in_array('facebook', $publisherPlatforms) ? 'checked' : '' }}>
-
-                                                                <label class="form-check-label ms-2" for="facebook">
-                                                                    <i class="bx bxl-facebook text-primary"></i>
-                                                                    Facebook
-                                                                </label>
-                                                            </div>
-                                                        </div>
-                                                        <div class="platform-card">
-                                                            <div class="form-check form-switch">
-                                                                <input class="form-check-input platform-switch"
-                                                                    type="checkbox" id="instagram" name="instagram"  {{ in_array('instagram', $publisherPlatforms) ? 'checked' : '' }}>
-
-                                                                <label class="form-check-label ms-2" for="instagram">
-                                                                    <i class="bx bxl-instagram text-danger"></i>
-                                                                    Instagram
-                                                                </label>
-                                                            </div>
-                                                        </div>
-                                                        <p class="error-message error-facebook error-instagram"></p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <br>
-                                            <div class="row">
                                                 <div class="col-md-6">
-                                                    <label>Campaign Name</label>
-                                                    <input type="text" name="name" id="name" value="{{ old('name', $campaign->name) }}" class="form-control">
+                                                    <label>Campaign Name *</label>
+                                                    <input type="text" name="name" id="name" value="{{ old('name', $campaign->name) }}"
+                                                        class="form-control" required>
                                                     <p class="error-message error-name"></p>
                                                 </div>
                                                 <div class="col-md-6">
-                                                    <label>Objective</label>
-                                                    <select id="objective" name="objective" class="form-select">
-                                                        <option value="OUTCOME_TRAFFIC" @selected(old('objective', $campaign->objective) == 'OUTCOME_TRAFFIC')>
-                                                            Traffic
-                                                        </option>
-                                                        <option value="OUTCOME_SALES" @selected(old('objective', $campaign->objective) == 'OUTCOME_SALES')>
-                                                            Sales
-                                                        </option>
-                                                        <option value="OUTCOME_ENGAGEMENT" @selected(old('objective', $campaign->objective) == 'OUTCOME_ENGAGEMENT')>
-                                                            Engagement
-                                                        </option>
-                                                        <option value="OUTCOME_AWARENESS" @selected(old('objective', $campaign->objective) == 'OUTCOME_AWARENESS')>
-                                                            Awareness
-                                                        </option>
-                                                        <option value="OUTCOME_APP_PROMOTION" @selected(old('objective', $campaign->objective) == 'OUTCOME_APP_PROMOTION')>
-                                                            App promotion
-                                                        </option>
-                                                        <option value="OUTCOME_LEADS" @selected(old('objective', $campaign->objective) == 'OUTCOME_LEADS')>
-                                                            Leads
-                                                        </option>
+                                                    <label>Objective *</label>
+                                                    <select id="objective" name="objective" class="form-select" required>
+                                                        <option value="">-- Select Objective --</option>
+                                                        <option value="APP_PROMOTION" @selected(old('objective', $campaign->objective) == 'APP_PROMOTION')>App Promotion</option>
+                                                        <option value="WEB_CONVERSIONS" @selected(old('objective', $campaign->objective) == 'WEB_CONVERSIONS')>Web Conversions</option>
+                                                        <option value="REACH" @selected(old('objective', $campaign->objective) == 'REACH')>Reach</option>
+                                                        <option value="BRAND_CONSIDERATION" @selected(old('objective', $campaign->objective) == 'BRAND_CONSIDERATION')>Brand Consideration</option>
+                                                        <option value="TRAFFIC" @selected(old('objective', $campaign->objective) == 'TRAFFIC')>Traffic</option>
+                                                        <option value="VIDEO_VIEWS" @selected(old('objective', $campaign->objective) == 'VIDEO_VIEWS')>Video Views</option>
+                                                        <option value="ENGAGEMENT" @selected(old('objective', $campaign->objective) == 'ENGAGEMENT')>Engagement</option>
+                                                        <option value="LEAD_GENERATION" @selected(old('objective', $campaign->objective) == 'LEAD_GENERATION')>Lead Generation</option>
+                                                        <option value="TOPVIEW_REACH" @selected(old('objective', $campaign->objective) == 'TOPVIEW_REACH')>TopView Reach</option>
                                                     </select>
                                                     <p class="error-message error-objective"></p>
                                                 </div>
                                             </div>
+
+                                            <!-- Objective-dependent fields -->
+                                            <div class="row" id="objectiveDependentFields">
+                                                <div class="col-md-6 objective-app" style="display:none;">
+                                                    <label>App Promotion Type</label>
+                                                    <select name="app_promotion_type" id="app_promotion_type" class="form-select">
+                                                        <option value="APP_INSTALL" @selected($campaign->app_promotion_type == 'APP_INSTALL')>App Install</option>
+                                                        <option value="APP_RETARGETING" @selected($campaign->app_promotion_type == 'APP_RETARGETING')>App Retargeting</option>
+                                                        <option value="APP_PREREGISTRATION" @selected($campaign->app_promotion_type == 'APP_PREREGISTRATION')>App Pre-registration</option>
+                                                    </select>
+                                                    <p class="error-message error-app_promotion_type"></p>
+                                                </div>
+                                                <div class="col-md-6 objective-app" style="display:none;">
+                                                    <label>App ID</label>
+                                                    <input type="text" name="app_id" id="app_id" value="{{ old('app_id') }}" class="form-control">
+                                                    <p class="error-message error-app_id"></p>
+                                                </div>
+                                                <div class="col-md-6 objective-web" style="display:none;">
+                                                    <label>Pixel ID</label>
+                                                    <input type="text" name="pixel_id" id="pixel_id" value="{{ old('pixel_id', $adGroup->pixel_id ?? '') }}" class="form-control">
+                                                    <p class="error-message error-pixel_id"></p>
+                                                </div>
+                                            </div>
                                         </div>
 
+                                        <!-- ============================================================ -->
+                                        <!-- 2. BUDGET & SCHEDULE (AdGroup level)                        -->
+                                        <!-- ============================================================ -->
                                         <div class="builder-card">
-
                                             <h5>Budget & Schedule</h5>
-                                            <div class="row mt-4">
-                                                <div class="col-md-6">
-                                                    <label>Start Date</label>
-                                                    <input type="date" id="start_time" name="start_time" value="{{ \Carbon\Carbon::parse($campaign->start_time)->format('Y-m-d') }}" class="form-control">
-                                                    <p class="error-message error-start_time"></p>
-                                                </div>
-
-                                                <div class="col-md-6">
-                                                    <label>End Date</label>
-                                                    <input type="date" id="end_time" name="end_time" class="form-control"  value="{{ \Carbon\Carbon::parse($campaign->end_time)->format('Y-m-d') }}">
-                                                    <p class="error-message error-end_time"></p>
-                                                </div>
-
-                                            </div>
-
-                                            <div class="row mt-4">
-
+                                            <div class="row">
                                                 <div class="col-md-4">
-                                                    <label>Budget Type</label>
-                                                    <select class="form-select" name="budget_mode" id="budget_mode">
-                                                        <option value="daily_budget" @selected(old('budget_mode', $campaign->budget_mode) == 'daily_budget')>Daily Budget</option>
-                                                        <option value="lifetime_budget" @selected(old('budget_mode', $campaign->budget_mode) == 'lifetime_budget')>Lifetime Budget</option>
+                                                    <label>Budget Mode *</label>
+                                                    <select name="budget_mode" id="budget_mode" class="form-select" required>
+                                                        <option value="BUDGET_MODE_DAY" @selected(old('budget_mode', $campaign->budget_mode) == 'BUDGET_MODE_DAY')>Daily Budget</option>
+                                                        <option value="BUDGET_MODE_TOTAL" @selected(old('budget_mode', $campaign->budget_mode) == 'BUDGET_MODE_TOTAL')>Lifetime Budget</option>
                                                     </select>
                                                     <p class="error-message error-budget_mode"></p>
                                                 </div>
-
-
                                                 <div class="col-md-4">
-                                                    <label>Budget</label>
+                                                    <label>Budget *</label>
                                                     <div class="input-group">
-                                                        <span class="input-group-text">{{ $account->currency }}</span>
-                                                        <input class="form-control" name="budget" id="budget"
-                                                            type="number" step="0.01" value="{{$adGroup->budget}}">
+                                                        <span class="input-group-text">{{ $account->currency ?? 'USD' }}</span>
+                                                        <input class="form-control" name="budget" id="budget" type="number" step="0.01" min="1"
+                                                            value="{{ old('budget', $campaign->budget) }}" required>
                                                     </div>
                                                     <p class="error-message error-budget"></p>
                                                 </div>
-
-
                                                 <div class="col-md-4">
                                                     <label>Bid Amount</label>
                                                     <div class="input-group">
-                                                        <span class="input-group-text">{{ $account->currency }}</span>
-                                                        <input class="form-control" name="bid_amount" value="{{$adGroup->bid_price}}" id="bid_amount"
-                                                            type="number" step="0.01">
+                                                        <span class="input-group-text">{{ $account->currency ?? 'USD' }}</span>
+                                                        <input class="form-control" name="bid_amount" id="bid_amount" type="number" step="0.01"
+                                                            value="{{ old('bid_amount', $adGroup->bid_price ?? '') }}">
                                                     </div>
                                                     <p class="error-message error-bid_amount"></p>
                                                 </div>
-
-
+                                            </div>
+                                            <div class="row mt-3">
+                                                <div class="col-md-6">
+                                                    <label>Start Date *</label>
+                                                    <input type="date" name="start_time" id="start_time" class="form-control"
+                                                        value="{{ \Carbon\Carbon::parse($campaign->start_time)->format('Y-m-d') }}" required>
+                                                    <p class="error-message error-start_time"></p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label>End Date (optional)</label>
+                                                    <input type="date" name="end_time" id="end_time" class="form-control"
+                                                        value="{{ \Carbon\Carbon::parse($campaign->end_time)->format('Y-m-d') }}">
+                                                    <p class="error-message error-end_time"></p>
+                                                </div>
                                             </div>
 
-
-                                            <!-- VAT Summary -->
                                             <div class="row mt-4">
-
                                                 <div class="col-md-6 offset-md-6">
-
                                                     <div class="card shadow-sm border-0">
                                                         <div class="card-body">
-
                                                             <div class="d-flex justify-content-between mb-2">
                                                                 <span>Budget</span>
-                                                                <strong>
-                                                                    {{ $account->currency }}
-                                                                    <span id="budget_amount">0.00</span>
-                                                                </strong>
+                                                                <strong>{{ $account->currency ?? 'USD' }} <span id="budget_amount">0.00</span></strong>
                                                             </div>
-
                                                             <div class="d-flex justify-content-between mb-2 text-muted">
                                                                 <span>VAT (15%)</span>
-                                                                <strong>
-                                                                    {{ $account->currency }}
-                                                                    <span id="vat_amount">0.00</span>
-                                                                </strong>
+                                                                <strong>{{ $account->currency ?? 'USD' }} <span id="vat_amount">0.00</span></strong>
                                                             </div>
-
-
                                                             <hr>
-
-                                                            <input type="hidden" name="final_budget"
-                                                            id="final_budget" value="">
+                                                            <input type="hidden" name="final_budget" id="final_budget" value="">
                                                             <div class="d-flex justify-content-between">
                                                                 <h5 class="mb-0">Total Budget</h5>
-                                                                <h5 class="mb-0 text-primary">
-                                                                    {{ $account->currency }}
-                                                                    
-                                                                    <span id="total_budget">0.00</span>
-                                                                </h5>
+                                                                <h5 class="mb-0 text-primary">{{ $account->currency ?? 'USD' }} <span id="total_budget">0.00</span></h5>
                                                             </div>
-
-
                                                         </div>
                                                     </div>
-
                                                 </div>
-
                                             </div>
-
                                         </div>
-                                        <div class="builder-card">
 
+                                        <!-- ============================================================ -->
+                                        <!-- 3. GOAL SETUP (AdGroup level)                               -->
+                                        <!-- ============================================================ -->
+                                        <div class="builder-card">
                                             <h5>Goal Setup</h5>
                                             <div class="row">
                                                 <div class="col-md-6">
-                                                    <label>Destination Type</label>
-                                                    <select name="destination_type" id="destination_type" class="form-select">
-                                                    </select>
-                                                    <p class="error-message error-destination_type"></p>
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <label>Optimization Gaol</label>
-                                                    <select id="optimization_goal" name="optimization_goal" class="form-select">
+                                                    <label>Optimization Goal *</label>
+                                                    <select name="optimization_goal" id="optimization_goal" class="form-select" required>
+                                                        <option value="">-- Select Optimization Goal --</option>
                                                     </select>
                                                     <p class="error-message error-optimization_goal"></p>
                                                 </div>
-                                            </div>
-                                            <br>
-                                            <div class="row">
                                                 <div class="col-md-6">
-                                                    <label>Billing Event</label>
-                                                    <select id="billing_event" name="billing_event" class="form-select">
+                                                    <label>Billing Event *</label>
+                                                    <select name="billing_event" id="billing_event" class="form-select" required>
+                                                        <option value="">-- Select Billing Event --</option>
                                                     </select>
                                                     <p class="error-message error-billing_event"></p>
                                                 </div>
-                                                <div class="col-md-6">
-                                                    <label>Countries</label>
-                                                    <select id="countries" name="countries[]" multiple
-                                                        class="form-select">
+                                            </div>
+
+                                            <div class="row mt-3">
+                                                <div class="col-md-6 promotion-type-block">
+                                                    <label>Promotion Type *</label>
+                                                    <select name="promotion_type" id="promotion_type" class="form-select" required>
+                                                        <option value="">-- Select Promotion Type --</option>
+                                                    </select>
+                                                    <p class="error-message error-promotion_type"></p>
+                                                </div>
+                                                <div class="col-md-6 promotion-target-block" style="display:none;">
+                                                    <label>Promotion Target Type</label>
+                                                    <select name="promotion_target_type" id="promotion_target_type" class="form-select">
+                                                        <option value="INSTANT_PAGE" @selected($adGroup->promotion_target_type == 'INSTANT_PAGE')>Instant Page</option>
+                                                        <option value="EXTERNAL_WEBSITE" @selected($adGroup->promotion_target_type == 'EXTERNAL_WEBSITE')>External Website</option>
+                                                    </select>
+                                                    <p class="error-message error-promotion_target_type"></p>
+                                                </div>
+                                            </div>
+
+                                            <div class="row mt-3" id="dynamicGoalFields">
+                                                <div class="col-md-6 messaging-app-block" style="display:none;">
+                                                    <label>Messaging App Type</label>
+                                                    <select name="messaging_app_type" id="messaging_app_type" class="form-select">
+                                                        <option value="">-- Select --</option>
+                                                        <option value="MESSENGER">Messenger</option>
+                                                        <option value="WHATSAPP">WhatsApp</option>
+                                                        <option value="ZALO">Zalo</option>
+                                                        <option value="LINE">Line</option>
+                                                        <option value="IM_URL">Instant Messaging URL</option>
+                                                    </select>
+                                                    <p class="error-message error-messaging_app_type"></p>
+                                                </div>
+                                                <div class="col-md-6 messaging-account-block" style="display:none;">
+                                                    <label>Messaging App Account ID</label>
+                                                    <input type="text" name="messaging_app_account_id" id="messaging_app_account_id" class="form-control">
+                                                    <p class="error-message error-messaging_app_account_id"></p>
+                                                </div>
+                                                <div class="col-md-6 phone-block" style="display:none;">
+                                                    <label>Phone Region Code</label>
+                                                    <input type="text" name="phone_region_code" id="phone_region_code" class="form-control">
+                                                    <p class="error-message error-phone_region_code"></p>
+                                                </div>
+                                                <div class="col-md-6 phone-block" style="display:none;">
+                                                    <label>Phone Number</label>
+                                                    <input type="text" name="phone_number" id="phone_number" class="form-control">
+                                                    <p class="error-message error-phone_number"></p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- ============================================================ -->
+                                        <!-- 4. AUDIENCE TARGETING (AdGroup level)                       -->
+                                        <!-- ============================================================ -->
+                                        <div class="builder-card">
+                                            <h5>Audience Targeting</h5>
+                                            <div class="row">
+                                                <div class="col-md-4">
+                                                    <label>Gender</label>
+                                                    <select name="gender" id="gender" class="form-select">
+                                                        <option value="GENDER_UNLIMITED" @selected(old('gender', $adGroup->gender) == 'GENDER_UNLIMITED')>All</option>
+                                                        <option value="GENDER_MALE" @selected(old('gender', $adGroup->gender) == 'GENDER_MALE')>Male</option>
+                                                        <option value="GENDER_FEMALE" @selected(old('gender', $adGroup->gender) == 'GENDER_FEMALE')>Female</option>
+                                                    </select>
+                                                    <p class="error-message error-gender"></p>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label>Age Range</label>
+                                                    <div class="checkbox-group">
+                                                        @foreach ([
+                                                            'AGE_18_24' => '18 – 24',
+                                                            'AGE_25_34' => '25 – 34',
+                                                            'AGE_35_44' => '35 – 44',
+                                                            'AGE_45_54' => '45 – 54',
+                                                            'AGE_55_100' => '55+',
+                                                        ] as $value => $label)
+                                                            <div class="form-check form-switch">
+                                                                <input class="form-check-input platform-switch" type="checkbox" name="age_range[]"
+                                                                    value="{{ $value }}" id="age_{{ strtolower($value) }}"
+                                                                    {{ in_array($value, $ageGroups) ? 'checked' : '' }}>
+                                                                <label class="form-check-label" for="age_{{ strtolower($value) }}">{{ $label }}</label>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                    <p class="error-message error-age_range"></p>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label>Countries (multiple)</label>
+                                                    <select name="countries[]" id="countries" multiple class="form-select">
                                                         @foreach ($countries as $country)
-                                                            <option value="{{ $country->id }}" {{ in_array($country->code, $selectedCountries) ? 'selected' : '' }}>{{ $country->name }}
+                                                            <option value="{{ $country->id }}" {{ in_array($country->id, $selectedCountries) ? 'selected' : '' }}>
+                                                                {{ $country->name }}
                                                             </option>
                                                         @endforeach
                                                     </select>
                                                     <p class="error-message error-countries"></p>
                                                 </div>
                                             </div>
-
-                                            <div class="row">
-                                                <div class="col-md-6">
-                                                    <label>Page Id</label>
-                                                    <div class="input-group">
-                                                        <input class="form-control" name="page_id" id="page_id" value="{{$creative->page_id}}" type="text" step="0.01">
+                                            <div class="row mt-3">
+                                                <div class="col-md-12">
+                                                    <label>Languages</label>
+                                                    <div class="platform-group">
+                                                        @foreach (['en' => 'English', 'ar' => 'Arabic', 'es' => 'Spanish', 'fr' => 'French', 'de' => 'German', 'ja' => 'Japanese', 'ko' => 'Korean', 'pt' => 'Portuguese', 'ru' => 'Russian', 'zh' => 'Chinese'] as $code => $name)
+                                                            <div class="platform-card">
+                                                                <div class="form-check form-switch">
+                                                                    <input class="form-check-input platform-switch" type="checkbox" name="languages[]"
+                                                                        value="{{ $code }}" id="lang_{{ $code }}"
+                                                                        {{ in_array($code, $languages) ? 'checked' : '' }}>
+                                                                    <label class="form-check-label ms-2" for="lang_{{ $code }}">{{ $name }}</label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
                                                     </div>
-                                                    <p class="error-message error-page_id"></p>
+                                                    <p class="error-message error-languages"></p>
                                                 </div>
                                             </div>
-
                                         </div>
-                                        <div class="builder-card">
 
+                                        <!-- ============================================================ -->
+                                        <!-- 5. AD CREATIVE (Ad level)                                   -->
+                                        <!-- ============================================================ -->
+                                        <div class="builder-card">
                                             <h5>Ad Creative</h5>
                                             <div class="duration-buttons">
-                                                <input type="hidden" name="media_type" id="media_type" value="IMAGE">
-                                                <button type="button" class="duration-btn media-type active"
-                                                    data-type="IMAGE">
-                                                    Image
-                                                </button>
-
-                                                <button type="button" class="duration-btn media-type"
-                                                    data-type="CAROUSEL">
-                                                    Carousel
-                                                </button>
-
-                                                <button type="button" class="duration-btn media-type" data-type="VIDEO">
-                                                    Video
-                                                </button>
+                                                <input type="hidden" name="media_type" id="media_type" value="{{ $creative->type ?? 'IMAGE' }}">
+                                                <button type="button" class="duration-btn media-type {{ ($creative->type ?? 'IMAGE') == 'IMAGE' ? 'active' : '' }}" data-type="IMAGE">Image</button>
+                                                <button type="button" class="duration-btn media-type {{ ($creative->type ?? '') == 'CAROUSEL' ? 'active' : '' }}" data-type="CAROUSEL">Carousel</button>
+                                                <button type="button" class="duration-btn media-type {{ ($creative->type ?? '') == 'VIDEO' ? 'active' : '' }}" data-type="VIDEO">Video</button>
                                                 <p class="error-message error-media_type"></p>
                                             </div>
                                             <br>
                                             <div class="upload-zone">
-                                                <i class="bx bx-cloud-upload"></i>
-
-                                                <h6>Drag & Drop Media</h6>
-
-                                                <p>Upload image or video</p>
-
-                                                @foreach ($media as $each)
-                                                    <input type="hidden" name="old_media_id[]" value="{{$each->id}}">
-                                                @endforeach
-
-                                                <input type="file" name="media[]" id="mediaInput" value="" hidden
-                                                    accept="image/*,video/*">
-
-                                                <button type="button" class="btn btn-primary"
-                                                    onclick="mediaInput.click()">
-                                                    Upload Media
+                                                @if ($firstMedia)
+                                                    @if ($firstMedia->type === 'VIDEO')
+                                                        <video src="{{ $firstMedia->url }}" style="max-width:100%;border-radius:12px;" controls></video>
+                                                    @else
+                                                        <img src="{{ $firstMedia->url }}" style="max-width:100%;border-radius:12px;">
+                                                    @endif
+                                                    <p class="text-muted mt-2">Current media - upload a new file only if you want to replace it.</p>
+                                                @else
+                                                    <i class="bx bx-cloud-upload"></i>
+                                                    <h6>Drag & Drop Media</h6>
+                                                    <p>Upload image or video</p>
+                                                @endif
+                                                <input type="file" name="media[]" id="mediaInput" hidden accept="image/*,video/*">
+                                                <button type="button" class="btn btn-primary" onclick="document.getElementById('mediaInput').click()">
+                                                    {{ $firstMedia ? 'Replace Media' : 'Upload Media' }}
                                                 </button>
                                                 <p class="error-message error-media"></p>
                                             </div>
-
-
                                             <div class="mt-4">
-
                                                 <label>Description</label>
-
-                                                <textarea id="adDescription" name="description" rows="4" class="form-control">{{$creative->message}}</textarea>
+                                                <textarea id="ad_description" name="description" rows="4" class="form-control">{{ old('description', $creative->message ?? '') }}</textarea>
                                                 <p class="error-message error-description"></p>
                                             </div>
-                                            <div class="mt-4">
-                                                <label>Target URL</label>
-
-                                                <input type="url" name="target_link" id="targetLink" value="{{$creative->url}}" class="form-control" placeholder="https://example.com">
-                                                <p class="error-message error-target_link"></p>
-                                            </div>
-
                                         </div>
                                         <div class="builder-card">
-                                            <h5>Audience</h5>
                                             <div class="row">
                                                 <div class="col-md-6">
-                                                    <select id="call_to_action" name="call_to_action"
-                                                        class="form-select">
-                                                        <option value="">Call To Action</option>
-                                                        <option value="LEARN_MORE">Learn More</option>
-                                                        <option value="SHOP_NOW">Shop Now</option>
-                                                        <option value="SIGN_UP">Sign Up</option>
-                                                        <option value="BOOK_NOW">Book Now</option>
-                                                        <option value="CONTACT_US">Contact Us</option>
-                                                        <option value="CALL_NOW">Call Now</option>
-                                                        <option value="SEND_MESSAGE">Send Message</option>
-                                                        <option value="DOWNLOAD">Download</option>
+                                                    <label>Target URL (Landing Page)</label>
+                                                    <input type="url" name="target_link" id="target_link" class="form-control"
+                                                        value="{{ old('target_link', $creative->url ?? '') }}" placeholder="https://example.com">
+                                                    <p class="error-message error-target_link"></p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label>Call to Action</label>
+                                                    <select name="call_to_action" id="call_to_action" class="form-select">
+                                                        <option value="">-- Select CTA --</option>
+                                                        @foreach ([
+                                                            'LEARN_MORE' => 'Learn More', 'SHOP_NOW' => 'Shop Now', 'SIGN_UP' => 'Sign Up',
+                                                            'BOOK_NOW' => 'Book Now', 'CONTACT_US' => 'Contact Us', 'CALL_NOW' => 'Call Now',
+                                                            'SEND_MESSAGE' => 'Send Message', 'DOWNLOAD' => 'Download',
+                                                        ] as $value => $label)
+                                                            <option value="{{ $value }}" @selected(old('call_to_action', $ad->call_to_action ?? '') == $value)>{{ $label }}</option>
+                                                        @endforeach
                                                     </select>
                                                     <p class="error-message error-call_to_action"></p>
                                                 </div>
-                                                <div class="col-md-6">
-                                                    <select id="gender" name="gender" class="form-select">
-                                                        <option value="">Gender</option>
-                                                        <option value="male" @selected(old('gender', $adGroup->gender) == 'male')>Male</option>
-                                                        <option value="female" @selected(old('gender', $adGroup->gender) == 'female')>Female</option>
-                                                        <option value="both" @selected(old('gender', $adGroup->gender) == 'both')>Both</option>
-                                                    </select>
-                                                    <p class="error-message error-gender"></p>
-                                                </div>
-                                            </div>
-                                            <br>
-                                            <div class="row">
-                                                <div class="col-md-6">
-                                                    <select id="age_from" name="age_from" class="form-select">
-                                                        <option value="">Age From</option>
-                                                    
-                                                        @for($age = 18; $age <= 65; $age++)
-                                                            <option value="{{ $age }}" 
-                                                                @selected(old('age_from', $ageGroup->age_from) == $age)>
-                                                                {{ $age }}
-                                                            </option>
-                                                        @endfor
-                                                    
-                                                    </select>
-                                                    <p class="error-message error-age_from"></p>
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <select id="age_to" name="age_to" class="form-select">
-                                                        <option value="">Age To</option>
-                                                
-                                                        @for($age = 31; $age <= 65; $age++)
-                                                            <option value="{{ $age }}"
-                                                                @selected(old('age_to', $ageGroup->age_to) == $age)>
-                                                                {{ $age }}
-                                                            </option>
-                                                        @endfor
-                                                
-                                                        <option value="45+"
-                                                            @selected(old('age_to', $adGroup->age_to) == '65+')>
-                                                            65+
-                                                        </option>
-                                                
-                                                    </select>
-                                                
-                                                    <p class="error-message error-age_to"></p>
-                                                </div>
-                                            </div>
-                                            <br>
-                                            <div class="row">
-                                                <div class="col-md-12">
-                                                    <label>Languages</label>
-
-                                                    <div class="platform-group">
-
-                                                        <div class="platform-card">
-                                                            <div class="form-check form-switch">
-                                                                <input class="form-check-input platform-switch"
-                                                                    type="checkbox" name="languages[]" value="english"
-                                                                    id="english" {{ in_array('english', $languages) ? 'checked' : '' }}>
-
-                                                                <label class="form-check-label ms-2" for="english">
-                                                                    English
-                                                                </label>
-                                                                <p class="error-message error-languages"></p>
-                                                            </div>
-                                                        </div>
-
-                                                        <div class="platform-card">
-                                                            <div class="form-check form-switch">
-                                                                <input class="form-check-input platform-switch"
-                                                                    type="checkbox" id="instagramPlatform"
-                                                                    name="languages[]" value="arabic" {{ in_array('arabic', $languages) ? 'checked' : '' }}>
-
-                                                                <label class="form-check-label ms-2" for="arabic">
-                                                                    Arabic
-                                                                </label>
-                                                                <p class="error-message error-languages"></p>
-                                                            </div>
-                                                        </div>
-
-                                                    </div>
-                                                </div>
-
                                             </div>
                                         </div>
-
-                                        <button type="submit" class="duration-btn active">
-                                            Launch
-                                        </button>
+                                        <button type="submit" class="duration-btn active">Save Changes</button>
                                     </form>
                                 </div>
-                                <!-- RIGHT SIDE -->
+
+                                <!-- RIGHT: Preview -->
                                 <div class="col-lg-4">
                                     <div class="preview-card">
-                                        <div class="preview-header">
-                                            Live Preview
-                                        </div>
+                                        <div class="preview-header">Live Preview</div>
                                         <div class="facebook-preview">
                                             <div class="preview-top">
                                                 <div class="avatar"></div>
                                                 <div>
-                                                    <strong>{{ $account->name }}</strong>
+                                                    <strong>{{ $account->name ?? 'Brand' }}</strong>
                                                     <div>Sponsored</div>
                                                 </div>
                                             </div>
-                                            <img @if ($media->first()->type === 'IMAGE') src="{{$media->first()->url}}"  style="display:block" @else  style="display:none" @endif id="previewImage" class="preview-image">
-                                            <video @if ($media->first()->type === 'VIDEO') src="{{$media->first()->url}}" style="display:block;width:100%;border-radius:12px;" @else  style="display:none;width:100%;border-radius:12px;" @endif id="previewVideo" class="preview-image" controls>
-                                            </video>
+                                            <img id="previewImage" class="preview-image"
+                                                @if ($firstMedia && $firstMedia->type !== 'VIDEO') src="{{ $firstMedia->url }}" style="display:block" @else style="display:none" @endif>
+                                            <video id="previewVideo" class="preview-image" controls
+                                                @if ($firstMedia && $firstMedia->type === 'VIDEO') src="{{ $firstMedia->url }}" style="display:block;width:100%;border-radius:12px;" @else style="display:none;width:100%;border-radius:12px;" @endif></video>
                                             <div id="carouselPreview" style="display:none">
                                                 <img id="carouselImage" class="preview-image">
-                                                <div class="mt-3">
-                                                    <label>Title</label>
-                                                    <input type="text" id="carouselTitle" class="form-control"
-                                                        placeholder="Card title">
-                                                </div>
-                                                <div class="mt-3">
-                                                    <label>Description</label>
-                                                    <textarea id="carouselDescription" class="form-control" rows="3" placeholder="Card description">{{$creative->message}}</textarea>
-                                                </div>
-                                                <div class="mt-3">
-                                                    <label>Card URL</label>
-                                                    <input type="url" id="carouselLink" class="form-control"
-                                                        placeholder="https://example.com">
-                                                </div>
+                                                <div class="mt-3"><label>Title</label><input type="text" id="carouselTitle" class="form-control" placeholder="Card title"></div>
+                                                <div class="mt-3"><label>Description</label><textarea id="carouselDescription" class="form-control" rows="3" placeholder="Card description"></textarea></div>
+                                                <div class="mt-3"><label>Card URL</label><input type="url" id="carouselLink" class="form-control" placeholder="https://example.com"></div>
                                                 <div class="d-flex justify-content-between mt-3">
-                                                    <button type="button" class="btn btn-primary" id="prevImage">
-                                                        Previous
-                                                    </button>
+                                                    <button type="button" class="btn btn-primary" id="prevImage">Previous</button>
                                                     <span id="carouselCounter"></span>
-                                                    <button type="button" class="btn btn-primary" id="nextImage">
-                                                        Next
-                                                    </button>
+                                                    <button type="button" class="btn btn-primary" id="nextImage">Next</button>
                                                 </div>
                                             </div>
                                             <div class="preview-content">
-                                                <h6 id="previewTitle">
-                                                    {{$campaign->name}}
-                                                </h6>
-                                                <p id="previewDescription">
-                                                    {{$creative->message}}
-                                                </p>
+                                                <h6 id="previewTitle">{{ $campaign->name }}</h6>
+                                                <p id="previewDescription">{{ $creative->message ?? '' }}</p>
                                             </div>
-                                            <a id="previewCTA" href="#" target="_blank"
-                                                class="btn btn-primary w-100">
-                                                {{ ucwords(strtolower(str_replace('_', ' ', $ad->call_to_action))) }}
+                                            <a id="previewCTA" href="{{ $creative->url ?? '#' }}" target="_blank" class="btn btn-primary w-100">
+                                                {{ $ad ? ucwords(strtolower(str_replace('_', ' ', $ad->call_to_action))) : 'Learn More' }}
                                             </a>
                                         </div>
                                     </div>
@@ -653,449 +573,246 @@
 @endsection
 
 @push('scripts')
-    <script>
-        var campaignId = @json($campaign->id);
-        var areYouSure = "{{ __('admin.sweet-alert.are-you-sure') }}";
-        var selectedObjective = "{{ $campaign->objective }}";
-        var selectedDestinationType = "{{ $adGroup->destination_type }}";
-        var selectedOptimizationGoal = "{{ $adGroup->optimization_goal }}";
-        var selectedBillingEvent = "{{ $adGroup->billing_event }}";
-        var selectedCTA = "{{ $ad->call_to_action }}";
-        var YouWontBeAbleToRevertThis = "{{ __('admin.sweet-alert.you-wont-be-able-to-revert-this') }}";
-        var YesDeleteIt = "{{ __('admin.sweet-alert.yes-delete-it') }}";
-        var recordHasBeenDelete = "{{ __('admin.sweet-alert.record-has-been-deleted') }}";
-        var deleted = "{{ __('admin.sweet-alert.deleted') }}";
-        var saveDescription = "{{ __('admin.sweet-alert.save-description') }}";
-        var saveHeader = "{{ __('admin.sweet-alert.save-header') }}";
-        var saveHeader = "{{ __('admin.sweet-alert.save-header') }}";
-        var dontSave = "{{ __('admin.sweet-alert.dont-save') }}";
-        var wentWrong = "{{ __('admin.sweet-alert.went-wrong') }}";
-        var error = "{{ __('admin.sweet-alert.error') }}";
-        var success = "{{ __('admin.sweet-alert.success') }}";
-        var changesNotSaved = "{{ __('admin.sweet-alert.changes-not-saved') }}";
-        var apiUrl = "{{ route('admin.apis.store') }}";
-        var getAPIUrl = "{{ route('admin.apis.show', ['api' => ':API']) }}";
-        var url = "{{ route('admin.ads.campaigns.update', ['platform' => 'facebook', 'campaign' => '__ID__']) }}";
-        url = url.replace('__ID__', campaignId);       
-        var destroyAPIUrl = "{{ route('admin.apis.destroy', ['api' => ':API']) }}";
-        var redirectUrl = "{{ route('admin.ads.campaigns.index', ['platform' => 'facebook']) }}";
-        //  var url = "{{ route('admin.ads.campaigns.store', ['platform' => 'facebook']) }}";
-        var method = 'PUT';
-        var edit = "{{ __('admin.table.edit') }}";
-        var deletebutton = "{{ __('admin.table.delete') }}";
-        $('#countries').select2();
-        document.getElementById('name').addEventListener('keyup', function() {
+<script>
+    $('#countries').select2();
 
-            document.getElementById('previewTitle')
-                .innerText = this.value || 'Campaign Name';
+    const optimizationGoalBillingMap = {
+        'CLICK': 'CPC', 'PAGE_VISIT': 'CPC', 'CONVERT': 'OCPM', 'INSTALL': 'OCPM',
+        'IN_APP_EVENT': 'OCPM', 'TRAFFIC_LANDING_PAGE_VIEW': 'OCPM', 'LEAD_GENERATION': 'OCPM',
+        'CONVERSATION': 'OCPM', 'FOLLOWERS': 'OCPM', 'VALUE': 'OCPM',
+        'AUTOMATIC_VALUE_OPTIMIZATION': 'OCPM', 'PRODUCT_CLICK_IN_LIVE': 'OCPM', 'MT_LIVE_ROOM': 'OCPM',
+        'DESTINATION_VISIT': 'OCPM', 'SHOW': 'CPM', 'REACH': 'CPM', 'ENGAGED_VIEW': 'CPV', 'ENGAGED_VIEW_FIFTEEN': 'CPV'
+    };
 
-        });
+    const objectiveConfig = {
+        'APP_PROMOTION': { optimizationGoals: ["INSTALL", "IN_APP_EVENT", "VALUE"], promotionTypes: ['APP_ANDROID', 'APP_IOS', 'MINI_APP', 'MINI_GAME', 'GAME'] },
+        'WEB_CONVERSIONS': { optimizationGoals: ["CONVERT", "VALUE", "AUTOMATIC_VALUE_OPTIMIZATION"], promotionTypes: ['WEBSITE', 'WEBSITE_OR_DISPLAY'] },
+        'REACH': { optimizationGoals: ['REACH'], promotionTypes: ['WEBSITE', 'EXTERNAL_OR_DISPLAY'] },
+        'BRAND_CONSIDERATION': { optimizationGoals: ['REACH', 'IMPRESSIONS', 'AD_RECALL_LIFT'], promotionTypes: ['WEBSITE', 'EXTERNAL_OR_DISPLAY'] },
+        'TRAFFIC': { optimizationGoals: ["CLICK", "TRAFFIC_LANDING_PAGE_VIEW"], promotionTypes: ['WEBSITE', 'WEBSITE_OR_DISPLAY'] },
+        'VIDEO_VIEWS': { optimizationGoals: ["ENGAGED_VIEW", "ENGAGED_VIEW_FIFTEEN"], promotionTypes: ['WEBSITE', "WEBSITE_OR_DISPLAY"] },
+        'ENGAGEMENT': { optimizationGoals: ["FOLLOWERS", "PAGE_VISIT"], promotionTypes: ['EXTERNAL_OR_DISPLAY', 'WEBSITE'] },
+        'LEAD_GENERATION': { optimizationGoals: ['LEAD_GENERATION'], promotionTypes: ['LEAD_GENERATION', 'LEAD_GEN_CLICK_TO_TT_DIRECT_MESSAGE', 'LEAD_GEN_CLICK_TO_SOCIAL_MEDIA_APP_MESSAGE', 'LEAD_GEN_CLICK_TO_CALL'] },
+        'TOPVIEW_REACH': { optimizationGoals: ['REACH', 'IMPRESSIONS'], promotionTypes: ['WEBSITE', 'EXTERNAL_OR_DISPLAY'] }
+    };
 
-        document.getElementById('adDescription').addEventListener('keyup', function() {
+    const promotionTypeLabels = {
+        'APP_ANDROID': 'Android App', 'APP_IOS': 'iOS App', 'MINI_APP': 'Mini App', 'MINI_GAME': 'Mini Game', 'GAME': 'Game',
+        'WEBSITE': 'Website', 'LEAD_GENERATION': 'Lead Generation (Instant Form/Website)',
+        'LEAD_GEN_CLICK_TO_TT_DIRECT_MESSAGE': 'Lead via TikTok DM', 'LEAD_GEN_CLICK_TO_SOCIAL_MEDIA_APP_MESSAGE': 'Lead via Social Media App Message',
+        'LEAD_GEN_CLICK_TO_CALL': 'Lead via Phone Call', 'WEBSITE_OR_DISPLAY': 'Website or Display', 'EXTERNAL_OR_DISPLAY': 'External or Display',
+    };
 
-            document.getElementById('previewDescription')
-                .innerText = this.value || 'Ad description';
+    const qs = document.querySelector.bind(document);
+    const objectiveSelect = qs('#objective');
+    const optGoalSelect = qs('#optimization_goal');
+    const billingEventSelect = qs('#billing_event');
+    const promotionTypeSelect = qs('#promotion_type');
+    const callToActionSelect = qs('#call_to_action');
+    const targetLinkInput = qs('#target_link');
+    const previewCTA = document.getElementById('previewCTA');
 
-        });
+    const selectedOptimizationGoal = "{{ $adGroup->optimization_goal ?? '' }}";
+    const selectedPromotionType = "{{ $adGroup->promotion_type ?? '' }}";
 
-        let creativeType = 'IMAGE';
-        let carouselItems = [];
-        let currentIndex = 0;
-        let mediaInput = document.getElementById('mediaInput');
-        let carousel = document.getElementById('carouselPreview');
+    function beautifyLabel(value) {
+        return value.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
+    }
 
+    function populateFields(objective, preselect = false) {
+        const config = objectiveConfig[objective];
+        if (!config) return;
 
+        const goalOptions = config.optimizationGoals.map(g => `<option value="${g}">${beautifyLabel(g)}</option>`).join('');
+        optGoalSelect.innerHTML = `<option value="">-- Select Optimization Goal --</option>${goalOptions}`;
+        optGoalSelect.disabled = false;
 
-        document.querySelectorAll('.media-type').forEach(btn => {
-            btn.addEventListener('click', function() {
+        const promOptions = config.promotionTypes.map(p => `<option value="${p}">${promotionTypeLabels[p] || p}</option>`).join('');
+        promotionTypeSelect.innerHTML = `<option value="">-- Select Promotion Type --</option>${promOptions}`;
+        promotionTypeSelect.disabled = false;
 
-                document.querySelectorAll('.media-type')
-                    .forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('.objective-app').forEach(el => el.style.display = objective === 'APP_PROMOTION' ? '' : 'none');
+        document.querySelectorAll('.objective-web').forEach(el => el.style.display = objective === 'WEB_CONVERSIONS' ? '' : 'none');
 
-                this.classList.add('active');
-
-                creativeType = this.dataset.type;
-
-                let input = document.getElementById('mediaInput');
-                $('#media_type').val(creativeType);
-                console.log($('#media_type').val());
-                if (creativeType === 'CAROUSEL') {
-
-                    input.setAttribute('multiple', true);
-                    input.accept = "image/*";
-
-                    carouselItems = [];
-                    currentIndex = 0;
-
-                } else if (creativeType === 'IMAGE') {
-
-                    input.removeAttribute('multiple');
-                    input.accept = "image/*";
-
-                } else {
-
-                    input.removeAttribute('multiple');
-                    input.accept = "video/*";
-                }
-            });
-        });
-
-        function loadCarouselItem() {
-
-            if (!carouselItems.length) return;
-
-            let item = carouselItems[currentIndex];
-
-            document.getElementById('carouselImage').src = item.image;
-            document.getElementById('carouselTitle').value = item.title;
-            document.getElementById('carouselDescription').value = item.description;
-            document.getElementById('carouselLink').value = item.link;
-
-            document.getElementById('carouselCounter').innerHTML =
-                `${currentIndex + 1} / ${carouselItems.length}`;
+        if (preselect) {
+            optGoalSelect.value = selectedOptimizationGoal;
+            optGoalSelect.dispatchEvent(new Event('change'));
+            promotionTypeSelect.value = selectedPromotionType;
+        } else {
+            optGoalSelect.value = '';
+            billingEventSelect.innerHTML = '<option value="">-- Select Billing Event --</option>';
+            billingEventSelect.disabled = true;
         }
-        document.getElementById('carouselTitle').addEventListener('input', function() {
 
+        promotionTypeSelect.dispatchEvent(new Event('change'));
+    }
 
-            carouselItems[currentIndex].title = this.value;
+    optGoalSelect.addEventListener('change', function () {
+        const goal = this.value;
+        if (goal && optimizationGoalBillingMap.hasOwnProperty(goal)) {
+            const billing = optimizationGoalBillingMap[goal];
+            billingEventSelect.innerHTML = `<option value="${billing}">${billing}</option>`;
+            billingEventSelect.value = billing;
+            billingEventSelect.disabled = false;
+        } else {
+            billingEventSelect.innerHTML = '<option value="">-- Select Billing Event --</option>';
+            billingEventSelect.disabled = true;
+        }
+    });
 
+    promotionTypeSelect.addEventListener('change', function () {
+        const promType = this.value;
+        const showPromoTarget = ['LEAD_GENERATION', 'LEAD_GEN_CLICK_TO_TT_DIRECT_MESSAGE', 'LEAD_GEN_CLICK_TO_SOCIAL_MEDIA_APP_MESSAGE', 'LEAD_GEN_CLICK_TO_CALL'].includes(promType);
+        const targetBlock = document.querySelector('.promotion-target-block');
+        if (targetBlock) targetBlock.style.display = showPromoTarget ? '' : 'none';
 
-        });
-        document.getElementById('carouselDescription').addEventListener('input', function() {
-            carouselItems[currentIndex].description = this.value;
-        });
-        document.getElementById('carouselLink').addEventListener('input', function() {
-            carouselItems[currentIndex].link = this.value;
-        });
-        document.getElementById('mediaInput')
-            .addEventListener('change', function(e) {
+        const showMessaging = promType === 'LEAD_GEN_CLICK_TO_SOCIAL_MEDIA_APP_MESSAGE';
+        const msgBlock = document.querySelector('.messaging-app-block');
+        if (msgBlock) msgBlock.style.display = showMessaging ? '' : 'none';
+        if (!showMessaging) {
+            const accBlock = document.querySelector('.messaging-account-block');
+            if (accBlock) accBlock.style.display = 'none';
+            document.querySelectorAll('.phone-block').forEach(el => el.style.display = 'none');
+        }
+    });
 
-                let files = Array.from(e.target.files);
+    objectiveSelect.addEventListener('change', function () {
+        populateFields(this.value, false);
+    });
 
-                let image = document.getElementById('previewImage');
-                let video = document.getElementById('previewVideo');
+    function calculateBudget() {
+        let budgetMode = document.getElementById('budget_mode').value;
+        let budget = parseFloat(document.getElementById('budget').value) || 0;
+        let startDate = document.getElementById('start_time').value;
+        let endDate = document.getElementById('end_time').value;
+        let allocatedBudget = budget;
 
-                image.style.display = 'none';
-                video.style.display = 'none';
-                carousel.style.display = 'none';
+        if (budgetMode === 'BUDGET_MODE_DAY' && startDate && endDate) {
+            let days = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1;
+            allocatedBudget = days > 0 ? budget * days : 0;
+        }
 
-                if (creativeType === 'CAROUSEL') {
+        let vat = allocatedBudget * 0.15;
+        let total = allocatedBudget + vat;
+        document.getElementById('budget_amount').innerText = allocatedBudget.toFixed(2);
+        document.getElementById('vat_amount').innerText = vat.toFixed(2);
+        document.getElementById('total_budget').innerText = total.toFixed(2);
+        document.getElementById('final_budget').value = total.toFixed(2);
+    }
 
-                    carouselItems = files.map(file => ({
-                        image: URL.createObjectURL(file),
-                        title: '',
-                        description: '',
-                        link: ''
-                    }));
+    ['budget', 'budget_mode', 'start_time', 'end_time'].forEach(id => {
+        document.getElementById(id).addEventListener(id === 'budget' ? 'input' : 'change', calculateBudget);
+    });
 
-                    currentIndex = 0;
+    document.getElementById('name').addEventListener('keyup', function () {
+        document.getElementById('previewTitle').innerText = this.value || 'Campaign Name';
+    });
+    document.getElementById('ad_description').addEventListener('keyup', function () {
+        document.getElementById('previewDescription').innerText = this.value || 'Ad description';
+    });
+    targetLinkInput.addEventListener('input', function () {
+        previewCTA.href = this.value || '#';
+    });
+    callToActionSelect.addEventListener('change', function () {
+        previewCTA.innerText = this.options[this.selectedIndex]?.text || 'Learn More';
+    });
 
-                    loadCarouselItem();
-                    carousel.style.display = 'block';
+    let creativeType = document.getElementById('media_type').value;
+    let carouselItems = [];
+    let currentIndex = 0;
+    const mediaInput = document.getElementById('mediaInput');
+    const carouselDiv = document.getElementById('carouselPreview');
 
-                } else {
+    document.querySelectorAll('.media-type').forEach(btn => {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.media-type').forEach(x => x.classList.remove('active'));
+            this.classList.add('active');
+            creativeType = this.dataset.type;
+            document.getElementById('media_type').value = creativeType;
 
-                    let file = files[0];
-                    if (!file) return;
-
-                    let url = URL.createObjectURL(file);
-
-                    if (file.type.startsWith('image/')) {
-                        image.src = url;
-                        image.style.display = 'block';
-                    } else {
-                        video.src = url;
-                        video.style.display = 'block';
-                    }
-                }
-            });
-
-        document.getElementById('nextImage').addEventListener('click', function() {
-            if (currentIndex < carouselItems.length - 1) {
-                currentIndex++;
-                loadCarouselItem();
+            if (creativeType === 'CAROUSEL') {
+                mediaInput.setAttribute('multiple', true);
+                mediaInput.accept = "image/*";
+                carouselItems = [];
+                currentIndex = 0;
+            } else if (creativeType === 'IMAGE') {
+                mediaInput.removeAttribute('multiple');
+                mediaInput.accept = "image/*";
+            } else {
+                mediaInput.removeAttribute('multiple');
+                mediaInput.accept = "video/*";
             }
         });
-        document.getElementById('prevImage').addEventListener('click', function() {
-            if (currentIndex > 0) {
-                currentIndex--;
-                loadCarouselItem();
+    });
+
+    function loadCarouselItem() {
+        if (!carouselItems.length) return;
+        let item = carouselItems[currentIndex];
+        document.getElementById('carouselImage').src = item.image;
+        document.getElementById('carouselTitle').value = item.title || '';
+        document.getElementById('carouselDescription').value = item.description || '';
+        document.getElementById('carouselLink').value = item.link || '';
+        document.getElementById('carouselCounter').innerHTML = `${currentIndex + 1} / ${carouselItems.length}`;
+    }
+
+    document.getElementById('carouselTitle').addEventListener('input', function () { if (carouselItems[currentIndex]) carouselItems[currentIndex].title = this.value; });
+    document.getElementById('carouselDescription').addEventListener('input', function () { if (carouselItems[currentIndex]) carouselItems[currentIndex].description = this.value; });
+    document.getElementById('carouselLink').addEventListener('input', function () { if (carouselItems[currentIndex]) carouselItems[currentIndex].link = this.value; });
+
+    mediaInput.addEventListener('change', function (e) {
+        let files = Array.from(e.target.files);
+        let image = document.getElementById('previewImage');
+        let video = document.getElementById('previewVideo');
+        image.style.display = 'none';
+        video.style.display = 'none';
+        carouselDiv.style.display = 'none';
+
+        if (creativeType === 'CAROUSEL') {
+            carouselItems = files.map(file => ({ image: URL.createObjectURL(file), title: '', description: '', link: '' }));
+            currentIndex = 0;
+            loadCarouselItem();
+            carouselDiv.style.display = 'block';
+        } else {
+            let file = files[0];
+            if (!file) return;
+            let url = URL.createObjectURL(file);
+            if (file.type.startsWith('image/')) {
+                image.src = url;
+                image.style.display = 'block';
+            } else {
+                video.src = url;
+                video.style.display = 'block';
             }
-        });
-        document.getElementById('targetLink').addEventListener('keyup', function() {
-
-            document.getElementById('previewCTA')
-                .href = this.value || '#';
-
-        });
-        document.querySelectorAll('.duration-btn').forEach(btn => {
-
-            btn.addEventListener('click', function() {
-
-                document.querySelectorAll('.duration-btn').forEach(item => item.classList.remove('active'));
-
-                this.classList.add('active');
-            });
-        });
-        document.querySelectorAll('.step').forEach(step => {
-
-            step.addEventListener('click', function() {
-
-                document.querySelectorAll('.step').forEach(item => item.classList.remove('active'));
-
-                this.classList.add('active');
-
-            });
-
-        });
-
-        document.getElementById('call_to_action').addEventListener('change', function() {
-            let text = this.options[this.selectedIndex].text;
-
-            document.getElementById('previewCTA')
-                .innerText = text;
-
-        });
-
-        function updatePlatformCards() {
-            document.querySelectorAll('.platform-card').forEach(card => {
-
-                let checkbox = card.querySelector('.platform-switch');
-
-                if (checkbox.checked) {
-                    card.classList.add('active');
-                } else {
-                    card.classList.remove('active');
-                }
-
-            });
         }
+    });
 
-        document.querySelectorAll('.platform-switch').forEach(item => {
+    document.getElementById('nextImage').addEventListener('click', function () { if (currentIndex < carouselItems.length - 1) { currentIndex++; loadCarouselItem(); } });
+    document.getElementById('prevImage').addEventListener('click', function () { if (currentIndex > 0) { currentIndex--; loadCarouselItem(); } });
 
-            item.addEventListener('change', updatePlatformCards);
-
+    document.querySelectorAll('.step').forEach(step => {
+        step.addEventListener('click', function () {
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+            this.classList.add('active');
         });
+    });
 
-        updatePlatformCards();
-
-
-        const objectiveMap = {
-
-            OUTCOME_AWARENESS: {
-                destinationTypes: [],
-                optimizationGoals: [
-                    'REACH',
-                    'IMPRESSIONS',
-                    'AD_RECALL_LIFT'
-                ],
-                billingEvents: [
-                    'IMPRESSIONS'
-                ],
-                ctas: [
-                    'LEARN_MORE'
-                ]
-            },
-
-            OUTCOME_TRAFFIC: {
-                destinationTypes: [
-                    'WEBSITE',
-                    'APP',
-                    'MESSENGER',
-                    'WHATSAPP'
-                ],
-                optimizationGoals: [
-                    'LINK_CLICKS',
-                    'LANDING_PAGE_VIEWS'
-                ],
-                billingEvents: [
-                    'IMPRESSIONS'
-                ],
-                ctas: [
-                    'LEARN_MORE',
-                    'SHOP_NOW',
-                    'CONTACT_US'
-                ]
-            },
-
-            OUTCOME_ENGAGEMENT: {
-                destinationTypes: [
-                    'MESSENGER',
-                    'WHATSAPP'
-                ],
-                optimizationGoals: [
-                    'POST_ENGAGEMENT',
-                    'VIDEO_VIEWS',
-                    'THRUPLAY'
-                ],
-                billingEvents: [
-                    'IMPRESSIONS'
-                ],
-                ctas: [
-                    'SEND_MESSAGE'
-                ]
-            },
-
-            OUTCOME_LEADS: {
-                conversionLocations: [
-                    'WEBSITE',
-                    'INSTANT_FORM',
-                    'MESSENGER',
-                    'WHATSAPP'
-                ],
-                optimizationGoals: [
-                    'LEADS',
-                    'QUALITY_LEADS'
-                ],
-                billingEvents: [
-                    'IMPRESSIONS'
-                ],
-                ctas: [
-                    'SIGN_UP',
-                    'APPLY_NOW',
-                    'BOOK_NOW'
-                ]
-            },
-
-            OUTCOME_APP_PROMOTION: {
-                destinationTypes: [
-                    'APP'
-                ],
-                optimizationGoals: [
-                    'APP_INSTALLS',
-                    'APP_EVENTS'
-                ],
-                billingEvents: [
-                    'IMPRESSIONS'
-                ],
-                ctas: [
-                    'DOWNLOAD'
-                ]
-            },
-
-            OUTCOME_SALES: {
-                conversionLocations: [
-                    'WEBSITE',
-                    'APP',
-                    'SHOP'
-                ],
-                optimizationGoals: [
-                    'OFFSITE_CONVERSIONS',
-                    'PURCHASE'
-                ],
-                billingEvents: [
-                    'IMPRESSIONS'
-                ],
-                ctas: [
-                    'SHOP_NOW',
-                    'BUY_NOW'
-                ]
-            }
-        };
-        populateFields(objectiveMap[selectedObjective]);
-        $('#objective').on('change', function() {
-            let objective = $(this).val();
-            populateFields(objectiveMap[objective]);
+    function updatePlatformCards() {
+        document.querySelectorAll('.platform-card').forEach(card => {
+            let checkbox = card.querySelector('.platform-switch');
+            if (checkbox.checked) card.classList.add('active'); else card.classList.remove('active');
         });
+    }
+    document.querySelectorAll('.platform-switch').forEach(item => item.addEventListener('change', updatePlatformCards));
+    updatePlatformCards();
 
-        function populateFields(data) {
-            var billingEvents = data['billingEvents'];
-            let options = '<option value="">Billing Event</option>';
-            // Billing Event
-            $.each(billingEvents, function(index, value) {
-                options += `
-                    <option value="${value}" ${selectedBillingEvent == value ? 'selected' : ''}>
-                         ${beautifyLabel(value)}
-                    </option>
-                `;
+    // Initial population, preselecting the campaign's existing values
+    populateFields(objectiveSelect.value, true);
+    calculateBudget();
 
-            });
-            $('#billing_event').html(options);
-
-            // Optimization Goal code
-            var optimizationGoals = data['optimizationGoals'];
-            let goalOptions = '<option value="">Optimization Goal</option>';
-
-            $.each(optimizationGoals, function(index, value) {
-                goalOptions += `
-                    <option value="${value}" ${selectedOptimizationGoal == value ? 'selected' : ''}>
-                        ${beautifyLabel(value)}
-                    </option>
-                `;
-
-            });
-            $('#optimization_goal').html(goalOptions);
-
-            // destination Type
-            var destinationTypes = data['destinationTypes'];
-            let destinationTypeOptions = '<option value="">Destination Type</option>';
-
-            $.each(destinationTypes, function(index, value) {
-                destinationTypeOptions += `
-                    <option value="${value}" ${selectedDestinationType == value ? 'selected' : ''} >
-                        ${beautifyLabel(value)}
-                    </option>
-                `;
-            });
-            $('#destination_type').html(destinationTypeOptions);
-
-            // CTA
-            var ctas = data['ctas'];
-            let ctaOptions = '<option value="">Call To Action</option>';
-
-            $.each(ctas, function(index, value) {
-
-                ctaOptions += `
-                    <option value="${value}" ${selectedCTA == value ? 'selected' : ''}>
-                        ${beautifyLabel(value)}
-                    </option>
-                `;
-
-            });
-
-            $('#call_to_action').html(ctaOptions);
-        }
-
-        function beautifyLabel(value) {
-            return value
-                .toLowerCase()
-                .replace(/_/g, ' ')
-                .replace(/\b\w/g, char => char.toUpperCase());
-        }
-
-        calculateBudget();
-        
-        function calculateBudget() {
-            let budgetMode = document.getElementById('budget_mode').value ?? '{{$adGroup->budget_mode}}';
-            let budget = parseFloat(document.getElementById('budget').value) || {{ $adGroup->budget ?? 0 }};
-            let startDate = document.getElementById('start_time').value ?? '{{$adGroup->start_time}}';
-            let endDate = document.getElementById('end_time').value ?? '{{$adGroup->end_time}}';
-            let allocatedBudget = budget;
-            // Daily Budget Calculation
-            if (budgetMode === 'daily' && startDate && endDate) {
-                let start = new Date(startDate);
-                let end = new Date(endDate);
-                let difference = end - start;
-                let days = Math.ceil(difference / (1000 * 60 * 60 * 24)) + 1;
-                if (days > 0) {
-                    allocatedBudget = budget * days;
-                } else {
-                    allocatedBudget = 0;
-                }
-            }
-            let vat = allocatedBudget * 0.15;
-            let total = allocatedBudget + vat;
-            document.getElementById('budget_amount').innerText = allocatedBudget.toFixed(2);
-            document.getElementById('vat_amount').innerText = vat.toFixed(2);
-            document.getElementById('total_budget').innerText = total.toFixed(2);
-            document.getElementById('final_budget').value = total.toFixed(2);
-        }
-        // Events
-        document.getElementById('budget').addEventListener('input', calculateBudget);
-        document.getElementById('budget_mode').addEventListener('change', calculateBudget);
-        document.getElementById('start_time').addEventListener('change', calculateBudget);
-        document.getElementById('end_time').addEventListener('change', calculateBudget);
-    </script>
-
-    <script src="{{ asset('assets/js/admin/api.js') }}"></script>
+    var campaignId = @json($campaign->id);
+    var url = "{{ route('admin.ads.campaigns.update', ['platform' => 'tiktok', 'campaign' => $campaign->id]) }}";
+    var redirectUrl = "{{ route('admin.ads.campaigns.index', ['platform' => 'tiktok']) }}";
+    var method = 'PUT';
+</script>
+<script src="{{ asset('assets/js/admin/api.js') }}"></script>
 @endpush
