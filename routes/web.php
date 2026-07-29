@@ -90,6 +90,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				// POSTS
 				Route::get('posts/dashboard', [PostController::class, 'dashboard'])->defaults('_config', ['view' => 'admin.posts.dashboard'])->name('posts.dashboard');
 				Route::get('posts/vue_index', [PostController::class, 'index_vue']);
+				Route::get('posts/{post}/preview/{platform}', [PostController::class, 'preview'])->name('posts.preview');
 				Route::get('posts', [PostController::class, 'dashboard']);
 				Route::resource('posts', PostController::class);
 				Route::resource('categories', PostCategoryController::class);
