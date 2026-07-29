@@ -43,11 +43,29 @@
       </div>
 
     </div>
+
+    <!-- Quick Post Composer -->
+    <div class="quick-composer" @click="openQuickCreate">
+
+      <div class="composer-avatar">{{ userInitials }}</div>
+
+      <div class="composer-input">What's on your mind, {{ userFirstName }}?</div>
+
+      <div class="composer-icons">
+
+        <i class="fas fa-image" style="color:#45BD62" title="Photo" @click.stop="openQuickCreate"></i>
+
+        <i class="fas fa-video" style="color:#F3425F" title="Video" @click.stop="openQuickCreate"></i>
+
+      </div>
+
+    </div>
+
     <!-- Statistics -->
     <div class="platform-tabs">
 
       <div
-          v-for="platform in platforms"
+          v-for="platform in platformTabs"
           :key="platform.name"
           class="platform-tab"
           :class="{ active: activePlatform === platform.name }"
@@ -66,6 +84,58 @@
       </div>
 
     </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+
+      <div class="toolbar-left">
+
+        <div class="search-box">
+
+          <i class="fas fa-search"></i>
+
+          <input
+              type="text"
+              v-model="filters.search"
+              placeholder="Search posts by title or content...">
+
+        </div>
+
+      </div>
+
+      <div class="toolbar-right">
+
+        <select class="modern-select" v-model="filters.status">
+          <option value="">All Status</option>
+          <option value="Published">Published</option>
+          <option value="Scheduled">Scheduled</option>
+          <option value="Failed">Failed</option>
+        </select>
+
+        <select class="modern-select" v-model="filters.sort">
+          <option value="latest">Latest First</option>
+          <option value="oldest">Oldest First</option>
+        </select>
+
+        <button
+            class="modern-btn"
+            :class="{active: gridView}"
+            title="Grid view"
+            @click="gridView = true">
+          <i class="fas fa-th-large"></i>
+        </button>
+
+        <button
+            class="modern-btn"
+            :class="{active: !gridView}"
+            title="List view"
+            @click="gridView = false">
+          <i class="fas fa-list"></i>
+        </button>
+
+      </div>
+
+    </div>
     <!-- Platform Overview -->
 
     <div class="section-title">
@@ -74,7 +144,7 @@
 
         <h3>Recent Posts</h3>
 
-        <p>{{ posts.length }} Posts Available</p>
+        <p>{{ filteredPosts.length }} Posts Available</p>
 
       </div>
 
@@ -100,11 +170,15 @@
           <!-- Video -->
           <div
               v-else-if="post.type==='video'"
-              class="video-wrapper">
+              class="video-wrapper"
+              @mouseenter="playPreview"
+              @mouseleave="pausePreview">
 
             <video
                 :poster="post.thumbnail"
-                preload="metadata">
+                preload="metadata"
+                muted
+                playsinline>
 
               <source
                   :src="post.video"
@@ -122,11 +196,14 @@
 
           <div
               v-else-if="post.type==='reel'"
-              class="video-wrapper">
+              class="video-wrapper"
+              @mouseenter="playPreview"
+              @mouseleave="pausePreview">
 
             <video
                 muted
                 loop
+                playsinline
                 :poster="post.thumbnail">
 
               <source
@@ -149,18 +226,14 @@
               :src="post.image"
           >
 
-          <!-- Reel -->
-          <video
-              v-else-if="post.type==='reel'"
-              :poster="post.thumbnail"
-              muted
-              loop>
+          <!-- Text only -->
+          <div
+              v-else-if="post.type==='text'"
+              class="text-only-card">
 
-            <source
-                :src="post.video"
-                type="video/mp4">
+            {{ post.content }}
 
-          </video>
+          </div>
 
           <span
               class="status-badge"
@@ -198,18 +271,19 @@
 
             <div class="platform-icons">
 
-              <div
+              <a
                   v-for="platform in post.platforms"
                   :key="platform.name"
                   class="platform-avatar"
-                  :title="platform.name">
+                  :href="previewUrl(post, platform)"
+                  :title="'View on ' + platform.name">
 
                 <i
                     :class="platform.icon"
                     :style="{color:platform.color}">
                 </i>
 
-              </div>
+              </a>
 
             </div>
 
@@ -348,10 +422,164 @@
 
     </div>
 
+    <!-- Quick Create Modal -->
+    <div
+        class="modal fade"
+        id="quickCreateModal"
+        tabindex="-1"
+        ref="quickCreateModal">
+
+      <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content quick-create-modal">
+
+          <div class="modal-header">
+
+            <h5 class="modal-title">Create post</h5>
+
+            <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal"
+                aria-label="Close"></button>
+
+          </div>
+
+          <div class="modal-body">
+
+            <div class="composer-user-row">
+
+              <div class="composer-avatar">{{ userInitials }}</div>
+
+              <div>
+                <strong>{{ userName }}</strong>
+                <div class="composer-audience">
+                  <i class="fas fa-users"></i> Friends
+                </div>
+              </div>
+
+            </div>
+
+            <textarea
+                class="quick-textarea"
+                rows="4"
+                v-model="quickPost.content"
+                :placeholder="'What\'s on your mind, ' + userFirstName + '?'">
+            </textarea>
+
+            <div
+                class="quick-media-preview"
+                v-if="quickPost.mediaPreview">
+
+              <img
+                  v-if="quickPost.mediaType==='image'"
+                  :src="quickPost.mediaPreview">
+
+              <video
+                  v-else
+                  :src="quickPost.mediaPreview"
+                  controls>
+              </video>
+
+              <button
+                  type="button"
+                  class="remove-media-btn"
+                  @click="removeQuickMedia">
+                <i class="fas fa-times"></i>
+              </button>
+
+            </div>
+
+            <div class="quick-platform-label">Post to</div>
+
+            <div class="quick-platform-select">
+
+              <div
+                  v-for="platform in platformOptions"
+                  :key="platform.key"
+                  class="quick-platform-chip"
+                  :class="{active: quickPost.platforms.includes(platform.key)}"
+                  @click="toggleQuickPlatform(platform.key)">
+
+                <i
+                    :class="platform.icon"
+                    :style="{color: quickPost.platforms.includes(platform.key) ? '#fff' : platform.color}">
+                </i>
+
+                {{ platform.name }}
+
+              </div>
+
+            </div>
+
+            <div class="quick-schedule-row">
+
+              <label class="quick-checkbox">
+                <input type="checkbox" v-model="quickPost.scheduleLater">
+                Schedule for later
+              </label>
+
+              <input
+                  v-if="quickPost.scheduleLater"
+                  type="datetime-local"
+                  class="modern-select"
+                  v-model="quickPost.scheduleAt">
+
+            </div>
+
+            <div class="add-to-post-row">
+
+              <span>Add to your post</span>
+
+              <div class="add-to-post-icons">
+
+                <label class="media-upload-btn" title="Photo/Video">
+                  <i class="fas fa-image" style="color:#45BD62"></i>
+                  <input
+                      type="file"
+                      accept="image/*,video/*"
+                      class="d-none"
+                      @change="onQuickMediaSelected">
+                </label>
+
+                <i class="fas fa-user-tag" style="color:#1877F2" title="Tag people"></i>
+
+                <i class="far fa-smile" style="color:#F7B928" title="Feeling/activity"></i>
+
+                <i class="fas fa-map-marker-alt" style="color:#F5533D" title="Location"></i>
+
+              </div>
+
+            </div>
+
+          </div>
+
+          <div class="modal-footer">
+
+            <button
+                type="button"
+                class="btn btn-primary w-100"
+                :disabled="!canSubmitQuickPost"
+                @click="submitQuickPost">
+
+              {{ quickPost.scheduleLater ? 'Schedule Post' : 'Post' }}
+
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
   </div>
 </template>
 
 <script>
+import { mockPosts, platformMeta, platformOrder } from '../../data/mockPosts';
+
 export default {
 
   props: {
@@ -364,6 +592,16 @@ export default {
     createUrl: {
       type: String,
       default: ''
+    },
+
+    previewUrlBase: {
+      type: String,
+      default: '/admin/posts'
+    },
+
+    userName: {
+      type: String,
+      default: 'Admin'
     }
 
   },
@@ -379,138 +617,7 @@ export default {
 
       },
       activePlatform: 'All',
-      posts: [
-
-        {
-          id: 1,
-          type: 'image',
-
-          platforms: [
-            {
-              name:'Facebook',
-              icon:'fab fa-facebook-f',
-              color:'#1877F2'
-            },
-            {
-              name:'Instagram',
-              icon:'fab fa-instagram',
-              color:'#E1306C'
-            },
-            {
-              name:'LinkedIn',
-              icon:'fab fa-linkedin-in',
-              color:'#0A66C2'
-            }
-          ],
-
-          status:'Published',
-          title:'Summer Mega Sale',
-          content:'Enjoy up to 50% OFF on all electronics this weekend only.',
-          image:'https://picsum.photos/800/450?1',
-
-          likes:582,
-          comments:63,
-          shares:21,
-          views:1420,
-
-          author:'John Smith',
-          created_at:'26 Jul 2026'
-        },
-
-        {
-          id: 2,
-          type: 'video',
-          platform: 'Instagram',
-          icon: 'fab fa-instagram',
-          color: '#E1306C',
-          status: 'Published',
-          title: 'Summer Collection Reel',
-          content: 'Watch our newest fashion collection.',
-          thumbnail: 'https://picsum.photos/800/450?22',
-          video: 'https://www.w3schools.com/html/mov_bbb.mp4',
-          likes: 1450,
-          comments: 84,
-          shares: 42,
-          views: 8620,
-          author: 'Sarah',
-          created_at: '25 Jul 2026'
-        },
-
-        {
-          id: 3,
-          type: 'carousel',
-          platform: 'Facebook',
-          icon: 'fab fa-facebook-f',
-          color: '#1877F2',
-          status: 'Scheduled',
-          title: 'Top 10 Products',
-          content: 'Swipe through our best selling products.',
-          image: 'https://picsum.photos/800/450?3',
-          likes: 310,
-          comments: 22,
-          shares: 8,
-          views: 1200,
-          author: 'Marketing',
-          created_at: '24 Jul 2026'
-        },
-
-        {
-          id: 4,
-          type: 'reel',
-          platform: 'Instagram',
-          icon: 'fab fa-instagram',
-          color: '#E1306C',
-          status: 'Published',
-          title: 'Behind The Scenes',
-          content: 'A quick look inside our studio.',
-          thumbnail: 'https://picsum.photos/800/450?44',
-          video: 'https://www.w3schools.com/html/movie.mp4',
-          likes: 2200,
-          comments: 163,
-          shares: 93,
-          views: 12000,
-          author: 'Creative Team',
-          created_at: '23 Jul 2026'
-        },
-
-        {
-          id: 5,
-          type: 'image',
-          platform: 'LinkedIn',
-          icon: 'fab fa-linkedin-in',
-          color: '#0A66C2',
-          status: 'Published',
-          title: 'Hiring Laravel Developers',
-          content: 'Join our engineering team.',
-          image: 'https://picsum.photos/800/450?5',
-          likes: 520,
-          comments: 31,
-          shares: 15,
-          views: 2700,
-          author: 'HR Team',
-          created_at: '22 Jul 2026'
-        },
-
-        {
-          id: 6,
-          type: 'video',
-          platform: 'YouTube',
-          icon: 'fab fa-youtube',
-          color: '#FF0000',
-          status: 'Published',
-          title: 'Product Demo',
-          content: 'Watch our latest product demo.',
-          thumbnail: 'https://picsum.photos/800/450?66',
-          video: 'https://www.w3schools.com/html/mov_bbb.mp4',
-          likes: 5400,
-          comments: 360,
-          shares: 220,
-          views: 28500,
-          author: 'Media Team',
-          created_at: '20 Jul 2026'
-        }
-
-      ],
+      posts: mockPosts,
       filters:{
 
         search:'',
@@ -521,80 +628,59 @@ export default {
 
       gridView:true,
       platforms: [
-        {
-          name: 'All',
-          icon: 'fas fa-globe',
-          count: 248,
-          color: '#5D87FF'
-        },
-        {
-          name: 'Facebook',
-          icon: 'fab fa-facebook-f',
-          count: 124,
-          color: '#1877F2'
-        },
-        {
-          name: 'Instagram',
-          icon: 'fab fa-instagram',
-          count: 89,
-          color: '#E1306C'
-        },
-        {
-          name: 'X',
-          icon: 'fab fa-x-twitter',
-          count: 58,
-          color: '#111827'
-        },
-        {
-          name: 'LinkedIn',
-          icon: 'fab fa-linkedin-in',
-          count: 41,
-          color: '#0A66C2'
-        },
-        {
-          name: 'TikTok',
-          icon: 'fab fa-tiktok',
-          count: 36,
-          color: '#111827'
-        },
-        {
-          name: 'YouTube',
-          icon: 'fab fa-youtube',
-          count: 18,
-          color: '#FF0000'
-        }
-      ]
+        { name: 'All', icon: 'fas fa-globe', color: '#5D87FF' },
+        ...platformOrder.map(key => ({
+          name: platformMeta[key].name,
+          icon: platformMeta[key].icon,
+          color: platformMeta[key].color
+        }))
+      ],
+
+      quickPost: {
+        content: '',
+        platforms: [],
+        mediaFile: null,
+        mediaPreview: null,
+        mediaType: null,
+        scheduleLater: false,
+        scheduleAt: ''
+      }
 
     }
 
   },
 
-  mounted() {
-
-    const original = [...this.posts];
-
-    let id = this.posts.length + 1;
-
-    for (let i = 0; i < 7; i++) {
-
-      original.forEach(post => {
-
-        this.posts.push({
-
-          ...post,
-
-          id: id++,
-
-          title: post.title + ' #' + id
-
-        });
-
-      });
-
-    }
-
-  },
   computed: {
+
+    userInitials() {
+
+      return this.userName
+          .split(' ')
+          .filter(Boolean)
+          .slice(0, 2)
+          .map(part => part[0].toUpperCase())
+          .join('');
+
+    },
+
+    userFirstName() {
+
+      return this.userName.split(' ')[0];
+
+    },
+
+    platformOptions() {
+
+      return platformOrder.map(key => platformMeta[key]);
+
+    },
+
+    canSubmitQuickPost() {
+
+      return (this.quickPost.content.trim().length > 0 || this.quickPost.mediaPreview)
+          && this.quickPost.platforms.length > 0;
+
+    },
 
     totalPages() {
 
@@ -653,26 +739,20 @@ export default {
       };
 
     },
-    platformCards(){
 
-      return [
+    platformTabs() {
 
-        {
-          name:'All',
-          icon:'fas fa-globe',
-          color:'#5D87FF',
-          count:this.posts.length
-        },
+      return this.platforms.map(platform => ({
 
-        {
-          name:'Facebook',
-          icon:'fab fa-facebook-f',
-          color:'#1877F2',
-          count:this.posts.filter(x=>x.platform=='Facebook').length
-        },
+        ...platform,
 
+        count: platform.name === 'All'
+            ? this.posts.length
+            : this.posts.filter(post =>
+                post.platforms.some(p => p.name === platform.name)
+              ).length
 
-      ]
+      }));
 
     },
 
@@ -681,7 +761,9 @@ export default {
       let posts = this.posts;
 
       if (this.activePlatform !== 'All') {
-        posts = posts.filter(post => post.platform === this.activePlatform);
+        posts = posts.filter(post =>
+            post.platforms.some(p => p.name === this.activePlatform)
+        );
       }
 
       if (this.filters.search) {
@@ -689,9 +771,8 @@ export default {
         const keyword = this.filters.search.toLowerCase();
 
         posts = posts.filter(post =>
-            post.platforms.some(
-                p => p.name === this.activePlatform
-            )
+            post.title.toLowerCase().includes(keyword) ||
+            post.content.toLowerCase().includes(keyword)
         );
 
       }
@@ -701,6 +782,14 @@ export default {
         posts = posts.filter(post => post.status === this.filters.status);
 
       }
+
+      posts = [...posts].sort((a, b) => {
+
+        const diff = new Date(a.created_at) - new Date(b.created_at);
+
+        return this.filters.sort === 'oldest' ? diff : -diff;
+
+      });
 
       return posts;
 
@@ -712,6 +801,130 @@ export default {
     createPost() {
 
       window.location.href = this.createUrl;
+
+    },
+
+    previewUrl(post, platform) {
+
+      return `${this.previewUrlBase}/${post.id}/preview/${platform.key}`;
+
+    },
+
+    playPreview(e) {
+
+      const video = e.currentTarget.querySelector('video');
+
+      if (!video) return;
+
+      video.currentTime = 0;
+
+      const playPromise = video.play();
+
+      if (playPromise && playPromise.catch) playPromise.catch(() => {});
+
+    },
+
+    pausePreview(e) {
+
+      const video = e.currentTarget.querySelector('video');
+
+      if (!video) return;
+
+      video.pause();
+
+      video.currentTime = 0;
+
+    },
+
+    openQuickCreate() {
+
+      // eslint-disable-next-line no-undef
+      const modalEl = this.$refs.quickCreateModal;
+
+      if (window.bootstrap && modalEl) {
+
+        window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+
+      }
+
+    },
+
+    toggleQuickPlatform(key) {
+
+      const idx = this.quickPost.platforms.indexOf(key);
+
+      if (idx === -1) {
+        this.quickPost.platforms.push(key);
+      } else {
+        this.quickPost.platforms.splice(idx, 1);
+      }
+
+    },
+
+    onQuickMediaSelected(e) {
+
+      const file = e.target.files[0];
+
+      if (!file) return;
+
+      this.quickPost.mediaFile = file;
+      this.quickPost.mediaType = file.type.startsWith('video') ? 'video' : 'image';
+      this.quickPost.mediaPreview = URL.createObjectURL(file);
+
+    },
+
+    removeQuickMedia() {
+
+      this.quickPost.mediaFile = null;
+      this.quickPost.mediaPreview = null;
+      this.quickPost.mediaType = null;
+
+    },
+
+    submitQuickPost() {
+
+      if (!this.canSubmitQuickPost) return;
+
+      const nextId = Math.max(...this.posts.map(p => p.id)) + 1;
+
+      const newPost = {
+        id: nextId,
+        type: this.quickPost.mediaType === 'video' ? 'video' : (this.quickPost.mediaPreview ? 'image' : 'text'),
+        platformKeys: [...this.quickPost.platforms],
+        platforms: this.quickPost.platforms.map(key => platformMeta[key]),
+        status: this.quickPost.scheduleLater ? 'Scheduled' : 'Published',
+        title: this.quickPost.content.split('\n')[0].slice(0, 60) || 'New Post',
+        content: this.quickPost.content,
+        image: this.quickPost.mediaType === 'image' ? this.quickPost.mediaPreview : null,
+        thumbnail: this.quickPost.mediaType === 'video' ? this.quickPost.mediaPreview : null,
+        video: this.quickPost.mediaType === 'video' ? this.quickPost.mediaPreview : null,
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        views: 0,
+        author: this.userName,
+        created_at: this.quickPost.scheduleLater && this.quickPost.scheduleAt
+            ? this.quickPost.scheduleAt
+            : new Date().toISOString().slice(0, 10)
+      };
+
+      this.posts.unshift(newPost);
+
+      this.quickPost = {
+        content: '',
+        platforms: [],
+        mediaFile: null,
+        mediaPreview: null,
+        mediaType: null,
+        scheduleLater: false,
+        scheduleAt: ''
+      };
+
+      const modalEl = this.$refs.quickCreateModal;
+
+      if (window.bootstrap && modalEl) {
+        window.bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+      }
 
     }
 
@@ -1595,5 +1808,206 @@ export default {
 
 .platform-avatar i{
   font-size:15px;
+}
+
+/* ==========================
+   Quick Composer
+========================== */
+
+.quick-composer{
+  background:#fff;
+  border-radius:16px;
+  padding:16px 20px;
+  display:flex;
+  align-items:center;
+  gap:14px;
+  box-shadow:0 8px 25px rgba(0,0,0,.05);
+  margin-bottom:24px;
+  cursor:pointer;
+  transition:.25s;
+}
+
+.quick-composer:hover{
+  box-shadow:0 12px 30px rgba(0,0,0,.08);
+}
+
+.composer-avatar{
+  width:44px;
+  height:44px;
+  border-radius:50%;
+  background:#5D87FF;
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:700;
+  flex-shrink:0;
+}
+
+.composer-input{
+  flex:1;
+  background:#F1F5F9;
+  border-radius:30px;
+  padding:12px 20px;
+  color:#7C8FAC;
+}
+
+.composer-icons{
+  display:flex;
+  gap:16px;
+  font-size:20px;
+}
+
+.text-only-card{
+  height:100%;
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  padding:24px;
+  background:linear-gradient(135deg,#5D87FF,#4f46e5);
+  color:#fff;
+  font-size:18px;
+  font-weight:600;
+  line-height:1.5;
+}
+
+/* ==========================
+   Quick Create Modal
+========================== */
+
+.quick-create-modal{
+  border-radius:18px;
+  overflow:hidden;
+  border:none;
+}
+
+.composer-user-row{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-bottom:16px;
+}
+
+.composer-audience{
+  font-size:13px;
+  color:#7C8FAC;
+}
+
+.quick-textarea{
+  width:100%;
+  border:none;
+  outline:none;
+  resize:none;
+  font-size:18px;
+  color:#2A3547;
+}
+
+.quick-media-preview{
+  position:relative;
+  margin-top:10px;
+  border-radius:12px;
+  overflow:hidden;
+  max-height:260px;
+}
+
+.quick-media-preview img,
+.quick-media-preview video{
+  width:100%;
+  max-height:260px;
+  object-fit:cover;
+}
+
+.remove-media-btn{
+  position:absolute;
+  top:10px;
+  right:10px;
+  width:32px;
+  height:32px;
+  border-radius:50%;
+  border:none;
+  background:rgba(0,0,0,.6);
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.quick-platform-label{
+  margin-top:18px;
+  margin-bottom:10px;
+  font-weight:600;
+  color:#2A3547;
+  font-size:14px;
+}
+
+.quick-platform-select{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+}
+
+.quick-platform-chip{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 14px;
+  border-radius:30px;
+  border:1px solid #E5E7EB;
+  cursor:pointer;
+  font-size:13px;
+  font-weight:600;
+  color:#2A3547;
+  transition:.2s;
+}
+
+.quick-platform-chip.active{
+  background:#5D87FF;
+  border-color:#5D87FF;
+  color:#fff;
+}
+
+.quick-schedule-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-top:18px;
+}
+
+.quick-checkbox{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:14px;
+  color:#2A3547;
+  margin:0;
+}
+
+.add-to-post-row{
+  margin-top:18px;
+  border:1px solid #E5E7EB;
+  border-radius:12px;
+  padding:12px 18px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  font-weight:600;
+  font-size:14px;
+  color:#2A3547;
+}
+
+.add-to-post-icons{
+  display:flex;
+  gap:16px;
+  font-size:20px;
+  align-items:center;
+}
+
+.media-upload-btn{
+  cursor:pointer;
+  display:flex;
+  margin:0;
 }
 </style>

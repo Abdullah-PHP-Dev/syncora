@@ -48,6 +48,8 @@
             platform="{{ $platform }}"
             create-url="{{ route('admin.posts.create', ['platform' => $platform]) }}"
             api-url="{{ route('admin.posts.index', ['platform' => $platform]) }}"
+            preview-url-base="{{ url('admin/posts') }}"
+            user-name="{{ auth()->user()->name ?? 'Admin' }}"
     ></posts-dashboard>
 
 

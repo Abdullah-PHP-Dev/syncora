@@ -149,7 +149,7 @@ class PostController extends Controller
         ->latest()
         ->paginate(10);
         
-        return view('admin.posts.index', compact('posts', 'platform'));
+        return view('admin.posts.index_vue', compact('posts', 'platform'));
     }
 
 	public function index_vue(Request $request)
@@ -168,6 +168,18 @@ class PostController extends Controller
         ->paginate(10);
 
         return view('admin.posts.index_vue', compact('posts', 'platform'));
+    }
+
+    /**
+     * Show a dedicated per-platform preview of a post, with a sidebar
+     * to switch between the other connected platforms for the same post.
+     */
+    public function preview($postId, $platform)
+    {
+        return view('admin.posts.preview', [
+            'postId' => $postId,
+            'platform' => $platform,
+        ]);
     }
 
     public function create(Request $request)
