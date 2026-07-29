@@ -168,6 +168,16 @@ class FacebookAdService
 
         $request['media'] = $response['data'];
 
+        if ($request['media_type'] === 'VIDEO' && !empty($request['thumbnail'])) {
+            $thumbnailResponse = $this->uploadThumbnail($request['thumbnail']);
+
+            if (!$thumbnailResponse['success']) {
+                return $thumbnailResponse;
+            }
+
+            $request['thumbnail_hash'] = $thumbnailResponse['data']['hash'];
+        }
+
         // Step 4: create creative
         $response = $this->storeCreative($platform, $request);
 
@@ -334,9 +344,10 @@ class FacebookAdService
 
         foreach ($request['media'] as $media) {
             $extension = strtolower($media->getClientOriginalExtension());
-            $mediaType = $this->getMediaType($extension); // image | video   
-            $fileName = time() . '.' . $extension;
+            $mediaType = $this->getMediaType($extension); // IMAGE | VIDEO
+            $fileName = time() . '_' . uniqid() . '.' . $extension;
             $s3Path = "uploads/{$platform}/{$mediaType}/{$fileName}";
+
             Storage::disk('s3')->put(
                 $s3Path,
                 file_get_contents($media->getRealPath()),
@@ -345,66 +356,118 @@ class FacebookAdService
 
             $filePath = Storage::disk('s3')->url($s3Path);
 
-            $payload = [
-                "file_name" => $fileName,
-                "bytes" => base64_encode(
-                    file_get_contents($media->getRealPath())
-                )
-            ];
+            $result = $mediaType === 'VIDEO'
+                ? $this->uploadVideo($media, $fileName)
+                : $this->uploadImage($media, $fileName);
 
-            if ($mediaType === 'IMAGE') {
-                $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adimages';
-            } else if ($mediaType === 'VIDEO') {
-                $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/advideos';
-            } else if ($mediaType === 'CAROUSEL') {
+            if (!$result['success']) {
+                return $result;
             }
 
-            $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
-
-            $media = $response['data'];
-
-            if (!$response['success']) {
-                return $this->errorResponse($media['error']['message']);
-            }
-
-            $image = $media['images']['bytes'];
+            $mediaHash = $result['data']['hash'];
 
             $dataToInsert = [
-                'ad_media_id'       => $image['hash'],
+                'ad_media_id'       => $mediaHash,
                 'ad_account_id'     => $this->account->id,
                 'ad_campaign_id'    => $request['ad_campaign_id'],
                 'platform'          => 'facebook',
                 'name'              => $fileName,
-                'url'               => $image['url'],
-                'download_link'     => $image['url'],
+                'url'               => $result['data']['url'] ?? $filePath,
+                'download_link'     => $result['data']['url'] ?? $filePath,
                 'type'              => $mediaType,
                 'status'            => false,
                 'file_name'         => $fileName,
                 'image_category'    => $mediaType,
-                'signature'         => $image['hash'],
+                'signature'         => $mediaHash,
                 'upload_by_type'    => 'UPLOAD_BY_FILE',
-                'file_id'           => $image['hash'],
+                'file_id'           => $mediaHash,
                 'user_id'           => Auth::user()->id,
                 'ad_format'         => 'FEED',
             ];
 
             $medias = $this->apiService->success(
                 $dataToInsert,
-                ['ad_media_id' => $image['hash']],
+                ['ad_media_id' => $mediaHash],
                 new AdMedia
             );
 
             $mediaIds[] = [
                 'ad_media_id' => $medias['data']['id'],
-                'media_id' => $medias['data']['ad_media_id']
+                'media_id' => $mediaHash,
             ];
-
-            // $media['ad_media_id'][] = $media['data']['id'];
-            // $media['media_id'][] = $media['data']['ad_media_id'];
         }
 
         return ['success' => true, 'data' => $mediaIds];
-        // $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
+    }
+
+    /**
+     * Upload a single image to Meta's /adimages endpoint (base64 "bytes" body is
+     * the documented way to upload image source there), returning the image_hash
+     * needed by AdCreative link_data/video_data/child_attachments.
+     */
+    private function uploadImage($media, $fileName)
+    {
+        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adimages';
+
+        $payload = [
+            'file_name' => $fileName,
+            'bytes'     => base64_encode(file_get_contents($media->getRealPath())),
+        ];
+
+        $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
+        $result = $response['data'];
+
+        if (!$response['success']) {
+            return $this->errorResponse($result['error']['error_user_msg'] ?? $result['error']['message'] ?? 'Failed to upload image.');
+        }
+
+        $image = $result['images']['bytes'];
+
+        return ['success' => true, 'data' => ['hash' => $image['hash'], 'url' => $image['url']]];
+    }
+
+    /**
+     * Upload a video to Meta's /advideos endpoint. Unlike /adimages, this endpoint
+     * requires an actual multipart file upload (a base64 "bytes" JSON body - the
+     * approach adimages uses - is not a supported way to upload video source).
+     */
+    private function uploadVideo($media, $fileName)
+    {
+        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/advideos';
+
+        // Multipart upload must not carry a JSON content-type header.
+        $authHeader = ['Authorization' => $this->header['data']['Authorization']];
+
+        $response = $this->apiService->post(
+            $endpoint,
+            $authHeader,
+            ['name' => $fileName],
+            'multipart',
+            [[
+                'name'       => 'source',
+                'media_file' => $media->getRealPath(),
+                'file_name'  => $fileName,
+            ]]
+        );
+
+        $result = $response['data'];
+
+        if (!$response['success']) {
+            return $this->errorResponse($result['error']['error_user_msg'] ?? $result['error']['message'] ?? 'Failed to upload video.');
+        }
+
+        return ['success' => true, 'data' => ['hash' => $result['id'], 'url' => null]];
+    }
+
+    /**
+     * Video ads need a thumbnail (image_hash) for object_story_spec.video_data -
+     * uploaded the same way as any other creative image via /adimages.
+     */
+    private function uploadThumbnail($thumbnail)
+    {
+        $fileName = 'thumb_' . time() . '_' . uniqid() . '.' . strtolower($thumbnail->getClientOriginalExtension());
+
+        return $this->uploadImage($thumbnail, $fileName);
     }
 
     private function storeCreative($platform, $request)
@@ -425,16 +488,29 @@ class FacebookAdService
         }
 
         if ($request['media_type'] === 'CAROUSEL') {
+            $cards = json_decode($request['carousel_cards'] ?? '[]', true) ?: [];
+
+            $childAttachments = [];
+            foreach ($request['media'] as $index => $media) {
+                $card = $cards[$index] ?? [];
+
+                $childAttachments[] = [
+                    'image_hash'  => $media['media_id'],
+                    'link'        => $card['link'] ?? $request['target_link'],
+                    'name'        => $card['title'] ?? $request['name'],
+                    'description' => $card['description'] ?? $request['description'],
+                ];
+            }
+
             $linkData = [
                 'message' => $request['description'],
-                'description' => $request['description'],
                 'link' => $request['target_link'],
+                'child_attachments' => $childAttachments,
             ];
 
-            $linkData['child_attachments'] = [['image_hash' => $request['admedia_id'], 'link' => $request['target_link']]];
-            $linkData['call_to_action'] =     $request['call_to_action'];
+            $linkData['call_to_action'] = $this->buildFacebookCTAPayload($request['call_to_action'], $request['target_link']);
 
-            $newPayload['object_story_spec']['link_data'] = $linkData;
+            $payload['object_story_spec']['link_data'] = $linkData;
         } else if ($request['media_type'] === 'IMAGE') {
 
             $linkData = [
@@ -449,14 +525,16 @@ class FacebookAdService
         } else if ($request['media_type'] === 'VIDEO') {
 
             $linkData = [
-                'image_url' => $request['image_url'],
-                'video_id' => $request['video_id'],
-                'description' => $request['description'],
-                //"link_description" => "Come check out our new store in Menlo Park!", 
-
+                'video_id' => $request['media'][0]['media_id'],
+                'title' => $request['name'],
+                'link_description' => $request['description'],
             ];
-            $linkData['call_to_action'] = $this->buildFacebookCTAPayload($request['call_to_action'], $request['target_link']);
 
+            if (!empty($request['thumbnail_hash'])) {
+                $linkData['image_hash'] = $request['thumbnail_hash'];
+            }
+
+            $linkData['call_to_action'] = $this->buildFacebookCTAPayload($request['call_to_action'], $request['target_link']);
 
             $payload['object_story_spec']['video_data'] = $linkData;
         }
@@ -619,51 +697,51 @@ class FacebookAdService
 
     private function getPromotedObject($request)
     {
+        // Must read the advertiser's actual objective - every objective other than
+        // Traffic needs its own promoted_object fields (page_id / pixel_id / app ids),
+        // and hard-coding this to Traffic left every other objective's adset either
+        // missing required fields or carrying fields Meta doesn't expect for it.
+        $objective = $request['objective'] ?? 'OUTCOME_TRAFFIC';
+        $goal = $request['optimization_goal'] ?? null;
+        $destinationType = $request['destination_type'] ?? null;
+
         $promotedObjectRules = [
             'OUTCOME_AWARENESS' => [
                 'default' => ['page_id'],
-                'IMPRESSIONS' => ['page_id'],
-                'REACH' => ['page_id'],
-                'VIDEO_VIEWS' => ['page_id'],
-                'THRUPLAY' => ['page_id'],
-                'TWO_SECOND_CONTINUOUS_VIDEO_VIEWS' => ['page_id'],
             ],
             'OUTCOME_TRAFFIC' => [
-                'LINK_CLICKS' => ['application_id', 'object_store_url'],
-                'REACH' => ['application_id', 'object_store_url'],
+                'default' => [],
             ],
             'OUTCOME_ENGAGEMENT' => [
-                'PAGE_LIKES' => ['page_id'],
-                'QUALITY_LEAD' => ['page_id'],
-                'LINK_CLICKS' => ['page_id'],
-                'CONVERSIONS' => ['page_id'],
-                'LEAD_GENERATION' => ['page_id'],
-                'OFFSITE_CONVERSIONS' => ['pixel_id', 'custom_event_type', 'application_id', 'object_store_url'],
+                'OFFSITE_CONVERSIONS' => ['pixel_id', 'custom_event_type'],
+                'default' => ['page_id'],
             ],
             'OUTCOME_APP_PROMOTION' => [
-                'LINK_CLICKS' => ['application_id', 'object_store_url'],
-                'APP_INSTALLS' => ['application_id', 'object_store_url'],
-                'OFFSITE_CONVERSIONS' => ['application_id', 'object_store_url'],
+                'default' => ['application_id', 'object_store_url'],
             ],
             'OUTCOME_LEADS' => [
-                'LEAD_GENERATION' => ['page_id'],
-                'QUALITY_LEAD' => ['page_id'],
-                'OFFSITE_CONVERSIONS' => ['pixel_id', 'custom_event_type', 'application_id', 'object_store_url'],
+                'OFFSITE_CONVERSIONS' => ['pixel_id', 'custom_event_type'],
+                'default' => ['page_id'],
             ],
             'OUTCOME_SALES' => [
-                'OFFSITE_CONVERSIONS' => ['pixel_id', 'application_id', 'object_store_url'],
-                'CONVERSIONS' => ['page_id', 'pixel_id', 'custom_event_type'],
-                'LINK_CLICKS' => ['product_catalog_id', 'product_set_id', 'custom_event_type'],
+                'default' => ['pixel_id', 'custom_event_type'],
             ],
         ];
 
-        $promotedObject = [];
-
-        $objective = 'OUTCOME_TRAFFIC';
-        $goal = $request['optimization_goal'];
-
         $fields = $promotedObjectRules[$objective][$goal]
             ?? ($promotedObjectRules[$objective]['default'] ?? []);
+
+        // A website/app destination on Traffic needs its own promoted_object fields,
+        // independent of the objective-level rules above.
+        if ($objective === 'OUTCOME_TRAFFIC') {
+            if ($destinationType === 'APP') {
+                $fields = ['application_id', 'object_store_url'];
+            } elseif (in_array($destinationType, ['MESSENGER', 'WHATSAPP'], true)) {
+                $fields = ['page_id'];
+            }
+        }
+
+        $promotedObject = [];
 
         foreach ($fields as $field) {
             if (!empty($request[$field])) {
@@ -671,19 +749,14 @@ class FacebookAdService
             }
         }
 
-        $goal = $request['optimization_goal'] ?? null;
-
-        $outcomeLeadsGoals = ['OFFSITE_CONVERSIONS', 'LINK_CLICKS', 'REACH', 'LANDING_PAGE_VIEWS', 'IMPRESSIONS'];
-        $outcomeEngagementGoals = ['OFFSITE_CONVERSIONS', 'LINK_CLICKS', 'REACH', 'LANDING_PAGE_VIEWS', 'IMPRESSIONS'];
-        $outcomeTrafficGoals = ['LINK_CLICKS', 'LANDING_PAGE_VIEWS', 'REACH', 'IMPRESSIONS'];
-
-
-        $shouldUnsetDestinationType =
-            $objective === 'OUTCOME_AWARENESS' ||
-            ($objective === 'OUTCOME_SALES' && $goal === 'OFFSITE_CONVERSIONS') ||
-            ($objective === 'OUTCOME_LEADS' && in_array($goal, $outcomeLeadsGoals, true)) ||
-            ($objective === 'OUTCOME_ENGAGEMENT' && in_array($goal, $outcomeEngagementGoals, true)) ||
-            ($objective === 'OUTCOME_TRAFFIC' && in_array($goal, $outcomeTrafficGoals, true));
+        // destination_type only applies to AdSets built around Traffic (website/app/
+        // messaging destinations) or Engagement via Messenger/WhatsApp conversations.
+        // Meta also requires optimization_goal=CONVERSATIONS whenever the destination
+        // is Messenger/WhatsApp - enforced here too in case a request bypasses the
+        // frontend's own goal-locking.
+        $shouldUnsetDestinationType = empty($destinationType)
+            || !in_array($objective, ['OUTCOME_TRAFFIC', 'OUTCOME_ENGAGEMENT'], true)
+            || (in_array($destinationType, ['MESSENGER', 'WHATSAPP'], true) && $goal !== 'CONVERSATIONS');
 
         return [
             'promoted_objects' => $promotedObject,

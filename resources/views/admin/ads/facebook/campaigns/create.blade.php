@@ -404,12 +404,57 @@
                                                 </div>
                                             </div>
 
+                                            <div class="row mt-3" id="pixel_fields">
+                                                <div class="col-md-6">
+                                                    <label>Pixel Id</label>
+                                                    <input class="form-control" name="pixel_id" id="pixel_id"
+                                                        type="text" placeholder="Meta Pixel ID">
+                                                    <p class="error-message error-pixel_id"></p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label>Conversion Event</label>
+                                                    <select class="form-select" name="custom_event_type"
+                                                        id="custom_event_type">
+                                                        <option value="">Select Conversion Event</option>
+                                                        <option value="PURCHASE">Purchase</option>
+                                                        <option value="LEAD">Lead</option>
+                                                        <option value="COMPLETE_REGISTRATION">Complete Registration
+                                                        </option>
+                                                        <option value="ADD_TO_CART">Add To Cart</option>
+                                                        <option value="INITIATED_CHECKOUT">Initiated Checkout</option>
+                                                        <option value="VIEW_CONTENT">View Content</option>
+                                                        <option value="SUBSCRIBE">Subscribe</option>
+                                                        <option value="CONTACT">Contact</option>
+                                                        <option value="SCHEDULE">Schedule</option>
+                                                    </select>
+                                                    <p class="error-message error-custom_event_type"></p>
+                                                </div>
+                                            </div>
+
+                                            <div class="row mt-3" id="app_promotion_fields">
+                                                <div class="col-md-6">
+                                                    <label>App Store URL</label>
+                                                    <input class="form-control" name="object_store_url"
+                                                        id="object_store_url" type="url"
+                                                        placeholder="https://play.google.com/store/apps/details?id=...">
+                                                    <p class="error-message error-object_store_url"></p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label>App Id</label>
+                                                    <input class="form-control" name="application_id"
+                                                        id="application_id" type="text">
+                                                    <p class="error-message error-application_id"></p>
+                                                </div>
+                                            </div>
+
                                         </div>
                                         <div class="builder-card">
 
                                             <h5>Ad Creative</h5>
                                             <div class="duration-buttons">
                                                 <input type="hidden" name="media_type" id="media_type" value="IMAGE">
+                                                <input type="hidden" name="carousel_cards" id="carousel_cards"
+                                                    value="[]">
                                                 <button type="button" class="duration-btn media-type active"
                                                     data-type="IMAGE">
                                                     Image
@@ -431,7 +476,8 @@
 
                                                 <h6>Drag & Drop Media</h6>
 
-                                                <p>Upload image or video</p>
+                                                <p id="uploadHint">Upload image (jpg/png/gif/bmp, max 30MB). For
+                                                    Carousel, select 2+ images.</p>
 
                                                 <input type="file" name="media[]" id="mediaInput" hidden
                                                     accept="image/*,video/*">
@@ -441,6 +487,13 @@
                                                     Upload Media
                                                 </button>
                                                 <p class="error-message error-media"></p>
+                                            </div>
+
+                                            <div class="mt-4" id="thumbnailField" style="display:none">
+                                                <label>Video Thumbnail</label>
+                                                <input type="file" name="thumbnail" id="thumbnailInput"
+                                                    class="form-control" accept="image/*">
+                                                <p class="error-message error-thumbnail"></p>
                                             </div>
 
 
@@ -703,7 +756,10 @@
 
                 let input = document.getElementById('mediaInput');
                 $('#media_type').val(creativeType);
-                console.log($('#media_type').val());
+
+                document.getElementById('thumbnailField').style.display =
+                    creativeType === 'VIDEO' ? 'block' : 'none';
+
                 if (creativeType === 'CAROUSEL') {
 
                     input.setAttribute('multiple', true);
@@ -712,15 +768,24 @@
                     carouselItems = [];
                     currentIndex = 0;
 
+                    document.getElementById('uploadHint').innerText =
+                        'Upload 2-10 images for the carousel.';
+
                 } else if (creativeType === 'IMAGE') {
 
                     input.removeAttribute('multiple');
                     input.accept = "image/*";
 
+                    document.getElementById('uploadHint').innerText =
+                        'Upload image (jpg/png/gif/bmp, max 30MB).';
+
                 } else {
 
                     input.removeAttribute('multiple');
                     input.accept = "video/*";
+
+                    document.getElementById('uploadHint').innerText =
+                        'Upload video (mp4/mov, max 500MB) and a thumbnail image below.';
                 }
             });
         });
@@ -910,8 +975,8 @@
                 ],
                 optimizationGoals: [
                     'POST_ENGAGEMENT',
-                    'VIDEO_VIEWS',
-                    'THRUPLAY'
+                    'THRUPLAY',
+                    'CONVERSATIONS'
                 ],
                 billingEvents: [
                     'IMPRESSIONS'
@@ -922,15 +987,11 @@
             },
 
             OUTCOME_LEADS: {
-                conversionLocations: [
-                    'WEBSITE',
-                    'INSTANT_FORM',
-                    'MESSENGER',
-                    'WHATSAPP'
-                ],
+                destinationTypes: [],
                 optimizationGoals: [
-                    'LEADS',
-                    'QUALITY_LEADS'
+                    'LEAD_GENERATION',
+                    'QUALITY_LEAD',
+                    'OFFSITE_CONVERSIONS'
                 ],
                 billingEvents: [
                     'IMPRESSIONS'
@@ -948,7 +1009,7 @@
                 ],
                 optimizationGoals: [
                     'APP_INSTALLS',
-                    'APP_EVENTS'
+                    'OFFSITE_CONVERSIONS'
                 ],
                 billingEvents: [
                     'IMPRESSIONS'
@@ -959,14 +1020,9 @@
             },
 
             OUTCOME_SALES: {
-                conversionLocations: [
-                    'WEBSITE',
-                    'APP',
-                    'SHOP'
-                ],
+                destinationTypes: [],
                 optimizationGoals: [
-                    'OFFSITE_CONVERSIONS',
-                    'PURCHASE'
+                    'OFFSITE_CONVERSIONS'
                 ],
                 billingEvents: [
                     'IMPRESSIONS'
@@ -978,10 +1034,49 @@
             }
         };
         populateFields(objectiveMap['OUTCOME_TRAFFIC']);
+        toggleObjectiveFields('OUTCOME_TRAFFIC');
         $('#objective').on('change', function() {
             let objective = $(this).val();
-            console.log(objectiveMap[objective])
             populateFields(objectiveMap[objective]);
+            toggleObjectiveFields(objective);
+        });
+
+        function toggleObjectiveFields(objective) {
+            $('#app_promotion_fields').toggle(objective === 'OUTCOME_APP_PROMOTION');
+            $('#application_id, #object_store_url').prop('required', objective === 'OUTCOME_APP_PROMOTION');
+        }
+
+        // Pixel/custom event fields are only required when OFFSITE_CONVERSIONS is
+        // the chosen optimization goal (Sales, or App Promotion/Leads/Engagement
+        // driven off a pixel instead of a Page/App).
+        $(document).on('change', '#optimization_goal', function() {
+            let needsPixel = $(this).val() === 'OFFSITE_CONVERSIONS';
+            $('#pixel_fields').toggle(needsPixel);
+            $('#pixel_id, #custom_event_type').prop('required', needsPixel);
+        });
+        $('#pixel_fields').hide();
+
+        // Meta requires optimization_goal=CONVERSATIONS whenever destination_type is
+        // Messenger/WhatsApp for Traffic and Engagement - lock the goal dropdown to
+        // that single option so an invalid pairing can't be submitted.
+        const messagingRestrictedObjectives = ['OUTCOME_TRAFFIC', 'OUTCOME_ENGAGEMENT'];
+
+        $(document).on('change', '#destination_type', function() {
+            let objective = $('#objective').val();
+            let destinationType = $(this).val();
+            let isMessaging = ['MESSENGER', 'WHATSAPP'].includes(destinationType);
+
+            if (isMessaging && messagingRestrictedObjectives.includes(objective)) {
+                $('#optimization_goal').html(
+                    `<option value="CONVERSATIONS">${beautifyLabel('CONVERSATIONS')}</option>`
+                );
+            } else if (objectiveMap[objective]) {
+                let goalOptions = '<option value="">Optimization Goal</option>';
+                $.each(objectiveMap[objective].optimizationGoals, function(index, value) {
+                    goalOptions += `<option value="${value}">${beautifyLabel(value)}</option>`;
+                });
+                $('#optimization_goal').html(goalOptions);
+            }
         });
 
         function populateFields(data) {
@@ -1079,6 +1174,24 @@
             document.getElementById('budget_mode').addEventListener('change', calculateBudget);
             document.getElementById('start_time').addEventListener('change', calculateBudget);
             document.getElementById('end_time').addEventListener('change', calculateBudget);
+
+        // Runs on the #campaign element itself, so it fires before api.js's
+        // document-delegated submit handler builds the FormData - carries each
+        // carousel card's link/title/description into the actual POST body.
+        document.getElementById('campaign').addEventListener('submit', function() {
+            if (creativeType !== 'CAROUSEL') return;
+
+            let mainLink = document.getElementById('targetLink').value;
+            let mainDescription = document.getElementById('adDescription').value;
+
+            let cards = carouselItems.map(item => ({
+                title: item.title || '',
+                description: item.description || mainDescription,
+                link: item.link || mainLink,
+            }));
+
+            document.getElementById('carousel_cards').value = JSON.stringify(cards);
+        });
     </script>
 
     <script src="{{ asset('assets/js/admin/api.js') }}"></script>

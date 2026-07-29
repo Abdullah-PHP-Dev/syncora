@@ -53,11 +53,36 @@ class AdCampaignRequest extends FormRequest
             'start_time' => ['required', 'date_format:Y-m-d', 'before:end_time'],
             'end_time'   => ['required', 'date_format:Y-m-d', 'after:start_time'],
             //  'brand_name' => ['required', 'string'],
-            'media' => array_merge($requiredIfPost, ['array']),
-            'media.*' => ['file', 'max:1024'],
+            'media' => array_merge($requiredIfPost, [
+                'array',
+                function ($attribute, $value, $fail) {
+                    if ($this->input('media_type') === 'CAROUSEL' && count($value ?? []) < 2) {
+                        $fail('A carousel ad needs at least 2 images.');
+                    }
+                },
+            ]),
+            'media.*' => [
+                'file',
+                function ($attribute, $value, $fail) {
+                    $isVideo = $this->input('media_type') === 'VIDEO';
+                    $maxKb = $isVideo ? 512000 : 30720; // 500MB video / 30MB image
+
+                    if ($value->getSize() / 1024 > $maxKb) {
+                        $fail("The {$attribute} may not be greater than " . ($isVideo ? '500MB' : '30MB') . '.');
+                    }
+
+                    $allowedMimes = $isVideo
+                        ? ['video/mp4', 'video/quicktime', 'video/x-m4v']
+                        : ['image/jpeg', 'image/png', 'image/gif', 'image/bmp'];
+
+                    if (!in_array($value->getMimeType(), $allowedMimes, true)) {
+                        $fail("The {$attribute} must be a valid " . ($isVideo ? 'video (mp4/mov)' : 'image (jpg/png/gif/bmp)') . ' file.');
+                    }
+                },
+            ],
             'media_type' => ['required', 'in:IMAGE,VIDEO,CAROUSEL'],
-            //  'music' => ['required_with:ad_format,CAROUSEL'],
-            //'video' => ['required_if:media_type,VIDEO'],
+            'thumbnail' => ['nullable', 'required_if:media_type,VIDEO', 'image', 'max:8192'],
+            'carousel_cards' => ['nullable', 'required_if:media_type,CAROUSEL', 'json'],
             'description' => ['required', 'string'],
             'facebook' => ['nullable', 'required_without:instagram'],
             'instagram' => ['nullable', 'required_without:facebook'],
@@ -72,7 +97,7 @@ class AdCampaignRequest extends FormRequest
                                 WHATSAPP_LINK,GET_IN_TOUCH,BOOK_NOW,CHECK_AVAILABILITY,
                                 WHATSAPP_MESSAGE,GET_MOBILE_APP,INSTALL_MOBILE_APP,USE_MOBILE_APP,INSTALL_APP,
                                 WATCH_VIDEO,WATCH_MORE,OPEN_LINK,NO_BUTTON,LISTEN_MUSIC,MOBILE_DOWNLOAD,
-                                GET_OFFER,GET_OFFER_VIEW,BUY_NOW,
+                                GET_OFFER,GET_OFFER_VIEW,BUY_NOW,DOWNLOAD,SIGN_UP,
                                 UPDATE_APP,BET_NOW,ADD_TO_CART,SELL_NOW,GET_SHOWTIMES,LISTEN_NOW,
                                 GET_EVENT_TICKETS,REMIND_ME,SEARCH_MORE,PRE_REGISTER,SWIPE_UP_PRODUCT,
                                 SWIPE_UP_SHOP,
@@ -84,22 +109,29 @@ class AdCampaignRequest extends FormRequest
                                 CALL,MISSED_CALL,CALL_ME,BUY,GET_QUOTE,SUBSCRIBE,RECORD_NOW,VOTE_NOW,
                                 GIVE_FREE_RIDES,REGISTER_NOW,OPEN_MESSENGER_EXT,
                                 EVENT_RSVP,CIVIC_ACTION,SEND_INVITES,REFER_FRIENDS,REQUEST_TIME,SEE_MENU,
-                                SEARCH,TRY_IT,TRY_ON,LINK_CARD,DIAL_CODE,FIND_YOUR_GROUPS,START_ORDER']),       
+                                SEARCH,TRY_IT,TRY_ON,LINK_CARD,DIAL_CODE,FIND_YOUR_GROUPS,START_ORDER']),
             //'account_to_use' => ['required', 'in:Twsaa,Store'],
-            'optimization_goal'    => array_merge($requiredIfPost, ['in:LINK_CLICKS,LANDING_PAGE_VIEWS,REACH,IMPRESSIONS']),
+            'optimization_goal' => array_merge($requiredIfPost, ['in:' . implode(',', [
+                'LINK_CLICKS', 'LANDING_PAGE_VIEWS', 'REACH', 'IMPRESSIONS', 'AD_RECALL_LIFT',
+                'POST_ENGAGEMENT', 'THRUPLAY', 'CONVERSATIONS',
+                'LEAD_GENERATION', 'QUALITY_LEAD',
+                'APP_INSTALLS', 'APP_INSTALLS_AND_OFFSITE_CONVERSIONS',
+                'OFFSITE_CONVERSIONS',
+            ])]),
             'billing_event'    => array_merge($requiredIfPost, ['in:NONE,CLICKS,IMPRESSIONS,LINK_CLICKS,OFFER_CLAIMS,PAGE_LIKES,POST_ENGAGEMENT,THRUPLAY,PURCHASE,LISTING_INTERACTION']),
-            'destination_type'    => ['nullable'],
+            'destination_type'    => ['nullable', 'in:WEBSITE,APP,MESSENGER,WHATSAPP'],
             'bid_amount'    => array_merge($requiredIfPost),
-            'pixel_id'           => ['string', 'max:255', 'nullable'],
+            'pixel_id'           => ['nullable', 'string', 'max:255', 'required_if:optimization_goal,OFFSITE_CONVERSIONS'],
             'page_id'            => ['string', 'max:255', 'nullable'],
-            'application_id'     => ['string', 'max:255', 'nullable'],
-            'custom_event_type'     => ['string', 'max:255', 'nullable'],
+            'application_id'     => ['nullable', 'string', 'max:255', 'required_if:objective,OUTCOME_APP_PROMOTION'],
+            'object_store_url'    => ['nullable', 'string', 'max:255', 'required_if:objective,OUTCOME_APP_PROMOTION'],
+            'custom_event_type'     => ['nullable', 'string', 'max:255', 'required_if:optimization_goal,OFFSITE_CONVERSIONS'],
             'age_to'     => ['required'],
             'age_from'     => ['required'],
             'gender'     => ['required'],
             'languages'     => ['required', 'array'],
             'final_budget' => ['required'],
-            'objective' => ['required']
+            'objective' => ['required', 'in:OUTCOME_TRAFFIC,OUTCOME_SALES,OUTCOME_ENGAGEMENT,OUTCOME_AWARENESS,OUTCOME_APP_PROMOTION,OUTCOME_LEADS']
         ];
     }
 
