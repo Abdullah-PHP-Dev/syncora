@@ -342,7 +342,12 @@ class FacebookAdService
     {
         $mediaIds = [];
 
-        foreach ($request['media'] as $media) {
+        $cards = $request['media_type'] === 'CAROUSEL'
+            ? (json_decode($request['carousel_cards'] ?? '[]', true) ?: [])
+            : [];
+
+        foreach ($request['media'] as $index => $media) {
+            $card = $cards[$index] ?? [];
             $extension = strtolower($media->getClientOriginalExtension());
             $mediaType = $this->getMediaType($extension); // IMAGE | VIDEO
             $fileName = time() . '_' . uniqid() . '.' . $extension;
@@ -383,6 +388,8 @@ class FacebookAdService
                 'file_id'           => $mediaHash,
                 'user_id'           => Auth::user()->id,
                 'ad_format'         => 'FEED',
+                'title'             => $card['title'] ?? null,
+                'description'       => $card['description'] ?? null,
             ];
 
             $medias = $this->apiService->success(
@@ -483,7 +490,7 @@ class FacebookAdService
         if (isset($request['instagram'])) {
             $loginUser = AdAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
             if ($loginUser) {
-                $payload['object_story_spec']['instagram_user_id'] = $loginUser->account_id;
+                $payload['object_story_spec']['instagram_actor_id'] = $loginUser->account_id;
             }
         }
 
@@ -1196,7 +1203,7 @@ class FacebookAdService
         if (isset($request['instagram'])) {
             $loginUser = AdAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
             if ($loginUser) {
-                $payload['object_story_spec']['instagram_user_id'] = $loginUser->account_id;
+                $payload['object_story_spec']['instagram_actor_id'] = $loginUser->account_id;
             }
         }
 

@@ -12,7 +12,7 @@ use App\Models\User;
 class AdMedia extends Model
 {
     protected $table = 'ad_media';
-    protected $fillable = ['user_id','ad_media_id','platform','ad_account_id','ad_campaign_id','name','file_name','download_link','type','status','image_category','url','upload_by_type', 'ad_format','signature', 'file_id'];
+    protected $fillable = ['user_id','ad_media_id','platform','ad_account_id','ad_campaign_id','name','file_name','download_link','type','status','image_category','url','upload_by_type', 'ad_format','signature', 'file_id', 'title', 'description'];
 
 
     public function adAccount(): BelongsTo

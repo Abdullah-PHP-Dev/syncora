@@ -139,8 +139,12 @@ class AdCampaignRequest extends FormRequest
     {
         return [
             'name' => ['required'],
+            // TikTok's real objective_type enum (campaign/create/) - trimmed
+            // from a much larger mixed bag of Facebook/legacy-TikTok enum
+            // names that would have passed validation here but been rejected
+            // by TikTok's own API.
             'objective' => array_merge($requiredIfPost, [
-                'in:APP_INSTALLS,BRAND_AWARENESS,CONVERSIONS,EVENT_RESPONSES,LEAD_GENERATION,LINK_CLICKS,LOCAL_AWARENESS,MESSAGES,OFFER_CLAIMS,OUTCOME_APP_PROMOTION,OUTCOME_AWARENESS,OUTCOME_ENGAGEMENT,OUTCOME_LEADS,OUTCOME_SALES,OUTCOME_TRAFFIC,PAGE_LIKES,POST_ENGAGEMENT,PRODUCT_CATALOG_SALES,REACH,STORE_VISITS,VIDEO_VIEWS,TRAFFIC,APP_PROMOTION,WEB_CONVERSIONS,APP_CONVERSION,APP_INSTALL,CATALOG_SALES,ENGAGEMENT,VIDEO_VIEW,WEB_CONVERSION,PROMOTE_STORIES,PROMOTE_PLACES'
+                'in:REACH,TRAFFIC,VIDEO_VIEWS,LEAD_GENERATION,ENGAGEMENT,APP_PROMOTION,WEB_CONVERSIONS,PRODUCT_SALES'
             ]),
             'app_promotion_type' => [
                 'nullable',
@@ -198,16 +202,30 @@ class AdCampaignRequest extends FormRequest
             ]),
 
             // Ad Group validation
-            'promotion_type' => ['required_without:objective,REACH,VIDEO_VIEWS,ENGAGEMENT', 'in:APP_ANDROID,APP_IOS,GAME,WEBSITE,LEAD_GENERATION,LEAD_GEN_CLICK_TO_TT_DIRECT_MESSAGE,LEAD_GEN_CLICK_TO_SOCIAL_MEDIA_APP_MESSAGE,LEAD_GEN_CLICK_TO_CALL,WEBSITE_OR_DISPLAY,TIKTOK_SHOP,VIDEO_SHOPPING,LIVE_SHOPPING,PSA_PRODUCT'],
+            // MINI_APP/MINI_GAME (App Promotion) and EXTERNAL_OR_DISPLAY (Reach/
+            // Video Views/Engagement) are real options the blade's own
+            // objectiveConfig can populate into this select but were missing
+            // here, so picking them would have failed validation.
+            'promotion_type' => ['required_without:objective,REACH,VIDEO_VIEWS,ENGAGEMENT', 'in:APP_ANDROID,APP_IOS,MINI_APP,MINI_GAME,GAME,WEBSITE,EXTERNAL_OR_DISPLAY,LEAD_GENERATION,LEAD_GEN_CLICK_TO_TT_DIRECT_MESSAGE,LEAD_GEN_CLICK_TO_SOCIAL_MEDIA_APP_MESSAGE,LEAD_GEN_CLICK_TO_CALL,WEBSITE_OR_DISPLAY,TIKTOK_SHOP,VIDEO_SHOPPING,LIVE_SHOPPING,PSA_PRODUCT'],
             'promotion_target_type' => ['nullable', 'in:INSTANT_PAGE,EXTERNAL_WEBSITE'],
-            'optimization_goal' => array_merge($requiredIfPost, ['in:REACH,ENGAGED_VIEW,ENGAGED_VIEW_FIFTEEN,CLICK,TRAFFIC_LANDING_PAGE_VIEW,CONVERT,VALUE,AUTOMATIC_VALUE_OPTIMIZATION,INSTALL,IN_APP_EVENT,LEAD_GENERATION']),
+            // FOLLOWERS/PAGE_VISIT (used by the Engagement objective) were
+            // missing here despite being referenced by the blade's own
+            // objective->goal map and optimization_goal->billing_event map -
+            // every Engagement campaign would have failed this rule.
+            'optimization_goal' => array_merge($requiredIfPost, ['in:REACH,ENGAGED_VIEW,ENGAGED_VIEW_FIFTEEN,CLICK,TRAFFIC_LANDING_PAGE_VIEW,CONVERT,VALUE,AUTOMATIC_VALUE_OPTIMIZATION,INSTALL,IN_APP_EVENT,LEAD_GENERATION,FOLLOWERS,PAGE_VISIT']),
             'gender' => ['nullable', 'in:GENDER_FEMALE,GENDER_MALE,GENDER_UNLIMITED'],
             'placement_type' => ['nullable', 'in:PLACEMENT_TYPE_AUTOMATIC,PLACEMENT_TYPE_NORMAL'],
             'placements' => ['required_if:placement_type,PLACEMENT_TYPE_NORMAL' ,'in:PLACEMENT_TIKTOK,PLACEMENT_PANGLE,PLACEMENT_GLOBAL_APP_BUNDLE'],
             'languages' => ['array', 'required'],
             'final_budget' => ['nullable'],
-            'target_link'  => ['required:'],
+            'target_link'  => ['required'],
             'call_to_action' => ['required', 'in:APPLY_NOW,BOOK_NOW,CALL_NOW,CHECK_AVAILABLILITY,CONTACT_US,DOWNLOAD_NOW,EXPERIENCE_NOW,GET_QUOTE,GET_SHOWTIMES,GET_TICKETS_NOW,INSTALL_NOW,INTERESTED,LEARN_MORE,LISTEN_NOW,ORDER_NOW,PLAY_GAME,PREORDER_NOW,READ_MORE,SEND_MESSAGE,SHOP_NOW,SIGN_UP,SUBSCRIBE,VIEW_NOW,VIEW_PROFILE,VISIT_STORE,WATCH_LIVE,WATCH_NOW,JOIN_THIS_HASHTAG,SHOOT_WITH_THIS_EFFECT,VIEW_VIDEO_WITH_THIS_EFFECT'],
+            // billing_event pairs 1:1 with optimization_goal (see the blade's
+            // optimizationGoalBillingMap) - this was previously commented out
+            // entirely, so any value (or none) passed straight through to
+            // TiktokAdService without being checked.
+            'billing_event' => array_merge($requiredIfPost, ['in:CPC,CPM,CPV,OCPM']),
+            'page_id' => array_merge($requiredIfPost, []),
            // 'operation_status' => ['nullable', 'in:ENABLE,DISABLE'],
             // 'budget_mode' => array_merge($requiredIfPost, ['
             //     in:BUDGET_MODE_DAY,BUDGET_MODE_TOTAL,BUDGET_MODE_DYNAMIC_DAILY_BUDGET,BUDGET_MODE_INFINITE',
@@ -265,12 +283,28 @@ class AdCampaignRequest extends FormRequest
            // 'pacing' => array_merge($requiredIfPost, ['in:PACING_MODE_SMOOTH,PACING_MODE_FAST']),
            'countries' => ['array', 'required'],
             'age_range' => ['required', 'array'],
-            'media' => array_merge($requiredIfPost, ['array']),
-            'media.*' => ['file', 'max:1024'],
-           // 'logo' => ['required', 'file', 'max:1024'],
+            'media' => array_merge($requiredIfPost, [
+                'array',
+                function ($attribute, $value, $fail) {
+                    if (request()->input('media_type') === 'CAROUSEL' && count($value) < 2) {
+                        $fail('Carousel ads need at least 2 images.');
+                    }
+                },
+            ]),
+            // Video files need far more headroom than images - TikTok allows
+            // uploads up to ~500MB for video vs a few MB for images.
+            'media.*' => [
+                'file',
+                function ($attribute, $value, $fail) {
+                    $maxKb = request()->input('media_type') === 'VIDEO' ? 512000 : 30720;
+
+                    if ($value->getSize() > $maxKb * 1024) {
+                        $fail('Each file must not exceed ' . ($maxKb / 1024) . 'MB.');
+                    }
+                },
+            ],
            'media_type' => ['required', 'in:IMAGE,VIDEO,CAROUSEL'],
-           'music' => ['required_if:ad_format,CAROUSEL_ADS'],
-            'video' => ['required_if:ad_format,SINGLE_VIDEO'],
+           'carousel_cards' => ['nullable', 'required_if:media_type,CAROUSEL', 'json'],
             // 'bid_display_mode' => [
             //     'nullable', 
             //     'in:CPV',

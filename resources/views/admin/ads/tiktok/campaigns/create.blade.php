@@ -165,6 +165,59 @@
         margin-top: 5px;
         display: none;
     }
+
+    .wizard-step {
+        display: none;
+    }
+
+    .wizard-step.active {
+        display: block;
+    }
+
+    .review-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid #eef1f5;
+    }
+
+    .review-row:last-child {
+        border-bottom: none;
+    }
+
+    .review-row span:first-child {
+        color: #6b7280;
+    }
+
+    .review-row span:last-child {
+        font-weight: 600;
+        text-align: right;
+    }
+
+    .wizard-nav {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 10px;
+    }
+
+    .step.has-error {
+        box-shadow: 0 0 0 2px #dc3545;
+    }
+
+    .step.has-error::after {
+        content: '!';
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        margin-left: 6px;
+        border-radius: 50%;
+        background: #dc3545;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+    }
 </style>
 
 @section('content')
@@ -188,12 +241,12 @@
                                 </div>
                                 <h2>Create TikTok Campaign</h2>
                                 <div class="campaign-steps">
-                                    <div class="step active">Campaign</div>
-                                    <div class="step">Budget</div>
-                                    <div class="step">Goal</div>
-                                    <div class="step">Creative</div>
-                                    <div class="step">Audience</div>
-                                    <div class="step">Review</div>
+                                    <div class="step active" data-step="1">Campaign</div>
+                                    <div class="step" data-step="2">Budget</div>
+                                    <div class="step" data-step="3">Goal</div>
+                                    <div class="step" data-step="4">Creative</div>
+                                    <div class="step" data-step="5">Audience</div>
+                                    <div class="step" data-step="6">Review</div>
                                 </div>
                             </div>
 
@@ -202,9 +255,8 @@
                                 <div class="col-lg-8">
                                     <form id="campaign" enctype="multipart/form-data">
                                         @csrf
-                                        <input type="hidden" name="advertiser_id"
-                                            value="{{ $account->advertiser_id ?? '' }}">
 
+                                        <div class="wizard-step active" data-step="1">
                                         <!-- ============================================================ -->
                                         <!-- 1. CAMPAIGN INFORMATION                                       -->
                                         <!-- ============================================================ -->
@@ -224,12 +276,10 @@
                                                         <option value="APP_PROMOTION">App Promotion</option>
                                                         <option value="WEB_CONVERSIONS">Web Conversions</option>
                                                         <option value="REACH">Reach</option>
-                                                        <option value="BRAND_CONSIDERATION">Brand Consideration</option>
                                                         <option value="TRAFFIC">Traffic</option>
                                                         <option value="VIDEO_VIEWS">Video Views</option>
                                                         <option value="ENGAGEMENT">Engagement</option>
                                                         <option value="LEAD_GENERATION">Lead Generation</option>
-                                                        <option value="TOPVIEW_REACH">TopView Reach</option>
                                                     </select>
                                                     <p class="error-message error-objective"></p>
                                                 </div>
@@ -273,8 +323,20 @@
                                                     <p class="error-message error-pixel_id"></p>
                                                 </div>
                                             </div>
+
+                                            <!-- Optimization Event - required whenever optimization_goal is IN_APP_EVENT/VALUE, or whenever a Pixel ID is set above -->
+                                            <div class="row" id="optimizationEventField" style="display:none;">
+                                                <div class="col-md-6">
+                                                    <label>Optimization Event</label>
+                                                    <input type="text" name="optimization_event" id="optimization_event"
+                                                        class="form-control" placeholder="e.g. COMPLETE_PAYMENT">
+                                                    <p class="error-message error-optimization_event"></p>
+                                                </div>
+                                            </div>
+                                        </div>
                                         </div>
 
+                                        <div class="wizard-step" data-step="2">
                                         <!-- ============================================================ -->
                                         <!-- 2. BUDGET & SCHEDULE (AdGroup level)                        -->
                                         <!-- ============================================================ -->
@@ -355,7 +417,9 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        </div>
 
+                                        <div class="wizard-step" data-step="3">
                                         <!-- ============================================================ -->
                                         <!-- 3. GOAL SETUP (AdGroup level)                               -->
                                         <!-- ============================================================ -->
@@ -415,11 +479,12 @@
                                                     </select>
                                                     <p class="error-message error-destination_type"></p>
                                                 </div> --}}
-                                                <!-- Page ID (for some objectives) -->
+                                                <!-- TikTok requires an Identity (a verified TikTok profile) on every ad -->
                                                 <div class="col-md-6">
-                                                    <label>Page ID</label>
+                                                    <label>TikTok Identity ID *</label>
                                                     <input type="text" name="page_id" id="page_id"
-                                                        class="form-control">
+                                                        class="form-control" placeholder="From TikTok Ads Manager > Identity" required>
+                                                    <small class="text-muted">The Identity ID of the verified TikTok profile this ad will post as (TikTok Ads Manager → Assets → Identity).</small>
                                                     <p class="error-message error-page_id"></p>
                                                 </div>
                                             </div>
@@ -463,9 +528,93 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        </div>
 
+                                        <div class="wizard-step" data-step="4">
                                         <!-- ============================================================ -->
-                                        <!-- 4. AUDIENCE TARGETING (AdGroup level)                       -->
+                                        <!-- 4. AD CREATIVE (Ad level)                                   -->
+                                        <!-- ============================================================ -->
+                                        <div class="builder-card">
+                                            <h5>Ad Creative</h5>
+                                            <div class="duration-buttons">
+                                                <input type="hidden" name="media_type" id="media_type" value="IMAGE">
+                                                <input type="hidden" name="carousel_cards" id="carousel_cards" value="[]">
+                                                <button type="button" class="duration-btn media-type active"
+                                                    data-type="IMAGE">Image</button>
+                                                <button type="button" class="duration-btn media-type"
+                                                    data-type="CAROUSEL">Carousel</button>
+                                                <button type="button" class="duration-btn media-type"
+                                                    data-type="VIDEO">Video</button>
+                                                <p class="error-message error-media_type"></p>
+                                            </div>
+                                            <br>
+                                            <div class="upload-zone">
+                                                <i class="bx bx-cloud-upload"></i>
+                                                <h6>Drag & Drop Media</h6>
+                                                <p id="uploadHint">Upload image (max 30MB) or video (max 500MB).</p>
+                                                <input type="file" name="media[]" id="mediaInput" hidden
+                                                    accept="image/*,video/*">
+                                                <button type="button" class="btn btn-primary"
+                                                    onclick="document.getElementById('mediaInput').click()">Upload
+                                                    Media</button>
+                                                <p class="error-message error-media"></p>
+                                            </div>
+                                            <div class="mt-4">
+                                                <label>Description</label>
+                                                <textarea id="ad_description" name="description" rows="4" class="form-control"></textarea>
+                                                <p class="error-message error-description"></p>
+                                            </div>
+                                        </div>
+                                        <div class="builder-card">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <label>Target URL (Landing Page)</label>
+                                                    <input type="url" name="target_link" id="target_link"
+                                                        class="form-control" placeholder="https://example.com">
+                                                    <small class="text-muted" id="carouselLinkNote" style="display:none">TikTok Carousel Ads use one landing page URL, caption and call-to-action shared across every card - not a URL per image.</small>
+                                                    <p class="error-message error-target_link"></p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label>Call to Action</label>
+                                                    <select name="call_to_action" id="call_to_action" class="form-select">
+                                                        <option value="">-- Select CTA --</option>
+                                                        <option value="APPLY_NOW">Apply Now</option>
+                                                        <option value="BOOK_NOW">Book Now</option>
+                                                        <option value="CALL_NOW">Call Now</option>
+                                                        <option value="CHECK_AVAILABLILITY">Check Availability</option>
+                                                        <option value="CONTACT_US">Contact Us</option>
+                                                        <option value="DOWNLOAD_NOW">Download Now</option>
+                                                        <option value="EXPERIENCE_NOW">Experience Now</option>
+                                                        <option value="GET_QUOTE">Get Quote</option>
+                                                        <option value="GET_SHOWTIMES">Get Showtimes</option>
+                                                        <option value="GET_TICKETS_NOW">Get Tickets Now</option>
+                                                        <option value="INSTALL_NOW">Install Now</option>
+                                                        <option value="INTERESTED">Interested</option>
+                                                        <option value="LEARN_MORE">Learn More</option>
+                                                        <option value="LISTEN_NOW">Listen Now</option>
+                                                        <option value="ORDER_NOW">Order Now</option>
+                                                        <option value="PLAY_GAME">Play Game</option>
+                                                        <option value="PREORDER_NOW">Preorder Now</option>
+                                                        <option value="READ_MORE">Read More</option>
+                                                        <option value="SEND_MESSAGE">Send Message</option>
+                                                        <option value="SHOP_NOW">Shop Now</option>
+                                                        <option value="SIGN_UP">Sign Up</option>
+                                                        <option value="SUBSCRIBE">Subscribe</option>
+                                                        <option value="VIEW_NOW">View Now</option>
+                                                        <option value="VIEW_PROFILE">View Profile</option>
+                                                        <option value="VISIT_STORE">Visit Store</option>
+                                                        <option value="WATCH_LIVE">Watch Live</option>
+                                                        <option value="WATCH_NOW">Watch Now</option>
+                                                    </select>
+                                                    <p class="error-message error-call_to_action"></p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        </div>
+
+                                        <div class="wizard-step" data-step="5">
+                                        <!-- ============================================================ -->
+                                        <!-- 5. AUDIENCE TARGETING (AdGroup level)                       -->
                                         <!-- ============================================================ -->
                                         <div class="builder-card">
                                             <h5>Audience Targeting</h5>
@@ -539,66 +688,21 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        </div>
 
-                                        <!-- ============================================================ -->
-                                        <!-- 5. AD CREATIVE (Ad level)                                   -->
-                                        <!-- ============================================================ -->
-                                        <div class="builder-card">
-                                            <h5>Ad Creative</h5>
-                                            <div class="duration-buttons">
-                                                <input type="hidden" name="media_type" id="media_type" value="IMAGE">
-                                                <button type="button" class="duration-btn media-type active"
-                                                    data-type="IMAGE">Image</button>
-                                                <button type="button" class="duration-btn media-type"
-                                                    data-type="CAROUSEL">Carousel</button>
-                                                <button type="button" class="duration-btn media-type"
-                                                    data-type="VIDEO">Video</button>
-                                                <p class="error-message error-media_type"></p>
-                                            </div>
-                                            <br>
-                                            <div class="upload-zone">
-                                                <i class="bx bx-cloud-upload"></i>
-                                                <h6>Drag & Drop Media</h6>
-                                                <p>Upload image or video</p>
-                                                <input type="file" name="media[]" id="mediaInput" hidden
-                                                    accept="image/*,video/*">
-                                                <button type="button" class="btn btn-primary"
-                                                    onclick="document.getElementById('mediaInput').click()">Upload
-                                                    Media</button>
-                                                <p class="error-message error-media"></p>
-                                            </div>
-                                            <div class="mt-4">
-                                                <label>Description</label>
-                                                <textarea id="ad_description" name="description" rows="4" class="form-control"></textarea>
-                                                <p class="error-message error-description"></p>
+                                        <div class="wizard-step" data-step="6">
+                                            <div class="builder-card">
+                                                <h5>Review</h5>
+                                                <p class="text-muted">Please review your campaign details before launching.</p>
+                                                <div id="reviewSummary"></div>
                                             </div>
                                         </div>
-                                        <div class="builder-card">
-                                            <div class="row">
-                                                <div class="col-md-6">
-                                                    <label>Target URL (Landing Page)</label>
-                                                    <input type="url" name="target_link" id="target_link"
-                                                        class="form-control" placeholder="https://example.com">
-                                                    <p class="error-message error-target_link"></p>
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <label>Call to Action</label>
-                                                    <select name="call_to_action" id="call_to_action" class="form-select">
-                                                        <option value="">-- Select CTA --</option>
-                                                        <option value="LEARN_MORE">Learn More</option>
-                                                        <option value="SHOP_NOW">Shop Now</option>
-                                                        <option value="SIGN_UP">Sign Up</option>
-                                                        <option value="BOOK_NOW">Book Now</option>
-                                                        <option value="CONTACT_US">Contact Us</option>
-                                                        <option value="CALL_NOW">Call Now</option>
-                                                        <option value="SEND_MESSAGE">Send Message</option>
-                                                        <option value="DOWNLOAD">Download</option>
-                                                    </select>
-                                                    <p class="error-message error-call_to_action"></p>
-                                                </div>
-                                            </div>
+
+                                        <div class="wizard-nav">
+                                            <button type="button" class="btn btn-outline-primary" id="prevStep" style="display:none">Previous</button>
+                                            <button type="button" class="btn btn-primary ms-auto" id="nextStep">Next</button>
+                                            <button type="submit" class="btn btn-primary ms-auto" id="launchBtn" style="display:none">Launch</button>
                                         </div>
-                                        <button type="submit" class="duration-btn active">Launch</button>
                                     </form>
                                 </div>
 
@@ -619,15 +723,13 @@
                                                 style="display:none;width:100%;border-radius:12px;"></video>
                                             <div id="carouselPreview" style="display:none">
                                                 <img id="carouselImage" class="preview-image">
-                                                <div class="mt-3"><label>Title</label><input type="text"
+                                                <small class="text-muted d-block mt-2">For your own reference only - TikTok Carousel Ads don't support a title/link per image, only a shared caption and CTA (set below the upload zone).</small>
+                                                <div class="mt-3"><label>Title (internal reference)</label><input type="text"
                                                         id="carouselTitle" class="form-control" placeholder="Card title">
                                                 </div>
-                                                <div class="mt-3"><label>Description</label>
+                                                <div class="mt-3"><label>Description (internal reference)</label>
                                                     <textarea id="carouselDescription" class="form-control" rows="3" placeholder="Card description"></textarea>
                                                 </div>
-                                                <div class="mt-3"><label>Card URL</label><input type="url"
-                                                        id="carouselLink" class="form-control"
-                                                        placeholder="https://example.com"></div>
                                                 <div class="d-flex justify-content-between mt-3">
                                                     <button type="button" class="btn btn-primary"
                                                         id="prevImage">Previous</button>
@@ -710,14 +812,6 @@
             showAppFields: false,
             brandSafetyType: 'STANDARD',
         },
-        'BRAND_CONSIDERATION': {
-            optimizationGoals: ['REACH', 'IMPRESSIONS', 'AD_RECALL_LIFT'],
-            promotionTypes: ['WEBSITE', 'EXTERNAL_OR_DISPLAY'],
-            destinationTypes: ['WEBSITE'],
-            showPixel: false,
-            showAppFields: false,
-            brandSafetyType: 'STANDARD',
-        },
         'TRAFFIC': {
             optimizationGoals: ["CLICK", "TRAFFIC_LANDING_PAGE_VIEW"],
             promotionTypes: ['WEBSITE', 'WEBSITE_OR_DISPLAY'],
@@ -750,14 +844,6 @@
             showAppFields: false,
             brandSafetyType: 'NO_BRAND_SAFETY',
         },
-        'TOPVIEW_REACH': {
-            optimizationGoals: ['REACH', 'IMPRESSIONS'],
-            promotionTypes: ['WEBSITE', 'EXTERNAL_OR_DISPLAY'],
-            destinationTypes: ['WEBSITE'],
-            showPixel: false,
-            showAppFields: false,
-            brandSafetyType: 'NO_BRAND_SAFETY',
-        }
     };
 
     const promotionTypeLabels = {
@@ -1001,17 +1087,22 @@
             creativeType = this.dataset.type;
             document.getElementById('media_type').value = creativeType;
 
+            document.getElementById('carouselLinkNote').style.display = creativeType === 'CAROUSEL' ? '' : 'none';
+
             if (creativeType === 'CAROUSEL') {
                 mediaInput.setAttribute('multiple', true);
                 mediaInput.accept = "image/*";
                 carouselItems = [];
                 currentIndex = 0;
+                document.getElementById('uploadHint').innerText = 'Upload 2-35 images for the carousel (max 30MB each).';
             } else if (creativeType === 'IMAGE') {
                 mediaInput.removeAttribute('multiple');
                 mediaInput.accept = "image/*";
+                document.getElementById('uploadHint').innerText = 'Upload image (max 30MB).';
             } else {
                 mediaInput.removeAttribute('multiple');
                 mediaInput.accept = "video/*";
+                document.getElementById('uploadHint').innerText = 'Upload video (max 500MB).';
             }
         });
     });
@@ -1022,7 +1113,6 @@
         document.getElementById('carouselImage').src = item.image;
         document.getElementById('carouselTitle').value = item.title || '';
         document.getElementById('carouselDescription').value = item.description || '';
-        document.getElementById('carouselLink').value = item.link || '';
         document.getElementById('carouselCounter').innerHTML = `${currentIndex + 1} / ${carouselItems.length}`;
     }
 
@@ -1031,9 +1121,6 @@
     });
     document.getElementById('carouselDescription').addEventListener('input', function() {
         if (carouselItems[currentIndex]) carouselItems[currentIndex].description = this.value;
-    });
-    document.getElementById('carouselLink').addEventListener('input', function() {
-        if (carouselItems[currentIndex]) carouselItems[currentIndex].link = this.value;
     });
 
     mediaInput.addEventListener('change', function(e) {
@@ -1049,8 +1136,7 @@
             carouselItems = files.map(file => ({
                 image: URL.createObjectURL(file),
                 title: '',
-                description: '',
-                link: ''
+                description: ''
             }));
             currentIndex = 0;
             loadCarouselItem();
@@ -1077,13 +1163,221 @@
     });
 
     // ------------------------------------------------------------------
-    // 11. STEP CLICK (visual only)
+    // 11. OPTIMIZATION EVENT VISIBILITY
+    // Required whenever optimization_goal is IN_APP_EVENT/VALUE, or
+    // whenever a Pixel ID has been entered (see AdCampaignRequest).
     // ------------------------------------------------------------------
-    document.querySelectorAll('.step').forEach(step => {
-        step.addEventListener('click', function() {
-            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-            this.classList.add('active');
+    function updateOptimizationEventVisibility() {
+        let goal = optGoalSelect.value;
+        let hasPixel = document.getElementById('pixel_id').value.trim() !== '';
+        let needsEvent = ['IN_APP_EVENT', 'VALUE'].includes(goal) || hasPixel;
+
+        document.getElementById('optimizationEventField').style.display = needsEvent ? '' : 'none';
+    }
+
+    optGoalSelect.addEventListener('change', updateOptimizationEventVisibility);
+    document.getElementById('pixel_id').addEventListener('input', updateOptimizationEventVisibility);
+
+    // ------------------------------------------------------------------
+    // 12. WIZARD STEP NAVIGATION - Campaign / Budget / Goal / Creative /
+    // Audience / Review. Mirrors the Facebook campaign builder: each
+    // section lives in a .wizard-step[data-step], only one is visible at
+    // a time, and Next/Previous/the step pills all drive the same
+    // showStep() so everything stays in sync.
+    // ------------------------------------------------------------------
+    const wizardSteps = document.querySelectorAll('.wizard-step');
+    const stepPills = document.querySelectorAll('.campaign-steps .step');
+    const totalSteps = wizardSteps.length;
+    let currentStep = 1;
+
+    function showStep(step) {
+        if (step < 1 || step > totalSteps) return;
+
+        currentStep = step;
+
+        wizardSteps.forEach(section => {
+            section.classList.toggle('active', parseInt(section.dataset.step) === step);
         });
+
+        stepPills.forEach(pill => {
+            pill.classList.toggle('active', parseInt(pill.dataset.step) === step);
+        });
+
+        document.getElementById('prevStep').style.display = step === 1 ? 'none' : 'inline-block';
+        document.getElementById('nextStep').style.display = step === totalSteps ? 'none' : 'inline-block';
+        document.getElementById('launchBtn').style.display = step === totalSteps ? 'inline-block' : 'none';
+
+        if (step === totalSteps) {
+            populateReviewSummary();
+        }
+
+        window.scrollTo({
+            top: document.querySelector('.campaign-builder').offsetTop - 20,
+            behavior: 'smooth'
+        });
+    }
+
+    // Required fields (eg. pixel_id, optimization_event) can live on a step
+    // that's display:none once you've moved past it, and a hidden required
+    // field can't be natively focused - so browsers silently swallow the
+    // submit. Validate a step's own fields before letting navigation leave
+    // it, while it's still visible and reportValidity() can show the bubble.
+    function stepIsValid(stepNumber) {
+        let stepEl = document.querySelector(`.wizard-step[data-step="${stepNumber}"]`);
+        let fields = stepEl.querySelectorAll('input, select, textarea');
+
+        for (let field of fields) {
+            if (!field.checkValidity()) {
+                showStep(stepNumber);
+                field.reportValidity();
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    document.getElementById('nextStep').addEventListener('click', function() {
+        if (!stepIsValid(currentStep)) return;
+        showStep(currentStep + 1);
+    });
+
+    document.getElementById('prevStep').addEventListener('click', function() {
+        showStep(currentStep - 1);
+    });
+
+    stepPills.forEach(pill => {
+        pill.addEventListener('click', function() {
+            let target = parseInt(this.dataset.step);
+
+            if (target > currentStep) {
+                for (let s = currentStep; s < target; s++) {
+                    if (!stepIsValid(s)) return;
+                }
+            }
+
+            showStep(target);
+        });
+    });
+
+    function reviewRow(label, value) {
+        return `<div class="review-row"><span>${label}</span><span>${value || '-'}</span></div>`;
+    }
+
+    function populateReviewSummary() {
+        let countries = $('#countries option:selected').map(function() {
+            return this.text;
+        }).get().join(', ');
+
+        let languages = Array.from(document.querySelectorAll('input[name="languages[]"]:checked'))
+            .map(el => el.nextElementSibling.innerText.trim()).join(', ');
+
+        let ageRanges = Array.from(document.querySelectorAll('input[name="age_range[]"]:checked'))
+            .map(el => el.nextElementSibling.innerText.trim()).join(', ');
+
+        let mediaSummary = creativeType === 'CAROUSEL' ?
+            `${carouselItems.length} carousel image(s)` :
+            (mediaInput.files.length ? '1 file selected' : 'No media selected');
+
+        let html = '';
+        html += reviewRow('Campaign Name', document.getElementById('name').value);
+        html += reviewRow('Objective', beautifyLabel(document.getElementById('objective').value || ''));
+        html += reviewRow('Budget Mode', beautifyLabel(document.getElementById('budget_mode').value || ''));
+        html += reviewRow('Total Budget', document.getElementById('total_budget').innerText);
+        html += reviewRow('Start Date', document.getElementById('start_time').value);
+        html += reviewRow('End Date', document.getElementById('end_time').value);
+        html += reviewRow('Optimization Goal', beautifyLabel(optGoalSelect.value || ''));
+        html += reviewRow('Billing Event', billingEventSelect.value);
+        html += reviewRow('Promotion Type', beautifyLabel(promotionTypeSelect.value || ''));
+        html += reviewRow('Media Type', beautifyLabel(creativeType));
+        html += reviewRow('Media', mediaSummary);
+        html += reviewRow('Call To Action', beautifyLabel(callToActionSelect.value || ''));
+        html += reviewRow('Countries', countries);
+        html += reviewRow('Age Range', ageRanges);
+        html += reviewRow('Gender', beautifyLabel(document.getElementById('gender').value || ''));
+        html += reviewRow('Languages', languages);
+
+        document.getElementById('reviewSummary').innerHTML = html;
+    }
+
+    // ------------------------------------------------------------------
+    // Carousel per-image title/description are kept client-side only
+    // (they're for our own ad_media records - TikTok's API itself has no
+    // per-card fields for Carousel Ads). Runs on #campaign itself so it
+    // fires before api.js's document-delegated submit handler builds the
+    // FormData.
+    // ------------------------------------------------------------------
+    document.getElementById('campaign').addEventListener('submit', function() {
+        if (creativeType !== 'CAROUSEL') return;
+
+        let cards = carouselItems.map(item => ({
+            title: item.title || '',
+            description: item.description || '',
+        }));
+
+        document.getElementById('carousel_cards').value = JSON.stringify(cards);
+    });
+
+    // ------------------------------------------------------------------
+    // Laravel validation errors land in .error-<field> elements scattered
+    // across all six wizard steps - api.js populates them then fires this
+    // event. Jump to whichever step holds the first one so the message the
+    // user actually needs is visible, and flag every step pill that has an
+    // error so nothing gets missed if there's more than one.
+    // ------------------------------------------------------------------
+    $(document).on('campaign:validationErrors', function(e, errors) {
+        if (!errors) return;
+
+        stepPills.forEach(pill => pill.classList.remove('has-error'));
+
+        let targetStep = null;
+        let targetField = null;
+
+        Object.keys(errors).forEach(field => {
+            let fieldEl = document.querySelector('.error-' + field);
+            if (!fieldEl) return;
+
+            let stepEl = fieldEl.closest('.wizard-step');
+            if (!stepEl) return;
+
+            let stepNumber = parseInt(stepEl.dataset.step);
+            let pill = document.querySelector(`.campaign-steps .step[data-step="${stepNumber}"]`);
+            if (pill) pill.classList.add('has-error');
+
+            if (targetStep === null || stepNumber < targetStep) {
+                targetStep = stepNumber;
+                targetField = fieldEl;
+            }
+        });
+
+        if (targetStep !== null) {
+            showStep(targetStep);
+            targetField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    });
+
+    // Clear a field's server-side error the moment the user edits it, and
+    // drop its step's error flag once nothing in that step is left unresolved
+    // - so fixing a field doesn't require submitting again to see progress.
+    $('#campaign').on('input change', 'input, select, textarea', function() {
+        let name = this.name ? this.name.replace('[]', '') : null;
+        if (!name) return;
+
+        let errorEl = document.querySelector('.error-' + name);
+        if (!errorEl || errorEl.textContent.trim() === '') return;
+
+        errorEl.textContent = '';
+
+        let stepEl = errorEl.closest('.wizard-step');
+        if (!stepEl) return;
+
+        let stillHasErrors = Array.from(stepEl.querySelectorAll('.error-message'))
+            .some(el => el.textContent.trim() !== '');
+
+        if (!stillHasErrors) {
+            let pill = document.querySelector(`.campaign-steps .step[data-step="${stepEl.dataset.step}"]`);
+            if (pill) pill.classList.remove('has-error');
+        }
     });
 
     // ------------------------------------------------------------------
@@ -1110,6 +1404,8 @@
         objectiveSelect.value = 'TRAFFIC';
         objectiveSelect.dispatchEvent(new Event('change'));
     }
+
+    showStep(1);
 
     // ------------------------------------------------------------------
     // 14. GLOBAL VARIABLES FOR api.js

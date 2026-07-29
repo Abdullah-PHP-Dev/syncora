@@ -48,6 +48,25 @@
         box-shadow: 0 5px 15px rgba(24, 119, 242, .3);
     }
 
+    .step.has-error {
+        box-shadow: 0 0 0 2px #dc3545;
+    }
+
+    .step.has-error::after {
+        content: '!';
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        margin-left: 6px;
+        border-radius: 50%;
+        background: #dc3545;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
     .step:hover {
         transform: translateY(-2px);
     }
@@ -157,6 +176,40 @@
         margin: 15px 0;
         border-radius: 12px;
     }
+
+    .wizard-step {
+        display: none;
+    }
+
+    .wizard-step.active {
+        display: block;
+    }
+
+    .review-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid #eef1f5;
+    }
+
+    .review-row:last-child {
+        border-bottom: none;
+    }
+
+    .review-row span:first-child {
+        color: #6b7280;
+    }
+
+    .review-row span:last-child {
+        font-weight: 600;
+        text-align: right;
+    }
+
+    .wizard-nav {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 10px;
+    }
 </style>
 @section('content')
     <div class="col-xxl-12 mb-0">
@@ -179,18 +232,19 @@
                                 </div>
                                 <h2>Create Meta Campaign</h2>
                                 <div class="campaign-steps">
-                                    <div class="step active">Campaign</div>
-                                    <div class="step">Budget</div>
-                                    <div class="step">Goal</div>
-                                    <div class="step">Creative</div>
-                                    <div class="step">Audience</div>
-                                    <div class="step">Review</div>
+                                    <div class="step active" data-step="1">Campaign</div>
+                                    <div class="step" data-step="2">Budget</div>
+                                    <div class="step" data-step="3">Goal</div>
+                                    <div class="step" data-step="4">Creative</div>
+                                    <div class="step" data-step="5">Audience</div>
+                                    <div class="step" data-step="6">Review</div>
                                 </div>
                             </div>
                             <div class="row">
                                 <!-- LEFT SIDE -->
                                 <div class="col-lg-8">
                                     <form id="campaign">
+                                        <div class="wizard-step active" data-step="1">
                                         <div class="builder-card">
                                             <h5>Campaign Information</h5>
                                             <div class="row">
@@ -245,7 +299,9 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        </div>
 
+                                        <div class="wizard-step" data-step="2">
                                         <div class="builder-card">
 
                                             <h5>Budget & Schedule</h5>
@@ -353,6 +409,9 @@
                                             </div>
 
                                         </div>
+                                        </div>
+
+                                        <div class="wizard-step" data-step="3">
                                         <div class="builder-card">
 
                                             <h5>Goal Setup</h5>
@@ -448,6 +507,9 @@
                                             </div>
 
                                         </div>
+                                        </div>
+
+                                        <div class="wizard-step" data-step="4">
                                         <div class="builder-card">
 
                                             <h5>Ad Creative</h5>
@@ -513,6 +575,9 @@
                                             </div>
 
                                         </div>
+                                        </div>
+
+                                        <div class="wizard-step" data-step="5">
                                         <div class="builder-card">
                                             <h5>Audience</h5>
                                             <div class="row">
@@ -623,10 +688,29 @@
 
                                             </div>
                                         </div>
+                                        </div>
 
-                                        <button type="submit" class="duration-btn active">
-                                            Launch
-                                        </button>
+                                        <div class="wizard-step" data-step="6">
+                                            <div class="builder-card">
+                                                <h5>Review</h5>
+                                                <p class="text-muted">Please review your campaign details before launching.</p>
+                                                <div id="reviewSummary"></div>
+                                            </div>
+                                        </div>
+
+                                        <div class="wizard-nav">
+                                            <button type="button" class="btn btn-outline-primary" id="prevStep"
+                                                style="display:none">
+                                                Previous
+                                            </button>
+                                            <button type="button" class="btn btn-primary ms-auto" id="nextStep">
+                                                Next
+                                            </button>
+                                            <button type="submit" class="btn btn-primary ms-auto" id="launchBtn"
+                                                style="display:none">
+                                                Launch
+                                            </button>
+                                        </div>
                                     </form>
                                 </div>
                                 <!-- RIGHT SIDE -->
@@ -887,17 +971,181 @@
                 this.classList.add('active');
             });
         });
-        document.querySelectorAll('.step').forEach(step => {
+        // Wizard step navigation - Campaign / Budget / Goal / Creative / Audience / Review.
+        // Each section is wrapped in a .wizard-step[data-step] and only one is
+        // visible at a time; Next/Previous and the step pills all drive the
+        // same showStep() so they stay in sync.
+        const wizardSteps = document.querySelectorAll('.wizard-step');
+        const stepPills = document.querySelectorAll('.campaign-steps .step');
+        const totalSteps = wizardSteps.length;
+        let currentStep = 1;
 
-            step.addEventListener('click', function() {
+        function showStep(step) {
+            if (step < 1 || step > totalSteps) return;
 
-                document.querySelectorAll('.step').forEach(item => item.classList.remove('active'));
+            currentStep = step;
 
-                this.classList.add('active');
-
+            wizardSteps.forEach(section => {
+                section.classList.toggle('active', parseInt(section.dataset.step) === step);
             });
 
+            stepPills.forEach(pill => {
+                pill.classList.toggle('active', parseInt(pill.dataset.step) === step);
+            });
+
+            document.getElementById('prevStep').style.display = step === 1 ? 'none' : 'inline-block';
+            document.getElementById('nextStep').style.display = step === totalSteps ? 'none' : 'inline-block';
+            document.getElementById('launchBtn').style.display = step === totalSteps ? 'inline-block' : 'none';
+
+            if (step === totalSteps) {
+                populateReviewSummary();
+            }
+
+            window.scrollTo({
+                top: document.querySelector('.campaign-builder').offsetTop - 20,
+                behavior: 'smooth'
+            });
+        }
+
+        // Laravel validation errors land in .error-<field> elements scattered
+        // across all six wizard steps - api.js populates them then fires this
+        // event. Jump to whichever step holds the first one so the message the
+        // user actually needs is visible, and flag every step pill that has an
+        // error so nothing gets missed if there's more than one.
+        $(document).on('campaign:validationErrors', function(e, errors) {
+            if (!errors) return;
+
+            stepPills.forEach(pill => pill.classList.remove('has-error'));
+
+            let targetStep = null;
+            let targetField = null;
+
+            Object.keys(errors).forEach(field => {
+                let fieldEl = document.querySelector('.error-' + field);
+                if (!fieldEl) return;
+
+                let stepEl = fieldEl.closest('.wizard-step');
+                if (!stepEl) return;
+
+                let stepNumber = parseInt(stepEl.dataset.step);
+                let pill = document.querySelector(`.campaign-steps .step[data-step="${stepNumber}"]`);
+                if (pill) pill.classList.add('has-error');
+
+                if (targetStep === null || stepNumber < targetStep) {
+                    targetStep = stepNumber;
+                    targetField = fieldEl;
+                }
+            });
+
+            if (targetStep !== null) {
+                showStep(targetStep);
+                targetField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
         });
+
+        // Clear a field's server-side error the moment the user edits it, and
+        // drop its step's error flag once nothing in that step is left unresolved
+        // - so fixing a field doesn't require submitting again to see progress.
+        $('#campaign').on('input change', 'input, select, textarea', function() {
+            let name = this.name ? this.name.replace('[]', '') : null;
+            if (!name) return;
+
+            let errorEl = document.querySelector('.error-' + name);
+            if (!errorEl || errorEl.textContent.trim() === '') return;
+
+            errorEl.textContent = '';
+
+            let stepEl = errorEl.closest('.wizard-step');
+            if (!stepEl) return;
+
+            let stillHasErrors = Array.from(stepEl.querySelectorAll('.error-message'))
+                .some(el => el.textContent.trim() !== '');
+
+            if (!stillHasErrors) {
+                let pill = document.querySelector(`.campaign-steps .step[data-step="${stepEl.dataset.step}"]`);
+                if (pill) pill.classList.remove('has-error');
+            }
+        });
+
+        // Required fields (eg. pixel_id, object_store_url) can live on a step
+        // that's display:none once you've moved past it, and a hidden required
+        // field can't be natively focused - so browsers silently swallow the
+        // submit. Validate a step's own fields before letting navigation leave
+        // it, while it's still visible and reportValidity() can show the bubble.
+        function stepIsValid(stepNumber) {
+            let stepEl = document.querySelector(`.wizard-step[data-step="${stepNumber}"]`);
+            let fields = stepEl.querySelectorAll('input, select, textarea');
+
+            for (let field of fields) {
+                if (!field.checkValidity()) {
+                    showStep(stepNumber);
+                    field.reportValidity();
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        document.getElementById('nextStep').addEventListener('click', function() {
+            if (!stepIsValid(currentStep)) return;
+            showStep(currentStep + 1);
+        });
+
+        document.getElementById('prevStep').addEventListener('click', function() {
+            showStep(currentStep - 1);
+        });
+
+        stepPills.forEach(pill => {
+            pill.addEventListener('click', function() {
+                let target = parseInt(this.dataset.step);
+
+                if (target > currentStep) {
+                    for (let s = currentStep; s < target; s++) {
+                        if (!stepIsValid(s)) return;
+                    }
+                }
+
+                showStep(target);
+            });
+        });
+
+        function reviewRow(label, value) {
+            return `<div class="review-row"><span>${label}</span><span>${value || '-'}</span></div>`;
+        }
+
+        function populateReviewSummary() {
+            let countries = $('#countries option:selected').map(function() {
+                return this.text;
+            }).get().join(', ');
+
+            let languages = Array.from(document.querySelectorAll('input[name="languages[]"]:checked'))
+                .map(el => el.nextElementSibling.innerText.trim()).join(', ');
+
+            let mediaSummary = creativeType === 'CAROUSEL' ?
+                `${carouselItems.length} carousel image(s)` :
+                (document.getElementById('mediaInput').files.length ? '1 file selected' : 'No media selected');
+
+            let html = '';
+            html += reviewRow('Campaign Name', document.getElementById('name').value);
+            html += reviewRow('Objective', beautifyLabel(document.getElementById('objective').value || ''));
+            html += reviewRow('Budget Type', beautifyLabel(document.getElementById('budget_mode').value || ''));
+            html += reviewRow('Total Budget', document.getElementById('total_budget').innerText);
+            html += reviewRow('Start Date', document.getElementById('start_time').value);
+            html += reviewRow('End Date', document.getElementById('end_time').value);
+            html += reviewRow('Optimization Goal', beautifyLabel(document.getElementById('optimization_goal').value || ''));
+            html += reviewRow('Countries', countries);
+            html += reviewRow('Media Type', beautifyLabel(creativeType));
+            html += reviewRow('Media', mediaSummary);
+            html += reviewRow('Call To Action', beautifyLabel(document.getElementById('call_to_action').value || ''));
+            html += reviewRow('Gender', beautifyLabel(document.getElementById('gender').value || ''));
+            html += reviewRow('Age Range', (document.getElementById('age_from').value || '-') + ' - ' + (document.getElementById('age_to').value || '-'));
+            html += reviewRow('Languages', languages);
+
+            document.getElementById('reviewSummary').innerHTML = html;
+        }
+
+        showStep(1);
 
         document.getElementById('call_to_action').addEventListener('change', function() {
             let text = this.options[this.selectedIndex].text;

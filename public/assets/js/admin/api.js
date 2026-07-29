@@ -209,6 +209,7 @@ $(document).ready(function () {
 
     $(document).on('submit', '#campaign',function (e){
         e.preventDefault();
+        $('.error-message').html('');
         var formData = new FormData(this);
         if (method === 'PUT') {
             formData.append('_method', 'PUT');
@@ -265,6 +266,15 @@ $(document).ready(function () {
                     $.each(errors, function (field, messages) {
                         $('.error-' + field).text(messages[0]); // Display first error message
                     });
+
+                    // Multi-step pages (eg. the Facebook wizard) hide every section
+                    // but the current one, so an error field set above can end up
+                    // inside a display:none step - invisible even though it's
+                    // populated. Let the page itself react (jump to the right step,
+                    // flag the step pill) since only it knows its own step layout;
+                    // this form is shared across platforms that don't have steps.
+                    $(document).trigger('campaign:validationErrors', [errors]);
+
                     const rawError = xhr.responseJSON?.error;
 
                     const errorMessage =

@@ -52,7 +52,12 @@ class ApiService
      */
     protected function sendRequest(string $method,string $endpoint,array $headers = [],array $payload = [],string $type = '', array $files = []) {
         try {
-            $client = $this->httpClient::timeout(300)->withHeaders($headers);
+            // connectTimeout bounds the TCP/TLS handshake alone - without it, a
+            // blocked/unreachable host (eg. an outbound firewall on prod) can hang
+            // far longer than expected before the 300s total timeout ever kicks
+            // in, tying up a PHP-FPM worker well past the point nginx has already
+            // given the browser a 504.
+            $client = $this->httpClient::connectTimeout(10)->timeout(300)->withHeaders($headers);
             /**
              * Request Body Type
              */ 
@@ -117,7 +122,7 @@ class ApiService
                 'data' => $response->json(),
                 'body' => $response->body()
             ];
-        } catch(Exception $e) {
+        } catch(\Throwable $e) {
             Log::error('API Service Error', [
                 'url'=>$endpoint,
                 'method'=>$method,
