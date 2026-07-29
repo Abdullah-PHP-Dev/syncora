@@ -149,7 +149,7 @@ class PostController extends Controller
         ->latest()
         ->paginate(10);
         
-        return view('admin.posts.index', compact('posts', 'platform'));
+        return view('admin.posts.index_vue', compact('posts', 'platform'));
     }
 
 	public function index_vue(Request $request)

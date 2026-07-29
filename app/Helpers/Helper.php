@@ -15,7 +15,9 @@ if (! function_exists('adminSetting')) {
             return $default;
         }
 
-        return json_decode($setting->value, true) ?? $setting->value;
+        $decoded = json_decode($setting->value, true);
+
+        return json_last_error() === JSON_ERROR_NONE ? $decoded : $setting->value;
     }
 }
 
@@ -28,11 +30,7 @@ if (! function_exists('set_adminSetting')) {
     {
         AdminSetting::updateOrCreate(
             ['key' => $key],
-            [
-                'value' => is_array($value) || is_object($value)
-                    ? json_encode($value)
-                    : $value
-            ]
+            ['value' => json_encode($value)]
         );
 
         return true;
