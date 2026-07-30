@@ -118,7 +118,7 @@
         </select>
 
         <button
-            class="modern-btn"
+            class="modern-btn d-none"
             :class="{active: gridView}"
             title="Grid view"
             @click="gridView = true">
@@ -126,7 +126,7 @@
         </button>
 
         <button
-            class="modern-btn"
+            class="modern-btn d-none"
             :class="{active: !gridView}"
             title="List view"
             @click="gridView = false">
@@ -1397,6 +1397,76 @@ export default {
   grid-template-columns:repeat(auto-fill,minmax(370px,1fr));
 
   gap:28px;
+
+}
+
+.posts-grid.list{
+
+  display:flex;
+
+  flex-direction:column;
+
+  gap:18px;
+
+}
+
+.posts-grid.list .post-card{
+
+  display:flex;
+
+  flex-direction:row;
+
+}
+
+.posts-grid.list .post-image{
+
+  width:260px;
+
+  height:170px;
+
+  flex-shrink:0;
+
+}
+
+.posts-grid.list .post-body{
+
+  flex:1;
+
+  display:flex;
+
+  flex-direction:column;
+
+  justify-content:center;
+
+}
+
+.posts-grid.list .post-body p{
+
+  min-height:0;
+
+}
+
+.posts-grid.list .post-stats{
+
+  margin:14px 0;
+
+}
+
+@media(max-width:768px){
+
+  .posts-grid.list .post-card{
+
+    flex-direction:column;
+
+  }
+
+  .posts-grid.list .post-image{
+
+    width:100%;
+
+    height:220px;
+
+  }
 
 }
 
