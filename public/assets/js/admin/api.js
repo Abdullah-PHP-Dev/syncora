@@ -207,6 +207,56 @@ $(document).ready(function () {
         });
     });
 
+    // Pause/reactivate a campaign in place, without navigating away or
+    // removing the row - mirrors the .delete-record pattern above but PATCHes
+    // instead of deleting. Toggles its own data-status/label so clicking it
+    // again reverses the action, and updates the status badge in that row.
+    $(document).on('click', '.status-toggle-record', function (e) {
+        e.preventDefault();
+
+        if (typeof statusAPIUrl === 'undefined') return;
+
+        let $link = $(this);
+        let key = $link.data('key');
+        let targetStatus = $link.data('status');
+        let row = $link.closest('tr');
+        let url = statusAPIUrl.replace(':API', key);
+
+        $.ajax({
+            method: 'PATCH',
+            url: url,
+            data: { status: targetStatus },
+
+            success: function () {
+                let isNowActive = targetStatus === 'ACTIVE';
+
+                row.find('.status-badge')
+                    .toggleClass('bg-label-success', isNowActive)
+                    .toggleClass('bg-label-secondary', !isNowActive)
+                    .text(isNowActive ? 'Active' : 'Paused');
+
+                $link.data('status', isNowActive ? 'PAUSED' : 'ACTIVE');
+                $link.text(isNowActive ? 'Pause' : 'Activate');
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Updated',
+                    text: isNowActive ? 'Campaign activated.' : 'Campaign paused.',
+                    timer: 1500,
+                    showConfirmButton: false,
+                });
+            },
+
+            error: function (xhr) {
+                Swal.fire(
+                    "Error!",
+                    xhr.responseJSON?.error || xhr.responseJSON?.message || "Something went wrong while updating status.",
+                    "error"
+                );
+            }
+        });
+    });
+
     $(document).on('submit', '#campaign',function (e){
         e.preventDefault();
         $('.error-message').html('');

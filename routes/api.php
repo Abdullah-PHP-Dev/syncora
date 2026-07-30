@@ -22,7 +22,25 @@ Route::group(['prefix' => 'api'], function ($router) {
         'App\Https\Api\XController@store')->name('post.x.webhook_url');
         Route::match(['get', 'post'], '/linkedin/{userId}', 
         'App\Https\Api\LinkedinController@store')->name('post.linkedin.webhook_url');
-        Route::match(['get', 'post'], '/telegram/{userId}', 
+        Route::match(['get', 'post'], '/telegram/{userId}',
         'App\Https\Api\TelegramController@store')->name('post.telegram.webhook_url');
+    });
+
+    // Unified messaging inbox webhooks - separate from the (currently
+    // broken, pre-existing) comments-webhook block above, which is a
+    // different system entirely (post-comment moderation, not DMs).
+    Route::prefix('messaging')->name('messaging.webhook.')->group(function () {
+        Route::get('/facebook', [\App\Http\Controllers\Api\Messaging\FacebookMessengerWebhookController::class, 'verify'])->name('facebook.verify');
+        Route::post('/facebook', [\App\Http\Controllers\Api\Messaging\FacebookMessengerWebhookController::class, 'receive'])->name('facebook.receive');
+
+        Route::get('/instagram', [\App\Http\Controllers\Api\Messaging\InstagramMessengerWebhookController::class, 'verify'])->name('instagram.verify');
+        Route::post('/instagram', [\App\Http\Controllers\Api\Messaging\InstagramMessengerWebhookController::class, 'receive'])->name('instagram.receive');
+
+        Route::get('/whatsapp', [\App\Http\Controllers\Api\Messaging\WhatsAppWebhookController::class, 'verify'])->name('whatsapp.verify');
+        Route::post('/whatsapp', [\App\Http\Controllers\Api\Messaging\WhatsAppWebhookController::class, 'receive'])->name('whatsapp.receive');
+
+        // Per-bot URL (see TelegramWebhookController docblock) rather than
+        // one shared endpoint like the three Meta platforms above.
+        Route::post('/telegram/{channel}', [\App\Http\Controllers\Api\Messaging\TelegramWebhookController::class, 'receive'])->name('telegram.receive');
     });
 });

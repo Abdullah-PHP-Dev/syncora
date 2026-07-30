@@ -1,0 +1,186 @@
+<?php
+
+namespace App\Services\MessagingServices\Concerns;
+
+use App\Models\Messaging\MessageChannel;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Redirect;
+
+/**
+ * Shared plumbing for Facebook Messenger, Instagram Direct, and WhatsApp -
+ * all three are Graph API products under the same Meta App, so webhook
+ * verification (the hub.challenge handshake), payload authenticity
+ * (X-Hub-Signature-256, HMAC-SHA256 over the raw body using the App
+ * Secret) and the base Graph API call shape are identical across all
+ * three, only the message/webhook payload *shapes* differ per product.
+ */
+trait MetaMessagingTrait
+{
+    /**
+     * GET verification handshake Meta performs when a webhook subscription
+     * is first configured (and whenever it's re-verified): respond with
+     * the raw hub.challenge value if hub.verify_token matches what this
+     * channel was configured with, otherwise reject.
+     */
+    protected function verifyMetaWebhook(Request $request, string $expectedVerifyToken): ?string
+    {
+        if (
+            $request->query('hub_mode') === 'subscribe'
+            && hash_equals($expectedVerifyToken, (string) $request->query('hub_verify_token'))
+        ) {
+            return (string) $request->query('hub_challenge');
+        }
+
+        return null;
+    }
+
+    /**
+     * Confirms an inbound webhook POST body genuinely came from Meta -
+     * without this, anyone who guesses/finds the webhook URL could inject
+     * fake "customer messages" (or fake delivery/read receipts) into the
+     * inbox. Meta signs every webhook POST body with the App Secret via
+     * the X-Hub-Signature-256 header.
+     */
+    protected function verifyMetaSignature(Request $request, string $appSecret): bool
+    {
+        $signatureHeader = $request->header('X-Hub-Signature-256', '');
+
+        if (!str_starts_with($signatureHeader, 'sha256=')) {
+            return false;
+        }
+
+        $expected = hash_hmac('sha256', $request->getContent(), $appSecret);
+
+        return hash_equals($expected, substr($signatureHeader, 7));
+    }
+
+    protected function graphApiUrl(string $path): string
+    {
+        $version = adminSetting('messaging.meta.graph_version') ?: 'v21.0';
+
+        return "https://graph.facebook.com/{$version}/" . ltrim($path, '/');
+    }
+
+    protected function graphApiCall(string $method, string $path, array $params, string $accessToken)
+    {
+        $headers = ['Authorization' => "Bearer {$accessToken}"];
+        $url = $this->graphApiUrl($path);
+
+        $response = match (strtoupper($method)) {
+            'GET'  => $this->apiService->get($url, $headers, $params),
+            'POST' => $this->apiService->post($url, $headers, $params),
+            default => ['success' => false, 'data' => null],
+        };
+
+        if (!$response['success']) {
+            return ['success' => false, 'error' => $response['data']['error']['message'] ?? 'Graph API request failed.'];
+        }
+
+        return ['success' => true, 'data' => $response['data']];
+    }
+
+    /**
+     * One Facebook Login flow covers both Messenger (Page messaging) and
+     * Instagram Direct (Instagram professional accounts connected to a
+     * Page) - Meta grants Page and connected-IG access together via
+     * /me/accounts, there's no separate "Instagram login" needed for this.
+     * WhatsApp is deliberately not included: Cloud API numbers are set up
+     * through Meta's Embedded Signup JS SDK (not a plain OAuth redirect)
+     * or a permanent System User token from Business Settings, so that
+     * channel type is connected via manual entry instead (see
+     * MessageChannelController).
+     */
+    public function redirect($state)
+    {
+        $url = 'https://www.facebook.com/' . (adminSetting('messaging.meta.graph_version') ?: 'v21.0') . '/dialog/oauth?' . http_build_query([
+            'client_id'     => adminSetting('messaging.meta.app_id'),
+            'redirect_uri'  => config('services.app_url') . '/admin/messaging/auth/meta/callback',
+            'state'         => $state,
+            'response_type' => 'code',
+            'scope'         => 'pages_show_list,pages_messaging,pages_manage_metadata,instagram_basic,instagram_manage_messages',
+        ]);
+
+        return Redirect::away($url);
+    }
+
+    /**
+     * Exchanges the OAuth code for a long-lived user token, then walks
+     * /me/accounts (every Page the user administers) to create a
+     * MessageChannel per Page (Messenger) and, for any Page with a
+     * connected Instagram professional account, a second channel for
+     * Instagram Direct - both share the Page's own access token, which
+     * Meta accepts for either product's Send API.
+     */
+    public function handleMetaCallback(string $code): array
+    {
+        $tokenResponse = $this->apiService->get($this->graphApiUrl('oauth/access_token'), [], [
+            'client_id'     => adminSetting('messaging.meta.app_id'),
+            'client_secret' => adminSetting('messaging.meta.app_secret'),
+            'redirect_uri'  => config('services.app_url') . '/admin/messaging/auth/meta/callback',
+            'code'          => $code,
+        ]);
+
+        if (!$tokenResponse['success']) {
+            return ['success' => false, 'error' => $tokenResponse['data']['error']['message'] ?? 'Failed to exchange code for a Meta access token.'];
+        }
+
+        $shortLivedToken = $tokenResponse['data']['access_token'];
+
+        $longLivedResponse = $this->apiService->get($this->graphApiUrl('oauth/access_token'), [], [
+            'grant_type'        => 'fb_exchange_token',
+            'client_id'         => adminSetting('messaging.meta.app_id'),
+            'client_secret'     => adminSetting('messaging.meta.app_secret'),
+            'fb_exchange_token' => $shortLivedToken,
+        ]);
+
+        $userToken = $longLivedResponse['success'] ? $longLivedResponse['data']['access_token'] : $shortLivedToken;
+
+        $pagesResponse = $this->apiService->get($this->graphApiUrl('me/accounts'), [], [
+            'access_token' => $userToken,
+            'fields'       => 'id,name,access_token,picture,instagram_business_account{id,username,profile_picture_url}',
+        ]);
+
+        if (!$pagesResponse['success']) {
+            return ['success' => false, 'error' => $pagesResponse['data']['error']['message'] ?? 'Failed to fetch Pages.'];
+        }
+
+        $created = ['facebook' => 0, 'instagram' => 0];
+
+        foreach ($pagesResponse['data']['data'] ?? [] as $page) {
+            MessageChannel::updateOrCreate(
+                ['platform' => 'facebook', 'external_id' => $page['id']],
+                [
+                    'user_id'      => Auth::id(),
+                    'name'         => $page['name'],
+                    'username'     => null,
+                    'avatar_url'   => $page['picture']['data']['url'] ?? null,
+                    'access_token' => $page['access_token'],
+                    'status'       => true,
+                ]
+            );
+            $created['facebook']++;
+
+            if (!empty($page['instagram_business_account']['id'])) {
+                $ig = $page['instagram_business_account'];
+
+                MessageChannel::updateOrCreate(
+                    ['platform' => 'instagram', 'external_id' => $ig['id']],
+                    [
+                        'user_id'      => Auth::id(),
+                        'name'         => $ig['username'] ?? $page['name'],
+                        'username'     => $ig['username'] ?? null,
+                        'avatar_url'   => $ig['profile_picture_url'] ?? null,
+                        // Instagram Direct sends through the same Page
+                        // access token, not a separate IG-specific one.
+                        'access_token' => $page['access_token'],
+                        'status'       => true,
+                    ]
+                );
+                $created['instagram']++;
+            }
+        }
+
+        return ['success' => true, 'data' => $created];
+    }
+}

@@ -15,21 +15,22 @@ class SocialAdManagerService
         'facebook'  => FacebookAdService::class,
         'instagram' => FacebookAdService::class,
         'google'    => GoogleAdService::class,
-        'youtube'   => GoogleAdService::class,
+        'youtube'   => YoutubeAdService::class,
         'tiktok'    => TikTokAdService::class,
         'snapchat'  => SnapchatAdService::class,
         'x'         => XAdService::class,
     ];
 
     /**
-     * Normalize platform
+     * Normalize platform. YouTube ads run through the same underlying
+     * Google Ads customer/API as Search - there's no separate "YouTube Ads
+     * account" - but it's kept as its own platform key (own service, own
+     * DB rows) rather than aliased to 'google', since YoutubeAdService
+     * builds a structurally different campaign (Demand Gen, not Search).
      */
     private function resolvePlatform(string $platform): string
     {
-        return match ($platform) {
-            'youtube' => 'google',
-            default   => $platform,
-        };
+        return $platform;
     }
 
     /**
@@ -122,5 +123,13 @@ class SocialAdManagerService
         $this->validatePlatform($platform);
 
         return $this->service($platform)->destroy($platform, $id);
+    }
+
+    public function updateStatus(string $platform, $id, string $status)
+    {
+        $platform = $this->resolvePlatform($platform);
+        $this->validatePlatform($platform);
+
+        return $this->service($platform)->updateStatus($id, $status);
     }
 }

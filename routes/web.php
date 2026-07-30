@@ -10,6 +10,7 @@ use Mcamara\LaravelLocalization\Facades\LaravelLocalization;
 use App\Http\Controllers\Admin\AdController;
 use App\Http\Controllers\Admin\PostController;
 use App\Http\Controllers\Admin\ChatController;
+use App\Http\Controllers\Admin\MessageChannelController;
 use App\Http\Controllers\Admin\PostCommentController;
 use App\Http\Controllers\Admin\ProfileController;
 use App\Http\Controllers\Admin\AdminAPIController;
@@ -86,6 +87,9 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::resource('ads/{platform}/campaigns', AdCampaignController::class)
 					->names('ads.campaigns');
 
+				Route::patch('ads/{platform}/campaigns/{id}/status', [AdCampaignController::class, 'updateStatus'])
+					->name('ads.campaigns.status');
+
 
 				// POSTS
 				Route::get('posts/dashboard', [PostController::class, 'dashboard'])->defaults('_config', ['view' => 'admin.posts.dashboard'])->name('posts.dashboard');
@@ -96,10 +100,37 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::resource('categories', PostCategoryController::class);
 
 
-				// CHATS
-				Route::resource('/platform/chats', ChatController::class);
+				// CHATS - unified messaging inbox (Facebook Messenger,
+				// Instagram Direct, WhatsApp, Telegram, X DMs)
 				Route::get('chats/dashboard', [ChatController::class, 'dashboard'])
 					->name('chats.dashboard');
+				Route::get('platform/chats/{conversation}', [ChatController::class, 'show'])
+					->name('chats.show');
+				Route::post('platform/chats', [ChatController::class, 'store'])
+					->name('chats.store');
+				Route::patch('platform/chats/{conversation}/read', [ChatController::class, 'markRead'])
+					->name('chats.read');
+				Route::delete('platform/chats/{conversation}', [ChatController::class, 'destroy'])
+					->name('chats.destroy');
+
+				// CHATS - connected channel management (separate from the
+				// conversations themselves)
+				Route::get('chats/channels', [MessageChannelController::class, 'index'])
+					->name('chats.channels');
+				Route::get('messaging/auth/meta/redirect', [MessageChannelController::class, 'redirectMeta'])
+					->name('messaging.auth.meta.redirect');
+				Route::get('messaging/auth/meta/callback', [MessageChannelController::class, 'callbackMeta'])
+					->name('messaging.auth.meta.callback');
+				Route::get('messaging/auth/x/redirect', [MessageChannelController::class, 'redirectX'])
+					->name('messaging.auth.x.redirect');
+				Route::get('messaging/auth/x/callback', [MessageChannelController::class, 'callbackX'])
+					->name('messaging.auth.x.callback');
+				Route::post('messaging/channels/telegram', [MessageChannelController::class, 'storeTelegram'])
+					->name('messaging.channels.telegram.store');
+				Route::post('messaging/channels/whatsapp', [MessageChannelController::class, 'storeWhatsApp'])
+					->name('messaging.channels.whatsapp.store');
+				Route::delete('messaging/channels/{channel}', [MessageChannelController::class, 'destroy'])
+					->name('messaging.channels.destroy');
 
 
 				// COMMENTS

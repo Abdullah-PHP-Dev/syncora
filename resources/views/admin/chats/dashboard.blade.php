@@ -1,516 +1,483 @@
 @extends('layouts.app')
 
-@section('title', 'Dashboard')
+@section('title', 'Unified Inbox')
+
+<style>
+    .inbox-shell {
+        display: flex;
+        height: calc(100vh - 180px);
+        min-height: 500px;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 5px 25px rgba(0, 0, 0, .08);
+        overflow: hidden;
+    }
+
+    .inbox-sidebar {
+        width: 340px;
+        flex-shrink: 0;
+        border-right: 1px solid #eef1f5;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .inbox-sidebar-header {
+        padding: 16px;
+        border-bottom: 1px solid #eef1f5;
+        font-weight: 600;
+    }
+
+    .conversation-list {
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .conversation-item {
+        display: flex;
+        gap: 10px;
+        padding: 12px 16px;
+        cursor: pointer;
+        border-bottom: 1px solid #f6f7f9;
+        position: relative;
+    }
+
+    .conversation-item:hover {
+        background: #f8f9fb;
+    }
+
+    .conversation-item.active {
+        background: #eef3ff;
+    }
+
+    .conversation-avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        background: #ddd;
+        flex-shrink: 0;
+        object-fit: cover;
+    }
+
+    .platform-dot {
+        position: absolute;
+        left: 34px;
+        top: 34px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 2px solid #fff;
+        font-size: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+    }
+
+    .platform-dot.facebook { background: #1877F2; }
+    .platform-dot.instagram { background: #E1306C; }
+    .platform-dot.whatsapp { background: #25D366; }
+    .platform-dot.telegram { background: #229ED9; }
+    .platform-dot.x { background: #000; }
+
+    .conversation-meta {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .conversation-name {
+        font-weight: 600;
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .conversation-preview {
+        color: #6b7280;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .conversation-time {
+        font-size: 0.75rem;
+        color: #9ca3af;
+    }
+
+    .unread-badge {
+        background: #dc3545;
+        color: #fff;
+        border-radius: 10px;
+        font-size: 0.7rem;
+        padding: 1px 7px;
+        margin-left: 6px;
+    }
+
+    .inbox-thread {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .thread-header {
+        padding: 16px;
+        border-bottom: 1px solid #eef1f5;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .thread-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .message-row {
+        display: flex;
+    }
+
+    .message-row.outbound {
+        justify-content: flex-end;
+    }
+
+    .message-bubble {
+        max-width: 60%;
+        padding: 10px 14px;
+        border-radius: 14px;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    .message-row.inbound .message-bubble {
+        background: #f1f3f5;
+        border-bottom-left-radius: 4px;
+    }
+
+    .message-row.outbound .message-bubble {
+        background: #4285F4;
+        color: #fff;
+        border-bottom-right-radius: 4px;
+    }
+
+    .message-row.outbound .message-bubble.failed {
+        background: #fbe9e9;
+        color: #dc3545;
+        border: 1px solid #f3c1c1;
+    }
+
+    .message-meta {
+        font-size: 0.7rem;
+        opacity: 0.7;
+        margin-top: 4px;
+    }
+
+    .message-attachment img, .message-attachment video {
+        max-width: 100%;
+        border-radius: 10px;
+        margin-bottom: 6px;
+    }
+
+    .thread-composer {
+        border-top: 1px solid #eef1f5;
+        padding: 12px 16px;
+        display: flex;
+        gap: 10px;
+        align-items: flex-end;
+    }
+
+    .thread-composer textarea {
+        resize: none;
+    }
+
+    .inbox-empty {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #9ca3af;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .platform-filter {
+        display: flex;
+        gap: 6px;
+        padding: 10px 16px;
+        flex-wrap: wrap;
+        border-bottom: 1px solid #eef1f5;
+    }
+
+    .platform-filter button {
+        border: 1px solid #e5e7eb;
+        background: #fff;
+        border-radius: 20px;
+        padding: 3px 12px;
+        font-size: 0.78rem;
+    }
+
+    .platform-filter button.active {
+        background: #4285F4;
+        color: #fff;
+        border-color: #4285F4;
+    }
+</style>
 
 @section('content')
+    <div class="col-xxl-12 mb-0">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="mb-0">Unified Inbox</h4>
+            <a href="{{ route('admin.chats.channels') }}" class="btn btn-outline-primary btn-sm">
+                <i class="bx bx-plug"></i> Manage Channels
+            </a>
+        </div>
 
-    <div class="row">
-        <div class="col-xxl-8 mb-6 order-0">
-            <div class="card">
-                <div class="d-flex align-items-start row">
-                    <div class="col-sm-7">
-                        <div class="card-body">
-                            <h5 class="card-title text-primary mb-3">Congratulations John! 🎉</h5>
-                            <p class="mb-6">
-                                You have done 72% more sales today.<br />Check your new badge in your profile.
-                            </p>
-
-                            <a href="javascript:;" class="btn btn-sm btn-outline-primary">View Badges</a>
+        <div class="inbox-shell">
+            <div class="inbox-sidebar">
+                <div class="inbox-sidebar-header">Conversations</div>
+                <div class="platform-filter">
+                    <button type="button" class="platform-filter-btn active" data-platform="">All</button>
+                    <button type="button" class="platform-filter-btn" data-platform="facebook">Messenger</button>
+                    <button type="button" class="platform-filter-btn" data-platform="instagram">Instagram</button>
+                    <button type="button" class="platform-filter-btn" data-platform="whatsapp">WhatsApp</button>
+                    <button type="button" class="platform-filter-btn" data-platform="telegram">Telegram</button>
+                    <button type="button" class="platform-filter-btn" data-platform="x">X</button>
+                </div>
+                <div class="conversation-list" id="conversationList">
+                    @forelse ($conversations as $conversation)
+                        <div class="conversation-item {{ $activeConversation && $activeConversation->id === $conversation->id ? 'active' : '' }}"
+                             data-id="{{ $conversation->id }}"
+                             data-platform="{{ $conversation->platform }}">
+                            <div style="position:relative">
+                                <img class="conversation-avatar" src="{{ $conversation->customer_avatar_url ?: asset('assets/img/avatars/1.png') }}" onerror="this.src='{{ asset('assets/img/avatars/1.png') }}'">
+                                <span class="platform-dot {{ $conversation->platform }}"></span>
+                            </div>
+                            <div class="conversation-meta">
+                                <div class="conversation-name">
+                                    <span>{{ $conversation->customer_name ?: 'Unknown' }}</span>
+                                    <span class="conversation-time">{{ optional($conversation->last_message_at)->diffForHumans(null, true) }}</span>
+                                </div>
+                                <div class="conversation-preview">
+                                    {{ $conversation->last_message_preview }}
+                                    @if ($conversation->unread_count > 0)
+                                        <span class="unread-badge">{{ $conversation->unread_count }}</span>
+                                    @endif
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="col-sm-5 text-center text-sm-left">
-                        <div class="card-body pb-0 px-0 px-md-6">
-                            <img src="../assets/img/illustrations/man-with-laptop.png" height="175"
-                                alt="View Badge User" />
-                        </div>
-                    </div>
+                    @empty
+                        <div class="p-4 text-muted text-center">No conversations yet. Connect a channel to start receiving messages.</div>
+                    @endforelse
                 </div>
             </div>
-        </div>
-        <div class="col-xxl-4 col-lg-12 col-md-4 order-1">
-            <div class="row">
-                <div class="col-lg-6 col-md-12 col-6 mb-6">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <div class="card-title d-flex align-items-start justify-content-between mb-4">
-                                <div class="avatar flex-shrink-0">
-                                    <img src="../assets/img/icons/unicons/chart-success.png" alt="chart success"
-                                        class="rounded" />
-                                </div>
-                                <div class="dropdown">
-                                    <button class="btn p-0" type="button" id="cardOpt3" data-bs-toggle="dropdown"
-                                        aria-haspopup="true" aria-expanded="false">
-                                        <i class="icon-base bx bx-dots-vertical-rounded text-body-secondary"></i>
-                                    </button>
-                                    <div class="dropdown-menu dropdown-menu-end" aria-labelledby="cardOpt3">
-                                        <a class="dropdown-item" href="javascript:void(0);">View More</a>
-                                        <a class="dropdown-item" href="javascript:void(0);">Delete</a>
-                                    </div>
-                                </div>
-                            </div>
-                            <p class="mb-1">Profit</p>
-                            <h4 class="card-title mb-3">$12,628</h4>
-                            <small class="text-success fw-medium"><i class="icon-base bx bx-up-arrow-alt"></i>
-                                +72.80%</small>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-6 col-md-12 col-6 mb-6">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <div class="card-title d-flex align-items-start justify-content-between mb-4">
-                                <div class="avatar flex-shrink-0">
-                                    <img src="../assets/img/icons/unicons/wallet-info.png" alt="wallet info"
-                                        class="rounded" />
-                                </div>
-                                <div class="dropdown">
-                                    <button class="btn p-0" type="button" id="cardOpt6" data-bs-toggle="dropdown"
-                                        aria-haspopup="true" aria-expanded="false">
-                                        <i class="icon-base bx bx-dots-vertical-rounded text-body-secondary"></i>
-                                    </button>
-                                    <div class="dropdown-menu dropdown-menu-end" aria-labelledby="cardOpt6">
-                                        <a class="dropdown-item" href="javascript:void(0);">View More</a>
-                                        <a class="dropdown-item" href="javascript:void(0);">Delete</a>
-                                    </div>
-                                </div>
-                            </div>
-                            <p class="mb-1">Sales</p>
-                            <h4 class="card-title mb-3">$4,679</h4>
-                            <small class="text-success fw-medium"><i class="icon-base bx bx-up-arrow-alt"></i>
-                                +28.42%</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Total Revenue -->
-        <div class="col-12 col-xxl-8 order-2 order-md-3 order-xxl-2 mb-6 total-revenue">
-            <div class="card">
-                <div class="row row-bordered g-0">
-                    <div class="col-lg-8">
-                        <div class="card-header d-flex align-items-center justify-content-between">
-                            <div class="card-title mb-0">
-                                <h5 class="m-0 me-2">Total Revenue</h5>
-                            </div>
-                            <div class="dropdown">
-                                <button class="btn p-0" type="button" id="totalRevenue" data-bs-toggle="dropdown"
-                                    aria-haspopup="true" aria-expanded="false">
-                                    <i class="icon-base bx bx-dots-vertical-rounded icon-lg text-body-secondary"></i>
-                                </button>
-                                <div class="dropdown-menu dropdown-menu-end" aria-labelledby="totalRevenue">
-                                    <a class="dropdown-item" href="javascript:void(0);">Select All</a>
-                                    <a class="dropdown-item" href="javascript:void(0);">Refresh</a>
-                                    <a class="dropdown-item" href="javascript:void(0);">Share</a>
-                                </div>
-                            </div>
-                        </div>
-                        <div id="totalRevenueChart" class="px-3"></div>
-                    </div>
-                    <div class="col-lg-4">
-                        <div class="card-body px-xl-9 py-12 d-flex align-items-center flex-column">
-                            <div class="text-center mb-6">
-                                <div class="btn-group">
-                                    <button type="button" class="btn btn-outline-primary">
-                                        <script>
-                                            document.write(new Date().getFullYear() - 1);
-                                        </script>
-                                    </button>
-                                    <button type="button"
-                                        class="btn btn-outline-primary dropdown-toggle dropdown-toggle-split"
-                                        data-bs-toggle="dropdown" aria-expanded="false">
-                                        <span class="visually-hidden">Toggle Dropdown</span>
-                                    </button>
-                                    <ul class="dropdown-menu">
-                                        <li><a class="dropdown-item" href="javascript:void(0);">2021</a></li>
-                                        <li><a class="dropdown-item" href="javascript:void(0);">2020</a></li>
-                                        <li><a class="dropdown-item" href="javascript:void(0);">2019</a></li>
-                                    </ul>
-                                </div>
-                            </div>
 
-                            <div id="growthChart"></div>
-                            <div class="text-center fw-medium my-6">62% Company Growth</div>
-
-                            <div class="d-flex gap-11 justify-content-between">
-                                <div class="d-flex">
-                                    <div class="avatar me-2">
-                                        <span class="avatar-initial rounded-2 bg-label-primary"><i
-                                                class="icon-base bx bx-dollar icon-lg text-primary"></i></span>
-                                    </div>
-                                    <div class="d-flex flex-column">
-                                        <small>
-                                            <script>
-                                                document.write(new Date().getFullYear() - 1);
-                                            </script>
-                                        </small>
-                                        <h6 class="mb-0">$32.5k</h6>
-                                    </div>
-                                </div>
-                                <div class="d-flex">
-                                    <div class="avatar me-2">
-                                        <span class="avatar-initial rounded-2 bg-label-info"><i
-                                                class="icon-base bx bx-wallet icon-lg text-info"></i></span>
-                                    </div>
-                                    <div class="d-flex flex-column">
-                                        <small>
-                                            <script>
-                                                document.write(new Date().getFullYear() - 2);
-                                            </script>
-                                        </small>
-                                        <h6 class="mb-0">$41.2k</h6>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+            <div class="inbox-thread" id="inboxThread">
+                @if ($activeConversation)
+                    @include('admin.chats.partials.thread', ['conversation' => $activeConversation, 'messages' => $messages])
+                @else
+                    <div class="inbox-empty">
+                        <i class="bx bx-message-dots" style="font-size:48px"></i>
+                        <div>Select a conversation to start replying</div>
                     </div>
-                </div>
-            </div>
-        </div>
-        <!--/ Total Revenue -->
-        <div class="col-12 col-md-8 col-lg-12 col-xxl-4 order-3 order-md-2 profile-report">
-            <div class="row">
-                <div class="col-6 mb-6 payments">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <div class="card-title d-flex align-items-start justify-content-between mb-4">
-                                <div class="avatar flex-shrink-0">
-                                    <img src="../assets/img/icons/unicons/paypal.png" alt="paypal" class="rounded" />
-                                </div>
-                                <div class="dropdown">
-                                    <button class="btn p-0" type="button" id="cardOpt4" data-bs-toggle="dropdown"
-                                        aria-haspopup="true" aria-expanded="false">
-                                        <i class="icon-base bx bx-dots-vertical-rounded text-body-secondary"></i>
-                                    </button>
-                                    <div class="dropdown-menu dropdown-menu-end" aria-labelledby="cardOpt4">
-                                        <a class="dropdown-item" href="javascript:void(0);">View More</a>
-                                        <a class="dropdown-item" href="javascript:void(0);">Delete</a>
-                                    </div>
-                                </div>
-                            </div>
-                            <p class="mb-1">Payments</p>
-                            <h4 class="card-title mb-3">$2,456</h4>
-                            <small class="text-danger fw-medium"><i class="icon-base bx bx-down-arrow-alt"></i>
-                                -14.82%</small>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-6 mb-6 transactions">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <div class="card-title d-flex align-items-start justify-content-between mb-4">
-                                <div class="avatar flex-shrink-0">
-                                    <img src="../assets/img/icons/unicons/cc-primary.png" alt="Credit Card"
-                                        class="rounded" />
-                                </div>
-                                <div class="dropdown">
-                                    <button class="btn p-0" type="button" id="cardOpt1" data-bs-toggle="dropdown"
-                                        aria-haspopup="true" aria-expanded="false">
-                                        <i class="icon-base bx bx-dots-vertical-rounded text-body-secondary"></i>
-                                    </button>
-                                    <div class="dropdown-menu" aria-labelledby="cardOpt1">
-                                        <a class="dropdown-item" href="javascript:void(0);">View More</a>
-                                        <a class="dropdown-item" href="javascript:void(0);">Delete</a>
-                                    </div>
-                                </div>
-                            </div>
-                            <p class="mb-1">Transactions</p>
-                            <h4 class="card-title mb-3">$14,857</h4>
-                            <small class="text-success fw-medium"><i class="icon-base bx bx-up-arrow-alt"></i>
-                                +28.14%</small>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 mb-6 profile-report">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <div
-                                class="d-flex justify-content-between align-items-center flex-sm-row flex-column gap-10 flex-wrap">
-                                <div class="d-flex flex-sm-column flex-row align-items-start justify-content-between">
-                                    <div class="card-title mb-6">
-                                        <h5 class="text-nowrap mb-1">Profile Report</h5>
-                                        <span class="badge bg-label-warning">YEAR 2022</span>
-                                    </div>
-                                    <div class="mt-sm-auto">
-                                        <span class="text-success text-nowrap fw-medium"><i
-                                                class="icon-base bx bx-up-arrow-alt"></i> 68.2%</span>
-                                        <h4 class="mb-0">$84,686k</h4>
-                                    </div>
-                                </div>
-                                <div id="profileReportChart"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                @endif
             </div>
         </div>
     </div>
-    <div class="row">
-        <!-- Order Statistics -->
-        <div class="col-md-6 col-lg-4 col-xl-4 order-0 mb-6">
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between">
-                    <div class="card-title mb-0">
-                        <h5 class="mb-1 me-2">Order Statistics</h5>
-                        <p class="card-subtitle">42.82k Total Sales</p>
-                    </div>
-                    <div class="dropdown">
-                        <button class="btn text-body-secondary p-0" type="button" id="orederStatistics"
-                            data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            <i class="icon-base bx bx-dots-vertical-rounded icon-lg"></i>
-                        </button>
-                        <div class="dropdown-menu dropdown-menu-end" aria-labelledby="orederStatistics">
-                            <a class="dropdown-item" href="javascript:void(0);">Select All</a>
-                            <a class="dropdown-item" href="javascript:void(0);">Refresh</a>
-                            <a class="dropdown-item" href="javascript:void(0);">Share</a>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-6">
-                        <div class="d-flex flex-column align-items-center gap-1">
-                            <h3 class="mb-1">8,258</h3>
-                            <small>Total Orders</small>
-                        </div>
-                        <div id="orderStatisticsChart"></div>
-                    </div>
-                    <ul class="p-0 m-0">
-                        <li class="d-flex align-items-center mb-5">
-                            <div class="avatar flex-shrink-0 me-3">
-                                <span class="avatar-initial rounded bg-label-primary"><i
-                                        class="icon-base bx bx-mobile-alt"></i></span>
-                            </div>
-                            <div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">
-                                <div class="me-2">
-                                    <h6 class="mb-0">Electronic</h6>
-                                    <small>Mobile, Earbuds, TV</small>
-                                </div>
-                                <div class="user-progress">
-                                    <h6 class="mb-0">82.5k</h6>
-                                </div>
-                            </div>
-                        </li>
-                        <li class="d-flex align-items-center mb-5">
-                            <div class="avatar flex-shrink-0 me-3">
-                                <span class="avatar-initial rounded bg-label-success"><i
-                                        class="icon-base bx bx-closet"></i></span>
-                            </div>
-                            <div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">
-                                <div class="me-2">
-                                    <h6 class="mb-0">Fashion</h6>
-                                    <small>T-shirt, Jeans, Shoes</small>
-                                </div>
-                                <div class="user-progress">
-                                    <h6 class="mb-0">23.8k</h6>
-                                </div>
-                            </div>
-                        </li>
-                        <li class="d-flex align-items-center mb-5">
-                            <div class="avatar flex-shrink-0 me-3">
-                                <span class="avatar-initial rounded bg-label-info"><i
-                                        class="icon-base bx bx-home-alt"></i></span>
-                            </div>
-                            <div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">
-                                <div class="me-2">
-                                    <h6 class="mb-0">Decor</h6>
-                                    <small>Fine Art, Dining</small>
-                                </div>
-                                <div class="user-progress">
-                                    <h6 class="mb-0">849k</h6>
-                                </div>
-                            </div>
-                        </li>
-                        <li class="d-flex align-items-center">
-                            <div class="avatar flex-shrink-0 me-3">
-                                <span class="avatar-initial rounded bg-label-secondary"><i
-                                        class="icon-base bx bx-football"></i></span>
-                            </div>
-                            <div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">
-                                <div class="me-2">
-                                    <h6 class="mb-0">Sports</h6>
-                                    <small>Football, Cricket Kit</small>
-                                </div>
-                                <div class="user-progress">
-                                    <h6 class="mb-0">99</h6>
-                                </div>
-                            </div>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-        <!--/ Order Statistics -->
+@endsection
 
-        <!-- Expense Overview -->
-        <div class="col-md-6 col-lg-4 order-1 mb-6">
-            <div class="card h-100">
-                <div class="card-header nav-align-top">
-                    <ul class="nav nav-pills flex-wrap row-gap-2" role="tablist">
-                        <li class="nav-item">
-                            <button type="button" class="nav-link active" role="tab" data-bs-toggle="tab"
-                                data-bs-target="#navs-tabs-line-card-income" aria-controls="navs-tabs-line-card-income"
-                                aria-selected="true">
-                                Income
-                            </button>
-                        </li>
-                        <li class="nav-item">
-                            <button type="button" class="nav-link" role="tab">Expenses</button>
-                        </li>
-                        <li class="nav-item">
-                            <button type="button" class="nav-link" role="tab">Profit</button>
-                        </li>
-                    </ul>
-                </div>
-                <div class="card-body">
-                    <div class="tab-content p-0">
-                        <div class="tab-pane fade show active" id="navs-tabs-line-card-income" role="tabpanel">
-                            <div class="d-flex mb-6">
-                                <div class="avatar flex-shrink-0 me-3">
-                                    <img src="../assets/img/icons/unicons/wallet.png" alt="User" />
-                                </div>
-                                <div>
-                                    <p class="mb-0">Total Balance</p>
-                                    <div class="d-flex align-items-center">
-                                        <h6 class="mb-0 me-1">$459.10</h6>
-                                        <small class="text-success fw-medium">
-                                            <i class="icon-base bx bx-chevron-up icon-lg"></i>
-                                            42.9%
-                                        </small>
-                                    </div>
-                                </div>
-                            </div>
-                            <div id="incomeChart"></div>
-                            <div class="d-flex align-items-center justify-content-center mt-6 gap-3">
-                                <div class="flex-shrink-0">
-                                    <div id="expensesOfWeek"></div>
-                                </div>
-                                <div>
-                                    <h6 class="mb-0">Income this week</h6>
-                                    <small>$39k less than last week</small>
-                                </div>
-                            </div>
+@push('scripts')
+    <script>
+        window.addEventListener('load', function() {
+            $.ajaxSetup({
+                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') }
+            });
+
+            const currentUserId = {{ Auth::id() }};
+            const showUrlTemplate = "{{ route('admin.chats.show', ['conversation' => ':ID']) }}";
+            const storeUrl = "{{ route('admin.chats.store') }}";
+            const readUrlTemplate = "{{ route('admin.chats.read', ['conversation' => ':ID']) }}";
+
+            function escapeHtml(str) {
+                return $('<div>').text(str || '').html();
+            }
+
+            function timeAgo(iso) {
+                if (!iso) return '';
+                const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+                if (diff < 60) return 'now';
+                if (diff < 3600) return Math.floor(diff / 60) + 'm';
+                if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+                return Math.floor(diff / 86400) + 'd';
+            }
+
+            // ------------------------------------------------------------------
+            // CONVERSATION SWITCHING
+            // ------------------------------------------------------------------
+            function loadConversation(id) {
+                $('.conversation-item').removeClass('active');
+                $(`.conversation-item[data-id="${id}"]`).addClass('active').find('.unread-badge').remove();
+
+                $.get(showUrlTemplate.replace(':ID', id), function(res) {
+                    if (!res.success) return;
+                    renderThread(res.conversation, res.messages);
+                });
+            }
+
+            $(document).on('click', '.conversation-item', function() {
+                loadConversation($(this).data('id'));
+            });
+
+            function renderThread(conversation, messages) {
+                let html = `
+                    <div class="thread-header">
+                        <img class="conversation-avatar" src="${conversation.customer_avatar_url || '{{ asset('assets/img/avatars/1.png') }}'}" onerror="this.src='{{ asset('assets/img/avatars/1.png') }}'">
+                        <div>
+                            <div class="fw-semibold">${escapeHtml(conversation.customer_name || 'Unknown')}</div>
+                            <small class="text-muted text-capitalize">${conversation.platform}</small>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-        <!--/ Expense Overview -->
+                    <div class="thread-messages" id="threadMessages">`;
 
-        <!-- Transactions -->
-        <div class="col-md-6 col-lg-4 order-2 mb-6">
-            <div class="card h-100">
-                <div class="card-header d-flex align-items-center justify-content-between">
-                    <h5 class="card-title m-0 me-2">Transactions</h5>
-                    <div class="dropdown">
-                        <button class="btn text-body-secondary p-0" type="button" id="transactionID"
-                            data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            <i class="icon-base bx bx-dots-vertical-rounded icon-lg"></i>
-                        </button>
-                        <div class="dropdown-menu dropdown-menu-end" aria-labelledby="transactionID">
-                            <a class="dropdown-item" href="javascript:void(0);">Last 28 Days</a>
-                            <a class="dropdown-item" href="javascript:void(0);">Last Month</a>
-                            <a class="dropdown-item" href="javascript:void(0);">Last Year</a>
+                messages.forEach(m => html += renderMessage(m));
+
+                html += `</div>
+                    <div class="thread-composer">
+                        <form id="replyForm" enctype="multipart/form-data" class="w-100 d-flex gap-2 align-items-end">
+                            <input type="hidden" name="conversation_id" value="${conversation.id}">
+                            <textarea name="body" class="form-control" rows="1" placeholder="Type a reply..."></textarea>
+                            <input type="file" name="media" id="replyMedia" hidden accept="image/*,video/*">
+                            <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('replyMedia').click()"><i class="bx bx-paperclip"></i></button>
+                            <button type="submit" class="btn btn-primary">Send</button>
+                        </form>
+                    </div>`;
+
+                $('#inboxThread').html(html);
+                scrollThreadToBottom();
+                window.currentConversationId = conversation.id;
+            }
+
+            function renderMessage(m) {
+                let attachmentHtml = '';
+                (m.attachments || []).forEach(a => {
+                    if (a.type === 'image') attachmentHtml += `<div class="message-attachment"><img src="${a.url}"></div>`;
+                    else if (a.type === 'video') attachmentHtml += `<div class="message-attachment"><video src="${a.url}" controls></video></div>`;
+                    else attachmentHtml += `<div class="message-attachment"><a href="${a.url}" target="_blank">📎 Attachment</a></div>`;
+                });
+
+                const failedClass = m.status === 'failed' ? 'failed' : '';
+
+                return `
+                    <div class="message-row ${m.direction}">
+                        <div>
+                            <div class="message-bubble ${failedClass}">
+                                ${attachmentHtml}
+                                ${m.body ? escapeHtml(m.body) : ''}
+                            </div>
+                            <div class="message-meta text-${m.direction === 'outbound' ? 'end' : 'start'}">
+                                ${timeAgo(m.created_at)}${m.status === 'failed' ? ' · failed to send' : ''}
+                            </div>
                         </div>
-                    </div>
-                </div>
-                <div class="card-body pt-4">
-                    <ul class="p-0 m-0">
-                        <li class="d-flex align-items-center mb-6">
-                            <div class="avatar flex-shrink-0 me-3">
-                                <img src="../assets/img/icons/unicons/paypal.png" alt="User" class="rounded" />
-                            </div>
-                            <div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">
-                                <div class="me-2">
-                                    <small class="d-block">Paypal</small>
-                                    <h6 class="fw-normal mb-0">Send money</h6>
-                                </div>
-                                <div class="user-progress d-flex align-items-center gap-2">
-                                    <h6 class="fw-normal mb-0">+82.6</h6>
-                                    <span class="text-body-secondary">USD</span>
-                                </div>
-                            </div>
-                        </li>
-                        <li class="d-flex align-items-center mb-6">
-                            <div class="avatar flex-shrink-0 me-3">
-                                <img src="../assets/img/icons/unicons/wallet.png" alt="User" class="rounded" />
-                            </div>
-                            <div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">
-                                <div class="me-2">
-                                    <small class="d-block">Wallet</small>
-                                    <h6 class="fw-normal mb-0">Mac'D</h6>
-                                </div>
-                                <div class="user-progress d-flex align-items-center gap-2">
-                                    <h6 class="fw-normal mb-0">+270.69</h6>
-                                    <span class="text-body-secondary">USD</span>
-                                </div>
-                            </div>
-                        </li>
-                        <li class="d-flex align-items-center mb-6">
-                            <div class="avatar flex-shrink-0 me-3">
-                                <img src="../assets/img/icons/unicons/chart.png" alt="User" class="rounded" />
-                            </div>
-                            <div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">
-                                <div class="me-2">
-                                    <small class="d-block">Transfer</small>
-                                    <h6 class="fw-normal mb-0">Refund</h6>
-                                </div>
-                                <div class="user-progress d-flex align-items-center gap-2">
-                                    <h6 class="fw-normal mb-0">+637.91</h6>
-                                    <span class="text-body-secondary">USD</span>
-                                </div>
-                            </div>
-                        </li>
-                        <li class="d-flex align-items-center mb-6">
-                            <div class="avatar flex-shrink-0 me-3">
-                                <img src="../assets/img/icons/unicons/cc-primary.png" alt="User" class="rounded" />
-                            </div>
-                            <div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">
-                                <div class="me-2">
-                                    <small class="d-block">Credit Card</small>
-                                    <h6 class="fw-normal mb-0">Ordered Food</h6>
-                                </div>
-                                <div class="user-progress d-flex align-items-center gap-2">
-                                    <h6 class="fw-normal mb-0">-838.71</h6>
-                                    <span class="text-body-secondary">USD</span>
-                                </div>
-                            </div>
-                        </li>
-                        <li class="d-flex align-items-center mb-6">
-                            <div class="avatar flex-shrink-0 me-3">
-                                <img src="../assets/img/icons/unicons/wallet.png" alt="User" class="rounded" />
-                            </div>
-                            <div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">
-                                <div class="me-2">
-                                    <small class="d-block">Wallet</small>
-                                    <h6 class="fw-normal mb-0">Starbucks</h6>
-                                </div>
-                                <div class="user-progress d-flex align-items-center gap-2">
-                                    <h6 class="fw-normal mb-0">+203.33</h6>
-                                    <span class="text-body-secondary">USD</span>
-                                </div>
-                            </div>
-                        </li>
-                        <li class="d-flex align-items-center">
-                            <div class="avatar flex-shrink-0 me-3">
-                                <img src="../assets/img/icons/unicons/cc-warning.png" alt="User" class="rounded" />
-                            </div>
-                            <div class="d-flex w-100 flex-wrap align-items-center justify-content-between gap-2">
-                                <div class="me-2">
-                                    <small class="d-block">Mastercard</small>
-                                    <h6 class="fw-normal mb-0">Ordered Food</h6>
-                                </div>
-                                <div class="user-progress d-flex align-items-center gap-2">
-                                    <h6 class="fw-normal mb-0">-92.45</h6>
-                                    <span class="text-body-secondary">USD</span>
-                                </div>
-                            </div>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </div>
-    @endsection
+                    </div>`;
+            }
 
-    @push('scripts')
-        <script src="{{ asset('assets/js/dashboards-analytics.js') }}"></script>
-    @endpush
+            function scrollThreadToBottom() {
+                const el = document.getElementById('threadMessages');
+                if (el) el.scrollTop = el.scrollHeight;
+            }
+
+            scrollThreadToBottom();
+
+            // ------------------------------------------------------------------
+            // SEND REPLY
+            // ------------------------------------------------------------------
+            $(document).on('submit', '#replyForm', function(e) {
+                e.preventDefault();
+                const form = this;
+                const formData = new FormData(form);
+
+                if (!formData.get('body') && !$('#replyMedia')[0].files.length) return;
+
+                $.ajax({
+                    url: storeUrl,
+                    type: 'POST',
+                    data: formData,
+                    contentType: false,
+                    processData: false,
+                    success: function(res) {
+                        form.reset();
+                        if (!res.success) {
+                            Swal.fire('Error', res.error || 'Failed to send message.', 'error');
+                        }
+                    },
+                    error: function() {
+                        Swal.fire('Error', 'Failed to send message.', 'error');
+                    }
+                });
+            });
+
+            // Enter to send, Shift+Enter for newline.
+            $(document).on('keydown', 'textarea[name="body"]', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    $(this).closest('form').trigger('submit');
+                }
+            });
+
+            // ------------------------------------------------------------------
+            // PLATFORM FILTER
+            // ------------------------------------------------------------------
+            $('.platform-filter-btn').on('click', function() {
+                $('.platform-filter-btn').removeClass('active');
+                $(this).addClass('active');
+                const platform = $(this).data('platform');
+
+                $('.conversation-item').each(function() {
+                    const show = !platform || $(this).data('platform') === platform;
+                    $(this).toggle(show);
+                });
+            });
+
+            // ------------------------------------------------------------------
+            // REAL-TIME UPDATES (Laravel Echo / Reverb)
+            // ------------------------------------------------------------------
+            if (window.Echo) {
+                window.Echo.private('inbox.' + currentUserId)
+                    .listen('.message.created', function(e) {
+                        const conversationId = e.message.conversation_id;
+                        let $item = $(`.conversation-item[data-id="${conversationId}"]`);
+
+                        if ($item.length) {
+                            $item.find('.conversation-preview').contents().filter(function() {
+                                return this.nodeType === 3;
+                            }).first().replaceWith(escapeHtml(e.conversation.last_message_preview) + ' ');
+
+                            if (conversationId != window.currentConversationId) {
+                                let $badge = $item.find('.unread-badge');
+                                if ($badge.length) {
+                                    $badge.text(e.conversation.unread_count);
+                                } else {
+                                    $item.find('.conversation-preview').append(`<span class="unread-badge">${e.conversation.unread_count}</span>`);
+                                }
+                            }
+
+                            $('#conversationList').prepend($item);
+                        } else {
+                            // A brand-new conversation - simplest correct
+                            // behaviour is a fresh load of the sidebar entry.
+                            location.reload();
+                            return;
+                        }
+
+                        if (conversationId == window.currentConversationId) {
+                            $('#threadMessages').append(renderMessage(e.message));
+                            scrollThreadToBottom();
+                            $.post(readUrlTemplate.replace(':ID', conversationId));
+                        }
+                    });
+            }
+        });
+    </script>
+@endpush

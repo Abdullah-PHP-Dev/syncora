@@ -32,7 +32,8 @@
                             <tr data-key="{{ $campaign->key }}">
                                 <td>{{ $campaign->campaign_id }}</td>
                                 <td>{{ $campaign->name }}</td>
-                                <td>{{ Str::title(str_replace('_', ' ', $campaign->objective)) }}</td>                                <td><span class="badge bg-label-success"> {{ $campaign->status == '1' ? 'Active' : 'Paused' }} </span></td>
+                                <td>{{ Str::title(str_replace('_', ' ', $campaign->objective)) }}</td>
+                                <td><span class="badge status-badge {{ $campaign->status ? 'bg-label-success' : 'bg-label-secondary' }}"> {{ $campaign->status ? 'Active' : 'Paused' }} </span></td>
                                 <td>{{ \Carbon\Carbon::parse($campaign->start_time)->format('d M Y, h:i A') }}</td>
                                 <td>{{ \Carbon\Carbon::parse($campaign->end_time)->format('d M Y, h:i A') }}</td>
                                 <td>
@@ -44,6 +45,10 @@
                                             <div class="dropdown-menu dropdown-menu-end">
                                                 <a href="{{ route('admin.ads.campaigns.edit', ['platform' => 'snapchat', 'campaign' => $campaign->id]) }}" data-key="{{ $campaign->key }}"
                                                     class="dropdown-item">{{ __('admin.table.edit') }}</a>
+
+                                                <a href="javascript:;" data-key="{{ $campaign->id }}"
+                                                    data-status="{{ $campaign->status ? 'PAUSED' : 'ACTIVE' }}"
+                                                    class="dropdown-item status-toggle-record">{{ $campaign->status ? 'Pause' : 'Activate' }}</a>
 
                                                 <div class="dropdown-divider"></div>
                                                 <a href="javascript:;" data-key="{{ $campaign->id }}"
@@ -124,6 +129,7 @@
         var getAPIUrl = "{{ route('admin.apis.show', ['api' => ':API']) }}";
         var updateAPIUrl = "{{ route('admin.apis.update', ['api' => ':API']) }}";
         var destroyAPIUrl = "{{ route('admin.ads.campaigns.destroy', ['platform' => 'snapchat', 'campaign' => ':API']) }}";
+        var statusAPIUrl = "{{ route('admin.ads.campaigns.status', ['platform' => 'snapchat', 'id' => ':API']) }}";
         var edit = "{{ __('admin.table.edit') }}";
         var deletebutton = "{{ __('admin.table.delete') }}";
     </script>
