@@ -37,6 +37,7 @@ class ProcessInboundMessage implements ShouldQueue
         public string $type = 'text',
         public ?string $body = null,
         public array $attachments = [],
+        public ?array $conversationMeta = null,
     ) {
     }
 
@@ -67,17 +68,22 @@ class ProcessInboundMessage implements ShouldQueue
                     'external_conversation_id' => $this->externalConversationId,
                     'customer_name'            => $this->customerName,
                     'customer_avatar_url'      => $this->customerAvatarUrl,
+                    'meta'                     => $this->conversationMeta,
                     'status'                   => 'open',
                 ]
             );
 
             // Keep denormalized customer display fields fresh - a platform
             // may only send the customer's name/avatar on some events, not
-            // every message.
+            // every message. Teams' serviceUrl (conversationMeta) is the
+            // same story: it must track the *most recent* inbound activity,
+            // not just the first one, since Microsoft's own docs warn it
+            // can change between requests.
             $conversation->fill(array_filter([
                 'customer_name'       => $this->customerName,
                 'customer_avatar_url' => $this->customerAvatarUrl,
                 'external_conversation_id' => $this->externalConversationId,
+                'meta'                 => $this->conversationMeta,
             ]))->save();
 
             $preview = $this->body ?: (!empty($this->attachments) ? '[' . ucfirst($this->attachments[0]['type']) . ']' : '');

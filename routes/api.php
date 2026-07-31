@@ -42,5 +42,28 @@ Route::group(['prefix' => 'api'], function ($router) {
         // Per-bot URL (see TelegramWebhookController docblock) rather than
         // one shared endpoint like the three Meta platforms above.
         Route::post('/telegram/{channel}', [\App\Http\Controllers\Api\Messaging\TelegramWebhookController::class, 'receive'])->name('telegram.receive');
+
+        // Also per-channel - LINE has no app-level shared webhook the way
+        // Meta does, each Messaging API channel gets its own URL.
+        Route::post('/line/{channel}', [\App\Http\Controllers\Api\Messaging\LineWebhookController::class, 'receive'])->name('line.receive');
+
+        // Shared per-App endpoint like the Meta platforms above - see
+        // ZaloWebhookController docblock.
+        Route::post('/zalo', [\App\Http\Controllers\Api\Messaging\ZaloWebhookController::class, 'receive'])->name('zalo.receive');
+
+        // Also a shared per-App endpoint - Slack's one-time url_verification
+        // handshake and every event_callback delivery both land here, see
+        // SlackWebhookController docblock.
+        Route::post('/slack', [\App\Http\Controllers\Api\Messaging\SlackWebhookController::class, 'receive'])->name('slack.receive');
+
+        // Per-channel again, like Telegram/LINE - each Azure Bot
+        // registration's "Messaging endpoint" is set by hand in the Azure
+        // Portal, see TeamsWebhookController docblock.
+        Route::post('/teams/{channel}', [\App\Http\Controllers\Api\Messaging\TeamsWebhookController::class, 'receive'])->name('teams.receive');
+
+        // Per-channel too - each Google Cloud project's Chat app has its
+        // own App URL, configured by hand in the Google Cloud Console, see
+        // GoogleChatWebhookController docblock.
+        Route::post('/google-chat/{channel}', [\App\Http\Controllers\Api\Messaging\GoogleChatWebhookController::class, 'receive'])->name('google_chat.receive');
     });
 });

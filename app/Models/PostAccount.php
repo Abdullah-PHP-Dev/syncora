@@ -34,6 +34,12 @@ class PostAccount extends Model
         'access_token',
         'refresh_token',
         'token_expires_at',
+        // The real column is `expires_in` (see the create_post_accounts_table
+        // migration) - `token_expires_at` above doesn't exist in the
+        // database at all, so every *PostService's ensureValidToken()
+        // token-refresh `update(['expires_in' => ...])` call was silently
+        // dropped by mass-assignment protection until this was added.
+        'expires_in',
         'platform_user_id',
         'profile_picture_url',
         'permissions',
@@ -56,6 +62,7 @@ class PostAccount extends Model
         'settings' => 'array',
         'metadata' => 'array',
         'token_expires_at' => 'datetime',
+        'expires_in' => 'datetime',
         'last_sync_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',

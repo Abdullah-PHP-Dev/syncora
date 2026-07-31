@@ -69,7 +69,6 @@
                         @csrf
                         <input type="hidden" name="id" id="api_id">
                         <input type="hidden" name="mode" id="form_mode" value="create">
-                        </div>
                         <!-- Key -->
                         <div class="mb-3">
                             <label class="form-label">{{ __('admin.api.key') }}<span class="error-message">*</span></label>
@@ -87,6 +86,7 @@
                             {{ __('admin.api.create_api') }}
                         </button>
                     </form>
+                    </div>
                 </div>
             </div>
         </div>
@@ -115,6 +115,7 @@
         var destroyAPIUrl = "{{ route('admin.apis.destroy', ['api' => ':API']) }}";
         var edit = "{{__('admin.table.edit')}}";
         var deletebutton = "{{__('admin.table.delete')}}";
+       
     </script>
 
     <script src="{{ asset('assets/js/admin/api.js') }}"></script>

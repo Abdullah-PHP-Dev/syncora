@@ -30,7 +30,7 @@
     }
 
     .step.active {
-        background: #FF0000;
+        background: #1877F2;
         color: #fff;
         box-shadow: 0 5px 15px rgba(255, 0, 0, .3);
     }
@@ -80,7 +80,7 @@
     }
 
     .preview-header {
-        background: #FF0000;
+        background: #1877F2;
         color: white;
         padding: 15px;
         font-weight: 600;
@@ -454,7 +454,7 @@
                                             </div>
                                             <h6 id="previewHeadline">Your Headline Here</h6>
                                             <p id="previewDescription" class="text-muted">Your ad description will appear here as you type.</p>
-                                            <a id="previewCTA" href="#" target="_blank" class="btn btn-danger w-100">Learn More</a>
+                                            <a id="previewCTA" href="#" target="_blank" class="btn btn-primary w-100">Learn More</a>
                                         </div>
                                     </div>
                                 </div>

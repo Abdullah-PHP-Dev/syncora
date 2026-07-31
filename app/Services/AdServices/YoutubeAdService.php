@@ -46,6 +46,7 @@ class YoutubeAdService
     {
         $this->apiService = $apiService;
         $this->account = $account->wherePlatform('google')->whereUserId(Auth::user()->id)->first();
+
         $this->config = adminSetting('ads.google.base_url');
 
         if ($this->account) {
@@ -56,7 +57,7 @@ class YoutubeAdService
     public function store($platform, $request)
     {
         $response = $this->storeBudget($request);
-
+  
         if (!$response['success']) {
             return $response;
         }
@@ -109,7 +110,7 @@ class YoutubeAdService
     private function storeBudget($request)
     {
         $endpoint = $this->config . 'customers/' . $this->customerId() . '/campaignBudgets:mutate';
-
+     
         $payload = [
             'operations' => [[
                 'create' => [
@@ -122,7 +123,7 @@ class YoutubeAdService
         ];
 
         $result = $this->mutate($endpoint, $payload);
-
+ 
         if (!$result['success']) {
             return $result;
         }

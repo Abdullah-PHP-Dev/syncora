@@ -9,6 +9,7 @@ use Mcamara\LaravelLocalization\Middleware\LaravelLocalizationViewPath;
 use Mcamara\LaravelLocalization\Facades\LaravelLocalization;
 use App\Http\Controllers\Admin\AdController;
 use App\Http\Controllers\Admin\PostController;
+use App\Http\Controllers\Admin\PostAccountController;
 use App\Http\Controllers\Admin\ChatController;
 use App\Http\Controllers\Admin\MessageChannelController;
 use App\Http\Controllers\Admin\PostCommentController;
@@ -97,6 +98,20 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::get('posts/{post}/preview/{platform}', [PostController::class, 'preview'])->name('posts.preview');
 				Route::get('posts', [PostController::class, 'dashboard']);
 				Route::resource('posts', PostController::class);
+				Route::post('post-accounts/whatsapp', [PostAccountController::class, 'storeWhatsApp'])
+					->name('post-accounts.whatsapp.store');
+				Route::post('post-accounts/whatsapp/embedded', [PostAccountController::class, 'storeWhatsappEmbedded'])
+					->name('post-accounts.whatsapp.embedded');
+				Route::get('post-accounts/threads/redirect', [PostAccountController::class, 'redirectThreads'])
+					->name('post-accounts.threads.redirect');
+				Route::get('post-accounts/threads/callback', [PostAccountController::class, 'callbackThreads'])
+					->name('post-accounts.threads.callback');
+				Route::get('post-accounts/pinterest/redirect', [PostAccountController::class, 'redirectPinterest'])
+					->name('post-accounts.pinterest.redirect');
+				Route::get('post-accounts/pinterest/callback', [PostAccountController::class, 'callbackPinterest'])
+					->name('post-accounts.pinterest.callback');
+				Route::delete('post-accounts/{account}', [PostAccountController::class, 'destroy'])
+					->name('post-accounts.destroy');
 				Route::resource('categories', PostCategoryController::class);
 
 
@@ -112,6 +127,10 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('chats.read');
 				Route::delete('platform/chats/{conversation}', [ChatController::class, 'destroy'])
 					->name('chats.destroy');
+				Route::patch('platform/chats/messages/{message}', [ChatController::class, 'updateMessage'])
+					->name('chats.messages.update');
+				Route::delete('platform/chats/messages/{message}', [ChatController::class, 'destroyMessage'])
+					->name('chats.messages.destroy');
 
 				// CHATS - connected channel management (separate from the
 				// conversations themselves)
@@ -129,6 +148,24 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('messaging.channels.telegram.store');
 				Route::post('messaging/channels/whatsapp', [MessageChannelController::class, 'storeWhatsApp'])
 					->name('messaging.channels.whatsapp.store');
+				Route::post('messaging/channels/line', [MessageChannelController::class, 'storeLine'])
+					->name('messaging.channels.line.store');
+				Route::post('messaging/channels/discord', [MessageChannelController::class, 'storeDiscord'])
+					->name('messaging.channels.discord.store');
+				Route::post('messaging/channels/teams', [MessageChannelController::class, 'storeTeams'])
+					->name('messaging.channels.teams.store');
+				Route::post('messaging/channels/google-chat', [MessageChannelController::class, 'storeGoogleChat'])
+					->name('messaging.channels.google_chat.store');
+				Route::post('messaging/channels/matrix', [MessageChannelController::class, 'storeMatrix'])
+					->name('messaging.channels.matrix.store');
+				Route::post('messaging/auth/zalo/redirect', [MessageChannelController::class, 'redirectZalo'])
+					->name('messaging.auth.zalo.redirect');
+				Route::get('messaging/auth/zalo/callback', [MessageChannelController::class, 'callbackZalo'])
+					->name('messaging.auth.zalo.callback');
+				Route::get('messaging/auth/slack/redirect', [MessageChannelController::class, 'redirectSlack'])
+					->name('messaging.auth.slack.redirect');
+				Route::get('messaging/auth/slack/callback', [MessageChannelController::class, 'callbackSlack'])
+					->name('messaging.auth.slack.callback');
 				Route::delete('messaging/channels/{channel}', [MessageChannelController::class, 'destroy'])
 					->name('messaging.channels.destroy');
 

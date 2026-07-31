@@ -1353,7 +1353,6 @@ class FacebookAdService
             );
     
             if (!$response['success']) {
-                dd($response['data']);
                 return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
             }
 
@@ -1371,7 +1370,6 @@ class FacebookAdService
             );
 
             if (!$response['success']) {
-                dd($response['data']);
                 return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
             }
 
@@ -1395,7 +1393,6 @@ class FacebookAdService
                 );
                
                 if (!$response['success']) {
-                    dd($endpoint, $response);
                     return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
                 }
 

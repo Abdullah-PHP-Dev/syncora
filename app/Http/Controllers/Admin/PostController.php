@@ -14,6 +14,9 @@ use App\Services\PostServices\YoutubePostService;
 use App\Services\PostServices\TiktokPostService;
 use App\Services\PostServices\XPostService;
 use App\Services\PostServices\LinkedInPostService;
+use App\Services\PostServices\WhatsAppPostService;
+use App\Services\PostServices\ThreadsPostService;
+use App\Services\PostServices\PinterestPostService;
 use App\Models\PostCategory;
 use App\Models\PostAccount;
 use App\Models\PostMedia;
@@ -29,12 +32,12 @@ class PostController extends Controller
      * @return void
      */
 
-    protected $metaService, $instagramService, $googleService, $_config, $youtubeService, $tiktokService, $xService, $linkedinService, $nanoBananaAI;
+    protected $metaService, $instagramService, $googleService, $_config, $youtubeService, $tiktokService, $xService, $linkedinService, $whatsappService, $threadsService, $pinterestService, $nanoBananaAI;
 
-    public function __construct(MetaPostService $metaService, InstagramPostService $instagramService, GooglePostService $googleService, YoutubePostService $youtubeService, TiktokPostService $tiktokService, XPostService $xService, LinkedInPostService $linkedinService)
+    public function __construct(MetaPostService $metaService, InstagramPostService $instagramService, GooglePostService $googleService, YoutubePostService $youtubeService, TiktokPostService $tiktokService, XPostService $xService, LinkedInPostService $linkedinService, WhatsAppPostService $whatsappService, ThreadsPostService $threadsService, PinterestPostService $pinterestService)
     {
     //     session(['platform' => request()->platform ?? session('platform')]);
-       
+
         $this->metaService = $metaService;
         $this->instagramService = $instagramService;
         $this->googleService = $googleService;
@@ -42,6 +45,9 @@ class PostController extends Controller
         $this->tiktokService = $tiktokService;
         $this->xService = $xService;
         $this->linkedinService = $linkedinService;
+        $this->whatsappService = $whatsappService;
+        $this->threadsService = $threadsService;
+        $this->pinterestService = $pinterestService;
     //     $this->nanoBananaAI = $nanoBananaAI;
         $this->_config = request('_config');
      }
@@ -276,7 +282,19 @@ class PostController extends Controller
                             case 'tiktok':
                                 $response = $this->tiktokService->store($validated, $pages);
                                 break;
-    
+
+                            case 'whatsapp':
+                                $response = $this->whatsappService->store($validated, $pages);
+                                break;
+
+                            case 'threads':
+                                $response = $this->threadsService->store($validated, $pages);
+                                break;
+
+                            case 'pinterest':
+                                $response = $this->pinterestService->store($validated, $pages);
+                                break;
+
                             default:
                                 $errors[] = [
                                     'message' => "Unsupported platform: {$platform}"
@@ -364,6 +382,15 @@ class PostController extends Controller
                 //     break;
                 case 'linkedin':
                     $response = $this->linkedinService->destroy($post);
+                    break;
+                case 'whatsapp':
+                    $response = $this->whatsappService->destroy($post);
+                    break;
+                case 'threads':
+                    $response = $this->threadsService->destroy($post);
+                    break;
+                case 'pinterest':
+                    $response = $this->pinterestService->destroy($post);
                     break;
                 default:
                     return response()->json([
@@ -498,7 +525,6 @@ class PostController extends Controller
                 $mediaDescription
             );
         //     $logos = $this->nanoBananaAI->generateImage($prompt, '16:9', $imageData, $mimeType);
-        //   //  dd($logos);
         //     $response = $this->nanoBananaAI->generate($prompt, $imageData, $mimeType);
            // $response = $this->nanoBananaAI->generateImage($prompt, '16:9', $imageData, $mimeType);
       

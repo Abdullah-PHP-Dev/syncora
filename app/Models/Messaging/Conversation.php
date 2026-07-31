@@ -14,11 +14,12 @@ class Conversation extends Model
     protected $fillable = [
         'message_channel_id', 'platform', 'external_conversation_id', 'customer_external_id',
         'customer_name', 'customer_avatar_url', 'last_message_at', 'last_message_preview',
-        'unread_count', 'status', 'assigned_user_id',
+        'unread_count', 'status', 'assigned_user_id', 'meta',
     ];
 
     protected $casts = [
         'last_message_at' => 'datetime',
+        'meta'             => 'array',
     ];
 
     public function channel(): BelongsTo

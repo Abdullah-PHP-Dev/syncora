@@ -4,10 +4,12 @@ $(document).ready(function () {
             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
         }
     });
+  
     $('#hidden_update').html('');
     $(document).on('submit', '#api', function (e) {
         e.preventDefault();
         e.stopPropagation();
+      
         $('#hidden_update').html('');
         let form = $(this);
         let api = form.serialize();

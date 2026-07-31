@@ -4,6 +4,7 @@ namespace App\Services\MessagingServices;
 
 use App\Jobs\Messaging\ProcessInboundMessage;
 use App\Models\Messaging\Conversation;
+use App\Models\Messaging\Message;
 use App\Models\Messaging\MessageChannel;
 use App\Services\ApiService;
 use Illuminate\Http\Request;
@@ -65,6 +66,54 @@ class TelegramMessagingService
         }
 
         return ['success' => true, 'external_message_id' => (string) ($response['data']['result']['message_id'] ?? '')];
+    }
+
+    /**
+     * editMessageText only works on a message that's pure text -
+     * editing a message that was originally sent with media (sendPhoto/
+     * sendVideo/etc, which attaches the text as a caption instead) needs
+     * editMessageCaption, or Telegram rejects the call. $message->type
+     * (set at send time in ChatController::store()) is what distinguishes
+     * the two cases here.
+     */
+    public function editMessage(Message $message, string $newBody): array
+    {
+        $channel = $message->conversation->channel;
+        $method = $message->type === 'text' ? 'editMessageText' : 'editMessageCaption';
+        $field = $message->type === 'text' ? 'text' : 'caption';
+
+        $response = $this->apiService->post($this->apiUrl($channel->access_token, $method), [], [
+            'chat_id'    => $message->conversation->customer_external_id,
+            'message_id' => $message->external_message_id,
+            $field       => $newBody,
+        ]);
+
+        if (!$response['success'] || empty($response['data']['ok'])) {
+            return ['success' => false, 'error' => $response['data']['description'] ?? 'Telegram API request failed.'];
+        }
+
+        return ['success' => true];
+    }
+
+    /**
+     * Telegram only allows deleting a message within 48 hours of sending
+     * it - not enforced client-side here, Telegram's own error for a
+     * stale message is surfaced as-is rather than duplicating that rule.
+     */
+    public function deleteMessage(Message $message): array
+    {
+        $channel = $message->conversation->channel;
+
+        $response = $this->apiService->post($this->apiUrl($channel->access_token, 'deleteMessage'), [], [
+            'chat_id'    => $message->conversation->customer_external_id,
+            'message_id' => $message->external_message_id,
+        ]);
+
+        if (!$response['success'] || empty($response['data']['ok'])) {
+            return ['success' => false, 'error' => $response['data']['description'] ?? 'Telegram API request failed.'];
+        }
+
+        return ['success' => true];
     }
 
     /**

@@ -13,6 +13,9 @@ use App\Services\PostServices\YoutubePostService;
 use App\Services\PostServices\TiktokPostService;
 use App\Services\PostServices\XPostService;
 use App\Services\PostServices\LinkedInPostService;
+use App\Services\PostServices\WhatsAppPostService;
+use App\Services\PostServices\ThreadsPostService;
+use App\Services\PostServices\PinterestPostService;
 
 class PublishPosts extends Command
 {
@@ -30,6 +33,9 @@ class PublishPosts extends Command
         TiktokPostService $tiktokService,
         XPostService $xService,
         LinkedInPostService $linkedinService,
+        WhatsAppPostService $whatsappService,
+        ThreadsPostService $threadsService,
+        PinterestPostService $pinterestService,
     ) {
         parent::__construct();
 
@@ -41,6 +47,9 @@ class PublishPosts extends Command
             'youtube'   => $youtubeService,
             'x'         => $xService,
             'linkedin'  => $linkedinService,
+            'whatsapp'  => $whatsappService,
+            'threads'   => $threadsService,
+            'pinterest' => $pinterestService,
         ];
     }
 

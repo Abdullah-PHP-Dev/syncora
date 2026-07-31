@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Events\Messaging\MessageCreated;
+use App\Events\Messaging\MessageUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Messaging\Conversation;
 use App\Models\Messaging\Message;
@@ -51,7 +52,16 @@ class ChatController extends Controller
             $activeConversation->update(['unread_count' => 0]);
         }
 
-        return view('admin.chats.dashboard', compact('conversations', 'activeConversation', 'messages'));
+        // Passed through rather than the view resolving MessagingManagerService
+        // itself, so there's exactly one place (this service) that knows
+        // which platforms support editing/deleting a sent message.
+        $editCapablePlatforms = $this->messagingManager->editCapablePlatforms();
+        $deleteCapablePlatforms = $this->messagingManager->deleteCapablePlatforms();
+
+        return view('admin.chats.dashboard', compact(
+            'conversations', 'activeConversation', 'messages',
+            'editCapablePlatforms', 'deleteCapablePlatforms'
+        ));
     }
 
     /**
@@ -155,6 +165,92 @@ class ChatController extends Controller
             'message' => $message,
             'error'   => $result['error'] ?? null,
         ]);
+    }
+
+    /**
+     * Edits an already-sent outbound message through the conversation's
+     * platform - only six of the twelve platforms this module supports
+     * have an API for that at all (MessagingManagerService::supportsEdit()
+     * is the single source of truth), so this fails cleanly with a clear
+     * error for the other six rather than silently doing nothing. Local
+     * state (body/edited_at) is only updated once the platform itself
+     * confirms the edit succeeded - a rejected edit (eg. Telegram past
+     * whatever time limit applies) leaves the original message intact
+     * rather than showing edited text the customer never actually saw.
+     */
+    public function updateMessage(Request $request, Message $message)
+    {
+        abort_unless($message->conversation->channel->user_id === Auth::id(), 403);
+
+        $validated = $request->validate([
+            'body' => ['required', 'string'],
+        ]);
+
+        if ($message->direction !== 'outbound' || $message->status !== 'sent') {
+            return response()->json(['success' => false, 'error' => 'Only a successfully sent message you sent can be edited.'], 422);
+        }
+
+        $result = $this->messagingManager->editMessage($message, $validated['body']);
+
+        if (!($result['success'] ?? false)) {
+            return response()->json(['success' => false, 'error' => $result['error'] ?? 'Failed to edit message.'], 422);
+        }
+
+        $message->update(['body' => $validated['body'], 'edited_at' => now()]);
+        $this->refreshPreviewIfLatest($message, $validated['body']);
+
+        broadcast(new MessageUpdated($message));
+
+        return response()->json(['success' => true, 'message' => $message]);
+    }
+
+    /**
+     * Deletes an already-sent outbound message from the platform side.
+     * The local row is kept (its original body included) rather than
+     * hard-deleted - deleted_at marks it as removed for display purposes
+     * (the thread renders a "message deleted" placeholder instead) while
+     * preserving it for any later audit/history need, the same reasoning
+     * as destroy() keeping a "closed" conversation's history instead of
+     * erasing it.
+     */
+    public function destroyMessage(Message $message)
+    {
+        abort_unless($message->conversation->channel->user_id === Auth::id(), 403);
+
+        if ($message->direction !== 'outbound' || $message->status !== 'sent') {
+            return response()->json(['success' => false, 'error' => 'Only a successfully sent message you sent can be deleted.'], 422);
+        }
+
+        $result = $this->messagingManager->deleteMessage($message);
+
+        if (!($result['success'] ?? false)) {
+            return response()->json(['success' => false, 'error' => $result['error'] ?? 'Failed to delete message.'], 422);
+        }
+
+        $message->update(['deleted_at' => now()]);
+        $this->refreshPreviewIfLatest($message, 'This message was deleted');
+
+        broadcast(new MessageUpdated($message));
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * The sidebar's last-message preview is denormalized onto the
+     * conversation for cheap listing - editing or deleting a message
+     * only needs to touch it when that message is the most recent one in
+     * the thread, otherwise the real latest message's preview is still
+     * correct and shouldn't be overwritten.
+     */
+    private function refreshPreviewIfLatest(Message $message, string $preview): void
+    {
+        $latestMessageId = Message::where('conversation_id', $message->conversation_id)
+            ->latest('created_at')
+            ->value('id');
+
+        if ($latestMessageId === $message->id) {
+            $message->conversation->update(['last_message_preview' => \Illuminate\Support\Str::limit($preview, 120)]);
+        }
     }
 
     /**

@@ -767,7 +767,7 @@ class LinkedInPostService
 
 
         $data = $response->json();
-        dd($data, "{$this->baseUrl}socialActions/" . urlencode($postId));
+
         if (!$response->successful()) {
             return [
                 'success' => false,
