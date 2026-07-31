@@ -20,6 +20,7 @@ use App\Models\PostMedia;
 use App\Models\PostComment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class PostController extends Controller
 {
@@ -134,26 +135,34 @@ class PostController extends Controller
             'totalCommentsAll'
         ));
     }
+    /**
+     * JSON endpoint used by the posts dashboard for paginated/filtered listing.
+     */
     public function index(Request $request)
     {
-        $platform = strtolower($request->platform) ?? 'facebook';
-        if ($request->platform === null) {
-            $platform = session('platform');
-        }
-        
-        $platform = $platform ?? 'facebook';
- 
-        $posts = Post::with(['postAccount', 'category', 'media'])
-        ->where('user_id', Auth::user()->id)
-        // ->where('platform', $platform)
-        ->latest()
-        ->paginate(10);
-        
-        return view('admin.posts.index_vue', compact('posts', 'platform'));
+        $userId = Auth::id();
+        $perPage = min((int) $request->input('per_page', 6), 50) ?: 6;
+
+        $posts = $this->buildPostsQuery($request, $userId)
+            ->paginate($perPage)
+            ->through(fn ($post) => $this->formatPostSummary($post));
+
+        return response()->json([
+            'data' => $posts->items(),
+            'current_page' => $posts->currentPage(),
+            'last_page' => $posts->lastPage(),
+            'per_page' => $posts->perPage(),
+            'total' => $posts->total(),
+            'from' => $posts->firstItem(),
+            'to' => $posts->lastItem(),
+            'platform_counts' => $this->platformCounts($userId),
+        ]);
     }
 
 	public function index_vue(Request $request)
     {
+        $userId = Auth::id();
+
         $platform = strtolower($request->platform) ?? 'facebook';
         if ($request->platform === null) {
             $platform = session('platform');
@@ -161,13 +170,59 @@ class PostController extends Controller
 
         $platform = $platform ?? 'facebook';
 
-        $posts = Post::with(['postAccount', 'category', 'media'])
-        ->where('user_id', Auth::user()->id)
-        // ->where('platform', $platform)
-        ->latest()
-        ->paginate(10);
+        $posts = $this->buildPostsQuery($request, $userId)
+            ->paginate(6)
+            ->through(fn ($post) => $this->formatPostSummary($post));
 
-        return view('admin.posts.index_vue', compact('posts', 'platform'));
+        $platformCounts = $this->platformCounts($userId);
+
+        return view('admin.posts.index_vue', compact('posts', 'platform', 'platformCounts'));
+    }
+
+    /**
+     * Apply search/status/platform/sort filters shared by the listing endpoints.
+     */
+    private function buildPostsQuery(Request $request, int $userId)
+    {
+        $query = Post::with(['postAccount', 'media', 'user'])
+            ->where('user_id', $userId);
+
+        if ($search = $request->input('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                    ->orWhere('content', 'like', "%{$search}%");
+            });
+        }
+
+        if ($status = $request->input('status')) {
+            $query->where('status', strtolower($status));
+        }
+
+        if ($platform = $request->input('platform')) {
+            $query->where('platform', strtolower($platform));
+        }
+
+        $query->orderBy('created_at', $request->input('sort') === 'oldest' ? 'asc' : 'desc');
+
+        return $query;
+    }
+
+    /**
+     * Post counts per platform (plus a total) for the listing's platform tabs.
+     * Intentionally ignores search/status/platform filters, matching the tabs'
+     * job of showing totals across the whole account.
+     */
+    private function platformCounts(int $userId): array
+    {
+        $counts = Post::where('user_id', $userId)
+            ->select('platform', DB::raw('count(*) as count'))
+            ->groupBy('platform')
+            ->pluck('count', 'platform');
+
+        return [
+            'all' => $counts->sum(),
+            ...$counts->toArray(),
+        ];
     }
 
     /**
@@ -176,10 +231,113 @@ class PostController extends Controller
      */
     public function preview($postId, $platform)
     {
+        $post = Post::with([
+            'user',
+            'postAccount',
+            'media',
+            'postComments' => function ($query) {
+                $query->topLevel()->with('replies');
+            },
+        ])
+        ->where('user_id', Auth::id())
+        ->find($postId);
+
         return view('admin.posts.preview', [
             'postId' => $postId,
             'platform' => $platform,
+            'post' => $post ? $this->formatPostForPreview($post) : null,
         ]);
+    }
+
+    /**
+     * Resolve a post's media-driven display type.
+     */
+    private function resolvePostType(Post $post): string
+    {
+        $mediaCount = $post->media->count();
+
+        if ($mediaCount > 1) {
+            return 'carousel';
+        }
+
+        if ($mediaCount === 1) {
+            return $post->media->first()->media_type === 'video' ? 'video' : 'image';
+        }
+
+        return 'text';
+    }
+
+    /**
+     * Shape a post + its relations into the format the Vue dashboard/preview expect.
+     */
+    private function formatPostSummary(Post $post): array
+    {
+        $type = $this->resolvePostType($post);
+        $primaryMedia = $post->media->first();
+
+        return [
+            'id' => $post->id,
+            'platform_key' => $post->platform,
+            'type' => $type,
+            'status' => ucfirst($post->status ?? 'draft'),
+            'title' => $post->title ?: (Str::limit($post->content ?? '', 60) ?: 'Untitled Post'),
+            'content' => $post->content,
+            'image' => in_array($type, ['image', 'carousel']) ? ($primaryMedia->media_url ?? null) : null,
+            'thumbnail' => $type === 'video' ? ($primaryMedia->thumbnail_url ?? null) : null,
+            'video' => $type === 'video' ? ($primaryMedia->media_url ?? null) : null,
+            'likes' => (int) ($post->likes ?? 0),
+            'comments' => (int) ($post->comments ?? 0),
+            'shares' => (int) ($post->shares ?? 0),
+            'views' => (int) ($post->views ?? 0),
+            'author' => $post->user->name ?? 'You',
+            'created_at' => optional($post->created_at)->format('Y-m-d'),
+            'account_name' => $post->postAccount->name ?? $post->postAccount->username ?? null,
+            'account_handle' => $post->postAccount->username ? '@' . $post->postAccount->username : null,
+        ];
+    }
+
+    /**
+     * Shape a single comment (and its replies) for the preview page.
+     */
+    private function formatCommentNode(PostComment $comment): array
+    {
+        return [
+            'id' => $comment->id,
+            'author' => $comment->user_name ?: ($comment->user->name ?? 'User'),
+            'content' => $comment->content,
+            'timeAgo' => optional($comment->posted_at ?? $comment->created_at)->diffForHumans(),
+            'likes' => (int) ($comment->likes ?? 0),
+            'isOwn' => $comment->sender_type === 'support',
+            'replies' => $comment->replies->map(fn ($reply) => [
+                'author' => $reply->user_name ?: ($reply->user->name ?? 'User'),
+                'content' => $reply->content,
+                'timeAgo' => optional($reply->posted_at ?? $reply->created_at)->diffForHumans(),
+                'likes' => (int) ($reply->likes ?? 0),
+                'isOwn' => $reply->sender_type === 'support',
+            ])->values(),
+        ];
+    }
+
+    /**
+     * Shape a post for the dedicated preview page, including engagement + comments.
+     */
+    private function formatPostForPreview(Post $post): array
+    {
+        $summary = $this->formatPostSummary($post);
+
+        $summary['platform_url'] = $post->platform_url;
+
+        $summary['engagement'] = [
+            'reactionsTotal' => (int) ($post->likes ?? 0),
+            'commentsCount' => (int) ($post->comments ?? 0),
+            'sharesCount' => (int) ($post->shares ?? 0),
+            'viewsCount' => (int) ($post->views ?? 0),
+            'impressions' => (int) ($post->impressions ?? 0),
+            'bookmarks' => (int) ($post->saves ?? 0),
+            'comments' => $post->postComments->map(fn ($comment) => $this->formatCommentNode($comment))->values(),
+        ];
+
+        return $summary;
     }
 
     public function create(Request $request)

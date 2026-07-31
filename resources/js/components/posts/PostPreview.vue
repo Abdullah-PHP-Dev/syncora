@@ -497,7 +497,17 @@
 </template>
 
 <script>
-import { findPostById, platformMeta } from '../../data/mockPosts';
+import { platformMeta, reactionKindsByPlatform } from '../../data/mockPosts';
+
+const avatarPalette = ['#F59E0B', '#3B82F6', '#EC4899', '#10B981', '#8B5CF6', '#EF4444', '#14B8A6', '#6366F1'];
+
+function colorForName(name) {
+
+  const sum = (name || '').split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+
+  return avatarPalette[sum % avatarPalette.length];
+
+}
 
 export default {
 
@@ -521,6 +531,11 @@ export default {
     userName: {
       type: String,
       default: 'Admin'
+    },
+
+    initialPost: {
+      type: Object,
+      default: null
     }
 
   },
@@ -528,7 +543,7 @@ export default {
   data() {
 
     return {
-      post: findPostById(this.postId) || null,
+      post: null,
       activeKey: '',
       showComments: true,
       newCommentText: '',
@@ -539,6 +554,8 @@ export default {
   },
 
   created() {
+
+    this.post = this.buildPost(this.initialPost);
 
     if (this.post) {
 
@@ -554,7 +571,9 @@ export default {
 
     activePlatform() {
 
-      return platformMeta[this.activeKey] || {};
+      if (!this.post) return {};
+
+      return this.post.platforms.find(p => p.key === this.activeKey) || platformMeta[this.activeKey] || {};
 
     },
 
@@ -619,6 +638,60 @@ export default {
   },
 
   methods: {
+
+    buildPost(raw) {
+
+      if (!raw) return null;
+
+      const key = raw.platform_key;
+
+      const meta = platformMeta[key] || {
+        key,
+        name: raw.platform_key,
+        icon: 'fas fa-share-alt',
+        color: '#5D87FF'
+      };
+
+      const platformInfo = {
+        ...meta,
+        page: raw.account_name || meta.page,
+        handle: raw.account_handle || meta.handle
+      };
+
+      const mapComment = (comment) => ({
+        ...comment,
+        avatarColor: colorForName(comment.author),
+        replies: (comment.replies || []).map(reply => ({
+          ...reply,
+          avatarColor: colorForName(reply.author)
+        }))
+      });
+
+      const kinds = reactionKindsByPlatform[key] || reactionKindsByPlatform.facebook;
+      const total = raw.engagement.reactionsTotal;
+      const reactions = kinds.map((kind, i) => ({ ...kind, count: i === 0 ? total : 0 }));
+
+      return {
+
+        ...raw,
+
+        platforms: [platformInfo],
+
+        engagement: {
+          [key]: {
+            ...raw.engagement,
+            reactions,
+            comments: (raw.engagement.comments || []).map(mapComment)
+          }
+        },
+
+        platformUrls: {
+          [key]: raw.platform_url || '#'
+        }
+
+      };
+
+    },
 
     switchPlatform(p) {
 
