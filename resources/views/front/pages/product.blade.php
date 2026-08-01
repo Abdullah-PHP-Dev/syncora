@@ -7,7 +7,7 @@
         <h1 class="fw-bold">Product Overview</h1>
 
         <p class="text-muted">
-            Social Bee is not just a marketplace — it's a full business platform.
+            Socialeaz is not just a marketplace — it's a full business platform.
         </p>
 
         <div class="row mt-4">

@@ -184,6 +184,9 @@ return [
         'comments' => [
             'header' => 'Social Media Comments'
         ],
+        'email' => [
+            'header' => 'Email Marketing'
+        ],
     ],
     'profile' => [
         'my_profile' => 'My Profile',

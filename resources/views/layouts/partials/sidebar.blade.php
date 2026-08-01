@@ -88,7 +88,7 @@
                 <li class="menu-item"><a href="#" class="menu-link">Help Center</a></li>
             </ul>
         </li>
-        <li class="menu-item {{ (request()->routeIs('admin.ads.*') || request()->routeIs('admin.posts.*') || request()->routeIs('admin.chats.*') || request()->routeIs('admin.comments.*')) ? 'active open' : '' }}">
+        <li class="menu-item {{ (request()->routeIs('admin.ads.*') || request()->routeIs('admin.posts.*') || request()->routeIs('admin.chats.*') || request()->routeIs('admin.comments.*') || request()->routeIs('admin.email.*')) ? 'active open' : '' }}">
             <a href="#" class="menu-link menu-toggle">
                 <i class="menu-icon tf-icons bx bx-broadcast"></i>
                 <div>{{ __('admin.marketing_tools.header') }}</div>
@@ -99,6 +99,7 @@
                 <li class="menu-item {{ request()->routeIs('admin.posts.*')  ? 'active' : '' }}"><a href="{{route('admin.posts.dashboard')}}" class="menu-link">{{ __('admin.marketing_tools.posts.header') }}</a></li>
                 <li class="menu-item {{ request()->routeIs('admin.chats.*')  ? 'active' : '' }}"><a href="{{route('admin.chats.dashboard')}}" class="menu-link">{{ __('admin.marketing_tools.chats.header') }}</a></li>
                 <li class="menu-item {{ request()->routeIs('admin.comments.*')  ? 'active' : '' }}"><a href="{{route('admin.comments.dashboard')}}" class="menu-link">{{ __('admin.marketing_tools.comments.header') }}</a></li>
+                <li class="menu-item {{ request()->routeIs('admin.email.*')  ? 'active' : '' }}"><a href="{{route('admin.email.dashboard')}}" class="menu-link">{{ __('admin.marketing_tools.email.header') }}</a></li>
             </ul>
         </li>
 

@@ -4,10 +4,10 @@
 
     <div class="container py-5">
 
-        <h1 class="fw-bold mb-4">About Social Bee</h1>
+        <h1 class="fw-bold mb-4">About Socialeaz</h1>
 
         <p class="text-muted">
-            Social Bee is a modern marketplace platform that allows users to
+            Socialeaz is a modern marketplace platform that allows users to
             buy, sell, and promote products, services, and ads in a smart way.
         </p>
 

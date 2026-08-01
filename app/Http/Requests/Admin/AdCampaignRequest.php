@@ -37,6 +37,8 @@ class AdCampaignRequest extends FormRequest
             $validations = $this->getFacebookRules($requiredIfPost);
         } else if ($platform === 'google') {
             $validations = $this->getGoogleRules($requiredIfPost);
+        } else if ($platform === 'youtube') {
+            $validations = $this->getYoutubeRules($requiredIfPost);
         } else if ($platform === 'x') {
             $validations = $this->getXRules($requiredIfPost);
         }
@@ -355,60 +357,92 @@ class AdCampaignRequest extends FormRequest
 
     private function getSnapchatRules(array $requiredIfPost): array
     {
+        // Every rule below that used to key off an input named "type" was
+        // dead code - the create/edit forms only ever submit
+        // "creative_type", never "type" - so none of these cross-checks
+        // (call_to_action-per-type, icon/app_name, ios_app_id/
+        // android_app_url, deep_link_uri, etc) ever actually ran.
         $callToActionMapping = [
             "APP_INSTALL" => ["BOOK_NOW", "DONATE", "DOWNLOAD", "GET_NOW", "INSTALL_NOW", "ORDER_NOW", "PLAY", "SHOP_NOW", "SIGN_UP", "TRY", "USE_APP", "WATCH", "VOTE", "DIRECTIONS", "PLAY_GAME"],
             "LENS_APP_INSTALL" => ["BOOK_NOW", "DONATE", "DOWNLOAD", "GET_NOW", "INSTALL_NOW", "ORDER_NOW", "PLAY", "SHOP_NOW", "SIGN_UP", "TRY", "USE_APP", "WATCH", "PLAY_GAME"],
             "DEEP_LINK" => ["DONATE", "PLAY", "SHOP_NOW", "SIGN_UP", "USE_APP", "MORE", "OPEN_APP", "TRY", "WATCH", "VIEW_PROFILE", "VOTE", "DIRECTIONS", "PRE_REGISTER", "PLAY_GAME", "DOWNLOAD"],
             "LEAD_GENERATION" => ["APPLY_NOW", "MORE", "BOOK_NOW", "GET_NOW", "SIGN_UP", "TEST_DRIVE", "REQUEST_APPOINTMENT", "REQUEST_QUOTE", "FREE_TRIAL", "CLAIM_SAMPLE", "GET_COUPON"],
             "LENS_DEEP_LINK" => ["DONATE", "PLAY", "SHOP_NOW", "SIGN_UP", "USE_APP", "MORE", "OPEN_APP", "TRY", "WATCH", "VIEW_PROFILE", "VOTE", "DIRECTIONS", "VIEW_MENU", "PRE_REGISTER", "PLAY_GAME"],
-            "WEB_VIEW" => ["APPLY_NOW", "MORE", "ORDER_NOW", "PLAY", "READ", "SHOP_NOW", "SHOW", "SIGN_UP", "VIEW", "SHOW", "WATCH", "DONATE", "DOWNLOAD", "APPLY_NOW", "ORDER_NOW", "RESPOND", "BUY_TICKETS", "SHOWTIMES", "BOOK_NOW", "GET_NOW", "LISTEN", "TRY", "VOTE", "VIEW_MENU", "PRE_REGISTER", "PLAY_GAME"],
-            "LENS_WEB_VIEW" => ["APPLY_NOW", "MORE", "ORDER_NOW", "PLAY", "READ", "SHOP_NOW", "SHOW", "SIGN_UP", "VIEW", "SHOW", "WATCH", "DONATE", "DOWNLOAD", "APPLY_NOW", "ORDER_NOW", "RESPOND", "BUY_TICKETS", "SHOWTIMES", "BOOK_NOW", "GET_NOW", "LISTEN", "TRY", "VOTE", "DIRECTIONS", "VIEW_MENU", "PRE_REGISTER", "PLAY_GAME"],
+            "WEB_VIEW" => ["APPLY_NOW", "MORE", "ORDER_NOW", "PLAY", "READ", "SHOP_NOW", "SHOW", "SIGN_UP", "VIEW", "WATCH", "DONATE", "DOWNLOAD", "RESPOND", "BUY_TICKETS", "SHOWTIMES", "BOOK_NOW", "GET_NOW", "LISTEN", "TRY", "VOTE", "VIEW_MENU", "PRE_REGISTER", "PLAY_GAME"],
+            "LENS_WEB_VIEW" => ["APPLY_NOW", "MORE", "ORDER_NOW", "PLAY", "READ", "SHOP_NOW", "SHOW", "SIGN_UP", "VIEW", "WATCH", "DONATE", "DOWNLOAD", "RESPOND", "BUY_TICKETS", "SHOWTIMES", "BOOK_NOW", "GET_NOW", "LISTEN", "TRY", "VOTE", "DIRECTIONS", "VIEW_MENU", "PRE_REGISTER", "PLAY_GAME"],
             "AD_TO_LENS" => ["PLAY", "TRY", "SHOP_NOW", "VOTE"],
             "AD_TO_MESSAGE" => ["MESSAGE_NOW", "OPEN_APP"],
             "AD_TO_CALL" => ["CALL_NOW", "OPEN_APP"],
-            "AD_TO_PLACE" => ["SEE_PLACE", "DIRECTIONS", "VIEW_MENU"]
+            "REMINDER" => ["REMIND_ME"],
         ];
+
+        $requiresAppFields = ['APP_INSTALL', 'LENS_APP_INSTALL', 'DEEP_LINK', 'LENS_DEEP_LINK'];
 
         return [
             'name' => ['required'],
             'target_link'  => ['required', 'url'],
             'final_budget' => ['nullable'],
-            // 'status' => array_merge($requiredIfPost, ['in:ACTIVE,PAUSED']),
             'start_time' => ['required', 'date_format:Y-m-d', 'before:end_time'],
             'end_time'   => ['required', 'date_format:Y-m-d', 'after:start_time'],
-            'ios_app_id' => ['nullable', 'required_if:objective,APP_INSTALL'],
-            'android_app_url' => ['nullable', 'required_if:objective,APP_INSTALL'],
             'objective' => array_merge($requiredIfPost, [
                 'in:AWARENESS_AND_ENGAGEMENT,APP_PROMOTION,SALES,LEADS,TRAFFIC'
             ]),
+            // objective_v2_properties.promotion_type is documented as
+            // Optional and only meaningful for AWARENESS_AND_ENGAGEMENT
+            // (PROMOTE_PLACES/PROMOTE_SHOWS) and APP_PROMOTION (APP_INSTALL/
+            // APP_REENGAGEMENT) - SALES/TRAFFIC/LEADS don't use it at all, so
+            // it can't be required unconditionally. The blade sends an empty
+            // string (not the literal "NONE") for objectives/UI states where
+            // it doesn't apply.
+            'promotion_type' => ['nullable', 'in:PROMOTE_PLACES,PROMOTE_SHOWS,APP_INSTALL,APP_REENGAGEMENT'],
+            // Real conversion_location enum per Snap's ad-squad-ui-render-data
+            // docs - was previously WEB,APP,ON_SNAPCHAT,MIXED, none of which
+            // (besides WEB/APP) are real values.
+            'conversion_location' => ['nullable', 'in:APP,CALL,LEAD_FORM,PUBLIC_PROFILE,TEXT,WEB'],
             'budget' => ['required', 'gt:0'],
             'platform' => ['sometimes'],
             'description' => ['required', 'string', 'max:34'],
-            // 'selected_link_type' => ['required'],
-            // 'store_url'  => ['required_without_all:product_id,custom_url'],
-            // 'product_id' => ['required_without_all:store_url,custom_url'],
-            // 'custom_url' => ['required_without_all:store_url,product_id'],
             'countries' => ['array', 'required'],
             'city_id' => ['sometimes'],
-            // 'age_from' => ['required'],
-            // 'age_to' => ['required'],
             'age_range' => ['required', 'array'],
             'languages'   => ['nullable', 'array'],
-            'languages.*' => ['in:en,ar,es,fr'],
+            'languages.*' => ['in:en,ar,es,fr,de,ja,ko,pt,ru,zh'],
             'gender'   => ['required', 'in:male,female,both'],
-           // 'gender.*' => ['required', 'in:male,female,both'],
-            'media' => array_merge($requiredIfPost, ['array']),
-            'media.*' => ['file', 'max:2048'],
-            'budget_mode' => ['in:daily,life_time'],
-           // 'type' => ['required', 'in:SNAP_ADS,LENS,FILTER'],
-            'ios_app_id' => ['nullable', 'required_if:objective,APP_INSTALL'],
-            'app_id' => ['nullable', 'required_if:optimization_goal,APP_INSTALLS,APP_PURCHASE,APP_SIGNUP,APP_ADD_TO_CART'],
-            'android_app_url' => ['nullable', 'required_if:objective,APP_INSTALL'],
-            'optimization_goal'    => array_merge($requiredIfPost, ['in:LEAD_FORM_SUBMISSIONS,IMPRESSIONS,SWIPES,APP_INSTALLS,VIDEO_VIEWS,VIDEO_VIEWS_15_SEC,USES,STORY_OPENS,PIXEL_PAGE_VIEW,PIXEL_ADD_TO_CART,LANDING_PAGE_VIEW,PIXEL_PURCHASE,PIXEL_SIGNUP,APP_ADD_TO_CART,APP_PURCHASE,APP_SIGNUP']),
-            'bid_strategy' => array_merge($requiredIfPost, [
-                'in:AUTO_BID,LOWEST_COST_WITH_MAX_BID,MIN_ROAS,TARGET_COST'
+            'media' => array_merge($requiredIfPost, [
+                'array',
+                function ($attribute, $value, $fail) {
+                    if (request()->input('media_type') === 'CAROUSEL' && count($value) < 2) {
+                        $fail('Carousel ads need at least 2 images.');
+                    }
+                },
             ]),
+            // Video needs far more headroom than an image (Snapchat allows
+            // up to 1GB via chunked upload; this app uploads in one shot,
+            // so 500MB is a reasonable single-request ceiling).
+            'media.*' => [
+                'file',
+                function ($attribute, $value, $fail) {
+                    $maxKb = request()->input('media_type') === 'VIDEO' ? 512000 : 30720;
 
+                    if ($value->getSize() > $maxKb * 1024) {
+                        $fail('Each file must not exceed ' . ($maxKb / 1024) . 'MB.');
+                    }
+                },
+            ],
+            'media_type' => ['required', 'in:IMAGE,VIDEO,CAROUSEL'],
+            'carousel_cards' => ['nullable', 'required_if:media_type,CAROUSEL', 'json'],
+            'budget_mode' => ['in:daily,life_time'],
+            'app_id' => ['nullable', 'required_if:optimization_goal,APP_INSTALLS,APP_PURCHASE,APP_SIGNUP,APP_ADD_TO_CART'],
+            // Full real optimization_goal enum per Snap's ad-squads docs.
+            // APP_REENGAGE_OPEN/APP_REENGAGE_PURCHASE were missing despite
+            // being real values the blade's App Re-engagement / Sales-via-App
+            // / Traffic-via-App options actually send.
+            'optimization_goal' => array_merge($requiredIfPost, ['in:LEAD_FORM_SUBMISSIONS,IMPRESSIONS,SWIPES,APP_INSTALLS,VIDEO_VIEWS,VIDEO_VIEWS_15_SEC,USES,STORY_OPENS,PIXEL_PAGE_VIEW,PIXEL_ADD_TO_CART,LANDING_PAGE_VIEW,PIXEL_PURCHASE,PIXEL_SIGNUP,APP_ADD_TO_CART,APP_PURCHASE,APP_SIGNUP,APP_REENGAGE_OPEN,APP_REENGAGE_PURCHASE']),
+            // MIN_ROAS was deprecated by Snap on 2025-02-10 and is no longer
+            // a valid bid_strategy value.
+            'bid_strategy' => array_merge($requiredIfPost, [
+                'in:AUTO_BID,LOWEST_COST_WITH_MAX_BID,TARGET_COST'
+            ]),
             'bid_amount' => [
                 'required_if:bid_strategy,LOWEST_COST_WITH_MAX_BID,TARGET_COST',
                 'nullable',
@@ -416,95 +450,204 @@ class AdCampaignRequest extends FormRequest
                 'min:0.01',
                 'max:500'
             ],
-            'pixel_id'     => ['required_if:optimization_goal,PIXEL_PURCHASE,PIXEL_SIGNUP,PIXEL_PAGE_VIEW,PIXEL_ADD_TO_CART'],
-            // Ad Squad Validation
-            'optimization_goal'    => array_merge($requiredIfPost, ['in:LEAD_FORM_SUBMISSIONS,IMPRESSIONS,SWIPES,APP_INSTALLS,VIDEO_VIEWS,VIDEO_VIEWS_15_SEC,USES,STORY_OPENS,PIXEL_PAGE_VIEW,PIXEL_ADD_TO_CART,LANDING_PAGE_VIEW,PIXEL_PURCHASE,PIXEL_SIGNUP,APP_ADD_TO_CART,APP_PURCHASE,APP_SIGNUP']),
-           // 'type'                 => array_merge($requiredIfPost, ['in:SNAP_ADS,LENS,FILTER']),
-            //creative validations
-            'top_snap_crop_position'  => ['nullable', 'in:OPTIMIZED,MIDDLE,TOP,BOTTOM'],
-            'creative_type' => array_merge($requiredIfPost, ['in:REMINDER,SNAP_AD,APP_INSTALL,WEB_VIEW,DEEP_LINK,AD_TO_LENS,AD_TO_CALL,AD_TO_MESSAGE,PREVIEW,COMPOSITE,LENS,LENS_WEB_VIEW,LENS_APP_INSTALL,LENS_DEEP_LINK,COLLECTION,LEAD_GENERATION,AD_TO_PLACE']),
+            'pixel_id' => ['required_if:optimization_goal,PIXEL_PURCHASE,PIXEL_SIGNUP,PIXEL_PAGE_VIEW,PIXEL_ADD_TO_CART'],
+            'top_snap_crop_position' => ['nullable', 'in:OPTIMIZED,MIDDLE,TOP,BOTTOM'],
+            'creative_type' => array_merge($requiredIfPost, ['in:REMINDER,SNAP_AD,APP_INSTALL,WEB_VIEW,DEEP_LINK,AD_TO_LENS,AD_TO_CALL,AD_TO_MESSAGE,COMPOSITE,LENS,LENS_WEB_VIEW,LENS_APP_INSTALL,LENS_DEEP_LINK,LEAD_GENERATION']),
             'call_to_action' => [
-                'required_if:type,DEEP_LINK,APP_INSTALL,LENS_APP_INSTALL,LEAD_GENERATION,LENS_DEEP_LINK,WEB_VIEW,LENS_WEB_VIEW,AD_TO_LENS,AD_TO_MESSAGE,AD_TO_CALL,AD_TO_PLACE', 
-                function ($attribute, $value, $fail) {
-                    $type = $this->input('type');
-                    $callToActionMapping = [
-                        "APP_INSTALL" => ["BOOK_NOW", "DONATE", "DOWNLOAD", "GET_NOW", "INSTALL_NOW", "ORDER_NOW", "PLAY", "SHOP_NOW", "SIGN_UP", "TRY", "USE_APP", "WATCH", "VOTE", "DIRECTIONS", "PLAY_GAME"],
-                        "LENS_APP_INSTALL" => ["BOOK_NOW", "DONATE", "DOWNLOAD", "GET_NOW", "INSTALL_NOW", "ORDER_NOW", "PLAY", "SHOP_NOW", "SIGN_UP", "TRY", "USE_APP", "WATCH", "PLAY_GAME"],
-                        "DEEP_LINK" => ["DONATE", "PLAY", "SHOP_NOW", "SIGN_UP", "USE_APP", "MORE", "OPEN_APP", "TRY", "WATCH", "VIEW_PROFILE", "VOTE", "DIRECTIONS", "PRE_REGISTER", "PLAY_GAME", "DOWNLOAD"],
-                        "LEAD_GENERATION" => ["APPLY_NOW", "MORE", "BOOK_NOW", "GET_NOW", "SIGN_UP", "TEST_DRIVE", "REQUEST_APPOINTMENT", "REQUEST_QUOTE", "FREE_TRIAL", "CLAIM_SAMPLE", "GET_COUPON"],
-                        "LENS_DEEP_LINK" => ["DONATE", "PLAY", "SHOP_NOW", "SIGN_UP", "USE_APP", "MORE", "OPEN_APP", "TRY", "WATCH", "VIEW_PROFILE", "VOTE", "DIRECTIONS", "VIEW_MENU", "PRE_REGISTER", "PLAY_GAME"],
-                        "WEB_VIEW" => ["APPLY_NOW", "MORE", "ORDER_NOW", "PLAY", "READ", "SHOP_NOW", "SHOW", "SIGN_UP", "VIEW", "SHOW", "WATCH", "DONATE", "DOWNLOAD", "APPLY_NOW", "ORDER_NOW", "RESPOND", "BUY_TICKETS", "SHOWTIMES", "BOOK_NOW", "GET_NOW", "LISTEN", "TRY", "VOTE", "VIEW_MENU", "PRE_REGISTER", "PLAY_GAME"],
-                        "LENS_WEB_VIEW" => ["APPLY_NOW", "MORE", "ORDER_NOW", "PLAY", "READ", "SHOP_NOW", "SHOW", "SIGN_UP", "VIEW", "SHOW", "WATCH", "DONATE", "DOWNLOAD", "APPLY_NOW", "ORDER_NOW", "RESPOND", "BUY_TICKETS", "SHOWTIMES", "BOOK_NOW", "GET_NOW", "LISTEN", "TRY", "VOTE", "DIRECTIONS", "VIEW_MENU", "PRE_REGISTER", "PLAY_GAME"],
-                        "AD_TO_LENS" => ["PLAY", "TRY", "SHOP_NOW", "VOTE"],
-                        "AD_TO_MESSAGE" => ["MESSAGE_NOW", "OPEN_APP"],
-                        "AD_TO_CALL" => ["CALL_NOW", "OPEN_APP"],
-                        "AD_TO_PLACE" => ["SEE_PLACE", "DIRECTIONS", "VIEW_MENU"]
-                    ];
+                'required_if:creative_type,DEEP_LINK,APP_INSTALL,LENS_APP_INSTALL,LEAD_GENERATION,LENS_DEEP_LINK,WEB_VIEW,LENS_WEB_VIEW,AD_TO_LENS,AD_TO_MESSAGE,AD_TO_CALL',
+                function ($attribute, $value, $fail) use ($callToActionMapping) {
+                    $type = request()->input('creative_type');
 
-                    // Ensure the call_to_action value matches the valid options for the selected type
                     if ($type && isset($callToActionMapping[$type]) && !in_array($value, $callToActionMapping[$type])) {
-                        $fail("The selected call to action is invalid for the selected type.");
+                        $fail("The selected call to action is invalid for the selected creative type.");
                     }
                 }
             ],
-            'icon' => [
-                'required_if:type,APP_INSTALL,LENS_APP_INSTALL,DEEP_LINK,LENS_DEEP_LINK',
+            'icon_media_id' => [
                 'nullable',
+                'required_if:creative_type,APP_INSTALL,LENS_APP_INSTALL,DEEP_LINK,LENS_DEEP_LINK',
             ],
             'app_name' => [
-                'required_if:type,APP_INSTALL,LENS_APP_INSTALL,DEEP_LINK,LENS_DEEP_LINK'
+                'required_if:creative_type,APP_INSTALL,LENS_APP_INSTALL,DEEP_LINK,LENS_DEEP_LINK',
+                'nullable',
+                'max:30',
             ],
             'ios_app_id' => [
                 'sometimes',
-                function ($attribute, $value, $fail) {
-                    if (in_array($this->input('type'), ['APP_INSTALL', 'LENS_APP_INSTALL', 'DEEP_LINK', 'LENS_DEEP_LINK'])) {
-                        if (empty($value) && empty($this->input('android_app_url'))) {
-                            $fail('Either ios_app_id or android_app_url is required when type is APP_INSTALL, LENS_APP_INSTALL, DEEP_LINK, or LENS_DEEP_LINK.');
-                        }
+                function ($attribute, $value, $fail) use ($requiresAppFields) {
+                    if (in_array(request()->input('creative_type'), $requiresAppFields) && empty($value) && empty(request()->input('android_app_url'))) {
+                        $fail('Either ios_app_id or android_app_url is required for this creative type.');
                     }
                 }
             ],
             'android_app_url' => [
                 'sometimes',
-                function ($attribute, $value, $fail) {
-                    // Only check when the type is one of the specific values
-                    if (in_array($this->input('type'), ['APP_INSTALL', 'LENS_APP_INSTALL', 'DEEP_LINK', 'LENS_DEEP_LINK'])) {
-                        // Ensure that either ios_app_id or android_app_url is provided
-                        if (empty($value) && empty($this->input('ios_app_id'))) {
-                            $fail('Either ios_app_id or android_app_url is required when type is APP_INSTALL, LENS_APP_INSTALL, DEEP_LINK, or LENS_DEEP_LINK.');
-                        }
+                function ($attribute, $value, $fail) use ($requiresAppFields) {
+                    if (in_array(request()->input('creative_type'), $requiresAppFields) && empty($value) && empty(request()->input('ios_app_id'))) {
+                        $fail('Either ios_app_id or android_app_url is required for this creative type.');
                     }
                 }
             ],
-            'deep_link_uri' => [
-                'required_if:type,DEEP_LINK,LENS_DEEP_LINK'
-            ],
-            'fallback_type' => [
-                'required_if:type,DEEP_LINK,LENS_DEEP_LINK'
-            ],
-            'web_view_fallback_url' => [
-                'required_if:type,DEEP_LINK,LENS_DEEP_LINK'
-            ],
-            'preview_media_id' => [
-                'required_if:type,PREVIEW'
-            ],
-            'logo_media_id' => [
-                'required_if:type,PREVIEW'
-            ],
-            'preview_headline' => [
-                'required_if:type,PREVIEW'
-            ],
-            'creative_ids' => [
-                'required_if:type,COMPOSITE', 
-                'array'
-            ],
-            'creative_ids.*' => [
-                'required_if:type,COMPOSITE',
-            ],
+            'deep_link_uri' => ['required_if:creative_type,DEEP_LINK,LENS_DEEP_LINK'],
+            'fallback_type' => ['nullable', 'in:APP_INSTALL,WEB_SITE'],
+            'web_view_fallback_url' => ['nullable', 'url', 'required_if:fallback_type,WEB_SITE'],
+            'phone_number_id' => ['required_if:creative_type,AD_TO_CALL,AD_TO_MESSAGE'],
+            'message' => ['nullable', 'max:160'],
+            'lens_media_id' => ['required_if:creative_type,AD_TO_LENS'],
             'url' => [
-                'required_if:type,WEB_VIEW,LENS_WEB_VIEW', 
+                'required_if:creative_type,WEB_VIEW,LENS_WEB_VIEW',
                 'url',
                 'nullable'
+            ],
+        ];
+    }
+
+    /**
+     * Google Search (Responsive Search Ad) campaigns. Unlike the other
+     * platforms there's no "objective" enum to validate here - Search
+     * campaigns are keyword-targeted and the only real campaign-shape
+     * choice is the bidding strategy.
+     */
+    private function getGoogleRules(array $requiredIfPost): array
+    {
+        return [
+            'name' => ['required', 'max:255'],
+            'budget_mode' => array_merge($requiredIfPost, ['in:daily,total']),
+            'budget' => array_merge($requiredIfPost, ['numeric', 'gt:0']),
+            'start_time' => ['required', 'date'],
+            'end_time' => ['required', 'date', 'after:start_time'],
+            'bid_strategy' => array_merge($requiredIfPost, [
+                'in:MAXIMIZE_CONVERSIONS,TARGET_CPA,TARGET_ROAS,MANUAL_CPC,TARGET_SPEND'
+            ]),
+            'bid_amount' => [
+                'required_if:bid_strategy,TARGET_CPA,TARGET_ROAS',
+                'nullable',
+                'numeric',
+                'min:0.01',
+            ],
+            // Keywords/countries are locked in at creation - the edit form
+            // shows them read-only and GoogleAdService::update() only ever
+            // touches name/dates/ad copy, so these are create-only.
+            'keywords' => array_merge($requiredIfPost, ['string']),
+            'match_type' => array_merge($requiredIfPost, ['in:BROAD,PHRASE,EXACT']),
+            'countries' => array_merge($requiredIfPost, ['array']),
+            'languages' => ['nullable', 'array'],
+            'languages.*' => ['in:en,ar,es,fr,de,ja,ko,pt,ru,zh'],
+            'gender' => ['nullable', 'in:male,female,both'],
+            'age_range' => ['nullable', 'array'],
+            'age_range.*' => ['in:AGE_RANGE_18_24,AGE_RANGE_25_34,AGE_RANGE_35_44,AGE_RANGE_45_54,AGE_RANGE_55_64,AGE_RANGE_65_UP'],
+            'headlines' => ['required', 'string'],
+            'descriptions' => ['required', 'string'],
+            'target_link' => ['required', 'url'],
+        ];
+    }
+
+    /**
+     * YouTube Demand Gen campaigns. Google Ads API can no longer create
+     * classic VIDEO campaigns (that surface is API-read-only now) - Demand
+     * Gen is the only API-creatable path to YouTube video ads, so this
+     * validates a DemandGenVideoResponsiveAd shape (video + headlines/
+     * descriptions/CTA/final URL) rather than a Responsive Search Ad.
+     */
+    private function getYoutubeRules(array $requiredIfPost): array
+    {
+        return [
+            'name' => ['required', 'max:255'],
+            'budget_mode' => array_merge($requiredIfPost, ['in:daily,total']),
+            'budget' => array_merge($requiredIfPost, ['numeric', 'gt:0']),
+            'start_time' => ['required', 'date'],
+            'end_time' => ['required', 'date', 'after:start_time'],
+            'bid_strategy' => array_merge($requiredIfPost, [
+                'in:MAXIMIZE_CONVERSIONS,TARGET_CPA,MAXIMIZE_CONVERSION_VALUE'
+            ]),
+            'bid_amount' => [
+                'required_if:bid_strategy,TARGET_CPA',
+                'nullable',
+                'numeric',
+                'min:0.01',
+            ],
+            'countries' => array_merge($requiredIfPost, ['array']),
+            'languages' => ['nullable', 'array'],
+            'languages.*' => ['in:en,ar,es,fr,de,ja,ko,pt,ru,zh'],
+            'gender' => ['nullable', 'in:male,female,both'],
+            'age_range' => ['nullable', 'array'],
+            'age_range.*' => ['in:AGE_RANGE_18_24,AGE_RANGE_25_34,AGE_RANGE_35_44,AGE_RANGE_45_54,AGE_RANGE_55_64,AGE_RANGE_65_UP'],
+            // The video/logo assets are locked in at creation -
+            // YoutubeAdService::update() only ever touches name/dates/
+            // headlines/descriptions/business_name/final URL.
+            'video_id' => array_merge($requiredIfPost, ['string']),
+            'headlines' => ['required', 'string'],
+            'descriptions' => ['required', 'string'],
+            'business_name' => ['required', 'string', 'max:25'],
+            'call_to_action' => array_merge($requiredIfPost, [
+                'in:LEARN_MORE,SHOP_NOW,SIGN_UP,DOWNLOAD,SUBSCRIBE,BOOK_NOW,CONTACT_US,APPLY_NOW,GET_QUOTE,ORDER_NOW,SEE_MORE,WATCH_NOW'
+            ]),
+            'target_link' => ['required', 'url'],
+            'media' => $requiredIfPost,
+            'media.*' => [
+                'file',
+                function ($attribute, $value, $fail) {
+                    if ($value->getSize() > 5120 * 1024) {
+                        $fail('The logo/companion image must not exceed 5MB.');
+                    }
+                },
+            ],
+        ];
+    }
+
+    /**
+     * X (Twitter) Promoted Tweets. Unlike every other platform here, X's
+     * Tweets are immutable once created - XAdService::update() only ever
+     * touches the campaign's name/dates - so the line item's targeting/bid
+     * and the Tweet's own text/media are create-only fields, locked on the
+     * edit form.
+     */
+    private function getXRules(array $requiredIfPost): array
+    {
+        return [
+            'name' => ['required', 'max:255'],
+            // Funding instruments can't be created via the API - they must
+            // already exist on the X Ads account (credit card via
+            // ads.x.com or a credit line set up by X) - so this is a
+            // manually-entered ID rather than a dropdown populated from a
+            // live lookup, consistent with how this app avoids live API
+            // calls at page-render time for every other platform too.
+            'funding_instrument_id' => array_merge($requiredIfPost, ['string']),
+            'budget_mode' => array_merge($requiredIfPost, ['in:daily,total']),
+            'budget' => array_merge($requiredIfPost, ['numeric', 'gt:0']),
+            'start_time' => ['required', 'date'],
+            'end_time' => ['required', 'date', 'after:start_time'],
+            'objective' => array_merge($requiredIfPost, [
+                'in:APP_ENGAGEMENTS,APP_INSTALLS,FOLLOWERS,ENGAGEMENTS,REACH,VIDEO_VIEWS,PREROLL_VIEWS,WEBSITE_CLICKS'
+            ]),
+            'placements' => array_merge($requiredIfPost, ['array']),
+            'placements.*' => ['in:ALL_ON_TWITTER,PUBLISHER_NETWORK,TWITTER_PROFILE,TWITTER_SEARCH,TWITTER_TIMELINE,SPOTLIGHT,TREND'],
+            'bid_type' => array_merge($requiredIfPost, ['in:AUTO,MAX,TARGET']),
+            'bid_amount' => [
+                'required_if:bid_type,MAX,TARGET',
+                'nullable',
+                'numeric',
+                'min:0.01',
+            ],
+            'countries' => array_merge($requiredIfPost, ['array']),
+            'languages' => ['nullable', 'array'],
+            'languages.*' => ['in:en,ar,es,fr,de,ja,ko,pt,ru,zh'],
+            'gender' => ['nullable', 'in:male,female,both'],
+            // Tweets (even nullcast/promoted-only ones) share the platform's
+            // 280-character limit.
+            'message' => array_merge($requiredIfPost, ['string', 'max:280']),
+            'target_link' => ['required', 'url'],
+            'media' => ['nullable', 'array', 'max:1'],
+            'media.*' => [
+                'file',
+                function ($attribute, $value, $fail) {
+                    $extension = strtolower($value->getClientOriginalExtension());
+                    $maxKb = in_array($extension, ['mp4', 'mov']) ? 512000 : 15360;
+
+                    if ($value->getSize() > $maxKb * 1024) {
+                        $fail('Each file must not exceed ' . ($maxKb / 1024) . 'MB.');
+                    }
+                },
             ],
         ];
     }

@@ -163,7 +163,6 @@
         color: red;
         font-size: 0.8rem;
         margin-top: 5px;
-        display: none;
     }
 
     .wizard-step {
@@ -271,7 +270,7 @@
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label>Objective *</label>
-                                                    <select id="objective" name="objective" class="form-select" required>
+                                                    <select id="objective" name="objective" class="form-control" required>
                                                         <option value="">-- Select Objective --</option>
                                                         <option value="APP_PROMOTION">App Promotion</option>
                                                         <option value="WEB_CONVERSIONS">Web Conversions</option>
@@ -291,7 +290,7 @@
                                                 <div class="col-md-6 objective-app" style="display:none;">
                                                     <label>App Promotion Type</label>
                                                     <select name="app_promotion_type" id="app_promotion_type"
-                                                        class="form-select">
+                                                        class="form-control">
                                                         <option value="APP_INSTALL">App Install</option>
                                                         <option value="APP_RETARGETING">App Retargeting</option>
                                                         <option value="APP_PREREGISTRATION">App Pre-registration</option>
@@ -309,7 +308,7 @@
                                                 <div class="col-md-6 objective-app" style="display:none;">
                                                     <label>Promotion Website Type</label>
                                                     <select name="promotion_website_type" id="promotion_website_type"
-                                                        class="form-select">
+                                                        class="form-control">
                                                         <option value="UNSET">Unset</option>
                                                         <option value="TIKTOK_NATIVE_PAGE">TikTok Native Page</option>
                                                     </select>
@@ -345,7 +344,7 @@
                                             <div class="row">
                                                 <div class="col-md-4">
                                                     <label>Budget Mode *</label>
-                                                    <select name="budget_mode" id="budget_mode" class="form-select"
+                                                    <select name="budget_mode" id="budget_mode" class="form-control"
                                                         required>
                                                         <option value="BUDGET_MODE_DAY">Daily Budget</option>
                                                         <option value="BUDGET_MODE_TOTAL">Lifetime Budget</option>
@@ -430,7 +429,7 @@
                                                 <div class="col-md-6">
                                                     <label>Optimization Goal *</label>
                                                     <select name="optimization_goal" id="optimization_goal"
-                                                        class="form-select" required>
+                                                        class="form-control" required>
                                                         <option value="">-- Select Optimization Goal --</option>
                                                     </select>
                                                     <p class="error-message error-optimization_goal"></p>
@@ -438,7 +437,7 @@
                                                 <!-- Billing Event -->
                                                 <div class="col-md-6">
                                                     <label>Billing Event *</label>
-                                                    <select name="billing_event" id="billing_event" class="form-select"
+                                                    <select name="billing_event" id="billing_event" class="form-control"
                                                         required>
                                                         <option value="">-- Select Billing Event --</option>
                                                     </select>
@@ -450,7 +449,7 @@
                                                 <!-- Promotion Type -->
                                                 <div class="col-md-6 promotion-type-block">
                                                     <label>Promotion Type *</label>
-                                                    <select name="promotion_type" id="promotion_type" class="form-select"
+                                                    <select name="promotion_type" id="promotion_type" class="form-control"
                                                         required>
                                                         <option value="">-- Select Promotion Type --</option>
                                                         <!-- Options will be populated based on objective -->
@@ -461,7 +460,7 @@
                                                 <div class="col-md-6 promotion-target-block" style="display:none;">
                                                     <label>Promotion Target Type</label>
                                                     <select name="promotion_target_type" id="promotion_target_type"
-                                                        class="form-select">
+                                                        class="form-control">
                                                         <option value="INSTANT_PAGE">Instant Page</option>
                                                         <option value="EXTERNAL_WEBSITE">External Website</option>
                                                     </select>
@@ -474,7 +473,7 @@
                                                 {{-- <div class="col-md-6">
                                                     <label>Destination Type</label>
                                                     <select name="destination_type" id="destination_type"
-                                                        class="form-select">
+                                                        class="form-control">
                                                         <option value="">-- Select Destination Type --</option>
                                                     </select>
                                                     <p class="error-message error-destination_type"></p>
@@ -495,7 +494,7 @@
                                                 <div class="col-md-6 messaging-app-block" style="display:none;">
                                                     <label>Messaging App Type</label>
                                                     <select name="messaging_app_type" id="messaging_app_type"
-                                                        class="form-select">
+                                                        class="form-control">
                                                         <option value="">-- Select --</option>
                                                         <option value="MESSENGER">Messenger</option>
                                                         <option value="WHATSAPP">WhatsApp</option>
@@ -576,7 +575,7 @@
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label>Call to Action</label>
-                                                    <select name="call_to_action" id="call_to_action" class="form-select">
+                                                    <select name="call_to_action" id="call_to_action" class="form-control">
                                                         <option value="">-- Select CTA --</option>
                                                         <option value="APPLY_NOW">Apply Now</option>
                                                         <option value="BOOK_NOW">Book Now</option>
@@ -621,7 +620,7 @@
                                             <div class="row">
                                                 <div class="col-md-4">
                                                     <label>Gender</label>
-                                                    <select name="gender" id="gender" class="form-select">
+                                                    <select name="gender" id="gender" class="form-control">
                                                         <option value="GENDER_UNLIMITED">All</option>
                                                         <option value="GENDER_MALE">Male</option>
                                                         <option value="GENDER_FEMALE">Female</option>
@@ -657,7 +656,7 @@
                                                 <div class="col-md-4">
                                                     <label>Countries (multiple)</label>
                                                     <select name="countries[]" id="countries" multiple
-                                                        class="form-select">
+                                                        class="form-control">
                                                         @foreach ($countries as $country)
                                                             <option value="{{ $country->id }}">{{ $country->name }}
                                                             </option>
@@ -758,6 +757,15 @@
 
 @push('scripts')
 <script>
+    // The shared layout mounts a Vue 2 root on #app with no template/render
+    // option (resources/js/app.js: `new Vue({ el: '#app' })`), so Vue
+    // compiles this form's server-rendered HTML as an in-DOM template and
+    // re-renders it once its module script finishes loading - after this
+    // ordinary inline script has already run and attached listeners/cached
+    // references to the original nodes. That swaps every one of them out
+    // from under us, so everything below is deferred to `load`, which waits
+    // for that module script (and Vue's mount) to finish first.
+    window.addEventListener('load', function() {
     // Initialize Select2 for countries
     $('#countries').select2();
 
@@ -1406,10 +1414,13 @@
     }
 
     showStep(1);
+    }); // end window.addEventListener('load', ...)
 
     // ------------------------------------------------------------------
     // 14. GLOBAL VARIABLES FOR api.js
     // ------------------------------------------------------------------
+    // Stays outside the load-deferred block above since api.js - a separate
+    // script - reads these as globals when #campaign is submitted.
     var url = "{{ route('admin.ads.campaigns.store', ['platform' => 'tiktok']) }}";
     var redirectUrl = "{{ route('admin.ads.campaigns.index', ['platform' => 'tiktok']) }}";
     var method = 'POST';

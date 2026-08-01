@@ -287,7 +287,7 @@
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label>Objective</label>
-                                                    <select id="objective" name="objective" class="form-select">
+                                                    <select id="objective" name="objective" class="form-control">
                                                         <option value="OUTCOME_TRAFFIC">Traffic</option>
                                                         <option value="OUTCOME_SALES">Sales</option>
                                                         <option value="OUTCOME_ENGAGEMENT">Engagement</option>
@@ -328,7 +328,7 @@
 
                                                 <div class="col-md-4">
                                                     <label>Budget Type</label>
-                                                    <select class="form-select" name="budget_mode" id="budget_mode">
+                                                    <select class="form-control" name="budget_mode" id="budget_mode">
                                                         <option value="daily_budget">Daily Budget</option>
                                                         <option value="lifetime_budget">Lifetime Budget</option>
                                                     </select>
@@ -419,14 +419,14 @@
                                                 <div class="col-md-6">
                                                     <label>Destination Type</label>
                                                     <select name="destination_type" id="destination_type"
-                                                        class="form-select">
+                                                        class="form-control">
                                                     </select>
                                                     <p class="error-message error-destination_type"></p>
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label>Optimization Gaol</label>
                                                     <select id="optimization_goal" name="optimization_goal"
-                                                        class="form-select">
+                                                        class="form-control">
                                                     </select>
                                                     <p class="error-message error-optimization_goal"></p>
                                                 </div>
@@ -435,14 +435,14 @@
                                             <div class="row">
                                                 <div class="col-md-6">
                                                     <label>Billing Event</label>
-                                                    <select id="billing_event" name="billing_event" class="form-select">
+                                                    <select id="billing_event" name="billing_event" class="form-control">
                                                     </select>
                                                     <p class="error-message error-billing_event"></p>
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label>Countries</label>
                                                     <select id="countries" name="countries[]" multiple
-                                                        class="form-select">
+                                                        class="form-control">
                                                         @foreach ($countries as $country)
                                                             <option value="{{ $country->id }}">{{ $country->name }}
                                                             </option>
@@ -472,7 +472,7 @@
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label>Conversion Event</label>
-                                                    <select class="form-select" name="custom_event_type"
+                                                    <select class="form-control" name="custom_event_type"
                                                         id="custom_event_type">
                                                         <option value="">Select Conversion Event</option>
                                                         <option value="PURCHASE">Purchase</option>
@@ -545,7 +545,7 @@
                                                     accept="image/*,video/*">
 
                                                 <button type="button" class="btn btn-primary"
-                                                    onclick="mediaInput.click()">
+                                                    onclick="document.getElementById('mediaInput').click()">
                                                     Upload Media
                                                 </button>
                                                 <p class="error-message error-media"></p>
@@ -583,7 +583,7 @@
                                             <div class="row">
                                                 <div class="col-md-6">
                                                     <select id="call_to_action" name="call_to_action"
-                                                        class="form-select">
+                                                        class="form-control">
                                                         <option value="">Call To Action</option>
                                                         <option value="LEARN_MORE">Learn More</option>
                                                         <option value="SHOP_NOW">Shop Now</option>
@@ -597,7 +597,7 @@
                                                     <p class="error-message error-call_to_action"></p>
                                                 </div>
                                                 <div class="col-md-6">
-                                                    <select id="gender" name="gender" class="form-select">
+                                                    <select id="gender" name="gender" class="form-control">
                                                         <option value="">Gender</option>
                                                         <option value="male">Male</option>
                                                         <option value="female">Female</option>
@@ -609,7 +609,7 @@
                                             <br>
                                             <div class="row">
                                                 <div class="col-md-6">
-                                                    <select id="age_from" name="age_from" class="form-select">
+                                                    <select id="age_from" name="age_from" class="form-control">
                                                         <option value="">Age From</option>
                                                         <option value="18">18</option>
                                                         <option value="19">19</option>
@@ -628,7 +628,7 @@
                                                     <p class="error-message error-age_from"></p>
                                                 </div>
                                                 <div class="col-md-6">
-                                                    <select id="age_to" name="age_to" class="form-select">
+                                                    <select id="age_to" name="age_to" class="form-control">
                                                         <option value="">Age To</option>
                                                         <option value="31">31</option>
                                                         <option value="32">32</option>
@@ -805,6 +805,19 @@
         var method = 'POST';
         var edit = "{{ __('admin.table.edit') }}";
         var deletebutton = "{{ __('admin.table.delete') }}";
+
+        // The shared layout mounts a Vue 2 root on #app with no template/
+        // render option (resources/js/app.js: `new Vue({ el: '#app' })`), so
+        // Vue compiles this form's server-rendered HTML as an in-DOM
+        // template and re-renders it once its module script finishes
+        // loading - after this ordinary inline script has already run and
+        // attached listeners/cached references to the original nodes. That
+        // swaps every one of them out from under us, so everything below is
+        // deferred to `load`, which waits for that module script (and Vue's
+        // mount) to finish first. The `var` declarations above stay outside
+        // this block since api.js - a separate script - reads them as
+        // globals when #campaign is submitted.
+        window.addEventListener('load', function() {
         $('#countries').select2();
         document.getElementById('name').addEventListener('keyup', function() {
 
@@ -1440,6 +1453,7 @@
 
             document.getElementById('carousel_cards').value = JSON.stringify(cards);
         });
+        }); // end window.addEventListener('load', ...)
     </script>
 
     <script src="{{ asset('assets/js/admin/api.js') }}"></script>

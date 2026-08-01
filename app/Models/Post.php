@@ -212,6 +212,17 @@ class Post extends Model
     }
 
     /**
+     * WhatsApp-only: per-recipient delivery outcomes for a broadcast post
+     * (see PostWhatsappRecipient - WhatsApp has no public feed, so a
+     * "post" there is a template message sent individually to a list of
+     * numbers, each with its own status).
+     */
+    public function whatsappRecipients(): HasMany
+    {
+        return $this->hasMany(PostWhatsappRecipient::class);
+    }
+
+    /**
      * Get the category this post belongs to.
      */
     public function category(): BelongsTo

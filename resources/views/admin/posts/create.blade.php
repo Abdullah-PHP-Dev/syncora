@@ -936,10 +936,23 @@
 
                 {{-- Platforms --}}
                 <div class="card mb-4">
-                    <div class="card-header bg-light fw-semibold">{{ __('admin.marketing_tools.posts.select_platforms') }}</div>
+                    <div class="card-header bg-light fw-semibold d-flex justify-content-between align-items-center">
+                        <span>{{ __('admin.marketing_tools.posts.select_platforms') }}</span>
+                        <div class="d-flex gap-2">
+                            <a href="{{ route('admin.post-accounts.threads.redirect') }}" class="btn btn-outline-dark btn-sm">
+                                <i class="fab fa-threads"></i> Connect Threads
+                            </a>
+                            <a href="{{ route('admin.post-accounts.pinterest.redirect') }}" class="btn btn-outline-danger btn-sm">
+                                <i class="fab fa-pinterest"></i> Connect Pinterest
+                            </a>
+                            <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#connectWhatsappModal">
+                                <i class="fab fa-whatsapp"></i> Connect WhatsApp
+                            </button>
+                        </div>
+                    </div>
                     <div class="card-body">
                         @php
-                            $platforms = ['facebook', 'instagram', 'x', 'tiktok', 'youtube', 'linkedin', 'google'];
+                            $platforms = ['facebook', 'instagram', 'x', 'tiktok', 'youtube', 'linkedin', 'google', 'whatsapp', 'threads', 'pinterest'];
                             $selected = $post->platforms ?? [];
                         @endphp
 
@@ -1000,6 +1013,31 @@
                             @endif
                         @endforeach
                         <p class="text-danger error-platforms small"></p>
+
+                        {{-- WhatsApp has no public feed - a "post" here is a
+                             broadcast: an already-approved Message Template
+                             sent to a list of numbers. See WhatsAppPostService
+                             for why templates are required. --}}
+                        <div id="whatsappBroadcastFields" class="{{ $socialPlatform == 'whatsapp' ? '' : 'd-none' }} mt-4 p-3 border rounded">
+                            <h6 class="fw-semibold"><i class="fab fa-whatsapp text-success"></i> WhatsApp Broadcast Settings</h6>
+                            <p class="text-muted small mb-3">WhatsApp requires an approved Message Template for outbound broadcasts - free-form text only works within an active customer chat. Your post's caption fills the template's body text, and any attached image fills its header.</p>
+                            <div class="mb-3">
+                                <label class="form-label">Recipient Phone Numbers *</label>
+                                <textarea name="whatsapp_recipients" class="form-control" rows="3" placeholder="15551234567, 15559876543&#10;or one per line"></textarea>
+                                <p class="text-danger error-whatsapp_recipients small"></p>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <label class="form-label">Approved Template Name *</label>
+                                    <input type="text" name="whatsapp_template_name" class="form-control" placeholder="e.g. order_update">
+                                    <p class="text-danger error-whatsapp_template_name small"></p>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Template Language</label>
+                                    <input type="text" name="whatsapp_template_language" class="form-control" value="en_US">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1097,6 +1135,50 @@
         </div>
     </div>
 </div>
+
+{{-- Connect WhatsApp Modal --}}
+<div class="modal fade" id="connectWhatsappModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fab fa-whatsapp text-success"></i> Connect WhatsApp Number</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                @if (adminSetting('messaging.meta.whatsapp_config_id'))
+                    <button type="button" id="whatsappEmbeddedSignupBtn" class="btn btn-success w-100 mb-2">
+                        <i class="fab fa-facebook"></i> Connect with Facebook
+                    </button>
+                    <p class="text-muted small text-center mb-3">Verifies your number and creates the WhatsApp Business Account automatically.</p>
+                    <div class="text-center mb-3"><span class="text-muted small">— or enter credentials manually —</span></div>
+                @else
+                    <p class="text-muted small">"Connect with Facebook" isn't configured yet (needs a WhatsApp Embedded Signup config_id from your Meta App Dashboard). Enter credentials manually for now:</p>
+                @endif
+
+                <form action="{{ route('admin.post-accounts.whatsapp.store') }}" method="POST">
+                    @csrf
+                    <p class="text-muted small">Paste the Phone Number ID and a permanent access token from your Meta Business System User - the same credentials used for the WhatsApp Business Cloud API.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Display Name *</label>
+                        <input type="text" name="name" class="form-control" required>
+                        @error('name')<p class="text-danger small">{{ $message }}</p>@enderror
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone Number ID *</label>
+                        <input type="text" name="phone_number_id" class="form-control" required>
+                        @error('phone_number_id')<p class="text-danger small">{{ $message }}</p>@enderror
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Permanent Access Token *</label>
+                        <input type="text" name="access_token" class="form-control" required>
+                        @error('access_token')<p class="text-danger small">{{ $message }}</p>@enderror
+                    </div>
+                    <button type="submit" class="btn btn-outline-success w-100">Connect Manually</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -1105,6 +1187,111 @@
 
     {{-- JavaScript – unchanged logic with enhanced media preview --}}
     <script>
+        // The WhatsApp account connect form is a plain server-rendered
+        // POST/redirect (unlike the rest of this page's AJAX flow), so its
+        // outcome arrives as a session flash rather than an AJAX response -
+        // bridge it into the same SweetAlert2 feedback the rest of the page
+        // uses.
+        @if (session('success'))
+            document.addEventListener('DOMContentLoaded', function() {
+                Swal.fire({ icon: 'success', title: 'Success', text: @json(session('success')) });
+            });
+        @endif
+        @if (session('error'))
+            document.addEventListener('DOMContentLoaded', function() {
+                Swal.fire({ icon: 'error', title: 'Error', text: @json(session('error')) });
+            });
+        @endif
+
+        // ============================================
+        // WHATSAPP EMBEDDED SIGNUP
+        // ("Connect with Facebook" - see PostAccountController::
+        // storeWhatsappEmbedded for the backend half of this flow)
+        // ============================================
+        @if (adminSetting('messaging.meta.whatsapp_config_id'))
+            window.fbAsyncInit = function() {
+                FB.init({
+                    appId: '{{ adminSetting('messaging.meta.app_id') }}',
+                    cookie: true,
+                    xfbml: true,
+                    version: '{{ adminSetting('messaging.meta.graph_version') ?: 'v21.0' }}'
+                });
+            };
+
+            (function(d, s, id) {
+                var js, fjs = d.getElementsByTagName(s)[0];
+                if (d.getElementById(id)) return;
+                js = d.createElement(s); js.id = id;
+                js.src = "https://connect.facebook.net/en_US/sdk.js";
+                fjs.parentNode.insertBefore(js, fjs);
+            }(document, 'script', 'facebook-jssdk'));
+
+            // Embedded Signup returns the newly created WABA ID and phone
+            // number ID via postMessage to this window - not through the
+            // FB.login() callback itself, which only carries the
+            // exchangeable authorization code.
+            let waEmbeddedSessionInfo = {};
+
+            window.addEventListener('message', function(event) {
+                if (!event.origin.endsWith('facebook.com')) return;
+
+                try {
+                    var data = JSON.parse(event.data);
+                    if (data.type === 'WA_EMBEDDED_SIGNUP' && data.event === 'FINISH') {
+                        waEmbeddedSessionInfo = {
+                            phone_number_id: data.data.phone_number_id,
+                            waba_id: data.data.waba_id,
+                        };
+                    }
+                } catch (e) {
+                    // Non-JSON postMessage from elsewhere on facebook.com - ignore.
+                }
+            });
+
+            document.getElementById('whatsappEmbeddedSignupBtn')?.addEventListener('click', function() {
+                waEmbeddedSessionInfo = {};
+
+                FB.login(function(response) {
+                    if (!response.authResponse || !response.authResponse.code) {
+                        return; // user closed the popup or denied access
+                    }
+
+                    if (!waEmbeddedSessionInfo.phone_number_id) {
+                        Swal.fire('Error', 'Signup completed but no phone number was returned. Please try again.', 'error');
+                        return;
+                    }
+
+                    $.ajax({
+                        url: "{{ route('admin.post-accounts.whatsapp.embedded') }}",
+                        type: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}'
+                        },
+                        data: {
+                            code: response.authResponse.code,
+                            phone_number_id: waEmbeddedSessionInfo.phone_number_id,
+                            waba_id: waEmbeddedSessionInfo.waba_id,
+                        },
+                        success: function(res) {
+                            Swal.fire('Success', res.message, 'success').then(() => location.reload());
+                        },
+                        error: function(xhr) {
+                            Swal.fire('Error', xhr.responseJSON?.message || 'Failed to connect WhatsApp.', 'error');
+                        }
+                    });
+                }, {
+                    config_id: '{{ adminSetting('messaging.meta.whatsapp_config_id') }}',
+                    response_type: 'code',
+                    override_default_response_type: true,
+                    extras: {
+                        setup: {},
+                        featureType: '',
+                        sessionInfoVersion: '3',
+                    }
+                });
+            });
+        @endif
+
         // ============================================
         // AI ASSISTANT (unchanged logic)
         // ============================================
@@ -1884,6 +2071,11 @@
                 checkboxes.forEach(cb => cb.checked = isChecked);
                 if (isChecked) container.classList.remove('d-none');
                 else container.classList.add('d-none');
+            }
+
+            if (platform === 'whatsapp') {
+                const fields = document.getElementById('whatsappBroadcastFields');
+                if (fields) fields.classList.toggle('d-none', !isChecked);
             }
         }
 
