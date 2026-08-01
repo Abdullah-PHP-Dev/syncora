@@ -66,4 +66,10 @@ Route::group(['prefix' => 'api'], function ($router) {
         // GoogleChatWebhookController docblock.
         Route::post('/google-chat/{channel}', [\App\Http\Controllers\Api\Messaging\GoogleChatWebhookController::class, 'receive'])->name('google_chat.receive');
     });
+
+    // Email Marketing - one shared endpoint for every Mailgun event type
+    // (delivered/opened/clicked/unsubscribed/complained/failed), same
+    // "one URL, dispatch on the event field" shape as the messaging
+    // webhooks above. See MailgunWebhookController.
+    Route::post('/email-marketing/mailgun', [\App\Http\Controllers\Api\EmailMarketing\MailgunWebhookController::class, 'receive'])->name('email_marketing.mailgun.receive');
 });

@@ -306,7 +306,15 @@ class SlackMessagingService
             return null;
         }
 
-        $response = Http::withToken($channel->access_token)->get($url);
+        // Raw Http facade throws a ConnectionException on a DNS/network
+        // failure rather than returning an unsuccessful Response - a
+        // dead/unreachable file URL must not crash the whole webhook
+        // request.
+        try {
+            $response = Http::withToken($channel->access_token)->get($url);
+        } catch (\Throwable) {
+            return null;
+        }
 
         if (!$response->successful()) {
             return null;

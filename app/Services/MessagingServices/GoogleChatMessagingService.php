@@ -124,13 +124,30 @@ class GoogleChatMessagingService
         return ['success' => true];
     }
 
+    /**
+     * Only ever caches a genuine token, never a failure - Cache::remember()
+     * would otherwise cache a null result from a transient Google outage
+     * (or credentials that were wrong and have since been fixed) for the
+     * same ~50 minutes as a real token, silently blocking every send
+     * until the cache expires on its own.
+     */
     private function ensureAccessToken(MessageChannel $channel): ?string
     {
-        return Cache::remember("google_chat_token_{$channel->id}", 3000, function () use ($channel) {
-            $token = $this->fetchAccessToken($channel->external_id, $channel->access_token);
+        $cacheKey = "google_chat_token_{$channel->id}";
+        $cached = Cache::get($cacheKey);
 
-            return $token['access_token'] ?? null;
-        });
+        if ($cached) {
+            return $cached;
+        }
+
+        $token = $this->fetchAccessToken($channel->external_id, $channel->access_token);
+        $accessToken = $token['access_token'] ?? null;
+
+        if ($accessToken) {
+            Cache::put($cacheKey, $accessToken, 3000);
+        }
+
+        return $accessToken;
     }
 
     /**
@@ -233,13 +250,35 @@ class GoogleChatMessagingService
      * every Chat app that exists, so (unlike the per-channel token cache
      * above) this is cached once globally rather than per-channel.
      */
+    /**
+     * Only ever caches a genuine key set, never a failure - caching an
+     * empty ['keys' => []] for 24h on one transient fetch failure would
+     * reject every inbound Google Chat message as unverifiable for the
+     * rest of that window, even once Google's endpoint recovers seconds
+     * later.
+     */
     private function getJwks(): array
     {
-        return Cache::remember('google_chat_jwks', 86400, function () {
-            $response = Http::get($this->jwksUrl);
+        $cached = Cache::get('google_chat_jwks');
 
-            return $response->successful() ? $response->json() : ['keys' => []];
-        });
+        if ($cached) {
+            return $cached;
+        }
+
+        try {
+            $response = Http::get($this->jwksUrl);
+        } catch (\Throwable) {
+            return ['keys' => []];
+        }
+
+        if (!$response->successful()) {
+            return ['keys' => []];
+        }
+
+        $jwks = $response->json();
+        Cache::put('google_chat_jwks', $jwks, 86400);
+
+        return $jwks;
     }
 
     /**
@@ -341,7 +380,16 @@ class GoogleChatMessagingService
             return null;
         }
 
-        $response = Http::withToken($accessToken)->get($this->baseUrl . $resourceName, ['alt' => 'media']);
+        // Raw Http facade throws a ConnectionException on a DNS/network
+        // failure rather than returning an unsuccessful Response - this
+        // runs synchronously inside the webhook request (handleEvent()),
+        // so a transient failure fetching the attachment must not crash
+        // the whole request.
+        try {
+            $response = Http::withToken($accessToken)->get($this->baseUrl . $resourceName, ['alt' => 'media']);
+        } catch (\Throwable) {
+            return null;
+        }
 
         if (!$response->successful()) {
             return null;

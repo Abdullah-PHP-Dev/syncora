@@ -124,7 +124,16 @@ class WhatsAppMessagingService
             return null;
         }
 
-        $binary = Http::withToken($accessToken)->get($lookup['data']['url'])->body();
+        // Raw Http facade throws a ConnectionException on a DNS/network
+        // failure rather than returning an unsuccessful Response (unlike
+        // graphApiCall()/ApiService above) - a dead media URL must not
+        // crash the whole webhook request.
+        try {
+            $binary = Http::withToken($accessToken)->get($lookup['data']['url'])->body();
+        } catch (\Throwable) {
+            return null;
+        }
+
         $mimeType = $lookup['data']['mime_type'] ?? 'application/octet-stream';
         $extension = explode('/', explode(';', $mimeType)[0])[1] ?? 'bin';
         $fileName = $mediaId . '.' . $extension;

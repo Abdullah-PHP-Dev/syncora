@@ -256,8 +256,16 @@ class MatrixMessagingService
             return null;
         }
 
-        $response = Http::withToken($channel->access_token)
-            ->get($this->homeserverUrl($channel) . "/_matrix/client/v1/media/download/{$serverName}/{$mediaId}");
+        // Raw Http facade throws a ConnectionException on a DNS/network
+        // failure rather than returning an unsuccessful Response - a
+        // homeserver that's temporarily unreachable must not crash the
+        // sync listener's message processing.
+        try {
+            $response = Http::withToken($channel->access_token)
+                ->get($this->homeserverUrl($channel) . "/_matrix/client/v1/media/download/{$serverName}/{$mediaId}");
+        } catch (\Throwable) {
+            return null;
+        }
 
         if (!$response->successful()) {
             return null;

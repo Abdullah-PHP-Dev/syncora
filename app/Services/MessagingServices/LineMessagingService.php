@@ -139,7 +139,15 @@ class LineMessagingService
      */
     private function fetchMessageContent(MessageChannel $channel, string $messageId, string $type): ?array
     {
-        $response = Http::withToken($channel->access_token)->get($this->dataBaseUrl . "message/{$messageId}/content");
+        // Raw Http facade throws a ConnectionException on a DNS/network
+        // failure rather than returning an unsuccessful Response - a
+        // dead/unreachable content host must not crash the whole webhook
+        // request.
+        try {
+            $response = Http::withToken($channel->access_token)->get($this->dataBaseUrl . "message/{$messageId}/content");
+        } catch (\Throwable) {
+            return null;
+        }
 
         if (!$response->successful()) {
             return null;

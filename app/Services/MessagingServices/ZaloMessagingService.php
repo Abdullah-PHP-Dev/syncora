@@ -88,8 +88,13 @@ class ZaloMessagingService
             'grant_type' => 'authorization_code',
         ], 'form');
 
-        if (!$tokenResponse['success']) {
-            return ['success' => false, 'error' => $tokenResponse['data']['error_description'] ?? 'Failed to exchange code for a Zalo access token.'];
+        // Zalo's token endpoint always answers HTTP 200, even on failure -
+        // the real success/failure signal is the `error` field in the
+        // body (0 or absent on success), the same quirk already handled
+        // for Slack's oauth.v2.access. Missing this here would silently
+        // treat a rejected code exchange as successful.
+        if (!$tokenResponse['success'] || !empty($tokenResponse['data']['error'])) {
+            return ['success' => false, 'error' => $tokenResponse['data']['error_description'] ?? $tokenResponse['data']['error_name'] ?? 'Failed to exchange code for a Zalo access token.'];
         }
 
         $token = $tokenResponse['data'];
@@ -117,7 +122,12 @@ class ZaloMessagingService
             'grant_type'    => 'refresh_token',
         ], 'form');
 
-        if (!$response['success']) {
+        // Same "always 200, check the body" quirk as handleCallback() above
+        // - without this, a rejected refresh (expired/revoked token, bad
+        // app id, etc) falls through and overwrites the channel's still-
+        // working access_token with null, permanently breaking it until
+        // manually reconnected.
+        if (!$response['success'] || !empty($response['data']['error']) || empty($response['data']['access_token'])) {
             return false;
         }
 
@@ -220,19 +230,35 @@ class ZaloMessagingService
             }
         }
 
+        // rehostMedia() returns null on a failed download (a dead/expired
+        // URL, a network blip) - must be filtered out *before* indexing
+        // into $attachments[0] below, otherwise a failed download crashes
+        // this handler with a TypeError instead of falling back to a
+        // text-only message, which - since Zalo retries a failing webhook
+        // - would keep failing on every retry.
+        $attachments = array_filter($attachments);
+
         ProcessInboundMessage::dispatch(
             messageChannelId: $channel->id,
             customerExternalId: $senderId,
             externalMessageId: $message['msg_id'] ?? null,
-            type: !empty($attachments) ? $attachments[0]['type'] : 'text',
+            type: !empty($attachments) ? array_values($attachments)[0]['type'] : 'text',
             body: $body,
-            attachments: array_filter($attachments),
+            attachments: $attachments,
         );
     }
 
     private function rehostMedia(string $url, string $eventName): ?array
     {
-        $response = Http::get($url);
+        // Unlike ApiService (used everywhere else in this module), the
+        // raw Http facade throws a ConnectionException on a DNS/network
+        // failure rather than returning an unsuccessful Response - a dead
+        // or expired media URL must not crash the whole webhook request.
+        try {
+            $response = Http::get($url);
+        } catch (\Throwable) {
+            return null;
+        }
 
         if (!$response->successful()) {
             return null;

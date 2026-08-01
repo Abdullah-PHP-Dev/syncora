@@ -18,6 +18,12 @@ use App\Http\Controllers\Admin\AdminAPIController;
 use App\Http\Controllers\Admin\AdCampaignController;
 use App\Http\Controllers\Admin\SubscriptionController;
 use App\Http\Controllers\Admin\PostCategoryController;
+use App\Http\Controllers\Admin\EmailMarketingController;
+use App\Http\Controllers\Admin\EmailListController;
+use App\Http\Controllers\Admin\EmailSubscriberController;
+use App\Http\Controllers\Admin\EmailTemplateController;
+use App\Http\Controllers\Admin\EmailCampaignController;
+use App\Http\Controllers\EmailUnsubscribeController;
 
 
 Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
@@ -176,6 +182,31 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('comments.dashboard');
 
 
+				// EMAIL MARKETING
+				Route::get('email/dashboard', [EmailMarketingController::class, 'dashboard'])
+					->name('email.dashboard');
+
+				Route::get('email/lists', [EmailListController::class, 'index'])->name('email.lists.index');
+				Route::post('email/lists', [EmailListController::class, 'store'])->name('email.lists.store');
+				Route::patch('email/lists/{list}', [EmailListController::class, 'update'])->name('email.lists.update');
+				Route::delete('email/lists/{list}', [EmailListController::class, 'destroy'])->name('email.lists.destroy');
+
+				Route::get('email/lists/{list}/subscribers', [EmailSubscriberController::class, 'index'])->name('email.lists.subscribers.index');
+				Route::post('email/lists/{list}/subscribers', [EmailSubscriberController::class, 'store'])->name('email.lists.subscribers.store');
+				Route::post('email/lists/{list}/subscribers/import', [EmailSubscriberController::class, 'import'])->name('email.lists.subscribers.import');
+				Route::delete('email/lists/{list}/subscribers/{subscriber}', [EmailSubscriberController::class, 'destroy'])->name('email.lists.subscribers.destroy');
+
+				Route::resource('email/templates', EmailTemplateController::class)
+					->except(['show'])
+					->names('email.templates');
+
+				Route::resource('email/campaigns', EmailCampaignController::class)
+					->except(['show'])
+					->names('email.campaigns');
+				Route::get('email/campaigns/{campaign}', [EmailCampaignController::class, 'show'])->name('email.campaigns.show');
+				Route::post('email/campaigns/{campaign}/send', [EmailCampaignController::class, 'sendNow'])->name('email.campaigns.send');
+
+
 				// SYSTEM
 				Route::resource('/apis', AdminAPIController::class);
 				Route::resource('/profiles', ProfileController::class);
@@ -183,3 +214,11 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	});
 	require __DIR__ . '/auth.php';
 });
+
+// Public unsubscribe link embedded in every campaign email - deliberately
+// outside the LaravelLocalization group above so its URL is stable and
+// never gains/loses a locale prefix depending on app config, since these
+// links are baked into emails that may have already been sent. See
+// EmailUnsubscribeController and the CSRF exemption in bootstrap/app.php.
+Route::get('/email/unsubscribe/{token}', [EmailUnsubscribeController::class, 'show'])->name('email.unsubscribe');
+Route::post('/email/unsubscribe/{token}', [EmailUnsubscribeController::class, 'confirm'])->name('email.unsubscribe.confirm');

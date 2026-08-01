@@ -110,13 +110,30 @@ class TeamsMessagingService
      * outbound message would be both wasteful and, at any real send
      * volume, eventually rate-limited by Azure AD.
      */
+    /**
+     * Only ever caches a genuine token, never a failure - Cache::remember()
+     * would otherwise cache a null result from a transient Azure AD outage
+     * (or credentials that were wrong and have since been fixed) for the
+     * same ~50 minutes as a real token, silently blocking every send
+     * until the cache expires on its own.
+     */
     private function ensureAccessToken(MessageChannel $channel): ?string
     {
-        return Cache::remember("teams_token_{$channel->id}", 3000, function () use ($channel) {
-            $token = $this->fetchAccessToken($channel->external_id, $channel->access_token);
+        $cacheKey = "teams_token_{$channel->id}";
+        $cached = Cache::get($cacheKey);
 
-            return $token['access_token'] ?? null;
-        });
+        if ($cached) {
+            return $cached;
+        }
+
+        $token = $this->fetchAccessToken($channel->external_id, $channel->access_token);
+        $accessToken = $token['access_token'] ?? null;
+
+        if ($accessToken) {
+            Cache::put($cacheKey, $accessToken, 3000);
+        }
+
+        return $accessToken;
     }
 
     /**
@@ -227,13 +244,34 @@ class TeamsMessagingService
         return ['success' => true];
     }
 
+    /**
+     * Only ever caches a genuine key set, never a failure - caching an
+     * empty ['keys' => []] for 24h on one transient fetch failure would
+     * reject every inbound Teams message as unverifiable for the rest of
+     * that window, even once Microsoft's endpoint recovers seconds later.
+     */
     private function getJwks(): array
     {
-        return Cache::remember('teams_jwks', 86400, function () {
-            $response = Http::get($this->jwksUrl);
+        $cached = Cache::get('teams_jwks');
 
-            return $response->successful() ? $response->json() : ['keys' => []];
-        });
+        if ($cached) {
+            return $cached;
+        }
+
+        try {
+            $response = Http::get($this->jwksUrl);
+        } catch (\Throwable) {
+            return ['keys' => []];
+        }
+
+        if (!$response->successful()) {
+            return ['keys' => []];
+        }
+
+        $jwks = $response->json();
+        Cache::put('teams_jwks', $jwks, 86400);
+
+        return $jwks;
     }
 
     /**
@@ -330,28 +368,37 @@ class TeamsMessagingService
     {
         $contentType = $attachment['contentType'] ?? '';
 
-        if ($contentType === 'application/vnd.microsoft.teams.file.download.info') {
-            $url = $attachment['content']['downloadUrl'] ?? null;
+        // Raw Http facade calls below throw a ConnectionException on a
+        // DNS/network failure rather than returning an unsuccessful
+        // Response - handleActivity() calls this synchronously while
+        // still handling the webhook request, so a dead attachment URL
+        // must not crash the whole request.
+        try {
+            if ($contentType === 'application/vnd.microsoft.teams.file.download.info') {
+                $url = $attachment['content']['downloadUrl'] ?? null;
 
-            if (!$url) {
+                if (!$url) {
+                    return null;
+                }
+
+                $response = Http::get($url);
+                $mimeType = 'application/octet-stream';
+                $type = 'file';
+            } elseif (str_starts_with($contentType, 'image/')) {
+                $url = $attachment['contentUrl'] ?? null;
+
+                if (!$url) {
+                    return null;
+                }
+
+                $accessToken = $this->ensureAccessToken($channel);
+                $response = $accessToken ? Http::withToken($accessToken)->get($url) : null;
+                $mimeType = $contentType;
+                $type = 'image';
+            } else {
                 return null;
             }
-
-            $response = Http::get($url);
-            $mimeType = 'application/octet-stream';
-            $type = 'file';
-        } elseif (str_starts_with($contentType, 'image/')) {
-            $url = $attachment['contentUrl'] ?? null;
-
-            if (!$url) {
-                return null;
-            }
-
-            $accessToken = $this->ensureAccessToken($channel);
-            $response = $accessToken ? Http::withToken($accessToken)->get($url) : null;
-            $mimeType = $contentType;
-            $type = 'image';
-        } else {
+        } catch (\Throwable) {
             return null;
         }
 
