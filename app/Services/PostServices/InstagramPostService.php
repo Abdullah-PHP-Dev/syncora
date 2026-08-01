@@ -591,7 +591,7 @@ class InstagramPostService
             'content'            => $data['body'] ?? '',
             'sender_type'     => 'support',
             'platform'        => 'instagram',
-            'parent_comment_id' => $data['comment_id'],
+            'parent_comment_id' => $comment->id,
             'user_id'         => Auth::user()->id,
             'sender_name'     => Auth::user()->name,
             'post_id'   => $comment->post?->id,
@@ -609,6 +609,46 @@ class InstagramPostService
         ];
     }
 
+
+    /**
+     * Backfill a post's comments from Instagram's Graph API. Used when a post
+     * has an engagement comment count but no imported PostComment rows yet
+     * (e.g. the comment webhook hasn't captured them).
+     */
+    public function fetchComments(Post $post): void
+    {
+        $this->ensureValidToken($post);
+
+        $endpoint = $this->baseUrl . $post->post_id . '/comments';
+
+        $response = $this->api->request('get', $endpoint, [], [
+            'fields' => 'id,text,username,timestamp,like_count',
+            'access_token' => $post->postAccount->access_token,
+        ]);
+
+        if (!$response->successful()) {
+            return;
+        }
+
+        foreach ($response->json()['data'] ?? [] as $comment) {
+            PostComment::updateOrCreate(
+                [
+                    'comment_id' => $comment['id'],
+                    'post_id' => $post->id,
+                ],
+                [
+                    'platform' => 'instagram',
+                    'content' => $comment['text'] ?? '',
+                    'user_name' => $comment['username'] ?? 'Instagram user',
+                    'likes' => $comment['like_count'] ?? 0,
+                    'posted_at' => $comment['timestamp'] ?? now(),
+                    'sender_type' => 'customer',
+                    'is_reply' => false,
+                    'post_account_id' => $post->postAccount?->id,
+                ]
+            );
+        }
+    }
 
     /**
      * Get posts

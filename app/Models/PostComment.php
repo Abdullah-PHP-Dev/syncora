@@ -44,7 +44,7 @@ class PostComment extends Model
         
         // Engagement
         'likes',
-        'replies',
+        'replies_count',
         'shares',
         'reactions',
         'sentiment_score',
@@ -94,7 +94,7 @@ class PostComment extends Model
         
         // Integers
         'likes' => 'integer',
-        'replies' => 'integer',
+        'replies_count' => 'integer',
         'shares' => 'integer',
         
         // Floats
@@ -340,7 +340,7 @@ class PostComment extends Model
     public function scopeMostEngaged($query)
     {
         return $query->orderBy('likes', 'desc')
-            ->orderBy('replies', 'desc');
+            ->orderBy('replies_count', 'desc');
     }
 
     // =============================================
@@ -411,7 +411,7 @@ class PostComment extends Model
      */
     public function getTotalEngagementAttribute(): int
     {
-        return ($this->likes ?? 0) + ($this->replies ?? 0) + ($this->shares ?? 0);
+        return ($this->likes ?? 0) + ($this->replies_count ?? 0) + ($this->shares ?? 0);
     }
 
     /**
@@ -545,7 +545,7 @@ class PostComment extends Model
         $data['is_reply'] = true;
         
         $reply = self::create($data);
-        $this->increment('replies');
+        $this->increment('replies_count');
         
         return $reply;
     }

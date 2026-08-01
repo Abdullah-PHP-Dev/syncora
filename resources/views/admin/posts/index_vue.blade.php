@@ -44,10 +44,14 @@
 
 
     <posts-dashboard
-            :posts='@json($posts)'
+            :initial-posts='@json($posts->items())'
+            :initial-total="{{ $posts->total() }}"
+            :initial-last-page="{{ $posts->lastPage() }}"
+            :initial-per-page="{{ $posts->perPage() }}"
+            :platform-counts='@json($platformCounts)'
             platform="{{ $platform }}"
             create-url="{{ route('admin.posts.create', ['platform' => $platform]) }}"
-            api-url="{{ route('admin.posts.index', ['platform' => $platform]) }}"
+            api-url="{{ route('admin.posts.data') }}"
             preview-url-base="{{ url('admin/posts') }}"
             user-name="{{ auth()->user()->name ?? 'Admin' }}"
     ></posts-dashboard>

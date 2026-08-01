@@ -144,15 +144,23 @@
 
         <h3>Recent Posts</h3>
 
-        <p>{{ filteredPosts.length }} Posts Available</p>
+        <p>{{ pageInfo.total }} Posts Available</p>
 
       </div>
 
     </div>
 
     <div
+        v-if="!loading && paginatedPosts.length === 0"
+        class="posts-empty-state">
+
+      No posts found.
+
+    </div>
+
+    <div
         class="posts-grid"
-        :class="{list:!gridView}">
+        :class="{list:!gridView, loading:loading}">
 
       <div
           class="post-card"
@@ -384,7 +392,7 @@
         <button
             class="page-btn"
             :disabled="pagination.currentPage===1"
-            @click="pagination.currentPage--">
+            @click="goToPage(pagination.currentPage - 1)">
 
           <i class="fas fa-chevron-left"></i>
 
@@ -400,7 +408,7 @@
 
             :class="{active:page===pagination.currentPage}"
 
-            @click="pagination.currentPage=page">
+            @click="goToPage(page)">
 
           {{ page }}
 
@@ -412,7 +420,7 @@
 
             :disabled="pagination.currentPage===totalPages"
 
-            @click="pagination.currentPage++">
+            @click="goToPage(pagination.currentPage + 1)">
 
           <i class="fas fa-chevron-right"></i>
 
@@ -578,7 +586,7 @@
 </template>
 
 <script>
-import { mockPosts, platformMeta, platformOrder } from '../../data/mockPosts';
+import { platformMeta, platformOrder } from '../../data/mockPosts';
 
 export default {
 
@@ -602,6 +610,36 @@ export default {
     userName: {
       type: String,
       default: 'Admin'
+    },
+
+    initialPosts: {
+      type: Array,
+      default: () => []
+    },
+
+    apiUrl: {
+      type: String,
+      default: ''
+    },
+
+    initialTotal: {
+      type: Number,
+      default: 0
+    },
+
+    initialLastPage: {
+      type: Number,
+      default: 1
+    },
+
+    initialPerPage: {
+      type: Number,
+      default: 6
+    },
+
+    platformCounts: {
+      type: Object,
+      default: () => ({})
     }
 
   },
@@ -609,15 +647,22 @@ export default {
   data(){
 
     return{
+      loading: false,
+      searchDebounce: null,
       pagination: {
 
         currentPage: 1,
 
-        perPage: 6
+        perPage: this.initialPerPage,
+
+        total: this.initialTotal,
+
+        lastPage: this.initialLastPage
 
       },
       activePlatform: 'All',
-      posts: mockPosts,
+      posts: this.initialPosts.map(this.transformPost),
+      platformCountsData: { ...this.platformCounts },
       filters:{
 
         search:'',
@@ -628,8 +673,9 @@ export default {
 
       gridView:true,
       platforms: [
-        { name: 'All', icon: 'fas fa-globe', color: '#5D87FF' },
+        { key: 'all', name: 'All', icon: 'fas fa-globe', color: '#5D87FF' },
         ...platformOrder.map(key => ({
+          key,
           name: platformMeta[key].name,
           icon: platformMeta[key].icon,
           color: platformMeta[key].color
@@ -684,28 +730,19 @@ export default {
 
     totalPages() {
 
-      return Math.ceil(
-          this.filteredPosts.length / this.pagination.perPage
-      );
+      return this.pagination.lastPage;
 
     },
 
     paginatedPosts() {
 
-      const start =
-          (this.pagination.currentPage - 1) *
-          this.pagination.perPage;
-
-      return this.filteredPosts.slice(
-          start,
-          start + this.pagination.perPage
-      );
+      return this.posts;
 
     },
 
     pageInfo() {
 
-      if (!this.filteredPosts.length) {
+      if (!this.pagination.total) {
 
         return {
           from:0,
@@ -724,7 +761,7 @@ export default {
           this.pagination.currentPage *
           this.pagination.perPage,
 
-          this.filteredPosts.length
+          this.pagination.total
 
       );
 
@@ -734,7 +771,7 @@ export default {
 
         to,
 
-        total:this.filteredPosts.length
+        total:this.pagination.total
 
       };
 
@@ -746,57 +783,78 @@ export default {
 
         ...platform,
 
-        count: platform.name === 'All'
-            ? this.posts.length
-            : this.posts.filter(post =>
-                post.platforms.some(p => p.name === platform.name)
-              ).length
+        count: this.platformCountsData[platform.key] || 0
 
       }));
-
-    },
-
-    filteredPosts() {
-
-      let posts = this.posts;
-
-      if (this.activePlatform !== 'All') {
-        posts = posts.filter(post =>
-            post.platforms.some(p => p.name === this.activePlatform)
-        );
-      }
-
-      if (this.filters.search) {
-
-        const keyword = this.filters.search.toLowerCase();
-
-        posts = posts.filter(post =>
-            post.title.toLowerCase().includes(keyword) ||
-            post.content.toLowerCase().includes(keyword)
-        );
-
-      }
-
-      if (this.filters.status) {
-
-        posts = posts.filter(post => post.status === this.filters.status);
-
-      }
-
-      posts = [...posts].sort((a, b) => {
-
-        const diff = new Date(a.created_at) - new Date(b.created_at);
-
-        return this.filters.sort === 'oldest' ? diff : -diff;
-
-      });
-
-      return posts;
 
     }
 
   },
   methods: {
+
+    transformPost(raw) {
+
+      const key = raw.platform_key;
+
+      const meta = platformMeta[key] || {
+        key,
+        name: raw.platform_key,
+        icon: 'fas fa-share-alt',
+        color: '#5D87FF'
+      };
+
+      return {
+
+        ...raw,
+
+        platforms: [{
+          ...meta,
+          page: raw.account_name || meta.page,
+          handle: raw.account_handle || meta.handle
+        }]
+
+      };
+
+    },
+
+    goToPage(page) {
+
+      if (page < 1 || page > this.pagination.lastPage || page === this.pagination.currentPage) return;
+
+      this.pagination.currentPage = page;
+      this.fetchPosts();
+
+    },
+
+    fetchPosts() {
+
+      if (!this.apiUrl) return;
+
+      this.loading = true;
+
+      window.axios.get(this.apiUrl, {
+        params: {
+          page: this.pagination.currentPage,
+          per_page: this.pagination.perPage,
+          search: this.filters.search || undefined,
+          status: this.filters.status || undefined,
+          platform: this.activePlatform !== 'All' ? this.activePlatform.toLowerCase() : undefined,
+          sort: this.filters.sort
+        }
+      }).then(({ data }) => {
+
+        this.posts = data.data.map(this.transformPost);
+        this.pagination.total = data.total;
+        this.pagination.lastPage = data.last_page;
+        this.platformCountsData = data.platform_counts || this.platformCountsData;
+
+      }).finally(() => {
+
+        this.loading = false;
+
+      });
+
+    },
 
     createPost() {
 
@@ -885,7 +943,7 @@ export default {
 
       if (!this.canSubmitQuickPost) return;
 
-      const nextId = Math.max(...this.posts.map(p => p.id)) + 1;
+      const nextId = this.posts.length ? Math.max(...this.posts.map(p => p.id)) + 1 : 1;
 
       const newPost = {
         id: nextId,
@@ -935,6 +993,7 @@ export default {
     activePlatform(){
 
       this.pagination.currentPage = 1;
+      this.fetchPosts();
 
     },
 
@@ -942,11 +1001,24 @@ export default {
 
       this.pagination.currentPage = 1;
 
+      clearTimeout(this.searchDebounce);
+      this.searchDebounce = setTimeout(() => {
+        this.fetchPosts();
+      }, 400);
+
     },
 
     'filters.status'(){
 
       this.pagination.currentPage = 1;
+      this.fetchPosts();
+
+    },
+
+    'filters.sort'(){
+
+      this.pagination.currentPage = 1;
+      this.fetchPosts();
 
     }
 
@@ -1407,6 +1479,30 @@ export default {
   flex-direction:column;
 
   gap:18px;
+
+}
+
+.posts-grid.loading{
+
+  opacity:0.5;
+
+  pointer-events:none;
+
+  transition:opacity 0.15s ease;
+
+}
+
+.posts-empty-state{
+
+  padding:60px 20px;
+
+  text-align:center;
+
+  color:#8897AA;
+
+  background:#fff;
+
+  border-radius:12px;
 
 }
 

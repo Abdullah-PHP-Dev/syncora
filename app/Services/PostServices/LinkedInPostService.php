@@ -662,7 +662,7 @@ class LinkedInPostService
             'content'           => $data['body'] ?? '',
             'sender_type'       => 'support',
             'platform'          => 'linkedin',
-            'parent_comment_id' => $data['comment_id'],
+            'parent_comment_id' => $comment->id,
             'user_id'           => Auth::user()->id,
             'sender_name'       => Auth::user()->name,
             'post_id'           => $comment->post?->id,
