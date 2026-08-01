@@ -24,13 +24,13 @@
                     <h1 class="display-4 fw-bold"
                         id="hero-title"
                         data-aos="fade-right">
-                        Grow your business with Social Bee
+                        Grow your business with Socialeaz
                     </h1>
 
                     <p class="lead text-white-75 mt-3"
                        data-aos="fade-right"
                        data-aos-delay="100">
-                        Manage ads, CRM, services, and marketplace operations in one powerful SaaS system.
+                        Socialeaz is an all-in-one SaaS marketplace platform to manage ads, CRM, services, and marketplace operations in one place.
                     </p>
 
                     <div class="mt-4 d-flex gap-2 flex-wrap"
@@ -199,7 +199,7 @@
 
                     <p class="text-muted mt-3">
                         Socialeaz combines marketplace, CRM, analytics, and automation tools into one unified SaaS system.
-                        Designed for scalability like Stripe and usability like SocialBee.
+                        Designed for scalability and ease of use, built to power modern marketplaces.
                     </p>
 
                     <ul class="text-muted">
