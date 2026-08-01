@@ -32,6 +32,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	Route::view('/services', 'front.pages.services');
 	Route::view('/product', 'front.pages.product');
 	Route::view('/pricing', 'front.pages.pricing');
+	Route::view('/terms', 'front.pages.terms')->name('front.terms');
+	Route::view('/privacy', 'front.pages.privacy')->name('front.privacy');
 
 
 

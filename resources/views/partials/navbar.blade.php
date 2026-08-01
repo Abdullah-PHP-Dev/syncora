@@ -33,6 +33,14 @@
                     <a class="nav-link" href="/pricing">{{ __('nav.pricing') }}</a>
                 </li>
 
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ route('front.terms') }}">{{ __('nav.terms') }}</a>
+                </li>
+
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ route('front.privacy') }}">{{ __('nav.privacy') }}</a>
+                </li>
+
             </ul>
 
             <div class="d-flex gap-2">

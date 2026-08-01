@@ -25,4 +25,7 @@ Route::group(['prefix' => 'api'], function ($router) {
         Route::match(['get', 'post'], '/telegram/{userId}', 
         'App\Https\Api\TelegramController@store')->name('post.telegram.webhook_url');
     });
+
+    Route::match(['get', 'post'], '/tiktok/{userId}', 
+        'App\Https\Api\TiktokController@store')->name('tiktok.webhook_url');
 });
