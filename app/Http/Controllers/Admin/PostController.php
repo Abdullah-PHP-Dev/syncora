@@ -242,11 +242,139 @@ class PostController extends Controller
         ->where('user_id', Auth::id())
         ->find($postId);
 
+        if (
+            $post
+            && strtolower($post->platform) === 'instagram'
+            && $post->postComments->isEmpty()
+            && (int) ($post->comments ?? 0) > 0
+        ) {
+            $this->instagramService->fetchComments($post);
+
+            $post->load(['postComments' => function ($query) {
+                $query->topLevel()->with('replies');
+            }]);
+        }
+
         return view('admin.posts.preview', [
             'postId' => $postId,
             'platform' => $platform,
             'post' => $post ? $this->formatPostForPreview($post) : null,
         ]);
+    }
+
+    /**
+     * Publish a reply to an existing comment on its connected platform and
+     * store the resulting reply, used by the preview page's comment threads.
+     */
+    public function storeReply(Request $request, PostComment $comment)
+    {
+        $request->validate([
+            'content' => 'required|string|max:2000',
+        ]);
+
+        if (!$comment->post || $comment->post->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        // Seeded/demo comments have no real counterpart on the platform, so
+        // there's nothing to publish a live reply to — just store it locally.
+        if (str_starts_with((string) $comment->comment_id, 'seed_')) {
+            $reply = PostComment::create([
+                'platform' => $comment->platform,
+                'comment_id' => 'seed_' . Str::random(12),
+                'parent_comment_id' => $comment->id,
+                'post_account_id' => $comment->post_account_id,
+                'post_id' => $comment->post_id,
+                'user_id' => Auth::id(),
+                'user_name' => Auth::user()->name ?? 'Support',
+                'content' => $request->input('content'),
+                'is_reply' => true,
+                'sender_type' => 'support',
+                'status' => 'approved',
+                'posted_at' => now(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'reply' => $this->formatCommentNode($reply),
+            ]);
+        }
+
+        $service = $this->resolvePlatformService($comment->platform);
+
+        if (!$service) {
+            return response()->json([
+                'success' => false,
+                'message' => "Unsupported platform: {$comment->platform}",
+            ], 422);
+        }
+
+        $result = $service->publishComment(['body' => $request->input('content')], $comment);
+
+        if (!($result['success'] ?? false)) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'] ?? 'Failed to publish reply.',
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'reply' => $this->formatCommentNode($result['data']),
+        ]);
+    }
+
+    /**
+     * Store a new top-level comment on a post, authored by the business.
+     * Saved locally only — no platform has a "comment on a post" API wired
+     * up yet (only replying to an existing comment is supported).
+     */
+    public function storeComment(Request $request, Post $post)
+    {
+        $request->validate([
+            'content' => 'required|string|max:2000',
+        ]);
+
+        if ($post->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        $comment = PostComment::create([
+            'platform' => $post->platform,
+            'comment_id' => 'seed_' . Str::random(12),
+            'parent_comment_id' => null,
+            'post_account_id' => $post->post_account_id,
+            'post_id' => $post->id,
+            'user_id' => Auth::id(),
+            'user_name' => Auth::user()->name ?? 'Support',
+            'content' => $request->input('content'),
+            'is_reply' => false,
+            'sender_type' => 'support',
+            'status' => 'approved',
+            'posted_at' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'comment' => $this->formatCommentNode($comment),
+        ]);
+    }
+
+    /**
+     * Map a post/comment's platform key to its publishing service.
+     */
+    private function resolvePlatformService(string $platform)
+    {
+        return match (strtolower($platform)) {
+            'facebook' => $this->metaService,
+            'instagram' => $this->instagramService,
+            'google' => $this->googleService,
+            'youtube' => $this->youtubeService,
+            'x' => $this->xService,
+            'linkedin' => $this->linkedinService,
+            'tiktok' => $this->tiktokService,
+            default => null,
+        };
     }
 
     /**

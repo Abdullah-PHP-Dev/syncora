@@ -400,7 +400,7 @@
 
                     <button
                         class="comment-send-btn"
-                        :disabled="!replyText.trim()"
+                        :disabled="!replyText.trim() || submittingReply"
                         @click="addReply(comment)">
                       <i class="fas fa-paper-plane"></i>
                     </button>
@@ -429,7 +429,7 @@
 
               <button
                   class="comment-send-btn"
-                  :disabled="!newCommentText.trim()"
+                  :disabled="!newCommentText.trim() || submittingComment"
                   @click="addComment">
                 <i class="fas fa-paper-plane"></i>
               </button>
@@ -548,13 +548,19 @@ export default {
       showComments: true,
       newCommentText: '',
       replyingToId: null,
-      replyText: ''
+      replyText: '',
+      submittingReply: false,
+      submittingComment: false
     };
 
   },
 
   created() {
 
+
+  console.log('initialPost', this.initialPost);
+    console.log('engagement', this.initialPost.engagement);
+    console.log('comments', this.initialPost.engagement?.comments);
     this.post = this.buildPost(this.initialPost);
 
     if (this.post) {
@@ -720,21 +726,31 @@ export default {
 
       const text = this.newCommentText.trim();
 
-      if (!text) return;
+      if (!text || this.submittingComment) return;
 
-      this.engagement.comments.push({
-        id: Date.now(),
-        author: this.userName,
-        avatarColor: '#5D87FF',
-        content: text,
-        timeAgo: 'Just now',
-        likes: 0,
-        replies: [],
-        isOwn: true
+      this.submittingComment = true;
+
+      window.axios.post(`${this.backUrl}/${this.post.id}/comments`, {
+        content: text
+      }).then(({ data }) => {
+
+        this.engagement.comments.push({
+          ...data.comment,
+          avatarColor: colorForName(data.comment.author)
+        });
+
+        this.engagement.commentsCount++;
+        this.newCommentText = '';
+
+      }).catch((error) => {
+
+        window.alert(error.response?.data?.message || 'Failed to post comment.');
+
+      }).finally(() => {
+
+        this.submittingComment = false;
+
       });
-
-      this.engagement.commentsCount++;
-      this.newCommentText = '';
 
     },
 
@@ -749,19 +765,31 @@ export default {
 
       const text = this.replyText.trim();
 
-      if (!text) return;
+      if (!text || this.submittingReply) return;
 
-      comment.replies.push({
-        author: this.userName,
-        avatarColor: '#5D87FF',
-        content: text,
-        timeAgo: 'Just now',
-        likes: 0,
-        isOwn: true
+      this.submittingReply = true;
+
+      window.axios.post(`${this.backUrl}/comments/${comment.id}/replies`, {
+        content: text
+      }).then(({ data }) => {
+
+        comment.replies.push({
+          ...data.reply,
+          avatarColor: colorForName(data.reply.author)
+        });
+
+        this.replyingToId = null;
+        this.replyText = '';
+
+      }).catch((error) => {
+
+        window.alert(error.response?.data?.message || 'Failed to post reply.');
+
+      }).finally(() => {
+
+        this.submittingReply = false;
+
       });
-
-      this.replyingToId = null;
-      this.replyText = '';
 
     }
 
@@ -1363,9 +1391,17 @@ export default {
   flex:1;
   border:none;
   outline:none;
+  box-shadow:none;
   background:transparent;
   font-size:14px;
   color:#2A3547;
+}
+
+.composer-input-row input:focus,
+.composer-input-row input:focus-visible{
+  border:none;
+  outline:none;
+  box-shadow:none;
 }
 
 .comment-send-btn{
