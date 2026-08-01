@@ -106,7 +106,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::get('posts/data', [PostController::class, 'index'])->name('posts.data');
 				Route::get('posts/{post}/preview/{platform}', [PostController::class, 'preview'])->name('posts.preview');
 				Route::post('posts/listing/comments/{comment}/replies', [PostController::class, 'storeReply'])->name('posts.comments.reply');
-				Route::post('posts/{post}/comments', [PostController::class, 'storeComment'])->name('posts.comments.store');
+				Route::post('posts/listing/{post}/comments', [PostController::class, 'storeComment'])->name('posts.comments.store');
 				Route::get('posts', [PostController::class, 'dashboard']);
 				Route::resource('posts', PostController::class);
 				Route::post('post-accounts/whatsapp', [PostAccountController::class, 'storeWhatsApp'])
