@@ -81,7 +81,6 @@
                             @csrf
                             <input type="hidden" name="id" id="api_id">
                             <input type="hidden" name="mode" id="form_mode" value="create">
-                    </div>
                     <!-- Key -->
                     <div class="mb-3">
                         <label class="form-label">{{ __('admin.api.key') }}<span class="error-message">*</span></label>
@@ -99,6 +98,7 @@
                         {{ __('admin.api.create_api') }}
                     </button>
                     </form>
+                    </div>
                 </div>
             </div>
         </div>

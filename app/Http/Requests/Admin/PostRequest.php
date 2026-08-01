@@ -24,7 +24,7 @@ class PostRequest extends FormRequest
      */
     public function rules(): array
     {   
-        $platforms = ['facebook', 'instagram', 'x', 'google', 'tiktok', 'youtube', 'linkedin'];
+        $platforms = ['facebook', 'instagram', 'x', 'google', 'tiktok', 'youtube', 'linkedin', 'whatsapp', 'threads', 'pinterest'];
         
         $rules = [
             'content'    => ['required', 'string', 'min:1', 'max:5000'],
@@ -64,6 +64,24 @@ class PostRequest extends FormRequest
                     ]
                 ),
             ],
+
+            // WhatsApp has no public feed to post to - a WhatsApp "post"
+            // here is a broadcast: an already-approved Message Template
+            // (WhatsApp requires templates for messages outside an active
+            // 24h customer conversation) sent to a list of numbers. See
+            // WhatsAppPostService.
+            'whatsapp_recipients' => [
+                Rule::requiredIf(fn () => in_array('whatsapp', request('platforms', []))),
+                'nullable',
+                'string',
+            ],
+            'whatsapp_template_name' => [
+                Rule::requiredIf(fn () => in_array('whatsapp', request('platforms', []))),
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'whatsapp_template_language' => ['nullable', 'string', 'max:10'],
         ];
 
         // Add validation rules for each platform's pages
@@ -110,10 +128,13 @@ class PostRequest extends FormRequest
             
             'expiry_at.required_if' => 'Expiry date is required when expiry is enabled.',
             'expiry_at.after' => 'Expiry date must be in the future.',
+
+            'whatsapp_recipients.required' => 'Please enter at least one recipient phone number.',
+            'whatsapp_template_name.required' => 'Please enter the name of an approved WhatsApp template.',
         ];
 
         // Add messages for each platform's pages
-        $platforms = ['facebook', 'instagram', 'x', 'google', 'tiktok', 'youtube', 'linkedin'];
+        $platforms = ['facebook', 'instagram', 'x', 'google', 'tiktok', 'youtube', 'linkedin', 'whatsapp', 'threads', 'pinterest'];
         foreach ($platforms as $platform) {
             $messages[$platform . '.pages.required_if'] = "Please select at least one page for {$platform}.";
             $messages[$platform . '.pages.*.exists'] = "Invalid page selected for {$platform}.";
@@ -144,7 +165,7 @@ class PostRequest extends FormRequest
         
         // Process page selections
         $selectedPages = [];
-        $platforms = ['facebook', 'instagram', 'x', 'google', 'tiktok', 'youtube', 'linkedin'];
+        $platforms = ['facebook', 'instagram', 'x', 'google', 'tiktok', 'youtube', 'linkedin', 'whatsapp', 'threads', 'pinterest'];
         
         foreach ($platforms as $platform) {
             if (isset($data[$platform]['pages']) && !empty($data[$platform]['pages'])) {

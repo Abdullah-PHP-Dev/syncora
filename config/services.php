@@ -34,7 +34,13 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
-    'app_url' => 'https://beaelge.com/',
+    // No trailing slash - every consumer of this value (OAuth redirect_uri
+    // builders across the Messaging and Ads modules) appends a leading-
+    // slash path directly, eg. config('services.app_url') . '/admin/...'.
+    // A trailing slash here produced a double slash in every callback URL,
+    // which would mismatch the redirect_uri registered with each OAuth
+    // provider (Meta/X/Zalo/Slack/etc all require an exact match).
+    'app_url' => 'https://beaelge.com',
     // 'posts' => [
     //     'facebook' => [
     //         'app_id' => '910004983387413',

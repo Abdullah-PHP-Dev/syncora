@@ -163,7 +163,59 @@
         color: red;
         font-size: 0.8rem;
         margin-top: 5px;
+    }
+
+    .wizard-step {
         display: none;
+    }
+
+    .wizard-step.active {
+        display: block;
+    }
+
+    .review-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid #eef1f5;
+    }
+
+    .review-row:last-child {
+        border-bottom: none;
+    }
+
+    .review-row span:first-child {
+        color: #6b7280;
+    }
+
+    .review-row span:last-child {
+        font-weight: 600;
+        text-align: right;
+    }
+
+    .wizard-nav {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 10px;
+    }
+
+    .step.has-error {
+        box-shadow: 0 0 0 2px #dc3545;
+    }
+
+    .step.has-error::after {
+        content: '!';
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        margin-left: 6px;
+        border-radius: 50%;
+        background: #dc3545;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
     }
 </style>
 
@@ -182,27 +234,35 @@
                         </div>
                         @php
                             $adGroup = $campaign->adGroups->first();
-                            $ageGroup = json_decode($adGroup->age_groups);
+                            $ageGroup = json_decode($adGroup->age_groups) ?: [];
                             $creative = $adGroup->creatives->first();
                             $ad = $creative->ads->first();
                             $media = $creative->media;
-                            $publisherPlatforms = json_decode($adGroup->publisher_platforms);
-                            $languages = json_decode($adGroup->languages); 
-                            $selectedCountries = json_decode($adGroup->location_ids);                                             
+                            $languages = json_decode($adGroup->languages) ?: [];
+                            $selectedCountryCodes = json_decode($adGroup->location_ids) ?: [];
+                            $selectedCountryIds = $selectedCountryCodes
+                                ? \App\Models\Country::whereIn('code', $selectedCountryCodes)->pluck('id')->toArray()
+                                : [];
+                            $webViewProps = json_decode($creative->web_view_properties ?? '{}', true) ?: [];
+                            $appInstallProps = json_decode($creative->app_install_properties ?? '{}', true) ?: [];
+                            $deepLinkProps = json_decode($creative->deep_link_properties ?? '{}', true) ?: [];
+                            $callProps = json_decode($creative->ad_to_call_properties ?? '{}', true) ?: [];
+                            $messageProps = json_decode($creative->ad_to_message_properties ?? '{}', true) ?: [];
+                            $lensProps = json_decode($creative->ad_to_lens_properties ?? '{}', true) ?: [];
                         @endphp
                         <div class="campaign-builder">
                             <div class="builder-header">
                                 <div class="social-icon-mini snapchat">
                                     <i class="bx bxl-snapchat"></i>
                                 </div>
-                                <h2>Create Snapchat Campaign</h2>
+                                <h2>Edit Snapchat Campaign</h2>
                                 <div class="campaign-steps">
-                                    <div class="step active">Campaign</div>
-                                    <div class="step">Budget</div>
-                                    <div class="step">Goal</div>
-                                    <div class="step">Creative</div>
-                                    <div class="step">Audience</div>
-                                    <div class="step">Review</div>
+                                    <div class="step active" data-step="1">Campaign</div>
+                                    <div class="step" data-step="2">Budget</div>
+                                    <div class="step" data-step="3">Goal</div>
+                                    <div class="step" data-step="4">Creative</div>
+                                    <div class="step" data-step="5">Audience</div>
+                                    <div class="step" data-step="6">Review</div>
                                 </div>
                             </div>
 
@@ -211,9 +271,8 @@
                                 <div class="col-lg-8">
                                     <form id="campaign" enctype="multipart/form-data">
                                         @csrf
-                                        <input type="hidden" name="advertiser_id"
-                                            value="{{ $account->advertiser_id ?? '' }}">
 
+                                        <div class="wizard-step active" data-step="1">
                                         <!-- ============================================================ -->
                                         <!-- 1. CAMPAIGN INFORMATION                                       -->
                                         <!-- ============================================================ -->
@@ -228,7 +287,7 @@
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label>Objective *</label>
-                                                    <select id="objective" name="objective" class="form-select" required>
+                                                    <select id="objective" name="objective" class="form-control" required>
                                                         <option value="">-- Select Objective --</option>
                                                         <option value="AWARENESS_AND_ENGAGEMENT" @if ($campaign->objective == 'AWARENESS_AND_ENGAGEMENT') selected @endif>Awareness & Engagement
                                                         </option>
@@ -241,7 +300,9 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        </div>
 
+                                        <div class="wizard-step" data-step="2">
                                         <!-- ============================================================ -->
                                         <!-- 2. BUDGET & SCHEDULE (AdGroup level)                        -->
                                         <!-- ============================================================ -->
@@ -250,7 +311,7 @@
                                             <div class="row">
                                                 <div class="col-md-6">
                                                     <label>Budget Mode *</label>
-                                                    <select name="budget_mode" id="budget_mode" class="form-select"
+                                                    <select name="budget_mode" id="budget_mode" class="form-control"
                                                         required>
                                                         <option value="daily"  @if ($campaign->budget_mode == 'daily') selected @endif>Daily Budget</option>
                                                         <option value="life_time"  @if ($campaign->budget_mode == 'life_time') selected @endif>Lifetime Budget</option>
@@ -312,7 +373,9 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        </div>
 
+                                        <div class="wizard-step" data-step="3">
                                         <!-- ============================================================ -->
                                         <!-- 3. GOAL SETUP (AdGroup level)                               -->
                                         <!-- ============================================================ -->
@@ -322,7 +385,7 @@
                                                 <!-- Promotion Type -->
                                                 <div class="col-md-6 promotion-type-block">
                                                     <label>Promotion Type *</label>
-                                                    <select name="promotion_type" id="promotion_type" class="form-select"
+                                                    <select name="promotion_type" id="promotion_type" class="form-control"
                                                         required>
                                                         <option value="">-- Select Promotion Type --</option>
                                                         <!-- Options will be populated based on objective -->
@@ -332,7 +395,7 @@
                                                 <div class="col-md-6">
                                                     <label>Conversion Location *</label>
                                                     <select name="conversion_location" id="conversion_location"
-                                                        class="form-select" required>
+                                                        class="form-control" required>
                                                         <option value="">-- Select Promotion Type First --</option>
                                                     </select>
                                                     <p class="error-message error-conversion_location"></p>
@@ -344,7 +407,7 @@
                                                 <!-- Biding Strategy -->
                                                 <div class="col-md-6">
                                                     <label>Biding Strategy *</label>
-                                                    <select name="bid_strategy" id="bid_strategy" class="form-select"
+                                                    <select name="bid_strategy" id="bid_strategy" class="form-control"
                                                         required>
                                                         <option value="">-- Select Biding Strategy --</option>
                                                     </select>
@@ -354,7 +417,7 @@
                                                 <div class="col-md-6">
                                                     <label>Optimization Goal *</label>
                                                     <select name="optimization_goal" id="optimization_goal"
-                                                        class="form-select" required>
+                                                        class="form-control" required>
                                                         <option value="">-- Select Optimization Goal --</option>
                                                     </select>
                                                     <p class="error-message error-optimization_goal"></p>
@@ -365,7 +428,7 @@
                                                 <!-- Billing Event (for LEAD_GENERATION) -->
                                                 <div class="col-md-6">
                                                     <label>Billing Event</label>
-                                                    <select name="billing_event" id="billing_event" class="form-select">
+                                                    <select name="billing_event" id="billing_event" class="form-control">
                                                     </select>
                                                     <p class="error-message error-billing_event"></p>
                                                 </div>
@@ -390,107 +453,19 @@
                                                 </div>
                                             </div>
                                         </div>
-
-                                        <!-- ============================================================ -->
-                                        <!-- 4. AUDIENCE TARGETING (AdGroup level)                       -->
-                                        <!-- ============================================================ -->
-                                        <div class="builder-card">
-                                            <h5>Audience Targeting</h5>
-                                            <div class="row">
-                                                <div class="col-md-4">
-                                                    <label>Gender</label>
-                                                    <select name="gender" id="gender" class="form-select">
-                                                        <option value="both">All</option>
-                                                        <option value="male">Male</option>
-                                                        <option value="female">Female</option>
-                                                    </select>
-                                                    <p class="error-message error-gender"></p>
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <label>Age Range</label>
-                                                    <div class="checkbox-group">
-                                                        <div class="form-check form-switch">
-                                                            <input class=" form-check-input platform-switch"
-                                                                type="checkbox" name="age_range[]" value="AGE_13-17"
-                                                                id="age_13-17">
-                                                            <label class="form-check-label" for="age_13-17">13 –
-                                                                17</label>
-                                                        </div>
-                                                        <div class="form-check form-switch">
-                                                            <input class=" form-check-input platform-switch"
-                                                                type="checkbox" name="age_range[]" value="AGE_18_20"
-                                                                id="age_18_20">
-                                                            <label class="form-check-label" for="age_18_20">18 –
-                                                                20</label>
-                                                        </div>
-                                                        <div class="form-check form-switch">
-                                                            <input class=" form-check-input platform-switch"
-                                                                type="checkbox" name="age_range[]" value="AGE_21_24"
-                                                                id="age_21_24">
-                                                            <label class="form-check-label" for="age_21_24">21 –
-                                                                24</label>
-                                                        </div>
-                                                        <div class="form-check form-switch">
-                                                            <input class=" form-check-input platform-switch"
-                                                                type="checkbox" name="age_range[]" value="AGE_25_34"
-                                                                id="age_25_34">
-                                                            <label class="form-check-label" for="age_25_34">25 –
-                                                                34</label>
-                                                        </div>
-                                                        <div class="form-check form-switch">
-                                                            <input class=" form-check-input platform-switch"
-                                                                type="checkbox" name="age_range[]" value="35+"
-                                                                id="35+">
-                                                            <label class="form-check-label" for="35+">35+</label>
-                                                        </div>
-                                                    </div>
-                                                    <p class="error-message error-age_range"></p>
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <label>Countries (multiple)</label>
-                                                    <select name="countries[]" id="countries" multiple
-                                                        class="form-select">
-                                                        @foreach ($countries as $country)
-                                                            <option value="{{ $country->id }}">{{ $country->name }}
-                                                            </option>
-                                                        @endforeach
-                                                    </select>
-                                                    <p class="error-message error-countries"></p>
-                                                </div>
-                                            </div>
-                                            <div class="row mt-3">
-                                                <div class="col-md-12">
-                                                    <label>Languages</label>
-                                                    <div class="platform-group">
-                                                        @foreach (['en' => 'English', 'ar' => 'Arabic', 'es' => 'Spanish', 'fr' => 'French', 'de' => 'German', 'ja' => 'Japanese', 'ko' => 'Korean', 'pt' => 'Portuguese', 'ru' => 'Russian', 'zh' => 'Chinese'] as $code => $name)
-                                                            <div class="platform-card">
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input platform-switch"
-                                                                        type="checkbox" name="languages[]"
-                                                                        value="{{ $code }}"
-                                                                        id="lang_{{ $code }}"
-                                                                        {{ $code == 'en' ? 'checked' : '' }}>
-                                                                    <label class="form-check-label ms-2"
-                                                                        for="lang_{{ $code }}">{{ $name }}</label>
-                                                                </div>
-                                                            </div>
-                                                        @endforeach
-                                                    </div>
-                                                    <p class="error-message error-languages"></p>
-                                                </div>
-                                            </div>
                                         </div>
 
+                                        <div class="wizard-step" data-step="4">
                                         <!-- ============================================================ -->
-                                        <!-- 5. AD CREATIVE (Ad level)                                   -->
+                                        <!-- 4. AD CREATIVE (Ad level)                                   -->
                                         <!-- ============================================================ -->
                                         <div class="builder-card">
                                             <h5>Creative</h5>
                                             <div class="row">
                                                 <div class="col-md-6">
                                                     <label>Creative Type</label>
-                                                    <select name="creative_type" id="creative_type" class="form-select">
-                                                        <option value="">-- Select Creative Type --</option>
+                                                    <select name="creative_type" id="creative_type" class="form-control">
+                                                        <option value="SNAP_AD" @if ($creative->type == 'SNAP_AD') selected @endif>Snap Ad</option>
                                                         <option value="APP_INSTALL" @if ($creative->type == 'APP_INSTALL') selected @endif>App Install</option>
                                                         <option value="LENS_APP_INSTALL"  @if ($creative->type == 'LENS_APP_INSTALL') selected @endif>Lens App Install</option>
                                                         <option value="DEEP_LINK"  @if ($creative->type == 'DEEP_LINK') selected @endif>Deep Link</option>
@@ -501,7 +476,6 @@
                                                         <option value="AD_TO_MESSAGE"  @if ($creative->type == 'AD_TO_MESSAGE') selected @endif>Ad To Message</option>
                                                         <option value="AD_TO_LENS"  @if ($creative->type == 'AD_TO_LENS') selected @endif>Ad To Lens</option>
                                                         <option value="AD_TO_CALL"  @if ($creative->type == 'AD_TO_CALL') selected @endif>Ad To Call</option>
-                                                        <option value="AD_TO_PLACE"  @if ($creative->type == 'AD_TO_PLACE') selected @endif>Ad To Place</option>
                                                         <option value="REMINDER"  @if ($creative->type == 'REMINDER') selected @endif>Reminder</option>
                                                     </select>
                                                     <p class="error-message error-creative_type"></p>
@@ -509,7 +483,7 @@
                                                 <div class="col-md-6">
                                                     <label>Call to Action</label>
                                                     <select name="call_to_action" id="call_to_action"
-                                                        class="form-select">
+                                                        class="form-control">
                                                         <option value="">-- Select CTA --</option>
                                                         <option value="LEARN_MORE" @if ($creative->call_to_action == 'LEARN_MORE') selected @endif>Learn More</option>
                                                         <option value="SHOP_NOW" @if ($creative->call_to_action == 'SHOP_NOW') selected @endif>Shop Now</option>
@@ -532,9 +506,89 @@
                                                     <p class="error-message error-target_link"></p>
                                                 </div>
                                             </div>
+
+                                            <!-- App Install / Deep Link properties -->
+                                            <div class="row mt-3 creative-app-fields" style="display:none">
+                                                <div class="col-md-4">
+                                                    <label>App Name</label>
+                                                    <input type="text" name="app_name" id="app_name" class="form-control" maxlength="30"
+                                                        value="{{ $appInstallProps['app_name'] ?? $deepLinkProps['app_name'] ?? '' }}">
+                                                    <p class="error-message error-app_name"></p>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label>iOS App ID</label>
+                                                    <input type="text" name="ios_app_id" id="ios_app_id" class="form-control"
+                                                        value="{{ $appInstallProps['ios_app_id'] ?? $deepLinkProps['ios_app_id'] ?? '' }}">
+                                                    <p class="error-message error-ios_app_id"></p>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label>Android App URL</label>
+                                                    <input type="text" name="android_app_url" id="android_app_url" class="form-control" placeholder="https://play.google.com/store/apps/details?id=..."
+                                                        value="{{ $appInstallProps['android_app_url'] ?? $deepLinkProps['android_app_url'] ?? '' }}">
+                                                    <p class="error-message error-android_app_url"></p>
+                                                </div>
+                                                <div class="col-md-6 mt-3">
+                                                    <label>App Icon Media ID</label>
+                                                    <input type="text" name="icon_media_id" id="icon_media_id" class="form-control" placeholder="Media ID from Snapchat Ads Manager"
+                                                        value="{{ $appInstallProps['icon_media_id'] ?? $deepLinkProps['icon_media_id'] ?? '' }}">
+                                                    <p class="error-message error-icon_media_id"></p>
+                                                </div>
+                                            </div>
+
+                                            <!-- Deep Link only -->
+                                            <div class="row mt-3 creative-deeplink-fields" style="display:none">
+                                                <div class="col-md-6">
+                                                    <label>Deep Link URI</label>
+                                                    <input type="text" name="deep_link_uri" id="deep_link_uri" class="form-control" placeholder="myapp://path"
+                                                        value="{{ $deepLinkProps['deep_link_uri'] ?? '' }}">
+                                                    <p class="error-message error-deep_link_uri"></p>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label>Fallback Type</label>
+                                                    <select name="fallback_type" id="fallback_type" class="form-control">
+                                                        <option value="APP_INSTALL" @if (($deepLinkProps['fallback_type'] ?? '') == 'APP_INSTALL') selected @endif>App Install</option>
+                                                        <option value="WEB_SITE" @if (($deepLinkProps['fallback_type'] ?? '') == 'WEB_SITE') selected @endif>Website</option>
+                                                    </select>
+                                                    <p class="error-message error-fallback_type"></p>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label>Web Fallback URL</label>
+                                                    <input type="url" name="web_view_fallback_url" id="web_view_fallback_url" class="form-control"
+                                                        value="{{ $deepLinkProps['web_view_fallback_url'] ?? '' }}">
+                                                    <p class="error-message error-web_view_fallback_url"></p>
+                                                </div>
+                                            </div>
+
+                                            <!-- Ad to Call / Ad to Message -->
+                                            <div class="row mt-3 creative-phone-fields" style="display:none">
+                                                <div class="col-md-6">
+                                                    <label>Phone Number ID</label>
+                                                    <input type="text" name="phone_number_id" id="phone_number_id" class="form-control" placeholder="Registered phone number ID"
+                                                        value="{{ $callProps['phone_number_id'] ?? $messageProps['phone_number_id'] ?? '' }}">
+                                                    <p class="error-message error-phone_number_id"></p>
+                                                </div>
+                                                <div class="col-md-6 creative-message-field" style="display:none">
+                                                    <label>Message (optional)</label>
+                                                    <input type="text" name="message" id="message" class="form-control" maxlength="160"
+                                                        value="{{ $messageProps['message'] ?? '' }}">
+                                                    <p class="error-message error-message"></p>
+                                                </div>
+                                            </div>
+
+                                            <!-- Ad to Lens -->
+                                            <div class="row mt-3 creative-lens-fields" style="display:none">
+                                                <div class="col-md-6">
+                                                    <label>Lens Media ID</label>
+                                                    <input type="text" name="lens_media_id" id="lens_media_id" class="form-control"
+                                                        value="{{ $lensProps['lens_media_id'] ?? '' }}">
+                                                    <p class="error-message error-lens_media_id"></p>
+                                                </div>
+                                            </div>
+
                                             <br>
                                             <div class="duration-buttons">
                                                 <input type="hidden" name="media_type" id="media_type" value="IMAGE">
+                                                <input type="hidden" name="carousel_cards" id="carousel_cards" value="[]">
                                                 <button type="button" class="duration-btn media-type active"
                                                     data-type="IMAGE">Image</button>
                                                 <button type="button" class="duration-btn media-type"
@@ -547,7 +601,7 @@
                                             <div class="upload-zone">
                                                 <i class="bx bx-cloud-upload"></i>
                                                 <h6>Drag & Drop Media</h6>
-                                                <p>Upload image or video</p>
+                                                <p id="uploadHint">Upload a new image (max 30MB) or video (max 500MB) only if you want to replace the current media. Snapchat generates the video thumbnail automatically.</p>
                                                 <input type="file" name="media[]" id="mediaInput" hidden
                                                     accept="image/*,video/*">
                                                 <button type="button" class="btn btn-primary"
@@ -556,12 +610,93 @@
                                                 <p class="error-message error-media"></p>
                                             </div>
                                             <div class="mt-4">
-                                                <label>Description</label>
-                                                <textarea id="ad_description" name="description" rows="4" class="form-control">{{$creative->message}}</textarea>
+                                                <label>Description (headline, max 34 chars)</label>
+                                                <textarea id="ad_description" name="description" rows="4" class="form-control" maxlength="34">{{$creative->message}}</textarea>
                                                 <p class="error-message error-description"></p>
                                             </div>
                                         </div>
-                                        <button type="submit" class="duration-btn active">Launch</button>
+                                        </div>
+
+                                        <div class="wizard-step" data-step="5">
+                                        <!-- ============================================================ -->
+                                        <!-- 5. AUDIENCE TARGETING (AdGroup level)                       -->
+                                        <!-- ============================================================ -->
+                                        <div class="builder-card">
+                                            <h5>Audience Targeting</h5>
+                                            <div class="row">
+                                                <div class="col-md-4">
+                                                    <label>Gender</label>
+                                                    <select name="gender" id="gender" class="form-control">
+                                                        <option value="both" @if ($adGroup->gender == 'both') selected @endif>All</option>
+                                                        <option value="male" @if ($adGroup->gender == 'male') selected @endif>Male</option>
+                                                        <option value="female" @if ($adGroup->gender == 'female') selected @endif>Female</option>
+                                                    </select>
+                                                    <p class="error-message error-gender"></p>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label>Age Range</label>
+                                                    <div class="checkbox-group">
+                                                        @foreach (['13-17' => '13 – 17', '18-20' => '18 – 20', '21-24' => '21 – 24', '25-34' => '25 – 34', '35-44' => '35 – 44', '45-54' => '45 – 54', '55+' => '55+'] as $value => $label)
+                                                            <div class="form-check form-switch">
+                                                                <input class=" form-check-input platform-switch"
+                                                                    type="checkbox" name="age_range[]" value="{{ $value }}"
+                                                                    id="age_{{ Str::slug($value) }}"
+                                                                    {{ in_array($value, $ageGroup) ? 'checked' : '' }}>
+                                                                <label class="form-check-label" for="age_{{ Str::slug($value) }}">{{ $label }}</label>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                    <p class="error-message error-age_range"></p>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label>Countries (multiple)</label>
+                                                    <select name="countries[]" id="countries" multiple
+                                                        class="form-control">
+                                                        @foreach ($countries as $country)
+                                                            <option value="{{ $country->id }}" @if (in_array($country->id, $selectedCountryIds)) selected @endif>{{ $country->name }}
+                                                            </option>
+                                                        @endforeach
+                                                    </select>
+                                                    <p class="error-message error-countries"></p>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-3">
+                                                <div class="col-md-12">
+                                                    <label>Languages</label>
+                                                    <div class="platform-group">
+                                                        @foreach (['en' => 'English', 'ar' => 'Arabic', 'es' => 'Spanish', 'fr' => 'French', 'de' => 'German', 'ja' => 'Japanese', 'ko' => 'Korean', 'pt' => 'Portuguese', 'ru' => 'Russian', 'zh' => 'Chinese'] as $code => $name)
+                                                            <div class="platform-card">
+                                                                <div class="form-check form-switch">
+                                                                    <input class="form-check-input platform-switch"
+                                                                        type="checkbox" name="languages[]"
+                                                                        value="{{ $code }}"
+                                                                        id="lang_{{ $code }}"
+                                                                        {{ in_array($code, $languages) ? 'checked' : '' }}>
+                                                                    <label class="form-check-label ms-2"
+                                                                        for="lang_{{ $code }}">{{ $name }}</label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                    <p class="error-message error-languages"></p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        </div>
+
+                                        <div class="wizard-step" data-step="6">
+                                            <div class="builder-card">
+                                                <h5>Review</h5>
+                                                <p class="text-muted">Please review your campaign details before saving.</p>
+                                                <div id="reviewSummary"></div>
+                                            </div>
+                                        </div>
+
+                                        <div class="wizard-nav">
+                                            <button type="button" class="btn btn-outline-primary" id="prevStep" style="display:none">Previous</button>
+                                            <button type="button" class="btn btn-primary ms-auto" id="nextStep">Next</button>
+                                            <button type="submit" class="btn btn-primary ms-auto" id="launchBtn" style="display:none">Save Changes</button>
+                                        </div>
                                     </form>
                                 </div>
 
@@ -582,15 +717,13 @@
                                             </video>
                                             <div id="carouselPreview" style="display:none">
                                                 <img id="carouselImage" class="preview-image">
-                                                <div class="mt-3"><label>Title</label><input type="text"
-                                                        id="carouselTitle" class="form-control" placeholder="Card title">
+                                                <small class="text-muted d-block mt-2">Snapchat builds a carousel from separate Snap Ad cards bundled together - each card gets its own headline below, but shares the same call-to-action and link set above.</small>
+                                                <div class="mt-3"><label>Card Headline (max 34 chars)</label><input type="text"
+                                                        id="carouselTitle" class="form-control" placeholder="Card headline" maxlength="34">
                                                 </div>
-                                                <div class="mt-3"><label>Description</label>
+                                                <div class="mt-3"><label>Description (internal reference)</label>
                                                     <textarea id="carouselDescription" class="form-control" rows="3" placeholder="Card description">{{$creative->message}}</textarea>
                                                 </div>
-                                                <div class="mt-3"><label>Card URL</label><input type="url"
-                                                        id="carouselLink" class="form-control"
-                                                        placeholder="https://example.com"></div>
                                                 <div class="d-flex justify-content-between mt-3">
                                                     <button type="button" class="btn btn-primary"
                                                         id="prevImage">Previous</button>
@@ -619,11 +752,21 @@
 
 @push('scripts')
     <script>
+        // See create.blade.php for why this is deferred: the shared layout
+        // mounts a Vue 2 root on #app with no template/render option
+        // (resources/js/app.js: `new Vue({ el: '#app' })`), so Vue compiles
+        // this form's server-rendered HTML as an in-DOM template and
+        // re-renders it once its module script finishes loading - after this
+        // ordinary inline script has already run. That swaps out every node
+        // this script would otherwise attach listeners to or cache a
+        // reference to, so everything is deferred to `load`, which waits for
+        // that module script (and Vue's mount) to finish first.
+        window.addEventListener('load', function() {
          var campaignId = @json($campaign->id);
         var areYouSure = "{{ __('admin.sweet-alert.are-you-sure') }}";
         var selectedObjective = "{{ $campaign->objective }}";
         var selectedPromotionType = "{{ $campaign->app_promotion_type }}";
-        var selectedConversationLocation = "{{ $adGroup->conversation_location }}";
+        var selectedConversionLocation = "{{ $adGroup->conversion_location ?? '' }}";
         var selectedBidStrategy= "{{ $adGroup->bid_strategy }}";
         var selectedCreativeType= "{{ $creative->type }}";
         var selectedOptimizationGoal = "{{ $adGroup->optimization_goal }}";
@@ -666,14 +809,38 @@
             'AD_TO_LENS': ['PLAY', 'TRY', 'SHOP_NOW', 'VOTE'],
             'AD_TO_MESSAGE': ['MESSAGE_NOW', 'OPEN_APP'],
             'AD_TO_CALL': ['CALL_NOW', 'OPEN_APP'],
-            'AD_TO_PLACE': ['SEE_PLACE', 'DIRECTIONS', 'VIEW_MENU'],
             'REMINDER': ['REMIND_ME']
         };
+
+        // Fields specific to certain creative types - shown/hidden below.
+        const creativeTypeFieldGroups = {
+            'APP_INSTALL': ['creative-app-fields'],
+            'LENS_APP_INSTALL': ['creative-app-fields'],
+            'DEEP_LINK': ['creative-app-fields', 'creative-deeplink-fields'],
+            'LENS_DEEP_LINK': ['creative-app-fields', 'creative-deeplink-fields'],
+            'AD_TO_CALL': ['creative-phone-fields'],
+            'AD_TO_MESSAGE': ['creative-phone-fields', 'creative-message-field'],
+            'AD_TO_LENS': ['creative-lens-fields'],
+        };
+
+        function updateCreativeTypeFields() {
+            const type = document.getElementById('creative_type')?.value;
+            const activeGroups = creativeTypeFieldGroups[type] || [];
+
+            document.querySelectorAll('.creative-app-fields, .creative-deeplink-fields, .creative-phone-fields, .creative-message-field, .creative-lens-fields')
+                .forEach(el => {
+                    const owningGroup = [...el.classList].find(c => c.startsWith('creative-'));
+                    el.style.display = activeGroups.includes(owningGroup) ? '' : 'none';
+                });
+        }
+
+        document.getElementById('creative_type')?.addEventListener('change', updateCreativeTypeFields);
+        updateCreativeTypeFields();
 
         // Helper: update CTA dropdown
         function updateCallToAction() {
             const creativeType = document.getElementById('creative_type')?.value;
-            const ctaSelect = document.getElementById('call_to_action') || selectedCTA;
+            const ctaSelect = document.getElementById('call_to_action');
             if (!ctaSelect) return;
 
             ctaSelect.innerHTML = '';
@@ -943,13 +1110,12 @@
         // ------------------------------------------------------------------
         // 2. DOM REFERENCES
         // ------------------------------------------------------------------
-        const objectiveSelect = document.getElementById('objective') || selectedObjective;
-        const promotionTypeSelect = document.getElementById('promotion_type') || selectedPromotionType;
- 
-        const conversionLocationSelect = document.getElementById('conversion_location') || selectedConversionLocation;
-        const optGoalSelect = document.getElementById('optimization_goal') || selectedOptimizationGoal;
-        const bidStrategySelect = document.getElementById('bid_strategy') || selectedBidStrategy;
-        const billingEventSelect = document.getElementById('billing_event') || selectedBillingEvent;
+        const objectiveSelect = document.getElementById('objective');
+        const promotionTypeSelect = document.getElementById('promotion_type');
+        const conversionLocationSelect = document.getElementById('conversion_location');
+        const optGoalSelect = document.getElementById('optimization_goal');
+        const bidStrategySelect = document.getElementById('bid_strategy');
+        const billingEventSelect = document.getElementById('billing_event');
 
         // Helper: reset dropdown
         function resetDropdown(element, placeholderText) {
@@ -1064,7 +1230,7 @@
                 const locations = objectiveConfigV2[objKey].promotionTypes[promoKey].conversionLocations;
                 const locKeys = Object.keys(locations);
                 let locOptions = locKeys.map(lKey =>
-                    `<option value="${lKey}" ${selectedPromotionType == lKey ? 'selected' : ''}>${locations[lKey].label}</option>`
+                    `<option value="${lKey}" ${selectedConversionLocation == lKey ? 'selected' : ''}>${locations[lKey].label}</option>`
                 ).join('');
                 conversionLocationSelect.innerHTML =
                     `<option value="">-- Select Conversion Location --</option>${locOptions}`;
@@ -1100,10 +1266,20 @@
         }
 
         // ------------------------------------------------------------------
-        // 4. INITIALIZATION – trigger objective change to populate everything
+        // 4. INITIALIZATION – cascade every dependent dropdown so the saved
+        // promotion type / conversion location / optimization goal actually
+        // get selected on load, not just the objective. Setting the
+        // "selected" attribute via innerHTML doesn't fire a change event on
+        // its own, so each step of the cascade has to be triggered by hand.
         // ------------------------------------------------------------------
         if (objectiveSelect) {
             objectiveSelect.dispatchEvent(new Event('change'));
+            promotionTypeSelect.value = selectedPromotionType;
+            promotionTypeSelect.dispatchEvent(new Event('change'));
+            conversionLocationSelect.value = selectedConversionLocation;
+            conversionLocationSelect.dispatchEvent(new Event('change'));
+            optGoalSelect.value = selectedOptimizationGoal;
+            optGoalSelect.dispatchEvent(new Event('change'));
         }
 
         // ------------------------------------------------------------------
@@ -1190,12 +1366,15 @@
                         mediaInput.accept = "image/*";
                         carouselItems = [];
                         currentIndex = 0;
+                        document.getElementById('uploadHint').innerText = 'Upload 2+ images for the carousel (max 30MB each).';
                     } else if (creativeType === 'IMAGE') {
                         mediaInput.removeAttribute('multiple');
                         mediaInput.accept = "image/*";
+                        document.getElementById('uploadHint').innerText = 'Upload a new image (max 30MB) to replace the current one.';
                     } else {
                         mediaInput.removeAttribute('multiple');
                         mediaInput.accept = "video/*";
+                        document.getElementById('uploadHint').innerText = 'Upload a new video (max 500MB) to replace the current one. Snapchat generates the thumbnail automatically.';
                     }
                 }
                 // Hide previews
@@ -1211,9 +1390,18 @@
             if (document.getElementById('carouselImage')) document.getElementById('carouselImage').src = item.image;
             if (document.getElementById('carouselTitle')) document.getElementById('carouselTitle').value = item.title || '';
             if (document.getElementById('carouselDescription')) document.getElementById('carouselDescription').value = item.description || '';
-            if (document.getElementById('carouselLink')) document.getElementById('carouselLink').value = item.link || '';
             if (document.getElementById('carouselCounter')) document.getElementById('carouselCounter').innerHTML = `${currentIndex + 1} / ${carouselItems.length}`;
         }
+
+        // These were previously missing entirely, so anything typed into the
+        // carousel preview's title/description never made it back into
+        // carouselItems (and therefore never reached the server).
+        document.getElementById('carouselTitle')?.addEventListener('input', function() {
+            if (carouselItems[currentIndex]) carouselItems[currentIndex].title = this.value;
+        });
+        document.getElementById('carouselDescription')?.addEventListener('input', function() {
+            if (carouselItems[currentIndex]) carouselItems[currentIndex].description = this.value;
+        });
 
         if (mediaInput) {
             mediaInput.addEventListener('change', function(e) {
@@ -1229,8 +1417,7 @@
                     carouselItems = files.map(file => ({
                         image: URL.createObjectURL(file),
                         title: '',
-                        description: '',
-                        link: ''
+                        description: ''
                     }));
                     currentIndex = 0;
                     loadCarouselItem();
@@ -1269,11 +1456,206 @@
         });
 
         // ------------------------------------------------------------------
-        // 8. GLOBAL VARIABLES FOR API SUBMISSION
+        // 8. WIZARD STEP NAVIGATION - Campaign / Budget / Goal / Creative /
+        // Audience / Review. Mirrors the create-campaign builder.
         // ------------------------------------------------------------------
-        var url = "{{ route('admin.ads.campaigns.store', ['platform' => 'snapchat']) }}";
+        const wizardSteps = document.querySelectorAll('.wizard-step');
+        const stepPills = document.querySelectorAll('.campaign-steps .step');
+        const totalSteps = wizardSteps.length;
+        let currentStep = 1;
+
+        function showStep(step) {
+            if (step < 1 || step > totalSteps) return;
+
+            currentStep = step;
+
+            wizardSteps.forEach(section => {
+                section.classList.toggle('active', parseInt(section.dataset.step) === step);
+            });
+
+            stepPills.forEach(pill => {
+                pill.classList.toggle('active', parseInt(pill.dataset.step) === step);
+            });
+
+            document.getElementById('prevStep').style.display = step === 1 ? 'none' : 'inline-block';
+            document.getElementById('nextStep').style.display = step === totalSteps ? 'none' : 'inline-block';
+            document.getElementById('launchBtn').style.display = step === totalSteps ? 'inline-block' : 'none';
+
+            if (step === totalSteps) {
+                populateReviewSummary();
+            }
+
+            window.scrollTo({
+                top: document.querySelector('.campaign-builder').offsetTop - 20,
+                behavior: 'smooth'
+            });
+        }
+
+        function stepIsValid(stepNumber) {
+            let stepEl = document.querySelector(`.wizard-step[data-step="${stepNumber}"]`);
+            let fields = stepEl.querySelectorAll('input, select, textarea');
+
+            for (let field of fields) {
+                if (field.closest('[style*="display: none"]')) continue;
+                if (!field.checkValidity()) {
+                    showStep(stepNumber);
+                    field.reportValidity();
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        document.getElementById('nextStep').addEventListener('click', function() {
+            if (!stepIsValid(currentStep)) return;
+            showStep(currentStep + 1);
+        });
+
+        document.getElementById('prevStep').addEventListener('click', function() {
+            showStep(currentStep - 1);
+        });
+
+        stepPills.forEach(pill => {
+            pill.addEventListener('click', function() {
+                let target = parseInt(this.dataset.step);
+
+                if (target > currentStep) {
+                    for (let s = currentStep; s < target; s++) {
+                        if (!stepIsValid(s)) return;
+                    }
+                }
+
+                showStep(target);
+            });
+        });
+
+        function reviewRow(label, value) {
+            return `<div class="review-row"><span>${label}</span><span>${value || '-'}</span></div>`;
+        }
+
+        function populateReviewSummary() {
+            let countries = $('#countries option:selected').map(function() {
+                return this.text;
+            }).get().join(', ');
+
+            let languages = Array.from(document.querySelectorAll('input[name="languages[]"]:checked'))
+                .map(el => el.nextElementSibling.innerText.trim()).join(', ');
+
+            let ageRanges = Array.from(document.querySelectorAll('input[name="age_range[]"]:checked'))
+                .map(el => el.nextElementSibling.innerText.trim()).join(', ');
+
+            let mediaSummary = creativeType === 'CAROUSEL' ?
+                `${carouselItems.length} carousel image(s) selected` :
+                (mediaInput.files.length ? '1 new file selected' : 'Keeping existing media');
+
+            let html = '';
+            html += reviewRow('Campaign Name', document.getElementById('name').value);
+            html += reviewRow('Objective', beautifyLabel(objectiveSelect.value || ''));
+            html += reviewRow('Promotion Type', beautifyLabel(promotionTypeSelect.value || ''));
+            html += reviewRow('Conversion Location', beautifyLabel(conversionLocationSelect.value || ''));
+            html += reviewRow('Budget Mode', beautifyLabel(document.getElementById('budget_mode').value || ''));
+            html += reviewRow('Total Budget', document.getElementById('total_budget').innerText);
+            html += reviewRow('Start Date', document.getElementById('start_time').value);
+            html += reviewRow('End Date', document.getElementById('end_time').value);
+            html += reviewRow('Bid Strategy', beautifyLabel(bidStrategySelect.value || ''));
+            html += reviewRow('Optimization Goal', beautifyLabel(optGoalSelect.value || ''));
+            html += reviewRow('Creative Type', beautifyLabel(document.getElementById('creative_type').value || ''));
+            html += reviewRow('Call To Action', beautifyLabel(callToActionSelect.value || ''));
+            html += reviewRow('Media Type', beautifyLabel(creativeType));
+            html += reviewRow('Media', mediaSummary);
+            html += reviewRow('Countries', countries);
+            html += reviewRow('Age Range', ageRanges);
+            html += reviewRow('Gender', beautifyLabel(document.getElementById('gender').value || ''));
+            html += reviewRow('Languages', languages);
+
+            document.getElementById('reviewSummary').innerHTML = html;
+        }
+
+        // Carousel per-card headline/description are kept client-side only
+        // and mirrored server-side into ad_media.title/description - runs
+        // on #campaign itself so it fires before api.js's document-delegated
+        // submit handler builds the FormData.
+        document.getElementById('campaign').addEventListener('submit', function() {
+            if (creativeType !== 'CAROUSEL') return;
+
+            let cards = carouselItems.map(item => ({
+                title: item.title || '',
+                description: item.description || '',
+            }));
+
+            document.getElementById('carousel_cards').value = JSON.stringify(cards);
+        });
+
+        // Laravel validation errors land in .error-<field> elements
+        // scattered across all six wizard steps - api.js populates them
+        // then fires this event.
+        $(document).on('campaign:validationErrors', function(e, errors) {
+            if (!errors) return;
+
+            stepPills.forEach(pill => pill.classList.remove('has-error'));
+
+            let targetStep = null;
+            let targetField = null;
+
+            Object.keys(errors).forEach(field => {
+                let fieldEl = document.querySelector('.error-' + field);
+                if (!fieldEl) return;
+
+                let stepEl = fieldEl.closest('.wizard-step');
+                if (!stepEl) return;
+
+                let stepNumber = parseInt(stepEl.dataset.step);
+                let pill = document.querySelector(`.campaign-steps .step[data-step="${stepNumber}"]`);
+                if (pill) pill.classList.add('has-error');
+
+                if (targetStep === null || stepNumber < targetStep) {
+                    targetStep = stepNumber;
+                    targetField = fieldEl;
+                }
+            });
+
+            if (targetStep !== null) {
+                showStep(targetStep);
+                targetField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        });
+
+        $('#campaign').on('input change', 'input, select, textarea', function() {
+            let name = this.name ? this.name.replace('[]', '') : null;
+            if (!name) return;
+
+            let errorEl = document.querySelector('.error-' + name);
+            if (!errorEl || errorEl.textContent.trim() === '') return;
+
+            errorEl.textContent = '';
+
+            let stepEl = errorEl.closest('.wizard-step');
+            if (!stepEl) return;
+
+            let stillHasErrors = Array.from(stepEl.querySelectorAll('.error-message'))
+                .some(el => el.textContent.trim() !== '');
+
+            if (!stillHasErrors) {
+                let pill = document.querySelector(`.campaign-steps .step[data-step="${stepEl.dataset.step}"]`);
+                if (pill) pill.classList.remove('has-error');
+            }
+        });
+
+        showStep(1);
+        }); // end window.addEventListener('load', ...)
+
+        // ------------------------------------------------------------------
+        // 9. GLOBAL VARIABLES FOR API SUBMISSION
+        // ------------------------------------------------------------------
+        // Stays outside the load-deferred block above since api.js - a
+        // separate script - reads these as globals when #campaign is submitted.
+        // This previously always pointed at the STORE (create) route with
+        // method POST, meaning "editing" a campaign silently tried to
+        // create a brand new one instead of updating the existing one.
+        var url = "{{ route('admin.ads.campaigns.update', ['platform' => 'snapchat', 'campaign' => $campaign->id]) }}";
         var redirectUrl = "{{ route('admin.ads.campaigns.index', ['platform' => 'snapchat']) }}";
-        var method = 'POST';
+        var method = 'PUT';
     </script>
     <script src="{{ asset('assets/js/admin/api.js') }}"></script>
 @endpush

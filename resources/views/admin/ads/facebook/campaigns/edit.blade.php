@@ -242,7 +242,7 @@
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label>Objective</label>
-                                                    <select id="objective" name="objective" class="form-select">
+                                                    <select id="objective" name="objective" class="form-control">
                                                         <option value="OUTCOME_TRAFFIC" @selected(old('objective', $campaign->objective) == 'OUTCOME_TRAFFIC')>
                                                             Traffic
                                                         </option>
@@ -289,7 +289,7 @@
 
                                                 <div class="col-md-4">
                                                     <label>Budget Type</label>
-                                                    <select class="form-select" name="budget_mode" id="budget_mode">
+                                                    <select class="form-control" name="budget_mode" id="budget_mode">
                                                         <option value="daily_budget" @selected(old('budget_mode', $campaign->budget_mode) == 'daily_budget')>Daily Budget</option>
                                                         <option value="lifetime_budget" @selected(old('budget_mode', $campaign->budget_mode) == 'lifetime_budget')>Lifetime Budget</option>
                                                     </select>
@@ -375,13 +375,13 @@
                                             <div class="row">
                                                 <div class="col-md-6">
                                                     <label>Destination Type</label>
-                                                    <select name="destination_type" id="destination_type" class="form-select">
+                                                    <select name="destination_type" id="destination_type" class="form-control">
                                                     </select>
                                                     <p class="error-message error-destination_type"></p>
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label>Optimization Gaol</label>
-                                                    <select id="optimization_goal" name="optimization_goal" class="form-select">
+                                                    <select id="optimization_goal" name="optimization_goal" class="form-control">
                                                     </select>
                                                     <p class="error-message error-optimization_goal"></p>
                                                 </div>
@@ -390,14 +390,14 @@
                                             <div class="row">
                                                 <div class="col-md-6">
                                                     <label>Billing Event</label>
-                                                    <select id="billing_event" name="billing_event" class="form-select">
+                                                    <select id="billing_event" name="billing_event" class="form-control">
                                                     </select>
                                                     <p class="error-message error-billing_event"></p>
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label>Countries</label>
                                                     <select id="countries" name="countries[]" multiple
-                                                        class="form-select">
+                                                        class="form-control">
                                                         @foreach ($countries as $country)
                                                             <option value="{{ $country->id }}" {{ in_array($country->code, $selectedCountries) ? 'selected' : '' }}>{{ $country->name }}
                                                             </option>
@@ -481,7 +481,7 @@
                                             <div class="row">
                                                 <div class="col-md-6">
                                                     <select id="call_to_action" name="call_to_action"
-                                                        class="form-select">
+                                                        class="form-control">
                                                         <option value="">Call To Action</option>
                                                         <option value="LEARN_MORE">Learn More</option>
                                                         <option value="SHOP_NOW">Shop Now</option>
@@ -495,7 +495,7 @@
                                                     <p class="error-message error-call_to_action"></p>
                                                 </div>
                                                 <div class="col-md-6">
-                                                    <select id="gender" name="gender" class="form-select">
+                                                    <select id="gender" name="gender" class="form-control">
                                                         <option value="">Gender</option>
                                                         <option value="male" @selected(old('gender', $adGroup->gender) == 'male')>Male</option>
                                                         <option value="female" @selected(old('gender', $adGroup->gender) == 'female')>Female</option>
@@ -507,7 +507,7 @@
                                             <br>
                                             <div class="row">
                                                 <div class="col-md-6">
-                                                    <select id="age_from" name="age_from" class="form-select">
+                                                    <select id="age_from" name="age_from" class="form-control">
                                                         <option value="">Age From</option>
                                                     
                                                         @for($age = 18; $age <= 65; $age++)
@@ -521,7 +521,7 @@
                                                     <p class="error-message error-age_from"></p>
                                                 </div>
                                                 <div class="col-md-6">
-                                                    <select id="age_to" name="age_to" class="form-select">
+                                                    <select id="age_to" name="age_to" class="form-control">
                                                         <option value="">Age To</option>
                                                 
                                                         @for($age = 31; $age <= 65; $age++)

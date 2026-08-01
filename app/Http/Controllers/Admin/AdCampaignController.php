@@ -38,9 +38,12 @@ class AdCampaignController extends Controller
      */
     public function create($platform)
     {
-        $account = $this->adAccountModel->where('platform', $platform)->first();
+        // YouTube Demand Gen campaigns run through the same Google Ads
+        // customer as Search campaigns - there's no separate "YouTube Ads
+        // account" - so account-linked status is read off the 'google' row.
+        $account = $this->adAccountModel->where('platform', $platform === 'youtube' ? 'google' : $platform)->first();
         $countries = $this->countryModel->all();
-        
+
         return view('admin.ads.' . $platform . '.campaigns.create', compact('platform', 'account', 'countries'));
     }
 
@@ -67,7 +70,7 @@ class AdCampaignController extends Controller
      */
     public function edit($platform, string $id)
     {
-        $account = $this->adAccountModel->where('platform', $platform)->first();
+        $account = $this->adAccountModel->where('platform', $platform === 'youtube' ? 'google' : $platform)->first();
         $countries = $this->countryModel->all();
         $campaign = $this->adCampaignModel->with(['adAccount', 'adGroups', 'adGroups.creatives', 'adGroups.creatives.media', 'ads'])->find($id);
     
@@ -90,5 +93,18 @@ class AdCampaignController extends Controller
     public function destroy($platform, string $id)
     {
         return $this->socialAdManager->destroy($platform, $id);
+    }
+
+    /**
+     * Pause or reactivate a campaign (and its dependent adgroup/ad) without
+     * deleting it.
+     */
+    public function updateStatus($platform, Request $request, string $id)
+    {
+        $request->validate([
+            'status' => ['required', 'in:ACTIVE,PAUSED'],
+        ]);
+
+        return $this->socialAdManager->updateStatus($platform, $id, $request->input('status'));
     }
 }
