@@ -180,7 +180,7 @@ class DiscordMessagingService
                     'webhook_url'    => $webhook['url'] ?? null,
                     'channel_id'     => $webhook['channel_id'] ?? null,
                 ]),
-                'status'         => 'active',
+                'status'         => true,
                 'last_synced_at' => Carbon::now(),
             ]
         );
