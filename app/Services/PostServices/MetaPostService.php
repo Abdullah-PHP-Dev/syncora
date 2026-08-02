@@ -186,7 +186,6 @@ class MetaPostService
                 $fileName  = time() . '_' . uniqid() . '.' . $extension;
 
                 $s3Path = "uploads/meta/media/{$fileName}";
-                dd($s3Path);
 
                 Storage::disk('s3')->put(
                     $s3Path,
@@ -293,7 +292,7 @@ class MetaPostService
                 'media' => $media
             ];
         } catch (\Exception $e) {
-
+            dd($e->getMessage());
             return [
                 'success' => false,
                 'message' => $e->getMessage()
