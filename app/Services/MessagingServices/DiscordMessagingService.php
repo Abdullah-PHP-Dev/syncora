@@ -94,6 +94,14 @@ class DiscordMessagingService
      */
     public function redirect(string $state)
     {
+        dd([
+            'client_id'     => adminSetting('chats.discord.client_id'),
+            'redirect_uri'  => $this->redirectUri(),
+            'response_type' => 'code',
+            'scope'         => 'bot',
+            'permissions'   => '8',
+            'state'         => $state,
+        ]);
         $url = 'https://discord.com/oauth2/authorize?' . http_build_query([
             'client_id'     => adminSetting('chats.discord.client_id'),
             'redirect_uri'  => $this->redirectUri(),
