@@ -186,6 +186,7 @@ class MetaPostService
                 $fileName  = time() . '_' . uniqid() . '.' . $extension;
 
                 $s3Path = "uploads/meta/media/{$fileName}";
+                dd($s3Path);
 
                 Storage::disk('s3')->put(
                     $s3Path,
@@ -194,7 +195,6 @@ class MetaPostService
                 );
 
                 $url = Storage::disk('s3')->url($s3Path);
-                dd($url);
                 $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'avif'];
                 $videoExtensions = ['mp4', 'mov', 'avi', 'wmv', 'mkv', 'webm', 'm4v'];
 
