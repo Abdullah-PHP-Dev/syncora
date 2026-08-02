@@ -143,7 +143,7 @@ class DiscordMessagingService
             'code'          => $code,
             'redirect_uri'  => $this->redirectUri(),
         ], 'form');
-
+        dd($tokenResponse['success'], $tokenResponse);
         if (!$tokenResponse['success']) {
             return ['success' => false, 'error' => $tokenResponse['data']['error_description'] ?? 'Failed to exchange the Discord authorization code.'];
         }
