@@ -89,6 +89,22 @@ class MetaPostService
         // Create post record and dispatch jobs for each page
         foreach ($pages as $page) {
             try {
+                dd([
+                    'title' => $data['title'] ?? Auth::user()->name,
+                    'post_id' => null,
+                    'platform' => 'facebook',
+                    'visibility' => 'public',
+                    'user_id' => Auth::user()->id,
+                    'post_account_id' => $page->id,
+                    'post_category_id' => $data['category_id'] ?? 1,
+                    'page_id' => $page->account_id,
+                    'content' => $data['content'] ?? null,
+                    'schedule_mode' => $data['schedule_mode'] ?? 0,
+                    'schedule_at' => $data['schedule_at'] ?? null,
+                    'expiry_mode' => $data['expiry_mode'] ?? 0,
+                    'expiry_at' => $data['expiry_at'] ?? null,
+                    'status' => 'pending'
+                ]);
                 // Create post record with status 'pending'
                 $post = $this->post::create([
                     'title' => $data['title'] ?? Auth::user()->name,
@@ -96,7 +112,6 @@ class MetaPostService
                     'platform' => 'facebook',
                     'visibility' => 'public',
                     'user_id' => Auth::user()->id,
-                    'post_account_id' => $page->id,
                     'post_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
                     'page_id' => $page->account_id,
@@ -162,7 +177,7 @@ class MetaPostService
     {
         try {
             $media = [];
-
+  
             foreach ($files as $file) {
 
                 $extension = strtolower($file->getClientOriginalExtension());
@@ -179,7 +194,6 @@ class MetaPostService
                 );
 
                 $url = Storage::disk('s3')->url($s3Path);
-
                 $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'avif'];
                 $videoExtensions = ['mp4', 'mov', 'avi', 'wmv', 'mkv', 'webm', 'm4v'];
 
@@ -272,13 +286,13 @@ class MetaPostService
                     'path' => $s3Path,
                 ];
             }
-
+  
             return [
                 'success' => true,
                 'media' => $media
             ];
         } catch (\Exception $e) {
-
+            dd($e->getMessage());
             return [
                 'success' => false,
                 'message' => $e->getMessage()

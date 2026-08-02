@@ -439,6 +439,12 @@ class MessageChannelController extends Controller
         );
     }
 
+    public function getDiscord(Request $request, DiscordMessagingService $service)
+    {
+        dd($request->all());
+        
+    }
+
     /**
      * Discord bot tokens are static, generated once in the Developer
      * Portal (Bot tab) - no OAuth round-trip, just verify-and-save like
