@@ -138,12 +138,18 @@ class DiscordMessagingService
 
         $tokenResponse = $this->apiService->post($this->baseUrl . 'oauth2/token', [], [
             'client_id'     => $clientId,
-            'client_secret' => adminSetting('messaging.discord.client_secret'),
+            'client_secret' => adminSetting('chats.discord.client_secret'),
             'grant_type'    => 'authorization_code',
             'code'          => $code,
             'redirect_uri'  => $this->redirectUri(),
         ], 'form');
-        dd($tokenResponse['success'], $tokenResponse);
+        dd($this->baseUrl . 'oauth2/token', $tokenResponse['success'], $tokenResponse, [
+            'client_id'     => $clientId,
+            'client_secret' => adminSetting('chats.discord.client_secret'),
+            'grant_type'    => 'authorization_code',
+            'code'          => $code,
+            'redirect_uri'  => $this->redirectUri(),
+        ]);
         if (!$tokenResponse['success']) {
             return ['success' => false, 'error' => $tokenResponse['data']['error_description'] ?? 'Failed to exchange the Discord authorization code.'];
         }
