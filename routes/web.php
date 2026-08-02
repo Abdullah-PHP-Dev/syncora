@@ -42,7 +42,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	Route::view('/pricing', 'front.pages.pricing');
 	Route::view('/terms', 'front.pages.terms')->name('front.terms');
 	Route::view('/privacy', 'front.pages.privacy')->name('front.privacy');
-
+	Route::get('/r2-upload', [\App\Http\Controllers\R2Controller::class, 'index']);
+	Route::post('/r2-upload', [\App\Http\Controllers\R2Controller::class, 'upload'])->name('r2.upload');
 
 
 	Route::middleware(['auth'])->group(function () {
