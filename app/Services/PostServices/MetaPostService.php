@@ -177,7 +177,7 @@ class MetaPostService
     {
         try {
             $media = [];
-
+        dd($files);
             foreach ($files as $file) {
 
                 $extension = strtolower($file->getClientOriginalExtension());

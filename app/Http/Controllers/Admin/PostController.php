@@ -244,7 +244,7 @@ class PostController extends Controller
                             'id',
                             $validated['selected_pages'][$platform] ?? []
                         )->get();
-                    dd($pages);
+                   
                         if ($pages->isEmpty()) {
                             $errors[] = [
                                 'message' => "No pages found for platform: {$platform}"
