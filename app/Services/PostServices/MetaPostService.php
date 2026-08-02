@@ -253,7 +253,12 @@ class MetaPostService
                     // uploads/meta/thumbnails/xxxxx.jpg
                     $thumbnail = null;
                 }
-
+                dd([
+                    'success' => true,
+                    'media_type' => $mediaType,
+                    'file_name' => $fileName,
+                    'original_name' => $file->getClientOriginalName()
+                ]);
                 $media[] = [
 
                     'success' => true,
@@ -287,7 +292,7 @@ class MetaPostService
                     'path' => $s3Path,
                 ];
             }
-      dd($media);
+  
             return [
                 'success' => true,
                 'media' => $media
