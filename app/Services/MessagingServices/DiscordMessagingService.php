@@ -190,14 +190,6 @@ class DiscordMessagingService
             return ['success' => false, 'error' => 'Connect this bot with its bot token first (see "Connect Discord Bot" below), then authorize it to a server.'];
         }
 
-        $guild = $tokenResponse['data']['guild'] ?? null;
-
-        if ($guild) {
-            $channel->update(['meta' => array_merge($channel->meta ?? [], [
-                'last_authorized_guild' => ['id' => $guild['id'] ?? null, 'name' => $guild['name'] ?? null],
-            ])]);
-        }
-
         return ['success' => true, 'guild' => $guild, 'channel' => $channel];
     }
 
