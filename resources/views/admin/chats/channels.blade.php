@@ -680,10 +680,15 @@
                             @error('bot_token')<p class="text-danger small">{{ $message }}</p>@enderror
                         </div>
                     </div>
-                    <div class="modal-footer">
+                    <div class="modal-footer flex-column align-items-stretch gap-2">
                         <button type="submit" class="btn btn-sm text-white w-100" style="background:#5865F2">Connect</button>
                     </div>
                 </form>
+                <div class="px-3 pb-3">
+                    <hr class="my-2">
+                    <p class="text-muted small mb-2">Already connected the bot above? Add it to a Discord server through a proper consent screen instead of building an invite link by hand - a customer still needs to share <em>some</em> server with the bot before it can DM them.</p>
+                    <a href="{{ route('admin.messaging.auth.discord.redirect') }}" class="btn btn-sm btn-outline-secondary w-100">Authorize Bot to a Server</a>
+                </div>
             </div>
         </div>
     </div>

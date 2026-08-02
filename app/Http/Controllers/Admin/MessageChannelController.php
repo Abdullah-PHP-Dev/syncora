@@ -439,20 +439,54 @@ class MessageChannelController extends Controller
         );
     }
 
-    public function getDiscord(Request $request, DiscordMessagingService $service)
+    /**
+     * Starts the "authorize this bot to a server" OAuth flow - see
+     * DiscordMessagingService's class docblock for what this can and
+     * can't do (it does not produce the token used to actually send
+     * messages).
+     */
+    public function redirectDiscord(DiscordMessagingService $service)
     {
-        dd($request->all());
-        
+        $state = Str::uuid()->toString();
+        session(['messaging_oauth_state' => $state]);
+
+        return $service->redirect($state);
+    }
+
+    /**
+     * Registered at GET admin/messaging/channels/discord - the exact
+     * redirect_uri configured in the Developer Portal - separate from
+     * storeDiscord()'s POST at the same path (the bot-token form), which
+     * Laravel routes independently by HTTP method.
+     */
+    public function callbackDiscord(Request $request, DiscordMessagingService $service)
+    {
+        if (!$request->filled('code') || $request->query('state') !== session('messaging_oauth_state')) {
+            return redirect()->route('admin.chats.channels')->with('error', 'Discord authorization failed or was cancelled.');
+        }
+
+        $result = $service->handleOAuthCallback($request->query('code'));
+
+        return redirect()->route('admin.chats.channels')->with(
+            $result['success'] ? 'success' : 'error',
+            $result['success']
+                ? 'Discord bot authorized to server "' . ($result['guild']['name'] ?? 'Unknown') . '".'
+                : ($result['error'] ?? 'Discord authorization failed.')
+        );
     }
 
     /**
      * Discord bot tokens are static, generated once in the Developer
-     * Portal (Bot tab) - no OAuth round-trip, just verify-and-save like
-     * Telegram/LINE. Unlike those two, there's no webhook URL to hand
-     * back: this bot has to be started as a Gateway listener daemon
-     * (`php artisan messaging:discord-listen {channel}`) before it can
-     * receive anything, since Discord has no webhook delivery for bot
-     * DMs at all - see DiscordMessagingService's docblock.
+     * Portal (Bot tab) - this is the credential actually used to send
+     * messages and open the Gateway connection (see
+     * DiscordMessagingService's docblock on redirect()/
+     * handleOAuthCallback() above for why the OAuth flow doesn't replace
+     * this). Verified live via getMe before saving, the same
+     * verify-and-save shape as Telegram/LINE. Unlike those two, there's
+     * no webhook URL to hand back: this bot has to be started as a
+     * Gateway listener daemon (`php artisan messaging:discord-listen
+     * {channel}`) before it can receive anything, since Discord has no
+     * webhook delivery for bot DMs at all.
      */
     public function storeDiscord(Request $request, DiscordMessagingService $service)
     {

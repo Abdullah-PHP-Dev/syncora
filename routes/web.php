@@ -163,7 +163,9 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('messaging.channels.line.store');
 				Route::post('messaging/channels/discord', [MessageChannelController::class, 'storeDiscord'])
 					->name('messaging.channels.discord.store');
-				Route::get('messaging/channels/discord', [MessageChannelController::class, 'getDiscord'])
+				Route::get('messaging/auth/discord/redirect', [MessageChannelController::class, 'redirectDiscord'])
+					->name('messaging.auth.discord.redirect');
+				Route::get('messaging/channels/discord', [MessageChannelController::class, 'callbackDiscord'])
 					->name('messaging.channels.discord.callback');
 				Route::post('messaging/channels/teams', [MessageChannelController::class, 'storeTeams'])
 					->name('messaging.channels.teams.store');

@@ -7,6 +7,7 @@ use App\Models\Messaging\Message;
 use App\Models\Messaging\MessageChannel;
 use App\Models\Messaging\Conversation;
 use App\Services\ApiService;
+use Illuminate\Support\Facades\Redirect;
 
 /**
  * Discord - REST API (discord.com/api/v10) for sending, but there is no
@@ -27,6 +28,20 @@ use App\Services\ApiService;
  * settings) - there's no equivalent of "any phone number can message your
  * WhatsApp number." A customer has to already be a member of a Discord
  * server your bot is in.
+ *
+ * IMPORTANT about redirect()/handleOAuthCallback() below: Discord's OAuth2
+ * "authorize" flow (docs.discord.com/developers/topics/oauth2) is real and
+ * self-service, but it is NOT an alternative way to obtain the credential
+ * used to send messages or open the Gateway connection - that is, and
+ * always must be, the static bot token from the Developer Portal's Bot
+ * tab (verifyBotToken()/storeDiscord() above). What this OAuth flow
+ * actually does is add the bot to a server the authorizing user manages
+ * (`scope=bot`) via a proper consent screen instead of a hand-built invite
+ * link, and optionally returns a short-lived access token scoped to that
+ * one authorization grant - useful for confirming which guild the bot was
+ * added to, not for authenticating as the bot. A customer still needs to
+ * share *some* server with the bot before DMs work at all (see above), so
+ * this flow is what gets the bot onto one.
  */
 class DiscordMessagingService
 {
@@ -51,6 +66,89 @@ class DiscordMessagingService
         }
 
         return ['success' => true, 'bot' => $response['data']];
+    }
+
+    /**
+     * Must exactly match the URL registered in the Developer Portal's
+     * OAuth2 > General > Redirects list, character for character - built
+     * from the app's own current URL (not config('services.app_url'),
+     * which every other platform's redirect()/handleCallback() in this
+     * module relies on but is presently misconfigured to a different
+     * domain) so this keeps working correctly across environments without
+     * inheriting that problem.
+     */
+    private function redirectUri(): string
+    {
+        return url('/admin/messaging/channels/discord');
+    }
+
+    /**
+     * scope=bot is the "add this bot to a server" grant - permissions=0
+     * deliberately requests no guild permission bits, since DMing a user
+     * isn't governed by guild permissions at all (only by that user's own
+     * privacy settings, see class docblock); there's nothing this app
+     * needs a guild permission bit for. response_type=code is what makes
+     * Discord also hand back an authorization code on redirect, which
+     * handleOAuthCallback() exchanges for the grant's access token/guild
+     * info below.
+     */
+    public function redirect(string $state)
+    {
+        $url = 'https://discord.com/oauth2/authorize?' . http_build_query([
+            'client_id'     => adminSetting('messaging.discord.client_id'),
+            'redirect_uri'  => $this->redirectUri(),
+            'response_type' => 'code',
+            'scope'         => 'bot',
+            'permissions'   => '0',
+            'state'         => $state,
+        ]);
+
+        return Redirect::away($url);
+    }
+
+    /**
+     * Exchanges the authorization code for this grant's access token, and
+     * - since that token isn't the bot token this app actually sends with
+     * (see class docblock) - looks up the already-connected MessageChannel
+     * to attach the resulting guild info to, matched via the Discord
+     * Application's Client ID, which Discord assigns as the *same*
+     * snowflake as the bot user's own id (i.e. the value storeDiscord()
+     * already saved as external_id). If no channel has been connected
+     * with a bot token yet, that's surfaced as its own clear error rather
+     * than silently doing nothing, since this grant alone can't create a
+     * working channel.
+     */
+    public function handleOAuthCallback(string $code): array
+    {
+        $clientId = adminSetting('messaging.discord.client_id');
+
+        $tokenResponse = $this->apiService->post($this->baseUrl . 'oauth2/token', [], [
+            'client_id'     => $clientId,
+            'client_secret' => adminSetting('messaging.discord.client_secret'),
+            'grant_type'    => 'authorization_code',
+            'code'          => $code,
+            'redirect_uri'  => $this->redirectUri(),
+        ], 'form');
+
+        if (!$tokenResponse['success']) {
+            return ['success' => false, 'error' => $tokenResponse['data']['error_description'] ?? 'Failed to exchange the Discord authorization code.'];
+        }
+
+        $channel = MessageChannel::where('platform', 'discord')->where('external_id', $clientId)->first();
+
+        if (!$channel) {
+            return ['success' => false, 'error' => 'Connect this bot with its bot token first (see "Connect Discord Bot" below), then authorize it to a server.'];
+        }
+
+        $guild = $tokenResponse['data']['guild'] ?? null;
+
+        if ($guild) {
+            $channel->update(['meta' => array_merge($channel->meta ?? [], [
+                'last_authorized_guild' => ['id' => $guild['id'] ?? null, 'name' => $guild['name'] ?? null],
+            ])]);
+        }
+
+        return ['success' => true, 'guild' => $guild, 'channel' => $channel];
     }
 
     /**
