@@ -194,7 +194,7 @@ class MetaPostService
                 );
 
                 $url = Storage::disk('s3')->url($s3Path);
-
+                dd($url);
                 $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'avif'];
                 $videoExtensions = ['mp4', 'mov', 'avi', 'wmv', 'mkv', 'webm', 'm4v'];
 
@@ -253,12 +253,7 @@ class MetaPostService
                     // uploads/meta/thumbnails/xxxxx.jpg
                     $thumbnail = null;
                 }
-                dd([
-                    'success' => true,
-                    'media_type' => $mediaType,
-                    'file_name' => $fileName,
-                    'original_name' => $file->getClientOriginalName()
-                ]);
+
                 $media[] = [
 
                     'success' => true,
