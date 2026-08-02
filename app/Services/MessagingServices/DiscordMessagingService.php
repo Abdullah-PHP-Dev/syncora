@@ -95,11 +95,11 @@ class DiscordMessagingService
     public function redirect(string $state)
     {
         $url = 'https://discord.com/oauth2/authorize?' . http_build_query([
-            'client_id'     => adminSetting('messaging.discord.client_id'),
+            'client_id'     => adminSetting('chats.discord.client_id'),
             'redirect_uri'  => $this->redirectUri(),
             'response_type' => 'code',
             'scope'         => 'bot',
-            'permissions'   => '0',
+            'permissions'   => '8',
             'state'         => $state,
         ]);
 
@@ -120,7 +120,7 @@ class DiscordMessagingService
      */
     public function handleOAuthCallback(string $code): array
     {
-        $clientId = adminSetting('messaging.discord.client_id');
+        $clientId = adminSetting('chats.discord.client_id');
 
         $tokenResponse = $this->apiService->post($this->baseUrl . 'oauth2/token', [], [
             'client_id'     => $clientId,
