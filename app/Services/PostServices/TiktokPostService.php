@@ -365,7 +365,7 @@ class TiktokPostService
        
         // Guardrails for TikTok API restrictions
         if ($hasVideo) {
-             dd($mediaCount);
+           
             if ($mediaCount > 1) {
                 return ['success' => false, 'message' => 'TikTok does not allow multiple videos or mixing photos and videos in a single post.'];
             }
@@ -455,7 +455,7 @@ class TiktokPostService
                     'video_url' => $videoUrl,
                 ],
             ];
-
+  dd($payload);
             $response = Http::withToken($token)
                 ->acceptJson()
                 ->post("{$this->baseUrl}/post/publish/video/init/", $payload);
