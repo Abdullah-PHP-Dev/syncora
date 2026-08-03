@@ -362,9 +362,10 @@ class TiktokPostService
             $extension = strtolower(pathinfo(parse_url($media->media_url, PHP_URL_PATH), PATHINFO_EXTENSION));
             return in_array($extension, ['mp4', 'mov', 'webm']);
         });
-        dd($hasVideo);
+       
         // Guardrails for TikTok API restrictions
         if ($hasVideo) {
+             dd($mediaCount);
             if ($mediaCount > 1) {
                 return ['success' => false, 'message' => 'TikTok does not allow multiple videos or mixing photos and videos in a single post.'];
             }
