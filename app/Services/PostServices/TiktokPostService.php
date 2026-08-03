@@ -79,6 +79,7 @@ class TiktokPostService
             ));
         } else {
             $uploadResult = $this->uploadMediaToS3($data['media']);
+            dd($uploadResult);
             if (!$uploadResult['success']) {
                 return [
                     'success' => false,
