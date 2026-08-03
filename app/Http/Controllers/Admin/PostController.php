@@ -700,7 +700,7 @@ class PostController extends Controller
                     $path = parse_url($media->media_url, PHP_URL_PATH);
                     if ($path) {
                         $path = ltrim($path, '/'); 
-                        Storage::disk('s3')->delete($path);
+                        Storage::disk('r2')->delete($path);
                     }
                 }
             }
@@ -851,8 +851,8 @@ class PostController extends Controller
                 $filename = 'ai-image/' . uniqid() . '.' . $extension;
 
                 // Upload to S3
-                Storage::disk('s3')->put($filename, $imageBinaryData, 'public');
-                $imageUrl = Storage::disk('s3')->url($filename);
+                Storage::disk('r2')->put($filename, $imageBinaryData, 'public');
+                $imageUrl = Storage::disk('r2')->url($filename);
                 
                 $parsed['generated_image_url'] = $imageUrl;
                 $parsed['generated_image_data'] = $imageContent;
@@ -993,8 +993,8 @@ class PostController extends Controller
                         $extension = $this->getExtensionFromMimeType($mimeType);
                         $filename = 'ai-image/' . uniqid() . '.' . $extension;
                         
-                        Storage::disk('s3')->put($filename, $imageBinaryData, 'public');
-                        $imageUrl = Storage::disk('s3')->url($filename);
+                        Storage::disk('r2')->put($filename, $imageBinaryData, 'public');
+                        $imageUrl = Storage::disk('r2')->url($filename);
                         
                         return response()->json([
                             'success' => true,

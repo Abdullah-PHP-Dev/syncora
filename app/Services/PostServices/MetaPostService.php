@@ -187,13 +187,13 @@ class MetaPostService
 
                 $s3Path = "uploads/meta/media/{$fileName}";
 
-                Storage::disk('s3')->put(
+                Storage::disk('r2')->put(
                     $s3Path,
                     file_get_contents($file->getRealPath()),
                     ['visibility' => 'public']
                 );
 
-                $url = Storage::disk('s3')->url($s3Path);
+                $url = Storage::disk('r2')->url($s3Path);
                 $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'avif'];
                 $videoExtensions = ['mp4', 'mov', 'avi', 'wmv', 'mkv', 'webm', 'm4v'];
 
@@ -503,13 +503,13 @@ class MetaPostService
             $extension = strtolower($data['media']->getClientOriginalExtension());
             $fileName = time() . '.' . $extension;
             $s3Path = "uploads/meta/media/{$fileName}";
-            Storage::disk('s3')->put(
+            Storage::disk('r2')->put(
                 $s3Path,
                 file_get_contents($data['media']->getRealPath()),
                 ['visibility' => 'public']
             );
 
-            $url = Storage::disk('s3')->url($s3Path);
+            $url = Storage::disk('r2')->url($s3Path);
 
             if (isset($url)) {
                 $endpoint = "https://graph.facebook.com/v25.0/{$postId}";

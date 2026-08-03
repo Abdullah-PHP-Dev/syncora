@@ -316,8 +316,8 @@ class SnapchatAdService
             $fileName = time() . '_' . uniqid() . '.' . $extension;
 
             $s3Path = "uploads/{$platform}/{$mediaType}/{$fileName}";
-            Storage::disk('s3')->put($s3Path, file_get_contents($media->getRealPath()), ['visibility' => 'public']);
-            $filePath = Storage::disk('s3')->url($s3Path);
+            Storage::disk('r2')->put($s3Path, file_get_contents($media->getRealPath()), ['visibility' => 'public']);
+            $filePath = Storage::disk('r2')->url($s3Path);
 
             $containerResult = $this->parseSnapResponse(
                 $this->apiService->post(

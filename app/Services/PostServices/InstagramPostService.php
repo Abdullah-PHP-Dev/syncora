@@ -190,13 +190,13 @@ class InstagramPostService
 
                 $s3Path = "uploads/meta/media/{$fileName}";
 
-                Storage::disk('s3')->put(
+                Storage::disk('r2')->put(
                     $s3Path,
                     file_get_contents($file->getRealPath()),
                     ['visibility' => 'public']
                 );
 
-                $url = Storage::disk('s3')->url($s3Path);
+                $url = Storage::disk('r2')->url($s3Path);
 
                 $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'avif'];
                 $videoExtensions = ['mp4', 'mov', 'avi', 'wmv', 'mkv', 'webm', 'm4v'];
@@ -729,7 +729,7 @@ class InstagramPostService
         }
 
         if (isset($chat->media)) {
-            Storage::disk('s3')->delete($chat->media);
+            Storage::disk('r2')->delete($chat->media);
         }
 
         return [
@@ -760,13 +760,13 @@ class InstagramPostService
             $fileName = time() . '.' . $extension;
             $s3Path = "uploads/instagram/media/{$fileName}";
 
-            Storage::disk('s3')->put(
+            Storage::disk('r2')->put(
                 $s3Path,
                 file_get_contents($data['media']->getRealPath()),
                 ['visibility' => 'public']
             );
 
-            $url = Storage::disk('s3')->url($s3Path);
+            $url = Storage::disk('r2')->url($s3Path);
             $endpoint = "https://graph.facebook.com/v22.0/{$postId}";
             $payload['url'] = $url;
         } else if (isset($data['url'])) {

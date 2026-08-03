@@ -115,8 +115,8 @@ class ChatController extends Controller
             $mediaType = str_starts_with($file->getMimeType(), 'video/') ? 'video' : (str_starts_with($file->getMimeType(), 'audio/') ? 'audio' : 'image');
             $fileName = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
             $s3Path = "uploads/messaging/{$conversation->platform}/{$fileName}";
-            Storage::disk('s3')->put($s3Path, file_get_contents($file->getRealPath()), ['visibility' => 'public']);
-            $mediaUrl = Storage::disk('s3')->url($s3Path);
+            Storage::disk('r2')->put($s3Path, file_get_contents($file->getRealPath()), ['visibility' => 'public']);
+            $mediaUrl = Storage::disk('r2')->url($s3Path);
         }
 
         $message = Message::create([

@@ -274,8 +274,8 @@ class ZaloMessagingService
         $fileName = uniqid() . '_' . basename(parse_url($url, PHP_URL_PATH) ?: 'file');
         $s3Path = "uploads/zalo/media/{$fileName}";
 
-        Storage::disk('s3')->put($s3Path, $response->body(), ['visibility' => 'public']);
+        Storage::disk('r2')->put($s3Path, $response->body(), ['visibility' => 'public']);
 
-        return ['type' => $type, 'url' => Storage::disk('s3')->url($s3Path), 'file_name' => $fileName];
+        return ['type' => $type, 'url' => Storage::disk('r2')->url($s3Path), 'file_name' => $fileName];
     }
 }

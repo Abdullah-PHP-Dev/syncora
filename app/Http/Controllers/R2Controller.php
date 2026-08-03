@@ -15,8 +15,8 @@ class R2Controller extends Controller
 	public function upload(Request $request)
 	{
 		$request->validate([
-			                   'image' => 'required|image|max:2048',
-		                   ]);
+			'image' => 'required|image|max:2048',
+		]);
 
 		$path = Storage::disk('r2')->putFile(
 			'uploads',
@@ -24,9 +24,9 @@ class R2Controller extends Controller
 		);
 
 		return back()->with([
-			                    'success' => 'Image uploaded successfully.',
-			                    'path'    => $path,
-			                    'url'     => Storage::disk('r2')->url($path),
-		                    ]);
+			'success' => 'Image uploaded successfully.',
+			'path'    => $path,
+			'url'     => Storage::disk('r2')->url($path),
+		]);
 	}
 }

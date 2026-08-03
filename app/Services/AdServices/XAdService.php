@@ -414,8 +414,8 @@ class XAdService
 
         $fileName = time() . '_' . uniqid() . '.' . $extension;
         $s3Path = "uploads/{$platform}/media/{$fileName}";
-        Storage::disk('s3')->put($s3Path, file_get_contents($media->getRealPath()), ['visibility' => 'public']);
-        $fileUrl = Storage::disk('s3')->url($s3Path);
+        Storage::disk('r2')->put($s3Path, file_get_contents($media->getRealPath()), ['visibility' => 'public']);
+        $fileUrl = Storage::disk('r2')->url($s3Path);
 
         $initResult = $this->call('POST', $this->uploadUrl, [
             'command'        => 'INIT',

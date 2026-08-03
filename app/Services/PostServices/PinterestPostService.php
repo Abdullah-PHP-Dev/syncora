@@ -324,7 +324,7 @@ class PinterestPostService
                 $fileName = time() . '_' . uniqid() . '.' . $extension;
                 $s3Path = "uploads/pinterest/media/{$fileName}";
 
-                Storage::disk('s3')->put($s3Path, file_get_contents($file->getRealPath()), ['visibility' => 'public']);
+                Storage::disk('r2')->put($s3Path, file_get_contents($file->getRealPath()), ['visibility' => 'public']);
 
                 $videoExtensions = ['mp4', 'mov', 'm4v'];
                 $mediaType = in_array($extension, $videoExtensions) ? 'video' : 'image';
@@ -347,7 +347,7 @@ class PinterestPostService
                     'width'      => $width,
                     'height'     => $height,
                     'alt_text'   => pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME),
-                    'url'        => Storage::disk('s3')->url($s3Path),
+                    'url'        => Storage::disk('r2')->url($s3Path),
                 ];
             }
 

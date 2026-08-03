@@ -54,22 +54,28 @@ class RunDiscordGatewayListener extends Command
     private function runConnection(MessageChannel $channel, DiscordMessagingService $service): void
     {
         $gatewayUrl = adminSetting('chats.discord.gateway_url') ?: 'wss://gateway.discord.gg/?v=10&encoding=json';
-       
+
+        // 15s: long enough to comfortably survive normal network latency to
+        // Discord's servers without destabilizing the connection, short
+        // enough to still wake up and check the heartbeat clock well before
+        // Discord's own ~41s interval. A too-short timeout here (2s was
+        // tried and made the connection reconnect roughly every second,
+        // never getting far enough to receive real events) isn't just a
+        // heartbeat-precision knob - it can make the read loop unstable.
         $client = new Client($gatewayUrl, ['timeout' => 15]);
 
         while (true) {
-        try {
-            $raw = $client->receive();
-        } catch (TimeoutException $e) {
-            $raw = null;
-        } catch (\Throwable $e) {
-            Log::error('Discord Gateway Receive Error', [
-                'class' => get_class($e),
-                'message' => $e->getMessage(),
-            ]);
-
-            throw $e;
-        }
+            try {
+                $raw = $client->receive();
+            } catch (TimeoutException $e) {
+                $raw = null;
+            } catch (\Throwable $e) {
+                Log::error('Discord Gateway Receive Error', [
+                    'class' => get_class($e),
+                    'message' => $e->getMessage(),
+                ]);
+                throw $e;
+            }
 
             if ($raw !== null && $raw !== '') {
                 $this->handleFrame($raw, $client, $channel, $service);
@@ -96,9 +102,12 @@ class RunDiscordGatewayListener extends Command
         if (isset($payload['s'])) {
             $this->lastSequence = $payload['s'];
         }
-
+        Log::info('Discord Dispatch Event', [
+            'event' => $payload['op'] ?? null,
+        ]);
         match ($payload['op'] ?? null) {
             10      => $this->onHello($payload, $client, $channel),
+            11 => Log::info('Heartbeat ACK'),
             0       => $this->onDispatch($payload, $channel, $service),
             1       => $this->sendHeartbeat($client),
             7, 9    => $this->onReconnectOrInvalidSession($payload),

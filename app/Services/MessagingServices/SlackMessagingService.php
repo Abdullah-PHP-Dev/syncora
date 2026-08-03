@@ -331,11 +331,11 @@ class SlackMessagingService
         $fileName = ($file['id'] ?? uniqid()) . '_' . ($file['name'] ?? 'file');
         $s3Path = "uploads/slack/media/{$fileName}";
 
-        Storage::disk('s3')->put($s3Path, $response->body(), ['visibility' => 'public']);
+        Storage::disk('r2')->put($s3Path, $response->body(), ['visibility' => 'public']);
 
         return [
             'type'      => $type,
-            'url'       => Storage::disk('s3')->url($s3Path),
+            'url'       => Storage::disk('r2')->url($s3Path),
             'mime_type' => $mimeType,
             'file_name' => $file['name'] ?? null,
             'file_size' => $file['size'] ?? null,

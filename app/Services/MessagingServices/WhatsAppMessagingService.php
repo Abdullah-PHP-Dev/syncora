@@ -139,11 +139,11 @@ class WhatsAppMessagingService
         $fileName = $mediaId . '.' . $extension;
         $s3Path = "uploads/{$platform}/media/{$fileName}";
 
-        Storage::disk('s3')->put($s3Path, $binary, ['visibility' => 'public']);
+        Storage::disk('r2')->put($s3Path, $binary, ['visibility' => 'public']);
 
         return [
             'type'      => str_starts_with($mimeType, 'image/') ? 'image' : (str_starts_with($mimeType, 'video/') ? 'video' : (str_starts_with($mimeType, 'audio/') ? 'audio' : 'file')),
-            'url'       => Storage::disk('s3')->url($s3Path),
+            'url'       => Storage::disk('r2')->url($s3Path),
             'mime_type' => $mimeType,
             'file_name' => $fileName,
             'file_size' => $lookup['data']['file_size'] ?? null,

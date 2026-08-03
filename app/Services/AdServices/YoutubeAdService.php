@@ -251,8 +251,8 @@ class YoutubeAdService
         $s3Path = "uploads/{$platform}/logo/{$fileName}";
 
         $binary = file_get_contents($media->getRealPath());
-        Storage::disk('s3')->put($s3Path, $binary, ['visibility' => 'public']);
-        $fileUrl = Storage::disk('s3')->url($s3Path);
+        Storage::disk('r2')->put($s3Path, $binary, ['visibility' => 'public']);
+        $fileUrl = Storage::disk('r2')->url($s3Path);
 
         $endpoint = $this->config . 'customers/' . $this->customerId() . '/assets:mutate';
 

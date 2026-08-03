@@ -409,11 +409,11 @@ class TeamsMessagingService
         $fileName = uniqid() . '_' . ($attachment['name'] ?? 'file');
         $s3Path = "uploads/teams/media/{$fileName}";
 
-        Storage::disk('s3')->put($s3Path, $response->body(), ['visibility' => 'public']);
+        Storage::disk('r2')->put($s3Path, $response->body(), ['visibility' => 'public']);
 
         return [
             'type'      => $type,
-            'url'       => Storage::disk('s3')->url($s3Path),
+            'url'       => Storage::disk('r2')->url($s3Path),
             'mime_type' => $mimeType,
             'file_name' => $attachment['name'] ?? null,
         ];

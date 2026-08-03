@@ -293,7 +293,7 @@ class WhatsAppPostService
             $fileName = time() . '_' . uniqid() . '.' . $extension;
             $s3Path = "uploads/whatsapp/media/{$fileName}";
 
-            Storage::disk('s3')->put($s3Path, file_get_contents($file->getRealPath()), ['visibility' => 'public']);
+            Storage::disk('r2')->put($s3Path, file_get_contents($file->getRealPath()), ['visibility' => 'public']);
 
             $imageInfo = @getimagesize($file->getRealPath());
 
@@ -306,7 +306,7 @@ class WhatsAppPostService
                     'width'      => $imageInfo[0] ?? null,
                     'height'     => $imageInfo[1] ?? null,
                     'alt_text'   => pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME),
-                    'url'        => Storage::disk('s3')->url($s3Path),
+                    'url'        => Storage::disk('r2')->url($s3Path),
                 ],
             ];
         } catch (\Exception $e) {
