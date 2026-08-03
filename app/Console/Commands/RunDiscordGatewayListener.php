@@ -76,7 +76,7 @@ class RunDiscordGatewayListener extends Command
 
     private function runConnection(MessageChannel $channel, DiscordMessagingService $service): void
     {
-        $gatewayUrl = adminSetting('messaging.discord.gateway_url') ?: 'wss://gateway.discord.gg/?v=10&encoding=json';
+        $gatewayUrl = adminSetting('chats.discord.gateway_url') ?: 'wss://gateway.discord.gg/?v=10&encoding=json';
 
         // Shorter than Discord's own heartbeat interval (~41s) so the loop
         // wakes up via TimeoutException often enough to send heartbeats on
@@ -91,7 +91,7 @@ class RunDiscordGatewayListener extends Command
             } catch (TimeoutException $e) {
                 $raw = null;
             }
-
+    dd($raw);
             if ($raw !== null && $raw !== '') {
                 $this->handleFrame($raw, $client, $channel, $service);
             }
