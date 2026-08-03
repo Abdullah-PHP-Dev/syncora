@@ -91,7 +91,7 @@ class RunDiscordGatewayListener extends Command
             } catch (TimeoutException $e) {
                 $raw = null;
             }
-    dd($raw);
+
             if ($raw !== null && $raw !== '') {
                 $this->handleFrame($raw, $client, $channel, $service);
             }

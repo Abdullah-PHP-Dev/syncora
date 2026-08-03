@@ -50,7 +50,7 @@ class DiscordMessagingService
 
     public function __construct(protected ApiService $apiService)
     {
-        $this->baseUrl = adminSetting('messaging.discord.base_url') ?: 'https://discord.com/api/v10/';
+        $this->baseUrl = adminSetting('chats.discord.base_url') ?: 'https://discord.com/api/v10/';
     }
 
     private function authHeader(MessageChannel $channel): array
