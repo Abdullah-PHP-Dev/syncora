@@ -317,7 +317,7 @@ class TiktokPostService
                 ->asJson()
                 ->withBody('{}', 'application/json')
                 ->post("{$this->baseUrl}/post/publish/creator_info/query/");
-            dd($creatorResponse->successful(), $creatorResponse->json());
+
             if (!$creatorResponse->successful()) {
                 return $this->errorResponse($creatorResponse, $account->platform);
             }
@@ -362,7 +362,7 @@ class TiktokPostService
             $extension = strtolower(pathinfo(parse_url($media->media_url, PHP_URL_PATH), PATHINFO_EXTENSION));
             return in_array($extension, ['mp4', 'mov', 'webm']);
         });
-
+        dd($hasVideo);
         // Guardrails for TikTok API restrictions
         if ($hasVideo) {
             if ($mediaCount > 1) {
