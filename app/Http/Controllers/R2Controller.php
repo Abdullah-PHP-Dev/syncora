@@ -22,7 +22,7 @@ class R2Controller extends Controller
 			'uploads',
 			$request->file('image')
 		);
-
+	dd($path);
 		return back()->with([
 			'success' => 'Image uploaded successfully.',
 			'path'    => $path,
