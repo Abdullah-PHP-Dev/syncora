@@ -717,7 +717,7 @@ class PostAccountController extends Controller
             'code_challenge'        => $codeChallenge,
             'code_challenge_method' => 'S256',
         ]);
-        
+
         return Redirect::away($url);
     }
 
@@ -732,7 +732,14 @@ class PostAccountController extends Controller
         if (!$codeVerifier) {
             return redirect()->route('admin.posts.create')->with('error', 'Missing PKCE code verifier - please restart the connection flow.');
         }
-
+     dd([
+            'client_key'    => adminSetting('posts.tiktok.client_id'),
+            'client_secret' => adminSetting('posts.tiktok.client_secret'),
+            'code'          => $request->query('code'),
+            'grant_type'    => 'authorization_code',
+            'redirect_uri'  => $this->tiktokCallbackUrl(),
+            'code_verifier' => $codeVerifier,
+        ]);
         $tokenResponse = $api->request('post', 'https://open.tiktokapis.com/v2/oauth/token/', [
             'Content-Type' => 'application/x-www-form-urlencoded',
         ], [
