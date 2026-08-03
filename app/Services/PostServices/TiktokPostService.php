@@ -303,6 +303,7 @@ class TiktokPostService
         try {
             $account = $post->postAccount;
             if (!$this->ensureValidToken($post)) {
+                dd('ok');
                 $post->update([
                     'status' => 'failed',
                     'error_message' => 'Failed to refresh access token'
@@ -316,7 +317,7 @@ class TiktokPostService
                 ->asJson()
                 ->withBody('{}', 'application/json')
                 ->post("{$this->baseUrl}/post/publish/creator_info/query/");
-
+            dd($creatorResponse->successful(), $creatorResponse->json());
             if (!$creatorResponse->successful()) {
                 return $this->errorResponse($creatorResponse, $account->platform);
             }
