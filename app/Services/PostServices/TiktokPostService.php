@@ -184,6 +184,7 @@ class TiktokPostService
                             $file,
                             ['visibility' => 'public']
                         );
+                        dd($path);
                 // Storage::disk('r2')->put(
                 //     $s3Path,
                 //     file_get_contents($file->getRealPath()),
