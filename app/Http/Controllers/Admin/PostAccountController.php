@@ -707,15 +707,7 @@ class PostAccountController extends Controller
         session(['tiktok_oauth_state' => $state]);
 
         $codeChallenge = hash('sha256', $codeVerifier);
-    dd([
-            'client_key'            => adminSetting('posts.tiktok.client_id'),
-            'response_type'         => 'code',
-            'scope'                 => 'user.info.basic,video.publish,video.upload',
-            'redirect_uri'          => $this->tiktokCallbackUrl(),
-            'state'                 => $state,
-            'code_challenge'        => $codeChallenge,
-            'code_challenge_method' => 'S256',
-        ]);
+
         $url = 'https://www.tiktok.com/v2/auth/authorize/?' . http_build_query([
             'client_key'            => adminSetting('posts.tiktok.client_id'),
             'response_type'         => 'code',
