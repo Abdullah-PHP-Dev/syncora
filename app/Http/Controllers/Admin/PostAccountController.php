@@ -717,15 +717,7 @@ class PostAccountController extends Controller
             'code_challenge'        => $codeChallenge,
             'code_challenge_method' => 'S256',
         ]);
-    dd($this->tiktokCallbackUrl(), $url, [
-            'client_key'            => adminSetting('posts.tiktok.client_id'),
-            'response_type'         => 'code',
-            'scope'                 => 'user.info.basic,video.publish,video.upload',
-            'redirect_uri'          => $this->tiktokCallbackUrl(),
-            'state'                 => $state,
-            'code_challenge'        => $codeChallenge,
-            'code_challenge_method' => 'S256',
-        ]);
+        
         return Redirect::away($url);
     }
 
