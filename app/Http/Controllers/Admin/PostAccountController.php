@@ -717,7 +717,7 @@ class PostAccountController extends Controller
             'code_challenge'        => $codeChallenge,
             'code_challenge_method' => 'S256',
         ]);
-
+    dd($this->tiktokCallbackUrl(), $url);
         return Redirect::away($url);
     }
 
