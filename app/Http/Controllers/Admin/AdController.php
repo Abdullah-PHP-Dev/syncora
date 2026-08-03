@@ -126,7 +126,7 @@ class AdController extends Controller
         $domain = env('APP_DOMAIN');
 
         if (!isset($domain)) {
-            $domain = 'beaelge.com';
+            $domain = 'socialeaz.com';
         }
         $redirectUri = 'https://'.$domain.'/admin/social/auth/' . $platform . '/callback';
         $previousUrl = URL::previous();

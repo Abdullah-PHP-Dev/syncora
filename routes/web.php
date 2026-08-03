@@ -102,6 +102,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 
 				// POSTS
+				Route::get('posts/{platform}/redirect', [PostController::class, 'redirect'])
+					->name('posts.redirect');
 				Route::get('posts/dashboard', [PostController::class, 'dashboard'])->defaults('_config', ['view' => 'admin.posts.dashboard'])->name('posts.dashboard');
 				Route::get('posts/listing', [PostController::class, 'index_vue']);
 				Route::get('posts/data', [PostController::class, 'index'])->name('posts.data');
@@ -114,6 +116,10 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('post-accounts.whatsapp.store');
 				Route::post('post-accounts/whatsapp/embedded', [PostAccountController::class, 'storeWhatsappEmbedded'])
 					->name('post-accounts.whatsapp.embedded');
+				Route::get('post-accounts/meta/redirect', [PostAccountController::class, 'redirectMeta'])
+					->name('post-accounts.meta.redirect');
+				Route::get('post-accounts/meta/callback', [PostAccountController::class, 'callbackMeta'])
+					->name('post-accounts.meta.callback');
 				Route::get('post-accounts/threads/redirect', [PostAccountController::class, 'redirectThreads'])
 					->name('post-accounts.threads.redirect');
 				Route::get('post-accounts/threads/callback', [PostAccountController::class, 'callbackThreads'])
@@ -122,6 +128,22 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('post-accounts.pinterest.redirect');
 				Route::get('post-accounts/pinterest/callback', [PostAccountController::class, 'callbackPinterest'])
 					->name('post-accounts.pinterest.callback');
+				Route::get('post-accounts/x/redirect', [PostAccountController::class, 'redirectX'])
+					->name('post-accounts.x.redirect');
+				Route::get('post-accounts/x/callback', [PostAccountController::class, 'callbackX'])
+					->name('post-accounts.x.callback');
+				Route::get('post-accounts/linkedin/redirect', [PostAccountController::class, 'redirectLinkedin'])
+					->name('post-accounts.linkedin.redirect');
+				Route::get('post-accounts/linkedin/callback', [PostAccountController::class, 'callbackLinkedin'])
+					->name('post-accounts.linkedin.callback');
+				Route::get('post-accounts/tiktok/redirect', [PostAccountController::class, 'redirectTiktok'])
+					->name('post-accounts.tiktok.redirect');
+				Route::get('post-accounts/tiktok/callback', [PostAccountController::class, 'callbackTiktok'])
+					->name('post-accounts.tiktok.callback');
+				Route::get('post-accounts/google/redirect', [PostAccountController::class, 'redirectGoogle'])
+					->name('post-accounts.google.redirect');
+				Route::get('post-accounts/google/callback', [PostAccountController::class, 'callbackGoogle'])
+					->name('post-accounts.google.callback');
 				Route::delete('post-accounts/{account}', [PostAccountController::class, 'destroy'])
 					->name('post-accounts.destroy');
 				Route::resource('categories', PostCategoryController::class);

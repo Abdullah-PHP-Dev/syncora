@@ -40,7 +40,7 @@ return [
     // A trailing slash here produced a double slash in every callback URL,
     // which would mismatch the redirect_uri registered with each OAuth
     // provider (Meta/X/Zalo/Slack/etc all require an exact match).
-    'app_url' => 'https://beaelge.com',
+    'app_url' => 'https://socialeaz.com',
     // 'posts' => [
     //     'facebook' => [
     //         'app_id' => '910004983387413',

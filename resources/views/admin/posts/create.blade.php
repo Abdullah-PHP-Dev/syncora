@@ -938,12 +938,27 @@
                 <div class="card mb-4">
                     <div class="card-header bg-light fw-semibold d-flex justify-content-between align-items-center">
                         <span>{{ __('admin.marketing_tools.posts.select_platforms') }}</span>
-                        <div class="d-flex gap-2">
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a href="{{ route('admin.post-accounts.meta.redirect') }}" class="btn btn-outline-primary btn-sm">
+                                <i class="fab fa-facebook"></i> Connect Facebook / Instagram
+                            </a>
                             <a href="{{ route('admin.post-accounts.threads.redirect') }}" class="btn btn-outline-dark btn-sm">
                                 <i class="fab fa-threads"></i> Connect Threads
                             </a>
                             <a href="{{ route('admin.post-accounts.pinterest.redirect') }}" class="btn btn-outline-danger btn-sm">
                                 <i class="fab fa-pinterest"></i> Connect Pinterest
+                            </a>
+                            <a href="{{ route('admin.post-accounts.x.redirect') }}" class="btn btn-outline-dark btn-sm">
+                                <i class="fab fa-x-twitter"></i> Connect X
+                            </a>
+                            <a href="{{ route('admin.post-accounts.linkedin.redirect') }}" class="btn btn-outline-info btn-sm">
+                                <i class="fab fa-linkedin"></i> Connect LinkedIn
+                            </a>
+                            <a href="{{ route('admin.post-accounts.tiktok.redirect') }}" class="btn btn-outline-dark btn-sm">
+                                <i class="fab fa-tiktok"></i> Connect TikTok
+                            </a>
+                            <a href="{{ route('admin.post-accounts.google.redirect') }}" class="btn btn-outline-danger btn-sm">
+                                <i class="fab fa-google"></i> Connect Google / YouTube
                             </a>
                             <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#connectWhatsappModal">
                                 <i class="fab fa-whatsapp"></i> Connect WhatsApp
