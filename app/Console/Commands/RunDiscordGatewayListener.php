@@ -93,9 +93,24 @@ class RunDiscordGatewayListener extends Command
             10      => $this->onHello($payload, $client, $channel),
             0       => $this->onDispatch($payload, $channel, $service),
             1       => $this->sendHeartbeat($client),
-            7, 9    => throw new ConnectionException('Discord requested a reconnect (op ' . $payload['op'] . ').'),
+            7, 9    => $this->onReconnectOrInvalidSession($payload),
             default => null,
         };
+    }
+
+    /**
+     * Logs the raw op 7/9 payload before throwing, so a genuine rejection
+     * reason (rather than just "op 9 happened") is visible in
+     * storage/logs/laravel.log for the next occurrence - op 9's `d` field
+     * is a resumable flag, and any additional context Discord includes
+     * here is otherwise lost once this exception unwinds to the generic
+     * "Connection dropped" log line in handle().
+     */
+    private function onReconnectOrInvalidSession(array $payload): never
+    {
+        Log::warning('Discord Gateway op ' . $payload['op'] . ' payload', ['payload' => $payload]);
+
+        throw new ConnectionException('Discord requested a reconnect (op ' . $payload['op'] . ').');
     }
 
     private function onHello(array $payload, Client $client, MessageChannel $channel): void
@@ -107,7 +122,7 @@ class RunDiscordGatewayListener extends Command
         $botToken = config('services.discord.bot_token') 
             ?? adminSetting('chats.discord.bot_token') 
             ?? $channel->access_token;
-    dd($botToken);
+  
         $client->text(json_encode([
             'op' => 2, // IDENTIFY
             'd'  => [
