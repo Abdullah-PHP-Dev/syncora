@@ -79,7 +79,7 @@ class TiktokPostService
             ));
         } else {
             $uploadResult = $this->uploadMediaToS3($data['media']);
-            dd($uploadResult);
+           
             if (!$uploadResult['success']) {
                 return [
                     'success' => false,
@@ -179,14 +179,18 @@ class TiktokPostService
                 $fileName  = time() . '_' . uniqid() . '.' . $extension;
 
                 $s3Path = "uploads/meta/media/{$fileName}";
+                $path = Storage::disk('r2')->putFile(
+                            $s3Path,
+                            $file,
+                            ['visibility' => 'public']
+                        );
+                // Storage::disk('r2')->put(
+                //     $s3Path,
+                //     file_get_contents($file->getRealPath()),
+                //     ['visibility' => 'public']
+                // );
 
-                Storage::disk('r2')->put(
-                    $s3Path,
-                    file_get_contents($file->getRealPath()),
-                    ['visibility' => 'public']
-                );
-
-                $url = Storage::disk('r2')->url($s3Path);
+                $url = Storage::disk('r2')->url($path);
 
                 $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'avif'];
                 $videoExtensions = ['mp4', 'mov', 'avi', 'wmv', 'mkv', 'webm', 'm4v'];
