@@ -455,11 +455,11 @@ class TiktokPostService
                     'video_url' => $videoUrl,
                 ],
             ];
-  dd($payload);
+
             $response = Http::withToken($token)
                 ->acceptJson()
                 ->post("{$this->baseUrl}/post/publish/video/init/", $payload);
-
+            dd($response->successful(), $response->json());
             if (!$response->successful()) {
                 return ['success' => false, 'message' => $response->json()['error']['message'] ?? 'Failed initialization for video upload.'];
             }
