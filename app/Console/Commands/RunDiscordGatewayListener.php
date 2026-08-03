@@ -19,7 +19,7 @@ class RunDiscordGatewayListener extends Command
     private const GUILDS = 1 << 0;
     private const DIRECT_MESSAGES = 1 << 12;
     private const MESSAGE_CONTENT = 1 << 15;
-
+    private const GUILD_MESSAGES = 1 << 9;
     private ?int $heartbeatIntervalMs = null;
     private ?int $lastSequence = null;
     private float $lastHeartbeatSentAt = 0;
@@ -54,14 +54,22 @@ class RunDiscordGatewayListener extends Command
     private function runConnection(MessageChannel $channel, DiscordMessagingService $service): void
     {
         $gatewayUrl = adminSetting('chats.discord.gateway_url') ?: 'wss://gateway.discord.gg/?v=10&encoding=json';
+       
         $client = new Client($gatewayUrl, ['timeout' => 15]);
 
         while (true) {
-            try {
-                $raw = $client->receive();
-            } catch (TimeoutException $e) {
-                $raw = null;
-            }
+        try {
+            $raw = $client->receive();
+        } catch (TimeoutException $e) {
+            $raw = null;
+        } catch (\Throwable $e) {
+            Log::error('Discord Gateway Receive Error', [
+                'class' => get_class($e),
+                'message' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
 
             if ($raw !== null && $raw !== '') {
                 $this->handleFrame($raw, $client, $channel, $service);
@@ -122,12 +130,13 @@ class RunDiscordGatewayListener extends Command
         $botToken = config('services.discord.bot_token') 
             ?? adminSetting('chats.discord.bot_token') 
             ?? $channel->access_token;
-  
+
+
         $client->text(json_encode([
             'op' => 2, // IDENTIFY
             'd'  => [
                 'token'      => $botToken,
-                'intents'    => self::GUILDS | self::DIRECT_MESSAGES | self::MESSAGE_CONTENT,
+                'intents'    => self::GUILDS | self::GUILD_MESSAGES | self::DIRECT_MESSAGES | self::MESSAGE_CONTENT,
                 'properties' => [
                     'os'      => PHP_OS,
                     'browser' => 'socialeaz',
@@ -147,17 +156,41 @@ class RunDiscordGatewayListener extends Command
 
     private function onDispatch(array $payload, MessageChannel $channel, DiscordMessagingService $service): void
     {
-        if (($payload['t'] ?? null) !== 'MESSAGE_CREATE') {
-            return;
+        Log::info('Discord Dispatch Event', [
+            'event' => $payload['t'] ?? null,
+        ]);
+
+        switch ($payload['t'] ?? null) {
+
+            case 'MESSAGE_CREATE':
+
+                $message = $payload['d'] ?? [];
+
+                // Ignore messages sent by bots
+                if (!empty($message['author']['bot'])) {
+                    return;
+                }
+
+                Log::info('Discord Incoming Message', [
+                    'guild_id'   => $message['guild_id'] ?? null,
+                    'channel_id' => $message['channel_id'] ?? null,
+                    'author'     => $message['author']['username'] ?? null,
+                    'content'    => $message['content'] ?? '',
+                ]);
+
+                $service->handleGatewayMessage($message, $channel);
+                break;
+
+            case 'MESSAGE_UPDATE':
+            case 'MESSAGE_DELETE':
+            case 'CHANNEL_CREATE':
+            case 'CHANNEL_DELETE':
+            case 'THREAD_CREATE':
+                Log::info('Discord Event Payload', [
+                    'type' => $payload['t'],
+                    'data' => $payload['d'],
+                ]);
+                break;
         }
-
-        $message = $payload['d'] ?? [];
-
-        // Ignore messages sent by bots to prevent reply loops
-        if (!empty($message['author']['bot'])) {
-            return;
-        }
-
-        $service->handleGatewayMessage($message, $channel);
     }
 }

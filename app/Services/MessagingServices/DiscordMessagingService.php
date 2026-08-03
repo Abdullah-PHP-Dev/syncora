@@ -108,7 +108,7 @@ class DiscordMessagingService
 
         $queryParams = [
             'client_id'        => adminSetting('chats.discord.client_id'),
-            'permissions'      => '8',
+            'permissions'      => '8866461766385655', // Updated to match your exact URL permissions
             'response_type'    => 'code',
             'redirect_uri'     => $this->redirectUri(),
             'integration_type' => '0',
