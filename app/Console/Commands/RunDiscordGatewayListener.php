@@ -107,7 +107,7 @@ class RunDiscordGatewayListener extends Command
         $botToken = config('services.discord.bot_token') 
             ?? adminSetting('chats.discord.bot_token') 
             ?? $channel->access_token;
-
+    dd($botToken);
         $client->text(json_encode([
             'op' => 2, // IDENTIFY
             'd'  => [
