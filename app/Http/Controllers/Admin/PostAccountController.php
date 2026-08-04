@@ -757,18 +757,22 @@ class PostAccountController extends Controller
         ], ['fields' => 'open_id,display_name,avatar_url,username,bio_description,follower_count,following_count,likes_count,video_count']);
 
         $profile = $profileResponse->successful() ? ($profileResponse->json()['data']['user'] ?? []) : [];
-    dd($profile);
+
         PostAccount::updateOrCreate(
             ['platform' => 'tiktok', 'account_id' => $token['open_id'], 'user_id' => Auth::id()],
             [
-                'name'          => $profile['display_name'] ?? 'TikTok Account',
-                'username'      => $profile['display_name'] ?? null,
-                'image'         => $profile['avatar_url'] ?? null,
-                'access_token'  => $token['access_token'],
-                'refresh_token' => $token['refresh_token'] ?? null,
-                'expires_in'    => Carbon::now()->addSeconds($token['expires_in'] ?? 86400),
-                'is_active'     => true,
-                'status'        => 'active',
+                'name'             => $profile['display_name'] ?? 'TikTok Account',
+                'username'         => $profile['username'] ?? null,
+                'image'            => $profile['avatar_url'] ?? null,
+                'access_token'     => $token['access_token'],
+                'refresh_token'    => $token['refresh_token'] ?? null,
+                'expires_in'       => Carbon::now()->addSeconds($token['expires_in'] ?? 86400),
+                'is_active'        => true,
+                'status'           => 'active',
+                'follower_count'   => $profile['follower_count'],
+                'likes_count'      => $profile['likes_count'],
+                'following_count'  => $profile['following_count'],
+                'media_count'      => $profile['media_count'],
             ]
         );
 

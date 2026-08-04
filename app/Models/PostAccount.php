@@ -50,7 +50,7 @@ class PostAccount extends Model
         'follower_count',
         'likes_count',
         'following_count',
-        'video_count'
+        'media_count'
     ];
 
     /**
