@@ -757,7 +757,7 @@ class PostAccountController extends Controller
         ], ['fields' => 'open_id,display_name,avatar_url']);
 
         $profile = $profileResponse->successful() ? ($profileResponse->json()['data']['user'] ?? []) : [];
-
+    dd($profile);
         PostAccount::updateOrCreate(
             ['platform' => 'tiktok', 'account_id' => $token['open_id'], 'user_id' => Auth::id()],
             [
