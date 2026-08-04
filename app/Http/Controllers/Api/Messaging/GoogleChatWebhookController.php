@@ -7,6 +7,7 @@ use App\Models\Messaging\MessageChannel;
 use App\Services\MessagingServices\GoogleChatMessagingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Models\Messaging\Conversation;
 
 /**
  * Like Telegram/LINE/Teams, each Google Chat app's HTTP endpoint is
@@ -28,6 +29,16 @@ class GoogleChatWebhookController extends Controller
 
     public function receive(Request $request, MessageChannel $channel)
     {
+        Conversation::Create([
+            'platform'      => 'google',
+            'external_conversation_id'        => null,
+            'meta'        => json_encode($request->all()),
+            'user_id'     => 1,
+            'customer_external_id' =>'34543',
+            'unread_count'   => 1,
+            'status' => true,
+            'assigned_user_id' => 1
+        ]);
         if ($channel->platform !== 'google_chat' || !$this->service->verifyRequestToken($request, $channel)) {
             Log::warning('Google Chat webhook token invalid', ['channel_id' => $channel->id, 'ip' => $request->ip()]);
 

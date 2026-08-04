@@ -319,16 +319,6 @@ class GoogleChatMessagingService
      */
     public function handleEvent(array $payload, MessageChannel $channel): void
     {
-        Conversation::Create([
-            'platform'      => 'google',
-            'external_conversation_id'        => null,
-            'meta'        => json_decode($payload['type']),
-            'user_id'     => 1,
-            'customer_external_id' =>'34543',
-            'unread_count'   => 1,
-            'status' => true,
-            'assigned_user_id' => 1
-        ]);
         if (($payload['type'] ?? null) !== 'MESSAGE') {
             return;
         }
