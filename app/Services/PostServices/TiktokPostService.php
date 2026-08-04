@@ -303,7 +303,6 @@ class TiktokPostService
         try {
             $account = $post->postAccount;
             if (!$this->ensureValidToken($post)) {
-                dd('ok');
                 $post->update([
                     'status' => 'failed',
                     'error_message' => 'Failed to refresh access token'
@@ -335,13 +334,29 @@ class TiktokPostService
                 return $result;
             }
 
+            // The publish_id from post/publish/{video|content}/init/ is a
+            // tracking id for TikTok's async processing job, not the
+            // video's own id - it looks like "v_pub_url~v2-1...." and
+            // produces a 404 if used directly in a tiktok.com/video/{id}
+            // URL. The real numeric video id (and the account's own
+            // @username, needed for a working share URL) only exist once
+            // TikTok finishes processing, resolved here by polling status/
+            // fetch/ - same "container isn't ready immediately" shape as
+            // InstagramPostService::checkContainerStatus().
+            $resolved = $this->resolvePublishedVideo($account->access_token, $result['publish_id']);
+
             $post->update([
-                'status' => 'completed',
-                'post_id' => $result['publish_id'],
-                'error_message' => null
+                'status'        => 'completed',
+                'post_id'       => $resolved['video_id'] ?? $result['publish_id'],
+                'post_url'      => $resolved['video_id']
+                    ? 'https://www.tiktok.com/@' . $account->username . '/video/' . $resolved['video_id']
+                    : null,
+                'error_message' => $resolved['video_id']
+                    ? null
+                    : 'Published, but TikTok is still processing the video - its public URL is not ready yet.',
             ]);
 
-            return ['success' => true, 'id' => $result['publish_id']];
+            return ['success' => true, 'id' => $resolved['video_id'] ?? $result['publish_id']];
         } catch (\Exception $e) {
             return [
                 'success' => false,
@@ -445,7 +460,7 @@ class TiktokPostService
             $payload = [
                 'post_info' => [
                     'title' => mb_substr($post->content ?? '', 0, 150), // Title string field setup
-                    'privacy_level' => 'SELF_ONLY',//$creatorResponseData['privacy_level_options'][0] ?? 'SELF_ONLY',
+                    'privacy_level' => 'SELF_ONLY',
                     'disable_duet' => false,
                     'disable_comment' => false,
                     'disable_stitch' => false,
@@ -459,7 +474,7 @@ class TiktokPostService
             $response = Http::withToken($token)
                 ->acceptJson()
                 ->post("{$this->baseUrl}/post/publish/video/init/", $payload);
-                
+            dd($response->json(), $payload);
             if (!$response->successful()) {
                 return ['success' => false, 'message' => $response->json()['error']['message'] ?? 'Failed initialization for video upload.'];
             }
@@ -474,6 +489,50 @@ class TiktokPostService
                 'message' => $e->getMessage()
             ];
         }
+    }
+
+    /**
+     * Polls post/publish/status/fetch/ until TikTok finishes processing
+     * the upload - PUBLISH_COMPLETE's response carries the real numeric
+     * video id in `publicaly_available_post_id` (TikTok's own field name,
+     * misspelling included - not a typo introduced here). Synchronous
+     * polling mirrors InstagramPostService::publishPost()'s container-
+     * ready loop for consistency; if TikTok is still processing after 10
+     * attempts this gives up and lets the caller fall back to storing the
+     * publish_id, rather than blocking the request indefinitely - a
+     * queued follow-up job would be more robust if TikTok's processing
+     * regularly exceeds ~20s in practice.
+     */
+    protected function resolvePublishedVideo(string $accessToken, ?string $publishId): array
+    {
+        if (!$publishId) {
+            return ['video_id' => null];
+        }
+
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            $response = Http::withToken($accessToken)
+                ->acceptJson()
+                ->post("{$this->baseUrl}/post/publish/status/fetch/", ['publish_id' => $publishId]);
+
+            if (!$response->successful()) {
+                return ['video_id' => null];
+            }
+
+            $data = $response->json()['data'] ?? [];
+            $status = $data['status'] ?? null;
+
+            if ($status === 'PUBLISH_COMPLETE') {
+                return ['video_id' => $data['publicaly_available_post_id'][0] ?? null];
+            }
+
+            if ($status === 'FAILED') {
+                return ['video_id' => null];
+            }
+
+            sleep(2);
+        }
+
+        return ['video_id' => null];
     }
 
     /**
