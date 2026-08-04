@@ -752,12 +752,16 @@ class PostAccountController extends Controller
 
         $token = $tokenResponse->json();
 
-        $profileResponse = $api->request('get', 'https://open.tiktokapis.com/v2/user/info/', [
-            'Authorization' => 'Bearer ' . $token['access_token'],
-        ], ['fields' => 'open_id,display_name,avatar_url,username_description']);
+        $profileResponse = $api->request(
+            'GET', 
+            'https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url,username_description', 
+            [
+                'Authorization' => 'Bearer ' . $token['access_token'],
+            ]
+        );
 
         $profile = $profileResponse->successful() ? ($profileResponse->json()['data']['user'] ?? []) : [];
-    dd($profile);
+        dd($profile);
         PostAccount::updateOrCreate(
             ['platform' => 'tiktok', 'account_id' => $token['open_id'], 'user_id' => Auth::id()],
             [
