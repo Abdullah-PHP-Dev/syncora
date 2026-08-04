@@ -772,7 +772,7 @@ class PostAccountController extends Controller
                 'follower_count'   => $profile['follower_count'],
                 'likes_count'      => $profile['likes_count'],
                 'following_count'  => $profile['following_count'],
-                'media_count'      => $profile['media_count'],
+                'media_count'      => $profile['video_count'],
             ]
         );
 
