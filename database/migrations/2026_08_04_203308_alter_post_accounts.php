@@ -12,10 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('post_accounts', function (Blueprint $table) {
-            $table->bigInteger('media_count')->nullable()->default(0);
-            $table->bigInteger('following_count')->nullable()->default(0);
-            $table->bigInteger('likes_count')->nullable()->default(0);
-            $table->bigInteger('follower_count')->nullable()->default(0);
+            $table->bigInteger('media_count')->nullable()->default(0)->after('status');
+            $table->bigInteger('following_count')->nullable()->default(0)->after('media_count');
+            $table->bigInteger('likes_count')->nullable()->default(0)->after('following_count');
+            $table->bigInteger('follower_count')->nullable()->default(0)->after('follower_count');
         });
     }
 
