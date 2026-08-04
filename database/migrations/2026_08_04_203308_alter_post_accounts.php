@@ -15,7 +15,7 @@ return new class extends Migration
             $table->bigInteger('media_count')->nullable()->default(0)->after('status');
             $table->bigInteger('following_count')->nullable()->default(0)->after('media_count');
             $table->bigInteger('likes_count')->nullable()->default(0)->after('following_count');
-            $table->bigInteger('follower_count')->nullable()->default(0)->after('follower_count');
+            $table->bigInteger('follower_count')->nullable()->default(0)->after('likes_count');
         });
     }
 
