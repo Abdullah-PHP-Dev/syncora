@@ -754,7 +754,7 @@ class PostAccountController extends Controller
 
         $profileResponse = $api->request('get', 'https://open.tiktokapis.com/v2/user/info/', [
             'Authorization' => 'Bearer ' . $token['access_token'],
-        ], ['fields' => 'open_id,display_name,avatar_url,username']);
+        ], ['fields' => 'open_id,display_name,avatar_url,username_description']);
 
         $profile = $profileResponse->successful() ? ($profileResponse->json()['data']['user'] ?? []) : [];
     dd($profile);
