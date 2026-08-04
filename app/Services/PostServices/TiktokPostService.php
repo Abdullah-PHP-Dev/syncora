@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\PostMedia;
 use getID3;
 use App\Models\PostComment;
+use App\Jobs\Posts\ResolveTiktokPublishStatus;
 
 class TiktokPostService
 {
@@ -340,9 +341,12 @@ class TiktokPostService
             // produces a 404 if used directly in a tiktok.com/video/{id}
             // URL. The real numeric video id (and the account's own
             // @username, needed for a working share URL) only exist once
-            // TikTok finishes processing, resolved here by polling status/
-            // fetch/ - same "container isn't ready immediately" shape as
-            // InstagramPostService::checkContainerStatus().
+            // TikTok finishes processing. resolvePublishedVideo() only
+            // covers the first ~10s (fast path for quick uploads) - if
+            // TikTok is still processing after that, ResolveTiktokPublishStatus
+            // takes over in the background and updates post_id/post_url
+            // once it's actually ready, rather than leaving the unresolved
+            // publish_id in place indefinitely.
             $resolved = $this->resolvePublishedVideo($account->access_token, $result['publish_id']);
 
             $post->update([
@@ -353,8 +357,13 @@ class TiktokPostService
                     : null,
                 'error_message' => $resolved['video_id']
                     ? null
-                    : 'Published, but TikTok is still processing the video - its public URL is not ready yet.',
+                    : 'Published - TikTok is still processing the video, its public URL will be filled in automatically once ready.',
             ]);
+
+            if (!$resolved['video_id']) {
+                ResolveTiktokPublishStatus::dispatch($post->id, $result['publish_id'])
+                    ->delay(now()->addSeconds(15));
+            }
 
             return ['success' => true, 'id' => $resolved['video_id'] ?? $result['publish_id']];
         } catch (\Exception $e) {
@@ -492,16 +501,42 @@ class TiktokPostService
     }
 
     /**
-     * Polls post/publish/status/fetch/ until TikTok finishes processing
-     * the upload - PUBLISH_COMPLETE's response carries the real numeric
-     * video id in `publicaly_available_post_id` (TikTok's own field name,
-     * misspelling included - not a typo introduced here). Synchronous
-     * polling mirrors InstagramPostService::publishPost()'s container-
-     * ready loop for consistency; if TikTok is still processing after 10
-     * attempts this gives up and lets the caller fall back to storing the
-     * publish_id, rather than blocking the request indefinitely - a
-     * queued follow-up job would be more robust if TikTok's processing
-     * regularly exceeds ~20s in practice.
+     * A single post/publish/status/fetch/ check - PUBLISH_COMPLETE's
+     * response carries the real numeric video id in
+     * `publicaly_available_post_id` (TikTok's own field name, misspelling
+     * included - not a typo introduced here). Returns the raw status too
+     * so callers (the quick synchronous loop below, and the queued
+     * fallback job for slower uploads) can each decide how to react to
+     * "still processing" differently.
+     */
+    public function checkPublishStatus(string $accessToken, string $publishId): array
+    {
+        $response = Http::withToken($accessToken)
+            ->acceptJson()
+            ->post("{$this->baseUrl}/post/publish/status/fetch/", ['publish_id' => $publishId]);
+
+        if (!$response->successful()) {
+            return ['status' => null, 'video_id' => null];
+        }
+
+        $data = $response->json()['data'] ?? [];
+        $status = $data['status'] ?? null;
+
+        return [
+            'status'   => $status,
+            'video_id' => $status === 'PUBLISH_COMPLETE' ? ($data['publicaly_available_post_id'][0] ?? null) : null,
+        ];
+    }
+
+    /**
+     * Quick synchronous fast-path only - covers the common case where
+     * TikTok finishes processing within a few seconds, so the post's real
+     * URL is available immediately without the admin needing to wait for
+     * a background job. Deliberately short (~10s worst case): a request
+     * blocking for TikTok's full processing time (which can run well past
+     * a minute for longer videos) would be a much worse experience than
+     * just falling back to ResolveTiktokPublishStatus below, which keeps
+     * checking in the background for as long as it actually takes.
      */
     protected function resolvePublishedVideo(string $accessToken, ?string $publishId): array
     {
@@ -509,23 +544,14 @@ class TiktokPostService
             return ['video_id' => null];
         }
 
-        for ($attempt = 0; $attempt < 10; $attempt++) {
-            $response = Http::withToken($accessToken)
-                ->acceptJson()
-                ->post("{$this->baseUrl}/post/publish/status/fetch/", ['publish_id' => $publishId]);
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $result = $this->checkPublishStatus($accessToken, $publishId);
 
-            if (!$response->successful()) {
-                return ['video_id' => null];
+            if ($result['video_id']) {
+                return $result;
             }
 
-            $data = $response->json()['data'] ?? [];
-            $status = $data['status'] ?? null;
-
-            if ($status === 'PUBLISH_COMPLETE') {
-                return ['video_id' => $data['publicaly_available_post_id'][0] ?? null];
-            }
-
-            if ($status === 'FAILED') {
+            if ($result['status'] === 'FAILED') {
                 return ['video_id' => null];
             }
 

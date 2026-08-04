@@ -9,7 +9,6 @@ use App\Models\Messaging\Conversation;
 use App\Services\ApiService;
 use Illuminate\Support\Facades\Redirect;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Auth;
 /**
  * Discord - REST API (discord.com/api/v10) for sending, but there is no
  * webhook (or any REST polling substitute - GET /users/@me/channels
@@ -128,10 +127,15 @@ class DiscordMessagingService
      * to attach the resulting guild info to, matched via the Discord
      * Application's Client ID, which Discord assigns as the *same*
      * snowflake as the bot user's own id (i.e. the value storeDiscord()
-     * already saved as external_id). If no channel has been connected
-     * with a bot token yet, that's surfaced as its own clear error rather
-     * than silently doing nothing, since this grant alone can't create a
-     * working channel.
+     * already saved as external_id - same matching key storeDiscord()
+     * itself uses). If no channel has been connected with a bot token
+     * yet, that's surfaced as its own clear error rather than silently
+     * doing nothing, since this grant alone can't create a working
+     * channel. Crucially, the grant's access_token/refresh_token are
+     * never written to the channel - doing so previously clobbered (or,
+     * since the match key here differs from storeDiscord()'s, actually
+     * duplicated into a second row instead of clobbering) the real bot
+     * token the Gateway listener and REST calls depend on.
      */
     public function handleOAuthCallback(string $code): array
     {
@@ -144,51 +148,40 @@ class DiscordMessagingService
             'code'          => $code,
             'redirect_uri'  => $this->redirectUri(),
         ], 'form');
-       
+
         if (!$tokenResponse['success']) {
             return ['success' => false, 'error' => $tokenResponse['data']['error_description'] ?? 'Failed to exchange the Discord authorization code.'];
         }
         $data = $tokenResponse['data'];
-       
+
 
         $guild = $data['guild'] ?? [];
         $webhook = $data['webhook'] ?? [];
 
-        $channel = MessageChannel::updateOrCreate(
-            [
-                'platform'    => 'discord',
-                'user_id'     => Auth::id(),
-                'external_id' => $guild['id'] ?? null,
-            ],
-            [
-                'name'           => $guild['name'] ?? null,
-                'username'       => $guild['name'] ?? null,
-                'avatar_url'     => isset($guild['icon']) 
-                    ? "https://cdn.discordapp.com/icons/{$guild['id']}/{$guild['icon']}.png" 
-                    : null,
-                'access_token'   => $data['access_token'] ?? null,
-                'refresh_token'  => $data['refresh_token'] ?? null,
-                'expires_at'     => isset($data['expires_in']) 
-                    ? Carbon::now()->addSeconds($data['expires_in']) 
-                    : null,
-                'meta'           => json_encode([
-                    'token_type'     => $data['token_type'] ?? null,
-                    'scope'          => $data['scope'] ?? null,
-                    'id_token'       => $data['id_token'] ?? null,
-                    'guild'          => $guild,
-                    'webhook'        => $webhook,
-                    'webhook_url'    => $webhook['url'] ?? null,
-                    'channel_id'     => $webhook['channel_id'] ?? null,
-                ]),
-                'status'         => true,
-                'last_synced_at' => Carbon::now(),
-            ]
-        );
-        //$channel = MessageChannel::where('platform', 'discord')->where('external_id', $clientId)->first();
+        $channel = MessageChannel::where('platform', 'discord')->where('external_id', $clientId)->first();
 
         if (!$channel) {
             return ['success' => false, 'error' => 'Connect this bot with its bot token first (see "Connect Discord Bot" below), then authorize it to a server.'];
         }
+
+        $channel->update([
+            'name'           => $guild['name'] ?? $channel->name,
+            'username'       => $guild['name'] ?? $channel->username,
+            'avatar_url'     => isset($guild['icon'])
+                ? "https://cdn.discordapp.com/icons/{$guild['id']}/{$guild['icon']}.png"
+                : $channel->avatar_url,
+            'meta'           => json_encode([
+                'token_type'     => $data['token_type'] ?? null,
+                'scope'          => $data['scope'] ?? null,
+                'id_token'       => $data['id_token'] ?? null,
+                'guild'          => $guild,
+                'webhook'        => $webhook,
+                'webhook_url'    => $webhook['url'] ?? null,
+                'channel_id'     => $webhook['channel_id'] ?? null,
+            ]),
+            'status'         => true,
+            'last_synced_at' => Carbon::now(),
+        ]);
 
         return ['success' => true, 'guild' => $guild, 'channel' => $channel];
     }

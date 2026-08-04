@@ -24,13 +24,13 @@
                     <h1 class="display-4 fw-bold"
                         id="hero-title"
                         data-aos="fade-right">
-                        Grow your business with Socialeaz
+                        Grow your business with SocialEaz
                     </h1>
 
                     <p class="lead text-white-75 mt-3"
                        data-aos="fade-right"
                        data-aos-delay="100">
-                        Socialeaz is an all-in-one SaaS marketplace platform to manage ads, CRM, services, and marketplace operations in one place.
+                        SocialEaz is an all-in-one SaaS marketplace platform to manage ads, CRM, services, and marketplace operations in one place.
                     </p>
 
                     <div class="mt-4 d-flex gap-2 flex-wrap"
@@ -198,7 +198,7 @@
                     </h2>
 
                     <p class="text-muted mt-3">
-                        Socialeaz combines marketplace, CRM, analytics, and automation tools into one unified SaaS system.
+                        SocialEaz combines marketplace, CRM, analytics, and automation tools into one unified SaaS system.
                         Designed for scalability and ease of use, built to power modern marketplaces.
                     </p>
 
@@ -207,6 +207,7 @@
                         <li>✔ Scalable Laravel architecture</li>
                         <li>✔ Real-time marketplace management</li>
                         <li>✔ Modular CRM & Ads engine</li>
+                        <li><strong>✔ Google Integration:</strong> We access your Google account data strictly to publish and manage posts on your connected Google Business Profile and YouTube channel, run your Google/YouTube ad campaigns, and send or receive messages through Google Chat on your behalf.</li>
                     </ul>
 
                 </div>
@@ -312,7 +313,7 @@
             </h2>
 
             <p class="text-white-75">
-                Join Socialeaz and scale your business like never before
+                Join SocialEaz and scale your business like never before
             </p>
 
             <a href="/register" class="btn btn-light btn-lg mt-3 px-4">
