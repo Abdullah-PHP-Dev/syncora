@@ -770,6 +770,8 @@ class PostAccountController extends Controller
                 'is_active'        => true,
                 'status'           => 'active',
                 'follower_count'   => $profile['follower_count'],
+                'description'      => $profile['bio_description'],
+                'account_url'      => $profile['profile_deep_link'],
                 'likes_count'      => $profile['likes_count'],
                 'following_count'  => $profile['following_count'],
                 'media_count'      => $profile['video_count'],
