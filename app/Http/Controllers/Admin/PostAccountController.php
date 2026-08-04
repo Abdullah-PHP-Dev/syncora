@@ -711,7 +711,7 @@ class PostAccountController extends Controller
         $url = 'https://www.tiktok.com/v2/auth/authorize/?' . http_build_query([
             'client_key'            => adminSetting('posts.tiktok.client_id'),
             'response_type'         => 'code',
-            'scope'                 => 'user.info.basic,video.publish,video.upload',
+            'scope'                 => 'user.info.basic,video.publish,video.upload,user.info.profile,user.info.stats',
             'redirect_uri'          => $this->tiktokCallbackUrl(),
             'state'                 => $state,
             'code_challenge'        => $codeChallenge,
@@ -754,7 +754,7 @@ class PostAccountController extends Controller
 
         $profileResponse = $api->request('get', 'https://open.tiktokapis.com/v2/user/info/', [
             'Authorization' => 'Bearer ' . $token['access_token'],
-        ], ['fields' => 'open_id,display_name,avatar_url,bio_description,follower_count,following_count,likes_count,video_count']);
+        ], ['fields' => 'open_id,display_name,avatar_url,username,bio_description,follower_count,following_count,likes_count,video_count']);
 
         $profile = $profileResponse->successful() ? ($profileResponse->json()['data']['user'] ?? []) : [];
     dd($profile);
