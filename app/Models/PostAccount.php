@@ -47,6 +47,10 @@ class PostAccount extends Model
         'last_sync_at',
         'settings',
         'metadata',
+        'follower_count',
+        'likes_count',
+        'following_count',
+        'video_count'
     ];
 
     /**
