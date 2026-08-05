@@ -257,7 +257,7 @@ class GoogleChatMessagingService
         }
 
         $created = 0;
-        dd($spacesResponse['data']);
+        
         foreach ($spacesResponse['data']['spaces'] ?? [] as $space) {
             $spaceName = $space['name'] ?? null;
 
