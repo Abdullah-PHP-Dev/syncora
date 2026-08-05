@@ -247,6 +247,7 @@ class GoogleChatMessagingService
         $headers = ['Authorization' => "Bearer {$accessToken}"];
 
         $userInfoResponse = $this->apiService->get('https://www.googleapis.com/oauth2/v2/userinfo', $headers);
+        dd($userInfoResponse['data']);
         $googleUser = $userInfoResponse['success'] ? $userInfoResponse['data'] : [];
 
         $spacesResponse = $this->apiService->get('https://chat.googleapis.com/v1/spaces', $headers, ['pageSize' => 100]);
