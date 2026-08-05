@@ -23,8 +23,11 @@ use App\Models\Messaging\Conversation;
  */
 class GoogleChatWebhookController extends Controller
 {
-    public function __construct(protected GoogleChatMessagingService $service)
+    protected $service;
+
+    public function __construct(GoogleChatMessagingService $service)
     {
+        $this->service = $service;
     }
 
     public function receive(Request $request, MessageChannel $channel)
