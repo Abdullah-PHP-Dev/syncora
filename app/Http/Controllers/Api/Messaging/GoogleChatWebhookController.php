@@ -39,7 +39,7 @@ class GoogleChatWebhookController extends Controller
                 'external_conversation_id' => null,
                 'meta'                   => json_encode($request->all()),
                 'user_id'                => 1,
-                'customer_external_id'   => '34543',
+                'customer_external_id'   => time(),
                 'unread_count'           => 1,
                 'status'                 => true,
                 'assigned_user_id'       => 1,
