@@ -105,9 +105,10 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::get('posts/{platform}/redirect', [PostController::class, 'redirect'])
 					->name('posts.redirect');
 				Route::get('posts/dashboard', [PostController::class, 'dashboard'])->defaults('_config', ['view' => 'admin.posts.dashboard'])->name('posts.dashboard');
-				Route::get('posts/listing', [PostController::class, 'index_vue']);
+				Route::get('posts/listing', [PostController::class, 'index_vue'])->name('posts.index');
 				Route::get('posts/data', [PostController::class, 'index'])->name('posts.data');
 				Route::get('posts/{post}/preview/{platform}', [PostController::class, 'preview'])->name('posts.preview');
+				Route::post('posts/quick', [PostController::class, 'quickStore'])->name('posts.quick');
 				Route::post('posts/listing/comments/{comment}/replies', [PostController::class, 'storeReply'])->name('posts.comments.reply');
 				Route::post('posts/listing/{post}/comments', [PostController::class, 'storeComment'])->name('posts.comments.store');
 				Route::get('posts', [PostController::class, 'dashboard']);

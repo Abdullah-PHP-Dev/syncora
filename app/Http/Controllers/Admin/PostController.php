@@ -630,6 +630,115 @@ class PostController extends Controller
         ]);
     }
 
+    /**
+     * Publish the Quick Post composer's post straight to every connected
+     * account for each selected platform (no page/category picker in that UI).
+     */
+    public function quickStore(Request $request)
+    {
+        $userId = Auth::id();
+        $quickPlatforms = ['facebook', 'instagram', 'x', 'linkedin', 'tiktok', 'youtube'];
+        $scheduleMode = $request->boolean('schedule_mode');
+
+        $validated = $request->validate([
+            'content' => ['nullable', 'string', 'max:5000'],
+            'platforms' => ['required', 'array', 'min:1'],
+            'platforms.*' => ['required', 'string', 'in:' . implode(',', $quickPlatforms)],
+            'media' => ['nullable', 'file', 'max:10240'],
+            'schedule_mode' => ['nullable', 'boolean'],
+            'schedule_at' => $scheduleMode
+                ? ['required', 'date', 'after:' . now()->addMinutes(10)->toDateTimeString()]
+                : ['nullable', 'date'],
+        ], [
+            'platforms.required' => 'Please select at least one platform.',
+            'platforms.*.in' => 'That platform is not supported for quick posting.',
+            'schedule_at.required' => 'Schedule date is required when scheduling is enabled.',
+            'schedule_at.after' => 'Schedule date must be at least 10 minutes from now.',
+        ]);
+
+        if (trim((string) ($validated['content'] ?? '')) === '' && !$request->hasFile('media')) {
+            return response()->json([
+                'success' => false,
+                'errors' => [['message' => 'Please write something or add a photo/video before posting.']],
+            ], 422);
+        }
+
+        $category = PostCategory::firstOrCreate(
+            ['user_id' => $userId, 'name' => 'Quick Posts']
+        );
+
+        $data = [
+            'content' => $validated['content'] ?? '',
+            'media' => $request->hasFile('media') ? [$request->file('media')] : [],
+            'category_id' => $category->id,
+            'schedule_mode' => $scheduleMode ? 1 : 0,
+            'schedule_at' => $scheduleMode ? $validated['schedule_at'] : null,
+            'expiry_mode' => 0,
+            'expiry_at' => null,
+        ];
+
+        $results = [];
+        $errors = [];
+
+        foreach ($validated['platforms'] as $platform) {
+
+            $pages = PostAccount::where(['user_id' => $userId, 'platform' => $platform])->get();
+
+            if ($pages->isEmpty()) {
+                $errors[] = ['message' => "No connected {$platform} account found. Connect one first."];
+                continue;
+            }
+
+            switch ($platform) {
+                case 'facebook':
+                    $response = $this->metaService->store($data, $pages);
+                    break;
+                case 'instagram':
+                    $response = $this->instagramService->store($data, $pages);
+                    break;
+                case 'youtube':
+                    $response = $this->youtubeService->store($data, $pages);
+                    break;
+                case 'x':
+                    $response = $this->xService->store($data, $pages);
+                    break;
+                case 'linkedin':
+                    $response = $this->linkedinService->store($data, $pages);
+                    break;
+                case 'tiktok':
+                    $response = $this->tiktokService->store($data, $pages);
+                    break;
+            }
+
+            if (!$response['success']) {
+                if (isset($response['errors']) && is_array($response['errors'])) {
+                    foreach ($response['errors'] as $error) {
+                        $errors[] = $error;
+                    }
+                } else {
+                    $errors[] = ['message' => "{$platform}: " . ($response['message'] ?? 'Publishing failed')];
+                }
+                continue;
+            }
+
+            $results[$platform] = $response['data'] ?? $response['results'] ?? [];
+        }
+
+        if (empty($results)) {
+            return response()->json([
+                'success' => false,
+                'errors' => $errors,
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $scheduleMode ? 'Post scheduled successfully!' : 'Post published successfully!',
+            'results' => $results,
+            'errors' => $errors,
+        ]);
+    }
+
     public function destroy($postId)
     {
         $post = Post::with('postAccount', 'postComments' ,'media')->find($postId);

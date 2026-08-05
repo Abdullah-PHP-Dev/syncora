@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.blade.php": "blade"
+    },
+    "[blade]": {
+        "editor.formatOnSave": false
+    }
+}

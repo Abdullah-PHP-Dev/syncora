@@ -570,7 +570,7 @@
                 :disabled="!canSubmitQuickPost"
                 @click="submitQuickPost">
 
-              {{ quickPost.scheduleLater ? 'Schedule Post' : 'Post' }}
+              {{ quickPostSubmitting ? 'Posting...' : (quickPost.scheduleLater ? 'Schedule Post' : 'Post') }}
 
             </button>
 
@@ -618,6 +618,11 @@ export default {
     },
 
     apiUrl: {
+      type: String,
+      default: ''
+    },
+
+    quickCreateUrl: {
       type: String,
       default: ''
     },
@@ -690,7 +695,8 @@ export default {
         mediaType: null,
         scheduleLater: false,
         scheduleAt: ''
-      }
+      },
+      quickPostSubmitting: false
 
     }
 
@@ -724,7 +730,8 @@ export default {
     canSubmitQuickPost() {
 
       return (this.quickPost.content.trim().length > 0 || this.quickPost.mediaPreview)
-          && this.quickPost.platforms.length > 0;
+          && this.quickPost.platforms.length > 0
+          && !this.quickPostSubmitting;
 
     },
 
@@ -939,50 +946,95 @@ export default {
 
     },
 
+    quickPostErrorMessage(payload) {
+
+      const errors = payload && payload.errors;
+
+      if (Array.isArray(errors) && errors.length) {
+        return errors.map(e => (e && e.message) ? e.message : JSON.stringify(e)).join(' ');
+      }
+
+      if (errors && typeof errors === 'object') {
+        return Object.values(errors).flat().join(' ');
+      }
+
+      return (payload && payload.message) || 'Something went wrong while posting.';
+
+    },
+
     submitQuickPost() {
 
-      if (!this.canSubmitQuickPost) return;
+      if (!this.canSubmitQuickPost || !this.quickCreateUrl) return;
 
-      const nextId = this.posts.length ? Math.max(...this.posts.map(p => p.id)) + 1 : 1;
+      this.quickPostSubmitting = true;
 
-      const newPost = {
-        id: nextId,
-        type: this.quickPost.mediaType === 'video' ? 'video' : (this.quickPost.mediaPreview ? 'image' : 'text'),
-        platformKeys: [...this.quickPost.platforms],
-        platforms: this.quickPost.platforms.map(key => platformMeta[key]),
-        status: this.quickPost.scheduleLater ? 'Scheduled' : 'Published',
-        title: this.quickPost.content.split('\n')[0].slice(0, 60) || 'New Post',
-        content: this.quickPost.content,
-        image: this.quickPost.mediaType === 'image' ? this.quickPost.mediaPreview : null,
-        thumbnail: this.quickPost.mediaType === 'video' ? this.quickPost.mediaPreview : null,
-        video: this.quickPost.mediaType === 'video' ? this.quickPost.mediaPreview : null,
-        likes: 0,
-        comments: 0,
-        shares: 0,
-        views: 0,
-        author: this.userName,
-        created_at: this.quickPost.scheduleLater && this.quickPost.scheduleAt
-            ? this.quickPost.scheduleAt
-            : new Date().toISOString().slice(0, 10)
-      };
+      const formData = new FormData();
 
-      this.posts.unshift(newPost);
+      formData.append('content', this.quickPost.content);
+      this.quickPost.platforms.forEach(key => formData.append('platforms[]', key));
 
-      this.quickPost = {
-        content: '',
-        platforms: [],
-        mediaFile: null,
-        mediaPreview: null,
-        mediaType: null,
-        scheduleLater: false,
-        scheduleAt: ''
-      };
-
-      const modalEl = this.$refs.quickCreateModal;
-
-      if (window.bootstrap && modalEl) {
-        window.bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+      if (this.quickPost.mediaFile) {
+        formData.append('media', this.quickPost.mediaFile);
       }
+
+      if (this.quickPost.scheduleLater && this.quickPost.scheduleAt) {
+        formData.append('schedule_mode', '1');
+        formData.append('schedule_at', this.quickPost.scheduleAt);
+      }
+
+      window.axios.post(this.quickCreateUrl, formData).then(({ data }) => {
+
+        const modalEl = this.$refs.quickCreateModal;
+
+        if (window.bootstrap && modalEl) {
+          window.bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+        }
+
+        this.quickPost = {
+          content: '',
+          platforms: [],
+          mediaFile: null,
+          mediaPreview: null,
+          mediaType: null,
+          scheduleLater: false,
+          scheduleAt: ''
+        };
+
+        this.pagination.currentPage = 1;
+        this.fetchPosts();
+
+        const message = data.message || 'Post published successfully!';
+
+        if (window.Swal) {
+          window.Swal.fire('Success!', message, 'success');
+        } else {
+          window.alert(message);
+        }
+
+        if (data.errors && data.errors.length) {
+          const warning = this.quickPostErrorMessage(data);
+          if (window.Swal) {
+            window.Swal.fire('Partial success', warning, 'warning');
+          } else {
+            window.alert(warning);
+          }
+        }
+
+      }).catch((error) => {
+
+        const message = this.quickPostErrorMessage(error.response && error.response.data);
+
+        if (window.Swal) {
+          window.Swal.fire('Error!', message, 'error');
+        } else {
+          window.alert(message);
+        }
+
+      }).finally(() => {
+
+        this.quickPostSubmitting = false;
+
+      });
 
     }
 
