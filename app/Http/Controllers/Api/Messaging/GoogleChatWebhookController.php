@@ -35,6 +35,7 @@ class GoogleChatWebhookController extends Controller
         try {
             Conversation::create([
                 'platform'               => 'google',
+                'message_channel_id' => 5,
                 'external_conversation_id' => null,
                 'meta'                   => json_encode($request->all()),
                 'user_id'                => 1,
