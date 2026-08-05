@@ -1,8 +1,8 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow">
     <div class="container">
 
-        <a class="navbar-brand fw-bold" href="/">
-            Socialeaz
+        <a class="navbar-brand fw-bold d-flex align-items-center" href="/">
+            <img src="https://cdn.socialeaz.com/uploads/6kyYmO2jeGMdWShseKtxLtnuIlN7oDqBq4jxkWYL.png" alt="Socialeaz" height="32">
         </a>
 
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
