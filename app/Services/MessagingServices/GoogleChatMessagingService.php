@@ -256,7 +256,7 @@ class GoogleChatMessagingService
         }
 
         $created = 0;
-
+        dd($spacesResponse['data']);
         foreach ($spacesResponse['data']['spaces'] ?? [] as $space) {
             $spaceName = $space['name'] ?? null;
 
@@ -265,7 +265,7 @@ class GoogleChatMessagingService
             }
 
             MessageChannel::updateOrCreate(
-                ['platform' => 'google_chat_user', 'external_id' => $spaceName, 'user_id' => $userId],
+                ['platform' => 'google_chat', 'external_id' => $spaceName, 'user_id' => $userId],
                 [
                     'name'          => $space['displayName'] ?? ($googleUser['email'] ?? 'Google Chat space'),
                     'username'      => $googleUser['email'] ?? null,
