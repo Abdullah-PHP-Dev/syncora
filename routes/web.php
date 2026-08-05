@@ -194,6 +194,10 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('messaging.channels.teams.store');
 				Route::post('messaging/channels/google-chat', [MessageChannelController::class, 'storeGoogleChat'])
 					->name('messaging.channels.google_chat.store');
+				Route::get('messaging/auth/google-chat/redirect', [MessageChannelController::class, 'redirectGoogleChatOAuth'])
+					->name('messaging.auth.google_chat.redirect');
+				Route::get('messaging/auth/google-chat/callback', [MessageChannelController::class, 'callbackGoogleChatOAuth'])
+					->name('messaging.auth.google_chat.callback');
 				Route::post('messaging/channels/matrix', [MessageChannelController::class, 'storeMatrix'])
 					->name('messaging.channels.matrix.store');
 				Route::post('messaging/auth/zalo/redirect', [MessageChannelController::class, 'redirectZalo'])

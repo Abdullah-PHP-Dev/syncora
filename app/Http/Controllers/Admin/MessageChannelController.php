@@ -353,17 +353,21 @@ class MessageChannelController extends Controller
      * single token - rather than asking for client_email/private_key as
      * two separate fields (error-prone for a multi-line PEM pasted into a
      * plain input), this takes the whole downloaded JSON key file as one
-     * paste and extracts what it needs. The Cloud project *number* has to
-     * be collected separately since it isn't part of that JSON file at
-     * all - see GoogleChatMessagingService's docblock for why it's needed
-     * (verifying inbound requests) and where to find it.
+     * paste and extracts what it needs. The Cloud project *number* isn't
+     * part of that JSON file at all (see GoogleChatMessagingService's
+     * docblock for why it's needed - verifying inbound requests), so this
+     * tries to auto-detect it via detectProjectNumber() first - manually
+     * typing it in is exactly what previously broke a real customer's
+     * inbound messages (a pasted project *id* where the numeric project
+     * *number* belonged). The field is only asked for as a fallback when
+     * auto-detection genuinely can't resolve it.
      */
     public function storeGoogleChat(Request $request, GoogleChatMessagingService $service)
     {
         $validated = $request->validate([
-            'name'                => ['required', 'string', 'max:255'],
+            'name'                 => ['required', 'string', 'max:255'],
             'service_account_json' => ['required', 'string'],
-            'project_number'      => ['required', 'string'],
+            'project_number'       => ['nullable', 'string'],
         ]);
 
         $key = json_decode($validated['service_account_json'], true);
@@ -378,13 +382,21 @@ class MessageChannelController extends Controller
             return back()->withErrors(['service_account_json' => 'Could not authenticate with this service account against Google.']);
         }
 
+        $projectNumber = $service->detectProjectNumber($key['client_email'], $key['private_key'], $key['project_id'] ?? '')
+            ?? $validated['project_number']
+            ?? null;
+
+        if (!$projectNumber) {
+            return back()->withErrors(['project_number' => 'Could not automatically detect this project\'s number - please enter it manually. Find it in Google Cloud Console under "Project info" on your project\'s dashboard.']);
+        }
+
         $channel = MessageChannel::updateOrCreate(
             ['platform' => 'google_chat', 'external_id' => $key['client_email']],
             [
                 'user_id'      => Auth::id(),
                 'name'         => $validated['name'],
                 'access_token' => $key['private_key'],
-                'meta'         => ['project_number' => $validated['project_number'], 'project_id' => $key['project_id'] ?? null],
+                'meta'         => ['project_number' => $projectNumber, 'project_id' => $key['project_id'] ?? null],
                 'status'       => true,
             ]
         );
@@ -394,6 +406,44 @@ class MessageChannelController extends Controller
         return redirect()->route('admin.chats.channels')->with(
             'success',
             "Google Chat app connected. Paste this URL as the App URL in Google Cloud Console > Google Chat API > Configuration: {$webhookUrl}"
+        );
+    }
+
+    /**
+     * Separate connection path from storeGoogleChat() above - user
+     * authentication, not app authentication. Lets an admin authorize
+     * Socialeaz to act as their own Google account (post/read in Chat
+     * spaces they already belong to) with a normal consent-screen
+     * redirect, no service account JSON needed. Does not receive
+     * customer DMs - see GoogleChatMessagingService::redirectUserAuth()'s
+     * docblock for why that's a hard Google API limitation, not a choice
+     * made here.
+     */
+    public function redirectGoogleChatOAuth(GoogleChatMessagingService $service)
+    {
+        $state = Str::uuid()->toString();
+        session(['messaging_oauth_state' => $state]);
+
+        return $service->redirectUserAuth($state);
+    }
+
+    public function callbackGoogleChatOAuth(Request $request, GoogleChatMessagingService $service)
+    {
+        if (!$request->filled('code') || $request->query('state') !== session('messaging_oauth_state')) {
+            return redirect()->route('admin.chats.channels')->with('error', 'Google Chat connection failed or was cancelled.');
+        }
+
+        $result = $service->handleUserOAuthCallback($request->query('code'), Auth::id());
+
+        if (!$result['success']) {
+            return redirect()->route('admin.chats.channels')->with('error', $result['error'] ?? 'Google Chat connection failed.');
+        }
+
+        return redirect()->route('admin.chats.channels')->with(
+            $result['created'] > 0 ? 'success' : 'error',
+            $result['created'] > 0
+                ? "Connected {$result['created']} Google Chat space(s) as {$result['email']}."
+                : 'Connected to Google, but no Chat spaces were found for this account.'
         );
     }
 

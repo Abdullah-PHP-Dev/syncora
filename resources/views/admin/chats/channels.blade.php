@@ -501,13 +501,17 @@
 
             <div class="col-md-6 col-lg-4">
                 <div class="platform-card">
-                    @if ($channelsByPlatform->has('google_chat'))
-                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('google_chat')->count() }} connected</span>
+                    @if ($channelsByPlatform->has('google_chat') || $channelsByPlatform->has('google_chat_user'))
+                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('google_chat', collect())->count() + $channelsByPlatform->get('google_chat_user', collect())->count() }} connected</span>
                     @endif
                     <div class="channel-platform-icon google_chat mx-auto"><i class="bx bx-message-rounded-dots"></i></div>
                     <h6>Google Chat</h6>
                     <p class="text-muted">Build a Chat app on a <a href="https://console.cloud.google.com" target="_blank">Google Cloud</a> project, paste its service account key below, then set the App URL you'll be shown.</p>
                     <button type="button" class="btn btn-sm text-white" style="background:#4285F4" data-bs-toggle="modal" data-bs-target="#googleChatModal">Connect Google Chat</button>
+                    <div class="mt-2">
+                        <a href="{{ route('admin.messaging.auth.google_chat.redirect') }}" class="small">Or connect with your Google account</a>
+                        <p class="text-muted mb-0" style="font-size:.75rem;">Post/read in spaces you already belong to - won't receive customer DMs (that needs the Chat app above).</p>
+                    </div>
                 </div>
             </div>
 
@@ -740,7 +744,7 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <p class="text-muted small">In <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a>, enable the Google Chat API, create a service account, and download its JSON key - paste the whole file below. You'll also need the project number shown on your project's dashboard (not the project ID). After connecting, you'll be shown an App URL - paste it into the Chat API's Configuration tab.</p>
+                        <p class="text-muted small">In <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a>, enable the Google Chat API, create a service account, and download its JSON key - paste the whole file below. After connecting, you'll be shown an App URL - paste it into the Chat API's Configuration tab.</p>
                         <div class="mb-3">
                             <label class="form-label">Display Name *</label>
                             <input type="text" name="name" class="form-control" required>
@@ -752,8 +756,9 @@
                             @error('service_account_json')<p class="text-danger small">{{ $message }}</p>@enderror
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Google Cloud Project Number *</label>
-                            <input type="text" name="project_number" class="form-control" placeholder="e.g. 123456789012" required>
+                            <label class="form-label">Google Cloud Project Number</label>
+                            <input type="text" name="project_number" class="form-control" placeholder="Usually auto-detected - only needed if we can't detect it">
+                            <small class="text-muted">We'll try to detect this automatically from your service account. If we can't, find it under "Project info" on your project's Google Cloud dashboard (not the project ID) and enter it here.</small>
                             @error('project_number')<p class="text-danger small">{{ $message }}</p>@enderror
                         </div>
                     </div>

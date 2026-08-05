@@ -12,7 +12,9 @@ use Firebase\JWT\JWT;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
+use Carbon\Carbon;
 
 /**
  * Google Chat API (chat.googleapis.com) - yes, Google does provide a real,
@@ -78,7 +80,7 @@ class GoogleChatMessagingService
         $this->jwksUrl = adminSetting('messaging.google_chat.jwks_url') ?: 'https://www.googleapis.com/service_accounts/v1/jwk/chat@system.gserviceaccount.com';
     }
 
-    private function fetchAccessToken(string $clientEmail, string $privateKey): ?array
+    private function fetchAccessToken(string $clientEmail, string $privateKey, ?string $scope = null): ?array
     {
         $now = time();
 
@@ -90,7 +92,7 @@ class GoogleChatMessagingService
             // response as any other invalid credential, not a 500.
             $assertion = JWT::encode([
                 'iss'   => $clientEmail,
-                'scope' => $this->scope,
+                'scope' => $scope ?? $this->scope,
                 'aud'   => $this->tokenUrl,
                 'iat'   => $now,
                 'exp'   => $now + 3600,
@@ -125,6 +127,197 @@ class GoogleChatMessagingService
     }
 
     /**
+     * Spares the admin from having to manually hunt down the Cloud
+     * project *number* in the GCP Console (see verifyRequestToken()'s
+     * docblock for why this app needs it) - it's not in the service
+     * account JSON at all, only the human-readable project *id* is.
+     *
+     * Cloud Resource Manager's projects.get would return it directly,
+     * but a service account created purely to back a Chat app (per
+     * Google's own Chat quickstart) is never granted IAM permissions on
+     * its own project, and that API is essentially never enabled on
+     * such a project either - calling it fails almost every time with a
+     * SERVICE_DISABLED error (confirmed empirically, not just from
+     * docs). Google resolves the caller's project *before* checking
+     * whether the target API is enabled for it though, so that specific
+     * error response always carries the true numeric project number in
+     * error.details[].metadata.consumer ("projects/{number}") even
+     * though the call itself "failed" - that's what's parsed out below.
+     * If Resource Manager happens to be enabled and permitted, the
+     * success path's projectNumber field is used directly instead.
+     */
+    public function detectProjectNumber(string $clientEmail, string $privateKey, string $projectId): ?string
+    {
+        $token = $this->fetchAccessToken($clientEmail, $privateKey, 'https://www.googleapis.com/auth/cloud-platform.read-only');
+        $accessToken = $token['access_token'] ?? null;
+
+        if (!$accessToken) {
+            return null;
+        }
+
+        $response = $this->apiService->get(
+            "https://cloudresourcemanager.googleapis.com/v1/projects/{$projectId}",
+            ['Authorization' => "Bearer {$accessToken}"]
+        );
+
+        if ($response['success']) {
+            return $response['data']['projectNumber'] ?? null;
+        }
+
+        $details = $response['data']['error']['details'] ?? [];
+
+        foreach ($details as $detail) {
+            $consumer = $detail['metadata']['consumer'] ?? '';
+
+            if (preg_match('/^projects\/(\d+)$/', $consumer, $matches)) {
+                return $matches[1];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * User-authenticated Google Chat connection - deliberately separate
+     * from the service-account ("app authentication") flow above, not a
+     * replacement for it. Per Google's own Chat API docs, a user's OAuth
+     * token can never receive inbound messages other people send to a
+     * bot - only a registered Chat app (service account + App URL) can.
+     * What this DOES enable is posting into, and reading, spaces the
+     * connecting Google user already belongs to, as themselves - e.g.
+     * pushing an automated report into a team space - which is what
+     * platform=google_chat_user channels are for; regular platform=
+     * google_chat channels (verifyRequestToken()/handleEvent() above)
+     * remain the only way this app receives customer DMs.
+     *
+     * Uses its own OAuth client (chats.google.client_id/client_secret) -
+     * a separate Cloud OAuth client from the one PostAccountController::
+     * redirectGoogle() uses for YouTube/Business Profile, so this
+     * module's consent screen/scopes stay independent of the Posts
+     * module's.
+     */
+    public function redirectUserAuth(string $state)
+    {
+        $queryParams = [
+            'client_id'     => adminSetting('chats.google.client_id'),
+            'redirect_uri'  => $this->userAuthCallbackUrl(),
+            'response_type' => 'code',
+            'access_type'   => 'offline',
+            'prompt'        => 'consent',
+            'scope'         => 'https://www.googleapis.com/auth/chat.messages https://www.googleapis.com/auth/chat.spaces.readonly https://www.googleapis.com/auth/userinfo.email',
+            'state'         => $state,
+        ];
+
+        return Redirect::away('https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query($queryParams));
+    }
+
+    private function userAuthCallbackUrl(): string
+    {
+        return url('/admin/messaging/auth/google-chat/callback');
+    }
+
+    /**
+     * Mirrors PostAccountController::callbackGoogle()'s shape (exchange
+     * code, then fan out into one row per resource the user has access
+     * to) but against Chat spaces instead of YouTube channels/GBP
+     * locations, and into MessageChannel instead of PostAccount since
+     * this is the messaging module. Every space created here shares the
+     * same access_token/refresh_token pair - ensureUserAccessToken()
+     * refreshes it once access_token expires, same idea as
+     * ensureAccessToken() above but via the standard OAuth refresh_token
+     * grant instead of a fresh JWT assertion.
+     */
+    public function handleUserOAuthCallback(string $code, int $userId): array
+    {
+        $tokenResponse = $this->apiService->post($this->tokenUrl, [], [
+            'code'          => $code,
+            'client_id'     => adminSetting('chats.google.client_id'),
+            'client_secret' => adminSetting('chats.google.client_secret'),
+            'redirect_uri'  => $this->userAuthCallbackUrl(),
+            'grant_type'    => 'authorization_code',
+        ], 'form');
+
+        if (!$tokenResponse['success']) {
+            return ['success' => false, 'error' => $tokenResponse['data']['error_description'] ?? 'Failed to exchange the Google authorization code.'];
+        }
+
+        $token = $tokenResponse['data'];
+        $accessToken = $token['access_token'];
+        $expiresAt = Carbon::now()->addSeconds($token['expires_in'] ?? 3600);
+        $headers = ['Authorization' => "Bearer {$accessToken}"];
+
+        $userInfoResponse = $this->apiService->get('https://www.googleapis.com/oauth2/v2/userinfo', $headers);
+        $googleUser = $userInfoResponse['success'] ? $userInfoResponse['data'] : [];
+
+        $spacesResponse = $this->apiService->get('https://chat.googleapis.com/v1/spaces', $headers, ['pageSize' => 100]);
+
+        if (!$spacesResponse['success']) {
+            return ['success' => false, 'error' => $spacesResponse['data']['error']['message'] ?? 'Could not list your Google Chat spaces.'];
+        }
+
+        $created = 0;
+
+        foreach ($spacesResponse['data']['spaces'] ?? [] as $space) {
+            $spaceName = $space['name'] ?? null;
+
+            if (!$spaceName) {
+                continue;
+            }
+
+            MessageChannel::updateOrCreate(
+                ['platform' => 'google_chat_user', 'external_id' => $spaceName, 'user_id' => $userId],
+                [
+                    'name'          => $space['displayName'] ?? ($googleUser['email'] ?? 'Google Chat space'),
+                    'username'      => $googleUser['email'] ?? null,
+                    'avatar_url'    => $googleUser['picture'] ?? null,
+                    'access_token'  => $accessToken,
+                    'refresh_token' => $token['refresh_token'] ?? null,
+                    'expires_at'    => $expiresAt,
+                    'status'        => true,
+                ]
+            );
+            $created++;
+        }
+
+        return ['success' => true, 'created' => $created, 'email' => $googleUser['email'] ?? null];
+    }
+
+    /**
+     * Standard OAuth refresh_token grant - unlike ensureAccessToken()'s
+     * service-account JWT assertion, a user-authenticated token has no
+     * private key to re-sign a new assertion with, only the refresh_token
+     * Google issued alongside the original access_token (guaranteed
+     * present here since redirectUserAuth() always sends access_type=
+     * offline&prompt=consent).
+     */
+    private function ensureUserAccessToken(MessageChannel $channel): ?string
+    {
+        if ($channel->expires_at && $channel->expires_at->isFuture()) {
+            return $channel->access_token;
+        }
+
+        $response = $this->apiService->post($this->tokenUrl, [], [
+            'refresh_token' => $channel->refresh_token,
+            'client_id'     => adminSetting('chats.google.client_id'),
+            'client_secret' => adminSetting('chats.google.client_secret'),
+            'grant_type'    => 'refresh_token',
+        ], 'form');
+
+        if (!$response['success'] || empty($response['data']['access_token'])) {
+            return null;
+        }
+
+        $accessToken = $response['data']['access_token'];
+
+        $channel->update([
+            'access_token' => $accessToken,
+            'expires_at'   => Carbon::now()->addSeconds($response['data']['expires_in'] ?? 3600),
+        ]);
+
+        return $accessToken;
+    }
+
+    /**
      * Only ever caches a genuine token, never a failure - Cache::remember()
      * would otherwise cache a null result from a transient Google outage
      * (or credentials that were wrong and have since been fixed) for the
@@ -151,22 +344,43 @@ class GoogleChatMessagingService
     }
 
     /**
+     * Dispatches to whichever token flow matches how this channel was
+     * connected - app authentication (service account, platform=
+     * google_chat) for the customer-DM inbox, or user authentication
+     * (OAuth refresh_token, platform=google_chat_user) for spaces
+     * connected via redirectUserAuth()/handleUserOAuthCallback() above.
+     */
+    private function resolveAccessToken(MessageChannel $channel): ?string
+    {
+        return $channel->platform === 'google_chat_user'
+            ? $this->ensureUserAccessToken($channel)
+            : $this->ensureAccessToken($channel);
+    }
+
+    /**
      * Unlike Teams, there's no "wait for the first message" guard needed
-     * here beyond the generic missing-conversation-id case: the space
-     * name is created the moment the user starts the DM, and this app is
-     * auto-added as a member of it at that same moment, so any space
-     * name captured from an inbound event is already postable-to for as
-     * long as that DM exists.
+     * for an app-authenticated (platform=google_chat) conversation beyond
+     * the generic missing-conversation-id case: the space name is created
+     * the moment the user starts the DM, and this app is auto-added as a
+     * member of it at that same moment, so any space name captured from
+     * an inbound event is already postable-to for as long as that DM
+     * exists. A user-authenticated (platform=google_chat_user) channel
+     * has no such wait at all - it targets the one space it was connected
+     * to (channel->external_id) directly, since handleUserOAuthCallback()
+     * only ever creates a channel for spaces the user already belongs to.
      */
     public function sendMessage(Conversation $conversation, array $data)
     {
         $channel = $conversation->channel;
+        $spaceName = $channel->platform === 'google_chat_user'
+            ? $channel->external_id
+            : $conversation->external_conversation_id;
 
-        if (!$conversation->external_conversation_id) {
+        if (!$spaceName) {
             return ['success' => false, 'error' => 'Cannot start a Google Chat conversation from this side - wait for the customer to message the app first.'];
         }
 
-        $accessToken = $this->ensureAccessToken($channel);
+        $accessToken = $this->resolveAccessToken($channel);
 
         if (!$accessToken) {
             return ['success' => false, 'error' => 'Could not authenticate with the Google Chat API.'];
@@ -182,7 +396,7 @@ class GoogleChatMessagingService
         }
 
         $response = $this->apiService->post(
-            $this->baseUrl . $conversation->external_conversation_id . '/messages',
+            $this->baseUrl . $spaceName . '/messages',
             ['Authorization' => "Bearer {$accessToken}"],
             ['text' => $text]
         );
@@ -198,14 +412,14 @@ class GoogleChatMessagingService
      * external_message_id already IS the message's full resource name
      * ("spaces/{id}/messages/{id}", see sendMessage() above) - both update
      * and delete address it directly, no separate id assembly needed. Only
-     * app-authenticated messages the Chat app itself created can be
-     * updated/deleted this way, which is exactly what every message this
-     * service ever sends is.
+     * messages this service itself sent (app- or user-authenticated) can
+     * be updated/deleted this way, which is exactly what every message
+     * this service ever sends is.
      */
     public function editMessage(Message $message, string $newBody): array
     {
         $channel = $message->conversation->channel;
-        $accessToken = $this->ensureAccessToken($channel);
+        $accessToken = $this->resolveAccessToken($channel);
 
         if (!$accessToken) {
             return ['success' => false, 'error' => 'Could not authenticate with the Google Chat API.'];
@@ -227,7 +441,7 @@ class GoogleChatMessagingService
     public function deleteMessage(Message $message): array
     {
         $channel = $message->conversation->channel;
-        $accessToken = $this->ensureAccessToken($channel);
+        $accessToken = $this->resolveAccessToken($channel);
 
         if (!$accessToken) {
             return ['success' => false, 'error' => 'Could not authenticate with the Google Chat API.'];

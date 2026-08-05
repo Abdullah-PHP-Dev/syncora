@@ -867,8 +867,6 @@ class PostAccountController extends Controller
                 ]
             );
             $created['youtube']++;
-
-            dd($channel['statistics']);
         }
 
         // Google Business Profile - every location under every account the
