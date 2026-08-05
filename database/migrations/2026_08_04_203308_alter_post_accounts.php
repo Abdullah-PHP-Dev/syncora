@@ -16,6 +16,7 @@ return new class extends Migration
             $table->bigInteger('following_count')->nullable()->default(0)->after('media_count');
             $table->bigInteger('likes_count')->nullable()->default(0)->after('following_count');
             $table->bigInteger('follower_count')->nullable()->default(0)->after('likes_count');
+            $table->bigInteger('views_count')->nullable()->default(0)->after('follower_count');
         });
     }
 
@@ -25,7 +26,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('post_accounts', function (Blueprint $table) {
-            $table->dropColumn(['media_count', 'following_count', 'likes_count', 'follower_count']);
+            $table->dropColumn(['media_count', 'following_count', 'likes_count', 'follower_count', 'views_count']);
         });
     }
 };
