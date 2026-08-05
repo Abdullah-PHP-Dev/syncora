@@ -854,6 +854,7 @@ class PostAccountController extends Controller
                     'name'          => $channel['snippet']['title'] ?? 'YouTube Channel',
                     'username'      => $channel['snippet']['customUrl'] ?? null,
                     'image'         => $channel['snippet']['thumbnails']['default']['url'] ?? null,
+                    'account_url'   => 'https://www.youtube.com/' .$channel['snippet']['customUrl'] ?? null,
                     'access_token'  => $accessToken,
                     'refresh_token' => $token['refresh_token'] ?? null,
                     'expires_in'    => $expiresAt,
