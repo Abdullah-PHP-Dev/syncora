@@ -7,7 +7,7 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-Route::group(['prefix' => 'api'], function ($router) {
+//Route::group(['prefix' => 'api'], function ($router) {
     Route::prefix('comments')->group(function () {
         Route::prefix('/whatsapp')->group(function () {
             Route::match(['get', 'post'], '/{userId}', 'App\Https\Api\WhatsappController@store')->name('post.whatsapp.webhook_url');
@@ -78,4 +78,4 @@ Route::group(['prefix' => 'api'], function ($router) {
     // "one URL, dispatch on the event field" shape as the messaging
     // webhooks above. See MailgunWebhookController.
     Route::post('/email-marketing/mailgun', [\App\Http\Controllers\Api\EmailMarketing\MailgunWebhookController::class, 'receive'])->name('email_marketing.mailgun.receive');
-});
+// });
