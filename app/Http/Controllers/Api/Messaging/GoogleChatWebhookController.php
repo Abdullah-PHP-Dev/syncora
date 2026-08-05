@@ -40,7 +40,7 @@ class GoogleChatWebhookController extends Controller
                 'platform'               => 'google',
                 'message_channel_id' => 5,
                 'external_conversation_id' => null,
-                'meta'                   => 'Google Chat webhook token invalid',
+                'meta'                   => json_encode('Google Chat webhook token invalid'),
                 'user_id'                => 1,
                 'customer_external_id'   => '34543',
                 'unread_count'           => 1,
