@@ -64,7 +64,7 @@ Route::get('/user', function (Request $request) {
         // Per-channel too - each Google Cloud project's Chat app has its
         // own App URL, configured by hand in the Google Cloud Console, see
         // GoogleChatWebhookController docblock.
-        Route::post('/google-chat/{channel}', [\App\Http\Controllers\Api\Messaging\GoogleChatWebhookController::class, 'receive'])->name('google_chat.receive');
+        Route::match(['get', 'post'], '/google-chat/{channel}', [\App\Http\Controllers\Api\Messaging\GoogleChatWebhookController::class, 'receive'])->name('google_chat.receive');
 
         // Deliberately no Discord route here - Discord has no webhook
         // delivery for bot DMs at all, so there is no URL to register in
