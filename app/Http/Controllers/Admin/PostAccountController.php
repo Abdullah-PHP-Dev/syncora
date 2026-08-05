@@ -847,7 +847,7 @@ class PostAccountController extends Controller
 
         if ($channelResponse->successful() && !empty($channelResponse->json()['items'])) {
             $channel = $channelResponse->json()['items'][0];
-
+            dd($channel);
             PostAccount::updateOrCreate(
                 ['platform' => 'youtube', 'account_id' => $channel['id'], 'user_id' => Auth::id()],
                 [
