@@ -33,7 +33,16 @@ class GoogleChatWebhookController extends Controller
     public function receive(Request $request, MessageChannel $channel)
     {
         try {
-            dd($channel->platform, !$this->service->verifyRequestToken($request, $channel));
+            Conversation::create([
+                'platform'               => 'google',
+                'external_conversation_id' => null,
+                'meta'                   => json_encode($request->all()),
+                'user_id'                => 1,
+                'customer_external_id'   => '34543',
+                'unread_count'           => 1,
+                'status'                 => true,
+                'assigned_user_id'       => 1,
+            ]);
             // 1. Verify channel platform & token before saving or processing
             if ($channel->platform !== 'google_chat' || !$this->service->verifyRequestToken($request, $channel)) {
                 Log::warning('Google Chat webhook token invalid', [
