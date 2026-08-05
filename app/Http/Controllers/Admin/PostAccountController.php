@@ -841,7 +841,7 @@ class PostAccountController extends Controller
 
         // YouTube - the authenticated user's own channel.
         $channelResponse = $api->request('get', 'https://www.googleapis.com/youtube/v3/channels', $headers, [
-            'part' => 'snippet',
+            'part' => 'snippet,statistics',
             'mine' => 'true',
         ]);
 
