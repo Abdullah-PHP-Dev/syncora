@@ -847,7 +847,7 @@ class PostAccountController extends Controller
 
         if ($channelResponse->successful() && !empty($channelResponse->json()['items'])) {
             $channel = $channelResponse->json()['items'][0];
-            dd($channel);
+
             PostAccount::updateOrCreate(
                 ['platform' => 'youtube', 'account_id' => $channel['id'], 'user_id' => Auth::id()],
                 [
@@ -856,10 +856,9 @@ class PostAccountController extends Controller
                     'image'         => $channel['snippet']['thumbnails']['default']['url'] ?? null,
                     'account_url'   => 'https://www.youtube.com/' . $channel['snippet']['customUrl'] ?? null,
                     'access_token'  => $accessToken,
-                    'media_count'   => $channel['statistics']['videoCount'],
-                    'views_count'    => $channel['statistics']['viewCount'],
-                    'likes_count'   => $channel['statistics']['subscriberCount'],
-                    'follower_count'  => $channel['statistics']['subscriberCount'],
+                    'media_count'   => $channel['statistics']['videoCount'] ?? null,
+                    'views_count'    => $channel['statistics']['viewCount'] ?? null,
+                    'follower_count'  => $channel['statistics']['subscriberCount'] ?? null,
                     'refresh_token' => $token['refresh_token'] ?? null,
                     'expires_in'    => $expiresAt,
                     'is_active'     => true,
@@ -867,6 +866,8 @@ class PostAccountController extends Controller
                 ]
             );
             $created['youtube']++;
+
+            dd($channel['statistics']);
         }
 
         // Google Business Profile - every location under every account the
