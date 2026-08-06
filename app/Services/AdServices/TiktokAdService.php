@@ -110,7 +110,7 @@ class TiktokAdService
             'secret'    => adminSetting('ads.tiktok.client_secret'),
             'auth_code' => $authCode,
         ], 'json');
-
+        dd($tokenResponse);
         $token = $this->parseTikTokResponse($tokenResponse);
 
         if (!$token['success']) {
