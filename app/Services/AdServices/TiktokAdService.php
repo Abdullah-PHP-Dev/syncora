@@ -111,12 +111,7 @@ class TiktokAdService
             'grant_type'    => 'authorization_code',
             'auth_code' => $authCode,
         ], 'json');
-        dd($tokenResponse, [
-            'app_id'    => (string) adminSetting('ads.tiktok.client_id'),
-            'secret'    => (string) adminSetting('ads.tiktok.client_secret'),
-            'grant_type'    => 'authorization_code',
-            'auth_code' => $authCode,
-        ]);
+
         $token = $this->parseTikTokResponse($tokenResponse);
 
         if (!$token['success']) {
