@@ -12,7 +12,7 @@ use App\Models\User;
 class AdAccount extends Model
 {
     protected $table = 'ad_accounts';
-    protected $fillable = ['platform', 'user_id', 'name', 'currency', 'client_id', 'client_id', 'token_secret', 'status', 'access_token', 'refresh_token', 'expires_at', 'profile_id'];
+    protected $fillable = ['platform', 'user_id', 'name', 'currency', 'ad_account_id', 'client_id', 'client_secret', 'token_secret', 'status', 'access_token', 'refresh_token', 'expires_at', 'profile_id'];
 
     protected $casts = [
         'expires_at' => 'datetime',

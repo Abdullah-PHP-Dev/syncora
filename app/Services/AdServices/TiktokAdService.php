@@ -72,6 +72,97 @@ class TiktokAdService
         return route('admin.ads.platform.callback', 'tiktok');
     }
 
+    /**
+     * oauth2/access_token/'s field names (auth_code/app_id/secret in, and
+     * access_token/advertiser_ids/scope in the data envelope) verified
+     * against TikTok's own business-api-sdk AuthenticationApi reference,
+     * same standard applied to the rest of this class - "code" (the name
+     * most other OAuth providers use) is checked as a fallback only in
+     * case TikTok ever changes the callback query param, not because it's
+     * the documented one.
+     *
+     * Doesn't use callTikTok()/$this->header - both assume an already-
+     * connected $this->account, which doesn't exist yet on a first-time
+     * connect (that's exactly what this method is creating).
+     *
+     * advertiser_ids is a list because one auth grant can cover multiple
+     * TikTok Business accounts at once - every one of them gets its own
+     * ad_accounts row here, matching how a single Meta/Google OAuth grant
+     * fans out into multiple rows elsewhere in this app.
+     *
+     * $state isn't validated against session here - SocialAdManagerService
+     * ::callback() (the only caller) regenerates 'ad_state' via
+     * setSession() on every callback before invoking this method, so by
+     * the time this runs the session no longer holds the value that was
+     * actually issued to TikTok during redirect(). Comparing against it
+     * would reject every real callback, not just forged ones.
+     */
+    public function callback($platform, $state)
+    {
+        $authCode = request()->input('auth_code') ?: request()->input('code');
+
+        if (!$authCode) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'TikTok did not return an authorization code.');
+        }
+
+        $tokenResponse = $this->apiService->post($this->config . 'oauth2/access_token/', [], [
+            'app_id'    => adminSetting('ads.tiktok.client_id'),
+            'secret'    => adminSetting('ads.tiktok.client_secret'),
+            'auth_code' => $authCode,
+        ], 'json');
+
+        $token = $this->parseTikTokResponse($tokenResponse);
+
+        if (!$token['success']) {
+            return redirect()->route('admin.ads.dashboard')->with('error', $token['error']);
+        }
+
+        $accessToken = $token['data']['access_token'] ?? null;
+        $advertiserIds = $token['data']['advertiser_ids'] ?? [];
+
+        if (!$accessToken || empty($advertiserIds)) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'TikTok did not return an access token or any advertiser accounts to connect.');
+        }
+
+        // Best-effort - a failure here still leaves every advertiser id
+        // connectable below (with its id as a fallback name), rather than
+        // aborting the whole connection over what's just display metadata.
+        $infoResponse = $this->apiService->get($this->config . 'advertiser/info/', [
+            'Access-Token' => $accessToken,
+            'Content-Type' => 'application/json',
+        ], [
+            'advertiser_ids' => json_encode(array_values($advertiserIds)),
+        ]);
+
+        $info = $this->parseTikTokResponse($infoResponse);
+        $advertiserDetails = collect($info['success'] ? ($info['data']['list'] ?? $info['data'] ?? []) : [])
+            ->keyBy('advertiser_id');
+
+        $connected = 0;
+
+        foreach ($advertiserIds as $advertiserId) {
+            $details = $advertiserDetails->get($advertiserId, []);
+
+            $this->apiService->success(
+                [
+                    'platform'      => $platform,
+                    'user_id'       => Auth::user()->id,
+                    'name'          => $details['name'] ?? "TikTok Advertiser {$advertiserId}",
+                    'currency'      => $details['currency'] ?? null,
+                    'ad_account_id' => $advertiserId,
+                    'access_token'  => $accessToken,
+                    'status'        => 'active',
+                ],
+                ['platform' => $platform, 'ad_account_id' => $advertiserId, 'user_id' => Auth::user()->id],
+                new AdAccount
+            );
+
+            $connected++;
+        }
+
+        return redirect()->route('admin.ads.dashboard')->with('success', "Connected {$connected} TikTok advertiser account(s).");
+    }
+
     public function store($platform, $request)
     {
         $response = $this->storeCampaign($platform, $request);
