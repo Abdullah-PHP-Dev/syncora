@@ -69,7 +69,7 @@ class TiktokAdService
 
     private function getCallbackUrl()
     {
-        return config('services.app_url') . '/admin/social/auth/tiktok/callback';
+        return route('admin.ads.platform.callback', 'tiktok');
     }
 
     public function store($platform, $request)

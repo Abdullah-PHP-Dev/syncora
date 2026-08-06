@@ -92,7 +92,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::get('ads/{platform}/redirect', [AdController::class, 'redirect'])
 					->name('ads.redirect');
 
-				Route::get('ads/{platform}/callback', [AdController::class, 'callback']);
+				Route::get('ads/{platform}/callback', [AdController::class, 'callback'])->name('ads.platform.callback');
 
 				Route::resource('ads/{platform}/campaigns', AdCampaignController::class)
 					->names('ads.campaigns');
