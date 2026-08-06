@@ -106,14 +106,14 @@ class TiktokAdService
         }
 
         $tokenResponse = $this->apiService->post($this->config . 'oauth2/access_token/', ['Content-Type' => "application/json"], [
-            'app_id'    => adminSetting('ads.tiktok.client_id'),
-            'secret'    => adminSetting('ads.tiktok.client_secret'),
+            'app_id'    => (string) adminSetting('ads.tiktok.client_id'),
+            'secret'    => (string) adminSetting('ads.tiktok.client_secret'),
             'grant_type'    => 'authorization_code',
             'auth_code' => $authCode,
         ], 'json');
         dd($tokenResponse, [
-            'app_id'    => adminSetting('ads.tiktok.client_id'),
-            'secret'    => adminSetting('ads.tiktok.client_secret'),
+            'app_id'    => (string) adminSetting('ads.tiktok.client_id'),
+            'secret'    => (string) adminSetting('ads.tiktok.client_secret'),
             'grant_type'    => 'authorization_code',
             'auth_code' => $authCode,
         ]);
