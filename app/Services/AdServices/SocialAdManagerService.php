@@ -16,7 +16,7 @@ class SocialAdManagerService
         'instagram' => FacebookAdService::class,
         'google'    => GoogleAdService::class,
         'youtube'   => YoutubeAdService::class,
-        'tiktok'    => TikTokAdService::class,
+        'tiktok'    => TiktokAdService::class,
         'snapchat'  => SnapchatAdService::class,
         'x'         => XAdService::class,
     ];
