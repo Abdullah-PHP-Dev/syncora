@@ -134,8 +134,9 @@ class TiktokAdService
         ], [
             'advertiser_ids' => json_encode(array_values($advertiserIds)),
         ]);
-        dd($infoResponse);
+       
         $info = $this->parseTikTokResponse($infoResponse);
+       
         $advertiserDetails = collect($info['success'] ? ($info['data']['list'] ?? $info['data'] ?? []) : [])
             ->keyBy('advertiser_id');
 
