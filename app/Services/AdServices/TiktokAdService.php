@@ -105,12 +105,18 @@ class TiktokAdService
             return redirect()->route('admin.ads.dashboard')->with('error', 'TikTok did not return an authorization code.');
         }
 
-        $tokenResponse = $this->apiService->post($this->config . 'oauth2/access_token/', [], [
+        $tokenResponse = $this->apiService->post($this->config . 'oauth2/access_token/', ['Content-Type' => "application/json"], [
             'app_id'    => adminSetting('ads.tiktok.client_id'),
             'secret'    => adminSetting('ads.tiktok.client_secret'),
+            'grant_type'    => 'authorization_code',
             'auth_code' => $authCode,
         ], 'json');
-        dd($tokenResponse);
+        dd($tokenResponse, [
+            'app_id'    => adminSetting('ads.tiktok.client_id'),
+            'secret'    => adminSetting('ads.tiktok.client_secret'),
+            'grant_type'    => 'authorization_code',
+            'auth_code' => $authCode,
+        ]);
         $token = $this->parseTikTokResponse($tokenResponse);
 
         if (!$token['success']) {
