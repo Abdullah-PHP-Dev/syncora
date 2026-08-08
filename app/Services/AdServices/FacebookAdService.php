@@ -146,7 +146,7 @@ class FacebookAdService
         $response = $this->httpClient::get(
             $endpoint,
             [
-                'fields' => 'id,name,account_id,account_status,currency',
+                'fields' => 'id,name,account_id,account_status,currency,business',
                 'access_token' => $accessToken,
             ]
         );
@@ -160,19 +160,24 @@ class FacebookAdService
         // account_status is a Meta status code (1 = ACTIVE; 2, 3, 7, 8, 9,
         // 100, 101 are all disabled/pending/closed variants) - not a boolean,
         // so every non-zero code must be checked explicitly rather than
-        // treated as truthy.
+        // treated as truthy. A missing "business" object means the ad account
+        // is owned directly by the individual's personal profile (e.g. the
+        // account Facebook auto-creates the first time someone boosts a post)
+        // rather than a real Business Manager - those aren't proper ads
+        // accounts for this feature and must be excluded, not just filtered
+        // by status.
         $activeAccounts = array_values(array_filter(
             $result['data'] ?? [],
-            fn($account) => (int) ($account['account_status'] ?? 0) === 1
+            fn($account) => (int) ($account['account_status'] ?? 0) === 1 && !empty($account['business'])
         ));
 
         if (empty($activeAccounts)) {
-            return $this->errorResponse('No active Facebook ad account was found for this user.');
+            return $this->errorResponse('No active Facebook Business ad account was found for this user. Personal (non-Business Manager) ad accounts are not supported.');
         }
 
-        $instagramAccount = $this->getInstagramBusinessAccount($accessToken);
+        $accounts = array_map(function ($account) use ($accessToken) {
+            $instagramAccount = $this->getInstagramBusinessAccount($accessToken, $account['business']['id']);
 
-        $accounts = array_map(function ($account) use ($instagramAccount) {
             return [
                 'facebook_account_id'   => $account['id'],
                 'name'                  => $account['name'] ?? null,
@@ -187,14 +192,18 @@ class FacebookAdService
 
     /**
      * Instagram business accounts are linked to Facebook Pages, discoverable
-     * only via /{page-id}?fields=instagram_business_account - there is no
-     * ad-account-level lookup for this.
+     * only via /{page-id}?fields=instagram_business_account. Scoped to Pages
+     * owned by the same Business Manager as the ad account (rather than
+     * every Page the user personally administers via /me/accounts) so a
+     * personal/hobby Page unrelated to the actual ads business can't get
+     * picked up.
      */
-    private function getInstagramBusinessAccount($accessToken): ?array
+    private function getInstagramBusinessAccount($accessToken, string $businessId): ?array
     {
-        $pagesEndpoint = adminSetting('ads.instagram.account.endpoint', 'https://graph.facebook.com/v22.0/me/accounts');
-
-        $response = $this->httpClient::get($pagesEndpoint, ['access_token' => $accessToken]);
+        $response = $this->httpClient::get(
+            "https://graph.facebook.com/v22.0/{$businessId}/owned_pages",
+            ['access_token' => $accessToken]
+        );
 
         if (!$response->successful()) {
             return null;
