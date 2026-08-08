@@ -166,6 +166,7 @@ class FacebookAdService
         // rather than a real Business Manager - those aren't proper ads
         // accounts for this feature and must be excluded, not just filtered
         // by status.
+        dd($result);
         $activeAccounts = array_values(array_filter(
             $result['data'] ?? [],
             fn($account) => (int) ($account['account_status'] ?? 0) === 1 && !empty($account['business'])
