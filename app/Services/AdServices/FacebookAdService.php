@@ -67,22 +67,55 @@ class FacebookAdService
         $data = $response['data'];
 
         if (!$response['success']) {
-            return $this->errorResponse($data);
+            return redirect()->route('admin.ads.dashboard')->with('error', data_get($data, 'error.message', 'Facebook did not return an access token.'));
         }
 
         $accessToken = data_get($data, 'access_token');
         $expiresIn = data_get($data, 'expires_in', 3600); // Default to 3600 seconds if not found
-        $response = $this->getFBAdAccount($accessToken);
 
-        $accountId = str_replace('act_', '', $response['facebook_account_id']);
-        $instagramId = $response['instagram_account_id'];
+        $accountResponse = $this->getFBAdAccount($accessToken);
 
-        $InstagramDataToInsert = [
-            'access_token' => $accessToken,
-            'refresh_token_token' =>  data_get($data, 'refresh_token') ?? null,
-            'account_id' => $instagramId,
-            'expires_at' => Carbon::now()->addSeconds($expiresIn),
-        ];
+        if (!$accountResponse['success']) {
+            return redirect()->route('admin.ads.dashboard')->with('error', $accountResponse['error']);
+        }
+
+        $accountId = str_replace('act_', '', $accountResponse['facebook_account_id']);
+        $expiresAt = Carbon::now()->addSeconds($expiresIn);
+
+        $this->apiService->success(
+            [
+                'platform'      => 'facebook',
+                'user_id'       => Auth::user()->id,
+                'name'          => $accountResponse['name'] ?? "Facebook Ad Account {$accountId}",
+                'currency'      => $accountResponse['currency'] ?? null,
+                'ad_account_id' => $accountId,
+                'access_token'  => $accessToken,
+                'refresh_token' => data_get($data, 'refresh_token'),
+                'expires_at'    => $expiresAt,
+                'status'        => 'active',
+            ],
+            ['platform' => 'facebook', 'ad_account_id' => $accountId, 'user_id' => Auth::user()->id],
+            new AdAccount
+        );
+
+        if (!empty($accountResponse['instagram_account_id'])) {
+            $this->apiService->success(
+                [
+                    'platform'      => 'instagram',
+                    'user_id'       => Auth::user()->id,
+                    'name'          => $accountResponse['name'] ?? "Instagram Account {$accountResponse['instagram_account_id']}",
+                    'ad_account_id' => $accountResponse['instagram_account_id'],
+                    'access_token'  => $accessToken,
+                    'refresh_token' => data_get($data, 'refresh_token'),
+                    'expires_at'    => $expiresAt,
+                    'status'        => 'active',
+                ],
+                ['platform' => 'instagram', 'ad_account_id' => $accountResponse['instagram_account_id'], 'user_id' => Auth::user()->id],
+                new AdAccount
+            );
+        }
+
+        return redirect()->route('admin.ads.dashboard')->with('success', 'Facebook ad account connected successfully.');
     }
 
     private function getFBAdAccount($accessToken)
@@ -127,6 +160,8 @@ class FacebookAdService
                     $accounts = [
                         'facebook_account_id' => $accountId,
                         'instagram_account_id' => $response->json()['data'][0]['id'],
+                        'name' => $account['name'] ?? null,
+                        'currency' => $account['currency'] ?? null,
                     ];
 
                     break;
@@ -134,7 +169,17 @@ class FacebookAdService
             }
         }
 
-        return ['success' => true, 'facebook_account_id' => $accounts['facebook_account_id'], 'instagram_account_id' => $accounts['instagram_account_id']];
+        if (empty($accounts)) {
+            return $this->errorResponse('No active Facebook ad account was found for this user.');
+        }
+
+        return [
+            'success' => true,
+            'facebook_account_id' => $accounts['facebook_account_id'],
+            'instagram_account_id' => $accounts['instagram_account_id'] ?? null,
+            'name' => $accounts['name'] ?? null,
+            'currency' => $accounts['currency'] ?? null,
+        ];
     }
 
     public function store($platform, $request)
@@ -490,7 +535,7 @@ class FacebookAdService
         if (isset($request['instagram'])) {
             $loginUser = AdAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
             if ($loginUser) {
-                $payload['object_story_spec']['instagram_actor_id'] = $loginUser->account_id;
+                $payload['object_story_spec']['instagram_actor_id'] = $loginUser->ad_account_id;
             }
         }
 
@@ -1203,7 +1248,7 @@ class FacebookAdService
         if (isset($request['instagram'])) {
             $loginUser = AdAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
             if ($loginUser) {
-                $payload['object_story_spec']['instagram_actor_id'] = $loginUser->account_id;
+                $payload['object_story_spec']['instagram_actor_id'] = $loginUser->ad_account_id;
             }
         }
 
