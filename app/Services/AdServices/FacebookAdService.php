@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use App\Models\Country;
 
 class FacebookAdService
@@ -41,7 +42,7 @@ class FacebookAdService
     {
         $clientId = adminSetting('ads.facebook.client_id');
 
-        return redirect("https://www.facebook.com/v25.0/dialog/oauth?client_id={$clientId}&redirect_uri={$this->getCallbackUrl()}&state={$this->state}&code_verifier={$this->codeVerifier}&scope=ads_management,ads_read,pages_show_list,pages_read_engagement,business_management");
+        return redirect("https://www.facebook.com/v25.0/dialog/oauth?client_id={$clientId}&redirect_uri={$this->getCallbackUrl()}&state={$this->state}&code_verifier={$this->codeVerifier}&scope=ads_management,ads_read,pages_show_list,pages_read_engagement,business_management,instagram_basic");
     }
 
     private function getCallbackUrl()
@@ -192,24 +193,11 @@ class FacebookAdService
 
     /**
      * Instagram business accounts are linked to Facebook Pages, discoverable
-     * only via /{page-id}?fields=instagram_business_account. Scoped to Pages
-     * owned by the same Business Manager as the ad account (rather than
-     * every Page the user personally administers via /me/accounts) so a
-     * personal/hobby Page unrelated to the actual ads business can't get
-     * picked up.
+     * only via /{page-id}?fields=instagram_business_account.
      */
     private function getInstagramBusinessAccount($accessToken, string $businessId): ?array
     {
-        $response = $this->httpClient::get(
-            "https://graph.facebook.com/v22.0/{$businessId}/owned_pages",
-            ['access_token' => $accessToken]
-        );
-
-        if (!$response->successful()) {
-            return null;
-        }
-
-        foreach ($response->json()['data'] ?? [] as $page) {
+        foreach ($this->getBusinessPages($accessToken, $businessId) as $page) {
             $pageResponse = $this->httpClient::get(
                 "https://graph.facebook.com/v22.0/{$page['id']}",
                 [
@@ -219,6 +207,11 @@ class FacebookAdService
             );
 
             if (!$pageResponse->successful()) {
+                Log::warning('Facebook Instagram lookup: page fields request failed', [
+                    'page_id' => $page['id'] ?? null,
+                    'response' => $pageResponse->json(),
+                ]);
+
                 continue;
             }
 
@@ -230,6 +223,51 @@ class FacebookAdService
         }
 
         return null;
+    }
+
+    /**
+     * owned_pages only lists Pages formally added as a Business asset in
+     * Business Settings > Accounts > Pages - in practice a lot of advertisers
+     * never do that and just have a Page they personally administer, even
+     * though their ad account is properly Business Manager-owned. Try the
+     * strict business-owned edge first, then fall back to every Page the
+     * token's user administers so a legitimately-linked Instagram account
+     * isn't missed just because it was never explicitly claimed by the
+     * Business Manager.
+     */
+    private function getBusinessPages($accessToken, string $businessId): array
+    {
+        $response = $this->httpClient::get(
+            "https://graph.facebook.com/v22.0/{$businessId}/owned_pages",
+            ['access_token' => $accessToken]
+        );
+
+        if (!$response->successful()) {
+            Log::warning('Facebook Instagram lookup: owned_pages request failed', [
+                'business_id' => $businessId,
+                'response' => $response->json(),
+            ]);
+        }
+
+        $pages = $response->successful() ? ($response->json()['data'] ?? []) : [];
+
+        if (!empty($pages)) {
+            return $pages;
+        }
+
+        $response = $this->httpClient::get(
+            'https://graph.facebook.com/v22.0/me/accounts',
+            ['access_token' => $accessToken]
+        );
+
+        if (!$response->successful()) {
+            Log::warning('Facebook Instagram lookup: me/accounts fallback request failed', [
+                'business_id' => $businessId,
+                'response' => $response->json(),
+            ]);
+        }
+
+        return $response->successful() ? ($response->json()['data'] ?? []) : [];
     }
 
     public function store($platform, $request)
