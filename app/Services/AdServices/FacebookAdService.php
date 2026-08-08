@@ -218,7 +218,7 @@ class FacebookAdService
                     'access_token' => $accessToken,
                 ]
             );
-           
+            dd($pageResponse->successful(), $pageResponse->json());
             if (!$pageResponse->successful()) {
                 Log::warning('Facebook Instagram lookup: page fields request failed', [
                     'page_id' => $page['id'] ?? null,
@@ -272,7 +272,7 @@ class FacebookAdService
             'https://graph.facebook.com/v22.0/me/accounts',
             ['access_token' => $accessToken]
         );
- dd($response->json());
+
         if (!$response->successful()) {
             Log::warning('Facebook Instagram lookup: me/accounts fallback request failed', [
                 'business_id' => $businessId,
