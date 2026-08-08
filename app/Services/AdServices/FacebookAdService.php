@@ -138,6 +138,7 @@ class FacebookAdService
                         'refresh_token' => data_get($data, 'refresh_token'),
                         'expires_at'    => $expiresAt,
                         'status'        => 'active',
+                        'currency'      => $igAccount['currency'] ?? null,
                     ],
                     [
                         'platform'      => 'instagram', 
