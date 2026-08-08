@@ -149,7 +149,7 @@ class FacebookAdService
         ]);
 
         $result = $response->json();
-        dd($result);
+     
         if (!$response->successful()) {
             return $this->errorResponse($result['error']['error_user_title'] ?? $result['error']['message']);
         }
@@ -164,6 +164,23 @@ class FacebookAdService
         }
 
         $accounts = array_map(function ($account) use ($accessToken) {
+             $igFields = implode(',', [
+                'id',
+                'username',
+                'name',
+                'profile_picture_url',
+                'biography',
+                'website',
+                'followers_count',
+                'follows_count',
+                'media_count',
+            ]);
+            $response = $this->httpClient::get("https://graph.facebook.com/v25.0/{$account['id']}", [
+                'fields'       => $igFields,
+                'access_token' => $accessToken,
+            ]);
+
+        dd($response->json(), $response->successful());
             $instagramAccount = $this->getInstagramBusinessAccount($accessToken, $account['business']['id']);
 
             return [
