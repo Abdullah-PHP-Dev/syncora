@@ -4,6 +4,7 @@ namespace App\Services\AdServices;
 
 use Illuminate\Support\Facades\Redirect;
 use App\Models\Admin\AdAccount;
+use App\Models\Admin\ConnectedPage;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdMedia;
@@ -91,16 +92,18 @@ class FacebookAdService
         }
 
         $connected = 0;
+        $pagesSaved = 0;
         $instagramSaved = '';
         $currency = '';
         foreach ($accountResponse['accounts'] as $item) {
             // 1. Extract Facebook Ad Account Data
             $fbData = $item['facebook'] ?? null;
+            $localAccountId = null;
 
             if ($fbData) {
                 $rawAccountId = $fbData['account_id'];
                 $currency = $fbData['currency'];
-                $this->apiService->success(
+                $fbAccountRecord = $this->apiService->success(
                     [
                         'platform'      => 'facebook',
                         'user_id'       => Auth::id(),
@@ -113,19 +116,53 @@ class FacebookAdService
                         'status'        => 'active',
                     ],
                     [
-                        'platform'      => 'facebook', 
-                        'ad_account_id' => $rawAccountId, 
+                        'platform'      => 'facebook',
+                        'ad_account_id' => $rawAccountId,
                         'user_id'       => Auth::id()
                     ],
                     new AdAccount
                 );
 
+                $localAccountId = $fbAccountRecord['data']['id'] ?? null;
                 $connected++;
             }
 
-            // 2. Extract and Loop Through Linked Instagram Accounts
+            // 2. Extract and Loop Through Connected Facebook Pages - stored in
+            // a platform-agnostic table so other services (Instagram, TikTok,
+            // X, LinkedIn) can reuse the same "pick a page" UI later.
+            foreach ($item['pages'] ?? [] as $page) {
+                $this->apiService->success(
+                    [
+                        'platform'         => 'facebook',
+                        'user_id'          => Auth::id(),
+                        'ad_account_id'    => $localAccountId,
+                        'page_id'          => $page['id'],
+                        'name'             => $page['name'] ?? null,
+                        'username'         => $page['username'] ?? null,
+                        'description'      => $page['about'] ?? null,
+                        'category'         => $page['category'] ?? null,
+                        'link'             => $page['link'] ?? null,
+                        'likes_count'      => $page['fan_count'] ?? null,
+                        'followers_count'  => $page['followers_count'] ?? null,
+                        'business_id'      => $fbData['business']['id'] ?? null,
+                        'access_token'     => $page['access_token'] ?? null,
+                        'picture'          => $page['picture']['data']['url'] ?? null,
+                        'status'           => 'active',
+                    ],
+                    [
+                        'platform' => 'facebook',
+                        'page_id'  => $page['id'],
+                        'user_id'  => Auth::id(),
+                    ],
+                    new ConnectedPage
+                );
+
+                $pagesSaved++;
+            }
+
+            // 3. Extract and Loop Through Linked Instagram Accounts
             $instagrams = $item['instagrams'] ?? [];
-      
+
             foreach ($instagrams as $igAccount) {
                 $igId = $igAccount['id'];
                 $instagramSaved = $igAccount['name'];
@@ -151,7 +188,7 @@ class FacebookAdService
             }
         }
 
-        $message = "Connected {$connected} Facebook ad account(s)." . ($instagramSaved ? ' Instagram account linked.' : '');
+        $message = "Connected {$connected} Facebook ad account(s), {$pagesSaved} page(s)." . ($instagramSaved ? ' Instagram account linked.' : '');
 
         return redirect()->route('admin.ads.dashboard')->with('success', $message);
     }
@@ -180,12 +217,14 @@ class FacebookAdService
             return $this->errorResponse('No active Facebook Business ad account was found for this user. Personal ad accounts are not supported.');
         }
 
-        $accounts = array_map(function ($account) use ($accessToken) {            
+        $accounts = array_map(function ($account) use ($accessToken) {
             $instagramAccounts = $this->getInstagramBusinessAccount($accessToken, $account['business']['id']);
+            $pages = $this->getBusinessPages($accessToken, $account['business']['id']);
 
             return [
                 'facebook'   => $account,
                 'instagrams'  => $instagramAccounts ?? null,
+                'pages'      => $pages,
             ];
         }, $activeAccounts);
 
@@ -204,6 +243,38 @@ class FacebookAdService
         }
 
         return $response->json()['instagram_accounts']['data'];
+    }
+
+    /**
+     * Facebook Pages belonging to a Business Manager - both formally "owned"
+     * pages (added under Business Settings > Accounts > Pages) and "client"
+     * pages (shared with this business by another, e.g. an agency setup).
+     * Fetched off the Business node itself, same pattern that worked for
+     * instagram_accounts, rather than /me/accounts (which only lists Pages
+     * the token's user personally administers, not the business as a whole).
+     */
+    private function getBusinessPages($accessToken, string $businessId): array
+    {
+        $response = $this->httpClient::get("https://graph.facebook.com/v22.0/{$businessId}", [
+            'fields'       => 'owned_pages{id,name,username,about,category,link,fan_count,followers_count,access_token,picture{url}},client_pages{id,name,username,about,category,link,fan_count,followers_count,access_token,picture{url}}',
+            'access_token' => $accessToken,
+        ]);
+
+        if (!$response->successful()) {
+            Log::warning('Facebook Pages lookup failed', [
+                'business_id' => $businessId,
+                'response'    => $response->json(),
+            ]);
+
+            return [];
+        }
+
+        $result = $response->json();
+
+        return array_merge(
+            $result['owned_pages']['data'] ?? [],
+            $result['client_pages']['data'] ?? []
+        );
     }
 
     public function store($platform, $request)

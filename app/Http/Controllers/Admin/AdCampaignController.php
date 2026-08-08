@@ -7,21 +7,39 @@ use Illuminate\Http\Request;
 use App\Http\Requests\Admin\AdCampaignRequest;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAccount;
+use App\Models\Admin\ConnectedPage;
 use App\Models\Country;
 use App\Services\AdServices\SocialAdManagerService;
+use Illuminate\Support\Facades\Auth;
 
 
 class AdCampaignController extends Controller
 {
-    protected $adCampaignModel, $adAccountModel, $countryModel, $socialAdManager;
+    protected $adCampaignModel, $adAccountModel, $connectedPageModel, $countryModel, $socialAdManager;
 
-    public function __construct(AdCampaign $adCampaignModel, AdAccount $adAccountModel, Country $countryModel, SocialAdManagerService $socialAdManager)
+    public function __construct(AdCampaign $adCampaignModel, AdAccount $adAccountModel, ConnectedPage $connectedPageModel, Country $countryModel, SocialAdManagerService $socialAdManager)
     {
         set_time_limit(0);
         $this->adCampaignModel = $adCampaignModel;
         $this->adAccountModel = $adAccountModel;
+        $this->connectedPageModel = $connectedPageModel;
         $this->countryModel = $countryModel;
         $this->socialAdManager = $socialAdManager;
+    }
+
+    /**
+     * Pages connected via this platform's OAuth flow, selectable when
+     * attaching a campaign/ad set/ad to a Page - stored in a platform-
+     * agnostic table so Instagram/TikTok/X/LinkedIn can reuse the same
+     * "pick a page" UI once they populate their own rows.
+     */
+    private function connectedPages(string $platform)
+    {
+        return $this->connectedPageModel
+            ->where('platform', $platform)
+            ->where('user_id', Auth::id())
+            ->orderBy('name')
+            ->get();
     }
     /**
      * Display a listing of the resource.
@@ -43,8 +61,9 @@ class AdCampaignController extends Controller
         // account" - so account-linked status is read off the 'google' row.
         $account = $this->adAccountModel->where('platform', $platform === 'youtube' ? 'google' : $platform)->first();
         $countries = $this->countryModel->all();
+        $connectedPages = $this->connectedPages($platform);
 
-        return view('admin.ads.' . $platform . '.campaigns.create', compact('platform', 'account', 'countries'));
+        return view('admin.ads.' . $platform . '.campaigns.create', compact('platform', 'account', 'countries', 'connectedPages'));
     }
 
     /**
@@ -73,8 +92,9 @@ class AdCampaignController extends Controller
         $account = $this->adAccountModel->where('platform', $platform === 'youtube' ? 'google' : $platform)->first();
         $countries = $this->countryModel->all();
         $campaign = $this->adCampaignModel->with(['adAccount', 'adGroups', 'adGroups.creatives', 'adGroups.creatives.media', 'ads'])->find($id);
-    
-       return view('admin.ads.' . $platform . '.campaigns.edit', compact('platform', 'account', 'countries', 'campaign'));
+        $connectedPages = $this->connectedPages($platform);
+
+       return view('admin.ads.' . $platform . '.campaigns.edit', compact('platform', 'account', 'countries', 'campaign', 'connectedPages'));
     }
 
     /**

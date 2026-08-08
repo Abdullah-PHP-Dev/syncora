@@ -409,10 +409,16 @@
 
                                             <div class="row">
                                                 <div class="col-md-6">
-                                                    <label>Page Id</label>
-                                                    <div class="input-group">
-                                                        <input class="form-control" name="page_id" id="page_id" value="{{$creative->page_id}}" type="text" step="0.01">
-                                                    </div>
+                                                    <label>Page</label>
+                                                    <select class="form-control" name="page_id" id="page_id">
+                                                        <option value="">Select a page</option>
+                                                        @foreach ($connectedPages as $page)
+                                                            <option value="{{ $page->page_id }}" {{ $page->page_id == $creative->page_id ? 'selected' : '' }}>{{ $page->name }}</option>
+                                                        @endforeach
+                                                        @if ($creative->page_id && !$connectedPages->contains('page_id', $creative->page_id))
+                                                            <option value="{{ $creative->page_id }}" selected>{{ $creative->page_id }}</option>
+                                                        @endif
+                                                    </select>
                                                     <p class="error-message error-page_id"></p>
                                                 </div>
                                             </div>
