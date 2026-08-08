@@ -145,7 +145,7 @@ class FacebookAdService
                 // $endpoint = adminSetting('ads.instagram.account.endpoint');
                 // $this->config['base_url'] . $accountId . '/instagram_accounts',
                 $response = $this->httpClient::get(
-                    $endpoint . '?fields=id,name,instagram_business_account{id,username,name,biography,profile_picture_url,website,followers_count,follows_count,media_count,shopping_product_tag_eligibility,is_published,ig_id}',
+                    $endpoint . '?fields=instagram_business_account{id,username,name,biography,profile_picture_url,website,followers_count,follows_count,media_count,shopping_product_tag_eligibility,is_published,ig_id}',
                     [
                         'access_token' => $accessToken,
                     ]
