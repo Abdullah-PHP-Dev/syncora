@@ -149,7 +149,7 @@ class FacebookAdService
         ]);
 
         $result = $response->json();
-        dd($result->json());
+        dd($result);
         if (!$response->successful()) {
             return $this->errorResponse($result['error']['error_user_title'] ?? $result['error']['message']);
         }
