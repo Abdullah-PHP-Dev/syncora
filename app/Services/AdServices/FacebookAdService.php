@@ -144,7 +144,7 @@ class FacebookAdService
         $endpoint = adminSetting('ads.facebook.account.endpoint', 'https://graph.facebook.com/v22.0/me/adaccounts');
 
         $response = $this->httpClient::get($endpoint, [
-            'fields'       => 'id,name,account_id,account_status,currency,business,business,instagram_accounts{id,username}',
+            'fields'       => 'id,name,account_id,account_status,currency,business,business_instagram_accounts{id,username}',
             'access_token' => $accessToken,
         ]);
 
