@@ -41,8 +41,17 @@ class FacebookAdService
     public function redirect()
     {
         $clientId = adminSetting('ads.facebook.client_id');
+        // Added 'instagram_basic' permission to allow reading profile fields
+        $scopes = implode(',', [
+            'ads_management',
+            'ads_read',
+            'pages_show_list',
+            'pages_read_engagement',
+            'business_management',
+            'instagram_basic',
+        ]);
 
-        return redirect("https://www.facebook.com/v25.0/dialog/oauth?client_id={$clientId}&redirect_uri={$this->getCallbackUrl()}&state={$this->state}&code_verifier={$this->codeVerifier}&scope=ads_management,ads_read,pages_show_list,pages_read_engagement,business_management");
+        return redirect("https://www.facebook.com/v25.0/dialog/oauth?client_id={$clientId}&redirect_uri={$this->getCallbackUrl()}&state={$this->state}&code_verifier={$this->codeVerifier}&scope={$scopes}");
     }
 
     private function getCallbackUrl()
@@ -58,11 +67,11 @@ class FacebookAdService
         $endpoint = adminSetting('ads.facebook.access_token');
 
         $response = $this->apiService->get($endpoint, [], [
-            'client_id' => adminSetting('ads.facebook.client_id'),
+            'client_id'     => adminSetting('ads.facebook.client_id'),
             'client_secret' => adminSetting('ads.facebook.client_secret'),
-            'grant_type' => 'authorization_code',
-            'redirect_uri' => $redirectUri,
-            'code' => $code, // this must be from the Facebook callback
+            'grant_type'    => 'authorization_code',
+            'redirect_uri'  => $redirectUri,
+            'code'          => $code,
         ]);
 
         $data = $response['data'];
@@ -72,8 +81,8 @@ class FacebookAdService
         }
 
         $accessToken = data_get($data, 'access_token');
-        $expiresIn = data_get($data, 'expires_in', 3600); // Default to 3600 seconds if not found
-        $expiresAt = Carbon::now()->addSeconds($expiresIn);
+        $expiresIn   = data_get($data, 'expires_in', 3600);
+        $expiresAt   = Carbon::now()->addSeconds($expiresIn);
 
         $accountResponse = $this->getFBAdAccount($accessToken);
 
@@ -90,7 +99,7 @@ class FacebookAdService
             $this->apiService->success(
                 [
                     'platform'      => 'facebook',
-                    'user_id'       => Auth::user()->id,
+                    'user_id'       => Auth::id(),
                     'name'          => $account['name'] ?? "Facebook Ad Account {$accountId}",
                     'currency'      => $account['currency'] ?? null,
                     'ad_account_id' => $accountId,
@@ -99,19 +108,17 @@ class FacebookAdService
                     'expires_at'    => $expiresAt,
                     'status'        => 'active',
                 ],
-                ['platform' => 'facebook', 'ad_account_id' => $accountId, 'user_id' => Auth::user()->id],
+                ['platform' => 'facebook', 'ad_account_id' => $accountId, 'user_id' => Auth::id()],
                 new AdAccount
             );
 
             $connected++;
 
-            // The linked Instagram business account belongs to the Business
-            // Manager's Pages, not to any one ad account - only save it once.
             if (!$instagramSaved && !empty($account['instagram_account_id'])) {
                 $this->apiService->success(
                     [
                         'platform'      => 'instagram',
-                        'user_id'       => Auth::user()->id,
+                        'user_id'       => Auth::id(),
                         'name'          => $account['instagram_name'] ?? "Instagram Account {$account['instagram_account_id']}",
                         'ad_account_id' => $account['instagram_account_id'],
                         'access_token'  => $accessToken,
@@ -119,7 +126,7 @@ class FacebookAdService
                         'expires_at'    => $expiresAt,
                         'status'        => 'active',
                     ],
-                    ['platform' => 'instagram', 'ad_account_id' => $account['instagram_account_id'], 'user_id' => Auth::user()->id],
+                    ['platform' => 'instagram', 'ad_account_id' => $account['instagram_account_id'], 'user_id' => Auth::id()],
                     new AdAccount
                 );
 
@@ -132,25 +139,14 @@ class FacebookAdService
         return redirect()->route('admin.ads.dashboard')->with('success', $message);
     }
 
-    /**
-     * Fetch every active ad account the user manages, paired (where available)
-     * with the Instagram business account linked to their Business Manager -
-     * instagram_business_account only exists on Page nodes, so it can't be
-     * requested alongside /me/adaccounts (Meta silently drops the unknown
-     * field there instead of erroring, which used to cause a Facebook ad
-     * account id to be mistaken for an Instagram account id).
-     */
     private function getFBAdAccount($accessToken)
     {
         $endpoint = adminSetting('ads.facebook.account.endpoint', 'https://graph.facebook.com/v22.0/me/adaccounts');
 
-        $response = $this->httpClient::get(
-            $endpoint,
-            [
-                'fields' => 'id,name,account_id,account_status,currency,business',
-                'access_token' => $accessToken,
-            ]
-        );
+        $response = $this->httpClient::get($endpoint, [
+            'fields'       => 'id,name,account_id,account_status,currency,business',
+            'access_token' => $accessToken,
+        ]);
 
         $result = $response->json();
 
@@ -158,47 +154,34 @@ class FacebookAdService
             return $this->errorResponse($result['error']['error_user_title'] ?? $result['error']['message']);
         }
 
-        // account_status is a Meta status code (1 = ACTIVE; 2, 3, 7, 8, 9,
-        // 100, 101 are all disabled/pending/closed variants) - not a boolean,
-        // so every non-zero code must be checked explicitly rather than
-        // treated as truthy. A missing "business" object means the ad account
-        // is owned directly by the individual's personal profile (e.g. the
-        // account Facebook auto-creates the first time someone boosts a post)
-        // rather than a real Business Manager - those aren't proper ads
-        // accounts for this feature and must be excluded, not just filtered
-        // by status.
         $activeAccounts = array_values(array_filter(
             $result['data'] ?? [],
             fn($account) => (int) ($account['account_status'] ?? 0) === 1 && !empty($account['business'])
         ));
 
         if (empty($activeAccounts)) {
-            return $this->errorResponse('No active Facebook Business ad account was found for this user. Personal (non-Business Manager) ad accounts are not supported.');
+            return $this->errorResponse('No active Facebook Business ad account was found for this user. Personal ad accounts are not supported.');
         }
 
         $accounts = array_map(function ($account) use ($accessToken) {
             $instagramAccount = $this->getInstagramBusinessAccount($accessToken, $account['business']['id']);
 
             return [
-                'facebook_account_id'   => $account['id'],
-                'name'                  => $account['name'] ?? null,
-                'currency'              => $account['currency'] ?? null,
-                'instagram_account_id'  => $instagramAccount['id'] ?? null,
-                'instagram_name'        => $instagramAccount['name'] ?? $instagramAccount['username'] ?? null,
+                'facebook_account_id'  => $account['id'],
+                'name'                 => $account['name'] ?? null,
+                'currency'             => $account['currency'] ?? null,
+                'instagram_account_id' => $instagramAccount['id'] ?? null,
+                'instagram_name'       => $instagramAccount['name'] ?? $instagramAccount['username'] ?? null,
             ];
         }, $activeAccounts);
 
         return ['success' => true, 'accounts' => $accounts];
     }
 
-    /**
-     * Instagram business accounts are linked to Facebook Pages, discoverable
-     * only via /{page-id}?fields=instagram_business_account.
-     */
     private function getInstagramBusinessAccount($accessToken, string $businessId): ?array
     {
-       
-        $fields =  implode(',', [
+        // Explicitly define nested fields to pass directly into the nested query syntax
+        $igFields = implode(',', [
             'id',
             'username',
             'name',
@@ -209,22 +192,21 @@ class FacebookAdService
             'follows_count',
             'media_count',
         ]);
-        
+
         foreach ($this->getBusinessPages($accessToken, $businessId) as $page) {
             $pageResponse = $this->httpClient::get(
                 "https://graph.facebook.com/v22.0/{$page['id']}",
                 [
-                    'fields' => "instagram_business_account{name,username,profile_picture_url,biography}",
+                    'fields'       => "instagram_business_account{{$igFields}}",
                     'access_token' => $accessToken,
                 ]
             );
-            dd($pageResponse->successful(), $pageResponse->json());
+
             if (!$pageResponse->successful()) {
                 Log::warning('Facebook Instagram lookup: page fields request failed', [
-                    'page_id' => $page['id'] ?? null,
+                    'page_id'  => $page['id'] ?? null,
                     'response' => $pageResponse->json(),
                 ]);
-
                 continue;
             }
 
@@ -238,16 +220,6 @@ class FacebookAdService
         return null;
     }
 
-    /**
-     * owned_pages only lists Pages formally added as a Business asset in
-     * Business Settings > Accounts > Pages - in practice a lot of advertisers
-     * never do that and just have a Page they personally administer, even
-     * though their ad account is properly Business Manager-owned. Try the
-     * strict business-owned edge first, then fall back to every Page the
-     * token's user administers so a legitimately-linked Instagram account
-     * isn't missed just because it was never explicitly claimed by the
-     * Business Manager.
-     */
     private function getBusinessPages($accessToken, string $businessId): array
     {
         $response = $this->httpClient::get(
@@ -255,13 +227,6 @@ class FacebookAdService
             ['access_token' => $accessToken]
         );
 
-        if (!$response->successful()) {
-            Log::warning('Facebook Instagram lookup: owned_pages request failed', [
-                'business_id' => $businessId,
-                'response' => $response->json(),
-            ]);
-        }
-       
         $pages = $response->successful() ? ($response->json()['data'] ?? []) : [];
 
         if (!empty($pages)) {
@@ -272,13 +237,6 @@ class FacebookAdService
             'https://graph.facebook.com/v22.0/me/accounts',
             ['access_token' => $accessToken]
         );
-
-        if (!$response->successful()) {
-            Log::warning('Facebook Instagram lookup: me/accounts fallback request failed', [
-                'business_id' => $businessId,
-                'response' => $response->json(),
-            ]);
-        }
 
         return $response->successful() ? ($response->json()['data'] ?? []) : [];
     }
@@ -693,7 +651,7 @@ class FacebookAdService
         }
 
         $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
-    
+
         if (!$response['success']) {
             return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
         }
@@ -1156,7 +1114,8 @@ class FacebookAdService
         return $ctaPayload;
     }
 
-    public function update($platform, $id, $request) {
+    public function update($platform, $id, $request)
+    {
         // Step 2: create campaign
         $response = $this->updateCampaign($platform, $id, $request);
 
@@ -1169,7 +1128,7 @@ class FacebookAdService
 
         // Step 2: update Ad Group
         $adGroupResponse = $this->updateAdGroup($platform, $campaign['id'], $request);
-      
+
         if (!$adGroupResponse['success']) {
             return $adGroupResponse;
         }
@@ -1180,23 +1139,22 @@ class FacebookAdService
         // Step 3: update Media
         if (!empty($request['media'])) {
             $response = $this->storeMedia($platform, $request);
-            
+
             if (!$response['success']) {
                 return $response;
             }
-    
+
             $request['media'] = $response['data'];
         }
 
         // Step 4: update creative
         $response = $this->updateCreative($platform, $request, $adGroupResponse['data']);
-        
+
         $request['creative_id'] = $response['data']['ad_creative_id'];
         $request['ad_creative_id'] = $response['data']['id'];
 
         // Step 4: update Ad
         return $this->updateAd($platform, $request, $campaign);
-        
     }
 
     private function updateCampaign($platform, $id, $request)
@@ -1204,7 +1162,7 @@ class FacebookAdService
         $campaign = AdCampaign::find($id);
 
         $endpoint = "https://graph.facebook.com/v25.0/{$campaign->ad_campaign_id}";
-      
+
         $payload = [
             'name'                => $request['name'],
             'status'              => 'PAUSED',
@@ -1232,10 +1190,10 @@ class FacebookAdService
     private function updateAdGroup($platform, $campaignId, $request)
     {
         $adGroup = AdAdGroup::whereAdCampaignId($campaignId)->first();
-       
+
         $endpoint = "https://graph.facebook.com/v25.0/{$adGroup->ad_adgroup_id}";
         $adSetObjects = $this->getPromotedObject($request);
-       
+
         $publisherPlatforms = [];
 
         if (isset($request['facebook'])) {
@@ -1246,13 +1204,13 @@ class FacebookAdService
             $publisherPlatforms[] = 'instagram';
         }
         $countries = Country::whereIn('id', $request['countries'])->pluck('code')->toArray();
-       
+
         $genders = $request['gender'] == 'male' ? [1] : ($request['gender'] == 'female' ? [2] : [1, 2]);
         $locales = $this->getLocale($request['languages']);
         // $locales = collect($request['langauges'] ?? [])->map(fn($lang) => $localeMap[$lang] ?? null)->filter()->values()->toArray();
 
         $payload = [
-           // 'campaign_id'       => $request['campaign_id'],
+            // 'campaign_id'       => $request['campaign_id'],
             'name'              => $request['name'],
             'bid_amount'        => $request['bid_amount'],
             'billing_event'     => $request['billing_event'] ?? null,
@@ -1296,7 +1254,7 @@ class FacebookAdService
         }
 
         $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
-       
+
         if (!$response['success']) {
             return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
         }
@@ -1390,7 +1348,7 @@ class FacebookAdService
         }
 
         $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
-       
+
         if (!$response['success']) {
             return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
         }
@@ -1479,37 +1437,37 @@ class FacebookAdService
             'adGroups.creatives.media',
             'ads'
         ])->findOrFail($id);
-    
-    
+
+
         $adGroup = $campaign->adGroups->first();
-    
+
         $creative = $adGroup?->creatives->first();
         $media =  $creative->media;
-   
+
         $ad = $campaign->ads->first();
-       
+
         // Delete Ad
         if ($ad) {
 
             $endpoint = "https://graph.facebook.com/v25.0/{$ad->ad_id}";
-    
+
             $response = $this->apiService->delete(
                 $endpoint,
                 $this->header['data']
             );
-    
+
             if (!$response['success']) {
                 return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
             }
 
             $ad->delete();
         }
-       
+
         // Delete Creative
         if ($creative) {
 
             $endpoint = "https://graph.facebook.com/v25.0/{$creative->ad_creative_id}";
-         
+
             $response = $this->apiService->delete(
                 $endpoint,
                 $this->header['data']
@@ -1531,13 +1489,13 @@ class FacebookAdService
                     $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/advideos';
                 } else if ($creative->type === 'CAROUSEL') {
                 }
-    
+
                 $response = $this->apiService->delete(
                     $endpoint,
                     $this->header['data'],
                     ['hash' => $each->ad_media_id]
                 );
-               
+
                 if (!$response['success']) {
                     return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
                 }
@@ -1545,34 +1503,34 @@ class FacebookAdService
                 $each->delete();
             }
         }
-      
+
 
 
 
 
         // Delete Ad Group
         if ($adGroup) {
-    
+
             $endpoint = "https://graph.facebook.com/v25.0/{$adGroup->ad_adgroup_id}";
-    
+
             $response = $this->apiService->delete(
                 $endpoint,
                 $this->header['data']
             );
-    
+
             if (!$response['success']) {
                 return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
             }
 
             $adGroup->delete();
         }
-    
-    
+
+
         // Delete Campaign
         if ($campaign->ad_campaign_id) {
-    
+
             $endpoint = "https://graph.facebook.com/v25.0/{$campaign->ad_campaign_id}";
-    
+
             $response = $this->apiService->delete(
                 $endpoint,
                 $this->header['data']
@@ -1582,11 +1540,11 @@ class FacebookAdService
                 return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
             }
         }
-    
-    
+
+
         $campaign->delete();
-    
-    
+
+
         return $response;
     }
 }
