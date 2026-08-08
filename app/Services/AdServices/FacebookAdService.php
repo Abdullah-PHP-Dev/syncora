@@ -92,19 +92,20 @@ class FacebookAdService
 
         $connected = 0;
         $instagramSaved = '';
+        $currency = '';
         foreach ($accountResponse['accounts'] as $item) {
             // 1. Extract Facebook Ad Account Data
             $fbData = $item['facebook'] ?? null;
 
             if ($fbData) {
                 $rawAccountId = $fbData['account_id'];
-
+                $currency = $fbData['currency'];
                 $this->apiService->success(
                     [
                         'platform'      => 'facebook',
                         'user_id'       => Auth::id(),
                         'name'          => $fbData['name'] ?? "Facebook Ad Account {$rawAccountId}",
-                        'currency'      => $fbData['currency'] ?? null,
+                        'currency'      => $currency ?? null,
                         'ad_account_id' => $rawAccountId,
                         'access_token'  => $accessToken,
                         'refresh_token' => data_get($data, 'refresh_token'),
@@ -138,7 +139,7 @@ class FacebookAdService
                         'refresh_token' => data_get($data, 'refresh_token'),
                         'expires_at'    => $expiresAt,
                         'status'        => 'active',
-                        'currency'      => $igAccount['currency'] ?? null,
+                        'currency'      => $currency ?? null,
                     ],
                     [
                         'platform'      => 'instagram', 
@@ -194,14 +195,14 @@ class FacebookAdService
     private function getInstagramBusinessAccount($accessToken, string $businessId): ?array
     {
         $response = $this->httpClient::get("https://graph.facebook.com/v25.0/{$businessId}", [
-            'fields'       => 'id,name,instagram_accounts{name,username,currency,profile_picture_url,biography}',
+            'fields'       => 'id,name,instagram_accounts{name,username,profile_picture_url,biography}',
             'access_token' => $accessToken,
         ]);
 
         if (!$response->successful()) {
             return ['success' => false, 'error' => $response->json()];
         }
-        dd($response->json());
+
         return $response->json()['instagram_accounts']['data'];
     }
 
