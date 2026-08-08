@@ -91,6 +91,7 @@ class FacebookAdService
         }
 
         $connected = 0;
+        $instagramSaved = '';
         foreach ($accountResponse['accounts'] as $item) {
             // 1. Extract Facebook Ad Account Data
             $fbData = $item['facebook'] ?? null;
@@ -126,7 +127,7 @@ class FacebookAdService
       
             foreach ($instagrams as $igAccount) {
                 $igId = $igAccount['id'];
-
+                $instagramSaved = $igAccount['name'];
                 $this->apiService->success(
                     [
                         'platform'      => 'instagram',
