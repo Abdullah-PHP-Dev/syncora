@@ -109,6 +109,69 @@
         cursor: pointer;
     }
 
+    .page-select-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .page-card {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 240px;
+        padding: 10px 15px;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        background: #fff;
+        cursor: pointer;
+        transition: .3s;
+        margin: 0;
+    }
+
+    .page-card:hover {
+        border-color: #b9d3fb;
+    }
+
+    .page-card.active {
+        border-color: #1877F2;
+        background: #f0f7ff;
+        box-shadow: 0 4px 15px rgba(24, 119, 242, .12);
+    }
+
+    .page-card .page-radio {
+        margin: 0;
+        cursor: pointer;
+    }
+
+    .page-card .page-avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        object-fit: cover;
+        background: #ddd;
+        flex-shrink: 0;
+    }
+
+    .page-card .page-info {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .page-card .page-name {
+        font-weight: 600;
+        font-size: 14px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .page-card .page-username {
+        font-size: 12px;
+        color: #6b7280;
+    }
+
     .duration-buttons {
         display: flex;
         gap: 10px;
@@ -453,14 +516,29 @@
                                             </div>
 
                                             <div class="row">
-                                                <div class="col-md-6">
+                                                <div class="col-md-12">
                                                     <label>Page</label>
-                                                    <select class="form-control" name="page_id" id="page_id">
-                                                        <option value="">Select a page</option>
-                                                        @foreach ($connectedPages as $page)
-                                                            <option value="{{ $page->page_id }}">{{ $page->name }}</option>
-                                                        @endforeach
-                                                    </select>
+                                                    <div class="page-select-group">
+                                                        @forelse ($connectedPages as $page)
+                                                            <label class="page-card {{ $loop->first ? 'active' : '' }}">
+                                                                <input class="page-radio" type="radio"
+                                                                    name="page_id" value="{{ $page->page_id }}"
+                                                                    {{ $loop->first ? 'checked' : '' }}>
+                                                                <img class="page-avatar"
+                                                                    src="{{ $page->picture ?: asset('assets/img/avatars/1.png') }}"
+                                                                    alt="{{ $page->name }}"
+                                                                    onerror="this.src='{{ asset('assets/img/avatars/1.png') }}'">
+                                                                <div class="page-info">
+                                                                    <span class="page-name">{{ $page->name }}</span>
+                                                                    @if ($page->username)
+                                                                        <span class="page-username">{{ '@' . $page->username }}</span>
+                                                                    @endif
+                                                                </div>
+                                                            </label>
+                                                        @empty
+                                                            <p class="text-muted mb-0">No connected Facebook pages found. Please reconnect Facebook to import your pages.</p>
+                                                        @endforelse
+                                                    </div>
                                                     <p class="error-message error-page_id"></p>
                                                 </div>
                                             </div>
@@ -984,6 +1062,15 @@
                 document.querySelectorAll('.duration-btn').forEach(item => item.classList.remove('active'));
 
                 this.classList.add('active');
+            });
+        });
+        document.querySelectorAll('.page-radio').forEach(radio => {
+
+            radio.addEventListener('change', function() {
+
+                document.querySelectorAll('.page-card').forEach(item => item.classList.remove('active'));
+
+                this.closest('.page-card').classList.add('active');
             });
         });
         // Wizard step navigation - Campaign / Budget / Goal / Creative / Audience / Review.
