@@ -84,7 +84,7 @@ class FacebookAdService
                 'code'          => $code,
             ]
         );
-
+        dd($response);
         $data = $response['data'] ?? [];
 
         if (!($response['success'] ?? false) || empty($data['access_token'])) {
