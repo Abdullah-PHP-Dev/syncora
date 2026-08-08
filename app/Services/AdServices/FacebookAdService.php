@@ -85,7 +85,7 @@ class FacebookAdService
         $expiresAt   = Carbon::now()->addSeconds($expiresIn);
 
         $accountResponse = $this->getFBAdAccount($accessToken);
-
+        dd($accountResponse);
         if (!$accountResponse['success']) {
             return redirect()->route('admin.ads.dashboard')->with('error', $accountResponse['error']);
         }
@@ -163,25 +163,12 @@ class FacebookAdService
             return $this->errorResponse('No active Facebook Business ad account was found for this user. Personal ad accounts are not supported.');
         }
 
-        $accounts = array_map(function ($account) use ($accessToken) {
-
-$businessId = $account['business']['id'];
-
-$response = $this->httpClient::get("https://graph.facebook.com/v25.0/{$businessId}", [
-    'fields'       => 'id,name,instagram_accounts{id,username,name,profile_picture_url}',
-    'access_token' => $accessToken,
-]);
-
-dd($response->json(), $response->successful());
+        $accounts = array_map(function ($account) use ($accessToken) {            
             $instagramAccount = $this->getInstagramBusinessAccount($accessToken, $account['business']['id']);
 
             return [
-                'facebook_account_id'  => $account['id'],
-                'name'                 => $account['name'] ?? null,
-                'currency'             => $account['currency'] ?? null,
-                'instagram_account_id' => $instagramAccount['id'] ?? null,
-                'instagram_name'       => $instagramAccount['name'] ?? $instagramAccount['username'] ?? null,
-            ];
+                'instagram'  => $instagramAccount,
+                'facebook'   => $account];
         }, $activeAccounts);
 
         return ['success' => true, 'accounts' => $accounts];
@@ -189,24 +176,11 @@ dd($response->json(), $response->successful());
 
     private function getInstagramBusinessAccount($accessToken, string $businessId): ?array
     {
-        // Explicitly define nested fields to pass directly into the nested query syntax
-        $igFields = implode(',', [
-            'id',
-            'username',
-            'name',
-            'profile_picture_url',
-            'biography',
-            'website',
-            'followers_count',
-            'follows_count',
-            'media_count',
-        ]);
-
         foreach ($this->getBusinessPages($accessToken, $businessId) as $page) {
             $pageResponse = $this->httpClient::get(
-                "https://graph.facebook.com/v22.0/{$page['id']}",
+                "https://graph.facebook.com/v25.0/{$page['id']}",
                 [
-                    'fields'       => "instagram_business_account{{$igFields}}",
+                    'fields'       => "id,name,instagram_accounts{id,username,name,profile_picture_url}",
                     'access_token' => $accessToken,
                 ]
             );
