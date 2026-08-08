@@ -62,84 +62,114 @@ class FacebookAdService
 
     public function callback($state)
     {
-        $redirectUri = $this->getCallbackUrl();
-        $code = request()->input('code');
-        $endpoint = adminSetting('ads.facebook.access_token');
-
-        $response = $this->apiService->get($endpoint, [], [
-            'client_id'     => adminSetting('ads.facebook.client_id'),
-            'client_secret' => adminSetting('ads.facebook.client_secret'),
-            'grant_type'    => 'authorization_code',
-            'redirect_uri'  => $redirectUri,
-            'code'          => $code,
-        ]);
-
-        $data = $response['data'];
-
-        if (!$response['success']) {
-            return redirect()->route('admin.ads.dashboard')->with('error', data_get($data, 'error.message', 'Facebook did not return an access token.'));
+        // 1. Validate CSRF state token
+        if (empty($state) || $state !== session('facebook_oauth_state')) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'Invalid OAuth state.');
         }
 
-        $accessToken = data_get($data, 'access_token');
+        $code = request()->input('code');
+        if (!$code) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'Authorization code was not provided.');
+        }
+
+        // 2. Exchange code for short-lived access token
+        $response = $this->apiService->get(
+            adminSetting('ads.facebook.access_token', 'https://graph.facebook.com/v22.0/oauth/access_token'),
+            [],
+            [
+                'client_id'     => adminSetting('ads.facebook.client_id'),
+                'client_secret' => adminSetting('ads.facebook.client_secret'),
+                'grant_type'    => 'authorization_code',
+                'redirect_uri'  => $this->getCallbackUrl(),
+                'code'          => $code,
+            ]
+        );
+
+        $data = $response['data'] ?? [];
+
+        if (!($response['success'] ?? false) || empty($data['access_token'])) {
+            return redirect()->route('admin.ads.dashboard')
+                ->with('error', data_get($data, 'error.message', 'Facebook did not return a valid access token.'));
+        }
+
+        $accessToken = $data['access_token'];
         $expiresIn   = data_get($data, 'expires_in', 3600);
         $expiresAt   = Carbon::now()->addSeconds($expiresIn);
+        $userId      = Auth::id();
 
+        // 3. Fetch Ad Accounts & linked IG accounts
         $accountResponse = $this->getFBAdAccount($accessToken);
-        dd($accountResponse);
+
         if (!$accountResponse['success']) {
             return redirect()->route('admin.ads.dashboard')->with('error', $accountResponse['error']);
         }
 
-        $connected = 0;
-        $instagramSaved = false;
+        $connectedFB = 0;
+        $connectedIG = 0;
 
-        foreach ($accountResponse['accounts'] as $account) {
-            $accountId = str_replace('act_', '', $account['facebook_account_id']);
+        // 4. Batch sync accounts into the database
+        foreach ($accountResponse['accounts'] as $item) {
+            $fbData = $item['facebook'] ?? null;
 
-            $this->apiService->success(
-                [
-                    'platform'      => 'facebook',
-                    'user_id'       => Auth::id(),
-                    'name'          => $account['name'] ?? "Facebook Ad Account {$accountId}",
-                    'currency'      => $account['currency'] ?? null,
-                    'ad_account_id' => $accountId,
-                    'access_token'  => $accessToken,
-                    'refresh_token' => data_get($data, 'refresh_token'),
-                    'expires_at'    => $expiresAt,
-                    'status'        => 'active',
-                ],
-                ['platform' => 'facebook', 'ad_account_id' => $accountId, 'user_id' => Auth::id()],
-                new AdAccount
-            );
+            if ($fbData) {
+                $rawAccountId = $fbData['account_id'] ?? str_replace('act_', '', $fbData['id']);
 
-            $connected++;
-
-            if (!$instagramSaved && !empty($account['instagram_account_id'])) {
                 $this->apiService->success(
                     [
-                        'platform'      => 'instagram',
-                        'user_id'       => Auth::id(),
-                        'name'          => $account['instagram_name'] ?? "Instagram Account {$account['instagram_account_id']}",
-                        'ad_account_id' => $account['instagram_account_id'],
+                        'platform'      => 'facebook',
+                        'user_id'       => $userId,
+                        'name'          => $fbData['name'] ?? "Facebook Ad Account {$rawAccountId}",
+                        'currency'      => $fbData['currency'] ?? null,
+                        'ad_account_id' => $rawAccountId,
                         'access_token'  => $accessToken,
                         'refresh_token' => data_get($data, 'refresh_token'),
                         'expires_at'    => $expiresAt,
                         'status'        => 'active',
                     ],
-                    ['platform' => 'instagram', 'ad_account_id' => $account['instagram_account_id'], 'user_id' => Auth::id()],
+                    [
+                        'platform'      => 'facebook',
+                        'ad_account_id' => $rawAccountId,
+                        'user_id'       => $userId,
+                    ],
                     new AdAccount
                 );
 
-                $instagramSaved = true;
+                $connectedFB++;
+            }
+
+            foreach ($item['instagrams'] ?? [] as $igAccount) {
+                $igId = $igAccount['id'];
+
+                $this->apiService->success(
+                    [
+                        'platform'      => 'instagram',
+                        'user_id'       => $userId,
+                        'name'          => $igAccount['name'] ?? $igAccount['username'] ?? "Instagram Account {$igId}",
+                        'ad_account_id' => $igId,
+                        'access_token'  => $accessToken,
+                        'refresh_token' => data_get($data, 'refresh_token'),
+                        'expires_at'    => $expiresAt,
+                        'status'        => 'active',
+                    ],
+                    [
+                        'platform'      => 'instagram',
+                        'ad_account_id' => $igId,
+                        'user_id'       => $userId,
+                    ],
+                    new AdAccount
+                );
+
+                $connectedIG++;
             }
         }
 
-        $message = "Connected {$connected} Facebook ad account(s)." . ($instagramSaved ? ' Instagram account linked.' : '');
+        $message = "Connected {$connectedFB} Facebook ad account(s)" . 
+                   ($connectedIG > 0 ? " and {$connectedIG} Instagram account(s)." : ".");
 
         return redirect()->route('admin.ads.dashboard')->with('success', $message);
     }
 
-    private function getFBAdAccount($accessToken)
+    private function getFBAdAccount(string $accessToken): array
     {
         $endpoint = adminSetting('ads.facebook.account.endpoint', 'https://graph.facebook.com/v22.0/me/adaccounts');
 
@@ -148,45 +178,54 @@ class FacebookAdService
             'access_token' => $accessToken,
         ]);
 
-        $result = $response->json();
-      
         if (!$response->successful()) {
-            return $this->errorResponse($result['error']['error_user_title'] ?? $result['error']['message']);
+            $result = $response->json();
+            return $this->errorResponse($result['error']['error_user_title'] ?? $result['error']['message'] ?? 'Failed to retrieve Facebook ad accounts.');
         }
 
+        $data = $response->json()['data'] ?? [];
+
+        // Filter active accounts tied to a Business Manager
         $activeAccounts = array_values(array_filter(
-            $result['data'] ?? [],
-            fn($account) => (int) ($account['account_status'] ?? 0) === 1 && !empty($account['business'])
+            $data,
+            fn($account) => (int) ($account['account_status'] ?? 0) === 1 && !empty($account['business']['id'])
         ));
 
         if (empty($activeAccounts)) {
             return $this->errorResponse('No active Facebook Business ad account was found for this user. Personal ad accounts are not supported.');
         }
 
-        $accounts = array_map(function ($account) use ($accessToken) {            
-            $instagramAccounts = $this->getInstagramBusinessAccount($accessToken, $account['business']['id']);
+        // Cache business IG accounts in memory to avoid duplicate HTTP calls for same Business ID
+        $businessIgCache = [];
+
+        $accounts = array_map(function ($account) use ($accessToken, &$businessIgCache) {
+            $businessId = $account['business']['id'];
+
+            if (!array_key_exists($businessId, $businessIgCache)) {
+                $businessIgCache[$businessId] = $this->getInstagramBusinessAccount($accessToken, $businessId);
+            }
 
             return [
                 'facebook'   => $account,
-                'instagrams'  => $instagramAccounts ?? null,
+                'instagrams' => $businessIgCache[$businessId],
             ];
         }, $activeAccounts);
 
         return ['success' => true, 'accounts' => $accounts];
     }
 
-    private function getInstagramBusinessAccount($accessToken, string $businessId): ?array
+    private function getInstagramBusinessAccount(string $accessToken, string $businessId): array
     {
-        $response = $this->httpClient::get("https://graph.facebook.com/v25.0/{$businessId}", [
-            'fields'       => 'id,name,instagram_accounts{name,username,profile_picture_url,biography}',
+        $response = $this->httpClient::get("https://graph.facebook.com/v22.0/{$businessId}", [
+            'fields'       => 'id,name,instagram_accounts{id,name,username,profile_picture_url,biography}',
             'access_token' => $accessToken,
         ]);
 
         if (!$response->successful()) {
-            return ['success' => false, 'error' => $response->json()];
+            return [];
         }
-    
-        return $response->json()['instagram_accounts']['data'];
+
+        return $response->json()['instagram_accounts']['data'] ?? [];
     }
 
     public function store($platform, $request)
