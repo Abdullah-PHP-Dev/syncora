@@ -123,7 +123,7 @@ class FacebookAdService
 
             // 2. Extract and Loop Through Linked Instagram Accounts
             $instagrams = $item['instagrams'] ?? [];
-            dd($instagrams);
+      
             foreach ($instagrams as $igAccount) {
                 $igId = $igAccount['id'];
 
