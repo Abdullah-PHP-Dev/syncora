@@ -197,7 +197,7 @@ class FacebookAdService
      */
     private function getInstagramBusinessAccount($accessToken, string $businessId): ?array
     {
-        dd($businessId);
+       
         $fields =  implode(',', [
             'id',
             'username',
@@ -261,7 +261,7 @@ class FacebookAdService
                 'response' => $response->json(),
             ]);
         }
-
+        dd($response->json());
         $pages = $response->successful() ? ($response->json()['data'] ?? []) : [];
 
         if (!empty($pages)) {
