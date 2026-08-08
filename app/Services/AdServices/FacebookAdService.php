@@ -91,13 +91,12 @@ class FacebookAdService
         }
 
         $connected = 0;
-        dd($accountResponse['accounts']);
         foreach ($accountResponse['accounts'] as $item) {
             // 1. Extract Facebook Ad Account Data
             $fbData = $item['facebook'] ?? null;
 
             if ($fbData) {
-                $rawAccountId = $fbData['account_id'] ?? str_replace('act_', '', $fbData['id']);
+                $rawAccountId = $fbData['account_id'];
 
                 $this->apiService->success(
                     [
@@ -124,7 +123,7 @@ class FacebookAdService
 
             // 2. Extract and Loop Through Linked Instagram Accounts
             $instagrams = $item['instagrams'] ?? [];
-
+            dd($instagrams);
             foreach ($instagrams as $igAccount) {
                 $igId = $igAccount['id'];
 
