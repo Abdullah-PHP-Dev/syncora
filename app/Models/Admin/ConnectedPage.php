@@ -8,7 +8,7 @@ use App\Models\User;
 
 class ConnectedPage extends Model
 {
-    protected $table = 'connected_pages';
+    protected $table = 'platform_pages';
     protected $fillable = ['platform', 'user_id', 'ad_account_id', 'page_id', 'name', 'username', 'description', 'category', 'link', 'likes_count', 'followers_count', 'business_id', 'access_token', 'picture', 'status'];
 
     public function user(): BelongsTo
