@@ -99,7 +99,7 @@ class FacebookAdService
 
         // 3. Fetch Ad Accounts & linked IG accounts
         $accountResponse = $this->getFBAdAccount($accessToken);
-
+        dd($accountResponse);
         if (!$accountResponse['success']) {
             return redirect()->route('admin.ads.dashboard')->with('error', $accountResponse['error']);
         }
