@@ -120,6 +120,7 @@ class FacebookAdService
 
     private function getFBAdAccount($accessToken)
     {
+        
         $endpoint = adminSetting('ads.facebook.account.endpoint');
 
         // Get Account 
@@ -141,10 +142,10 @@ class FacebookAdService
         foreach ($account['data'] as $account) {
             if ($account['account_status']) {
                 $accountId = $account['id'];
-                $endpoint = adminSetting('ads.instagram.account.endpoint');
+                // $endpoint = adminSetting('ads.instagram.account.endpoint');
                 // $this->config['base_url'] . $accountId . '/instagram_accounts',
                 $response = $this->httpClient::get(
-                    $this->config['base_url'] . $accountId . '/instagram_accounts',
+                    $endpoint . '?fields=id,name,instagram_business_account{id,username,name,biography,profile_picture_url,website,followers_count,follows_count,media_count,shopping_product_tag_eligibility,is_published,ig_id}',
                     [
                         'access_token' => $accessToken,
                     ]
@@ -155,7 +156,7 @@ class FacebookAdService
                 if (!$response->successful()) {
                     return $this->errorResponse($instaRes['error']['error_user_title'] ?? $instaRes['error']['message']);
                 }
-
+                dd($instaRes);
                 if (!empty($response->json()['data'])) {
                     $accounts = [
                         'facebook_account_id' => $accountId,
