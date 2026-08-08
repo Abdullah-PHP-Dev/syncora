@@ -85,7 +85,7 @@ class FacebookAdService
         $expiresAt   = Carbon::now()->addSeconds($expiresIn);
 
         $accountResponse = $this->getFBAdAccount($accessToken);
-        dd($accountResponse);
+
         if (!$accountResponse['success']) {
             return redirect()->route('admin.ads.dashboard')->with('error', $accountResponse['error']);
         }
@@ -165,10 +165,14 @@ class FacebookAdService
 
         $accounts = array_map(function ($account) use ($accessToken) {            
             $instagramAccount = $this->getInstagramBusinessAccount($accessToken, $account['business']['id']);
-            dd($instagramAccount);
+
             return [
-                'instagram'  => $instagramAccount,
-                'facebook'   => $account];
+                'facebook_account_id'  => $account['id'],
+                'name'                 => $account['name'] ?? null,
+                'currency'             => $account['currency'] ?? null,
+                'instagram_account_id' => $instagramAccount['id'] ?? null,
+                'instagram_name'       => $instagramAccount['name'] ?? $instagramAccount['username'] ?? null,
+            ];
         }, $activeAccounts);
 
         return ['success' => true, 'accounts' => $accounts];
@@ -176,16 +180,23 @@ class FacebookAdService
 
     private function getInstagramBusinessAccount($accessToken, string $businessId): ?array
     {
+        // Explicitly define nested fields to pass directly into the nested query syntax
+           // $businessId = $account['business']['id'];
+
+            $response = $this->httpClient::get("https://graph.facebook.com/v25.0/{$businessId}", [
+                'fields'       => 'id,name,instagram_accounts{id,username,name,profile_picture_url}',
+                'access_token' => $accessToken,
+            ]);
+            dd($response->json());
         foreach ($this->getBusinessPages($accessToken, $businessId) as $page) {
-            dd($page);
             $pageResponse = $this->httpClient::get(
-                "https://graph.facebook.com/v25.0/{$page['id']}",
+                "https://graph.facebook.com/v22.0/{$page['id']}",
                 [
                     'fields'       => "id,name,instagram_accounts{id,username,name,profile_picture_url}",
                     'access_token' => $accessToken,
                 ]
             );
- dd($pageResponse->json());
+
             if (!$pageResponse->successful()) {
                 Log::warning('Facebook Instagram lookup: page fields request failed', [
                     'page_id'  => $page['id'] ?? null,
@@ -193,7 +204,7 @@ class FacebookAdService
                 ]);
                 continue;
             }
-           
+
             $igAccount = $pageResponse->json()['instagram_business_account'] ?? null;
 
             if ($igAccount) {
