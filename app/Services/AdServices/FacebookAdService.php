@@ -54,7 +54,7 @@ class FacebookAdService
     {
         $redirectUri = $this->getCallbackUrl();
         $code = request()->input('code');
-        $endpoint = adminSetting('ads.facebook.endpoint.access_token');
+        $endpoint = adminSetting('ads.facebook.access_token');
 
         $response = $this->apiService->get($endpoint, [], [
             'client_id' => adminSetting('ads.facebook.client_id'),
