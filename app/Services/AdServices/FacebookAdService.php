@@ -42,7 +42,7 @@ class FacebookAdService
     {
         $clientId = adminSetting('ads.facebook.client_id');
 
-        return redirect("https://www.facebook.com/v25.0/dialog/oauth?client_id={$clientId}&redirect_uri={$this->getCallbackUrl()}&state={$this->state}&code_verifier={$this->codeVerifier}&scope=ads_management,ads_read,pages_show_list,pages_read_engagement,business_management,instagram_basic");
+        return redirect("https://www.facebook.com/v25.0/dialog/oauth?client_id={$clientId}&redirect_uri={$this->getCallbackUrl()}&state={$this->state}&code_verifier={$this->codeVerifier}&scope=ads_management,ads_read,pages_show_list,pages_read_engagement,business_management");
     }
 
     private function getCallbackUrl()
