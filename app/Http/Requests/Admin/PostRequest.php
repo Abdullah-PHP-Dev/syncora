@@ -32,7 +32,7 @@ class PostRequest extends FormRequest
             'platforms.*' => ['required', 'string', 'in:' . implode(',', $platforms)],
             //'ai_image_url' => ['nullable', 'required_without:media'],
             'media'        => ['nullable', 'array'],
-            'media.*'        => ['nullable', 'file', 'max:10240'],
+            'media.*'        => ['nullable', 'file'],
             
             'url' => ['nullable', 'url'],
             

@@ -148,6 +148,13 @@ class AdCampaignRequest extends FormRequest
             'objective' => array_merge($requiredIfPost, [
                 'in:REACH,TRAFFIC,VIDEO_VIEWS,LEAD_GENERATION,ENGAGEMENT,APP_PROMOTION,WEB_CONVERSIONS,PRODUCT_SALES'
             ]),
+            'page_id' => ['nullable'],
+            'bid_amount' => [
+                'nullable',
+                'numeric',
+                'min:0.01',
+                'max:500'
+            ],
             'app_promotion_type' => [
                 'nullable',
                 'in:APP_INSTALL,APP_RETARGETING,APP_PREREGISTRATION',
@@ -217,7 +224,20 @@ class AdCampaignRequest extends FormRequest
             'optimization_goal' => array_merge($requiredIfPost, ['in:REACH,ENGAGED_VIEW,ENGAGED_VIEW_FIFTEEN,CLICK,TRAFFIC_LANDING_PAGE_VIEW,CONVERT,VALUE,AUTOMATIC_VALUE_OPTIMIZATION,INSTALL,IN_APP_EVENT,LEAD_GENERATION,FOLLOWERS,PAGE_VISIT']),
             'gender' => ['nullable', 'in:GENDER_FEMALE,GENDER_MALE,GENDER_UNLIMITED'],
             'placement_type' => ['nullable', 'in:PLACEMENT_TYPE_AUTOMATIC,PLACEMENT_TYPE_NORMAL'],
-            'placements' => ['required_if:placement_type,PLACEMENT_TYPE_NORMAL' ,'in:PLACEMENT_TIKTOK,PLACEMENT_PANGLE,PLACEMENT_GLOBAL_APP_BUNDLE'],
+            // Was a plain 'in:...' rule directly on 'placements' - that
+            // validates a single scalar, but the form submits placements[]
+            // as an array (multiple placements can be picked), so every
+            // manual-placement submission would have failed validation
+            // outright. 'array' + 'placements.*' checks each selected
+            // value instead.
+            'placements' => ['required_if:placement_type,PLACEMENT_TYPE_NORMAL', 'array'],
+            'placements.*' => ['in:PLACEMENT_TIKTOK,PLACEMENT_PANGLE,PLACEMENT_GLOBAL_APP_BUNDLE'],
+            // Ad-level text (TikTok's creatives[].ad_text, see
+            // TiktokAdService::buildCreative()) - missing here meant
+            // FormRequest::validated() silently dropped it before it ever
+            // reached TiktokAdService, even though the create/edit forms'
+            // "description" textarea submitted it correctly all along.
+            'description' => ['required', 'string'],
             'languages' => ['array', 'required'],
             'final_budget' => ['nullable'],
             'target_link'  => ['required'],
@@ -227,7 +247,11 @@ class AdCampaignRequest extends FormRequest
             // entirely, so any value (or none) passed straight through to
             // TiktokAdService without being checked.
             'billing_event' => array_merge($requiredIfPost, ['in:CPC,CPM,CPV,OCPM']),
-            'page_id' => array_merge($requiredIfPost, []),
+          //  'page_id' => array_merge($requiredIfPost, []),
+            // Companion to page_id (see TiktokAdService::buildCreative()) -
+            // which identity_type a given page_id actually is, since the
+            // "TikTok Identity" select sets both together.
+            'identity_type' => ['nullable', 'in:TT_USER,CUSTOMIZED_USER,AUTH_CODE,BC_AUTH_TT'],
            // 'operation_status' => ['nullable', 'in:ENABLE,DISABLE'],
             // 'budget_mode' => array_merge($requiredIfPost, ['
             //     in:BUDGET_MODE_DAY,BUDGET_MODE_TOTAL,BUDGET_MODE_DYNAMIC_DAILY_BUDGET,BUDGET_MODE_INFINITE',
@@ -256,9 +280,17 @@ class AdCampaignRequest extends FormRequest
                 'required_with:pixel_id',
                 'required_if:optimization_goal,IN_APP_EVENT,VALUE',
             ],
+            // TikTok requires a pixel for WEB_CONVERSIONS regardless of
+            // which of its three optimization goals is picked (confirmed
+            // live: AUTOMATIC_VALUE_OPTIMIZATION was still rejected with
+            // "Please select a pixel." even with a real pixel_id, until
+            // TiktokAdService::storeAdGroup()'s own gate - which had the
+            // same CONVERT/VALUE-only mistake - was widened). Keying off
+            // objective rather than optimization_goal catches all three
+            // goals without needing to enumerate them.
             'pixel_id' => [
                 'nullable',
-                'required_if:optimization_goal,CONVERT,VALUE',
+                'required_if:objective,WEB_CONVERSIONS',
             ],
             //'schedule_start_time' => array_merge($requiredIfPost, ['date', 'before:schedule_end_time', 'date_format:Y-m-d\TH:i']),
             // 'schedule_end_time' => [
@@ -291,6 +323,17 @@ class AdCampaignRequest extends FormRequest
                     if (request()->input('media_type') === 'CAROUSEL' && count($value) < 2) {
                         $fail('Carousel ads need at least 2 images.');
                     }
+
+                    // REACH only supports SINGLE_VIDEO on TikTok's core
+                    // placement - IMAGE and CAROUSEL both get rejected at
+                    // ad/create/ with a confusing "Unsupported image
+                    // size" error regardless of the actual image's
+                    // dimensions (confirmed live with both a 1080x1080
+                    // and a 1080x1920 image, both rejected identically;
+                    // a video succeeded immediately with no other change).
+                    if (request()->input('objective') === 'REACH' && request()->input('media_type') !== 'VIDEO') {
+                        $fail('Reach campaigns on TikTok only support video ads - please upload a video instead of an image.');
+                    }
                 },
             ]),
             // Video files need far more headroom than images - TikTok allows
@@ -306,7 +349,23 @@ class AdCampaignRequest extends FormRequest
                 },
             ],
            'media_type' => ['required', 'in:IMAGE,VIDEO,CAROUSEL'],
-           'carousel_cards' => ['nullable', 'required_if:media_type,CAROUSEL', 'json'],
+            // Optional - TiktokAdService falls back to auto-extracting a
+            // cover frame from the video itself (fetchVideoCoverImageId())
+            // when no explicit cover is uploaded, so this is never
+            // required_if the way 'music' below is for Carousel.
+            'video_cover' => ['nullable', 'image', 'max:8192'],
+            // TikTok rejects Carousel ad creation without a music track
+            // (see TiktokAdService::buildCreative()/uploadMusic()) -
+            // required, not just nullable, since there's no reliable
+            // automatic default confirmed to satisfy TikTok's own
+            // "valid music for Carousel Ads" check.
+            'music' => [
+                'required_if:media_type,CAROUSEL',
+                'nullable',
+                'file',
+                'mimes:mp3,wav,m4a,flac',
+                'max:10240',
+            ],
             // 'bid_display_mode' => [
             //     'nullable', 
             //     'in:CPV',

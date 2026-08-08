@@ -409,10 +409,12 @@
 
                                             <div class="row">
                                                 <div class="col-md-6">
-                                                    <label>Page Id</label>
-                                                    <div class="input-group">
-                                                        <input class="form-control" name="page_id" id="page_id" value="{{$creative->page_id}}" type="text" step="0.01">
-                                                    </div>
+                                                    <label>TikTok Identity *</label>
+                                                    <select name="page_id" id="page_id" class="form-control" data-current="{{ $creative->page_id }}" required>
+                                                        <option value="{{ $creative->page_id }}">-- Loading identities... --</option>
+                                                    </select>
+                                                    <input type="hidden" name="identity_type" id="identity_type" value="TT_USER">
+                                                    <small class="text-muted">A TikTok account linked to this ad account. If none are listed, link one in TikTok Ads Manager → Assets → Identity (or via Business Center) first - this can't be created from here.</small>
                                                     <p class="error-message error-page_id"></p>
                                                 </div>
                                             </div>
@@ -460,6 +462,19 @@
                                                 <p class="error-message error-media"></p>
                                             </div>
 
+                                            <div class="mt-3" id="carouselMusicBlock" style="display:none;">
+                                                <label>Background Music *</label>
+                                                <input type="file" name="music" id="musicInput" class="form-control" accept=".mp3,.wav,.m4a,.flac">
+                                                <small class="text-muted">Required for Carousel Ads - TikTok won't create the ad without one. MP3/WAV/M4A/FLAC, max 10MB. Leave blank to keep the existing track.</small>
+                                                <p class="error-message error-music"></p>
+                                            </div>
+
+                                            <div class="mt-3" id="videoCoverBlock" style="display:none;">
+                                                <label>Video Cover / Thumbnail</label>
+                                                <input type="file" name="video_cover" id="videoCoverInput" class="form-control" accept="image/*">
+                                                <small class="text-muted">Optional - only used if you also re-upload the video above. Leave blank to keep the current cover.</small>
+                                                <p class="error-message error-video_cover"></p>
+                                            </div>
 
                                             <div class="mt-4">
 
@@ -604,20 +619,7 @@
                                             </video>
                                             <div id="carouselPreview" style="display:none">
                                                 <img id="carouselImage" class="preview-image">
-                                                <div class="mt-3">
-                                                    <label>Title</label>
-                                                    <input type="text" id="carouselTitle" class="form-control"
-                                                        placeholder="Card title">
-                                                </div>
-                                                <div class="mt-3">
-                                                    <label>Description</label>
-                                                    <textarea id="carouselDescription" class="form-control" rows="3" placeholder="Card description">{{$creative->message}}</textarea>
-                                                </div>
-                                                <div class="mt-3">
-                                                    <label>Card URL</label>
-                                                    <input type="url" id="carouselLink" class="form-control"
-                                                        placeholder="https://example.com">
-                                                </div>
+                                                <small class="text-muted d-block mt-2">TikTok Carousel Ads share one caption and CTA across every card (set below) - there's no per-image title or link.</small>
                                                 <div class="d-flex justify-content-between mt-3">
                                                     <button type="button" class="btn btn-primary" id="prevImage">
                                                         Previous
@@ -675,15 +677,73 @@
         var changesNotSaved = "{{ __('admin.sweet-alert.changes-not-saved') }}";
         var apiUrl = "{{ route('admin.apis.store') }}";
         var getAPIUrl = "{{ route('admin.apis.show', ['api' => ':API']) }}";
-        var url = "{{ route('admin.ads.campaigns.update', ['platform' => 'facebook', 'campaign' => '__ID__']) }}";
-        url = url.replace('__ID__', campaignId);       
+        var url = "{{ route('admin.ads.campaigns.update', ['platform' => 'tiktok', 'campaign' => '__ID__']) }}";
+        url = url.replace('__ID__', campaignId);
         var destroyAPIUrl = "{{ route('admin.apis.destroy', ['api' => ':API']) }}";
-        var redirectUrl = "{{ route('admin.ads.campaigns.index', ['platform' => 'facebook']) }}";
-        //  var url = "{{ route('admin.ads.campaigns.store', ['platform' => 'facebook']) }}";
+        var redirectUrl = "{{ route('admin.ads.campaigns.index', ['platform' => 'tiktok']) }}";
+        //  var url = "{{ route('admin.ads.campaigns.store', ['platform' => 'tiktok']) }}";
         var method = 'PUT';
         var edit = "{{ __('admin.table.edit') }}";
         var deletebutton = "{{ __('admin.table.delete') }}";
         $('#countries').select2();
+
+        // LOAD TIKTOK IDENTITIES - replaces a free-text identity id (which
+        // could silently reference an identity TikTok has since revoked
+        // access to) with only the identities currently authorized for
+        // this ad account, per TiktokAdService::getIdentities(). The
+        // ad's existing identity is kept as an option even if it's not
+        // in that list, so the field doesn't just go blank - but flagged
+        // so it's clear a re-pick may be needed (this is exactly the
+        // "You no longer have access..." case). Each option carries its
+        // identity_type so #identity_type stays in sync - buildCreative()
+        // needs the type to match the id or TikTok rejects the update.
+        var identityUrl = "{{ route('admin.ads.identities', ['platform' => 'tiktok']) }}";
+        var identitySelect = document.getElementById('page_id');
+        var identityTypeInput = document.getElementById('identity_type');
+
+        function renderIdentityOptions(identities) {
+            if (!identitySelect) return;
+
+            var current = identitySelect.dataset.current;
+            var stillValid = identities.some(function(identity) { return identity.id === current; });
+
+            var options = identities.map(function(identity) {
+                return '<option value="' + identity.id + '" data-type="' + identity.type + '"' + (identity.id === current ? ' selected' : '') + '>' + identity.name + '</option>';
+            }).join('');
+
+            if (current && !stillValid) {
+                options += '<option value="' + current + '" data-type="TT_USER" selected>' + current + ' (may no longer be authorized - please re-select)</option>';
+            }
+
+            identitySelect.innerHTML = options || '<option value="">-- No linked TikTok accounts - add one in TikTok Ads Manager --</option>';
+
+            if (identityTypeInput) {
+                var selected = identitySelect.options[identitySelect.selectedIndex];
+                identityTypeInput.value = (selected && selected.dataset.type) || 'TT_USER';
+            }
+        }
+
+        function loadIdentities() {
+            return fetch(identityUrl)
+                .then(function(response) { return response.json(); })
+                .then(function(result) {
+                    renderIdentityOptions(result.success ? result.data : []);
+                    return result;
+                })
+                .catch(function() {
+                    if (identitySelect) identitySelect.innerHTML = '<option value="' + identitySelect.dataset.current + '" selected>' + identitySelect.dataset.current + ' (could not load identities)</option>';
+                });
+        }
+
+        loadIdentities();
+
+        if (identitySelect) {
+            identitySelect.addEventListener('change', function() {
+                var selected = this.options[this.selectedIndex];
+                if (identityTypeInput) identityTypeInput.value = (selected && selected.dataset.type) || 'TT_USER';
+            });
+        }
+
         document.getElementById('name').addEventListener('keyup', function() {
 
             document.getElementById('previewTitle')
@@ -698,11 +758,31 @@
 
         });
 
-        let creativeType = 'IMAGE';
-        let carouselItems = [];
+        // Reflects the ad's actual saved format instead of always
+        // defaulting to IMAGE - without this, opening an existing
+        // Carousel ad never set creativeType to 'CAROUSEL' unless the
+        // admin manually re-clicked the Carousel button.
+        let creativeType = @json($creative->type ?? 'IMAGE');
+        let carouselItems = @json($media->map(fn($m) => [
+            'image' => $m->url,
+        ])->values());
         let currentIndex = 0;
         let mediaInput = document.getElementById('mediaInput');
         let carousel = document.getElementById('carouselPreview');
+
+        if (creativeType === 'CAROUSEL') {
+            document.querySelectorAll('.media-type').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.type === 'CAROUSEL');
+            });
+            document.getElementById('media_type').value = 'CAROUSEL';
+            document.getElementById('carouselMusicBlock').style.display = '';
+            carousel.style.display = 'block';
+            loadCarouselItem();
+        } else {
+            carouselItems = [];
+        }
+
+        document.getElementById('videoCoverBlock').style.display = creativeType === 'VIDEO' ? '' : 'none';
 
 
 
@@ -719,6 +799,8 @@
                 let input = document.getElementById('mediaInput');
                 $('#media_type').val(creativeType);
                 console.log($('#media_type').val());
+                document.getElementById('carouselMusicBlock').style.display = creativeType === 'CAROUSEL' ? '' : 'none';
+                document.getElementById('videoCoverBlock').style.display = creativeType === 'VIDEO' ? '' : 'none';
                 if (creativeType === 'CAROUSEL') {
 
                     input.setAttribute('multiple', true);
@@ -747,26 +829,11 @@
             let item = carouselItems[currentIndex];
 
             document.getElementById('carouselImage').src = item.image;
-            document.getElementById('carouselTitle').value = item.title;
-            document.getElementById('carouselDescription').value = item.description;
-            document.getElementById('carouselLink').value = item.link;
 
             document.getElementById('carouselCounter').innerHTML =
                 `${currentIndex + 1} / ${carouselItems.length}`;
         }
-        document.getElementById('carouselTitle').addEventListener('input', function() {
 
-
-            carouselItems[currentIndex].title = this.value;
-
-
-        });
-        document.getElementById('carouselDescription').addEventListener('input', function() {
-            carouselItems[currentIndex].description = this.value;
-        });
-        document.getElementById('carouselLink').addEventListener('input', function() {
-            carouselItems[currentIndex].link = this.value;
-        });
         document.getElementById('mediaInput')
             .addEventListener('change', function(e) {
 
@@ -783,9 +850,6 @@
 
                     carouselItems = files.map(file => ({
                         image: URL.createObjectURL(file),
-                        title: '',
-                        description: '',
-                        link: ''
                     }));
 
                     currentIndex = 0;

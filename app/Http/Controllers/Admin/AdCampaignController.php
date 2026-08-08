@@ -107,4 +107,20 @@ class AdCampaignController extends Controller
 
         return $this->socialAdManager->updateStatus($platform, $id, $request->input('status'));
     }
+
+    /**
+     * TikTok-only (see TiktokAdService::getIdentities()'s docblock) -
+     * called directly rather than through SocialAdManagerService's
+     * platform dispatch since getIdentities() isn't part of the uniform
+     * redirect/callback/store/update/destroy contract every other
+     * platform's service implements.
+     */
+    public function identities($platform)
+    {
+        if ($platform !== 'tiktok') {
+            return response()->json(['success' => false, 'error' => 'Identity lookup is only available for TikTok.'], 404);
+        }
+
+        return response()->json(app(\App\Services\AdServices\TiktokAdService::class)->getIdentities());
+    }
 }

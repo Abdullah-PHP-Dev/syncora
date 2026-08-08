@@ -193,6 +193,24 @@ class TiktokAdService
 
         $request['media'] = $response['data'];
 
+        // Carousel Ads need a music track (TikTok rejects ad/create/
+        // without one - "Please select valid music for Carousel Ads.",
+        // confirmed live) and the auto-picked Commercial Music Library
+        // default (buildCreative()'s getDefaultMusicId() fallback) hasn't
+        // reliably satisfied that check in testing - a self-uploaded
+        // track lets the admin supply one directly instead of depending
+        // on it. Only relevant for CAROUSEL; every other ad_format either
+        // doesn't use music_id at all or (SINGLE_VIDEO) has its own audio.
+        if ($request['media_type'] === 'CAROUSEL' && !empty($request['music'])) {
+            $musicResponse = $this->uploadMusic($request['music']);
+            
+            if (!$musicResponse['success']) {
+                return $musicResponse;
+            }
+
+            $request['music_id'] = $musicResponse['data']['id'];
+        }
+       
         // TikTok's ad/create/ builds the creative and the ad in one call -
         // there's no separate "create a creative" resource like Facebook's
         // /adcreatives. storeAd() makes that one real API call and persists
@@ -206,7 +224,7 @@ class TiktokAdService
 
         $payload = [
             'advertiser_id'      => $this->account->ad_account_id,
-            'campaign_name'      => $request['name'],
+            'campaign_name'      => $request['name'] . ' ' . time(),
             'objective_type'     => $request['objective'],
             'budget_mode'        => $request['budget_mode'],
             'budget'             => (float) $request['budget'],
@@ -236,7 +254,7 @@ class TiktokAdService
             'ad_campaign_id'      => $id,
             'user_id'             => Auth::user()->id,
             'ad_account_id'       => $this->account->id,
-            'name'                => $request['name'],
+            'name'                => $request['name'] . ' ' . time(),
             'objective'           => $request['objective'],
             'platform'            => $platform,
             'start_time'          => $request['start_time'],
@@ -268,12 +286,31 @@ class TiktokAdService
             return $this->errorResponse('Could not resolve the selected countries to TikTok location IDs. Please double-check the Countries selection.');
         }
 
+        $placementType = $request['placement_type'] ?? 'PLACEMENT_TYPE_AUTOMATIC';
+
+        // Non-OCPM billing doesn't support automatic placement at all
+        // ("This ad objective only supports manual placement.", confirmed
+        // live across REACH/CPM, VIDEO_VIEWS/CPV, and ENGAGEMENT/CPC -
+        // three different objectives, one common factor). OCPM (TRAFFIC,
+        // confirmed live) accepted automatic placement fine. Keyed off
+        // billing_event rather than a growing objective whitelist since
+        // that's the variable that actually tracked with the result across
+        // all four tests, not objective_type itself - e.g. TRAFFIC itself
+        // can also run under CPC (see optimizationGoalBillingMap's CLICK
+        // entry in the blade), which on this evidence would need the same
+        // forcing, not just other objectives. Placements itself is still
+        // handled below the same way as any other NORMAL adgroup (defaults
+        // to PLACEMENT_TIKTOK if the admin didn't pick any).
+        if ($request['billing_event'] !== 'OCPM') {
+            $placementType = 'PLACEMENT_TYPE_NORMAL';
+        }
+
         $payload = [
             'advertiser_id'      => $this->account->ad_account_id,
             'campaign_id'        => $request['campaign_id'],
             'adgroup_name'       => $request['name'],
             'promotion_type'     => $request['promotion_type'] ?? null,
-            'placement_type'     => 'PLACEMENT_TYPE_AUTOMATIC',
+            'placement_type'     => $placementType,
             'budget_mode'        => $request['budget_mode'],
             'budget'             => (float) $request['budget'],
             'schedule_type'      => 'SCHEDULE_START_END',
@@ -288,8 +325,48 @@ class TiktokAdService
             'languages'          => array_values($request['languages'] ?? []),
         ];
 
-        if (!empty($request['bid_amount'])) {
-            $payload['bid_price'] = (float) $request['bid_amount'];
+        // REACH also requires explicit frequency capping ("Please set a
+        // frequency cap.", confirmed live) - TikTok has no default of its
+        // own. 2 views per 7 days is a conservative, commonly-used
+        // default; there's no form field for this yet, so request values
+        // are only honored if some future UI change adds one.
+        if ($request['objective'] === 'REACH') {
+            $payload['frequency'] = $request['frequency'] ?? 2;
+            $payload['frequency_schedule'] = $request['frequency_schedule'] ?? 7;
+        }
+
+        // TikTok defaults to BID_TYPE_NO_BID (fully automatic bidding) when
+        // bid_type isn't sent at all - in that mode any bid_price/
+        // conversion_bid_price value is ignored outright, which is what
+        // produced "Bid needs to be greater than 0.00" even though a real
+        // bid_amount was sent. bid_type must be explicitly BID_TYPE_CUSTOM
+        // for a manual bid to be read at all. Which *field* gets read also
+        // depends on billing_event: OCPM (value/conversion-optimized
+        // billing) reads conversion_bid_price, not bid_price - CPC/CPM/CPV
+        // read bid_price - sending the bid under the wrong field for OCPM
+        // has the same silent-zero effect as not sending bid_type at all.
+        //
+        // AUTOMATIC_VALUE_OPTIMIZATION is the one optimization_goal that
+        // categorically rejects a custom bid at all ("the bid type
+        // 'BID_TYPE_CUSTOM' is not supported with the 'AUTOMATIC_VALUE_
+        // OPTIMIZATION' goal.", confirmed live) - it hands all bidding
+        // control to TikTok by definition, so bid_amount is ignored
+        // entirely here rather than sent and rejected.
+        if (!empty($request['bid_amount']) && $request['optimization_goal'] !== 'AUTOMATIC_VALUE_OPTIMIZATION') {
+            $bidField = $request['billing_event'] === 'OCPM' ? 'conversion_bid_price' : 'bid_price';
+            $payload['bid_type'] = 'BID_TYPE_CUSTOM';
+            $payload[$bidField] = (float) $request['bid_amount'];
+
+            // VIDEO_VIEWS + a custom bid requires bid_display_mode set to
+            // match the billing event explicitly ("'bid_display_mode'
+            // needs to be 'CPV' when 'objective_type' is 'VIDEO_VIEW' and
+            // 'bid_type' is 'CUSTOM'.", confirmed live) - other objectives
+            // let TikTok assign this itself (it showed up as CPMV on its
+            // own in every other objective tested), so it's only forced
+            // here for CPV billing specifically.
+            if ($request['billing_event'] === 'CPV') {
+                $payload['bid_display_mode'] = 'CPV';
+            }
         }
 
         if (!empty($request['promotion_target_type'])) {
@@ -300,7 +377,15 @@ class TiktokAdService
             $payload['app_id'] = $request['app_id'];
         }
 
-        if (in_array($request['optimization_goal'], ['CONVERT', 'VALUE'], true) && !empty($request['pixel_id'])) {
+        // Was gated to only CONVERT/VALUE, silently dropping pixel_id for
+        // AUTOMATIC_VALUE_OPTIMIZATION even when the admin provided one -
+        // confirmed live that TikTok requires a pixel for WEB_CONVERSIONS
+        // regardless of which of its three optimization goals is picked
+        // ("Please select a pixel.", still rejected even with a real
+        // pixel_id in the request until this gate was widened). Just
+        // forwards it whenever present now rather than gatekeeping by a
+        // goal list our own validation already got wrong once.
+        if (!empty($request['pixel_id'])) {
             $payload['pixel_id'] = $request['pixel_id'];
         }
 
@@ -308,7 +393,39 @@ class TiktokAdService
             $payload['optimization_event'] = $request['optimization_event'];
         }
 
+        // TikTok requires placements only for NORMAL (manual) placement -
+        // for AUTOMATIC it must be omitted from the payload entirely, not
+        // sent empty, or the call is rejected. Defaults to PLACEMENT_
+        // TIKTOK when REACH forced NORMAL above but the admin never
+        // picked any (the "Placements" picker only appears in the form
+        // when Manual is explicitly selected, which REACH's own forced
+        // override bypasses) - REACH itself would otherwise reject the
+        // adgroup for having no placements at all under NORMAL type.
+        if ($placementType === 'PLACEMENT_TYPE_NORMAL') {
+            $payload['placements'] = !empty($request['placements'])
+                ? array_values((array) $request['placements'])
+                : ['PLACEMENT_TIKTOK'];
+        }
+
+        // storeAd()->store() chains storeCampaign() straight into this
+        // with zero delay, referencing the campaign_id storeCampaign()
+        // just got back - occasionally TikTok's own systems haven't
+        // finished propagating that brand-new campaign yet, and
+        // adgroup/create/ rejects it as invalid even though the exact
+        // same payload against the exact same campaign_id succeeds
+        // seconds later (confirmed live this session, on a call that had
+        // failed moments earlier through the app). Retried only on
+        // failure, so a successful create always stops the loop
+        // immediately - this can't produce duplicate ad groups.
+      
         $result = $this->callTikTok('post', $endpoint, $payload);
+        $attempts = 1;
+
+        while (!$result['success'] && $attempts < 3) {
+            sleep(2);
+            $result = $this->callTikTok('post', $endpoint, $payload);
+            $attempts++;
+        }
 
         if (!$result['success']) {
             return $result;
@@ -328,7 +445,8 @@ class TiktokAdService
             'name'                  => $request['name'],
             'promotion_type'        => $request['promotion_type'] ?? null,
             'promotion_target_type' => $request['promotion_target_type'] ?? null,
-            'placement_type'        => 'PLACEMENT_TYPE_AUTOMATIC',
+            'placement_type'        => $placementType,
+            'placements'            => isset($payload['placements']) ? json_encode($payload['placements']) : null,
             'location_ids'          => json_encode($locationIds),
             'platform'              => $platform,
             'gender'                => $payload['gender'],
@@ -341,7 +459,9 @@ class TiktokAdService
             'schedule_end_time'     => $payload['schedule_end_time'],
             'optimization_goal'     => $request['optimization_goal'],
             'billing_event'         => $request['billing_event'],
-            'bid_price'             => $request['bid_amount'] ?? null,
+            'bid_type'              => $payload['bid_type'] ?? null,
+            'bid_price'             => $payload['bid_price'] ?? null,
+            'conversion_bid_price'  => $payload['conversion_bid_price'] ?? null,
             'pacing'                => $payload['pacing'],
             'objective'             => $request['objective'],
             'status'                => false,
@@ -358,16 +478,13 @@ class TiktokAdService
     {
         $mediaIds = [];
 
-        // Standard TikTok Carousel Ads share one caption/CTA/link across all
-        // cards (unlike Facebook's per-card child_attachments), so there's
-        // nothing per-card to decode here - carousel_cards, if present, only
-        // carries an optional per-image title/description for our own
-        // records (ad_media.title/description), not anything TikTok's API
-        // itself accepts per image.
-        $cards = $request['media_type'] === 'CAROUSEL'
-            ? (json_decode($request['carousel_cards'] ?? '[]', true) ?: [])
-            : [];
-
+        // Standard TikTok Carousel Ads share one caption/CTA/link across
+        // all cards (unlike Facebook's per-card child_attachments) - the
+        // Carousel creative schema (confirmed against TikTok's own
+        // AdcreateCreatives reference) has no per-image title/description
+        // field at all, only the shared ad_text/landing_page_url/
+        // call_to_action set once on the whole creative. There's
+        // deliberately no per-card data collected or stored here.
         foreach ($request['media'] as $index => $media) {
             $extension = strtolower($media->getClientOriginalExtension());
             $mediaType = $this->getMediaType($extension);
@@ -383,14 +500,12 @@ class TiktokAdService
             $filePath = Storage::disk('r2')->url($s3Path);
 
             $result = $mediaType === 'VIDEO'
-                ? $this->uploadVideo($media, $fileName)
+                ? $this->uploadVideo($media, $fileName, $request['video_cover'] ?? null)
                 : $this->uploadImage($media, $fileName);
 
             if (!$result['success']) {
                 return $result;
             }
-
-            $card = $cards[$index] ?? [];
 
             $dataToInsert = [
                 'ad_media_id'       => $result['data']['id'],
@@ -409,8 +524,6 @@ class TiktokAdService
                 'file_id'           => $result['data']['id'],
                 'user_id'           => Auth::user()->id,
                 'ad_format'         => $request['media_type'],
-                'title'             => $card['title'] ?? null,
-                'description'       => $card['description'] ?? null,
             ];
 
             $mediaRecord = $this->apiService->success(
@@ -418,13 +531,14 @@ class TiktokAdService
                 ['ad_media_id' => $result['data']['id']],
                 new AdMedia
             );
-
+          
             $mediaIds[] = [
-                'ad_media_id' => $mediaRecord['data']['id'],
-                'media_id'    => $result['data']['id'],
+                'ad_media_id'    => $mediaRecord['data']['id'],
+                'media_id'       => $result['data']['id'],
+                'cover_image_id' => $result['data']['cover_image_id'] ?? null,
             ];
         }
-
+      
         return ['success' => true, 'data' => $mediaIds];
     }
 
@@ -453,7 +567,16 @@ class TiktokAdService
         ]);
     }
 
-    private function uploadVideo($media, $fileName)
+    /**
+     * $coverMedia is the admin's own optional cover/thumbnail upload
+     * (the "Video Cover" field, shown only for media_type=VIDEO) - when
+     * provided, it's uploaded via uploadImage() and used directly instead
+     * of fetchVideoCoverImageId()'s auto-extracted frame, since letting
+     * TikTok pick an arbitrary frame from the video can land on a blank/
+     * transitional moment. Falls back to auto-generation when no cover
+     * was uploaded, same as before.
+     */
+    private function uploadVideo($media, $fileName, $coverMedia = null)
     {
         $endpoint = $this->config . 'file/video/ad/upload/';
 
@@ -472,10 +595,157 @@ class TiktokAdService
             return $result;
         }
 
+        // file/video/ad/upload/'s data is a LIST (confirmed live - even a
+        // single video comes back as one entry in an array), unlike
+        // file/image/ad/upload/'s single object - and it carries no
+        // video_cover_url or any other cover field at all, unlike what
+        // was here before.
+        $videoId = $result['data'][0]['video_id'] ?? null;
+
+        $coverImageId = $coverMedia
+            ? $this->uploadCoverImage($coverMedia)
+            : null;
+
+        // fetchVideoCoverImageId() chains 3 sequential TikTok calls with
+        // no pacing (video info, download, image upload) right after this
+        // method's own upload call - easy to trip a QPS limit and get a
+        // null back even though nothing is actually wrong (confirmed live
+        // this session: an identical call failed once, then succeeded
+        // immediately on retry with more spacing between attempts). One
+        // retry after a short pause absorbs that without masking a
+        // genuine failure - a second consecutive failure still surfaces
+        // as no cover, which buildCreative() and TikTok's own "must
+        // upload an image" rejection make visible rather than silent.
+        if (!$coverImageId && $videoId) {
+            $coverImageId = $this->fetchVideoCoverImageId($videoId);
+
+            if (!$coverImageId) {
+                sleep(2);
+                $coverImageId = $this->fetchVideoCoverImageId($videoId);
+            }
+        }
+
         return $this->successResponse([
-            'id'  => $result['data']['video_id'] ?? null,
-            'url' => $result['data']['video_cover_url'] ?? null,
+            'id'             => $videoId,
+            'url'            => null,
+            'cover_image_id' => $coverImageId,
         ]);
+    }
+
+    /**
+     * Plain file/image/ad/upload/ call for a manually-provided video
+     * cover - same mechanics as uploadImage(), kept separate so its
+     * return shape (just the image_id, no 'url' wrapper) matches what
+     * uploadVideo() needs directly rather than reusing uploadImage()'s
+     * successResponse() wrapper.
+     */
+    private function uploadCoverImage($coverMedia): ?string
+    {
+        $fileName = time() . '_' . uniqid() . '.' . strtolower($coverMedia->getClientOriginalExtension());
+
+        $result = $this->callTikTokMultipart($this->config . 'file/image/ad/upload/', [
+            'advertiser_id'   => $this->account->ad_account_id,
+            'upload_type'     => 'UPLOAD_BY_FILE',
+            'file_name'       => $fileName,
+            'image_signature' => md5_file($coverMedia->getRealPath()),
+        ], [[
+            'name'       => 'image_file',
+            'media_file' => $coverMedia->getRealPath(),
+            'file_name'  => $fileName,
+        ]]);
+
+        return $result['success'] ? ($result['data']['image_id'] ?? null) : null;
+    }
+
+    /**
+     * TikTok rejects SINGLE_VIDEO ad creation with "You must upload an
+     * image." unless the creative also carries an image_ids cover
+     * (confirmed live against this sandbox) - there's no field on
+     * file/video/ad/upload/ to set one directly. file/video/ad/info/'s
+     * video_cover_url is only a signed CDN preview link, not an
+     * image_id ad/create/'s image_ids will accept, so the actual fix is
+     * downloading that preview and re-uploading it through file/image/ad
+     * /upload/ to get a real, usable image_id - fully automatic, no
+     * extra upload asked of the admin. Best-effort: returning null on
+     * any failure here just leaves the video ad without an auto cover,
+     * which TikTok will then reject with the same clear "must upload an
+     * image" error rather than this method silently producing a broken
+     * creative.
+     */
+    private function fetchVideoCoverImageId(string $videoId): ?string
+    {
+        $infoResult = $this->callTikTok('get', $this->config . 'file/video/ad/info/', [
+            'advertiser_id' => $this->account->ad_account_id,
+            'video_ids'     => json_encode([$videoId]),
+        ]);
+
+        $coverUrl = $infoResult['data']['list'][0]['video_cover_url'] ?? null;
+
+        if (!$coverUrl) {
+            return null;
+        }
+
+        $imageContents = @file_get_contents($coverUrl);
+
+        if ($imageContents === false) {
+            return null;
+        }
+
+        $tmpPath = tempnam(sys_get_temp_dir(), 'tt_cover_');
+        file_put_contents($tmpPath, $imageContents);
+        $coverFileName = 'cover_' . $videoId . '.jpg';
+
+        $uploadResult = $this->callTikTokMultipart($this->config . 'file/image/ad/upload/', [
+            'advertiser_id'   => $this->account->ad_account_id,
+            'upload_type'     => 'UPLOAD_BY_FILE',
+            'file_name'       => $coverFileName,
+            'image_signature' => md5_file($tmpPath),
+        ], [[
+            'name'       => 'image_file',
+            'media_file' => $tmpPath,
+            'file_name'  => $coverFileName,
+        ]]);
+
+        @unlink($tmpPath);
+
+        return $uploadResult['success'] ? ($uploadResult['data']['image_id'] ?? null) : null;
+    }
+
+    /**
+     * file/music/upload/ - self-uploaded track for Carousel Ads (see
+     * store()'s call site). Verified live this session: field names
+     * (music_file/music_signature, same upload_type/file_name shape as
+     * uploadImage()/uploadVideo()) and that the response returns a single
+     * object (not a list, unlike file/video/ad/upload/) with music_id
+     * directly on it.
+     */
+    private function uploadMusic($media): array
+    {
+        $fileName = time() . '_' . uniqid() . '.' . strtolower($media->getClientOriginalExtension());
+        $endpoint = $this->config . 'file/music/upload/';
+
+        $result = $this->callTikTokMultipart($endpoint, [
+            'advertiser_id'   => $this->account->ad_account_id,
+            'upload_type'     => 'UPLOAD_BY_FILE',
+            'file_name'       => $fileName,
+            'music_signature' => md5_file($media->getRealPath()),
+        ], [[
+            'name'       => 'music_file',
+            'media_file' => $media->getRealPath(),
+            'file_name'  => $fileName,
+        ]]);
+       
+        if (!$result['success']) {
+            return $result;
+        }
+
+        $musicId = $result['data']['music_id'] ?? null;
+
+        if (!$musicId) {
+            return $this->errorResponse('TikTok did not return a music_id.');
+        }
+
+        return $this->successResponse(['id' => $musicId]);
     }
 
     /**
@@ -489,6 +759,15 @@ class TiktokAdService
         return $this->successResponse($this->buildCreative($request));
     }
 
+    /**
+     * identity_id/identity_type come from the "TikTok Identity" select
+     * (getIdentities()) via page_id/identity_type on the request, not
+     * re-fetched here - re-fetching and grabbing firstWhere('identity_
+     * type', 'TT_USER') would silently ignore whatever the admin
+     * actually picked, and crash outright (null array access) the moment
+     * no TT_USER identity exists at all, e.g. an account that only has a
+     * BC_AUTH_TT one.
+     */
     private function buildCreative($request)
     {
         $creative = [
@@ -496,28 +775,72 @@ class TiktokAdService
             'ad_text'          => $request['description'] ?? '',
             'call_to_action'   => $request['call_to_action'],
             'landing_page_url' => $request['target_link'],
-            // TikTok Identity is mandatory on every ad. This app has no
-            // identity-discovery UI, so it reuses the "Page Id" field (the
-            // TikTok blade relabels it "TikTok Identity ID") as a manually
-            // entered identity_id, defaulting to identity_type TT_USER (a
-            // verified TikTok profile) rather than CUSTOMIZED_USER, which
-            // TikTok has been phasing out.
             'identity_id'      => $request['page_id'],
-            'identity_type'    => 'TT_USER',
+            'identity_type'    => $request['identity_type'] ?? 'TT_USER',
         ];
 
         if ($request['media_type'] === 'VIDEO') {
             $creative['ad_format'] = 'SINGLE_VIDEO';
             $creative['video_id'] = $request['media'][0]['media_id'];
+
+            // TikTok rejects SINGLE_VIDEO without a cover image
+            // ("You must upload an image.", confirmed live) -
+            // storeMedia()/uploadVideo() auto-generates one from the
+            // video's own TikTok-hosted preview frame via
+            // fetchVideoCoverImageId(), so nothing extra is asked of
+            // the admin. Omitted (not sent empty) if that lookup failed,
+            // so TikTok's own rejection makes the real cause clear
+            // rather than this silently sending a broken creative.
+            if (!empty($request['media'][0]['cover_image_id'])) {
+                $creative['image_ids'] = [$request['media'][0]['cover_image_id']];
+            }
         } elseif ($request['media_type'] === 'CAROUSEL') {
+            // TikTok rejects CAROUSEL_ADS without music_id too ("Please
+            // select valid music for Carousel Ads.", confirmed live).
+            // Prefers the admin's own uploaded track (store()'s
+            // uploadMusic() call, request['music_id']) over the auto-
+            // picked Commercial Music Library default - four different
+            // CML/self-uploaded combinations were all rejected against
+            // this sandbox with the same message, so getDefaultMusicId()
+            // is a best-effort fallback here, not a confirmed fix the way
+            // it is for SINGLE_IMAGE below.
             $creative['ad_format'] = 'CAROUSEL_ADS';
             $creative['image_ids'] = array_column($request['media'], 'media_id');
+            $creative['music_id'] = $request['music_id'] ?? $this->getDefaultMusicId();
         } else {
+            // TikTok converts a static image into a video-like "post"
+            // internally and rejects the ad without backing music
+            // ("The source of this post is invalid. Please try again." -
+            // an image-size/content-independent failure, confirmed live
+            // with both a 200x200 and a proper 1080x1080 image) -
+            // getDefaultMusicId() confirmed working end-to-end (real ad
+            // created) using the first track TikTok's own catalog
+            // returns.
             $creative['ad_format'] = 'SINGLE_IMAGE';
             $creative['image_ids'] = [$request['media'][0]['media_id']];
+            $creative['music_id'] = $this->getDefaultMusicId();
         }
 
         return $creative;
+    }
+
+    /**
+     * TikTok's Commercial Music Library (file/music/get/) - just grabs
+     * whatever track TikTok's own catalog returns first, since this app
+     * has no music-selection UI. Cached per-request-lifecycle isn't
+     * needed (buildCreative() only calls this once per ad), but genuine
+     * failures return null rather than throwing, so a catalog hiccup
+     * degrades to "TikTok rejects the ad with its own clear message"
+     * rather than a 500.
+     */
+    private function getDefaultMusicId(): ?string
+    {
+        $result = $this->callTikTok('get', $this->config . 'file/music/get/', [
+            'advertiser_id' => $this->account->ad_account_id,
+            'page_size'     => 1,
+        ]);
+
+        return $result['success'] ? ($result['data']['musics'][0]['music_id'] ?? null) : null;
     }
 
     private function storeAd($platform, $request)
@@ -595,6 +918,57 @@ class TiktokAdService
             ],
             ['ad_id' => $adId],
             new Ad
+        );
+    }
+
+    /**
+     * TT_USER identities (real, verified TikTok profiles this advertiser
+     * is authorized to post ads as) can have that authorization expire or
+     * be revoked by the profile owner at any time on TikTok's side -
+     * independent of the ad account connection or access token being
+     * fine. That's exactly what produces TikTok's "You no longer have
+     * access to the TikTok account used in this ad" error on create/
+     * update.
+     *
+     * CUSTOMIZED_USER ("Custom Identity") is deliberately excluded below,
+     * not just left out of the map - TikTok deprecated it platform-wide
+     * as part of its "F.I.R.S.T." policy rollout (effective January
+     * 2026): identity/create/ still succeeds and identity/get/ still
+     * lists existing ones, but ad/create/ now rejects them outright with
+     * "Custom identities are no longer supported" (confirmed live against
+     * this exact sandbox account, not just from release notes). BC_AUTH_TT
+     * (a Business-Center-linked account) is TikTok's other still-valid
+     * type alongside TT_USER, so both are kept.
+     *
+     * No identity_type filter is sent to identity/get/ itself - confirmed
+     * empirically that omitting it returns every type together in one
+     * call (each item carrying its own identity_type) rather than needing
+     * one call per type; filtering out CUSTOMIZED_USER happens client-side
+     * below instead.
+     */
+    public function getIdentities(): array
+    {
+        $result = $this->callTikTok('get', $this->config . 'identity/get/', [
+            'advertiser_id' => $this->account->ad_account_id,
+        ]);
+
+        if (!$result['success']) {
+            return $result;
+        }
+
+        $identities = $result['data']['identity_list'] ?? $result['data']['list'] ?? [];
+
+        return $this->successResponse(
+            collect($identities)
+                ->map(fn($identity) => [
+                    'id'    => $identity['identity_id'] ?? null,
+                    'type'  => $identity['identity_type'] ?? 'TT_USER',
+                    'name'  => $identity['display_name'] ?? $identity['identity_id'] ?? 'Unnamed identity',
+                    'image' => $identity['profile_image'] ?? null,
+                ])
+                ->filter(fn($identity) => $identity['id'] && $identity['type'] !== 'CUSTOMIZED_USER')
+                ->values()
+                ->toArray()
         );
     }
 
@@ -683,13 +1057,23 @@ class TiktokAdService
 
         $result = $this->callTikTok('get', $this->config . 'tool/region/', [
             'advertiser_id'  => $this->account->ad_account_id,
-            'placements'     => json_encode(['PLACEMENT_TIKTOK']),
+            'placements'     => ['PLACEMENT_TIKTOK'],
             'objective_type' => $objective,
             'level_range'    => 'TO_COUNTRY',
         ]);
-
+    
         if (!$result['success']) {
-            return [];
+            // TikTok's sandbox doesn't implement tool/region/ at all
+            // (confirmed empirically - it returns a plain HTTP 404, not a
+            // TikTok API error envelope), which would otherwise block
+            // campaign creation entirely on sandbox no matter which
+            // countries were picked. 102358 is TikTok's own documented
+            // sandbox/test location id for the United States. Scoped to
+            // the sandbox host specifically - a genuine transient failure
+            // against the real business-api.tiktok.com host still returns
+            // [] and correctly blocks storeAdGroup(), rather than silently
+            // mistargeting a live campaign at the US.
+            return str_contains($this->config, 'sandbox') ? ['102358'] : [];
         }
 
         $regions = $result['data']['region_info']
@@ -749,6 +1133,7 @@ class TiktokAdService
         } else {
             $adGroup = AdAdGroup::find($adGroupResponse['data']['id']);
             $existingMedia = $adGroup?->creatives->first()?->media ?? collect();
+
             $request['media'] = $existingMedia->map(fn($m) => [
                 'ad_media_id' => $m->id,
                 'media_id'    => $m->ad_media_id,
@@ -786,7 +1171,7 @@ class TiktokAdService
         $adGroup = AdAdGroup::whereAdCampaignId($campaignId)->firstOrFail();
 
         $locationIds = $this->resolveLocationIds($request['countries'], $request['objective']);
-
+  
         if (empty($locationIds)) {
             return $this->errorResponse('Could not resolve the selected countries to TikTok location IDs. Please double-check the Countries selection.');
         }
@@ -805,9 +1190,20 @@ class TiktokAdService
             'age_groups'         => array_values($request['age_range'] ?? []),
             'languages'          => array_values($request['languages'] ?? []),
         ];
-
-        if (!empty($request['bid_amount'])) {
-            $payload['bid_price'] = (float) $request['bid_amount'];
+   
+        // Same fix as storeAdGroup() - bid_type must be explicitly
+        // BID_TYPE_CUSTOM or any bid value is silently ignored (auto-bid
+        // mode), OCPM reads conversion_bid_price not bid_price, and
+        // AUTOMATIC_VALUE_OPTIMIZATION categorically rejects a custom bid
+        // at all. Neither billing_event nor optimization_goal are part of
+        // adgroup/update/'s own payload (TikTok doesn't support changing
+        // either after creation), so $adGroup's stored values - what this
+        // ad group was actually created with - are the source of truth
+        // here, not the edit form's fields.
+        if (!empty($request['bid_amount']) && $adGroup->optimization_goal !== 'AUTOMATIC_VALUE_OPTIMIZATION') {
+            $bidField = $adGroup->billing_event === 'OCPM' ? 'conversion_bid_price' : 'bid_price';
+            $payload['bid_type'] = 'BID_TYPE_CUSTOM';
+            $payload[$bidField] = (float) $request['bid_amount'];
         }
 
         $result = $this->callTikTok('post', $endpoint, $payload);
@@ -830,7 +1226,9 @@ class TiktokAdService
             'budget'              => $request['budget'],
             'schedule_start_time' => $payload['schedule_start_time'],
             'schedule_end_time'   => $payload['schedule_end_time'],
-            'bid_price'           => $request['bid_amount'] ?? null,
+            'bid_type'            => $payload['bid_type'] ?? null,
+            'bid_price'           => $payload['bid_price'] ?? null,
+            'conversion_bid_price' => $payload['conversion_bid_price'] ?? null,
             'status'              => false,
         ];
 
@@ -846,10 +1244,19 @@ class TiktokAdService
         $existingAd = Ad::whereAdCampaignId($campaign['id'])->firstOrFail();
         $creative = $this->buildCreative($request);
 
+        // ad/update/'s real shape (confirmed live, one field at a time):
+        // plural 'creatives' array like ad/create/ (the old singular
+        // 'creative' key was silently ignored - "creatives: Missing data
+        // for required field."), adgroup_id required at the top level
+        // ("adgroup_id: Missing data..."), and ad_id nested inside each
+        // creative rather than top-level ("creatives.0.ad_id: Missing
+        // data..." when it was only sent at the top).
+        $creative['ad_id'] = $existingAd->ad_id;
+
         $result = $this->callTikTok('post', $this->config . 'ad/update/', [
             'advertiser_id' => $this->account->ad_account_id,
-            'ad_id'         => $existingAd->ad_id,
-            'creative'      => $creative,
+            'adgroup_id'    => $adGroup['ad_adgroup_id'],
+            'creatives'     => [$creative],
         ]);
 
         if (!$result['success']) {
@@ -887,6 +1294,58 @@ class TiktokAdService
             ['ad_id' => $existingAd->ad_id],
             new Ad
         );
+    }
+
+    /**
+     * Pause/reactivate without deleting anything - was entirely missing
+     * (SocialAdManagerService::updateStatus() calls this on every
+     * platform's service uniformly, so invoking it for TikTok threw
+     * "Call to undefined method" every time). Mirrors destroy()'s use of
+     * the same *_status/update/ endpoints, just ENABLE/DISABLE instead of
+     * DELETE - TikTok has no single "pause everything under this
+     * campaign" call, so campaign/adgroup/ad each need their own request.
+     */
+    public function updateStatus($id, $status)
+    {
+        $campaign = AdCampaign::findOrFail($id);
+        $adGroup = AdAdGroup::whereAdCampaignId($id)->first();
+        $ad = Ad::whereAdCampaignId($id)->first();
+
+        $operationStatus = $status === 'ACTIVE' ? 'ENABLE' : 'DISABLE';
+        $isActive = $status === 'ACTIVE';
+
+        $result = $this->callTikTok('post', $this->config . 'campaign/status/update/', [
+            'advertiser_id'    => $this->account->ad_account_id,
+            'campaign_ids'     => [$campaign->ad_campaign_id],
+            'operation_status' => $operationStatus,
+        ]);
+
+        if (!$result['success']) {
+            return $result;
+        }
+
+        if ($adGroup) {
+            $this->callTikTok('post', $this->config . 'adgroup/status/update/', [
+                'advertiser_id'    => $this->account->ad_account_id,
+                'adgroup_ids'      => [$adGroup->ad_adgroup_id],
+                'operation_status' => $operationStatus,
+            ]);
+            $adGroup->update(['status' => $isActive]);
+        }
+
+        if ($ad) {
+            $this->callTikTok('post', $this->config . 'ad/status/update/', [
+                'advertiser_id'    => $this->account->ad_account_id,
+                'adgroup_id'       => $adGroup->ad_adgroup_id ?? null,
+                'ad_ids'           => [$ad->ad_id],
+                'operation_status' => $operationStatus,
+            ]);
+            $ad->update(['status' => $isActive]);
+        }
+
+        $campaign->update(['status' => $isActive]);
+
+        return $this->successResponse(['status' => $status]);
     }
 
     public function destroy($platform, $id)

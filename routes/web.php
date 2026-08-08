@@ -100,6 +100,9 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::patch('ads/{platform}/campaigns/{id}/status', [AdCampaignController::class, 'updateStatus'])
 					->name('ads.campaigns.status');
 
+				Route::get('ads/{platform}/identities', [AdCampaignController::class, 'identities'])
+					->name('ads.identities');
+
 
 				// POSTS
 				Route::get('posts/{platform}/redirect', [PostController::class, 'redirect'])

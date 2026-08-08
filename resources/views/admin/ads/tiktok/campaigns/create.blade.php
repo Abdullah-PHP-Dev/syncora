@@ -478,12 +478,14 @@
                                                     </select>
                                                     <p class="error-message error-destination_type"></p>
                                                 </div> --}}
-                                                <!-- TikTok requires an Identity (a verified TikTok profile) on every ad -->
+                                                <!-- TikTok requires a linked TikTok account Identity on every ad - Custom Identity was deprecated platform-wide in TikTok's January 2026 F.I.R.S.T. policy rollout, so this can only list real linked accounts, not create one -->
                                                 <div class="col-md-6">
-                                                    <label>TikTok Identity ID *</label>
-                                                    <input type="text" name="page_id" id="page_id"
-                                                        class="form-control" placeholder="From TikTok Ads Manager > Identity" required>
-                                                    <small class="text-muted">The Identity ID of the verified TikTok profile this ad will post as (TikTok Ads Manager → Assets → Identity).</small>
+                                                    <label>TikTok Identity *</label>
+                                                    <select name="page_id" id="page_id" class="form-control" required>
+                                                        <option value="">-- Loading identities... --</option>
+                                                    </select>
+                                                    <input type="hidden" name="identity_type" id="identity_type" value="TT_USER">
+                                                    <small class="text-muted">A TikTok account linked to this ad account. If none are listed, link one in TikTok Ads Manager → Assets → Identity (or via Business Center) first - this can't be created from here.</small>
                                                     <p class="error-message error-page_id"></p>
                                                 </div>
                                             </div>
@@ -537,7 +539,6 @@
                                             <h5>Ad Creative</h5>
                                             <div class="duration-buttons">
                                                 <input type="hidden" name="media_type" id="media_type" value="IMAGE">
-                                                <input type="hidden" name="carousel_cards" id="carousel_cards" value="[]">
                                                 <button type="button" class="duration-btn media-type active"
                                                     data-type="IMAGE">Image</button>
                                                 <button type="button" class="duration-btn media-type"
@@ -557,6 +558,18 @@
                                                     onclick="document.getElementById('mediaInput').click()">Upload
                                                     Media</button>
                                                 <p class="error-message error-media"></p>
+                                            </div>
+                                            <div class="mt-3" id="carouselMusicBlock" style="display:none;">
+                                                <label>Background Music *</label>
+                                                <input type="file" name="music" id="musicInput" class="form-control" accept=".mp3,.wav,.m4a,.flac">
+                                                <small class="text-muted">Required for Carousel Ads - TikTok won't create the ad without one. MP3/WAV/M4A/FLAC, max 10MB.</small>
+                                                <p class="error-message error-music"></p>
+                                            </div>
+                                            <div class="mt-3" id="videoCoverBlock" style="display:none;">
+                                                <label>Video Cover / Thumbnail</label>
+                                                <input type="file" name="video_cover" id="videoCoverInput" class="form-control" accept="image/*">
+                                                <small class="text-muted">Optional - if you don't upload one, TikTok will auto-generate a cover from a frame of your video.</small>
+                                                <p class="error-message error-video_cover"></p>
                                             </div>
                                             <div class="mt-4">
                                                 <label>Description</label>
@@ -686,6 +699,34 @@
                                                     <p class="error-message error-languages"></p>
                                                 </div>
                                             </div>
+                                            <div class="row mt-3">
+                                                <div class="col-md-4">
+                                                    <label>Placement Type</label>
+                                                    <select name="placement_type" id="placement_type" class="form-control">
+                                                        <option value="PLACEMENT_TYPE_AUTOMATIC" selected>Automatic Placement</option>
+                                                        <option value="PLACEMENT_TYPE_NORMAL">Select Placements Manually</option>
+                                                    </select>
+                                                    <p class="error-message error-placement_type"></p>
+                                                </div>
+                                                <div class="col-md-8 placements-block" style="display:none;">
+                                                    <label>Placements</label>
+                                                    <div class="platform-group">
+                                                        @foreach (['PLACEMENT_TIKTOK' => 'TikTok', 'PLACEMENT_PANGLE' => 'Pangle', 'PLACEMENT_GLOBAL_APP_BUNDLE' => 'Global App Bundle'] as $value => $label)
+                                                            <div class="platform-card">
+                                                                <div class="form-check form-switch">
+                                                                    <input class="form-check-input platform-switch"
+                                                                        type="checkbox" name="placements[]"
+                                                                        value="{{ $value }}"
+                                                                        id="placement_{{ strtolower($value) }}">
+                                                                    <label class="form-check-label ms-2"
+                                                                        for="placement_{{ strtolower($value) }}">{{ $label }}</label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                    <p class="error-message error-placements"></p>
+                                                </div>
+                                            </div>
                                         </div>
                                         </div>
 
@@ -722,13 +763,7 @@
                                                 style="display:none;width:100%;border-radius:12px;"></video>
                                             <div id="carouselPreview" style="display:none">
                                                 <img id="carouselImage" class="preview-image">
-                                                <small class="text-muted d-block mt-2">For your own reference only - TikTok Carousel Ads don't support a title/link per image, only a shared caption and CTA (set below the upload zone).</small>
-                                                <div class="mt-3"><label>Title (internal reference)</label><input type="text"
-                                                        id="carouselTitle" class="form-control" placeholder="Card title">
-                                                </div>
-                                                <div class="mt-3"><label>Description (internal reference)</label>
-                                                    <textarea id="carouselDescription" class="form-control" rows="3" placeholder="Card description"></textarea>
-                                                </div>
+                                                <small class="text-muted d-block mt-2">TikTok Carousel Ads share one caption and CTA across every card (set below the upload zone) - there's no per-image title or link.</small>
                                                 <div class="d-flex justify-content-between mt-3">
                                                     <button type="button" class="btn btn-primary"
                                                         id="prevImage">Previous</button>
@@ -893,6 +928,52 @@
     const previewCTA = document.getElementById('previewCTA');
 
     // ------------------------------------------------------------------
+    // LOAD TIKTOK IDENTITIES - replaces a free-text identity id (which
+    // could silently reference an identity TikTok has since revoked
+    // access to) with only the identities currently authorized for this
+    // ad account, per TiktokAdService::getIdentities(). Each option
+    // carries its identity_type as a data attribute - buildCreative()
+    // needs the type to match the id or TikTok rejects the request, so
+    // #identity_type is kept in sync with whichever option is selected.
+    // ------------------------------------------------------------------
+    const identityUrl = "{{ route('admin.ads.identities', ['platform' => 'tiktok']) }}";
+    const identitySelect = qs('#page_id');
+    const identityTypeInput = qs('#identity_type');
+
+    function renderIdentityOptions(identities) {
+        if (!identitySelect) return;
+
+        if (identities.length) {
+            identitySelect.innerHTML = '<option value="">-- Select Identity --</option>' +
+                identities.map(identity => `<option value="${identity.id}" data-type="${identity.type}">${identity.name}</option>`).join('');
+        } else {
+            identitySelect.innerHTML = '<option value="">-- No linked TikTok accounts - add one in TikTok Ads Manager --</option>';
+        }
+
+        if (identityTypeInput) identityTypeInput.value = identitySelect.selectedOptions[0]?.dataset.type || 'TT_USER';
+    }
+
+    function loadIdentities() {
+        return fetch(identityUrl)
+            .then(response => response.json())
+            .then(result => {
+                renderIdentityOptions(result.success ? result.data : []);
+                return result;
+            })
+            .catch(() => {
+                if (identitySelect) identitySelect.innerHTML = '<option value="">-- Could not load identities --</option>';
+            });
+    }
+
+    loadIdentities();
+
+    if (identitySelect) {
+        identitySelect.addEventListener('change', function() {
+            if (identityTypeInput) identityTypeInput.value = this.selectedOptions[0]?.dataset.type || 'TT_USER';
+        });
+    }
+
+    // ------------------------------------------------------------------
     // 3. HELPER: beautify label
     // ------------------------------------------------------------------
     function beautifyLabel(value) {
@@ -987,6 +1068,21 @@
             document.querySelectorAll('.phone-block').forEach(el => el.style.display = 'none');
         }
     });
+
+    // ------------------------------------------------------------------
+    // SHOW/HIDE LOGIC FOR PLACEMENT TYPE - TikTok's adgroup/create/ only
+    // accepts a placements[] list when placement_type is
+    // PLACEMENT_TYPE_NORMAL; for AUTOMATIC it must be omitted entirely,
+    // so the checkboxes (and whatever's checked in them) only matter -
+    // and only get validated/sent - when Manual is selected.
+    // ------------------------------------------------------------------
+    const placementTypeSelect = qs('#placement_type');
+    if (placementTypeSelect) {
+        placementTypeSelect.addEventListener('change', function() {
+            const placementsBlock = document.querySelector('.placements-block');
+            if (placementsBlock) placementsBlock.style.display = this.value === 'PLACEMENT_TYPE_NORMAL' ? '' : 'none';
+        });
+    }
 
     // Messaging app type change (for account ID / phone)
     const messagingAppType = qs('#messaging_app_type');
@@ -1096,6 +1192,8 @@
             document.getElementById('media_type').value = creativeType;
 
             document.getElementById('carouselLinkNote').style.display = creativeType === 'CAROUSEL' ? '' : 'none';
+            document.getElementById('carouselMusicBlock').style.display = creativeType === 'CAROUSEL' ? '' : 'none';
+            document.getElementById('videoCoverBlock').style.display = creativeType === 'VIDEO' ? '' : 'none';
 
             if (creativeType === 'CAROUSEL') {
                 mediaInput.setAttribute('multiple', true);
@@ -1119,17 +1217,8 @@
         if (!carouselItems.length) return;
         let item = carouselItems[currentIndex];
         document.getElementById('carouselImage').src = item.image;
-        document.getElementById('carouselTitle').value = item.title || '';
-        document.getElementById('carouselDescription').value = item.description || '';
         document.getElementById('carouselCounter').innerHTML = `${currentIndex + 1} / ${carouselItems.length}`;
     }
-
-    document.getElementById('carouselTitle').addEventListener('input', function() {
-        if (carouselItems[currentIndex]) carouselItems[currentIndex].title = this.value;
-    });
-    document.getElementById('carouselDescription').addEventListener('input', function() {
-        if (carouselItems[currentIndex]) carouselItems[currentIndex].description = this.value;
-    });
 
     mediaInput.addEventListener('change', function(e) {
         let files = Array.from(e.target.files);
@@ -1143,8 +1232,6 @@
         if (creativeType === 'CAROUSEL') {
             carouselItems = files.map(file => ({
                 image: URL.createObjectURL(file),
-                title: '',
-                description: ''
             }));
             currentIndex = 0;
             loadCarouselItem();
@@ -1307,24 +1394,6 @@
 
         document.getElementById('reviewSummary').innerHTML = html;
     }
-
-    // ------------------------------------------------------------------
-    // Carousel per-image title/description are kept client-side only
-    // (they're for our own ad_media records - TikTok's API itself has no
-    // per-card fields for Carousel Ads). Runs on #campaign itself so it
-    // fires before api.js's document-delegated submit handler builds the
-    // FormData.
-    // ------------------------------------------------------------------
-    document.getElementById('campaign').addEventListener('submit', function() {
-        if (creativeType !== 'CAROUSEL') return;
-
-        let cards = carouselItems.map(item => ({
-            title: item.title || '',
-            description: item.description || '',
-        }));
-
-        document.getElementById('carousel_cards').value = JSON.stringify(cards);
-    });
 
     // ------------------------------------------------------------------
     // Laravel validation errors land in .error-<field> elements scattered

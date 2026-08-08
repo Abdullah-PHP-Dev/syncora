@@ -181,7 +181,7 @@ class YoutubePostService
                 $fileSize  = $file->getSize();
                 $fileName  = time() . '_' . uniqid() . '.' . $extension;
 
-                $s3Path = "uploads/meta/media/{$fileName}";
+                $s3Path = "uploads/youtube/media/{$fileName}";
 
                 Storage::disk('r2')->put(
                     $s3Path,
@@ -326,13 +326,13 @@ class YoutubePostService
             // ==========================================
             foreach ($post->media as $index => $mediaItem) {
                 $mediaUrl = $mediaItem->media_url;
-
+         
                 $fileExtension = strtolower(pathinfo(parse_url($mediaUrl, PHP_URL_PATH), PATHINFO_EXTENSION));
                 $tempPath = $tempDir . '/' . uniqid() . '.' . $fileExtension;
 
                 // Download media from S3/CDN to temp directory
                 $downloadSuccess = file_put_contents($tempPath, file_get_contents($mediaUrl));
-
+                
                 if (!$downloadSuccess || !file_exists($tempPath)) {
                     throw new \Exception('Unable to download media from: ' . $mediaUrl);
                 }
@@ -396,7 +396,7 @@ class YoutubePostService
                         'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
                         $payload
                     );
-
+                    
                 if (!$sessionResponse->successful()) {
                     if (file_exists($tempPath)) { unlink($tempPath); }
                     $errorBody = $sessionResponse->body();
