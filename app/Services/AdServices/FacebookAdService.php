@@ -141,7 +141,7 @@ class FacebookAdService
      */
     private function getFBAdAccount($accessToken)
     {
-        $endpoint = adminSetting('ads.facebook.account.endpoint');
+        $endpoint = adminSetting('ads.facebook.account.endpoint', 'https://graph.facebook.com/v22.0/me/adaccounts');
 
         $response = $this->httpClient::get(
             $endpoint,
@@ -192,7 +192,7 @@ class FacebookAdService
      */
     private function getInstagramBusinessAccount($accessToken): ?array
     {
-        $pagesEndpoint = adminSetting('ads.instagram.account.endpoint');
+        $pagesEndpoint = adminSetting('ads.instagram.account.endpoint', 'https://graph.facebook.com/v22.0/me/accounts');
 
         $response = $this->httpClient::get($pagesEndpoint, ['access_token' => $accessToken]);
 
