@@ -184,7 +184,7 @@ class FacebookAdService
                     'access_token' => $accessToken,
                 ]
             );
-
+ dd($pageResponse->json());
             if (!$pageResponse->successful()) {
                 Log::warning('Facebook Instagram lookup: page fields request failed', [
                     'page_id'  => $page['id'] ?? null,
@@ -192,7 +192,7 @@ class FacebookAdService
                 ]);
                 continue;
             }
-            dd($pageResponse->json());
+           
             $igAccount = $pageResponse->json()['instagram_business_account'] ?? null;
 
             if ($igAccount) {
