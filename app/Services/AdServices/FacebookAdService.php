@@ -164,11 +164,11 @@ class FacebookAdService
         }
 
         $accounts = array_map(function ($account) use ($accessToken) {            
-            $instagramAccount = $this->getInstagramBusinessAccount($accessToken, $account['business']['id']);
+            $instagramAccounts = $this->getInstagramBusinessAccount($accessToken, $account['business']['id']);
 
             return [
                 'facebook'   => $account,
-                'instagram'  => $instagramAccount ?? null,
+                'instagrams'  => $instagramAccounts ?? null,
             ];
         }, $activeAccounts);
 
@@ -185,29 +185,8 @@ class FacebookAdService
         if (!$response->successful()) {
             return ['success' => false, 'error' => $response->json()];
         }
-        dd($response->json());
-        return $response->json()['instagram_business_account'];
-    }
-
-    private function getBusinessPages($accessToken, string $businessId): array
-    {
-        $response = $this->httpClient::get(
-            "https://graph.facebook.com/v22.0/{$businessId}/owned_pages",
-            ['access_token' => $accessToken]
-        );
-
-        $pages = $response->successful() ? ($response->json()['data'] ?? []) : [];
-
-        if (!empty($pages)) {
-            return $pages;
-        }
-
-        $response = $this->httpClient::get(
-            'https://graph.facebook.com/v22.0/me/accounts',
-            ['access_token' => $accessToken]
-        );
-
-        return $response->successful() ? ($response->json()['data'] ?? []) : [];
+    
+        return $response->json()['instagram_accounts']['data'];
     }
 
     public function store($platform, $request)
