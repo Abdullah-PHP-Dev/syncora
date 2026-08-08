@@ -72,6 +72,7 @@ class FacebookAdService
 
         $accessToken = data_get($data, 'access_token');
         $expiresIn = data_get($data, 'expires_in', 3600); // Default to 3600 seconds if not found
+        $expiresAt = Carbon::now()->addSeconds($expiresIn);
 
         $accountResponse = $this->getFBAdAccount($accessToken);
 
@@ -79,51 +80,69 @@ class FacebookAdService
             return redirect()->route('admin.ads.dashboard')->with('error', $accountResponse['error']);
         }
 
-        $accountId = str_replace('act_', '', $accountResponse['facebook_account_id']);
-        $expiresAt = Carbon::now()->addSeconds($expiresIn);
+        $connected = 0;
+        $instagramSaved = false;
 
-        $this->apiService->success(
-            [
-                'platform'      => 'facebook',
-                'user_id'       => Auth::user()->id,
-                'name'          => $accountResponse['name'] ?? "Facebook Ad Account {$accountId}",
-                'currency'      => $accountResponse['currency'] ?? null,
-                'ad_account_id' => $accountId,
-                'access_token'  => $accessToken,
-                'refresh_token' => data_get($data, 'refresh_token'),
-                'expires_at'    => $expiresAt,
-                'status'        => 'active',
-            ],
-            ['platform' => 'facebook', 'ad_account_id' => $accountId, 'user_id' => Auth::user()->id],
-            new AdAccount
-        );
+        foreach ($accountResponse['accounts'] as $account) {
+            $accountId = str_replace('act_', '', $account['facebook_account_id']);
 
-        if (!empty($accountResponse['instagram_account_id'])) {
             $this->apiService->success(
                 [
-                    'platform'      => 'instagram',
+                    'platform'      => 'facebook',
                     'user_id'       => Auth::user()->id,
-                    'name'          => $accountResponse['name'] ?? "Instagram Account {$accountResponse['instagram_account_id']}",
-                    'ad_account_id' => $accountResponse['instagram_account_id'],
+                    'name'          => $account['name'] ?? "Facebook Ad Account {$accountId}",
+                    'currency'      => $account['currency'] ?? null,
+                    'ad_account_id' => $accountId,
                     'access_token'  => $accessToken,
                     'refresh_token' => data_get($data, 'refresh_token'),
                     'expires_at'    => $expiresAt,
                     'status'        => 'active',
                 ],
-                ['platform' => 'instagram', 'ad_account_id' => $accountResponse['instagram_account_id'], 'user_id' => Auth::user()->id],
+                ['platform' => 'facebook', 'ad_account_id' => $accountId, 'user_id' => Auth::user()->id],
                 new AdAccount
             );
+
+            $connected++;
+
+            // The linked Instagram business account belongs to the Business
+            // Manager's Pages, not to any one ad account - only save it once.
+            if (!$instagramSaved && !empty($account['instagram_account_id'])) {
+                $this->apiService->success(
+                    [
+                        'platform'      => 'instagram',
+                        'user_id'       => Auth::user()->id,
+                        'name'          => $account['instagram_name'] ?? "Instagram Account {$account['instagram_account_id']}",
+                        'ad_account_id' => $account['instagram_account_id'],
+                        'access_token'  => $accessToken,
+                        'refresh_token' => data_get($data, 'refresh_token'),
+                        'expires_at'    => $expiresAt,
+                        'status'        => 'active',
+                    ],
+                    ['platform' => 'instagram', 'ad_account_id' => $account['instagram_account_id'], 'user_id' => Auth::user()->id],
+                    new AdAccount
+                );
+
+                $instagramSaved = true;
+            }
         }
 
-        return redirect()->route('admin.ads.dashboard')->with('success', 'Facebook ad account connected successfully.');
+        $message = "Connected {$connected} Facebook ad account(s)." . ($instagramSaved ? ' Instagram account linked.' : '');
+
+        return redirect()->route('admin.ads.dashboard')->with('success', $message);
     }
 
+    /**
+     * Fetch every active ad account the user manages, paired (where available)
+     * with the Instagram business account linked to their Business Manager -
+     * instagram_business_account only exists on Page nodes, so it can't be
+     * requested alongside /me/adaccounts (Meta silently drops the unknown
+     * field there instead of erroring, which used to cause a Facebook ad
+     * account id to be mistaken for an Instagram account id).
+     */
     private function getFBAdAccount($accessToken)
     {
-        
         $endpoint = adminSetting('ads.facebook.account.endpoint');
 
-        // Get Account 
         $response = $this->httpClient::get(
             $endpoint,
             [
@@ -132,55 +151,76 @@ class FacebookAdService
             ]
         );
 
-        $account = $response->json();
+        $result = $response->json();
 
         if (!$response->successful()) {
-            return $this->errorResponse($account['error']['error_user_title'] ?? $account['error']['message']);
+            return $this->errorResponse($result['error']['error_user_title'] ?? $result['error']['message']);
         }
 
-        $accounts = [];
-        foreach ($account['data'] as $account) {
-            if ($account['account_status']) {
-                $accountId = $account['id'];
-                // $endpoint = adminSetting('ads.instagram.account.endpoint');
-                // $this->config['base_url'] . $accountId . '/instagram_accounts',
-                $response = $this->httpClient::get(
-                    $endpoint . '?fields=instagram_business_account{id,username,name,biography,profile_picture_url,website,followers_count,follows_count,media_count,shopping_product_tag_eligibility,is_published,ig_id}',
-                    [
-                        'access_token' => $accessToken,
-                    ]
-                );
+        // account_status is a Meta status code (1 = ACTIVE; 2, 3, 7, 8, 9,
+        // 100, 101 are all disabled/pending/closed variants) - not a boolean,
+        // so every non-zero code must be checked explicitly rather than
+        // treated as truthy.
+        $activeAccounts = array_values(array_filter(
+            $result['data'] ?? [],
+            fn($account) => (int) ($account['account_status'] ?? 0) === 1
+        ));
 
-                $instaRes = $response->json();
-
-                if (!$response->successful()) {
-                    return $this->errorResponse($instaRes['error']['error_user_title'] ?? $instaRes['error']['message']);
-                }
-                dd($instaRes);
-                if (!empty($response->json()['data'])) {
-                    $accounts = [
-                        'facebook_account_id' => $accountId,
-                        'instagram_account_id' => $response->json()['data'][0]['id'],
-                        'name' => $account['name'] ?? null,
-                        'currency' => $account['currency'] ?? null,
-                    ];
-
-                    break;
-                }
-            }
-        }
-
-        if (empty($accounts)) {
+        if (empty($activeAccounts)) {
             return $this->errorResponse('No active Facebook ad account was found for this user.');
         }
 
-        return [
-            'success' => true,
-            'facebook_account_id' => $accounts['facebook_account_id'],
-            'instagram_account_id' => $accounts['instagram_account_id'] ?? null,
-            'name' => $accounts['name'] ?? null,
-            'currency' => $accounts['currency'] ?? null,
-        ];
+        $instagramAccount = $this->getInstagramBusinessAccount($accessToken);
+
+        $accounts = array_map(function ($account) use ($instagramAccount) {
+            return [
+                'facebook_account_id'   => $account['id'],
+                'name'                  => $account['name'] ?? null,
+                'currency'              => $account['currency'] ?? null,
+                'instagram_account_id'  => $instagramAccount['id'] ?? null,
+                'instagram_name'        => $instagramAccount['name'] ?? $instagramAccount['username'] ?? null,
+            ];
+        }, $activeAccounts);
+
+        return ['success' => true, 'accounts' => $accounts];
+    }
+
+    /**
+     * Instagram business accounts are linked to Facebook Pages, discoverable
+     * only via /{page-id}?fields=instagram_business_account - there is no
+     * ad-account-level lookup for this.
+     */
+    private function getInstagramBusinessAccount($accessToken): ?array
+    {
+        $pagesEndpoint = adminSetting('ads.instagram.account.endpoint');
+
+        $response = $this->httpClient::get($pagesEndpoint, ['access_token' => $accessToken]);
+
+        if (!$response->successful()) {
+            return null;
+        }
+
+        foreach ($response->json()['data'] ?? [] as $page) {
+            $pageResponse = $this->httpClient::get(
+                "https://graph.facebook.com/v22.0/{$page['id']}",
+                [
+                    'fields' => 'instagram_business_account{id,username,name}',
+                    'access_token' => $accessToken,
+                ]
+            );
+
+            if (!$pageResponse->successful()) {
+                continue;
+            }
+
+            $igAccount = $pageResponse->json()['instagram_business_account'] ?? null;
+
+            if ($igAccount) {
+                return $igAccount;
+            }
+        }
+
+        return null;
     }
 
     public function store($platform, $request)
