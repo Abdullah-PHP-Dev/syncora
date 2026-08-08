@@ -194,7 +194,7 @@ class FacebookAdService
     private function getInstagramBusinessAccount($accessToken, string $businessId): ?array
     {
         $response = $this->httpClient::get("https://graph.facebook.com/v25.0/{$businessId}", [
-            'fields'       => 'id,name,instagram_accounts{name,username,profile_picture_url,biography}',
+            'fields'       => 'id,name,instagram_accounts{name,username,currency,profile_picture_url,biography}',
             'access_token' => $accessToken,
         ]);
 
