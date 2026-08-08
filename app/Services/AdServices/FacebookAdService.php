@@ -192,7 +192,7 @@ class FacebookAdService
                 ]);
                 continue;
             }
-
+            dd($pageResponse->json());
             $igAccount = $pageResponse->json()['instagram_business_account'] ?? null;
 
             if ($igAccount) {
