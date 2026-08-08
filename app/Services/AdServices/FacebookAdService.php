@@ -61,7 +61,7 @@ class FacebookAdService
     }
 
     public function callback($state)
-    {
+    {     dd(empty($state), $state, session('facebook_oauth_state'));
         // 1. Validate CSRF state token
         if (empty($state) || $state !== session('facebook_oauth_state')) {
             return redirect()->route('admin.ads.dashboard')->with('error', 'Invalid OAuth state.');
@@ -84,7 +84,7 @@ class FacebookAdService
                 'code'          => $code,
             ]
         );
-        dd($response);
+   
         $data = $response['data'] ?? [];
 
         if (!($response['success'] ?? false) || empty($data['access_token'])) {
