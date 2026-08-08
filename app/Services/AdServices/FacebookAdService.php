@@ -165,12 +165,14 @@ class FacebookAdService
 
         $accounts = array_map(function ($account) use ($accessToken) {
 
-            $response = $this->httpClient::get("https://graph.facebook.com/v25.0/{$account['id']}", [
-                'fields'       => 'id,name,business{id,name},instagram_accounts{id,username}',
-                'access_token' => $accessToken,
-            ]);
+$businessId = $account['business']['id'];
 
-        dd($response->json(), $response->successful());
+$response = $this->httpClient::get("https://graph.facebook.com/v25.0/{$businessId}", [
+    'fields'       => 'id,name,instagram_accounts{id,username,name,profile_picture_url}',
+    'access_token' => $accessToken,
+]);
+
+dd($response->json(), $response->successful());
             $instagramAccount = $this->getInstagramBusinessAccount($accessToken, $account['business']['id']);
 
             return [
