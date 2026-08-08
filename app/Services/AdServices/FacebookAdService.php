@@ -197,15 +197,26 @@ class FacebookAdService
      */
     private function getInstagramBusinessAccount($accessToken, string $businessId): ?array
     {
+        $fields =  implode(',', [
+            'id',
+            'username',
+            'name',
+            'profile_picture_url',
+            'biography',
+            'website',
+            'followers_count',
+            'follows_count',
+            'media_count',
+        ]);
         foreach ($this->getBusinessPages($accessToken, $businessId) as $page) {
             $pageResponse = $this->httpClient::get(
                 "https://graph.facebook.com/v22.0/{$page['id']}",
                 [
-                    'fields' => 'instagram_business_account{id,username,name}',
+                    'fields' => "instagram_business_account{name,username,profile_picture_url,biography}",
                     'access_token' => $accessToken,
                 ]
             );
-            dd($pageResponse->json());
+
             if (!$pageResponse->successful()) {
                 Log::warning('Facebook Instagram lookup: page fields request failed', [
                     'page_id' => $page['id'] ?? null,
