@@ -144,12 +144,12 @@ class FacebookAdService
         $endpoint = adminSetting('ads.facebook.account.endpoint', 'https://graph.facebook.com/v22.0/me/adaccounts');
 
         $response = $this->httpClient::get($endpoint, [
-            'fields'       => 'id,name,account_id,account_status,currency,business,instagram_accounts{id,username}',
+            'fields'       => 'id,name,account_id,account_status,currency,business',
             'access_token' => $accessToken,
         ]);
 
         $result = $response->json();
-        dd($result);
+      
         if (!$response->successful()) {
             return $this->errorResponse($result['error']['error_user_title'] ?? $result['error']['message']);
         }
@@ -178,7 +178,7 @@ class FacebookAdService
     private function getInstagramBusinessAccount($accessToken, string $businessId): ?array
     {
         $response = $this->httpClient::get("https://graph.facebook.com/v25.0/{$businessId}", [
-            'fields'       => 'id,name,instagram_business_account{name,username,profile_picture_url,biography}',
+            'fields'       => 'id,name,instagram_account{name,username,profile_picture_url,biography}',
             'access_token' => $accessToken,
         ]);
 
