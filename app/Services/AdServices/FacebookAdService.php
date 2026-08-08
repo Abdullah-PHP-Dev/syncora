@@ -144,12 +144,12 @@ class FacebookAdService
         $endpoint = adminSetting('ads.facebook.account.endpoint', 'https://graph.facebook.com/v22.0/me/adaccounts');
 
         $response = $this->httpClient::get($endpoint, [
-            'fields'       => 'id,name,account_id,account_status,currency,business',
+            'fields'       => 'id,name,account_id,account_status,currency,business,business,instagram_accounts{id,username}',
             'access_token' => $accessToken,
         ]);
 
         $result = $response->json();
-     
+        dd($result);
         if (!$response->successful()) {
             return $this->errorResponse($result['error']['error_user_title'] ?? $result['error']['message']);
         }
