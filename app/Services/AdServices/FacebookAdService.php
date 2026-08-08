@@ -164,19 +164,9 @@ class FacebookAdService
         }
 
         $accounts = array_map(function ($account) use ($accessToken) {
-             $igFields = implode(',', [
-                'id',
-                'username',
-                'name',
-                'profile_picture_url',
-                'biography',
-                'website',
-                'followers_count',
-                'follows_count',
-                'media_count',
-            ]);
+
             $response = $this->httpClient::get("https://graph.facebook.com/v25.0/{$account['id']}", [
-                'fields'       => $igFields,
+                'fields'       => 'id,name,business{id,name},instagram_accounts{id,username}',
                 'access_token' => $accessToken,
             ]);
 
