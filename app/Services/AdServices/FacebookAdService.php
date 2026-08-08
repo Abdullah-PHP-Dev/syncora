@@ -177,6 +177,7 @@ class FacebookAdService
     private function getInstagramBusinessAccount($accessToken, string $businessId): ?array
     {
         foreach ($this->getBusinessPages($accessToken, $businessId) as $page) {
+            dd($page);
             $pageResponse = $this->httpClient::get(
                 "https://graph.facebook.com/v25.0/{$page['id']}",
                 [
