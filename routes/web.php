@@ -124,6 +124,11 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('post-accounts.meta.redirect');
 				Route::get('post-accounts/meta/callback', [PostAccountController::class, 'callbackMeta'])
 					->name('post-accounts.meta.callback');
+
+				Route::get('post-accounts/instagram/redirect', [PostAccountController::class, 'redirectInstagram'])
+					->name('post-accounts.instagram.redirect');
+				Route::get('post-accounts/instagram/callback', [PostAccountController::class, 'callbackInstagram'])
+					->name('post-accounts.instagram.callback');
 				Route::get('post-accounts/threads/redirect', [PostAccountController::class, 'redirectThreads'])
 					->name('post-accounts.threads.redirect');
 				Route::get('post-accounts/threads/callback', [PostAccountController::class, 'callbackThreads'])

@@ -4,7 +4,7 @@ namespace App\Services\AdServices;
 
 use Illuminate\Support\Facades\Redirect;
 use App\Models\Admin\AdAccount;
-use App\Models\Admin\ConnectedPage;
+use App\Models\Admin\PlatformPage;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdMedia;
@@ -154,7 +154,7 @@ class FacebookAdService
                         'page_id'  => $page['id'],
                         'user_id'  => Auth::id(),
                     ],
-                    new ConnectedPage
+                    new PlatformPage
                 );
 
                 $pagesSaved++;
@@ -218,7 +218,7 @@ class FacebookAdService
         }
 
         $accounts = array_map(function ($account) use ($accessToken) {
-            $instagramAccounts = $this->getInstagramBusinessAccount($accessToken, $account['business']['id']);
+            $instagramAccounts = $this->getInstagramBusinessAccount($accessToken, $account['id']);
             $pages = $this->getBusinessPages($accessToken, $account['business']['id']);
 
             return [
@@ -231,18 +231,34 @@ class FacebookAdService
         return ['success' => true, 'accounts' => $accounts];
     }
 
-    private function getInstagramBusinessAccount($accessToken, string $businessId): ?array
+    /**
+     * Instagram accounts eligible for use as object_story_spec.instagram_actor_id
+     * on a given ad account - NOT the same as "every Instagram account the
+     * Business Manager owns" (that's /{business_id}?fields=instagram_accounts,
+     * which used to be queried here and caused Meta to reject creative
+     * creation with "(#100) Param instagram_actor_id must be a valid
+     * Instagram account id": an Instagram account can belong to the business
+     * without being assigned to this specific ad account under Business
+     * Settings > Ad Account > Instagram Accounts, and only assigned accounts
+     * are valid here). $adAccountId must include the "act_" prefix.
+     */
+    private function getInstagramBusinessAccount($accessToken, string $adAccountId): ?array
     {
-        $response = $this->httpClient::get("https://graph.facebook.com/v25.0/{$businessId}", [
-            'fields'       => 'id,name,instagram_accounts{name,username,profile_picture_url,biography}',
+        $response = $this->httpClient::get("https://graph.facebook.com/v22.0/{$adAccountId}/instagram_accounts", [
+            'fields'       => 'id,username,name,profile_pic',
             'access_token' => $accessToken,
         ]);
 
         if (!$response->successful()) {
-            return ['success' => false, 'error' => $response->json()];
+            Log::warning('Facebook Instagram lookup: ad account instagram_accounts request failed', [
+                'ad_account_id' => $adAccountId,
+                'response'      => $response->json(),
+            ]);
+
+            return [];
         }
 
-        return $response->json()['instagram_accounts']['data'];
+        return $response->json()['data'] ?? [];
     }
 
     /**

@@ -282,7 +282,7 @@ class PostAccountController extends Controller
 
     private function metaBaseUrl(): string
     {
-        return adminSetting('posts.facebook.base_url') ?: 'https://graph.facebook.com/v21.0/';
+        return adminSetting('posts.facebook.base_url') ?: 'https://graph.facebook.com/v25.0/';
     }
 
     private function metaCallbackUrl(): string
@@ -683,6 +683,113 @@ class PostAccountController extends Controller
     private function linkedinCallbackUrl(): string
     {
         return url('/admin/post-accounts/linkedin/callback');
+    }
+
+    public function redirectInstagram()
+    {
+        $state = Str::uuid()->toString();
+        session(['instagram_oauth_state' => $state]);
+
+        $url = 'https://www.instagram.com/oauth/authorize?' . http_build_query([
+            'force_reauth' =>true,
+            'response_type' => 'code',
+            'client_id'     => adminSetting('posts.instagram.client_id'),
+            'redirect_uri'  => $this->instagramCallbackUrl(),
+            'state'         => $state,
+            'scope'        => 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish,instagram_business_manage_insights',
+        ]);
+
+        return Redirect::away($url);
+    }
+
+    public function callbackInstagram(Request $request, ApiPostService $api)
+    {
+        // 1. Validate State and Authorization Code
+        if (!$request->filled('code') || $request->query('state') !== session('instagram_oauth_state')) {
+            return redirect()->route('admin.posts.create')->with('error', 'Instagram connection failed or state mismatched.');
+        }
+
+        session()->forget('instagram_oauth_state');
+
+        $clientId     = adminSetting('posts.instagram.client_id');
+        $clientSecret = adminSetting('posts.instagram.client_secret');
+        $redirectUri  = $this->instagramCallbackUrl();
+
+        // 2. Exchange authorization code for a short-lived access token
+        $tokenResponse = $api->request('post', 'https://api.instagram.com/oauth/access_token', [], [
+            'client_id'     => $clientId,
+            'client_secret' => $clientSecret,
+            'grant_type'    => 'authorization_code',
+            'redirect_uri'  => $redirectUri,
+            'code'          => $request->query('code'),
+        ], 'form');
+
+        if (!$tokenResponse->successful()) {
+            $errorMsg = $tokenResponse->json()['error_message'] ?? 'Failed to obtain access token from Instagram.';
+            return redirect()->route('admin.posts.create')->with('error', $errorMsg);
+        }
+
+        $tokenData   = $tokenResponse->json();
+        $shortToken  = $tokenData['access_token'] ?? null;
+        $igUserId    = $tokenData['user_id'] ?? null;
+
+        if (!$shortToken) {
+            return redirect()->route('admin.posts.create')->with('error', 'Invalid token response received from Instagram.');
+        }
+
+        // 3. Exchange short-lived token for a 60-day long-lived access token
+        $longLivedResponse = $api->request('get', 'https://graph.instagram.com/access_token', [], [
+            'grant_type'    => 'ig_exchange_token',
+            'client_secret' => $clientSecret,
+            'access_token'  => $shortToken,
+        ]);
+
+        $accessToken = $shortToken;
+        $expiresIn   = 5184000; // Default: 60 days in seconds
+
+        if ($longLivedResponse->successful()) {
+            $longLivedData = $longLivedResponse->json();
+            $accessToken   = $longLivedData['access_token'] ?? $accessToken;
+            $expiresIn     = $longLivedData['expires_in'] ?? $expiresIn;
+        }
+
+        // 4. Fetch Connected Instagram Business / Creator Account Profile
+        $userResponse = $api->request('get', "https://graph.instagram.com/v20.0/me", [], [
+            'fields'       => 'id,username,name,profile_picture_url',
+            'access_token' => $accessToken,
+        ]);
+
+        if (!$userResponse->successful()) {
+            return redirect()->route('admin.posts.create')->with('error', 'Connected to Instagram, but failed to fetch profile details.');
+        }
+
+        $igUser = $userResponse->json();
+        $accId  = $igUser['id'] ?? $igUserId;
+
+        // 5. Store / Update PostAccount Record
+        PostAccount::updateOrCreate(
+            [
+                'platform'   => 'instagram',
+                'account_id' => $accId,
+                'user_id'    => Auth::id(),
+            ],
+            [
+                'name'         => $igUser['name'] ?? $igUser['username'] ?? 'Instagram Business',
+                'username'     => $igUser['username'] ?? null,
+                'avatar'       => $igUser['profile_picture_url'] ?? null,
+                'access_token' => $accessToken,
+                'expires_in'   => Carbon::now()->addSeconds($expiresIn),
+                'is_active'    => true,
+                'status'       => 'active',
+            ]
+        );
+
+        return redirect()->route('admin.posts.create')->with('success', "Successfully connected Instagram account (@{$igUser['username']}).");
+    }
+
+    private function instagramCallbackUrl(): string
+    {
+        return url('/admin/post-accounts/instagram/callback');
     }
 
     /**

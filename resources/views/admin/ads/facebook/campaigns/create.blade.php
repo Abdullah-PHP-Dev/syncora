@@ -519,7 +519,7 @@
                                                 <div class="col-md-12">
                                                     <label>Page</label>
                                                     <div class="page-select-group">
-                                                        @forelse ($connectedPages as $page)
+                                                        @forelse ($platformPages as $page)
                                                             <label class="page-card {{ $loop->first ? 'active' : '' }}">
                                                                 <input class="page-radio" type="radio"
                                                                     name="page_id" value="{{ $page->page_id }}"

@@ -11,6 +11,7 @@ class FacebookMessengerWebhookController extends Controller
 {
     public function __construct(protected FacebookMessengerService $service)
     {
+        $this->service = $service;
     }
 
     /**
