@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api\Messaging;
+namespace App\Http\Controllers\Api\Comments;
 
 use App\Http\Controllers\Controller;
 use App\Services\MessagingServices\FacebookMessengerService;
@@ -10,18 +10,18 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Facebook Page webhook. Meta only allows ONE registered callback URL per
- * App per object type ("page") - there is no way to have message events
- * (entry[].messaging[]) delivered to one URL and comment events
- * (entry[].changes[]) delivered to a different one. Whichever of this
- * controller or Comments\FacebookCommentWebhookController ends up as the
- * actual registered URL in the App Dashboard must therefore handle both,
- * so both dispatch to both services regardless.
+ * App per object type ("page") - there is no way to have comment events
+ * (entry[].changes[]) delivered to one URL and message events
+ * (entry[].messaging[]) delivered to a different one. Whichever of this
+ * controller or FacebookMessengerWebhookController ends up as the actual
+ * registered URL in the App Dashboard must therefore handle both, so both
+ * dispatch to both services regardless.
  */
-class FacebookMessengerWebhookController extends Controller
+class FacebookCommentWebhookController extends Controller
 {
     public function __construct(
-        protected FacebookMessengerService $messengerService,
         protected MetaPostService $postService,
+        protected FacebookMessengerService $messengerService,
     ) {
     }
 
@@ -34,8 +34,8 @@ class FacebookMessengerWebhookController extends Controller
         // messaging.meta.* and posts.facebook.* are configured separately
         // even though they're normally the same underlying Meta App - accept
         // whichever verify token Meta was actually configured with.
-        $challenge = $this->messengerService->verifyWebhook($request)
-            ?? $this->postService->verifyWebhook($request);
+        $challenge = $this->postService->verifyWebhook($request)
+            ?? $this->messengerService->verifyWebhook($request);
 
         return $challenge !== null
             ? response($challenge, 200)
@@ -43,24 +43,22 @@ class FacebookMessengerWebhookController extends Controller
     }
 
     /**
-     * Every subsequent event delivery. Must ack fast (Meta retries
+     * Every subsequent event delivery. Must ack fast - Meta retries
      * aggressively on slow/failed responses and can eventually disable the
-     * subscription) - the actual DB write + broadcast happens in a queued
-     * job dispatched from inside the service, so this just verifies
-     * authenticity and hands the payload off.
+     * subscription.
      */
     public function receive(Request $request)
     {
-        if (!$this->messengerService->verifySignature($request)) {
-            Log::warning('Facebook Messenger webhook signature mismatch', ['ip' => $request->ip()]);
+        if (!$this->postService->verifySignature($request) && !$this->messengerService->verifySignature($request)) {
+            Log::warning('Facebook webhook signature mismatch', ['ip' => $request->ip()]);
 
             return response('Forbidden', 403);
         }
 
         $payload = $request->all();
 
-        $this->messengerService->handleWebhook($payload);
         $this->postService->handleCommentWebhook($payload, 'facebook');
+        $this->messengerService->handleWebhook($payload);
 
         return response('EVENT_RECEIVED', 200);
     }

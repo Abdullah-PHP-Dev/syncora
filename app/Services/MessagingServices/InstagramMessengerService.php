@@ -6,7 +6,7 @@ use App\Jobs\Messaging\ProcessInboundMessage;
 use App\Models\Messaging\Conversation;
 use App\Models\Messaging\MessageChannel;
 use App\Services\ApiService;
-use App\Services\MessagingServices\Concerns\MetaMessagingTrait;
+use App\Services\MessagingServices\Concerns\InstagramMessagingTrait;
 use Illuminate\Http\Request;
 
 /**
@@ -18,7 +18,7 @@ use Illuminate\Http\Request;
  */
 class InstagramMessengerService
 {
-    use MetaMessagingTrait;
+    use InstagramMessagingTrait;
 
     public function __construct(protected ApiService $apiService)
     {
@@ -46,12 +46,12 @@ class InstagramMessengerService
 
     public function verifyWebhook(Request $request): ?string
     {
-        return $this->verifyMetaWebhook($request, adminSetting('messaging.meta.webhook_verify_token'));
+        return $this->verifyInstagramWebhook($request, adminSetting('messaging.instagram.webhook_verify_token', ''));
     }
 
     public function verifySignature(Request $request): bool
     {
-        return $this->verifyMetaSignature($request, adminSetting('messaging.meta.app_secret'));
+        return $this->verifyInstagramSignature($request, adminSetting('messaging.instagram.app_secret', ''));
     }
 
     public function handleWebhook(array $payload): void

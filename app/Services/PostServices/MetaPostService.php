@@ -7,6 +7,8 @@ use Carbon\Carbon;
 use App\Models\Post;
 use App\Models\PostMedia;
 use App\Models\PostComment;
+use App\Models\PostAccount;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use getID3;
@@ -571,6 +573,138 @@ class MetaPostService
             'success' => true,
             'data'    => $comment
         ];
+    }
+
+    /**
+     * GET verification handshake Meta performs when the comments webhook
+     * subscription is configured (and periodically re-verifies).
+     */
+    public function verifyWebhook(Request $request): ?string
+    {
+        $expectedToken = adminSetting('posts.facebook.webhook_verify_token', 'socialeaz-98897');
+
+        if (
+            $request->query('hub_mode') === 'subscribe'
+            && hash_equals($expectedToken, (string) $request->query('hub_verify_token'))
+        ) {
+            return (string) $request->query('hub_challenge');
+        }
+
+        return null;
+    }
+
+    /**
+     * Confirms an inbound webhook POST body genuinely came from Meta, via
+     * the X-Hub-Signature-256 header (HMAC-SHA256 over the raw body using
+     * the App Secret) - without this, anyone who finds the webhook URL
+     * could inject fake comments into the inbox.
+     */
+    public function verifySignature(Request $request): bool
+    {
+        $signatureHeader = $request->header('X-Hub-Signature-256', '');
+
+        if (!str_starts_with($signatureHeader, 'sha256=')) {
+            return false;
+        }
+
+        $expected = hash_hmac('sha256', $request->getContent(), adminSetting('posts.facebook.client_secret'));
+
+        return hash_equals($expected, substr($signatureHeader, 7));
+    }
+
+    /**
+     * Post-comment webhook delivery for both Facebook Pages (object: "page")
+     * and Instagram professional accounts (object: "instagram") - separate
+     * from the Messaging module's DM webhook, which only ever sees
+     * entry[].messaging[] and never entry[].changes[].
+     */
+    public function handleCommentWebhook(array $payload, string $platform): void
+    {
+        foreach ($payload['entry'] ?? [] as $entry) {
+            $externalAccountId = $entry['id'] ?? null;
+
+            if (!$externalAccountId) {
+                continue;
+            }
+
+            $postAccount = PostAccount::where('platform', $platform)
+                ->where('account_id', $externalAccountId)
+                ->first();
+
+            if (!$postAccount) {
+                continue;
+            }
+
+            foreach ($entry['changes'] ?? [] as $change) {
+                $this->processCommentChange($change, $platform, $postAccount);
+            }
+        }
+    }
+
+    /**
+     * Facebook Page comments arrive on the 'feed' field alongside likes and
+     * post edits - only item=comment + verb=add is an actual new comment.
+     * Instagram has no such wrapper: every 'comments' field delivery IS a
+     * new comment, so item/verb simply don't apply there.
+     */
+    private function processCommentChange(array $change, string $platform, PostAccount $postAccount): void
+    {
+        $value = $change['value'] ?? [];
+        $isInstagram = $platform === 'instagram';
+
+        if ($isInstagram) {
+            if (($change['field'] ?? null) !== 'comments') {
+                return;
+            }
+        } elseif (($change['field'] ?? null) !== 'feed' || ($value['item'] ?? null) !== 'comment' || ($value['verb'] ?? null) !== 'add') {
+            return;
+        }
+
+        $commentId = $value['comment_id'] ?? $value['id'] ?? null;
+        $commentText = $value['message'] ?? $value['text'] ?? '';
+
+        if (!$commentId || $commentText === '') {
+            return;
+        }
+
+        // Comments this app itself posted via publishComment() echo back
+        // through this same webhook - the ' --. ' marker it appends lets us
+        // recognize and skip our own replies instead of re-importing them
+        // as new customer comments.
+        if (str_contains($commentText, '--.')) {
+            return;
+        }
+
+        $nativePostId = $isInstagram ? ($value['media']['id'] ?? null) : ($value['post_id'] ?? null);
+
+        $post = $nativePostId
+            ? Post::where('post_account_id', $postAccount->id)->where('post_id', $nativePostId)->first()
+            : null;
+
+        $parentId = $value['parent_id'] ?? null;
+        $parentComment = $parentId
+            ? PostComment::where('platform', $platform)->where('comment_id', $parentId)->first()
+            : null;
+
+        // Only columns that actually exist on post_comments - the model's
+        // $fillable lists several (user_platform_id, is_read, ...) that
+        // were never added as real columns (same drift documented on
+        // PostAccount's token_expires_at/expires_in), so writing them
+        // throws a "Column not found" SQL error rather than being silently
+        // dropped.
+        PostComment::updateOrCreate(
+            ['platform' => $platform, 'comment_id' => $commentId],
+            [
+                'content'           => $commentText,
+                'sender_type'       => 'customer',
+                'user_id'           => $post->user_id,
+                'user_name'         => $value['from']['username'] ?? $value['from']['name'] ?? 'Anonymous',
+                'post_id'           => $post?->id,
+                'post_account_id'   => $postAccount->id,
+                'parent_comment_id' => $parentComment?->id,
+                'is_reply'          => (bool) $parentComment,
+            ]
+        );
     }
 
     public function destroyComment($chat)

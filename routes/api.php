@@ -8,22 +8,32 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 //Route::group(['prefix' => 'api'], function ($router) {
-    Route::prefix('comments')->group(function () {
-        Route::prefix('/whatsapp')->group(function () {
-            Route::match(['get', 'post'], '/{userId}', 'App\Https\Api\WhatsappController@store')->name('post.whatsapp.webhook_url');
-        });
-        Route::match(['get', 'post'], '/facebook/{userId}', 
-        'App\Https\Api\FacebookController@store')->name('post.facebook.webhook_url');
-        Route::match(['get', 'post'], '/instagram/{userId}', 
-        'App\Https\Api\InstagramController@store')->name('post.instagram.webhook_url');
-        Route::match(['get', 'post'], '/tiktok/{userId}', 
-        'App\Https\Api\TiktokController@store')->name('post.tiktok.webhook_url');
-        Route::match(['get', 'post'], '/x/{userId}', 
-        'App\Https\Api\XController@store')->name('post.x.webhook_url');
-        Route::match(['get', 'post'], '/linkedin/{userId}', 
-        'App\Https\Api\LinkedinController@store')->name('post.linkedin.webhook_url');
-        Route::match(['get', 'post'], '/telegram/{userId}',
-        'App\Https\Api\TelegramController@store')->name('post.telegram.webhook_url');
+    // Post-comment webhooks - separate from the messaging.* group below,
+    // which is DMs only (entry[].messaging[]) and never sees entry[].changes[]
+    // (comments). Previously every route here used a broken controller
+    // string (`App\Https\Api\...` - wrong namespace, and missing
+    // "Controllers") which doesn't resolve to any real class; that alone was
+    // enough to make `php artisan route:list` fatal-error for the entire
+    // app, since it reflects every registered controller. The old routes
+    // also carried a per-user {userId} segment, which doesn't match how
+    // Meta webhooks actually work - there is exactly one App-level callback
+    // URL, and events for every connected Page/Instagram account arrive on
+    // it, disambiguated via entry[].id (see FacebookCommentWebhookController
+    // / InstagramCommentWebhookController), the same shared-URL model
+    // already used by messaging.facebook / messaging.instagram below.
+    Route::prefix('comments')->name('comments.webhook.')->group(function () {
+        Route::get('/facebook', [\App\Http\Controllers\Api\Comments\FacebookCommentWebhookController::class, 'verify'])->name('facebook.verify');
+        Route::post('/facebook', [\App\Http\Controllers\Api\Comments\FacebookCommentWebhookController::class, 'receive'])->name('facebook.receive');
+
+        Route::get('/instagram', [\App\Http\Controllers\Api\Comments\InstagramCommentWebhookController::class, 'verify'])->name('instagram.verify');
+        Route::post('/instagram', [\App\Http\Controllers\Api\Comments\InstagramCommentWebhookController::class, 'receive'])->name('instagram.receive');
+
+        // TikTok/X/LinkedIn/WhatsApp/Telegram comment webhooks are not
+        // implemented yet - TiktokController/XController/LinkedinController
+        // are empty stub files (no class defined) and a WhatsappController/
+        // TelegramController don't exist anywhere in this codebase. Left
+        // unregistered rather than pointed at a broken controller string
+        // again, so route:list/route:cache stay usable in the meantime.
     });
 
     // Unified messaging inbox webhooks - separate from the (currently

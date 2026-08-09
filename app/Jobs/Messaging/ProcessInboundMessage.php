@@ -57,7 +57,7 @@ class ProcessInboundMessage implements ShouldQueue
             return;
         }
 
-        $message = DB::transaction(function () {
+        $message = DB::transaction(function () use ($channel) {
             $conversation = Conversation::firstOrCreate(
                 [
                     'message_channel_id'   => $this->messageChannelId,
@@ -70,6 +70,7 @@ class ProcessInboundMessage implements ShouldQueue
                     'customer_avatar_url'      => $this->customerAvatarUrl,
                     'meta'                     => $this->conversationMeta,
                     'status'                   => 'open',
+                    'assigned_user_id'         => $channel->user_id,
                 ]
             );
 
@@ -103,6 +104,7 @@ class ProcessInboundMessage implements ShouldQueue
                 'type'                => $this->type,
                 'body'                => $this->body,
                 'status'              => 'delivered',
+                'user_id'              => $channel->user_id,
                 'sent_at'             => now(),
                 'delivered_at'        => now(),
             ]);

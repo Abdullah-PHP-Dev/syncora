@@ -34,9 +34,9 @@ class InstagramPostService
             return true;
         }
 
-        $clientId = adminSetting('posts.facebook.client_id');
-        $clientSecret = adminSetting('posts.facebook.client_secret');
-        $endpoint = 'https://graph.facebook.com/v23.0/oauth/access_token';
+        $clientId = adminSetting('posts.instagram.client_id');
+        $clientSecret = adminSetting('posts.instagram.client_secret');
+        $endpoint = 'https://api.instagram.com/oauth/access_token';
         $payload = [
             'grant_type'        => 'fb_exchange_token',
             'client_id'         => $clientId,
