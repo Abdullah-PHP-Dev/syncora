@@ -940,7 +940,10 @@
                         <span>{{ __('admin.marketing_tools.posts.select_platforms') }}</span>
                         <div class="d-flex gap-2 flex-wrap">
                             <a href="{{ route('admin.post-accounts.meta.redirect') }}" class="btn btn-outline-primary btn-sm">
-                                <i class="fab fa-facebook"></i> Connect Facebook / Instagram
+                                <i class="fab fa-facebook"></i> Connect Facebook
+                            </a>
+                            <a href="{{ route('admin.post-accounts.instagram.redirect') }}" class="btn btn-outline-primary btn-sm">
+                                <i class="fab fa-instagram"></i> Connect Instagram
                             </a>
                             <a href="{{ route('admin.post-accounts.threads.redirect') }}" class="btn btn-outline-dark btn-sm">
                                 <i class="fab fa-threads"></i> Connect Threads
