@@ -20,7 +20,38 @@ class InstagramPostService
         $this->api = $api;
         $this->media = $media;
         $this->post = $post;
+        // Default/fallback only - publishing/refresh always resolve the
+        // per-account URL via resolveBaseUrl() since the two Instagram
+        // connect flows (Facebook Login for Business vs standalone
+        // Instagram Login) issue tokens that only work against their own
+        // Graph API domain - see resolveBaseUrl()'s docblock.
         $this->baseUrl = 'https://graph.facebook.com/v25.0/';
+    }
+
+    /**
+     * PostAccountController has two independent, non-interchangeable
+     * Instagram connect flows:
+     *  - callbackMeta() (Facebook Login for Business): issues a Facebook
+     *    Page access token, only valid against graph.facebook.com.
+     *  - callbackInstagram() (standalone Instagram Login): issues an
+     *    Instagram-scoped token (via api.instagram.com/graph.instagram.com),
+     *    only valid against graph.instagram.com - using it with
+     *    graph.facebook.com produces an "invalid token" error even though
+     *    the token itself is fine.
+     * callbackInstagram() tags accounts it creates with
+     * settings.auth_type = 'instagram_login' so publishing/refresh here can
+     * route each account to the domain its token actually belongs to.
+     */
+    protected function isInstagramLoginAccount($account): bool
+    {
+        return ($account->settings['auth_type'] ?? null) === 'instagram_login';
+    }
+
+    protected function resolveBaseUrl($account): string
+    {
+        return $this->isInstagramLoginAccount($account)
+            ? 'https://graph.instagram.com/v20.0/'
+            : 'https://graph.facebook.com/v25.0/';
     }
 
     protected function ensureValidToken($post)
@@ -37,18 +68,25 @@ class InstagramPostService
             return true;
         }
 
-        $clientId     = adminSetting('posts.instagram.client_id');
-        $clientSecret = adminSetting('posts.instagram.client_secret');
-        $endpoint     = 'https://graph.facebook.com/v20.0/oauth/access_token';
-
-        $payload = [
-            'grant_type'        => 'fb_exchange_token',
-            'client_id'         => $clientId,
-            'client_secret'     => $clientSecret,
-            'fb_exchange_token' => $account->access_token,
-        ];
-
-        $response = $this->api->request('get', $endpoint, [], $payload);
+        if ($this->isInstagramLoginAccount($account)) {
+            // Instagram Login tokens are refreshed on graph.instagram.com
+            // itself with the current token - no app client_id/secret
+            // involved (unlike the Facebook Page token exchange below).
+            $response = $this->api->request('get', 'https://graph.instagram.com/refresh_access_token', [], [
+                'grant_type'   => 'ig_refresh_token',
+                'access_token' => $account->access_token,
+            ]);
+        } else {
+            // Facebook Page access token, issued by callbackMeta() using
+            // posts.facebook.client_id/secret - must be refreshed with the
+            // same app credentials that issued it.
+            $response = $this->api->request('get', 'https://graph.facebook.com/v20.0/oauth/access_token', [], [
+                'grant_type'        => 'fb_exchange_token',
+                'client_id'         => adminSetting('posts.facebook.client_id'),
+                'client_secret'     => adminSetting('posts.facebook.client_secret'),
+                'fb_exchange_token' => $account->access_token,
+            ]);
+        }
 
         if (!$response->successful()) {
             return false;
@@ -357,7 +395,7 @@ class InstagramPostService
             return ['success' => false];
         }
 
-        $endpoint = "{$this->baseUrl}{$account->account_id}/media_publish?access_token={$account->access_token}";
+        $endpoint = "{$this->resolveBaseUrl($account)}{$account->account_id}/media_publish?access_token={$account->access_token}";
 
         $response = $this->api->request(
             'post',
@@ -390,11 +428,11 @@ class InstagramPostService
     {
         try {
             $account = $post->postAccount;
-      
-            $endpoint = "{$this->baseUrl}{$account->account_id}/media?access_token={$account->access_token}";
+
+            $endpoint = "{$this->resolveBaseUrl($account)}{$account->account_id}/media?access_token={$account->access_token}";
 
             $mediaCount = count($post->media);
-            dd($mediaCount);
+
             if ($mediaCount === 0) {
                 return [
                     'success' => false,
@@ -535,7 +573,7 @@ class InstagramPostService
             $account = $post->postAccount;
             $response = $this->api->request(
                 'get',
-                $this->baseUrl . $containerId,
+                $this->resolveBaseUrl($account) . $containerId,
                 [],
                 [
                     'fields' => 'status_code',
@@ -565,7 +603,7 @@ class InstagramPostService
     public function publishComment($data, $comment)
     {
         $this->ensureValidToken($comment->post);
-        $endpoint = $this->baseUrl . $comment->comment_id . "/replies";
+        $endpoint = $this->resolveBaseUrl($comment->postAccount) . $comment->comment_id . "/replies";
 
         $payload = [
             "message" => $data['body'] . ' --. '
@@ -623,7 +661,7 @@ class InstagramPostService
     {
         $this->ensureValidToken($post);
 
-        $endpoint = $this->baseUrl . $post->post_id . '/comments';
+        $endpoint = $this->resolveBaseUrl($post->postAccount) . $post->post_id . '/comments';
 
         $response = $this->api->request('get', $endpoint, [], [
             'fields' => 'id,text,username,timestamp,like_count',
@@ -688,7 +726,7 @@ class InstagramPostService
     public function destroy($post)
     {
         $this->ensureValidToken($post);
-        $endpoint = $this->baseUrl . $post->post_id;
+        $endpoint = $this->resolveBaseUrl($post->postAccount) . $post->post_id;
 
         $response = $this->api->request(
             'delete',
@@ -717,7 +755,7 @@ class InstagramPostService
     public function destroyComment($chat)
     {
         $this->ensureValidToken($chat->postAccount);
-        $endpoint = $this->baseUrl . $chat->comment_id;
+        $endpoint = $this->resolveBaseUrl($chat->postAccount) . $chat->comment_id;
 
         $response = $this->api->request(
             'delete',

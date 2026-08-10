@@ -76,7 +76,7 @@ class PublishPosts extends Command
                         }   
                       
                         $response = $this->services[$post->platform]->publishPost($post);
-                        dd($response);
+
                         if (!($response['success'] ?? false)) {
 
                             Log::error("Post {$post->id} failed", $response);

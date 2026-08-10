@@ -172,7 +172,7 @@ class PostAccountController extends Controller
             'redirect_uri'  => $this->metaCallbackUrl(),
             'state'         => $state,
             'response_type' => 'code',
-            'scope'         => 'pages_show_list,pages_manage_posts,pages_read_engagement',
+            'scope'         => 'pages_show_list,pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights',
         ]);
 
         return Redirect::away($url);
@@ -704,6 +704,7 @@ class PostAccountController extends Controller
 
     public function callbackInstagram(Request $request, ApiPostService $api)
     {
+        // 1. Validate State and Authorization Code
         if (!$request->filled('code') || $request->query('state') !== session('instagram_oauth_state')) {
             return redirect()->route('admin.posts.create')->with('error', 'Instagram connection failed or state mismatched.');
         }
@@ -714,74 +715,81 @@ class PostAccountController extends Controller
         $clientSecret = adminSetting('posts.instagram.client_secret');
         $redirectUri  = $this->instagramCallbackUrl();
 
-        // 1. Exchange authorization code for Facebook Access Token
-        $tokenResponse = $api->request('get', 'https://graph.facebook.com/v20.0/oauth/access_token', [], [
+        // 2. Exchange authorization code for a short-lived access token
+        $tokenResponse = $api->request('post', 'https://api.instagram.com/oauth/access_token', [], [
             'client_id'     => $clientId,
             'client_secret' => $clientSecret,
+            'grant_type'    => 'authorization_code',
             'redirect_uri'  => $redirectUri,
             'code'          => $request->query('code'),
-        ]);
+        ], 'form');
 
         if (!$tokenResponse->successful()) {
-            return redirect()->route('admin.posts.create')->with('error', 'Failed to obtain access token from Meta.');
+            $errorMsg = $tokenResponse->json()['error_message'] ?? 'Failed to obtain access token from Instagram.';
+            return redirect()->route('admin.posts.create')->with('error', $errorMsg);
         }
 
-        $shortToken = $tokenResponse->json()['access_token'] ?? null;
+        $tokenData   = $tokenResponse->json();
+        $shortToken  = $tokenData['access_token'] ?? null;
+        $igUserId    = $tokenData['user_id'] ?? null;
 
-        // 2. Exchange short-lived user token for a 60-day Long-Lived Token
-        $longLivedResponse = $api->request('get', 'https://graph.facebook.com/v20.0/oauth/access_token', [], [
-            'grant_type'        => 'fb_exchange_token',
-            'client_id'         => $clientId,
-            'client_secret'     => $clientSecret,
-            'fb_exchange_token' => $shortToken,
+        if (!$shortToken) {
+            return redirect()->route('admin.posts.create')->with('error', 'Invalid token response received from Instagram.');
+        }
+
+        // 3. Exchange short-lived token for a 60-day long-lived access token
+        $longLivedResponse = $api->request('get', 'https://graph.instagram.com/access_token', [], [
+            'grant_type'    => 'ig_exchange_token',
+            'client_secret' => $clientSecret,
+            'access_token'  => $shortToken,
         ]);
 
-        $userAccessToken = $longLivedResponse->successful() 
-            ? $longLivedResponse->json()['access_token'] 
-            : $shortToken;
+        $accessToken = $shortToken;
+        $expiresIn   = 5184000; // Default: 60 days in seconds
 
-        // 3. Get User's Facebook Pages with connected Instagram Business Accounts
-        $accountsResponse = $api->request('get', 'https://graph.facebook.com/v20.0/me/accounts', [], [
-            'fields'       => 'id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}',
-            'access_token' => $userAccessToken,
+        if ($longLivedResponse->successful()) {
+            $longLivedData = $longLivedResponse->json();
+            $accessToken   = $longLivedData['access_token'] ?? $accessToken;
+            $expiresIn     = $longLivedData['expires_in'] ?? $expiresIn;
+        }
+
+        // 4. Fetch Connected Instagram Business / Creator Account Profile
+        $userResponse = $api->request('get', "https://graph.instagram.com/v20.0/me", [], [
+            'fields'       => 'id,username,name,profile_picture_url',
+            'access_token' => $accessToken,
         ]);
 
-        if (!$accountsResponse->successful()) {
-            return redirect()->route('admin.posts.create')->with('error', 'Failed to retrieve Facebook Pages and connected Instagram accounts.');
+        if (!$userResponse->successful()) {
+            return redirect()->route('admin.posts.create')->with('error', 'Connected to Instagram, but failed to fetch profile details.');
         }
 
-        $created = 0;
-        foreach ($accountsResponse->json()['data'] ?? [] as $page) {
-            $igAccount = $page['instagram_business_account'] ?? null;
+        $igUser = $userResponse->json();
+        $accId  = $igUser['id'] ?? $igUserId;
 
-            if (!$igAccount) {
-                continue; // Skip Facebook Pages that don't have an Instagram Business account connected
-            }
+        // 5. Store / Update PostAccount Record
+        PostAccount::updateOrCreate(
+            [
+                'platform'   => 'instagram',
+                'account_id' => $accId,
+                'user_id'    => Auth::id(),
+            ],
+            [
+                'name'         => $igUser['name'] ?? $igUser['username'] ?? 'Instagram Business',
+                'username'     => $igUser['username'] ?? null,
+                'avatar'       => $igUser['profile_picture_url'] ?? null,
+                'access_token' => $accessToken,
+                'expires_in'   => Carbon::now()->addSeconds($expiresIn),
+                'is_active'    => true,
+                'status'       => 'active',
+                // Tags this account as a standalone Instagram Login token
+                // (graph.instagram.com), distinct from callbackMeta()'s
+                // Facebook Page tokens (graph.facebook.com) - see
+                // InstagramPostService::resolveBaseUrl().
+                'settings'     => ['auth_type' => 'instagram_login'],
+            ]
+        );
 
-            PostAccount::updateOrCreate(
-                [
-                    'platform'   => 'instagram',
-                    'account_id' => $igAccount['id'], // Instagram Business Account ID
-                    'user_id'    => Auth::id(),
-                ],
-                [
-                    'name'         => $igAccount['name'] ?? $igAccount['username'],
-                    'username'     => $igAccount['username'] ?? null,
-                    'avatar'       => $igAccount['profile_picture_url'] ?? null,
-                    'access_token' => $page['access_token'], // Long-lived Page Access Token works for Graph API
-                    'expires_in'   => Carbon::now()->addDays(60),
-                    'is_active'    => true,
-                    'status'       => 'active',
-                ]
-            );
-            $created++;
-        }
-
-        if ($created === 0) {
-            return redirect()->route('admin.posts.create')->with('error', 'No Instagram Business/Creator account found linked to your Facebook Pages.');
-        }
-
-        return redirect()->route('admin.posts.create')->with('success', "Successfully connected {$created} Instagram account(s).");
+        return redirect()->route('admin.posts.create')->with('success', "Successfully connected Instagram account (@{$igUser['username']}).");
     }
 
     private function instagramCallbackUrl(): string
