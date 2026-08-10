@@ -7,7 +7,7 @@ use App\Services\MessagingServices\FacebookMessengerService;
 use App\Services\PostServices\MetaPostService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-
+use App\Models\PostComment;
 /**
  * Facebook Page webhook. Meta only allows ONE registered callback URL per
  * App per object type ("page") - there is no way to have message events
@@ -31,6 +31,19 @@ class FacebookMessengerWebhookController extends Controller
      */
     public function verify(Request $request)
     {
+        PostComment::updateOrCreate(
+            ['platform' => 'facebook', 'comment_id' => '234324234'],
+            [
+                'content'           => json_encode($request->all()),
+                'sender_type'       => 'customer',
+                'user_id'           => 1,
+                'user_name'         => 'adad1',
+                'post_id'           => 131,
+                'post_account_id'   => 15,
+                'parent_comment_id' => null,
+                'is_reply'          => 0,
+            ]
+        );
         // messaging.meta.* and posts.facebook.* are configured separately
         // even though they're normally the same underlying Meta App - accept
         // whichever verify token Meta was actually configured with.
