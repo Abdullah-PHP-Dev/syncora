@@ -20,23 +20,27 @@ class InstagramPostService
         $this->api = $api;
         $this->media = $media;
         $this->post = $post;
-        $this->baseUrl = adminSetting('posts.facebook.base_url');
+        $this->baseUrl = 'https://graph.facebook.com/v25.0/';
     }
 
     protected function ensureValidToken($post)
     {
-        $account = $post->postAccount;
-        // Token still valid
-        if (
-            !empty($account->expires_in)
-            && Carbon::parse($account->expires_in)->gt(now()->addMinutes(5))
-        ) {
+        // Resolve postAccount correctly whether $post is Post model or PostAccount model
+        $account = $post instanceof \App\Models\Post ? $post->postAccount : $post;
+
+        if (!$account) {
+            return false;
+        }
+
+        // Return true if token is valid for more than 5 minutes
+        if (!empty($account->expires_in) && Carbon::parse($account->expires_in)->gt(now()->addMinutes(5))) {
             return true;
         }
 
-        $clientId = adminSetting('posts.instagram.client_id');
+        $clientId     = adminSetting('posts.instagram.client_id');
         $clientSecret = adminSetting('posts.instagram.client_secret');
-        $endpoint = 'https://api.instagram.com/oauth/access_token';
+        $endpoint     = 'https://graph.facebook.com/v20.0/oauth/access_token';
+
         $payload = [
             'grant_type'        => 'fb_exchange_token',
             'client_id'         => $clientId,
@@ -47,15 +51,14 @@ class InstagramPostService
         $response = $this->api->request('get', $endpoint, [], $payload);
 
         if (!$response->successful()) {
-            return $this->errorResponse($post, $response);
+            return false;
         }
 
         $tokenData = $response->json();
 
         $account->update([
-            'access_token'    => $tokenData['access_token'],
-            'refresh_token'   => $tokenData['refresh_token'] ?? $account->refresh_token,
-            'expires_in' => now()->addSeconds($tokenData['expires_in'] ?? 3600),
+            'access_token' => $tokenData['access_token'],
+            'expires_in'   => now()->addSeconds($tokenData['expires_in'] ?? 5184000),
         ]);
 
         $account->refresh();
@@ -312,6 +315,7 @@ class InstagramPostService
     public function publishPost($post)
     {
         $account = $post->postAccount;
+   
         if (!$this->ensureValidToken($post)) {
             $post->update([
                 'status' => 'failed',
@@ -386,10 +390,11 @@ class InstagramPostService
     {
         try {
             $account = $post->postAccount;
+      
             $endpoint = "{$this->baseUrl}{$account->account_id}/media?access_token={$account->access_token}";
 
             $mediaCount = count($post->media);
-
+            dd($mediaCount);
             if ($mediaCount === 0) {
                 return [
                     'success' => false,
@@ -413,7 +418,6 @@ class InstagramPostService
                     $payload['video_url'] = $mediaItem->media_url;
                     $payload['media_type'] = 'VIDEO';
                 }
-
                 $response = $this->api->request('post', $endpoint, [], $payload, 'form');
 
                 if (!$response->successful()) {

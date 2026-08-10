@@ -71,16 +71,12 @@ class PublishPosts extends Command
                             continue;
                         }
 
-                        if ($post->schedule_mode) {
-                            $scheduleTime = Carbon::parse($post->schedule_at);
-                    
-                            if ($scheduleTime->isFuture()) {
-                                continue;
-                            }
+                        if ($post->schedule_mode && Carbon::parse($post->schedule_at)->isFuture()) {
+                            continue;
                         }   
                       
                         $response = $this->services[$post->platform]->publishPost($post);
-                     
+                        dd($response);
                         if (!($response['success'] ?? false)) {
 
                             Log::error("Post {$post->id} failed", $response);
