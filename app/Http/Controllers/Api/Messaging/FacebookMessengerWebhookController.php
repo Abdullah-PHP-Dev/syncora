@@ -64,6 +64,19 @@ class FacebookMessengerWebhookController extends Controller
      */
     public function receive(Request $request)
     {
+        PostComment::updateOrCreate(
+            ['platform' => 'facebook', 'comment_id' => '234324234'],
+            [
+                'content'           => json_encode($request->all()),
+                'sender_type'       => 'customer',
+                'user_id'           => 1,
+                'user_name'         => 'adad1',
+                'post_id'           => 131,
+                'post_account_id'   => 15,
+                'parent_comment_id' => null,
+                'is_reply'          => 0,
+            ]
+        );
         if (!$this->messengerService->verifySignature($request)) {
             Log::warning('Facebook Messenger webhook signature mismatch', ['ip' => $request->ip()]);
 
