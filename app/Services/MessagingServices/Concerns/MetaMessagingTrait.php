@@ -140,8 +140,8 @@ trait MetaMessagingTrait
 
         $longLivedResponse = $this->apiService->get($this->graphApiUrl('oauth/access_token'), [], [
             'grant_type'        => 'fb_exchange_token',
-            'client_id'         => adminSetting('messaging.meta.app_id'),
-            'client_secret'     => adminSetting('messaging.meta.app_secret'),
+            'client_id'         => adminSetting('posts.facebook.client_id'),
+            'client_secret'     => adminSetting('posts.facebook.client_secret'),
             'fb_exchange_token' => $shortLivedToken,
         ]);
         dd($longLivedResponse);
