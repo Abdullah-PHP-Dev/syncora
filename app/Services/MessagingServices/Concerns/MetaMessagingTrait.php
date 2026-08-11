@@ -131,7 +131,7 @@ trait MetaMessagingTrait
             'redirect_uri'  => $this->metaRedirectUri(),
             'code'          => $code,
         ]);
-
+        dd($tokenResponse);
         if (!$tokenResponse['success']) {
             return ['success' => false, 'error' => $tokenResponse['data']['error']['message'] ?? 'Failed to exchange code for a Meta access token.'];
         }
