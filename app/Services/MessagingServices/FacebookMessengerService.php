@@ -8,7 +8,6 @@ use App\Models\Messaging\MessageChannel;
 use App\Services\ApiService;
 use App\Services\MessagingServices\Concerns\MetaMessagingTrait;
 use Illuminate\Http\Request;
-use App\Models\PostComment;
 /**
  * Facebook Messenger - Meta Messenger Platform Send API + webhooks.
  * Endpoint/payload shapes verified against developers.facebook.com/docs/
@@ -57,7 +56,7 @@ class FacebookMessengerService
 
     public function verifySignature(Request $request): bool
     {
-        return $this->verifyMetaSignature($request, adminSetting('posts.facebook.client_secret'));
+        return $this->verifyMetaSignature($request, adminSetting('messaging.meta.app_secret'));
     }
 
     /**
@@ -73,19 +72,7 @@ class FacebookMessengerService
 
             $pageId = $entry['id'] ?? null;
             $channel = $pageId ? MessageChannel::where('platform', 'facebook')->where('external_id', $pageId)->first() : null;
-        PostComment::updateOrCreate(
-            ['platform' => 'facebook', 'comment_id' => '234324234'],
-            [
-                'content'           => json_encode($channel),
-                'sender_type'       => 'customer',
-                'user_id'           => 1,
-                'user_name'         => 'adad1',
-                'post_id'           => 131,
-                'post_account_id'   => 15,
-                'parent_comment_id' => null,
-                'is_reply'          => 0,
-            ]
-        );
+
             if (!$channel) {
                 continue;
             }

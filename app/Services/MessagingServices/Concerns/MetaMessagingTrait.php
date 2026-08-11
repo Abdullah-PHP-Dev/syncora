@@ -5,6 +5,7 @@ namespace App\Services\MessagingServices\Concerns;
 use App\Models\Messaging\MessageChannel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
 
 /**
@@ -62,6 +63,16 @@ trait MetaMessagingTrait
         return "https://graph.facebook.com/{$version}/" . ltrim($path, '/');
     }
 
+    /**
+     * Must be byte-for-byte identical between the authorize request
+     * (redirect()) and the token exchange (handleMetaCallback()) - Meta
+     * rejects the exchange with redirect_uri_mismatch otherwise.
+     */
+    protected function metaRedirectUri(): string
+    {
+        return config('services.app_url') . '/admin/messaging/auth/meta/callback';
+    }
+
     protected function graphApiCall(string $method, string $path, array $params, string $accessToken)
     {
         $headers = ['Authorization' => "Bearer {$accessToken}"];
@@ -94,8 +105,8 @@ trait MetaMessagingTrait
     public function redirect($state)
     {
         $url = 'https://www.facebook.com/' . (adminSetting('messaging.meta.graph_version') ?: 'v21.0') . '/dialog/oauth?' . http_build_query([
-            'client_id'     => adminSetting('messaging.meta.app_id'),
-            'redirect_uri'  => config('services.app_url') . '/admin/messaging/auth/meta/callback',
+            'client_id'     => adminSetting('posts.facebook.client_id'),
+            'redirect_uri'  => $this->metaRedirectUri(),
             'state'         => $state,
             'response_type' => 'code',
             'scope'         => 'pages_show_list,pages_messaging,pages_manage_metadata,instagram_basic,instagram_manage_messages',
@@ -117,7 +128,7 @@ trait MetaMessagingTrait
         $tokenResponse = $this->apiService->get($this->graphApiUrl('oauth/access_token'), [], [
             'client_id'     => adminSetting('messaging.meta.app_id'),
             'client_secret' => adminSetting('messaging.meta.app_secret'),
-            'redirect_uri'  => config('services.app_url') . '/admin/messaging/auth/meta/callback',
+            'redirect_uri'  => $this->metaRedirectUri(),
             'code'          => $code,
         ]);
 
@@ -133,6 +144,12 @@ trait MetaMessagingTrait
             'client_secret'     => adminSetting('messaging.meta.app_secret'),
             'fb_exchange_token' => $shortLivedToken,
         ]);
+
+        if (!$longLivedResponse['success']) {
+            Log::warning('Meta long-lived token exchange failed, falling back to short-lived user token.', [
+                'error' => $longLivedResponse['data']['error']['message'] ?? null,
+            ]);
+        }
 
         $userToken = $longLivedResponse['success'] ? $longLivedResponse['data']['access_token'] : $shortLivedToken;
 

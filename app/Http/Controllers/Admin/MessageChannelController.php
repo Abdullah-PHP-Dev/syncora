@@ -16,6 +16,7 @@ use App\Services\MessagingServices\XMessagingService;
 use App\Services\MessagingServices\ZaloMessagingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
 
@@ -40,16 +41,20 @@ class MessageChannelController extends Controller
     public function redirectMeta(FacebookMessengerService $service)
     {
         $state = Str::uuid()->toString();
-        session(['messaging_oauth_state' => $state]);
+        session(['messaging_oauth_state_meta' => $state]);
 
         return $service->redirect($state);
     }
 
     public function callbackMeta(Request $request, FacebookMessengerService $service)
     {
-        if (!$request->filled('code') || $request->query('state') !== session('messaging_oauth_state')) {
+        if (!$request->filled('code') || $request->query('state') !== session('messaging_oauth_state_meta')) {
+            Log::info('Meta messaging OAuth callback failed or was cancelled.', $request->only(['error', 'error_reason', 'error_description']));
+
             return redirect()->route('admin.chats.channels')->with('error', 'Meta connection failed or was cancelled.');
         }
+
+        session()->forget('messaging_oauth_state_meta');
 
         $result = $service->handleMetaCallback($request->query('code'));
 
