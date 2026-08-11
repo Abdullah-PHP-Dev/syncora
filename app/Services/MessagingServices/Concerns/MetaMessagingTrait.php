@@ -144,7 +144,7 @@ trait MetaMessagingTrait
             'client_secret'     => adminSetting('posts.facebook.client_secret'),
             'fb_exchange_token' => $shortLivedToken,
         ]);
-        dd($longLivedResponse);
+     
         if (!$longLivedResponse['success']) {
             Log::warning('Meta long-lived token exchange failed, falling back to short-lived user token.', [
                 'error' => $longLivedResponse['data']['error']['message'] ?? null,
@@ -157,7 +157,7 @@ trait MetaMessagingTrait
             'access_token' => $userToken,
             'fields'       => 'id,name,access_token,picture,instagram_business_account{id,username,profile_picture_url}',
         ]);
-
+        dd($pagesResponse);
         if (!$pagesResponse['success']) {
             return ['success' => false, 'error' => $pagesResponse['data']['error']['message'] ?? 'Failed to fetch Pages.'];
         }
