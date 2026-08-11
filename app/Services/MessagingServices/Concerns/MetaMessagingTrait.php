@@ -58,7 +58,7 @@ trait MetaMessagingTrait
 
     protected function graphApiUrl(string $path): string
     {
-        $version = adminSetting('messaging.meta.graph_version') ?: 'v21.0';
+        $version = adminSetting('messaging.meta.graph_version') ?: 'v26.0';
 
         return "https://graph.facebook.com/{$version}/" . ltrim($path, '/');
     }
