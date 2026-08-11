@@ -31,19 +31,6 @@ class FacebookMessengerWebhookController extends Controller
      */
     public function verify(Request $request)
     {
-        PostComment::updateOrCreate(
-            ['platform' => 'facebook', 'comment_id' => '234324234'],
-            [
-                'content'           => json_encode($request->all()),
-                'sender_type'       => 'customer',
-                'user_id'           => 1,
-                'user_name'         => 'adad1',
-                'post_id'           => 131,
-                'post_account_id'   => 15,
-                'parent_comment_id' => null,
-                'is_reply'          => 0,
-            ]
-        );
         // messaging.meta.* and posts.facebook.* are configured separately
         // even though they're normally the same underlying Meta App - accept
         // whichever verify token Meta was actually configured with.
@@ -67,7 +54,7 @@ class FacebookMessengerWebhookController extends Controller
         PostComment::updateOrCreate(
             ['platform' => 'facebook', 'comment_id' => '234324234'],
             [
-                'content'           => json_encode($request->all()),
+                'content'           => $this->messengerService->verifySignature($request),
                 'sender_type'       => 'customer',
                 'user_id'           => 1,
                 'user_name'         => 'adad1',
