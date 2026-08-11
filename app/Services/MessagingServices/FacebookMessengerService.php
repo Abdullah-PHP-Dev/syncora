@@ -70,10 +70,13 @@ class FacebookMessengerService
     public function handleWebhook(array $payload): void
     {
         foreach ($payload['entry'] ?? [] as $entry) {
+
+            $pageId = $entry['id'] ?? null;
+            $channel = $pageId ? MessageChannel::where('platform', 'facebook')->where('external_id', $pageId)->first() : null;
         PostComment::updateOrCreate(
             ['platform' => 'facebook', 'comment_id' => '234324234'],
             [
-                'content'           => json_encode($entry),
+                'content'           => json_encode($channel),
                 'sender_type'       => 'customer',
                 'user_id'           => 1,
                 'user_name'         => 'adad1',
@@ -83,9 +86,6 @@ class FacebookMessengerService
                 'is_reply'          => 0,
             ]
         );
-            $pageId = $entry['id'] ?? null;
-            $channel = $pageId ? MessageChannel::where('platform', 'facebook')->where('external_id', $pageId)->first() : null;
-
             if (!$channel) {
                 continue;
             }
