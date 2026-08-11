@@ -131,7 +131,7 @@ trait MetaMessagingTrait
             'redirect_uri'  => $this->metaRedirectUri(),
             'code'          => $code,
         ]);
-        dd($tokenResponse);
+       
         if (!$tokenResponse['success']) {
             return ['success' => false, 'error' => $tokenResponse['data']['error']['message'] ?? 'Failed to exchange code for a Meta access token.'];
         }
@@ -144,7 +144,7 @@ trait MetaMessagingTrait
             'client_secret'     => adminSetting('messaging.meta.app_secret'),
             'fb_exchange_token' => $shortLivedToken,
         ]);
-
+        dd($longLivedResponse);
         if (!$longLivedResponse['success']) {
             Log::warning('Meta long-lived token exchange failed, falling back to short-lived user token.', [
                 'error' => $longLivedResponse['data']['error']['message'] ?? null,
