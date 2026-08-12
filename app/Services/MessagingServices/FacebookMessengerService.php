@@ -140,7 +140,21 @@ class FacebookMessengerService
         }
 
         $name = trim(($result['data']['first_name'] ?? '') . ' ' . ($result['data']['last_name'] ?? ''));
-
+Conversation::firstOrCreate(
+                [
+                    'message_channel_id'   => 11,
+                    'customer_external_id' => "35324234",
+                ],
+                [
+                    'platform'                 => 'facebook',
+                    'external_conversation_id' => $name,
+                    'customer_name'            => 'asdsad',
+                    'customer_avatar_url'      => 'aasdas',
+                    'meta'                     => json_encode($result),
+                    'status'                   => 'daa',
+                    'assigned_user_id'         => 1,
+                ]
+            );
         return [
             'name'        => $name !== '' ? $name : null,
             'profile_pic' => $result['data']['profile_pic'] ?? null,
