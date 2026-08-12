@@ -178,7 +178,7 @@ trait MetaMessagingTrait
                 ]
             );
             $created['facebook']++;
-            dd($page['instagram_business_account']);
+            dd($page);
             if (!empty($page['instagram_business_account']['id'])) {
                 $ig = $page['instagram_business_account'];
 
@@ -193,7 +193,7 @@ trait MetaMessagingTrait
                         // access token, not a separate IG-specific one.
                         'access_token' => $page['access_token'],
                         'refresh_token' => $page['access_token'],
-                        // 'expires_at'.   => 
+               
                         'status'       => true,
                     ]
                 );
