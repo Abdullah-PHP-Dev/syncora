@@ -108,7 +108,7 @@ class InstagramMessengerService
     protected function fetchUserProfile(string $igsid, string $accessToken): array
     {
         $version = adminSetting('messaging.instagram.graph_version') ?: (adminSetting('messaging.meta.graph_version') ?: 'v26.0');
-
+$knownWorkingToken = 'IGAAqPVIo94cFBZAFpMVXo3eEtOSkVkczFkeC1ERU4wMjJxTXgzejJsQng2THJ5VTN5UUw1Vi14SjFCcnFzandvUVBWeE9xemwzQWlrY3FnNFVPYVMzX1JidURfVThuTWt3SjRPNGZAYSE1rT2xlNEY9XUHVR';
 $accessToken = trim($accessToken);
 $response = Http::withHeaders([
     'Authorization' => 'Bearer ' . $accessToken,
@@ -125,7 +125,12 @@ $response = Http::withHeaders([
             'type'   => 'Bearer ' . $accessToken,
         ],
         'graph_api' => [
-                'length' => strlen($accessToken),
+            'same' => hash_equals($knownWorkingToken, $accessToken),
+            'variable_length' => strlen($accessToken),
+            'known_length' => strlen($knownWorkingToken),
+            'variable_hex' => bin2hex($accessToken),
+            'known_hex' => bin2hex($knownWorkingToken),
+            'length' => strlen($accessToken),
             'hex' => bin2hex($accessToken),
             'value' => $accessToken,
             'version' => $version,
