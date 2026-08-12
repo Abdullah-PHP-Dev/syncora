@@ -58,7 +58,7 @@ trait MetaMessagingTrait
 
     protected function graphApiUrl(string $path): string
     {
-        $version = adminSetting('messaging.meta.graph_version') ?: 'v26.0';
+        $version = adminSetting('messaging.meta.graph_version') ?: 'v21.0';
 
         return "https://graph.facebook.com/{$version}/" . ltrim($path, '/');
     }
@@ -92,38 +92,25 @@ trait MetaMessagingTrait
     }
 
     /**
-     * Facebook Login for Business is still the only way to grant Instagram
-     * Direct access too (it comes attached to a Page, not its own login),
-     * so the "Connect Facebook" and "Connect Instagram" buttons in the
-     * dashboard both drive this same dialog - $platform only narrows the
-     * requested scope (so an admin connecting just Instagram isn't also
-     * asked to grant pages_messaging) and, later, which MessageChannel
-     * rows handleMetaCallback() actually writes. WhatsApp is deliberately
-     * not included: Cloud API numbers are set up through Meta's Embedded
-     * Signup JS SDK (not a plain OAuth redirect) or a permanent System
-     * User token from Business Settings, so that channel type is
-     * connected via manual entry instead (see MessageChannelController).
+     * Facebook Page connections only - Instagram Direct now has its own
+     * native login flow (InstagramMessagingTrait::redirect()), not this
+     * one, since Instagram-scoped tokens issued through Instagram Login
+     * aren't interchangeable with Facebook Page tokens issued here (they
+     * authenticate against different Graph API domains entirely). WhatsApp
+     * is deliberately not included either: Cloud API numbers are set up
+     * through Meta's Embedded Signup JS SDK (not a plain OAuth redirect)
+     * or a permanent System User token from Business Settings, so that
+     * channel type is connected via manual entry instead (see
+     * MessageChannelController).
      */
-    public function redirect($state, string $platform = 'both')
+    public function redirect($state)
     {
-        $scopes = ['pages_show_list', 'pages_read_engagement', 'pages_manage_metadata', 'business_management'];
-
-        if ($platform !== 'instagram') {
-            $scopes[] = 'pages_read_user_content';
-            $scopes[] = 'pages_messaging';
-        }
-
-        if ($platform !== 'facebook') {
-            $scopes[] = 'instagram_basic';
-            $scopes[] = 'instagram_manage_messages';
-        }
-
         $url = 'https://www.facebook.com/' . (adminSetting('messaging.meta.graph_version') ?: 'v21.0') . '/dialog/oauth?' . http_build_query([
             'client_id'     => adminSetting('posts.facebook.client_id'),
             'redirect_uri'  => $this->metaRedirectUri(),
             'state'         => $state,
             'response_type' => 'code',
-            'scope'         => implode(',', $scopes),
+            'scope'         => 'pages_show_list,pages_read_engagement,pages_read_user_content,pages_messaging,pages_manage_metadata,business_management',
         ]);
 
         return Redirect::away($url);
@@ -131,16 +118,10 @@ trait MetaMessagingTrait
 
     /**
      * Exchanges the OAuth code for a long-lived user token, then walks
-     * /me/accounts (every Page the user administers). $platform controls
-     * which MessageChannel rows actually get written: 'facebook' only
-     * creates the Messenger channel per Page, 'instagram' only creates the
-     * Instagram Direct channel for Pages that have one linked, 'both'
-     * (the default) writes whichever applies. Both channel types share
-     * the Page's own access token regardless - Meta accepts it for either
-     * product's Send API - this only changes what gets persisted, not
-     * what's fetched.
+     * /me/accounts (every Page the user administers) to create a
+     * Messenger MessageChannel per Page.
      */
-    public function handleMetaCallback(string $code, string $platform = 'both'): array
+    public function handleMetaCallback(string $code): array
     {
         $tokenResponse = $this->apiService->get($this->graphApiUrl('oauth/access_token'), [], [
             'client_id'     => adminSetting('posts.facebook.client_id'),
@@ -172,53 +153,31 @@ trait MetaMessagingTrait
 
         $pagesResponse = $this->apiService->get($this->graphApiUrl('me/accounts'), [], [
             'access_token' => $userToken,
-            'fields'       => 'id,name,access_token,picture,instagram_business_account{id,username,profile_picture_url}',
+            'fields'       => 'id,name,access_token,picture',
         ]);
 
         if (!$pagesResponse['success']) {
             return ['success' => false, 'error' => $pagesResponse['data']['error']['message'] ?? 'Failed to fetch Pages.'];
         }
 
-        $created = ['facebook' => 0, 'instagram' => 0];
+        $created = 0;
 
         foreach ($pagesResponse['data']['data'] ?? [] as $page) {
-            if ($platform === 'facebook' || $platform === 'both') {
-                MessageChannel::updateOrCreate(
-                    ['platform' => 'facebook', 'external_id' => $page['id']],
-                    [
-                        'user_id'      => Auth::id(),
-                        'name'         => $page['name'],
-                        'username'     => null,
-                        'avatar_url'   => $page['picture']['data']['url'] ?? null,
-                        'access_token' => $page['access_token'],
-                        'refresh_token' => $page['access_token'],
-                        'status'       => true,
-                    ]
-                );
-                $created['facebook']++;
-            }
-
-            if (($platform === 'instagram' || $platform === 'both') && !empty($page['instagram_business_account']['id'])) {
-                $ig = $page['instagram_business_account'];
-
-                MessageChannel::updateOrCreate(
-                    ['platform' => 'instagram', 'external_id' => $ig['id']],
-                    [
-                        'user_id'      => Auth::id(),
-                        'name'         => $ig['username'] ?? $page['name'],
-                        'username'     => $ig['username'] ?? null,
-                        'avatar_url'   => $ig['profile_picture_url'] ?? null,
-                        // Instagram Direct sends through the same Page
-                        // access token, not a separate IG-specific one.
-                        'access_token' => $page['access_token'],
-                        'refresh_token' => $page['access_token'],
-                        'status'       => true,
-                    ]
-                );
-                $created['instagram']++;
-            }
+            MessageChannel::updateOrCreate(
+                ['platform' => 'facebook', 'external_id' => $page['id']],
+                [
+                    'user_id'       => Auth::id(),
+                    'name'          => $page['name'],
+                    'username'      => null,
+                    'avatar_url'    => $page['picture']['data']['url'] ?? null,
+                    'access_token'  => $page['access_token'],
+                    'refresh_token' => $page['access_token'],
+                    'status'        => true,
+                ]
+            );
+            $created++;
         }
 
-        return ['success' => true, 'data' => $created];
+        return ['success' => true, 'data' => ['facebook' => $created]];
     }
 }

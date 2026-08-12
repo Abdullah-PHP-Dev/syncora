@@ -183,6 +183,10 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('messaging.auth.meta.redirect');
 				Route::get('messaging/auth/meta/callback', [MessageChannelController::class, 'callbackMeta'])
 					->name('messaging.auth.meta.callback');
+				Route::get('messaging/auth/instagram/redirect', [MessageChannelController::class, 'redirectInstagram'])
+					->name('messaging.auth.instagram.redirect');
+				Route::get('messaging/auth/instagram/callback', [MessageChannelController::class, 'callbackInstagram'])
+					->name('messaging.auth.instagram.callback');
 				Route::get('messaging/auth/x/redirect', [MessageChannelController::class, 'redirectX'])
 					->name('messaging.auth.x.redirect');
 				Route::get('messaging/auth/x/callback', [MessageChannelController::class, 'callbackX'])
