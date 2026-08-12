@@ -99,9 +99,9 @@ class InstagramMessengerService
     protected function fetchUserProfile(string $igsid, string $accessToken): array
     {
         $result = $this->graphApiCall('GET', $igsid, ['fields' => 'name,profile_pic'], $accessToken);
-        $fields = 'name,username,profile_pic,is_user_follow_business';
+        $fields = 'name,profile_pic';
 
-        $response = Http::get("https://graph.facebook.com/v20.0/{$igsid}", [
+        $response = Http::get("https://graph.instagram.com/v26.0/{$igsid}", [
             'fields' => $fields,
             'access_token' => $accessToken,
         ]);
