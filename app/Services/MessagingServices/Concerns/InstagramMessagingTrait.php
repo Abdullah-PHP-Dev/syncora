@@ -114,7 +114,7 @@ trait InstagramMessagingTrait
         dd([
             'force_reauth'   => true,
             'response_type'  => 'code',
-            'client_id'      => adminSetting('posts.instagram.client_id'),
+            'client_id'      => (string) adminSetting('posts.instagram.client_id'),
             'redirect_uri'   => $this->instagramRedirectUri(),
             'state'          => $state,
             'scope'          => 'instagram_business_basic,instagram_business_manage_messages',
