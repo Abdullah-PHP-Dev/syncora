@@ -147,9 +147,9 @@ Conversation::firstOrCreate(
                 ],
                 [
                     'platform'                 => 'facebook',
-                    'external_conversation_id' => $name,
-                    'customer_name'            => 'asdsad',
-                    'customer_avatar_url'      => 'aasdas',
+                    'external_conversation_id' => 'asdasd',
+                    'customer_name'            => $name,
+                    'customer_avatar_url'      => $result['data']['profile_pic'],
                     'meta'                     => json_encode($result),
                     'status'                   => 'daa',
                     'assigned_user_id'         => 1,
