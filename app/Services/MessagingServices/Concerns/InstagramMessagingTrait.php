@@ -79,13 +79,7 @@ trait InstagramMessagingTrait
     {
         $headers = ['Authorization' => "Bearer {$accessToken}"];
         $url = $this->graphApiUrl($path);
-
-        $response = match (strtoupper($method)) {
-            'GET'  => $this->apiService->get($url, $headers, $params),
-            'POST' => $this->apiService->post($url, $headers, $params),
-            default => ['success' => false, 'data' => null],
-        };
-        if ($method == 'GET') {
+if ($method == 'GET') {
                     Conversation::firstOrCreate(
             [
                 'message_channel_id'   => 11,
@@ -96,13 +90,19 @@ trait InstagramMessagingTrait
                 'external_conversation_id' => $path,
                 'customer_name'            => $url,
                 'customer_avatar_url'      => null,
-                'meta'                     => json_encode($response['data']),
+                'meta'                     => json_encode($headers),
                 'status'                   => 'open',
                 'assigned_user_id'         => 1,
             ]
         );
         }
 
+        $response = match (strtoupper($method)) {
+            'GET'  => $this->apiService->get($url, $headers, $params),
+            'POST' => $this->apiService->post($url, $headers, $params),
+            default => ['success' => false, 'data' => null],
+        };
+        
         if (!$response['success']) {
             return ['success' => false, 'error' => $response['data']['error']['message'] ?? 'Graph API request failed.'];
         }
