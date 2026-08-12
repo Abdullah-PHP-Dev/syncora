@@ -99,37 +99,20 @@ class InstagramMessengerService
     protected function fetchUserProfile(string $igsid, string $accessToken): array
     {
         $result = $this->graphApiCall('GET', $igsid, ['fields' => 'name,profile_pic'], $accessToken);
-        // $fields = 'name,profile_pic';
-
-        // $response = Http::get("https://graph.instagram.com/v26.0/{$igsid}", [
-        //     'fields' => $fields,
-        //     'access_token' => $accessToken,
-        // ]);
-
-        // // if ($response->successful()) {
-        // //     return $response->json();
-        // // }
-        // $conversation = Conversation::firstOrCreate(
-        //         [
-        //             'message_channel_id'   => 9,
-        //             'customer_external_id' => '08080'
-        //         ],
-        //         [
-        //             'platform'                 => 'instagram',
-        //             'external_conversation_id' => '79798',
-        //             'customer_name'            => 'test',
-        //             'customer_avatar_url'      => 'test',
-        //             'meta'                     => $response->json(),
-        //             'status'                   => 'open',
-        //             'assigned_user_id'         => 1,
-        //     ]);
-        if (!$result['success']) {
+  
+        $response = Http::withToken($accessToken)
+            ->get("https://graph.facebook.com/v26.0/{$igsid}", [
+                'fields' => 'name,profile_pic,username',
+            ]);
+        if (!$response->successful()) {
             return [];
         }
 
+        $profile = $response->json();
+        
         return [
-            'name'        => $result['data']['name'] ?? null,
-            'profile_pic' => $result['data']['profile_pic'] ?? null,
+            'name'        => $profile['name'] ?? null,
+            'profile_pic' => $profile['profile_pic'] ?? null,
         ];
     }
 }
