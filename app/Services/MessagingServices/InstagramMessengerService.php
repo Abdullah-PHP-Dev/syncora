@@ -57,58 +57,28 @@ class InstagramMessengerService
     public function handleWebhook(array $payload): void
     {   
         $igUserId = null;
-        $conversation = Conversation::firstOrCreate(
-                [
-                    'message_channel_id'   => 7,
-                    'customer_external_id' => $payload['entry'][0]['id'],
-                ],
-                [
-                    'platform'                 => 'instagram',
-                    'external_conversation_id' => $payload['entry'][0]['id'],
-                    'customer_name'            => 'test',
-                    'customer_avatar_url'      => '$channel',
-                    'meta'                     => json_encode($payload['entry'][0]),
-                    'status'                   => 'open',
-                    'assigned_user_id'         => 1,
-                ]);
         foreach ($payload['entry'] ?? [] as $entry) {
             $igUserId = $entry['id'];
             $channel = $igUserId ? MessageChannel::where('platform', 'instagram')->where('external_id', $igUserId)->first() : null;
-            $conversation = Conversation::firstOrCreate(
-                [
-                    'message_channel_id'   => 7,
-                    'customer_external_id' => $igUserId,
-                ],
-                [
-                    'platform'                 => 'instagram',
-                    'external_conversation_id' => $igUserId,
-                    'customer_name'            => 'test',
-                    'customer_avatar_url'      => $channel,
-                    'meta'                     => json_encode($entry),
-                    'status'                   => 'open',
-                    'assigned_user_id'         => 1,
-                ]
-            );
+            
             if (!$channel) {
                 continue;
             }
-
-            foreach ($entry['messaging'] ?? [] as $event) {
-                $conversation = Conversation::firstOrCreate(
+            $conversation = Conversation::firstOrCreate(
                 [
-                    'message_channel_id'   => 7,
-                    'customer_external_id' => 28126089247075451,
+                    'message_channel_id'   => 9,
+                    'customer_external_id' => $entry['id'],
                 ],
                 [
                     'platform'                 => 'instagram',
-                    'external_conversation_id' => 28126089247075451,
+                    'external_conversation_id' => $entry['id'],
                     'customer_name'            => 'test',
-                    'customer_avatar_url'      => 'test',
+                    'customer_avatar_url'      => '$channel',
                     'meta'                     => json_encode($entry),
                     'status'                   => 'open',
                     'assigned_user_id'         => 1,
-                ]
-            );
+                ]);
+            foreach ($entry['messaging'] ?? [] as $event) {
                 if (empty($event['message']) || !empty($event['message']['is_echo'])) {
                     continue;
                 }
