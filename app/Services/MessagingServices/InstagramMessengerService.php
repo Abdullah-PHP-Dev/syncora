@@ -100,10 +100,10 @@ class InstagramMessengerService
     {
         $result = $this->graphApiCall('GET', $igsid, ['fields' => 'name,profile_pic'], $accessToken);
   
-$response = Http::withToken('IGAAqPVIo94cFBZAFpMVXo3eEtOSkVkczFkeC1ERU4wMjJxTXgzejJsQng2THJ5VTN5UUw1Vi14SjFCcnFzandvUVBWeE9xemwzQWlrY3FnNFVPYVMzX1JidURfVThuTWt3SjRPNGZAYSE1rT2xlNE9YUHVR')
-    ->get("https://graph.facebook.com/v26.0/{$igsid}", [
-        'fields' => 'name,profile_pic,username',
-    ]);
+$response = Http::get("https://graph.facebook.com/v26.0/{$igsid}", [
+    'fields'       => 'name,profile_pic,username',
+    'access_token' => $accessToken,
+]);
 
 // 2. Safely parse response data with fallbacks
 $profileData = $response->successful() ? $response->json() : [];
