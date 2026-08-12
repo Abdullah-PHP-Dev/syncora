@@ -109,7 +109,7 @@ class InstagramMessengerService
     {
         $version = adminSetting('messaging.instagram.graph_version') ?: (adminSetting('messaging.meta.graph_version') ?: 'v26.0');
 
-
+$accessToken = trim($accessToken);
 $response = Http::withHeaders([
     'Authorization' => 'Bearer ' . $accessToken,
 ])->get("https://graph.facebook.com/v26.0/{$igsid}");
@@ -125,8 +125,13 @@ $response = Http::withHeaders([
             'type'   => 'Bearer ' . $accessToken,
         ],
         'graph_api' => [
+                'length' => strlen($accessToken),
+            'hex' => bin2hex($accessToken),
+            'value' => $accessToken,
             'version' => $version,
-            'url'     => "https://graph.facebook.com/v26.0/{$igsid}",
+            'status' => $response->status(),
+            'body' => $response->body(),
+            'url'     => "https://graph.instagram.com/v26.0/{$igsid}",
             'igsid'   => $igsid,
         ],
         'response' => $response->json(),
