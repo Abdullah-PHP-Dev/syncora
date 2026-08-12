@@ -109,7 +109,9 @@ class InstagramMessengerService
     {
         $version = adminSetting('messaging.instagram.graph_version') ?: (adminSetting('messaging.meta.graph_version') ?: 'v21.0');
 
-$response = Http::withToken('IGAAqPVIo94cFBZAFpMVXo3eEtOSkVkczFkeC1ERU4wMjJxTXgzejJsQng2THJ5VTN5UUw1Vi14SjFCcnFzandvUVBWeE9xemwzQWlrY3FnNFVPYVMzX1JidURfVThuTWt3SjRPNGZAYSE1rT2xlNE9YUHVR')->get("https://graph.facebook.com/v26.0/1098590715835617");
+$response = Http::get("https://graph.facebook.com/v26.0/1098590715835617", [
+    'access_token' => 'IGAAqPVIo94cFBZAFpMVXo3eEtOSkVkczFkeC1ERU4wMjJxTXgzejJsQng2THJ5VTN5UUw1Vi14SjFCcnFzandvUVBWeE9xemwzQWlrY3FnNFVPYVMzX1JidURfVThuTWt3SjRPNGZAYSE1rT2xlNE9YUHVR'
+]);
 
         // if (!$result['success']) {
         //     return [];
