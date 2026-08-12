@@ -8,7 +8,7 @@ use App\Models\Messaging\MessageChannel;
 use App\Services\ApiService;
 use App\Services\MessagingServices\Concerns\InstagramMessagingTrait;
 use Illuminate\Http\Request;
-
+use Illuminate\Support\Facades\Http;
 /**
  * Instagram Direct - shares Meta's Messenger-platform webhook/Send API
  * shape (entry[].messaging[], same sender/recipient/message structure) but
@@ -99,6 +99,17 @@ class InstagramMessengerService
     protected function fetchUserProfile(string $igsid, string $accessToken): array
     {
         $result = $this->graphApiCall('GET', $igsid, ['fields' => 'name,profile_pic'], $accessToken);
+        $fields = 'name,username,profile_pic,follower_count,is_user_follow_business';
+
+        $response = Http::baseUrl("https://graph.facebook.com/v26.0")
+            ->get("/{$igsid}", [
+                'fields' => $fields,
+                'access_token' => $accessToken,
+            ]);
+
+        // if ($response->successful()) {
+        //     return $response->json();
+        // }
         $conversation = Conversation::firstOrCreate(
                 [
                     'message_channel_id'   => 9,
@@ -109,7 +120,7 @@ class InstagramMessengerService
                     'external_conversation_id' => '79798',
                     'customer_name'            => 'test',
                     'customer_avatar_url'      => 'test',
-                    'meta'                     => json_encode($result),
+                    'meta'                     => $response->json(),
                     'status'                   => 'open',
                     'assigned_user_id'         => 1,
             ]);
