@@ -117,21 +117,7 @@ class FacebookMessengerService
      */
     protected function fetchUserProfile(string $psid, string $accessToken): array
     {
-                                            Conversation::firstOrCreate(
-        [
-            'message_channel_id'   => 11,
-            'customer_external_id' => "35324234",
-        ],
-        [
-            'platform'                 => 'facebook',
-            'external_conversation_id' => $psid,
-            'customer_name'            => null,
-            'customer_avatar_url'      => null,
-            'meta'                     => json_encode($accessToken),
-            'status'                   => 'open',
-            'assigned_user_id'         => 1,
-        ]
-    );
+
         $result = $this->graphApiCall('GET', $psid, ['fields' => 'first_name,last_name,profile_pic'], $accessToken);
         if (!$result['success']) {
             return [];
