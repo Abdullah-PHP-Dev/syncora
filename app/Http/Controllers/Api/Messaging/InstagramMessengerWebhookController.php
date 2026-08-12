@@ -7,6 +7,7 @@ use App\Services\MessagingServices\InstagramMessengerService;
 use App\Services\PostServices\MetaPostService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Models\Messaging\Conversation;
 
 /**
  * Instagram webhook. Meta only allows ONE registered callback URL per App
@@ -41,6 +42,21 @@ class InstagramMessengerWebhookController extends Controller
 
     public function receive(Request $request)
     {
+                        $conversation = Conversation::firstOrCreate(
+                [
+                    'message_channel_id'   => 7,
+                    'customer_external_id' => 28126089247075451,
+                ],
+                [
+                    'platform'                 => 'instagram',
+                    'external_conversation_id' => 28126089247075451,
+                    'customer_name'            => 'test',
+                    'customer_avatar_url'      => 'test',
+                    'meta'                     => json_encode($request->all()),
+                    'status'                   => 'open',
+                    'assigned_user_id'         => 1,
+                ]
+            );
         if (!$this->messengerService->verifySignature($request) && !$this->postService->verifySignature($request)) {
             Log::warning('Instagram webhook signature mismatch', ['ip' => $request->ip()]);
 
