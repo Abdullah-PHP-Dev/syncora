@@ -8,7 +8,6 @@ use App\Models\Messaging\MessageChannel;
 use App\Services\ApiService;
 use App\Services\MessagingServices\Concerns\InstagramMessagingTrait;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 /**
  * Instagram Direct - shares Meta's Messenger-platform webhook/Send API
  * shape (entry[].messaging[], same sender/recipient/message structure) but
@@ -95,65 +94,33 @@ class InstagramMessengerService
      * includes the sender's IGSID, never a display name, so this is the
      * only way to resolve one. Best-effort: a failure here just means the
      * conversation falls back to "Unknown" rather than losing the message.
+     *
+     * graph.facebook.com, not graph.instagram.com - confirmed via a direct
+     * curl comparison using the same token: graph.instagram.com silently
+     * returns an empty {} for this specific lookup (no error, just
+     * nothing), while graph.facebook.com returns the real profile - even
+     * for an Instagram Login token that otherwise works fine against
+     * graph.instagram.com for sending messages and the /me self-lookup in
+     * handleInstagramCallback(). Meta just doesn't serve this particular
+     * endpoint on the .instagram.com domain.
      */
     protected function fetchUserProfile(string $igsid, string $accessToken): array
     {
-        $result = $this->graphApiCall('GET', $igsid, ['fields' => 'name,profile_pic'], $accessToken);
-  
-$response = Http::withHeaders([
-    'Authorization' => 'Bearer ' . $accessToken,
-    'Accept' => 'application/json',
-])->get(
-    "https://graph.facebook.com/v26.0/{$igsid}",
-    [
-        'fields' => 'name,profile_pic,username',
-    ]
-);
+        $version = adminSetting('messaging.instagram.graph_version') ?: (adminSetting('messaging.meta.graph_version') ?: 'v21.0');
 
-// 2. Safely parse response data with fallbacks
-$profileData = $response->successful() ? $response->json() : [];
+        $result = $this->apiService->get(
+            "https://graph.facebook.com/{$version}/{$igsid}",
+            ['Authorization' => "Bearer {$accessToken}"],
+            ['fields' => 'name,profile_pic']
+        );
 
-$customerName = $profileData['name'] 
-    ?? $profileData['username'] 
-    ?? "Instagram User ({$igsid})";
-
-$customerAvatar = $profileData['profile_pic'] ?? null;
-
-// 3. Store or retrieve conversation
-$conversation = Conversation::firstOrCreate(
-    [
-        'message_channel_id'   => 9,
-        'customer_external_id' => $igsid, // Use actual IGSID instead of hardcoded '08080'
-    ],
-    [
-        'platform'                 => 'instagram',
-        'external_conversation_id' => $response->successful(),
-        'customer_name'            => $customerName,
-        'customer_avatar_url'      => $customerAvatar,
-        'meta'                     => $profileData, // Eloquent automatically encodes array to JSON if cast, or use json_encode($profileData) if uncast
-        'status'                   => 'open',
-        'assigned_user_id'         => 1,
-    ]
-);
-        if (!$response->successful()) {
+        if (!$result['success']) {
             return [];
         }
 
-        $profile = $response->json();
-         // $fields = 'name,profile_pic';
-
-        // $response = Http::get("https://graph.instagram.com/v26.0/{$igsid}", [
-        //     'fields' => $fields,
-        //     'access_token' => $accessToken,
-        // ]);
-
-        // // if ($response->successful()) {
-        // //     return $response->json();
-        // // }
-
         return [
-            'name'        => $profile['name'] ?? null,
-            'profile_pic' => $profile['profile_pic'] ?? null,
+            'name'        => $result['data']['name'] ?? null,
+            'profile_pic' => $result['data']['profile_pic'] ?? null,
         ];
     }
 }
