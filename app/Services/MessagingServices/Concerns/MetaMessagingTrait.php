@@ -58,7 +58,7 @@ trait MetaMessagingTrait
 
     protected function graphApiUrl(string $path): string
     {
-        $version = adminSetting('messaging.meta.graph_version') ?: 'v21.0';
+        $version = adminSetting('messaging.meta.graph_version') ?: 'v26.0';
 
         return "https://graph.facebook.com/{$version}/" . ltrim($path, '/');
     }
@@ -105,7 +105,7 @@ trait MetaMessagingTrait
     public function redirect($state)
     {
         $url = 'https://www.facebook.com/' . (adminSetting('messaging.meta.graph_version') ?: 'v21.0') . '/dialog/oauth?' . http_build_query([
-            'client_id'     => adminSetting('messaging.meta.app_id'),
+            'client_id'     => adminSetting('posts.facebook.client_id'),
             'redirect_uri'  => $this->metaRedirectUri(),
             'state'         => $state,
             'response_type' => 'code',
@@ -126,8 +126,8 @@ trait MetaMessagingTrait
     public function handleMetaCallback(string $code): array
     {
         $tokenResponse = $this->apiService->get($this->graphApiUrl('oauth/access_token'), [], [
-            'client_id'     => adminSetting('messaging.meta.app_id'),
-            'client_secret' => adminSetting('messaging.meta.app_secret'),
+            'client_id'     => adminSetting('posts.facebook.client_id'),
+            'client_secret' => adminSetting('posts.facebook.client_secret'),
             'redirect_uri'  => $this->metaRedirectUri(),
             'code'          => $code,
         ]);
@@ -140,8 +140,8 @@ trait MetaMessagingTrait
 
         $longLivedResponse = $this->apiService->get($this->graphApiUrl('oauth/access_token'), [], [
             'grant_type'        => 'fb_exchange_token',
-            'client_id'         => adminSetting('messaging.meta.app_id'),
-            'client_secret'     => adminSetting('messaging.meta.app_secret'),
+            'client_id'         => adminSetting('posts.facebook.client_id'),
+            'client_secret'     => adminSetting('posts.facebook.client_secret'),
             'fb_exchange_token' => $shortLivedToken,
         ]);
 
