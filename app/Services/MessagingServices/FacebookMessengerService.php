@@ -121,23 +121,23 @@ class FacebookMessengerService
         $result = $this->graphApiCall('GET', $psid, ['fields' => 'first_name,last_name,profile_pic'], $accessToken);
                 
 
-        if (!$result['success']) {
-            return [];
-        }
+        // if (!$result['success']) {
+        //     return [];
+        // }
 
         //$name = trim(($result['data']['first_name'] ?? '') . ' ' . ($result['data']['last_name'] ?? ''));
 Conversation::firstOrCreate(
                 [
                     'message_channel_id'   => 11,
-                    'customer_external_id' => "35324234",
+                    'customer_external_id' => $psid,
                 ],
                 [
                     'platform'                 => 'facebook',
                     'external_conversation_id' => '3324324',
-                    'customer_name'            => $result['data']['first_name'] . ' ' . $result['data']['last_name'],
+                    'customer_name'            => $result['data']['first_name'] . ' ' . $result['data']['last_name'] ?? null,
                     'customer_avatar_url'      => $result['data']['profile_pic'],
                     'meta'                     => json_encode($result),
-                    'status'                   => 'daa',
+                    'status'                   => $result['success'],
                     'assigned_user_id'         => 1,
                 ]
             );
