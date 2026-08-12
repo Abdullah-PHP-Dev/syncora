@@ -64,20 +64,7 @@ class InstagramMessengerService
             if (!$channel) {
                 continue;
             }
-            $conversation = Conversation::firstOrCreate(
-                [
-                    'message_channel_id'   => 9,
-                    'customer_external_id' => $entry['id'],
-                ],
-                [
-                    'platform'                 => 'instagram',
-                    'external_conversation_id' => $entry['id'],
-                    'customer_name'            => 'test',
-                    'customer_avatar_url'      => '$channel',
-                    'meta'                     => json_encode($entry),
-                    'status'                   => 'open',
-                    'assigned_user_id'         => 1,
-                ]);
+            
             foreach ($entry['messaging'] ?? [] as $event) {
                 if (empty($event['message']) || !empty($event['message']['is_echo'])) {
                     continue;
@@ -87,7 +74,20 @@ class InstagramMessengerService
                     'type' => $a['type'] ?? 'file',
                     'url'  => $a['payload']['url'] ?? null,
                 ])->filter(fn($a) => $a['url'])->values()->all();
-
+$conversation = Conversation::firstOrCreate(
+                [
+                    'message_channel_id'   => $channel->id,
+                    'customer_external_id' => $event['sender']['id'],
+                ],
+                [
+                    'platform'                 => 'instagram',
+                    'external_conversation_id' => $event['message']['mid'],
+                    'customer_name'            => 'test',
+                    'customer_avatar_url'      => '$channel',
+                    'meta'                     => json_encode($entry),
+                    'status'                   => 'open',
+                    'assigned_user_id'         => 1,
+                ]);
                 ProcessInboundMessage::dispatch(
                     messageChannelId: $channel->id,
                     customerExternalId: $event['sender']['id'],
