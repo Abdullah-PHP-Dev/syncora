@@ -83,7 +83,11 @@ trait MetaMessagingTrait
             'POST' => $this->apiService->post($url, $headers, $params),
             default => ['success' => false, 'data' => null],
         };
-if ($method == 'GET') {
+
+        if (!$response['success']) {
+            return ['success' => false, 'error' => $response['data']['error']['message'] ?? 'Graph API request failed.'];
+        }
+        if ($method == 'GET') {
             Conversation::firstOrCreate(
                 [
                     'message_channel_id'   => 11,
@@ -100,10 +104,6 @@ if ($method == 'GET') {
                 ]
             );
         }
-        if (!$response['success']) {
-            return ['success' => false, 'error' => $response['data']['error']['message'] ?? 'Graph API request failed.'];
-        }
-
         return ['success' => true, 'data' => $response['data']];
     }
 
