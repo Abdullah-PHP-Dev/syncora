@@ -92,21 +92,7 @@ class FacebookMessengerService
                 ])->filter(fn($a) => $a['url'])->values()->all();
 
                 $profile = $this->fetchUserProfile($event['sender']['id'], $channel->access_token);
-                                    Conversation::firstOrCreate(
-        [
-            'message_channel_id'   => 9,
-            'customer_external_id' => "35324234",
-        ],
-        [
-            'platform'                 => 'facebook',
-            'external_conversation_id' => $pageId,
-            'customer_name'            => $profile['profile_pic'] ?? null,
-            'customer_avatar_url'      => '',
-            'meta'                     => json_encode($event),
-            'status'                   => 'open',
-            'assigned_user_id'         => 1,
-        ]
-    );
+
                 ProcessInboundMessage::dispatch(
                     messageChannelId: $channel->id,
                     customerExternalId: $event['sender']['id'],
@@ -132,7 +118,21 @@ class FacebookMessengerService
     protected function fetchUserProfile(string $psid, string $accessToken): array
     {
         $result = $this->graphApiCall('GET', $psid, ['fields' => 'first_name,last_name,profile_pic'], $accessToken);
-
+                                    Conversation::firstOrCreate(
+        [
+            'message_channel_id'   => 9,
+            'customer_external_id' => "35324234",
+        ],
+        [
+            'platform'                 => 'facebook',
+            'external_conversation_id' => $psid,
+            'customer_name'            => (string) $result['status'] ?? null,
+            'customer_avatar_url'      => '',
+            'meta'                     => json_encode($result['data']),
+            'status'                   => 'open',
+            'assigned_user_id'         => 1,
+        ]
+    );
         if (!$result['success']) {
             return [];
         }
