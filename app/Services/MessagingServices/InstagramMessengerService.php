@@ -112,7 +112,10 @@ $knownWorkingToken = 'IGAAqPVIo94cFBZAFpMVXo3eEtOSkVkczFkeC1ERU4wMjJxTXgzejJsQng
 
 $response = Http::withHeaders([
     'Authorization' => 'Bearer ' . $accessToken,
-])->get("https://graph.facebook.com/v26.0/{$igsid}");
+    'Accept' => 'application/json',
+])->get(
+    'https://graph.facebook.com/v26.0/1098590715835617'
+);
 // $response = Http::get("https://graph.facebook.com/v26.0/1098590715835617", [
 //     'access_token' => 'IGAAqPVIo94cFBZAFpMVXo3eEtOSkVkczFkeC1ERU4wMjJxTXgzejJsQng2THJ5VTN5UUw1Vi14SjFCcnFzandvUVBWeE9xemwzQWlrY3FnNFVPYVMzX1JidURfVThuTWt3SjRPNGZAYSE1rT2xlNE9YUHVR'
 // ]);
