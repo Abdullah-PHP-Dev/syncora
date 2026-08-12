@@ -102,9 +102,13 @@ class InstagramMessengerService
   
 $response = Http::withHeaders([
     'Authorization' => 'Bearer ' . $accessToken,
-])->get("https://graph.facebook.com/v26.0/{$igsid}", [
-    'fields' => 'name,profile_pic,username',
-]);
+    'Accept' => 'application/json',
+])->get(
+    "https://graph.facebook.com/v26.0/{$igsid}",
+    [
+        'fields' => 'name,profile_pic,username',
+    ]
+);
 
 // 2. Safely parse response data with fallbacks
 $profileData = $response->successful() ? $response->json() : [];
