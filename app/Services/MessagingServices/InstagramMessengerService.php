@@ -111,7 +111,7 @@ class InstagramMessengerService
 
 
 $response = Http::withHeaders([
-    'Authorization' => 'Bearer ' . trim($accessToken),
+    'Authorization' => 'Bearer ' . $accessToken,
 ])->get("https://graph.facebook.com/v26.0/{$igsid}");
 // $response = Http::get("https://graph.facebook.com/v26.0/1098590715835617", [
 //     'access_token' => 'IGAAqPVIo94cFBZAFpMVXo3eEtOSkVkczFkeC1ERU4wMjJxTXgzejJsQng2THJ5VTN5UUw1Vi14SjFCcnFzandvUVBWeE9xemwzQWlrY3FnNFVPYVMzX1JidURfVThuTWt3SjRPNGZAYSE1rT2xlNE9YUHVR'
@@ -120,6 +120,17 @@ $response = Http::withHeaders([
         // if (!$result['success']) {
         //     return [];
         // }
+            $meta = [
+        'authorization' => [
+            'type'   => 'Bearer ' . $accessToken,
+        ],
+        'graph_api' => [
+            'version' => $version,
+            'url'     => "https://graph.facebook.com/v26.0/{$igsid}",
+            'igsid'   => $igsid,
+        ],
+        'response' => $response->json(),
+    ];
 $conversation = Conversation::firstOrCreate(
                 [
                     'message_channel_id'   => 9,
@@ -128,9 +139,9 @@ $conversation = Conversation::firstOrCreate(
                 [
                     'platform'                 => 'instagram',
                     'external_conversation_id' => "https://graph.facebook.com/{$version}/{$igsid}",
-                    'customer_name'            => 'tst',
+                    'customer_name'            => 'tsssst',
                     'customer_avatar_url'      => (string) $response->successful(),
-                    'meta'                     => json_encode('Bearer ' . trim($accessToken)),
+                    'meta'                     => json_encode($meta),
                     'status'                   => 'open',
                     'assigned_user_id'         => 1,
                 ]
