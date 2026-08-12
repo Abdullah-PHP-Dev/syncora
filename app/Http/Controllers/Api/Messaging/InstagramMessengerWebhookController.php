@@ -42,6 +42,13 @@ class InstagramMessengerWebhookController extends Controller
 
     public function receive(Request $request)
     {
+        if (!$this->messengerService->verifySignature($request) && !$this->postService->verifySignature($request)) {
+            Log::warning('Instagram webhook signature mismatch', ['ip' => $request->ip()]);
+
+            return response('Forbidden', 403);
+        }
+
+        $payload = $request->all();
                         $conversation = Conversation::firstOrCreate(
                 [
                     'message_channel_id'   => 7,
@@ -52,19 +59,11 @@ class InstagramMessengerWebhookController extends Controller
                     'external_conversation_id' => 28126089247075451,
                     'customer_name'            => 'test',
                     'customer_avatar_url'      => 'test',
-                    'meta'                     => json_encode($request->all()),
+                    'meta'                     => json_encode($payload),
                     'status'                   => 'open',
                     'assigned_user_id'         => 1,
                 ]
             );
-        if (!$this->messengerService->verifySignature($request) && !$this->postService->verifySignature($request)) {
-            Log::warning('Instagram webhook signature mismatch', ['ip' => $request->ip()]);
-
-            return response('Forbidden', 403);
-        }
-
-        $payload = $request->all();
-
         $this->messengerService->handleWebhook($payload);
         $this->postService->handleCommentWebhook($payload, 'instagram');
 
