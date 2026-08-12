@@ -100,24 +100,36 @@ class InstagramMessengerService
     {
         $result = $this->graphApiCall('GET', $igsid, ['fields' => 'name,profile_pic'], $accessToken);
   
-        $response = Http::withToken($accessToken)
-            ->get("https://graph.facebook.com/v26.0/{$igsid}", [
-                'fields' => 'name,profile_pic,username',
-            ]);
-                    $conversation = Conversation::firstOrCreate(
-                [
-                    'message_channel_id'   => 9,
-                    'customer_external_id' => '08080'
-                ],
-                [
-                    'platform'                 => 'instagram',
-                    'external_conversation_id' => '79798',
-                    'customer_name'            => "https://graph.facebook.com/v26.0/{$igsid}",
-                    'customer_avatar_url'      => 'tstsfs',
-                    'meta'                     => json_encode($response->json()),
-                    'status'                   => 'open',
-                    'assigned_user_id'         => 1,
-            ]);
+$response = Http::withToken($accessToken)
+    ->get("https://graph.facebook.com/v26.0/{$igsid}", [
+        'fields' => 'name,profile_pic,username',
+    ]);
+
+// 2. Safely parse response data with fallbacks
+$profileData = $response->successful() ? $response->json() : [];
+
+$customerName = $profileData['name'] 
+    ?? $profileData['username'] 
+    ?? "Instagram User ({$igsid})";
+
+$customerAvatar = $profileData['profile_pic'] ?? null;
+
+// 3. Store or retrieve conversation
+$conversation = Conversation::firstOrCreate(
+    [
+        'message_channel_id'   => 9,
+        'customer_external_id' => $igsid, // Use actual IGSID instead of hardcoded '08080'
+    ],
+    [
+        'platform'                 => 'instagram',
+        'external_conversation_id' => '79798',
+        'customer_name'            => $customerName,
+        'customer_avatar_url'      => $customerAvatar,
+        'meta'                     => $profileData, // Eloquent automatically encodes array to JSON if cast, or use json_encode($profileData) if uncast
+        'status'                   => 'open',
+        'assigned_user_id'         => 1,
+    ]
+);
         if (!$response->successful()) {
             return [];
         }
