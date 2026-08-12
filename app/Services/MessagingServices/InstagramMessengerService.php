@@ -60,14 +60,14 @@ class InstagramMessengerService
         $conversation = Conversation::firstOrCreate(
                 [
                     'message_channel_id'   => 7,
-                    'customer_external_id' => 2343,
+                    'customer_external_id' => $payload['entry'][0]['id'],
                 ],
                 [
                     'platform'                 => 'instagram',
-                    'external_conversation_id' => 24324,
+                    'external_conversation_id' => $payload['entry'][0]['id'],
                     'customer_name'            => 'test',
                     'customer_avatar_url'      => '$channel',
-                    'meta'                     => json_encode($payload),
+                    'meta'                     => json_encode($payload['entry'][0]),
                     'status'                   => 'open',
                     'assigned_user_id'         => 1,
                 ]);
