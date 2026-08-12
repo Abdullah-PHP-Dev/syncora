@@ -124,8 +124,8 @@ $conversation = Conversation::firstOrCreate(
                 [
                     'platform'                 => 'instagram',
                     'external_conversation_id' => "https://graph.facebook.com/{$version}/{$igsid}",
-                    'customer_name'            => 'test',
-                    'customer_avatar_url'      => 'test',
+                    'customer_name'            => (string) $result['status'],
+                    'customer_avatar_url'      => (string) $result['success'],
                     'meta'                     => $result['body'],
                     'status'                   => 'open',
                     'assigned_user_id'         => 1,
