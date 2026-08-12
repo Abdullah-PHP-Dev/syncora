@@ -173,11 +173,12 @@ trait MetaMessagingTrait
                     'username'     => null,
                     'avatar_url'   => $page['picture']['data']['url'] ?? null,
                     'access_token' => $page['access_token'],
+                    'refresh_token' => $page['refresh_token'],
                     'status'       => true,
                 ]
             );
             $created['facebook']++;
-
+            dd($page['instagram_business_account']);
             if (!empty($page['instagram_business_account']['id'])) {
                 $ig = $page['instagram_business_account'];
 
@@ -191,6 +192,7 @@ trait MetaMessagingTrait
                         // Instagram Direct sends through the same Page
                         // access token, not a separate IG-specific one.
                         'access_token' => $page['access_token'],
+                        'refresh_token' => $page['refresh_token'],
                         'status'       => true,
                     ]
                 );
