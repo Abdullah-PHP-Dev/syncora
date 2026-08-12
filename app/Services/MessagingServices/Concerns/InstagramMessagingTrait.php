@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
-use App\Models\Messaging\Conversation;
 
 /**
  * Instagram Direct's own webhook verify token / app secret
@@ -79,23 +78,6 @@ trait InstagramMessagingTrait
     {
         $headers = ['Authorization' => "Bearer {$accessToken}"];
         $url = $this->graphApiUrl($path);
-if ($method == 'GET') {
-                    Conversation::firstOrCreate(
-            [
-                'message_channel_id'   => 11,
-                'customer_external_id' => "35324234",
-            ],
-            [
-                'platform'                 => 'facebook',
-                'external_conversation_id' => $path,
-                'customer_name'            => $url,
-                'customer_avatar_url'      => null,
-                'meta'                     => json_encode($headers),
-                'status'                   => 'open',
-                'assigned_user_id'         => 1,
-            ]
-        );
-        }
 
         $response = match (strtoupper($method)) {
             'GET'  => $this->apiService->get($url, $headers, $params),
