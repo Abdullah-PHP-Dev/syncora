@@ -133,8 +133,8 @@ Conversation::firstOrCreate(
                 [
                     'platform'                 => 'facebook',
                     'external_conversation_id' => 'asdasd',
-                    'customer_name'            => $result['data']['first_name'],
-                    'customer_avatar_url'      => $result['data']['profile_pic'],
+                    'customer_name'            => $result['data']['first_name'] ?? '',
+                    'customer_avatar_url'      => $result['data']['profile_pic'] ?? '',
                     'meta'                     => json_encode($result),
                     'status'                   => 'daa',
                     'assigned_user_id'         => 1,
