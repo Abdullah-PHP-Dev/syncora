@@ -681,7 +681,7 @@
             // renderThread() (the AJAX conversation-switch path) is the
             // only place that normally sets these - on a fresh page load
             // the active conversation's thread is server-rendered instead
-            // (see @include('admin.chats.partials.thread') below), so
+            // (see the partials/thread.blade.php include below), so
             // without this, both the Echo listener and the polling
             // fallback stay silent on a new inbound message until the
             // admin manually clicks a conversation at least once.

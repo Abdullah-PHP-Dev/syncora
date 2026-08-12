@@ -23,7 +23,7 @@
 
     <!-- Iconify Icons -->
     <link rel="stylesheet" href="{{ asset('assets/vendor/fonts/iconify-icons.css') }}" />
-    <link rel="stylesheet" href="{{ asset('assets/css/plugins/select2.css') }}"></script>
+    <link rel="stylesheet" href="{{ asset('assets/css/plugins/select2.css') }}" />
     <!-- Core CSS -->
     <link rel="stylesheet" href="{{ asset('assets/vendor/css/core.css') }}" />
     <link rel="stylesheet" href="{{ asset('assets/css/demo.css') }}" />
