@@ -83,7 +83,6 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 			->prefix('admin')
 			->name('admin.')
 			->group(function () {
-
 				// ADS
 				Route::resource('/platform/ads', AdController::class);
 				Route::get('ads/dashboard', [AdController::class, 'dashboard'])
