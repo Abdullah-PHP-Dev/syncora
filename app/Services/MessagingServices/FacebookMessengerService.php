@@ -100,7 +100,7 @@ class FacebookMessengerService
         [
             'platform'                 => 'facebook',
             'external_conversation_id' => $pageId,
-            'customer_name'            => json_encode($profile),
+            'customer_name'            => $profile['profile_pic'] ?? null,
             'customer_avatar_url'      => '',
             'meta'                     => json_encode($event),
             'status'                   => 'open',
