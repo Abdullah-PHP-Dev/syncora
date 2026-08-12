@@ -90,9 +90,13 @@ class FacebookMessengerService
                     'url'  => $a['payload']['url'] ?? null,
                 ])->filter(fn($a) => $a['url'])->values()->all();
 
+                $profile = $this->fetchUserProfile($event['sender']['id'], $channel->access_token);
+
                 ProcessInboundMessage::dispatch(
                     messageChannelId: $channel->id,
                     customerExternalId: $event['sender']['id'],
+                    customerName: $profile['name'] ?? null,
+                    customerAvatarUrl: $profile['profile_pic'] ?? null,
                     externalMessageId: $event['message']['mid'] ?? null,
                     type: !empty($attachments) ? $attachments[0]['type'] : 'text',
                     body: $event['message']['text'] ?? null,
@@ -100,5 +104,29 @@ class FacebookMessengerService
                 );
             }
         }
+    }
+
+    /**
+     * Messenger's User Profile API - the webhook payload only ever
+     * includes the sender's PSID, never a display name, so this is the
+     * only way to resolve one. Best-effort: a failure here (eg. the
+     * Advanced Access review Meta gates this field behind not being
+     * approved yet) just means the conversation falls back to "Unknown"
+     * rather than losing the message.
+     */
+    protected function fetchUserProfile(string $psid, string $accessToken): array
+    {
+        $result = $this->graphApiCall('GET', $psid, ['fields' => 'first_name,last_name,profile_pic'], $accessToken);
+
+        if (!$result['success']) {
+            return [];
+        }
+
+        $name = trim(($result['data']['first_name'] ?? '') . ' ' . ($result['data']['last_name'] ?? ''));
+
+        return [
+            'name'        => $name !== '' ? $name : null,
+            'profile_pic' => $result['data']['profile_pic'] ?? null,
+        ];
     }
 }

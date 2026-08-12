@@ -828,6 +828,20 @@
                 if (el) el.scrollTop = el.scrollHeight;
             }
 
+            // Shared by the send-reply AJAX response and the Echo
+            // broadcast listener - both can end up delivering the same
+            // outbound message (the sender's own tab is subscribed to its
+            // own inbox channel), so this guards against rendering it
+            // twice if the broadcast arrives after the AJAX response
+            // already appended it.
+            function appendMessageIfNew(message, platform) {
+                if ($(`#threadMessages .message-row[data-message-id="${message.id}"]`).length) {
+                    return;
+                }
+                $('#threadMessages').append(renderMessage(message, platform));
+                scrollThreadToBottom();
+            }
+
             scrollThreadToBottom();
 
             // ------------------------------------------------------------------
@@ -889,6 +903,10 @@
                         clearComposerPreview();
                         if (!res.success) {
                             Swal.fire('Error', res.error || 'Failed to send message.', 'error');
+                            return;
+                        }
+                        if (res.message && res.message.conversation_id == window.currentConversationId) {
+                            appendMessageIfNew(res.message, window.currentConversationPlatform);
                         }
                     },
                     error: function() {
@@ -1041,8 +1059,7 @@
                         }
 
                         if (conversationId == window.currentConversationId) {
-                            $('#threadMessages').append(renderMessage(e.message, window.currentConversationPlatform));
-                            scrollThreadToBottom();
+                            appendMessageIfNew(e.message, window.currentConversationPlatform);
                             $.post(readUrlTemplate.replace(':ID', conversationId));
                         }
                     });

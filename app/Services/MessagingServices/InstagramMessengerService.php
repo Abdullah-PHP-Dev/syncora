@@ -55,16 +55,15 @@ class InstagramMessengerService
     }
 
     public function handleWebhook(array $payload): void
-    {   
-        $igUserId = null;
+    {
         foreach ($payload['entry'] ?? [] as $entry) {
-            $igUserId = $entry['id'];
+            $igUserId = $entry['id'] ?? null;
             $channel = $igUserId ? MessageChannel::where('platform', 'instagram')->where('external_id', $igUserId)->first() : null;
-            
+
             if (!$channel) {
                 continue;
             }
-            
+
             foreach ($entry['messaging'] ?? [] as $event) {
                 if (empty($event['message']) || !empty($event['message']['is_echo'])) {
                     continue;
@@ -74,23 +73,14 @@ class InstagramMessengerService
                     'type' => $a['type'] ?? 'file',
                     'url'  => $a['payload']['url'] ?? null,
                 ])->filter(fn($a) => $a['url'])->values()->all();
-$conversation = Conversation::firstOrCreate(
-                [
-                    'message_channel_id'   => $channel->id,
-                    'customer_external_id' => $event['sender']['id'],
-                ],
-                [
-                    'platform'                 => 'instagram',
-                    'external_conversation_id' => $event['message']['mid'],
-                    'customer_name'            => 'test',
-                    'customer_avatar_url'      => '$channel',
-                    'meta'                     => json_encode($entry),
-                    'status'                   => 'open',
-                    'assigned_user_id'         => 1,
-                ]);
+
+                $profile = $this->fetchUserProfile($event['sender']['id'], $channel->access_token);
+
                 ProcessInboundMessage::dispatch(
                     messageChannelId: $channel->id,
                     customerExternalId: $event['sender']['id'],
+                    customerName: $profile['name'] ?? null,
+                    customerAvatarUrl: $profile['profile_pic'] ?? null,
                     externalMessageId: $event['message']['mid'] ?? null,
                     type: !empty($attachments) ? $attachments[0]['type'] : 'text',
                     body: $event['message']['text'] ?? null,
@@ -98,5 +88,25 @@ $conversation = Conversation::firstOrCreate(
                 );
             }
         }
+    }
+
+    /**
+     * Instagram's User Profile API - the webhook payload only ever
+     * includes the sender's IGSID, never a display name, so this is the
+     * only way to resolve one. Best-effort: a failure here just means the
+     * conversation falls back to "Unknown" rather than losing the message.
+     */
+    protected function fetchUserProfile(string $igsid, string $accessToken): array
+    {
+        $result = $this->graphApiCall('GET', $igsid, ['fields' => 'name,username,profile_pic'], $accessToken);
+
+        if (!$result['success']) {
+            return [];
+        }
+
+        return [
+            'name'        => $result['data']['name'] ?? $result['data']['username'] ?? null,
+            'profile_pic' => $result['data']['profile_pic'] ?? null,
+        ];
     }
 }
