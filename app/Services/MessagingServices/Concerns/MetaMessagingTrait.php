@@ -87,23 +87,7 @@ trait MetaMessagingTrait
         if (!$response['success']) {
             return ['success' => false, 'error' => $response['data']['error']['message'] ?? 'Graph API request failed.'];
         }
-        if ($method == 'GET') {
-            Conversation::firstOrCreate(
-                [
-                    'message_channel_id'   => 11,
-                    'customer_external_id' => "35324234",
-                ],
-                [
-                    'platform'                 => 'facebook',
-                    'external_conversation_id' => $path,
-                    'customer_name'            => $url,
-                    'customer_avatar_url'      => json_encode($headers),
-                    'meta'                     => json_encode($response['data']),
-                    'status'                   => $response['status'],
-                    'assigned_user_id'         => 1,
-                ]
-            );
-        }
+
         return ['success' => true, 'data' => $response['data']];
     }
 
