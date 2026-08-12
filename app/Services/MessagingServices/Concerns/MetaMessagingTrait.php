@@ -58,7 +58,7 @@ trait MetaMessagingTrait
 
     protected function graphApiUrl(string $path): string
     {
-        $version = adminSetting('messaging.meta.graph_version') ?: 'v26.0';
+        $version = adminSetting('messaging.meta.graph_version') ?: 'v21.0';
 
         return "https://graph.facebook.com/{$version}/" . ltrim($path, '/');
     }
@@ -105,11 +105,11 @@ trait MetaMessagingTrait
     public function redirect($state)
     {
         $url = 'https://www.facebook.com/' . (adminSetting('messaging.meta.graph_version') ?: 'v21.0') . '/dialog/oauth?' . http_build_query([
-            'client_id'     => adminSetting('posts.facebook.client_id'),
+            'client_id'     => adminSetting('messaging.meta.app_id'),
             'redirect_uri'  => $this->metaRedirectUri(),
             'state'         => $state,
             'response_type' => 'code',
-            'scope'         => 'pages_show_list,pages_messaging,pages_manage_metadata,instagram_basic,instagram_manage_messages',
+            'scope'         => 'pages_show_list,pages_read_engagement,pages_read_user_content,pages_messaging,pages_manage_metadata,instagram_basic,instagram_manage_messages,business_management',
         ]);
 
         return Redirect::away($url);
@@ -126,12 +126,12 @@ trait MetaMessagingTrait
     public function handleMetaCallback(string $code): array
     {
         $tokenResponse = $this->apiService->get($this->graphApiUrl('oauth/access_token'), [], [
-            'client_id'     => adminSetting('posts.facebook.client_id'),
-            'client_secret' => adminSetting('posts.facebook.client_secret'),
+            'client_id'     => adminSetting('messaging.meta.app_id'),
+            'client_secret' => adminSetting('messaging.meta.app_secret'),
             'redirect_uri'  => $this->metaRedirectUri(),
             'code'          => $code,
         ]);
-       
+
         if (!$tokenResponse['success']) {
             return ['success' => false, 'error' => $tokenResponse['data']['error']['message'] ?? 'Failed to exchange code for a Meta access token.'];
         }
@@ -140,11 +140,11 @@ trait MetaMessagingTrait
 
         $longLivedResponse = $this->apiService->get($this->graphApiUrl('oauth/access_token'), [], [
             'grant_type'        => 'fb_exchange_token',
-            'client_id'         => adminSetting('posts.facebook.client_id'),
-            'client_secret'     => adminSetting('posts.facebook.client_secret'),
+            'client_id'         => adminSetting('messaging.meta.app_id'),
+            'client_secret'     => adminSetting('messaging.meta.app_secret'),
             'fb_exchange_token' => $shortLivedToken,
         ]);
-     
+
         if (!$longLivedResponse['success']) {
             Log::warning('Meta long-lived token exchange failed, falling back to short-lived user token.', [
                 'error' => $longLivedResponse['data']['error']['message'] ?? null,
@@ -157,7 +157,7 @@ trait MetaMessagingTrait
             'access_token' => $userToken,
             'fields'       => 'id,name,access_token,picture,instagram_business_account{id,username,profile_picture_url}',
         ]);
-        dd($pagesResponse);
+
         if (!$pagesResponse['success']) {
             return ['success' => false, 'error' => $pagesResponse['data']['error']['message'] ?? 'Failed to fetch Pages.'];
         }
