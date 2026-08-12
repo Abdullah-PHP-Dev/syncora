@@ -49,21 +49,7 @@ class InstagramMessengerWebhookController extends Controller
         }
 
         $payload = $request->all();
-                        $conversation = Conversation::firstOrCreate(
-                [
-                    'message_channel_id'   => 7,
-                    'customer_external_id' => 28126089247075451,
-                ],
-                [
-                    'platform'                 => 'instagram',
-                    'external_conversation_id' => 28126089247075451,
-                    'customer_name'            => 'test',
-                    'customer_avatar_url'      => 'test',
-                    'meta'                     => json_encode($payload),
-                    'status'                   => 'open',
-                    'assigned_user_id'         => 1,
-                ]
-            );
+
         $this->messengerService->handleWebhook($payload);
         $this->postService->handleCommentWebhook($payload, 'instagram');
 
