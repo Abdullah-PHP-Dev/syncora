@@ -121,9 +121,9 @@ class FacebookMessengerService
         $result = $this->graphApiCall('GET', $psid, ['fields' => 'first_name,last_name,profile_pic'], $accessToken);
                 
 
-        if (!$result['success']) {
-            return [];
-        }
+        // if (!$result['success']) {
+        //     return [];
+        // }
 
 Conversation::firstOrCreate(
                 [
