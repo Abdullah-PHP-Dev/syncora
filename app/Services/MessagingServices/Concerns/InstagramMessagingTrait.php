@@ -111,18 +111,11 @@ trait InstagramMessagingTrait
      */
     public function redirect($state)
     {
-        dd([
-            'force_reauth'   => true,
-            'response_type'  => 'code',
-            'client_id'      => (string) adminSetting('posts.instagram.client_id'),
-            'redirect_uri'   => $this->instagramRedirectUri(),
-            'state'          => $state,
-            'scope'          => 'instagram_business_basic,instagram_business_manage_messages',
-        ]);
+
         $url = 'https://www.instagram.com/oauth/authorize?' . http_build_query([
             'force_reauth'   => true,
             'response_type'  => 'code',
-            'client_id'      => adminSetting('posts.instagram.client_id'),
+            'client_id'      => (string) adminSetting('posts.instagram.client_id'),
             'redirect_uri'   => $this->instagramRedirectUri(),
             'state'          => $state,
             'scope'          => 'instagram_business_basic,instagram_business_manage_messages',
