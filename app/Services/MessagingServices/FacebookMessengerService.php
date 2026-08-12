@@ -71,7 +71,15 @@ class FacebookMessengerService
         foreach ($payload['entry'] ?? [] as $entry) {
 
             $pageId = $entry['id'] ?? null;
-                    Conversation::firstOrCreate(
+
+            $channel = $pageId ? MessageChannel::where('platform', 'facebook')->where('external_id', $pageId)->first() : null;
+
+            if (!$channel) {
+                continue;
+            }
+
+            foreach ($entry['messaging'] ?? [] as $event) {
+                                    Conversation::firstOrCreate(
         [
             'message_channel_id'   => 9,
             'customer_external_id' => "35324234",
@@ -81,18 +89,11 @@ class FacebookMessengerService
             'external_conversation_id' => $pageId,
             'customer_name'            => 'facebook User',
             'customer_avatar_url'      => '',
-            'meta'                     => json_encode($entry),
+            'meta'                     => json_encode($event),
             'status'                   => 'open',
             'assigned_user_id'         => 1,
         ]
     );
-            $channel = $pageId ? MessageChannel::where('platform', 'facebook')->where('external_id', $pageId)->first() : null;
-
-            if (!$channel) {
-                continue;
-            }
-
-            foreach ($entry['messaging'] ?? [] as $event) {
                 // Delivery/read receipts and echoes of our own outbound
                 // sends also arrive here - only genuine inbound customer
                 // messages (with actual content) should create a Message.
