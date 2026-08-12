@@ -125,7 +125,6 @@ class FacebookMessengerService
             return [];
         }
 
-        $name = ($result['data']['first_name'] ?? '') . ' ' . ($result['data']['last_name'] ?? '');
 Conversation::firstOrCreate(
                 [
                     'message_channel_id'   => 11,
@@ -134,7 +133,7 @@ Conversation::firstOrCreate(
                 [
                     'platform'                 => 'facebook',
                     'external_conversation_id' => 'asdasd',
-                    'customer_name'            => $name,
+                    'customer_name'            => $result['data']['first_name'],
                     'customer_avatar_url'      => $result['data']['profile_pic'],
                     'meta'                     => json_encode($result),
                     'status'                   => 'daa',
@@ -142,7 +141,7 @@ Conversation::firstOrCreate(
                 ]
             );
         return [
-            'name'        => $name !== '' ? $name : null,
+            'name'        => $result['data']['first_name'] !== '' ? $result['data']['first_name'] : null,
             'profile_pic' => $result['data']['profile_pic'] ?? null,
         ];
     }
