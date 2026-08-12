@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('name')->nullable();
             $table->string('external_id')->nullable(); // page_id / ig_user_id / phone_number_id / bot id / x user id
             $table->string('username')->nullable();
-            $table->string('avatar_url')->nullable();
+            $table->text('avatar_url')->nullable();
             $table->text('access_token')->nullable();
             $table->text('refresh_token')->nullable();
             // Per-channel webhook verification secret (Meta's hub.verify_token
