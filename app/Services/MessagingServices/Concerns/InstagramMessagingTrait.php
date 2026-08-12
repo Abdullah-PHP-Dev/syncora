@@ -135,7 +135,13 @@ trait InstagramMessagingTrait
     {
         $clientId = adminSetting('posts.instagram.client_id');
         $clientSecret = adminSetting('posts.instagram.client_secret');
-
+            dd([
+            'client_id'     => $clientId,
+            'client_secret' => $clientSecret,
+            'grant_type'    => 'authorization_code',
+            'redirect_uri'  => $this->instagramRedirectUri(),
+            'code'          => $code,
+        ]);
         $tokenResponse = $this->apiService->post('https://api.instagram.com/oauth/access_token', [], [
             'client_id'     => $clientId,
             'client_secret' => $clientSecret,
