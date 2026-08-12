@@ -173,7 +173,7 @@ trait MetaMessagingTrait
                     'username'     => null,
                     'avatar_url'   => $page['picture']['data']['url'] ?? null,
                     'access_token' => $page['access_token'],
-                    'refresh_token' => $page['refresh_token'],
+                    'refresh_token' => $page['access_token'],
                     'status'       => true,
                 ]
             );
@@ -192,7 +192,8 @@ trait MetaMessagingTrait
                         // Instagram Direct sends through the same Page
                         // access token, not a separate IG-specific one.
                         'access_token' => $page['access_token'],
-                        'refresh_token' => $page['refresh_token'],
+                        'refresh_token' => $page['access_token'],
+                        // 'expires_at'.   => 
                         'status'       => true,
                     ]
                 );
