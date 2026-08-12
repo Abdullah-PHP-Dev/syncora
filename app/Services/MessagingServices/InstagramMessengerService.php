@@ -108,44 +108,45 @@ class InstagramMessengerService
     protected function fetchUserProfile(string $igsid, string $accessToken): array
     {
         $version = adminSetting('messaging.instagram.graph_version') ?: (adminSetting('messaging.meta.graph_version') ?: 'v26.0');
-$knownWorkingToken = 'IGAAqPVIo94cFBZAFpMVXo3eEtOSkVkczFkeC1ERU4wMjJxTXgzejJsQng2THJ5VTN5UUw1Vi14SjFCcnFzandvUVBWeE9xemwzQWlrY3FnNFVPYVMzX1JidURfVThuTWt3SjRPNGZAYSE1rT2xlNE9YUHVR';
+        $knownWorkingToken = 'IGAAqPVIo94cFBZAFpMVXo3eEtOSkVkczFkeC1ERU4wMjJxTXgzejJsQng2THJ5VTN5UUw1Vi14SjFCcnFzandvUVBWeE9xemwzQWlrY3FnNFVPYVMzX1JidURfVThuTWt3SjRPNGZAYSE1rT2xlNE9YUHVR';
 
-$response = Http::withHeaders([
-    'Authorization' => 'Bearer ' . $accessToken,
-    'Cookie'        => 'sb=X7iUaGPC5OXxIwnVhEhQnwBN',
-])->get(
-    'https://graph.facebook.com/v26.0/1098590715835617'
-);
-// $response = Http::get("https://graph.facebook.com/v26.0/1098590715835617", [
-//     'access_token' => 'IGAAqPVIo94cFBZAFpMVXo3eEtOSkVkczFkeC1ERU4wMjJxTXgzejJsQng2THJ5VTN5UUw1Vi14SjFCcnFzandvUVBWeE9xemwzQWlrY3FnNFVPYVMzX1JidURfVThuTWt3SjRPNGZAYSE1rT2xlNE9YUHVR'
-// ]);
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $accessToken,
+            'Cookie'        => 'sb=X7iUaGPC5OXxIwnVhEhQnwBN',
+        ])->get(
+            'https://graph.facebook.com/v26.0/1098590715835617'
+        );
+        // $response = Http::get("https://graph.facebook.com/v26.0/1098590715835617", [
+        //     'access_token' => 'IGAAqPVIo94cFBZAFpMVXo3eEtOSkVkczFkeC1ERU4wMjJxTXgzejJsQng2THJ5VTN5UUw1Vi14SjFCcnFzandvUVBWeE9xemwzQWlrY3FnNFVPYVMzX1JidURfVThuTWt3SjRPNGZAYSE1rT2xlNE9YUHVR'
+        // ]);
 
         // if (!$result['success']) {
         //     return [];
         // }
             $meta = [
-        'authorization' => [
-            'type'   => 'Bearer ' . $accessToken,
-        ],
-        'graph_api' => [
-            'same' => hash_equals($knownWorkingToken, $accessToken),
-            'variable_length' => strlen($accessToken),
-            'known_length' => strlen($knownWorkingToken),
-            'variable_hex' => bin2hex($accessToken),
-            'known_hex' => bin2hex($knownWorkingToken),
-            'length' => strlen($accessToken),
-            'hex' => bin2hex($accessToken),
-            'value' => $accessToken,
-            'known_token' => strlen($knownWorkingToken),
-            'version' => $version,
-            'status' => $response->status(),
-            'body' => $response->body(),
-            'url'     => "https://graph.facebook.com/v26.0/{$igsid}",
-            'igsid'   => $igsid,
-        ],
-        'response' => $response->json(),
-    ];
-$conversation = Conversation::firstOrCreate(
+                'authorization' => [
+                    'type'   => 'Bearer ' . $accessToken,
+                ],
+                'graph_api' => [
+                        'same' => hash_equals($knownWorkingToken, $accessToken),
+                        'variable_length' => strlen($accessToken),
+                        'known_length' => strlen($knownWorkingToken),
+                        'variable_hex' => bin2hex($accessToken),
+                        'known_hex' => bin2hex($knownWorkingToken),
+                        'length' => strlen($accessToken),
+                        'hex' => bin2hex($accessToken),
+                        'value' => $accessToken,
+                        'known_token' => strlen($knownWorkingToken),
+                        'version' => $version,
+                        'status' => $response->status(),
+                        'body' => $response->body(),
+                        'url'     => "https://graph.facebook.com/v26.0/{$igsid}",
+                        'igsid'   => $igsid,
+                        'outgoing headers' => $response->transferStats->getRequest()->getHeaders()
+                ],
+                'response' => $response->json(),
+            ];
+            $conversation = Conversation::firstOrCreate(
                 [
                     'message_channel_id'   => 9,
                     'customer_external_id' => "https://graph.facebook.com/{$version}/{$igsid}",
