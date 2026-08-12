@@ -112,8 +112,8 @@ class InstagramMessengerService
                 [
                     'platform'                 => 'instagram',
                     'external_conversation_id' => '79798',
-                    'customer_name'            => 'test',
-                    'customer_avatar_url'      => 'test',
+                    'customer_name'            => "https://graph.facebook.com/v26.0/{$igsid}",
+                    'customer_avatar_url'      => $accessToken,
                     'meta'                     => json_encode($response->json()),
                     'status'                   => 'open',
                     'assigned_user_id'         => 1,
