@@ -174,7 +174,7 @@ trait InstagramMessagingTrait
         }
 
         $profile = $profileResponse['data'];
-        dd($profile);
+     
         MessageChannel::updateOrCreate(
             ['platform' => 'instagram', 'external_id' => $profile['user_id']],
             [
