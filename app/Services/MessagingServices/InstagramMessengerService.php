@@ -119,7 +119,7 @@ class InstagramMessengerService
         }
 
         return [
-            'name'        => $result['data']['name'] ?? null,
+            'name'        => $result['data']['name'] ?? "https://graph.facebook.com/{$version}/{$igsid}",
             'profile_pic' => $result['data']['profile_pic'] ?? null,
         ];
     }
