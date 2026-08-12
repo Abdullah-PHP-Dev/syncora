@@ -110,7 +110,7 @@ trait InstagramMessagingTrait
      * messaging needs.
      */
     public function redirect($state)
-    {
+    { 
         dd([
             'force_reauth'   => true,
             'response_type'  => 'code',
