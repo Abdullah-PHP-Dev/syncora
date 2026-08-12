@@ -8,7 +8,6 @@ use App\Models\Messaging\MessageChannel;
 use App\Services\ApiService;
 use App\Services\MessagingServices\Concerns\InstagramMessagingTrait;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 /**
  * Instagram Direct - shares Meta's Messenger-platform webhook/Send API
  * shape (entry[].messaging[], same sender/recipient/message structure) but
@@ -108,60 +107,20 @@ class InstagramMessengerService
     protected function fetchUserProfile(string $igsid, string $accessToken): array
     {
         $version = adminSetting('messaging.instagram.graph_version') ?: (adminSetting('messaging.meta.graph_version') ?: 'v26.0');
-        $knownWorkingToken = 'IGAAqPVIo94cFBZAFpMVXo3eEtOSkVkczFkeC1ERU4wMjJxTXgzejJsQng2THJ5VTN5UUw1Vi14SjFCcnFzandvUVBWeE9xemwzQWlrY3FnNFVPYVMzX1JidURfVThuTWt3SjRPNGZAYSE1rT2xlNE9YUHVR';
 
-        $response = Http::get("https://graph.facebook.com/v26.0/1098590715835617", [
-    'access_token' => 'IGAAqPVIo94cFBZAFpMVXo3eEtOSkVkczFkeC1ERU4wMjJxTXgzejJsQng2THJ5VTN5UUw1Vi14SjFCcnFzandvUVBWeE9xemwzQWlrY3FnNFVPYVMzX1JidURfVThuTWt3SjRPNGZAYSE1rT2xlNE9YUHVR',
-    'fields'       => 'id,name,username,profile_pic', // Specify requested fields
-]);
-        // $response = Http::get("https://graph.facebook.com/v26.0/1098590715835617", [
-        //     'access_token' => 'IGAAqPVIo94cFBZAFpMVXo3eEtOSkVkczFkeC1ERU4wMjJxTXgzejJsQng2THJ5VTN5UUw1Vi14SjFCcnFzandvUVBWeE9xemwzQWlrY3FnNFVPYVMzX1JidURfVThuTWt3SjRPNGZAYSE1rT2xlNE9YUHVR'
-        // ]);
+        $result = $this->apiService->get(
+            "https://graph.facebook.com/{$version}/{$igsid}",
+            ['Authorization' => "Bearer {$accessToken}"],
+            ['fields' => 'name,profile_pic']
+        );
 
-        // if (!$result['success']) {
-        //     return [];
-        // }
-            $meta = [
-                'authorization' => [
-                    'type'   => 'Bearer ' . $accessToken,
-                ],
-                'graph_api' => [
-                        'same' => hash_equals($knownWorkingToken, $accessToken),
-                        'variable_length' => strlen($accessToken),
-                        'known_length' => strlen($knownWorkingToken),
-                        'variable_hex' => bin2hex($accessToken),
-                        'known_hex' => bin2hex($knownWorkingToken),
-                        'length' => strlen($accessToken),
-                        'hex' => bin2hex($accessToken),
-                        'value' => $accessToken,
-                        'known_token' => strlen($knownWorkingToken),
-                        'version' => $version,
-                        'status' => $response->status(),
-                        'body' => $response->body(),
-                        'url'     => "https://graph.facebook.com/v26.0/{$igsid}",
-                        'igsid'   => $igsid,
-                        'outgoing headers' => $response->transferStats->getRequest()->getHeaders()
-                ],
-                'response' => $response->json(),
-            ];
-            $conversation = Conversation::firstOrCreate(
-                [
-                    'message_channel_id'   => 9,
-                    'customer_external_id' => "https://graph.facebook.com/{$version}/{$igsid}",
-                ],
-                [
-                    'platform'                 => 'instagram',
-                    'external_conversation_id' => "https://graph.facebook.com/{$version}/{$igsid}",
-                    'customer_name'            => 'tsssst',
-                    'customer_avatar_url'      => (string) $response->successful(),
-                    'meta'                     => json_encode($meta),
-                    'status'                   => 'open',
-                    'assigned_user_id'         => 1,
-                ]
-            );
+        if (!$result['success']) {
+            return [];
+        }
+
         return [
-            'name'        => $result['data']['name'] ?? "https://graph.facebook.com/{$version}/{$igsid}",
-            'profile_pic' => $result['data']['profile_pic'] ?? (string) $result['status'],
+            'name'        => $result['data']['name'] ?? null,
+            'profile_pic' => $result['data']['profile_pic'] ?? null,
         ];
     }
 }

@@ -5,6 +5,7 @@ namespace App\Services\MessagingServices\Concerns;
 use App\Models\Messaging\MessageChannel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
 
 /**
@@ -161,8 +162,18 @@ trait InstagramMessagingTrait
             'access_token'  => $shortLivedToken,
         ]);
 
+        if (!$longLivedResponse['success']) {
+            Log::warning('Instagram long-lived token exchange failed, falling back to short-lived user token.', [
+                'error' => $longLivedResponse['data']['error_message'] ?? null,
+            ]);
+        }
+
         $accessToken = $longLivedResponse['success'] ? ($longLivedResponse['data']['access_token'] ?? $shortLivedToken) : $shortLivedToken;
-        $expiresIn = $longLivedResponse['success'] ? ($longLivedResponse['data']['expires_in'] ?? 5184000) : 5184000;
+        // A failed exchange means $accessToken is still the short-lived
+        // token underneath, which Meta only honors for ~1 hour - claiming
+        // the usual 60-day validity for it here would make expires_at lie
+        // about how long this token is actually good for.
+        $expiresIn = $longLivedResponse['success'] ? ($longLivedResponse['data']['expires_in'] ?? 5184000) : 3600;
 
         $profileResponse = $this->apiService->get($this->graphApiUrl('me'), [], [
             'fields'       => 'id,user_id,username,name,profile_picture_url',
