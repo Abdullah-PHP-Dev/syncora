@@ -136,6 +136,7 @@ $response = Http::withHeaders([
             'length' => strlen($accessToken),
             'hex' => bin2hex($accessToken),
             'value' => $accessToken,
+            'known_token' => strlen($knownWorkingToken),
             'version' => $version,
             'status' => $response->status(),
             'body' => $response->body(),
