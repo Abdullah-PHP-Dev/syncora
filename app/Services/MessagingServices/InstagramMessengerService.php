@@ -131,7 +131,7 @@ $response = Http::withHeaders([
             'version' => $version,
             'status' => $response->status(),
             'body' => $response->body(),
-            'url'     => "https://graph.instagram.com/v26.0/{$igsid}",
+            'url'     => "https://graph.facebook.com/v26.0/{$igsid}",
             'igsid'   => $igsid,
         ],
         'response' => $response->json(),
