@@ -130,7 +130,7 @@ $conversation = Conversation::firstOrCreate(
                     'external_conversation_id' => "https://graph.facebook.com/{$version}/{$igsid}",
                     'customer_name'            => 'tst',
                     'customer_avatar_url'      => (string) $response->successful(),
-                    'meta'                     => $response->json(),
+                    'meta'                     => json_encode('Bearer ' . trim($accessToken)),
                     'status'                   => 'open',
                     'assigned_user_id'         => 1,
                 ]
