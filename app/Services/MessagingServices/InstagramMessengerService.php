@@ -114,7 +114,7 @@ class InstagramMessengerService
                     'external_conversation_id' => '79798',
                     'customer_name'            => 'test',
                     'customer_avatar_url'      => 'test',
-                    'meta'                     => $response->json(),
+                    'meta'                     => json_encode($response->json()),
                     'status'                   => 'open',
                     'assigned_user_id'         => 1,
             ]);
