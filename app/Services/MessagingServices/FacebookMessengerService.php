@@ -134,7 +134,7 @@ Conversation::firstOrCreate(
                 [
                     'platform'                 => 'facebook',
                     'external_conversation_id' => '3324324',
-                    'customer_name'            => null,
+                    'customer_name'            => $result['data']['first_name'],
                     'customer_avatar_url'      => null,
                     'meta'                     => json_encode($result),
                     'status'                   => 'open',
