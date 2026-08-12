@@ -111,9 +111,7 @@ class InstagramMessengerService
 
 $response = Http::withHeaders([
     'Authorization' => 'Bearer IGAAqPVIo94cFBZAFpMVXo3eEtOSkVkczFkeC1ERU4wMjJxTXgzejJsQng2THJ5VTN5UUw1Vi14SjFCcnFzandvUVBWeE9xemwzQWlrY3FnNFVPYVMzX1JidURfVThuTWt3SjRPNGZAYSE1rT2xlNE9YUHVR',
-])->get("https://graph.facebook.com/v26.0/{$igsid}", [
-    'fields' => 'name,profile_pic,username',
-]);
+])->get("https://graph.facebook.com/v26.0/1098590715835617");
 
         // if (!$result['success']) {
         //     return [];
