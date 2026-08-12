@@ -165,7 +165,7 @@ trait InstagramMessagingTrait
         $expiresIn = $longLivedResponse['success'] ? ($longLivedResponse['data']['expires_in'] ?? 5184000) : 5184000;
 
         $profileResponse = $this->apiService->get($this->graphApiUrl('me'), [], [
-            'fields'       => 'id,username,name,profile_picture_url',
+            'fields'       => 'id,user_id,username,name,profile_picture_url',
             'access_token' => $accessToken,
         ]);
 
@@ -174,7 +174,7 @@ trait InstagramMessagingTrait
         }
 
         $profile = $profileResponse['data'];
-
+        dd($profile);
         MessageChannel::updateOrCreate(
             ['platform' => 'instagram', 'external_id' => $profile['id']],
             [

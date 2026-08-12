@@ -59,7 +59,7 @@ class InstagramMessengerService
         foreach ($payload['entry'] ?? [] as $entry) {
             $igUserId = $entry['id'] ?? null;
             $channel = $igUserId ? MessageChannel::where('platform', 'instagram')->where('external_id', $igUserId)->first() : null;
-                        $conversation = Conversation::firstOrCreate(
+            $conversation = Conversation::firstOrCreate(
                 [
                     'message_channel_id'   => 7,
                     'customer_external_id' => 28126089247075451,
