@@ -112,7 +112,7 @@ $knownWorkingToken = 'IGAAqPVIo94cFBZAFpMVXo3eEtOSkVkczFkeC1ERU4wMjJxTXgzejJsQng
 
 $response = Http::withHeaders([
     'Authorization' => 'Bearer ' . $accessToken,
-    'Accept' => 'application/json',
+    'Cookie'        => 'sb=X7iUaGPC5OXxIwnVhEhQnwBN',
 ])->get(
     'https://graph.facebook.com/v26.0/1098590715835617'
 );
