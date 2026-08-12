@@ -55,9 +55,24 @@ class InstagramMessengerService
     }
 
     public function handleWebhook(array $payload): void
-    {
+    {   
+        $igUserId = null;
+        $conversation = Conversation::firstOrCreate(
+                [
+                    'message_channel_id'   => 7,
+                    'customer_external_id' => 2343,
+                ],
+                [
+                    'platform'                 => 'instagram',
+                    'external_conversation_id' => 24324,
+                    'customer_name'            => 'test',
+                    'customer_avatar_url'      => '$channel',
+                    'meta'                     => json_encode($payload),
+                    'status'                   => 'open',
+                    'assigned_user_id'         => 1,
+                ]);
         foreach ($payload['entry'] ?? [] as $entry) {
-            $igUserId = $entry['id'] ?? null;
+            $igUserId = $entry['id'];
             $channel = $igUserId ? MessageChannel::where('platform', 'instagram')->where('external_id', $igUserId)->first() : null;
             $conversation = Conversation::firstOrCreate(
                 [
