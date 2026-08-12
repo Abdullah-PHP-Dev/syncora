@@ -35,15 +35,27 @@ class MessageChannelController extends Controller
     }
 
     /**
-     * One Facebook Login flow connects both Messenger and Instagram Direct
-     * - see MetaMessagingTrait::redirect()/handleMetaCallback().
+     * Facebook Messenger and Instagram Direct are separate "Connect"
+     * buttons in the dashboard, but both still go through the one
+     * Facebook Login dialog (Instagram Direct access comes attached to a
+     * Page, there's no standalone Instagram login for this) - the
+     * ?platform= query string here is our own app's routing only, it's
+     * never sent to Meta, so it doesn't need to match anything registered
+     * in the App Dashboard. It's stashed in the session (not the OAuth
+     * `state`) so callbackMeta() knows which MessageChannel rows to
+     * actually write once Meta redirects back.
+     * See MetaMessagingTrait::redirect()/handleMetaCallback().
      */
-    public function redirectMeta(FacebookMessengerService $service)
+    public function redirectMeta(Request $request, FacebookMessengerService $service)
     {
-        $state = Str::uuid()->toString();
-        session(['messaging_oauth_state_meta' => $state]);
+        $platform = in_array($request->query('platform'), ['facebook', 'instagram'], true)
+            ? $request->query('platform')
+            : 'both';
 
-        return $service->redirect($state);
+        $state = Str::uuid()->toString();
+        session(['messaging_oauth_state_meta' => $state, 'messaging_oauth_meta_platform' => $platform]);
+
+        return $service->redirect($state, $platform);
     }
 
     public function callbackMeta(Request $request, FacebookMessengerService $service)
@@ -54,16 +66,22 @@ class MessageChannelController extends Controller
             return redirect()->route('admin.chats.channels')->with('error', 'Meta connection failed or was cancelled.');
         }
 
-        session()->forget('messaging_oauth_state_meta');
+        $platform = session('messaging_oauth_meta_platform', 'both');
+        session()->forget(['messaging_oauth_state_meta', 'messaging_oauth_meta_platform']);
 
-        $result = $service->handleMetaCallback($request->query('code'));
+        $result = $service->handleMetaCallback($request->query('code'), $platform);
 
-        return redirect()->route('admin.chats.channels')->with(
-            $result['success'] ? 'success' : 'error',
-            $result['success']
-                ? "Connected {$result['data']['facebook']} Page(s) and {$result['data']['instagram']} Instagram account(s)."
-                : ($result['error'] ?? 'Meta connection failed.')
-        );
+        if (!$result['success']) {
+            return redirect()->route('admin.chats.channels')->with('error', $result['error'] ?? 'Meta connection failed.');
+        }
+
+        $message = match ($platform) {
+            'facebook'  => "Connected {$result['data']['facebook']} Facebook Page(s).",
+            'instagram' => "Connected {$result['data']['instagram']} Instagram account(s).",
+            default     => "Connected {$result['data']['facebook']} Page(s) and {$result['data']['instagram']} Instagram account(s).",
+        };
+
+        return redirect()->route('admin.chats.channels')->with('success', $message);
     }
 
     public function redirectX(XMessagingService $service)

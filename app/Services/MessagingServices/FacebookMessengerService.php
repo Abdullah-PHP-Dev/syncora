@@ -56,7 +56,7 @@ class FacebookMessengerService
 
     public function verifySignature(Request $request): bool
     {
-        return $this->verifyMetaSignature($request, adminSetting('messaging.meta.app_secret'));
+        return $this->verifyMetaSignature($request, adminSetting('posts.facebook.client_secret'));
     }
 
     /**

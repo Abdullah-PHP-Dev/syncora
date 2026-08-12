@@ -393,13 +393,25 @@
         <div class="row g-4 mb-4">
             <div class="col-md-6 col-lg-4">
                 <div class="platform-card">
-                    @if ($channelsByPlatform->has('facebook') || $channelsByPlatform->has('instagram'))
-                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('facebook', collect())->count() + $channelsByPlatform->get('instagram', collect())->count() }} connected</span>
+                    @if ($channelsByPlatform->has('facebook'))
+                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('facebook')->count() }} connected</span>
                     @endif
                     <div class="channel-platform-icon facebook mx-auto"><i class="bx bxl-facebook"></i></div>
-                    <h6>Facebook Messenger &amp; Instagram</h6>
-                    <p class="text-muted">One connection covers both - every Page you manage, plus its linked Instagram professional account.</p>
-                    <a href="{{ route('admin.messaging.auth.meta.redirect') }}" class="btn btn-primary btn-sm">Connect with Facebook</a>
+                    <h6>Facebook Messenger</h6>
+                    <p class="text-muted">Connects every Page you manage for Messenger conversations.</p>
+                    <a href="{{ route('admin.messaging.auth.meta.redirect', ['platform' => 'facebook']) }}" class="btn btn-primary btn-sm">Connect Facebook</a>
+                </div>
+            </div>
+
+            <div class="col-md-6 col-lg-4">
+                <div class="platform-card">
+                    @if ($channelsByPlatform->has('instagram'))
+                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('instagram')->count() }} connected</span>
+                    @endif
+                    <div class="channel-platform-icon instagram mx-auto"><i class="bx bxl-instagram"></i></div>
+                    <h6>Instagram Direct</h6>
+                    <p class="text-muted">Connects the Instagram professional account linked to each Page you manage.</p>
+                    <a href="{{ route('admin.messaging.auth.meta.redirect', ['platform' => 'instagram']) }}" class="btn btn-sm" style="background:linear-gradient(135deg,#f58529,#dd2a7b 45%,#8134af 75%,#515bd4);color:#fff;">Connect Instagram</a>
                 </div>
             </div>
 

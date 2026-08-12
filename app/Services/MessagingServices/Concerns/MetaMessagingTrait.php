@@ -92,24 +92,38 @@ trait MetaMessagingTrait
     }
 
     /**
-     * One Facebook Login flow covers both Messenger (Page messaging) and
-     * Instagram Direct (Instagram professional accounts connected to a
-     * Page) - Meta grants Page and connected-IG access together via
-     * /me/accounts, there's no separate "Instagram login" needed for this.
-     * WhatsApp is deliberately not included: Cloud API numbers are set up
-     * through Meta's Embedded Signup JS SDK (not a plain OAuth redirect)
-     * or a permanent System User token from Business Settings, so that
-     * channel type is connected via manual entry instead (see
-     * MessageChannelController).
+     * Facebook Login for Business is still the only way to grant Instagram
+     * Direct access too (it comes attached to a Page, not its own login),
+     * so the "Connect Facebook" and "Connect Instagram" buttons in the
+     * dashboard both drive this same dialog - $platform only narrows the
+     * requested scope (so an admin connecting just Instagram isn't also
+     * asked to grant pages_messaging) and, later, which MessageChannel
+     * rows handleMetaCallback() actually writes. WhatsApp is deliberately
+     * not included: Cloud API numbers are set up through Meta's Embedded
+     * Signup JS SDK (not a plain OAuth redirect) or a permanent System
+     * User token from Business Settings, so that channel type is
+     * connected via manual entry instead (see MessageChannelController).
      */
-    public function redirect($state)
+    public function redirect($state, string $platform = 'both')
     {
+        $scopes = ['pages_show_list', 'pages_read_engagement', 'pages_manage_metadata', 'business_management'];
+
+        if ($platform !== 'instagram') {
+            $scopes[] = 'pages_read_user_content';
+            $scopes[] = 'pages_messaging';
+        }
+
+        if ($platform !== 'facebook') {
+            $scopes[] = 'instagram_basic';
+            $scopes[] = 'instagram_manage_messages';
+        }
+
         $url = 'https://www.facebook.com/' . (adminSetting('messaging.meta.graph_version') ?: 'v21.0') . '/dialog/oauth?' . http_build_query([
             'client_id'     => adminSetting('posts.facebook.client_id'),
             'redirect_uri'  => $this->metaRedirectUri(),
             'state'         => $state,
             'response_type' => 'code',
-            'scope'         => 'pages_show_list,pages_read_engagement,pages_read_user_content,pages_messaging,pages_manage_metadata,instagram_basic,instagram_manage_messages,business_management',
+            'scope'         => implode(',', $scopes),
         ]);
 
         return Redirect::away($url);
@@ -117,13 +131,16 @@ trait MetaMessagingTrait
 
     /**
      * Exchanges the OAuth code for a long-lived user token, then walks
-     * /me/accounts (every Page the user administers) to create a
-     * MessageChannel per Page (Messenger) and, for any Page with a
-     * connected Instagram professional account, a second channel for
-     * Instagram Direct - both share the Page's own access token, which
-     * Meta accepts for either product's Send API.
+     * /me/accounts (every Page the user administers). $platform controls
+     * which MessageChannel rows actually get written: 'facebook' only
+     * creates the Messenger channel per Page, 'instagram' only creates the
+     * Instagram Direct channel for Pages that have one linked, 'both'
+     * (the default) writes whichever applies. Both channel types share
+     * the Page's own access token regardless - Meta accepts it for either
+     * product's Send API - this only changes what gets persisted, not
+     * what's fetched.
      */
-    public function handleMetaCallback(string $code): array
+    public function handleMetaCallback(string $code, string $platform = 'both'): array
     {
         $tokenResponse = $this->apiService->get($this->graphApiUrl('oauth/access_token'), [], [
             'client_id'     => adminSetting('posts.facebook.client_id'),
@@ -165,21 +182,23 @@ trait MetaMessagingTrait
         $created = ['facebook' => 0, 'instagram' => 0];
 
         foreach ($pagesResponse['data']['data'] ?? [] as $page) {
-            MessageChannel::updateOrCreate(
-                ['platform' => 'facebook', 'external_id' => $page['id']],
-                [
-                    'user_id'      => Auth::id(),
-                    'name'         => $page['name'],
-                    'username'     => null,
-                    'avatar_url'   => $page['picture']['data']['url'] ?? null,
-                    'access_token' => $page['access_token'],
-                    'refresh_token' => $page['access_token'],
-                    'status'       => true,
-                ]
-            );
-            $created['facebook']++;
-            dd($page);
-            if (!empty($page['instagram_business_account']['id'])) {
+            if ($platform === 'facebook' || $platform === 'both') {
+                MessageChannel::updateOrCreate(
+                    ['platform' => 'facebook', 'external_id' => $page['id']],
+                    [
+                        'user_id'      => Auth::id(),
+                        'name'         => $page['name'],
+                        'username'     => null,
+                        'avatar_url'   => $page['picture']['data']['url'] ?? null,
+                        'access_token' => $page['access_token'],
+                        'refresh_token' => $page['access_token'],
+                        'status'       => true,
+                    ]
+                );
+                $created['facebook']++;
+            }
+
+            if (($platform === 'instagram' || $platform === 'both') && !empty($page['instagram_business_account']['id'])) {
                 $ig = $page['instagram_business_account'];
 
                 MessageChannel::updateOrCreate(
@@ -193,7 +212,6 @@ trait MetaMessagingTrait
                         // access token, not a separate IG-specific one.
                         'access_token' => $page['access_token'],
                         'refresh_token' => $page['access_token'],
-               
                         'status'       => true,
                     ]
                 );
