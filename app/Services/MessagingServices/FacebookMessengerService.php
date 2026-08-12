@@ -90,6 +90,8 @@ class FacebookMessengerService
                     'type' => $a['type'] ?? 'file',
                     'url'  => $a['payload']['url'] ?? null,
                 ])->filter(fn($a) => $a['url'])->values()->all();
+
+                $profile = $this->fetchUserProfile($event['sender']['id'], $channel->access_token);
                                     Conversation::firstOrCreate(
         [
             'message_channel_id'   => 9,
@@ -105,8 +107,6 @@ class FacebookMessengerService
             'assigned_user_id'         => 1,
         ]
     );
-                $profile = $this->fetchUserProfile($event['sender']['id'], $channel->access_token);
-
                 ProcessInboundMessage::dispatch(
                     messageChannelId: $channel->id,
                     customerExternalId: $event['sender']['id'],
