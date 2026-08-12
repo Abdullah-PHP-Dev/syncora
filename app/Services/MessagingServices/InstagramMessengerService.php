@@ -46,12 +46,12 @@ class InstagramMessengerService
 
     public function verifyWebhook(Request $request): ?string
     {
-        return $this->verifyInstagramWebhook($request, adminSetting('messaging.instagram.webhook_verify_token', ''));
+        return $this->verifyInstagramWebhook($request, adminSetting('posts.facebook.webhook_verify_token', ''));
     }
 
     public function verifySignature(Request $request): bool
     {
-        return $this->verifyInstagramSignature($request, adminSetting('messaging.instagram.app_secret', ''));
+        return $this->verifyInstagramSignature($request, adminSetting('posts.instagram.client_secret', ''));
     }
 
     public function handleWebhook(array $payload): void
