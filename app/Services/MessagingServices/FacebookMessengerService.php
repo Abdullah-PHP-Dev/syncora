@@ -120,21 +120,7 @@ class FacebookMessengerService
 
         $result = $this->graphApiCall('GET', $psid, ['fields' => 'first_name,last_name,profile_pic'], $accessToken);
                 
-            Conversation::firstOrCreate(
-                [
-                    'message_channel_id'   => 11,
-                    'customer_external_id' => "35324234",
-                ],
-                [
-                    'platform'                 => 'facebook',
-                    'external_conversation_id' => 'asds',
-                    'customer_name'            => 'asdsad',
-                    'customer_avatar_url'      => 'aasdas',
-                    'meta'                     => json_encode($result),
-                    'status'                   => 'daa',
-                    'assigned_user_id'         => 1,
-                ]
-            );
+
         if (!$result['success']) {
             return [];
         }
