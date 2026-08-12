@@ -125,7 +125,7 @@ class FacebookMessengerService
             return [];
         }
 
-        $name = trim(($result['data']['first_name'] ?? '') . ' ' . ($result['data']['last_name'] ?? ''));
+        //$name = trim(($result['data']['first_name'] ?? '') . ' ' . ($result['data']['last_name'] ?? ''));
 Conversation::firstOrCreate(
                 [
                     'message_channel_id'   => 11,
