@@ -98,14 +98,14 @@ class InstagramMessengerService
      */
     protected function fetchUserProfile(string $igsid, string $accessToken): array
     {
-        $result = $this->graphApiCall('GET', $igsid, ['fields' => 'name,username,profile_pic'], $accessToken);
+        $result = $this->graphApiCall('GET', $igsid, ['fields' => 'name,profile_pic'], $accessToken);
 
         if (!$result['success']) {
             return [];
         }
 
         return [
-            'name'        => $result['data']['name'] ?? $result['data']['username'] ?? null,
+            'name'        => $result['data']['name'] ?? null,
             'profile_pic' => $result['data']['profile_pic'] ?? null,
         ];
     }
