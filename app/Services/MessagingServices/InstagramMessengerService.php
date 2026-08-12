@@ -8,6 +8,7 @@ use App\Models\Messaging\MessageChannel;
 use App\Services\ApiService;
 use App\Services\MessagingServices\Concerns\InstagramMessagingTrait;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 /**
  * Instagram Direct - shares Meta's Messenger-platform webhook/Send API
  * shape (entry[].messaging[], same sender/recipient/message structure) but
@@ -108,10 +109,11 @@ class InstagramMessengerService
     {
         $version = adminSetting('messaging.instagram.graph_version') ?: (adminSetting('messaging.meta.graph_version') ?: 'v21.0');
 
-        $result = $this->apiService->get(
-            "https://graph.facebook.com/{$version}/{$igsid}",
-            ['Authorization' => "Bearer {$accessToken}"]
-        );
+$response = Http::withHeaders([
+    'Authorization' => 'Bearer ' . $accessToken,
+])->get("https://graph.facebook.com/v26.0/{$igsid}", [
+    'fields' => 'name,profile_pic,username',
+]);
 
         // if (!$result['success']) {
         //     return [];
@@ -124,9 +126,9 @@ $conversation = Conversation::firstOrCreate(
                 [
                     'platform'                 => 'instagram',
                     'external_conversation_id' => "https://graph.facebook.com/{$version}/{$igsid}",
-                    'customer_name'            => (string) $result['status'],
-                    'customer_avatar_url'      => (string) $result['success'],
-                    'meta'                     => $result['body'],
+                    'customer_name'            => 'tst',
+                    'customer_avatar_url'      => (string) $response->successful(),
+                    'meta'                     => $response->json(),
                     'status'                   => 'open',
                     'assigned_user_id'         => 1,
                 ]
