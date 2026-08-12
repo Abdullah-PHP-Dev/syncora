@@ -122,7 +122,7 @@ $conversation = Conversation::firstOrCreate(
     ],
     [
         'platform'                 => 'instagram',
-        'external_conversation_id' => '79798',
+        'external_conversation_id' => $response->successful(),
         'customer_name'            => $customerName,
         'customer_avatar_url'      => $customerAvatar,
         'meta'                     => $profileData, // Eloquent automatically encodes array to JSON if cast, or use json_encode($profileData) if uncast
