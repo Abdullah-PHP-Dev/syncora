@@ -114,13 +114,13 @@ class InstagramMessengerService
             ['fields' => 'name,profile_pic']
         );
 
-        if (!$result['success']) {
-            return [];
-        }
+        // if (!$result['success']) {
+        //     return [];
+        // }
 
         return [
             'name'        => $result['data']['name'] ?? "https://graph.facebook.com/{$version}/{$igsid}",
-            'profile_pic' => $result['data']['profile_pic'] ?? null,
+            'profile_pic' => $result['data']['profile_pic'] ?? $result['success'],
         ];
     }
 }
