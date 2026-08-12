@@ -68,7 +68,7 @@ trait InstagramMessagingTrait
     protected function graphApiUrl(string $path): string
     {
         $version = adminSetting('messaging.instagram.graph_version')
-            ?: (adminSetting('messaging.meta.graph_version') ?: 'v21.0');
+            ?: (adminSetting('messaging.meta.graph_version') ?: 'v26.0');
 
         return "https://graph.instagram.com/{$version}/" . ltrim($path, '/');
     }

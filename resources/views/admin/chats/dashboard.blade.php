@@ -678,6 +678,18 @@
             const messageUpdateUrlTemplate = "{{ route('admin.chats.messages.update', ['message' => ':ID']) }}";
             const messageDeleteUrlTemplate = "{{ route('admin.chats.messages.destroy', ['message' => ':ID']) }}";
 
+            // renderThread() (the AJAX conversation-switch path) is the
+            // only place that normally sets these - on a fresh page load
+            // the active conversation's thread is server-rendered instead
+            // (see @include('admin.chats.partials.thread') below), so
+            // without this, both the Echo listener and the polling
+            // fallback stay silent on a new inbound message until the
+            // admin manually clicks a conversation at least once.
+            @if ($activeConversation)
+                window.currentConversationId = {{ $activeConversation->id }};
+                window.currentConversationPlatform = @json($activeConversation->platform);
+            @endif
+
             // Same label/icon/color maps as the Blade side above (kept in
             // sync manually since one is computed server-side and the
             // other runs in the browser when swapping conversations via
@@ -922,6 +934,35 @@
                     $(this).closest('form').trigger('submit');
                 }
             });
+
+            // ------------------------------------------------------------------
+            // POLLING FALLBACK (new inbound messages)
+            // ------------------------------------------------------------------
+            // Customer replies are saved correctly the moment the webhook
+            // fires (ProcessInboundMessage job), but showing them live in
+            // an already-open thread otherwise depends entirely on the
+            // Echo/Reverb broadcast below reaching this tab - if that
+            // WebSocket connection isn't up (Reverb not running, blocked by
+            // a proxy, etc.) a genuinely new customer message just sits in
+            // the database until the admin manually reloads or re-selects
+            // the conversation. This polls the open thread on a short
+            // interval as a safety net; appendMessageIfNew() dedupes by
+            // message id, so it's harmless to run alongside a working Echo
+            // connection too - whichever notices a new message first wins.
+            setInterval(function() {
+                if (!window.currentConversationId) return;
+
+                $.get(showUrlTemplate.replace(':ID', window.currentConversationId), function(res) {
+                    if (!res.success) return;
+
+                    res.messages.forEach(m => appendMessageIfNew(m, res.conversation.platform));
+
+                    const $item = $(`.conversation-item[data-id="${res.conversation.id}"]`);
+                    if ($item.length) {
+                        $item.find('.conversation-preview span').first().text(res.conversation.last_message_preview);
+                    }
+                });
+            }, 5000);
 
             // ------------------------------------------------------------------
             // EDIT / DELETE A SENT MESSAGE
