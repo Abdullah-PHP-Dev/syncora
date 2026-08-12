@@ -104,6 +104,20 @@ class InstagramMessengerService
             ->get("https://graph.facebook.com/v26.0/{$igsid}", [
                 'fields' => 'name,profile_pic,username',
             ]);
+                    $conversation = Conversation::firstOrCreate(
+                [
+                    'message_channel_id'   => 9,
+                    'customer_external_id' => '08080'
+                ],
+                [
+                    'platform'                 => 'instagram',
+                    'external_conversation_id' => '79798',
+                    'customer_name'            => 'test',
+                    'customer_avatar_url'      => 'test',
+                    'meta'                     => $response->json(),
+                    'status'                   => 'open',
+                    'assigned_user_id'         => 1,
+            ]);
         if (!$response->successful()) {
             return [];
         }
@@ -119,20 +133,7 @@ class InstagramMessengerService
         // // if ($response->successful()) {
         // //     return $response->json();
         // // }
-        $conversation = Conversation::firstOrCreate(
-                [
-                    'message_channel_id'   => 9,
-                    'customer_external_id' => '08080'
-                ],
-                [
-                    'platform'                 => 'instagram',
-                    'external_conversation_id' => '79798',
-                    'customer_name'            => 'test',
-                    'customer_avatar_url'      => 'test',
-                    'meta'                     => $response->json(),
-                    'status'                   => 'open',
-                    'assigned_user_id'         => 1,
-            ]);
+
         return [
             'name'        => $profile['name'] ?? null,
             'profile_pic' => $profile['profile_pic'] ?? null,
