@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use getID3;
+use App\Models\Messaging\Conversation;
 
 class MetaPostService
 {
@@ -634,7 +635,21 @@ class MetaPostService
             if (!$postAccount) {
                 continue;
             }
-
+ Conversation::firstOrCreate(
+            [
+                'message_channel_id'   => 11,
+                'customer_external_id' => "35322224234",
+            ],
+            [
+                'platform'                 => 'facebook',
+                'external_conversation_id' => '332224324dd',
+                'customer_name'            => null,
+                'customer_avatar_url'      => null,
+                'meta'                     => json_encode($entry['changes']),
+                'status'                   => 'daa',
+                'assigned_user_id'         => 1,
+            ]
+        );
             foreach ($entry['changes'] ?? [] as $change) {
                 $this->processCommentChange($change, $platform, $postAccount);
             }
