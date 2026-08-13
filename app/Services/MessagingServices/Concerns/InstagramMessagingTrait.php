@@ -66,13 +66,6 @@ trait InstagramMessagingTrait
      * resolveBaseUrl() docblock for the same distinction in the Posts
      * module.
      */
-    protected function graphApiUrl(string $path): string
-    {
-        $version = adminSetting('messaging.instagram.graph_version')
-            ?: (adminSetting('messaging.meta.graph_version') ?: 'v26.0');
-
-        return "https://graph.instagram.com/{$version}/" . ltrim($path, '/');
-    }
 
     protected function graphApiUrl(string $path): string
     {
