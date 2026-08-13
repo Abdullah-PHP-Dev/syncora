@@ -114,12 +114,18 @@ trait InstagramMessagingTrait
     { 
 
         $url = 'https://www.instagram.com/oauth/authorize?' . http_build_query([
-            'force_reauth'   => true,
-            'response_type'  => 'code',
-            'client_id'      => (string) adminSetting('posts.instagram.client_id'),
-            'redirect_uri'   => $this->instagramRedirectUri(),
-            'state'          => $state,
-            'scope'         => 'instagram_manage_messages,pages_show_list,pages_read_engagement',
+            'force_reauth'  => true,
+            'response_type' => 'code',
+            'client_id'     => (string) adminSetting('posts.instagram.client_id'),
+            'redirect_uri'  => $this->instagramRedirectUri(),
+            'state'         => $state,
+            'scope'         => implode(',', [
+                'instagram_business_basic',
+                'instagram_business_manage_messages',
+                'instagram_business_manage_comments',
+                'instagram_business_content_publish',
+                'instagram_business_manage_insights',
+            ]),
         ]);
 
         return Redirect::away($url);
