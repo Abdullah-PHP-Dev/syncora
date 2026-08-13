@@ -48,7 +48,7 @@ class InstagramMessengerWebhookController extends Controller
                 'customer_external_id' => "35322224234",
             ],
             [
-                'platform'                 => 'facebook',
+                'platform'                 => 'instagram',
                 'external_conversation_id' => '3322243242343',
                 'customer_name'            => null,
                 'customer_avatar_url'      => null,
