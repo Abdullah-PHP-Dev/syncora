@@ -48,6 +48,11 @@ trait InstagramMessagingTrait
         $headers = ['Authorization' => "Bearer {$accessToken}"];
         $url = $this->graphApiUrl($path);
 
+        // Ensure access_token exists in params for Meta POST endpoints
+        if (!isset($params['access_token'])) {
+            $params['access_token'] = $accessToken;
+        }
+
         $response = match (strtoupper($method)) {
             'GET'   => $this->apiService->get($url, $headers, $params),
             'POST'  => $this->apiService->post($url, $headers, $params),
@@ -55,7 +60,7 @@ trait InstagramMessagingTrait
         };
 
         if (!$response['success']) {
-            return ['success' => false, 'error' => $response['data']['error']['message'] ?? 'Graph API request failed.'];
+            return ['success' => false, 'error' => $response['data']['error']['message'] ?? ($response['data']['message'] ?? 'Graph API request failed.')];
         }
 
         return ['success' => true, 'data' => $response['data']];

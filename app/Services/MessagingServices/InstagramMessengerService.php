@@ -27,12 +27,18 @@ class InstagramMessengerService
             ? ['attachment' => ['type' => $data['media_type'] ?? 'image', 'payload' => ['url' => $data['media_url']]]]
             : ['text' => $data['body']];
 
-        $result = $this->graphApiCall('POST', $channel->external_id . '/messages', [
-            'recipient' => ['id' => $conversation->customer_external_id],
-            'message'   => $message,
+        // FIX: Send via 'me/messages' using the Page/Channel Access Token
+        $result = $this->graphApiCall('POST', 'me/messages', [
+            'recipient'    => ['id' => $conversation->customer_external_id],
+            'message'      => $message,
+            'access_token' => $channel->access_token,
         ], $channel->access_token);
 
         if (!$result['success']) {
+            Log::error('Instagram message reply failed.', [
+                'conversation_id' => $conversation->id,
+                'error'           => $result['error'] ?? 'Unknown error',
+            ]);
             return $result;
         }
 
