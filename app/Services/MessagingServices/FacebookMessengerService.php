@@ -194,7 +194,16 @@ class FacebookMessengerService
             return;
         }
 
-        foreach ($result['data']['data'] ?? [] as $conv) {
+        $conversations = $result['data']['data'] ?? [];
+
+        // A successful call with zero conversations is silent otherwise -
+        // keep it visible in the logs rather than indistinguishable from
+        // "nothing went wrong."
+        if (empty($conversations)) {
+            Log::info('Facebook conversation backfill returned zero conversations.', ['channel_id' => $channel->id, 'raw_response' => $result['data']]);
+        }
+
+        foreach ($conversations as $conv) {
             try {
                 $participants = collect($conv['participants']['data'] ?? []);
                 $customer = $participants->first(fn($p) => ($p['id'] ?? null) !== $channel->external_id);

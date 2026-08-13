@@ -193,7 +193,18 @@ class InstagramMessengerService
             return;
         }
 
-        foreach ($result['data']['data'] ?? [] as $conv) {
+        $conversations = $result['data']['data'] ?? [];
+
+        // A successful call with zero conversations is silent otherwise -
+        // indistinguishable in the logs from "nothing went wrong" without
+        // this, which made an earlier real case of this (see the
+        // graph.instagram.com domain-quirk note above) impossible to
+        // diagnose after the fact from logs alone.
+        if (empty($conversations)) {
+            Log::info('Instagram conversation backfill returned zero conversations.', ['channel_id' => $channel->id, 'raw_response' => $result['data']]);
+        }
+
+        foreach ($conversations as $conv) {
             try {
                 $participants = collect($conv['participants']['data'] ?? []);
                 $customer = $participants->first(fn($p) => ($p['id'] ?? null) !== $channel->external_id);
