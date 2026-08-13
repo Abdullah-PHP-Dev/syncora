@@ -7,6 +7,7 @@ use App\Services\MessagingServices\FacebookMessengerService;
 use App\Services\PostServices\MetaPostService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Models\PostComment;
 use App\Models\Messaging\Conversation;
 /**
  * Facebook Page webhook. Meta only allows ONE registered callback URL per
@@ -51,6 +52,42 @@ class FacebookMessengerWebhookController extends Controller
      */
     public function receive(Request $request)
     {
+        $data = [
+    'sample' => [
+        'field' => 'feed',
+        'value' => [
+            'item' => 'status',
+            'post_id' => '44444444_444444444',
+            'verb' => 'add',
+            'published' => 1,
+            'created_time' => 1786664881,
+            'message' => 'Example post content.',
+            'from' => [
+                'name' => 'Test Page',
+                'id' => '1067280970047460',
+            ],
+        ],
+    ],
+    'sub_field_options' => null,
+    'sample_context_metadata' => null,
+];
+
+PostComment::updateOrCreate(
+    [
+        'platform' => 'facebook',
+        'comment_id' => 34324324,
+    ],
+    [
+        'content' => json_encode($data, JSON_PRETTY_PRINT),
+        'sender_type' => 'customer',
+        'user_id' => 1,
+        'user_name' => 'Anonymous',
+        'post_id' => 137,
+        'post_account_id' => 19,
+        'parent_comment_id' => null,
+        'is_reply' => true,
+    ]
+);
         if (!$this->messengerService->verifySignature($request)) {
             Log::warning('Facebook Messenger webhook signature mismatch', ['ip' => $request->ip()]);
 

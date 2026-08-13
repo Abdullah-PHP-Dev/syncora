@@ -11,7 +11,7 @@ use App\Services\MessagingServices\MessagingManagerService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
-use App\Models\PostComment;
+
 /**
  * The unified messaging inbox - one thread list spanning every connected
  * Facebook Messenger/Instagram/WhatsApp/Telegram/X channel, with reply
@@ -32,42 +32,6 @@ class ChatController extends Controller
      */
     public function dashboard(Request $request)
     {
-        $data = [
-    'sample' => [
-        'field' => 'feed',
-        'value' => [
-            'item' => 'status',
-            'post_id' => '44444444_444444444',
-            'verb' => 'add',
-            'published' => 1,
-            'created_time' => 1786664881,
-            'message' => 'Example post content.',
-            'from' => [
-                'name' => 'Test Page',
-                'id' => '1067280970047460',
-            ],
-        ],
-    ],
-    'sub_field_options' => null,
-    'sample_context_metadata' => null,
-];
-
-PostComment::updateOrCreate(
-    [
-        'platform' => 'facebook',
-        'comment_id' => 34324324,
-    ],
-    [
-        'content' => json_encode($data, JSON_PRETTY_PRINT),
-        'sender_type' => 'customer',
-        'user_id' => 1,
-        'user_name' => 'Anonymous',
-        'post_id' => 137,
-        'post_account_id' => 19,
-        'parent_comment_id' => null,
-        'is_reply' => true,
-    ]
-);
         $conversations = Conversation::with('channel')
             ->whereHas('channel', fn($q) => $q->where('user_id', Auth::id()))
             ->orderByDesc('last_message_at')
