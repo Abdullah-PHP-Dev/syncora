@@ -895,7 +895,7 @@ class MetaPostService
             [
                 'content'           => $commentText,
                 'sender_type'       => 'customer',
-                'user_id'           => $post->user_id,
+                'user_id'           => $post?->user_id,
                 'user_name'         => $value['from']['username'] ?? $value['from']['name'] ?? 'Anonymous',
                 'post_id'           => $post?->id,
                 'post_account_id'   => $postAccount->id,
