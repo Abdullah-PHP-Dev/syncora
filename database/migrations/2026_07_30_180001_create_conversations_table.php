@@ -25,7 +25,7 @@ return new class extends Migration
             $table->string('external_conversation_id')->nullable();
             $table->string('customer_external_id');
             $table->string('customer_name')->nullable();
-            $table->string('customer_avatar_url')->nullable();
+            $table->text('customer_avatar_url')->nullable();
             $table->timestamp('last_message_at')->nullable();
             $table->string('last_message_preview')->nullable();
             $table->unsignedInteger('unread_count')->default(0);
