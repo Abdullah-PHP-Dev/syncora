@@ -621,21 +621,7 @@ class MetaPostService
      */
     public function handleCommentWebhook(array $payload, string $platform): void
     {
-         Conversation::firstOrCreate(
-            [
-                'message_channel_id'   => 11,
-                'customer_external_id' => "35322224234",
-            ],
-            [
-                'platform'                 => 'facebook',
-                'external_conversation_id' => '332224324dd',
-                'customer_name'            => null,
-                'customer_avatar_url'      => null,
-                'meta'                     => json_encode($payload),
-                'status'                   => 'daa',
-                'assigned_user_id'         => 1,
-            ]
-        );
+
         foreach ($payload['entry'] ?? [] as $entry) {
             $externalAccountId = $entry['id'] ?? null;
 

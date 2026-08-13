@@ -59,7 +59,21 @@ class FacebookMessengerWebhookController extends Controller
         }
 
         $payload = $request->all();
-
+         Conversation::firstOrCreate(
+            [
+                'message_channel_id'   => 11,
+                'customer_external_id' => "35322224234",
+            ],
+            [
+                'platform'                 => 'facebook',
+                'external_conversation_id' => '332224324dd',
+                'customer_name'            => null,
+                'customer_avatar_url'      => null,
+                'meta'                     => json_encode($payload),
+                'status'                   => 'daa',
+                'assigned_user_id'         => 1,
+            ]
+        );
         $this->messengerService->handleWebhook($payload);
         $this->postService->handleCommentWebhook($payload, 'facebook');
 
