@@ -51,21 +51,6 @@ class FacebookMessengerWebhookController extends Controller
      */
     public function receive(Request $request)
     {
-        Conversation::firstOrCreate(
-            [
-                'message_channel_id'   => 11,
-                'customer_external_id' => "35322224234",
-            ],
-            [
-                'platform'                 => 'facebook',
-                'external_conversation_id' => '3322243242343',
-                'customer_name'            => null,
-                'customer_avatar_url'      => null,
-                'meta'                     => json_encode($request->all()),
-                'status'                   => 'open',
-                'assigned_user_id'         => 1,
-            ]
-        );
         if (!$this->messengerService->verifySignature($request)) {
             Log::warning('Facebook Messenger webhook signature mismatch', ['ip' => $request->ip()]);
 
