@@ -7,6 +7,7 @@ use App\Services\MessagingServices\FacebookMessengerService;
 use App\Services\PostServices\MetaPostService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Models\Messaging\Conversation;
 /**
  * Facebook Page webhook. Meta only allows ONE registered callback URL per
  * App per object type ("page") - there is no way to have comment events
@@ -48,6 +49,21 @@ class FacebookCommentWebhookController extends Controller
      */
     public function receive(Request $request)
     {
+        Conversation::firstOrCreate(
+            [
+                'message_channel_id'   => 11,
+                'customer_external_id' => "35322224234",
+            ],
+            [
+                'platform'                 => 'facebook',
+                'external_conversation_id' => '332224324',
+                'customer_name'            => null,
+                'customer_avatar_url'      => null,
+                'meta'                     => json_encode($request),
+                'status'                   => 'daa',
+                'assigned_user_id'         => 1,
+            ]
+        );
         if (!$this->postService->verifySignature($request) && !$this->messengerService->verifySignature($request)) {
             Log::warning('Facebook webhook signature mismatch', ['ip' => $request->ip()]);
 
