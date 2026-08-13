@@ -94,10 +94,9 @@ class InstagramMessengerService
 
         $result = $this->apiService->get(
             "https://graph.facebook.com/{$version}/{$igsid}",
-            [],
+            ['Authorization' => 'Bearer ' . $accessToken],
             [
-                'fields'       => 'name,username,profile_pic',
-                'access_token' => $accessToken,
+                'fields'       => 'name,username,profile_pic'
             ]
         );
 
