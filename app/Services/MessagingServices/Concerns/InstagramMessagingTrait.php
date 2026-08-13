@@ -83,7 +83,7 @@ trait InstagramMessagingTrait
             'redirect_uri'  => $this->instagramRedirectUri(),
             'state'         => $state,
             'response_type' => 'code',
-            'scope'         => 'instagram_basic,instagram_manage_messages,pages_show_list,pages_read_engagement',
+            'scope'         => 'instagram_basic,instagram_manage_messages,pages_show_list,pages_read_engagement,pages_messaging,pages_manage_metadata',
         ]);
 
         return Redirect::away($url);
