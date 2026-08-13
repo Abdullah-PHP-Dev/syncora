@@ -113,8 +113,8 @@ trait InstagramMessagingTrait
     public function redirect($state)
     { 
 
-        $url = 'https://www.instagram.com/oauth/authorize?' . http_build_query([
-           // 'force_reauth'   => true,
+        $url = 'https://www.facebook.com/v26.0/dialog/oauth?' . http_build_query([
+            'force_reauth'   => true,
             'response_type'  => 'code',
             'client_id'      => (string) adminSetting('posts.instagram.client_id'),
             'redirect_uri'   => $this->instagramRedirectUri(),
