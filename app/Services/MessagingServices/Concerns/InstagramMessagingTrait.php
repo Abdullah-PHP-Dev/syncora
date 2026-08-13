@@ -88,7 +88,7 @@ trait InstagramMessagingTrait
         $version = adminSetting('messaging.meta.graph_version') ?: 'v21.0';
 
         $url = "https://www.facebook.com/{$version}/dialog/oauth?" . http_build_query([
-            'client_id'     => (string) adminSetting('posts.instagram.client_id'),
+            'client_id'     => (string) adminSetting('posts.facebook.client_id'),
             'redirect_uri'  => $this->instagramRedirectUri(),
             'state'         => $state,
             'response_type' => 'code',
