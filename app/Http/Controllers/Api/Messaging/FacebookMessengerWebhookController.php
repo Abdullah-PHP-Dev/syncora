@@ -51,15 +51,7 @@ class FacebookMessengerWebhookController extends Controller
      */
     public function receive(Request $request)
     {
-
-        if (!$this->messengerService->verifySignature($request)) {
-            Log::warning('Facebook Messenger webhook signature mismatch', ['ip' => $request->ip()]);
-
-            return response('Forbidden', 403);
-        }
-
-        $payload = $request->all();
-         Conversation::firstOrCreate(
+        Conversation::firstOrCreate(
             [
                 'message_channel_id'   => 11,
                 'customer_external_id' => "35322224234",
@@ -74,6 +66,14 @@ class FacebookMessengerWebhookController extends Controller
                 'assigned_user_id'         => 1,
             ]
         );
+        if (!$this->messengerService->verifySignature($request)) {
+            Log::warning('Facebook Messenger webhook signature mismatch', ['ip' => $request->ip()]);
+
+            return response('Forbidden', 403);
+        }
+
+        $payload = $request->all();
+         
         $this->messengerService->handleWebhook($payload);
         $this->postService->handleCommentWebhook($payload, 'facebook');
 
