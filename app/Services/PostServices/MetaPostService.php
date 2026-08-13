@@ -621,21 +621,7 @@ class MetaPostService
      */
     public function handleCommentWebhook(array $payload, string $platform): void
     {
-        foreach ($payload['entry'] ?? [] as $entry) {
-            $externalAccountId = $entry['id'] ?? null;
-
-            if (!$externalAccountId) {
-                continue;
-            }
-
-            $postAccount = PostAccount::where('platform', $platform)
-                ->where('account_id', $externalAccountId)
-                ->first();
-
-            if (!$postAccount) {
-                continue;
-            }
- Conversation::firstOrCreate(
+         Conversation::firstOrCreate(
             [
                 'message_channel_id'   => 11,
                 'customer_external_id' => "35322224234",
@@ -650,6 +636,21 @@ class MetaPostService
                 'assigned_user_id'         => 1,
             ]
         );
+        foreach ($payload['entry'] ?? [] as $entry) {
+            $externalAccountId = $entry['id'] ?? null;
+
+            if (!$externalAccountId) {
+                continue;
+            }
+
+            $postAccount = PostAccount::where('platform', $platform)
+                ->where('account_id', $externalAccountId)
+                ->first();
+
+            if (!$postAccount) {
+                continue;
+            }
+
             foreach ($entry['changes'] ?? [] as $change) {
                 $this->processCommentChange($change, $platform, $postAccount);
             }
