@@ -97,21 +97,19 @@ class InstagramMessengerService
      * only way to resolve one. Best-effort: a failure here just means the
      * conversation falls back to "Unknown" rather than losing the message.
      *
-     * graph.facebook.com, not graph.instagram.com - confirmed via a direct
-     * curl comparison using the same token: graph.instagram.com silently
-     * returns an empty {} for this specific lookup (no error, just
-     * nothing), while graph.facebook.com returns the real profile - even
-     * for an Instagram Login token that otherwise works fine against
-     * graph.instagram.com for sending messages and the /me self-lookup in
-     * handleInstagramCallback(). Meta just doesn't serve this particular
-     * endpoint on the .instagram.com domain.
+     * graph.instagram.com, not graph.facebook.com - Instagram Login tokens
+     * are rejected outright by graph.facebook.com ("Invalid OAuth access
+     * token - Cannot parse access token", confirmed live), same domain
+     * restriction documented on InstagramMessagingTrait. An empty {}
+     * response from this specific endpoint means the IGSID isn't a real
+     * conversation participant for this token, not a domain issue.
      */
     protected function fetchUserProfile(string $igsid, string $accessToken): array
     {
         $version = adminSetting('messaging.instagram.graph_version') ?: (adminSetting('messaging.meta.graph_version') ?: 'v26.0');
 
         $result = $this->apiService->get(
-            "https://graph.facebook.com/{$version}/{$igsid}",
+            "https://graph.instagram.com/{$version}/{$igsid}",
             ['Authorization' => "Bearer {$accessToken}"],
             ['fields' => 'name,profile_pic']
         );

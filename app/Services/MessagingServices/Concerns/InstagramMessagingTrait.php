@@ -74,157 +74,118 @@ trait InstagramMessagingTrait
         return "https://graph.instagram.com/{$version}/" . ltrim($path, '/');
     }
 
-    protected function graphApiCall(string $method, string $path, array $params, string $accessToken)
+    protected function graphApiUrl(string $path): string
     {
-        $headers = ['Authorization' => "Bearer {$accessToken}"];
-        $url = $this->graphApiUrl($path);
+        $version = adminSetting('messaging.instagram.graph_version')
+            ?: (adminSetting('messaging.meta.graph_version') ?: 'v21.0');
 
-        $response = match (strtoupper($method)) {
-            'GET'  => $this->apiService->get($url, $headers, $params),
-            'POST' => $this->apiService->post($url, $headers, $params),
-            default => ['success' => false, 'data' => null],
-        };
-        
-        if (!$response['success']) {
-            return ['success' => false, 'error' => $response['data']['error']['message'] ?? 'Graph API request failed.'];
-        }
-
-        return ['success' => true, 'data' => $response['data']];
+        return "https://graph.facebook.com/{$version}/" . ltrim($path, '/');
     }
 
-    /**
-     * Must be byte-for-byte identical between the authorize request
-     * (redirect()) and the token exchange (handleInstagramCallback()) -
-     * Meta rejects the exchange with redirect_uri_mismatch otherwise.
-     */
     protected function instagramRedirectUri(): string
     {
         return config('services.app_url') . '/admin/messaging/auth/instagram/callback';
     }
 
     /**
-     * Native Instagram Login (instagram.com/oauth/authorize), not Facebook
-     * Login for Business - the Instagram professional account signs in
-     * directly with its own credentials, no Facebook Page or Business
-     * Manager involved. Mirrors PostAccountController::redirectInstagram()
-     * (same product, different module), but scoped down to only what
-     * messaging needs.
+     * Updated Redirect to use Business Login OAuth Flow
      */
     public function redirect($state)
     { 
+        $version = adminSetting('messaging.meta.graph_version') ?: 'v21.0';
 
-        $url = 'https://www.instagram.com/oauth/authorize?' . http_build_query([
-            'force_reauth'   => true,
-            'response_type'  => 'code',
-            'client_id'      => (string) adminSetting('posts.instagram.client_id'),
-            'redirect_uri'   => $this->instagramRedirectUri(),
-            'state'          => $state,
-            'scope'          => 'instagram_business_basic,instagram_business_manage_messages',
+        $url = "https://www.facebook.com/{$version}/dialog/oauth?" . http_build_query([
+            'client_id'     => (string) adminSetting('posts.instagram.client_id'),
+            'redirect_uri'  => $this->instagramRedirectUri(),
+            'state'         => $state,
+            'response_type' => 'code',
+            // Correct Business permissions to allow messaging + sender profile fetching
+            'scope'         => 'instagram_basic,instagram_manage_messages,pages_show_list,pages_read_engagement',
         ]);
 
         return Redirect::away($url);
     }
 
     /**
-     * Exchanges the OAuth code for a short-lived token (api.instagram.com),
-     * then a 60-day long-lived one (graph.instagram.com), then resolves
-     * the connected account's own profile - unlike Facebook Login's
-     * /me/accounts walk, Instagram Login's token already IS scoped to
-     * exactly one Instagram professional account, so there's no Page list
-     * to iterate.
+     * Updated Callback Exchange
      */
     public function handleInstagramCallback(string $code): array
     {
         $clientId = adminSetting('posts.instagram.client_id');
         $clientSecret = adminSetting('posts.instagram.client_secret');
 
-        $tokenResponse = $this->apiService->post('https://api.instagram.com/oauth/access_token', [], [
+        // 1. Exchange short-lived token via graph.facebook.com
+        $tokenResponse = $this->apiService->get($this->graphApiUrl('oauth/access_token'), [], [
             'client_id'     => $clientId,
             'client_secret' => $clientSecret,
-            'grant_type'    => 'authorization_code',
             'redirect_uri'  => $this->instagramRedirectUri(),
             'code'          => $code,
-        ], 'form');
+        ]);
 
         if (!$tokenResponse['success']) {
-            return ['success' => false, 'error' => $tokenResponse['data']['error_message'] ?? 'Failed to obtain an access token from Instagram.'];
+            return ['success' => false, 'error' => $tokenResponse['data']['error']['message'] ?? 'Failed to exchange code.'];
         }
 
-        $shortLivedToken = $tokenResponse['data']['access_token'] ?? null;
+        $shortLivedToken = $tokenResponse['data']['access_token'];
 
-        if (!$shortLivedToken) {
-            return ['success' => false, 'error' => 'Invalid token response received from Instagram.'];
-        }
-
-        $longLivedResponse = $this->apiService->get('https://graph.instagram.com/access_token', [], [
-            'grant_type'    => 'ig_exchange_token',
-            'client_secret' => $clientSecret,
-            'access_token'  => $shortLivedToken,
+        // 2. Exchange for 60-day Long-Lived User Token
+        $longLivedResponse = $this->apiService->get($this->graphApiUrl('oauth/access_token'), [], [
+            'grant_type'        => 'fb_exchange_token',
+            'client_id'         => $clientId,
+            'client_secret'     => $clientSecret,
+            'fb_exchange_token' => $shortLivedToken,
         ]);
 
-        if (!$longLivedResponse['success']) {
-            Log::warning('Instagram long-lived token exchange failed, falling back to short-lived user token.', [
-                'error' => $longLivedResponse['data']['error_message'] ?? null,
-            ]);
-        }
+        $userToken = $longLivedResponse['success'] 
+            ? $longLivedResponse['data']['access_token'] 
+            : $shortLivedToken;
 
-        $accessToken = $longLivedResponse['success'] ? ($longLivedResponse['data']['access_token'] ?? $shortLivedToken) : $shortLivedToken;
-        // A failed exchange means $accessToken is still the short-lived
-        // token underneath, which Meta only honors for ~1 hour - claiming
-        // the usual 60-day validity for it here would make expires_at lie
-        // about how long this token is actually good for.
-        $expiresIn = $longLivedResponse['success'] ? ($longLivedResponse['data']['expires_in'] ?? 5184000) : 3600;
+        $expiresIn = $longLivedResponse['success'] 
+            ? ($longLivedResponse['data']['expires_in'] ?? 5184000) 
+            : 3600;
 
-        $profileResponse = $this->apiService->get($this->graphApiUrl('me'), [], [
-            'fields'       => 'id,user_id,username,name,profile_picture_url',
-            'access_token' => $accessToken,
+        // 3. Get Instagram Business Account ID & Page Access Token via /me/accounts
+        $pagesResponse = $this->apiService->get($this->graphApiUrl('me/accounts'), [], [
+            'access_token' => $userToken,
+            'fields'       => 'id,name,access_token,instagram_business_account{id,username,profile_picture_url,name}',
         ]);
 
-        if (!$profileResponse['success']) {
-            return ['success' => false, 'error' => 'Connected to Instagram, but failed to fetch the account profile.'];
+        if (!$pagesResponse['success'] || empty($pagesResponse['data']['data'])) {
+            return ['success' => false, 'error' => 'No connected Instagram Business Accounts found.'];
         }
 
-        $profile = $profileResponse['data'];
-     
-        $channel = MessageChannel::updateOrCreate(
-            ['platform' => 'instagram', 'external_id' => $profile['user_id']],
-            [
-                'user_id'       => Auth::id(),
-                'name'          => $profile['name'] ?? $profile['username'] ?? 'Instagram Business',
-                'username'      => $profile['username'] ?? null,
-                'avatar_url'    => $profile['profile_picture_url'] ?? null,
-                'access_token'  => $accessToken,
-                'refresh_token' => $accessToken,
-                'expires_at'    => now()->addSeconds($expiresIn),
-                'status'        => true,
-                // Tags this as a standalone Instagram Login token
-                // (graph.instagram.com) so nothing accidentally sends it
-                // against graph.facebook.com.
-                'meta'          => ['auth_type' => 'instagram_login'],
-            ]
-        );
+        $created = 0;
 
-        // Each of these three is independently failure-tolerant
-        // (internally try/caught, logs and returns rather than
-        // throwing) - this outer try/catch is a deliberate second
-        // safety net so the channel above stays saved even if a
-        // sync/subscribe/backfill call fails.
-        try {
-            $this->syncChannelDetails($channel);
-        } catch (\Throwable $e) {
-            Log::warning('Instagram channel details sync failed after connect.', ['channel_id' => $channel->id, 'error' => $e->getMessage()]);
-        }
-        try {
-            $this->subscribeToWebhooks($channel);
-        } catch (\Throwable $e) {
-            Log::warning('Instagram channel webhook subscribe failed after connect.', ['channel_id' => $channel->id, 'error' => $e->getMessage()]);
-        }
-        try {
-            $this->backfillRecentConversations($channel);
-        } catch (\Throwable $e) {
-            Log::warning('Instagram conversation backfill failed after connect.', ['channel_id' => $channel->id, 'error' => $e->getMessage()]);
+        foreach ($pagesResponse['data']['data'] as $page) {
+            if (!empty($page['instagram_business_account']['id'])) {
+                $ig = $page['instagram_business_account'];
+
+                // IMPORTANT: Use the PAGE access token! This grants full permission to fetch sender profiles!
+                $pageAccessToken = $page['access_token'];
+
+                $channel = MessageChannel::updateOrCreate(
+                    ['platform' => 'instagram', 'external_id' => $ig['id']],
+                    [
+                        'user_id'       => Auth::id(),
+                        'name'          => $ig['name'] ?? $ig['username'] ?? 'Instagram Business',
+                        'username'      => $ig['username'] ?? null,
+                        'avatar_url'    => $ig['profile_picture_url'] ?? null,
+                        'access_token'  => $pageAccessToken, // Page Token gives complete access like Dashboard manual token
+                        'refresh_token' => $userToken,
+                        'expires_at'    => now()->addSeconds($expiresIn),
+                        'status'        => true,
+                        'meta'          => ['auth_type' => 'instagram_business'],
+                    ]
+                );
+
+                $created++;
+
+                try { $this->syncChannelDetails($channel); } catch (\Throwable $e) {}
+                try { $this->subscribeToWebhooks($channel); } catch (\Throwable $e) {}
+                try { $this->backfillRecentConversations($channel); } catch (\Throwable $e) {}
+            }
         }
 
-        return ['success' => true, 'data' => ['instagram' => 1]];
+        return ['success' => true, 'data' => ['instagram' => $created]];
     }
 }
