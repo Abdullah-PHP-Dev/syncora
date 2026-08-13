@@ -186,7 +186,7 @@ trait InstagramMessagingTrait
 
         $profile = $profileResponse['data'];
      
-        MessageChannel::updateOrCreate(
+        $channel = MessageChannel::updateOrCreate(
             ['platform' => 'instagram', 'external_id' => $profile['user_id']],
             [
                 'user_id'       => Auth::id(),
@@ -203,6 +203,27 @@ trait InstagramMessagingTrait
                 'meta'          => ['auth_type' => 'instagram_login'],
             ]
         );
+
+        // Each of these three is independently failure-tolerant
+        // (internally try/caught, logs and returns rather than
+        // throwing) - this outer try/catch is a deliberate second
+        // safety net so the channel above stays saved even if a
+        // sync/subscribe/backfill call fails.
+        try {
+            $this->syncChannelDetails($channel);
+        } catch (\Throwable $e) {
+            Log::warning('Instagram channel details sync failed after connect.', ['channel_id' => $channel->id, 'error' => $e->getMessage()]);
+        }
+        try {
+            $this->subscribeToWebhooks($channel);
+        } catch (\Throwable $e) {
+            Log::warning('Instagram channel webhook subscribe failed after connect.', ['channel_id' => $channel->id, 'error' => $e->getMessage()]);
+        }
+        try {
+            $this->backfillRecentConversations($channel);
+        } catch (\Throwable $e) {
+            Log::warning('Instagram conversation backfill failed after connect.', ['channel_id' => $channel->id, 'error' => $e->getMessage()]);
+        }
 
         return ['success' => true, 'data' => ['instagram' => 1]];
     }

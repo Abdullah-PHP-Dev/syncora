@@ -50,7 +50,9 @@ class PostAccount extends Model
         'follower_count',
         'likes_count',
         'following_count',
-        'media_count'
+        'media_count',
+        'views_count',
+        'insights',
     ];
 
     /**
@@ -65,6 +67,7 @@ class PostAccount extends Model
         'permissions' => 'array',
         'settings' => 'array',
         'metadata' => 'array',
+        'insights' => 'array',
         'token_expires_at' => 'datetime',
         'expires_in' => 'datetime',
         'last_sync_at' => 'datetime',

@@ -10,6 +10,7 @@ use App\Models\PostComment;
 use App\Models\PostAccount;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use getID3;
 use App\Models\Messaging\Conversation;
@@ -417,6 +418,201 @@ class MetaPostService
             'direct_published' => false,
             'media' => $attachedMedia,
         ];
+    }
+
+    /**
+     * Fetches current page-level stats (Page Likes/followers) plus a
+     * richer raw insights snapshot, called once right after a Page is
+     * connected. The two Graph API calls are independent - a Page too
+     * new/small to have Insights data (Meta gates several Insights
+     * metrics behind a minimum-audience threshold) must not prevent the
+     * plain fan_count/followers_count fields, which have no such gating,
+     * from saving.
+     */
+    public function syncAccountStats(PostAccount $account): void
+    {
+        $fieldsResponse = $this->api->request(
+            'get',
+            $this->baseUrl . $account->account_id,
+            [],
+            ['fields' => 'fan_count,followers_count,talking_about_count', 'access_token' => $account->access_token]
+        );
+
+        if ($fieldsResponse->successful()) {
+            $data = $fieldsResponse->json();
+            $account->update([
+                'likes_count'    => $data['fan_count'] ?? $account->likes_count,
+                'follower_count' => $data['followers_count'] ?? $account->follower_count,
+            ]);
+        } else {
+            Log::warning('Failed to fetch Facebook Page fields.', [
+                'account_id' => $account->id,
+                'error'      => $fieldsResponse->json()['error']['message'] ?? $fieldsResponse->body(),
+            ]);
+        }
+
+        try {
+            $insightsResponse = $this->api->request(
+                'get',
+                $this->baseUrl . $account->account_id . '/insights',
+                [],
+                ['metric' => 'page_impressions,page_engaged_users', 'period' => 'day', 'access_token' => $account->access_token]
+            );
+
+            if ($insightsResponse->successful()) {
+                $account->update(['insights' => array_merge($account->insights ?? [], ['page' => $insightsResponse->json()['data'] ?? []])]);
+            } else {
+                // Expected for small/new Pages - not a bug.
+                Log::warning('Facebook Page insights fetch failed (likely too new/small for this metric).', [
+                    'account_id' => $account->id,
+                    'error'      => $insightsResponse->json()['error']['message'] ?? $insightsResponse->body(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Facebook Page insights fetch threw.', ['account_id' => $account->id, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Registers this Page with the app's webhook subscription so Meta
+     * actually starts delivering feed/comment events for it - the
+     * App-Dashboard-level webhook config alone is not sufficient, Meta
+     * requires this per-Page opt-in too (POST .../subscribed_apps).
+     * 'feed' matches exactly what processCommentChange() expects for
+     * Facebook comment events.
+     */
+    public function subscribeToWebhooks(PostAccount $account): void
+    {
+        try {
+            $response = $this->api->request(
+                'post',
+                $this->baseUrl . $account->account_id . '/subscribed_apps',
+                [],
+                ['subscribed_fields' => 'feed', 'access_token' => $account->access_token]
+            );
+
+            if ($response->successful() && ($response->json()['success'] ?? false)) {
+                $account->update(['webhook_subscriptions' => true]);
+            } else {
+                Log::warning('Failed to subscribe Facebook Page to webhooks.', [
+                    'account_id' => $account->id,
+                    'error'      => $response->json()['error']['message'] ?? $response->body(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Facebook Page webhook subscription threw.', ['account_id' => $account->id, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * On connect, backfills the Page's most recent posts (default 4)
+     * along with each post's insights and comments, so a newly connected
+     * account isn't empty until the customer publishes something new
+     * through this app. Each post/insights/comments call is
+     * independently failure-tolerant - one bad post must not abort the
+     * rest of the batch.
+     */
+    public function backfillRecentPosts(PostAccount $account, int $limit = 4): void
+    {
+        $postsResponse = $this->api->request(
+            'get',
+            $this->baseUrl . $account->account_id . '/posts',
+            [],
+            ['fields' => 'id,message,created_time,full_picture', 'limit' => $limit, 'access_token' => $account->access_token]
+        );
+
+        if (!$postsResponse->successful()) {
+            Log::warning('Failed to fetch Facebook Page posts for backfill.', [
+                'account_id' => $account->id,
+                'error'      => $postsResponse->json()['error']['message'] ?? $postsResponse->body(),
+            ]);
+            return;
+        }
+
+        foreach ($postsResponse->json()['data'] ?? [] as $item) {
+            try {
+                $post = Post::updateOrCreate(
+                    ['post_account_id' => $account->id, 'post_id' => $item['id']],
+                    [
+                        'platform' => 'facebook',
+                        'user_id'  => $account->user_id,
+                        'content'  => $item['message'] ?? '',
+                        'status'   => 'completed',
+                    ]
+                );
+
+                $this->backfillPostInsights($post, $account);
+                $this->backfillPostComments($post, $account);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to backfill a Facebook post.', ['account_id' => $account->id, 'post_id' => $item['id'] ?? null, 'error' => $e->getMessage()]);
+            }
+        }
+    }
+
+    private function backfillPostInsights(Post $post, PostAccount $account): void
+    {
+        try {
+            $response = $this->api->request(
+                'get',
+                $this->baseUrl . $post->post_id . '/insights',
+                [],
+                ['metric' => 'post_impressions,post_engaged_users', 'period' => 'lifetime', 'access_token' => $account->access_token]
+            );
+
+            if (!$response->successful()) {
+                Log::warning('Facebook post insights fetch failed.', ['post_id' => $post->id, 'error' => $response->json()['error']['message'] ?? $response->body()]);
+                return;
+            }
+
+            $metrics = collect($response->json()['data'] ?? [])->keyBy('name');
+            $impressions = $metrics->get('post_impressions')['values'][0]['value'] ?? null;
+
+            $post->update([
+                'impressions'    => $impressions ?? $post->impressions,
+                'analytics_data' => $response->json()['data'] ?? [],
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Facebook post insights fetch threw.', ['post_id' => $post->id, 'error' => $e->getMessage()]);
+        }
+    }
+
+    private function backfillPostComments(Post $post, PostAccount $account): void
+    {
+        try {
+            $response = $this->api->request(
+                'get',
+                $this->baseUrl . $post->post_id . '/comments',
+                [],
+                ['fields' => 'id,message,from,created_time,like_count', 'limit' => 25, 'access_token' => $account->access_token]
+            );
+
+            if (!$response->successful()) {
+                Log::warning('Facebook post comments backfill failed.', ['post_id' => $post->id, 'error' => $response->json()['error']['message'] ?? $response->body()]);
+                return;
+            }
+
+            $comments = $response->json()['data'] ?? [];
+
+            foreach ($comments as $comment) {
+                PostComment::updateOrCreate(
+                    ['comment_id' => $comment['id'], 'post_id' => $post->id],
+                    [
+                        'platform'        => 'facebook',
+                        'content'         => $comment['message'] ?? '',
+                        'user_name'       => $comment['from']['name'] ?? 'Facebook user',
+                        'likes'           => $comment['like_count'] ?? 0,
+                        'posted_at'       => $comment['created_time'] ?? now(),
+                        'sender_type'     => 'customer',
+                        'is_reply'        => false,
+                        'post_account_id' => $account->id,
+                    ]
+                );
+            }
+
+            $post->update(['comments' => count($comments)]);
+        } catch (\Throwable $e) {
+            Log::warning('Facebook post comments backfill threw.', ['post_id' => $post->id, 'error' => $e->getMessage()]);
+        }
     }
 
     public function getPosts($pageId, $pageToken)

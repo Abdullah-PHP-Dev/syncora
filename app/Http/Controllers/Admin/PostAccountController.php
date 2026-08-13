@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\PostAccount;
 use App\Services\PostServices\ApiPostService;
+use App\Services\PostServices\InstagramPostService;
+use App\Services\PostServices\MetaPostService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
@@ -172,13 +175,13 @@ class PostAccountController extends Controller
             'redirect_uri'  => $this->metaCallbackUrl(),
             'state'         => $state,
             'response_type' => 'code',
-            'scope'         => 'pages_show_list,pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights',
+            'scope'         => 'pages_show_list,pages_manage_posts,pages_read_engagement,pages_manage_metadata,read_insights,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights',
         ]);
 
         return Redirect::away($url);
     }
 
-    public function callbackMeta(Request $request, ApiPostService $api)
+    public function callbackMeta(Request $request, ApiPostService $api, MetaPostService $metaPostService, InstagramPostService $instagramPostService)
     {
         if (!$request->filled('code') || $request->query('state') !== session('meta_oauth_state')) {
             return redirect()->route('admin.posts.create')->with('error', 'Facebook/Instagram connection failed or was cancelled.');
@@ -234,7 +237,7 @@ class PostAccountController extends Controller
         $expiresAt = Carbon::now()->addDays(60);
 
         foreach ($pagesResponse->json()['data'] ?? [] as $page) {
-            PostAccount::updateOrCreate(
+            $facebookAccount = PostAccount::updateOrCreate(
                 ['platform' => 'facebook', 'account_id' => $page['id'], 'user_id' => Auth::id()],
                 [
                     'name'         => $page['name'],
@@ -248,10 +251,33 @@ class PostAccountController extends Controller
             );
             $created['facebook']++;
 
+            // Each of these three is independently failure-tolerant
+            // (internally try/caught, logs and returns rather than
+            // throwing) - this outer try/catch is a deliberate second
+            // safety net so a Page too small for Meta's Insights API, or
+            // a token missing a scope, can never prevent the
+            // PostAccount above from having already saved, or block the
+            // other two operations from running.
+            try {
+                $metaPostService->syncAccountStats($facebookAccount);
+            } catch (\Throwable $e) {
+                Log::warning('Facebook stats sync failed after connect.', ['account_id' => $facebookAccount->id, 'error' => $e->getMessage()]);
+            }
+            try {
+                $metaPostService->subscribeToWebhooks($facebookAccount);
+            } catch (\Throwable $e) {
+                Log::warning('Facebook webhook subscribe failed after connect.', ['account_id' => $facebookAccount->id, 'error' => $e->getMessage()]);
+            }
+            try {
+                $metaPostService->backfillRecentPosts($facebookAccount);
+            } catch (\Throwable $e) {
+                Log::warning('Facebook post backfill failed after connect.', ['account_id' => $facebookAccount->id, 'error' => $e->getMessage()]);
+            }
+
             if (!empty($page['instagram_business_account']['id'])) {
                 $ig = $page['instagram_business_account'];
 
-                PostAccount::updateOrCreate(
+                $instagramAccount = PostAccount::updateOrCreate(
                     ['platform' => 'instagram', 'account_id' => $ig['id'], 'user_id' => Auth::id()],
                     [
                         'name'         => $ig['username'] ?? $page['name'],
@@ -264,6 +290,22 @@ class PostAccountController extends Controller
                     ]
                 );
                 $created['instagram']++;
+
+                try {
+                    $instagramPostService->syncAccountStats($instagramAccount);
+                } catch (\Throwable $e) {
+                    Log::warning('Instagram stats sync failed after connect.', ['account_id' => $instagramAccount->id, 'error' => $e->getMessage()]);
+                }
+                try {
+                    $instagramPostService->subscribeToWebhooks($instagramAccount);
+                } catch (\Throwable $e) {
+                    Log::warning('Instagram webhook subscribe failed after connect.', ['account_id' => $instagramAccount->id, 'error' => $e->getMessage()]);
+                }
+                try {
+                    $instagramPostService->backfillRecentPosts($instagramAccount);
+                } catch (\Throwable $e) {
+                    Log::warning('Instagram post backfill failed after connect.', ['account_id' => $instagramAccount->id, 'error' => $e->getMessage()]);
+                }
             }
         }
 
@@ -702,7 +744,7 @@ class PostAccountController extends Controller
         return Redirect::away($url);
     }
 
-    public function callbackInstagram(Request $request, ApiPostService $api)
+    public function callbackInstagram(Request $request, ApiPostService $api, InstagramPostService $instagramPostService)
     {
         // 1. Validate State and Authorization Code
         if (!$request->filled('code') || $request->query('state') !== session('instagram_oauth_state')) {
@@ -767,7 +809,7 @@ class PostAccountController extends Controller
         $accId  = $igUser['id'] ?? $igUserId;
 
         // 5. Store / Update PostAccount Record
-        PostAccount::updateOrCreate(
+        $instagramAccount = PostAccount::updateOrCreate(
             [
                 'platform'   => 'instagram',
                 'account_id' => $accId,
@@ -788,6 +830,29 @@ class PostAccountController extends Controller
                 'settings'     => ['auth_type' => 'instagram_login'],
             ]
         );
+
+        // Each of these three is independently failure-tolerant - this
+        // outer try/catch is a deliberate second safety net so the
+        // account above stays saved even if a stats/subscribe/backfill
+        // call fails (eg. too small for Insights, or subscribed_apps
+        // rejecting the standalone Instagram Login token's permission
+        // set - a newer, less battle-tested API surface than the
+        // Page-linked flow).
+        try {
+            $instagramPostService->syncAccountStats($instagramAccount);
+        } catch (\Throwable $e) {
+            Log::warning('Instagram stats sync failed after connect.', ['account_id' => $instagramAccount->id, 'error' => $e->getMessage()]);
+        }
+        try {
+            $instagramPostService->subscribeToWebhooks($instagramAccount);
+        } catch (\Throwable $e) {
+            Log::warning('Instagram webhook subscribe failed after connect.', ['account_id' => $instagramAccount->id, 'error' => $e->getMessage()]);
+        }
+        try {
+            $instagramPostService->backfillRecentPosts($instagramAccount);
+        } catch (\Throwable $e) {
+            Log::warning('Instagram post backfill failed after connect.', ['account_id' => $instagramAccount->id, 'error' => $e->getMessage()]);
+        }
 
         return redirect()->route('admin.posts.create')->with('success', "Successfully connected Instagram account (@{$igUser['username']}).");
     }

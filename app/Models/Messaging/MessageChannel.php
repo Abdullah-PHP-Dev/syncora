@@ -14,14 +14,15 @@ class MessageChannel extends Model
     protected $fillable = [
         'user_id', 'platform', 'name', 'external_id', 'username', 'avatar_url',
         'access_token', 'refresh_token', 'verify_token', 'meta', 'status',
-        'last_synced_at', 'expires_at',
+        'last_synced_at', 'expires_at', 'webhook_subscribed',
     ];
 
     protected $casts = [
-        'meta'           => 'array',
-        'status'         => 'boolean',
-        'last_synced_at' => 'datetime',
-        'expires_at'     => 'datetime',
+        'meta'                => 'array',
+        'status'              => 'boolean',
+        'last_synced_at'      => 'datetime',
+        'expires_at'          => 'datetime',
+        'webhook_subscribed'  => 'boolean',
     ];
 
     protected $hidden = ['access_token', 'refresh_token', 'verify_token'];

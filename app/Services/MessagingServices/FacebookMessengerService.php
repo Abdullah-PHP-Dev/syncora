@@ -4,10 +4,12 @@ namespace App\Services\MessagingServices;
 
 use App\Jobs\Messaging\ProcessInboundMessage;
 use App\Models\Messaging\Conversation;
+use App\Models\Messaging\Message;
 use App\Models\Messaging\MessageChannel;
 use App\Services\ApiService;
 use App\Services\MessagingServices\Concerns\MetaMessagingTrait;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 /**
  * Facebook Messenger - Meta Messenger Platform Send API + webhooks.
  * Endpoint/payload shapes verified against developers.facebook.com/docs/
@@ -131,5 +133,108 @@ class FacebookMessengerService
             'name'        => $name !== '' ? $name : null,
             'profile_pic' => $result['data']['profile_pic'] ?? null,
         ];
+    }
+
+    /**
+     * Best-effort Page profile fetch, called once right after a channel is
+     * connected. Merged into `meta` rather than replacing it outright,
+     * since other platforms/flows may already have written other keys
+     * there.
+     */
+    public function syncChannelDetails(MessageChannel $channel): void
+    {
+        $result = $this->graphApiCall('GET', $channel->external_id, ['fields' => 'about,category,phone,website,fan_count'], $channel->access_token);
+
+        if (!$result['success']) {
+            Log::warning('Facebook channel details sync failed.', ['channel_id' => $channel->id, 'error' => $result['error'] ?? null]);
+            return;
+        }
+
+        $channel->update(['meta' => array_merge($channel->meta ?? [], ['profile' => $result['data']])]);
+    }
+
+    /**
+     * Registers this Page with the app's webhook subscription so Meta
+     * actually starts delivering message events for it - the
+     * App-Dashboard-level webhook config alone is not sufficient, Meta
+     * requires this per-Page opt-in too (POST .../subscribed_apps).
+     */
+    public function subscribeToWebhooks(MessageChannel $channel): void
+    {
+        $result = $this->graphApiCall('POST', $channel->external_id . '/subscribed_apps', ['subscribed_fields' => 'messages,messaging_postbacks,message_deliveries'], $channel->access_token);
+
+        if ($result['success'] && ($result['data']['success'] ?? false)) {
+            $channel->update(['webhook_subscribed' => true]);
+        } else {
+            Log::warning('Facebook channel webhook subscribe failed.', ['channel_id' => $channel->id, 'error' => $result['error'] ?? null]);
+        }
+    }
+
+    /**
+     * On connect, backfills the Page's most recent conversations (default
+     * 5) along with each one's most recent messages (default 5), so a
+     * newly connected channel isn't empty until the customer sends
+     * something new through this app. One call using Graph API's nested
+     * field expansion (messages.limit(...)) avoids an N+1 request per
+     * conversation. Each conversation is independently failure-tolerant -
+     * one bad conversation must not abort the rest of the batch. Does not
+     * backfill attachments - the Conversations API's nested message
+     * fields don't carry attachment data without further per-message
+     * expansion, and only text history was asked for.
+     */
+    public function backfillRecentConversations(MessageChannel $channel, int $conversationLimit = 5, int $messageLimit = 5): void
+    {
+        $result = $this->graphApiCall('GET', $channel->external_id . '/conversations', [
+            'fields' => "participants,updated_time,messages.limit({$messageLimit}){id,message,from,created_time}",
+            'limit'  => $conversationLimit,
+        ], $channel->access_token);
+
+        if (!$result['success']) {
+            Log::warning('Facebook conversation backfill failed.', ['channel_id' => $channel->id, 'error' => $result['error'] ?? null]);
+            return;
+        }
+
+        foreach ($result['data']['data'] ?? [] as $conv) {
+            try {
+                $participants = collect($conv['participants']['data'] ?? []);
+                $customer = $participants->first(fn($p) => ($p['id'] ?? null) !== $channel->external_id);
+
+                if (!$customer) {
+                    continue;
+                }
+
+                $profile = $this->fetchUserProfile($customer['id'], $channel->access_token);
+
+                $conversation = Conversation::updateOrCreate(
+                    ['message_channel_id' => $channel->id, 'customer_external_id' => $customer['id']],
+                    [
+                        'platform'            => 'facebook',
+                        'customer_name'       => $profile['name'] ?? null,
+                        'customer_avatar_url' => $profile['profile_pic'] ?? null,
+                        'last_message_at'     => $conv['updated_time'] ?? now(),
+                        'status'              => 'open',
+                    ]
+                );
+
+                foreach ($conv['messages']['data'] ?? [] as $msg) {
+                    $isOutbound = ($msg['from']['id'] ?? null) === $channel->external_id;
+
+                    Message::updateOrCreate(
+                        ['conversation_id' => $conversation->id, 'external_message_id' => $msg['id']],
+                        [
+                            'direction'    => $isOutbound ? 'outbound' : 'inbound',
+                            'sender_type'  => $isOutbound ? 'agent' : 'customer',
+                            'type'         => 'text',
+                            'body'         => $msg['message'] ?? null,
+                            'status'       => 'delivered',
+                            'sent_at'      => $msg['created_time'] ?? now(),
+                            'delivered_at' => $msg['created_time'] ?? now(),
+                        ]
+                    );
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Failed to backfill a Facebook conversation.', ['channel_id' => $channel->id, 'error' => $e->getMessage()]);
+            }
+        }
     }
 }

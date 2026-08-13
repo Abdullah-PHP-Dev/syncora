@@ -8,7 +8,9 @@ use App\Models\Post;
 use App\Models\PostMedia;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use getID3;
+use App\Models\PostAccount;
 use App\Models\PostComment;
 
 class InstagramPostService
@@ -651,6 +653,196 @@ class InstagramPostService
         ];
     }
 
+
+    /**
+     * Fetches current account-level stats (followers/following/media
+     * count) plus a richer raw insights snapshot, called once right
+     * after an Instagram account is connected. Works for both the
+     * Page-linked (callbackMeta) and standalone Instagram Login
+     * (callbackInstagram) flows via resolveBaseUrl(). The two Graph API
+     * calls are independent - an account too new/small for Insights data
+     * must not prevent the plain followers_count/media_count fields,
+     * which have no such gating, from saving.
+     */
+    public function syncAccountStats(PostAccount $account): void
+    {
+        $baseUrl = $this->resolveBaseUrl($account);
+
+        $fieldsResponse = $this->api->request(
+            'get',
+            $baseUrl . $account->account_id,
+            [],
+            ['fields' => 'followers_count,follows_count,media_count', 'access_token' => $account->access_token]
+        );
+
+        if ($fieldsResponse->successful()) {
+            $data = $fieldsResponse->json();
+            $account->update([
+                'follower_count'  => $data['followers_count'] ?? $account->follower_count,
+                'following_count' => $data['follows_count'] ?? $account->following_count,
+                'media_count'     => $data['media_count'] ?? $account->media_count,
+            ]);
+        } else {
+            Log::warning('Failed to fetch Instagram account fields.', [
+                'account_id' => $account->id,
+                'error'      => $fieldsResponse->json()['error']['message'] ?? $fieldsResponse->body(),
+            ]);
+        }
+
+        try {
+            $insightsResponse = $this->api->request(
+                'get',
+                $baseUrl . $account->account_id . '/insights',
+                [],
+                ['metric' => 'reach,profile_views', 'period' => 'day', 'access_token' => $account->access_token]
+            );
+
+            if ($insightsResponse->successful()) {
+                $account->update(['insights' => array_merge($account->insights ?? [], ['account' => $insightsResponse->json()['data'] ?? []])]);
+            } else {
+                // Expected for accounts too new/small for Insights data - not a bug.
+                Log::warning('Instagram account insights fetch failed (likely too new/small for this metric).', [
+                    'account_id' => $account->id,
+                    'error'      => $insightsResponse->json()['error']['message'] ?? $insightsResponse->body(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Instagram account insights fetch threw.', ['account_id' => $account->id, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Registers this Instagram account with the app's webhook
+     * subscription so Meta actually starts delivering comment/mention
+     * events for it - the App-Dashboard-level webhook config alone is
+     * not sufficient, Meta requires this per-account opt-in too (POST
+     * .../subscribed_apps). 'comments' matches exactly what
+     * processCommentChange() expects for Instagram.
+     */
+    public function subscribeToWebhooks(PostAccount $account): void
+    {
+        try {
+            $response = $this->api->request(
+                'post',
+                $this->resolveBaseUrl($account) . $account->account_id . '/subscribed_apps',
+                [],
+                ['subscribed_fields' => 'comments,mentions', 'access_token' => $account->access_token]
+            );
+
+            if ($response->successful() && ($response->json()['success'] ?? false)) {
+                $account->update(['webhook_subscriptions' => true]);
+            } else {
+                Log::warning('Failed to subscribe Instagram account to webhooks.', [
+                    'account_id' => $account->id,
+                    'error'      => $response->json()['error']['message'] ?? $response->body(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Instagram account webhook subscription threw.', ['account_id' => $account->id, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * On connect, backfills the account's most recent media (default 4)
+     * along with each item's insights and comments, so a newly connected
+     * account isn't empty until the customer publishes something new
+     * through this app. Each media/insights/comments call is
+     * independently failure-tolerant - one bad item must not abort the
+     * rest of the batch.
+     */
+    public function backfillRecentPosts(PostAccount $account, int $limit = 4): void
+    {
+        $baseUrl = $this->resolveBaseUrl($account);
+
+        $mediaResponse = $this->api->request(
+            'get',
+            $baseUrl . $account->account_id . '/media',
+            [],
+            ['fields' => 'id,caption,media_type,media_url,timestamp,like_count,comments_count', 'limit' => $limit, 'access_token' => $account->access_token]
+        );
+
+        if (!$mediaResponse->successful()) {
+            Log::warning('Failed to fetch Instagram media for backfill.', [
+                'account_id' => $account->id,
+                'error'      => $mediaResponse->json()['error']['message'] ?? $mediaResponse->body(),
+            ]);
+            return;
+        }
+
+        foreach ($mediaResponse->json()['data'] ?? [] as $item) {
+            try {
+                $post = Post::updateOrCreate(
+                    ['post_account_id' => $account->id, 'post_id' => $item['id']],
+                    [
+                        'platform' => 'instagram',
+                        'user_id'  => $account->user_id,
+                        'content'  => $item['caption'] ?? '',
+                        'likes'    => $item['like_count'] ?? 0,
+                        'comments' => $item['comments_count'] ?? 0,
+                        'status'   => 'completed',
+                    ]
+                );
+
+                $this->backfillMediaInsights($post, $account, $baseUrl);
+                // Reuses the existing comment-backfill method verbatim
+                // rather than duplicating its logic here.
+                $this->fetchComments($post);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to backfill an Instagram media item.', ['account_id' => $account->id, 'media_id' => $item['id'] ?? null, 'error' => $e->getMessage()]);
+            }
+        }
+    }
+
+    /**
+     * 'impressions' was deprecated in favor of 'views' for Instagram
+     * media insights starting with Graph API v22.0, and this codebase
+     * runs a mix of API versions across different call sites - request
+     * the metrics that remain valid across versions unconditionally, and
+     * attempt 'impressions' separately so a deprecation-shaped 400
+     * doesn't take down the whole insights fetch.
+     */
+    private function backfillMediaInsights(Post $post, PostAccount $account, string $baseUrl): void
+    {
+        try {
+            $response = $this->api->request(
+                'get',
+                $baseUrl . $post->post_id . '/insights',
+                [],
+                ['metric' => 'reach,saved', 'access_token' => $account->access_token]
+            );
+
+            $payload = [];
+
+            if ($response->successful()) {
+                $payload = $response->json()['data'] ?? [];
+            } else {
+                Log::warning('Instagram media insights (reach,saved) fetch failed.', ['post_id' => $post->id, 'error' => $response->json()['error']['message'] ?? $response->body()]);
+            }
+
+            try {
+                $impressionsResponse = $this->api->request(
+                    'get',
+                    $baseUrl . $post->post_id . '/insights',
+                    [],
+                    ['metric' => 'impressions', 'access_token' => $account->access_token]
+                );
+
+                if ($impressionsResponse->successful()) {
+                    $payload = array_merge($payload, $impressionsResponse->json()['data'] ?? []);
+                }
+                // Silently dropped on failure (eg. deprecated on this API
+                // version) - reach/saved above already carried the fetch.
+            } catch (\Throwable $e) {
+                // Same - not fatal, impressions is a bonus metric here.
+            }
+
+            if (!empty($payload)) {
+                $post->update(['analytics_data' => $payload]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Instagram media insights fetch threw.', ['post_id' => $post->id, 'error' => $e->getMessage()]);
+        }
+    }
 
     /**
      * Backfill a post's comments from Instagram's Graph API. Used when a post

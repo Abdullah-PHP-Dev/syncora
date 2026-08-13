@@ -163,7 +163,7 @@ trait MetaMessagingTrait
         $created = 0;
 
         foreach ($pagesResponse['data']['data'] ?? [] as $page) {
-            MessageChannel::updateOrCreate(
+            $channel = MessageChannel::updateOrCreate(
                 ['platform' => 'facebook', 'external_id' => $page['id']],
                 [
                     'user_id'       => Auth::id(),
@@ -176,6 +176,27 @@ trait MetaMessagingTrait
                 ]
             );
             $created++;
+
+            // Each of these three is independently failure-tolerant
+            // (internally try/caught, logs and returns rather than
+            // throwing) - this outer try/catch is a deliberate second
+            // safety net so the channel above stays saved even if a
+            // sync/subscribe/backfill call fails.
+            try {
+                $this->syncChannelDetails($channel);
+            } catch (\Throwable $e) {
+                Log::warning('Facebook channel details sync failed after connect.', ['channel_id' => $channel->id, 'error' => $e->getMessage()]);
+            }
+            try {
+                $this->subscribeToWebhooks($channel);
+            } catch (\Throwable $e) {
+                Log::warning('Facebook channel webhook subscribe failed after connect.', ['channel_id' => $channel->id, 'error' => $e->getMessage()]);
+            }
+            try {
+                $this->backfillRecentConversations($channel);
+            } catch (\Throwable $e) {
+                Log::warning('Facebook conversation backfill failed after connect.', ['channel_id' => $channel->id, 'error' => $e->getMessage()]);
+            }
         }
 
         return ['success' => true, 'data' => ['facebook' => $created]];

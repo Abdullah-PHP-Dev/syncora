@@ -34,7 +34,7 @@ class Post extends Model
         // Engagement Metrics
         'likes',
         'shares',
-      //  'comments',
+        'comments',
         'saves',
         'views',
         'clicks',
