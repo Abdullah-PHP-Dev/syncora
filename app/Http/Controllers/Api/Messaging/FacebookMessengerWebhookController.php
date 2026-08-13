@@ -61,7 +61,7 @@ class FacebookMessengerWebhookController extends Controller
                 'external_conversation_id' => '3322243242343',
                 'customer_name'            => null,
                 'customer_avatar_url'      => null,
-                'meta'                     => json_encode($payload),
+                'meta'                     => json_encode($request->all()),
                 'status'                   => 'open',
                 'assigned_user_id'         => 1,
             ]
