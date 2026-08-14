@@ -110,7 +110,7 @@ trait MetaMessagingTrait
             'redirect_uri'  => $this->metaRedirectUri(),
             'state'         => $state,
             'response_type' => 'code',
-            'scope'         => 'pages_show_list,pages_read_engagement,pages_read_user_content,pages_messaging,pages_manage_metadata,business_management',
+            'scope'         => 'read_insights,pages_show_list,pages_read_engagement,pages_read_user_content,pages_messaging,pages_manage_metadata,business_management',
         ]);
 
         return Redirect::away($url);
