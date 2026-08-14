@@ -7,6 +7,7 @@ use App\Models\PostAccount;
 use App\Services\PostServices\ApiPostService;
 use App\Services\PostServices\InstagramPostService;
 use App\Services\PostServices\MetaPostService;
+use App\Services\PostServices\YoutubePostService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -992,14 +993,20 @@ class PostAccountController extends Controller
             'response_type' => 'code',
             'access_type'   => 'offline',
             'prompt'        => 'consent',
-            'scope'         => 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/business.manage',
+            // youtube.force-ssl is required for commentThreads/comments
+            // (list AND insert) - youtube.readonly alone gets "insufficient
+            // authentication scopes" from commentThreads.list, confirmed
+            // live. Covers both getComments() (backfill) and
+            // publishComment() (replying), which were silently broken
+            // without it.
+            'scope'         => 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/business.manage',
             'state'         => $state,
         ]);
 
         return Redirect::away($url);
     }
 
-    public function callbackGoogle(Request $request, ApiPostService $api)
+    public function callbackGoogle(Request $request, ApiPostService $api, YoutubePostService $youtubeService)
     {
         if (!$request->filled('code') || $request->query('state') !== session('google_oauth_state')) {
             return redirect()->route('admin.posts.create')->with('error', 'Google connection failed or was cancelled.');
@@ -1032,7 +1039,7 @@ class PostAccountController extends Controller
         if ($channelResponse->successful() && !empty($channelResponse->json()['items'])) {
             $channel = $channelResponse->json()['items'][0];
 
-            PostAccount::updateOrCreate(
+            $youtubeAccount = PostAccount::updateOrCreate(
                 ['platform' => 'youtube', 'account_id' => $channel['id'], 'user_id' => Auth::id()],
                 [
                     'name'          => $channel['snippet']['title'] ?? 'YouTube Channel',
@@ -1051,6 +1058,25 @@ class PostAccountController extends Controller
                 ]
             );
             $created['youtube']++;
+
+            // Each of these three is independently failure-tolerant so the
+            // channel above stays saved even if a sync/subscribe/backfill
+            // call fails - same pattern as the Meta/Instagram connect flows.
+            try {
+                $youtubeService->syncAccountStats($youtubeAccount);
+            } catch (\Throwable $e) {
+                Log::warning('YouTube channel stats sync failed after connect.', ['account_id' => $youtubeAccount->id, 'error' => $e->getMessage()]);
+            }
+            try {
+                $youtubeService->subscribeToWebhooks($youtubeAccount);
+            } catch (\Throwable $e) {
+                Log::warning('YouTube channel webhook subscribe failed after connect.', ['account_id' => $youtubeAccount->id, 'error' => $e->getMessage()]);
+            }
+            try {
+                $youtubeService->backfillRecentPosts($youtubeAccount);
+            } catch (\Throwable $e) {
+                Log::warning('YouTube video backfill failed after connect.', ['account_id' => $youtubeAccount->id, 'error' => $e->getMessage()]);
+            }
         }
 
         // Google Business Profile - every location under every account the

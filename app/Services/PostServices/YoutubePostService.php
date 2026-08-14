@@ -6,9 +6,11 @@ use App\Services\PostServices\ApiPostService;
 use Carbon\Carbon;
 use App\Jobs\UploadYoutubeVideoJob;
 use App\Models\Post;
+use App\Models\PostAccount;
 use App\Models\PostMedia;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use getID3;
 use App\Models\PostComment;
@@ -68,6 +70,48 @@ class YoutubePostService
         ]);
 
         $account->refresh();
+        return true;
+    }
+
+    /**
+     * Same refresh as ensureValidToken() above, but takes the PostAccount
+     * directly instead of assuming a Post whose ->postAccount resolves it -
+     * ensureValidToken($account) (passing a PostAccount straight in, as
+     * getComments() below used to) silently no-ops because PostAccount
+     * has no ->postAccount relation of its own, so the token just never
+     * gets refreshed. Used by every analytics/backfill path here, which
+     * only ever has a PostAccount in hand, not a Post.
+     */
+    protected function ensureFreshAccountToken(PostAccount $account): bool
+    {
+        if ($account->expires_in && now()->lt(Carbon::parse($account->expires_in)->subMinutes(5))) {
+            return true;
+        }
+
+        if (empty($account->refresh_token)) {
+            return false;
+        }
+
+        $response = Http::asForm()->post('https://oauth2.googleapis.com/token', [
+            'grant_type'    => 'refresh_token',
+            'client_id'     => adminSetting('posts.google.client_id'),
+            'client_secret' => adminSetting('posts.google.client_secret'),
+            'refresh_token' => $account->refresh_token,
+        ]);
+
+        if (!$response->successful()) {
+            Log::warning('YouTube account token refresh failed.', ['account_id' => $account->id, 'error' => $response->body()]);
+            return false;
+        }
+
+        $tokenData = $response->json();
+
+        $account->update([
+            'access_token'  => $tokenData['access_token'],
+            'refresh_token' => $tokenData['refresh_token'] ?? $account->refresh_token,
+            'expires_in'    => now()->addSeconds($tokenData['expires_in']),
+        ]);
+
         return true;
     }
 
@@ -475,6 +519,222 @@ class YoutubePostService
         }
     }
     /**
+     * Refreshes the channel's subscriber/view/video counts, called once
+     * right after connect and safe to re-run any time. YouTube's channel
+     * statistics don't include likes/shares - those only exist per-video,
+     * not at the channel level, so this only ever populates
+     * follower_count (subscriberCount), views_count (viewCount) and
+     * media_count (videoCount), same as syncAccountStats() on the other
+     * platforms. The raw statistics payload is merged into `insights`
+     * for anything not surfaced via a dedicated column.
+     */
+    public function syncAccountStats(PostAccount $account): void
+    {
+        $this->ensureFreshAccountToken($account);
+
+        $response = Http::withToken($account->access_token)
+            ->get("{$this->baseUrl}/channels", [
+                'part' => 'statistics',
+                'id'   => $account->account_id,
+            ]);
+
+        if (!$response->successful()) {
+            Log::warning('Failed to fetch YouTube channel statistics.', [
+                'account_id' => $account->id,
+                'error'      => $response->json()['error']['message'] ?? $response->body(),
+            ]);
+            return;
+        }
+
+        $stats = $response->json()['items'][0]['statistics'] ?? null;
+
+        if (!$stats) {
+            return;
+        }
+
+        $account->update([
+            'follower_count' => $stats['hiddenSubscriberCount'] ?? false ? $account->follower_count : ($stats['subscriberCount'] ?? $account->follower_count),
+            'views_count'    => $stats['viewCount'] ?? $account->views_count,
+            'media_count'    => $stats['videoCount'] ?? $account->media_count,
+            'insights'       => array_merge($account->insights ?? [], ['channel' => $stats]),
+        ]);
+    }
+
+    /**
+     * Registers this channel's upload feed with Google's PubSubHubbub
+     * (WebSub) hub, the only real-time push mechanism YouTube's public
+     * API offers - it notifies on new/updated video publishes via
+     * YoutubeWebhookController, nothing more. There is no push
+     * notification for comments, likes, or shares on YouTube at all
+     * (unlike Meta's Graph API webhooks) - comment/engagement data can
+     * only ever be pulled via the Data API, which is what
+     * backfillRecentPosts() below does, and what the WebSub receive
+     * handler re-runs (scoped to just the new video) whenever this
+     * subscription fires.
+     *
+     * The hub lease expires (~5 days per Google's hub) and must be
+     * renewed before then - callers should re-invoke this periodically
+     * (see YoutubeWebhookController's docblock for the renewal command).
+     */
+    public function subscribeToWebhooks(PostAccount $account): void
+    {
+        $topic = 'https://www.youtube.com/xml/feeds/videos.xml?channel_id=' . $account->account_id;
+        $callback = route('comments.webhook.youtube.receive');
+
+        try {
+            $response = Http::asForm()->post('https://pubsubhubbub.appspot.com/subscribe', [
+                'hub.mode'     => 'subscribe',
+                'hub.topic'    => $topic,
+                'hub.callback' => $callback,
+                'hub.verify'   => 'async',
+                'hub.secret'   => adminSetting('posts.youtube.webhook_secret', 'socialeaz-youtube-hub'),
+            ]);
+
+            // The hub responds 202 Accepted and verifies asynchronously via
+            // a GET to hub.callback (YoutubeWebhookController::verify) -
+            // a 202/204 here only means the subscription request was
+            // queued, not that it's active yet.
+            if (in_array($response->status(), [202, 204], true)) {
+                $account->update(['webhook_subscriptions' => true]);
+            } else {
+                Log::warning('YouTube WebSub subscribe request failed.', [
+                    'account_id' => $account->id,
+                    'status'     => $response->status(),
+                    'body'       => $response->body(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('YouTube WebSub subscribe threw.', ['account_id' => $account->id, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * On connect, backfills the channel's most recent videos (default 4)
+     * along with each video's real statistics and its 5 most recent
+     * top-level comments, so a newly connected channel isn't empty until
+     * something new gets published. Each video is independently
+     * failure-tolerant - one bad video must not abort the rest of the
+     * batch.
+     */
+    public function backfillRecentPosts(PostAccount $account, int $videoLimit = 4, int $commentLimit = 5): void
+    {
+        $this->ensureFreshAccountToken($account);
+
+        $searchResponse = Http::withToken($account->access_token)
+            ->get("{$this->baseUrl}/search", [
+                'channelId'  => $account->account_id,
+                'part'       => 'id',
+                'order'      => 'date',
+                'type'       => 'video',
+                'maxResults' => $videoLimit,
+            ]);
+
+        if (!$searchResponse->successful()) {
+            Log::warning('Failed to fetch YouTube videos for backfill.', [
+                'account_id' => $account->id,
+                'error'      => $searchResponse->json()['error']['message'] ?? $searchResponse->body(),
+            ]);
+            return;
+        }
+
+        $videoIds = collect($searchResponse->json()['items'] ?? [])
+            ->pluck('id.videoId')
+            ->filter()
+            ->values();
+
+        if ($videoIds->isEmpty()) {
+            Log::info('YouTube video backfill returned zero videos.', ['account_id' => $account->id]);
+            return;
+        }
+
+        foreach ($videoIds as $videoId) {
+            try {
+                $this->backfillOneVideo($account, $videoId, $commentLimit);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to backfill a YouTube video.', ['account_id' => $account->id, 'video_id' => $videoId, 'error' => $e->getMessage()]);
+            }
+        }
+    }
+
+    /**
+     * Fetches one video's real snippet/statistics and stores/updates its
+     * Post row, then its latest $commentLimit top-level comments. Shared
+     * between backfillRecentPosts() (connect-time batch) and
+     * YoutubeWebhookController (a single new video announced via
+     * WebSub) so both paths store identically-shaped data.
+     */
+    public function backfillOneVideo(PostAccount $account, string $videoId, int $commentLimit = 5): ?Post
+    {
+        $this->ensureFreshAccountToken($account);
+
+        $videoResponse = Http::withToken($account->access_token)
+            ->get("{$this->baseUrl}/videos", [
+                'part' => 'snippet,statistics',
+                'id'   => $videoId,
+            ]);
+
+        if (!$videoResponse->successful()) {
+            Log::warning('Failed to fetch YouTube video details.', ['account_id' => $account->id, 'video_id' => $videoId, 'error' => $videoResponse->json()['error']['message'] ?? $videoResponse->body()]);
+            return null;
+        }
+
+        $video = $videoResponse->json()['items'][0] ?? null;
+
+        if (!$video) {
+            return null;
+        }
+
+        $snippet = $video['snippet'] ?? [];
+        $stats = $video['statistics'] ?? [];
+
+        $post = Post::updateOrCreate(
+            ['post_account_id' => $account->id, 'post_id' => $videoId],
+            [
+                'platform'    => 'youtube',
+                'user_id'     => $account->user_id,
+                'title'       => $snippet['title'] ?? null,
+                'post_url'    => 'https://www.youtube.com/watch?v=' . $videoId,
+                'content'     => $snippet['description'] ?? '',
+                'media_url'   => $snippet['thumbnails']['high']['url'] ?? ($snippet['thumbnails']['default']['url'] ?? null),
+                'likes'       => (int) ($stats['likeCount'] ?? 0),
+                'views'       => (int) ($stats['viewCount'] ?? 0),
+                'comments'    => (int) ($stats['commentCount'] ?? 0),
+                'status'      => 'completed',
+            ]
+        );
+
+        $commentsResult = $this->getComments($videoId, $account);
+
+        if ($commentsResult['success'] ?? false) {
+            foreach (array_slice($commentsResult['data'], 0, $commentLimit) as $thread) {
+                $top = $thread['snippet']['topLevelComment']['snippet'] ?? null;
+                $commentId = $thread['snippet']['topLevelComment']['id'] ?? null;
+
+                if (!$top || !$commentId) {
+                    continue;
+                }
+
+                PostComment::updateOrCreate(
+                    ['platform' => 'youtube', 'comment_id' => $commentId],
+                    [
+                        'content'         => $top['textDisplay'] ?? '',
+                        'sender_type'     => 'customer',
+                        'user_id'         => $account->user_id,
+                        'user_name'       => $top['authorDisplayName'] ?? 'YouTube user',
+                        'user_avatar_url' => $top['authorProfileImageUrl'] ?? null,
+                        'likes'           => (int) ($top['likeCount'] ?? 0),
+                        'post_id'         => $post->id,
+                        'post_account_id' => $account->id,
+                        'is_reply'        => false,
+                    ]
+                );
+            }
+        }
+
+        return $post;
+    }
+
+    /**
      * Get posts for a channel
      */
     public function getPosts($channelId, $accessToken)
@@ -738,13 +998,7 @@ class YoutubePostService
 
     public function getComments($videoId, $account)
     {
-
-        if (!$this->ensureValidToken($account)) {
-            $errors = [
-                'success' => false,
-                'message' => 'Failed to refresh access token'
-            ];
-        }
+        $this->ensureFreshAccountToken($account);
 
         $response = Http::withToken($account->access_token)
             ->get(

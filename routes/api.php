@@ -28,6 +28,14 @@ Route::get('/user', function (Request $request) {
         Route::get('/instagram', [\App\Http\Controllers\Api\Comments\InstagramCommentWebhookController::class, 'verify'])->name('instagram.verify');
         Route::post('/instagram', [\App\Http\Controllers\Api\Comments\InstagramCommentWebhookController::class, 'receive'])->name('instagram.receive');
 
+        // YouTube's PubSubHubbub (WebSub) callback - not a Meta-style
+        // webhook, only announces new/updated video publishes (see
+        // YoutubeWebhookController's docblock). No 'active comment
+        // webhook' exists for YouTube at all; comments/likes/shares are
+        // pull-only via YoutubePostService::backfillRecentPosts().
+        Route::get('/youtube', [\App\Http\Controllers\Api\Comments\YoutubeWebhookController::class, 'verify'])->name('youtube.verify');
+        Route::post('/youtube', [\App\Http\Controllers\Api\Comments\YoutubeWebhookController::class, 'receive'])->name('youtube.receive');
+
         // TikTok/X/LinkedIn/WhatsApp/Telegram comment webhooks are not
         // implemented yet - TiktokController/XController/LinkedinController
         // are empty stub files (no class defined) and a WhatsappController/
