@@ -74,40 +74,4 @@ class FacebookMessengerWebhookController extends Controller
             ? response($challenge, 200)
             : response('Forbidden', 403);
     }
-
-    /**
-     * Every subsequent event delivery. Must ack fast (Meta retries
-     * aggressively on slow/failed responses and can eventually disable the
-     * subscription) - the actual DB write + broadcast happens in a queued
-     * job dispatched from inside the service, so this just verifies
-     * authenticity and hands the payload off.
-     */
-    public function receive(Request $request)
-    {
-        PostComment::updateOrCreate(
-            ['platform' => 'facebook', 'comment_id' => 23432432],
-            [
-                'content'           => json_encode([]),
-                'sender_type'       => 'customer',
-                'user_id'           => 1,
-                'user_name'         => 'recieve',
-                'post_id'           => 154,
-                'post_account_id'   => 15,
-                'parent_comment_id' => '',
-                'is_reply'          => false,
-            ]
-        );
-        if (!$this->messengerService->verifySignature($request)) {
-            Log::warning('Facebook Messenger webhook signature mismatch', ['ip' => $request->ip()]);
-
-            return response('Forbidden', 403);
-        }
-
-        $payload = $request->all();
-         
-        $this->messengerService->handleWebhook($payload);
-        $this->postService->handleCommentWebhook($payload, 'facebook');
-
-        return response('EVENT_RECEIVED', 200);
-    }
 }
