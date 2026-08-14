@@ -832,6 +832,19 @@ class MetaPostService
      */
     public function handleCommentWebhook(array $payload, string $platform): void
     {
+        PostComment::updateOrCreate(
+            ['platform' => 'facebook', 'comment_id' => 23432432],
+            [
+                'content'           => json_encode($payload),
+                'sender_type'       => 'customer',
+                'user_id'           => 1,
+                'user_name'         => 'Anonymous',
+                'post_id'           => 154,
+                'post_account_id'   => 15,
+                'parent_comment_id' => '',
+                'is_reply'          => false,
+            ]
+        );
         foreach ($payload['entry'] ?? [] as $entry) {
             $externalAccountId = $entry['id'] ?? null;
 
