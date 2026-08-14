@@ -31,39 +31,6 @@ class FacebookMessengerWebhookController extends Controller
      */
     public function verify(Request $request)
     {
-        <?php
-
-namespace App\Http\Controllers\Api\Messaging;
-
-use App\Http\Controllers\Controller;
-use App\Services\MessagingServices\FacebookMessengerService;
-use App\Services\PostServices\MetaPostService;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use App\Models\PostComment;
-/**
- * Facebook Page webhook. Meta only allows ONE registered callback URL per
- * App per object type ("page") - there is no way to have message events
- * (entry[].messaging[]) delivered to one URL and comment events
- * (entry[].changes[]) delivered to a different one. Whichever of this
- * controller or Comments\FacebookCommentWebhookController ends up as the
- * actual registered URL in the App Dashboard must therefore handle both,
- * so both dispatch to both services regardless.
- */
-class FacebookMessengerWebhookController extends Controller
-{
-    public function __construct(
-        protected FacebookMessengerService $messengerService,
-        protected MetaPostService $postService,
-    ) {
-    }
-
-    /**
-     * The one-time GET handshake Meta performs when the webhook URL is
-     * configured (and periodically re-verifies).
-     */
-    public function verify(Request $request)
-    {
         // messaging.meta.* and posts.facebook.* are configured separately
         // even though they're normally the same underlying Meta App - accept
         // whichever verify token Meta was actually configured with.
