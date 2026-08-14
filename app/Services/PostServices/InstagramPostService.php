@@ -783,6 +783,20 @@ class InstagramPostService
                     ]
                 );
 
+                if (!empty($item['media_url'])) {
+                    PostMedia::updateOrCreate(
+                        ['post_id' => $post->id],
+                        [
+                            'platform'         => 'instagram',
+                            'user_id'          => $account->user_id,
+                            'post_account_id'  => $account->id,
+                            'media_id'         => $item['id'],
+                            'media_url'        => $item['media_url'],
+                            'media_type'       => strtolower($item['media_type'] ?? 'image'),
+                        ]
+                    );
+                }
+
                 $this->backfillMediaInsights($post, $account, $baseUrl);
                 // Reuses the existing comment-backfill method verbatim
                 // rather than duplicating its logic here.

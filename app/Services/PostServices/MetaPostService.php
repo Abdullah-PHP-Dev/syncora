@@ -541,6 +541,19 @@ class MetaPostService
                     ]
                 );
 
+                if (!empty($item['full_picture'])) {
+                    PostMedia::updateOrCreate(
+                        ['post_id' => $post->id],
+                        [
+                            'platform'         => 'facebook',
+                            'user_id'          => $account->user_id,
+                            'post_account_id'  => $account->id,
+                            'media_url'        => $item['full_picture'],
+                            'media_type'       => 'image',
+                        ]
+                    );
+                }
+
                 $this->backfillPostInsights($post, $account);
                 $this->backfillPostComments($post, $account);
             } catch (\Throwable $e) {
