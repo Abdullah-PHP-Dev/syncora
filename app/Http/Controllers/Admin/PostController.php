@@ -21,6 +21,7 @@ use App\Models\PostCategory;
 use App\Models\PostAccount;
 use App\Models\PostMedia;
 use App\Models\PostComment;
+use App\Models\Messaging\Message;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -58,14 +59,25 @@ class PostController extends Controller
     public function dashboard(Request $request)
     {
         $userId = Auth::id();
-    
+
+        // ---- Date range filter (applies to posts/engagement below;
+        // defaults to all-time when not provided) ----
+        $dateFrom = $request->filled('from') ? \Carbon\Carbon::parse($request->query('from'))->startOfDay() : null;
+        $dateTo   = $request->filled('to') ? \Carbon\Carbon::parse($request->query('to'))->endOfDay() : null;
+
         // ---- Accounts ----
         $accounts = PostAccount::whereUserId($userId)->get();
         $totalAccounts = $accounts->count();
         $accountsByPlatform = $accounts->groupBy('platform')->map->count();
-    
+        $totalFollowers = (int) $accounts->sum('follower_count');
+        $totalAccountLikes = (int) $accounts->sum('likes_count');
+        $totalMedia = (int) $accounts->sum('media_count');
+
         // ---- Posts Query ----
         $postQuery = Post::where('user_id', $userId);
+        if ($dateFrom && $dateTo) {
+            $postQuery->whereBetween('created_at', [$dateFrom, $dateTo]);
+        }
         // Status counts
         $totalPosts = (clone $postQuery)->count();
         $publishedPosts = (clone $postQuery)->where('status', 'published')->count();
@@ -79,10 +91,12 @@ class PostController extends Controller
         $totalComments = PostComment::whereHas('post', function($q) use ($userId) {
             $q->where('user_id', $userId);
         })->count();
-        $totalShares   = (clone $postQuery)->sum('shares');
-        $totalViews    = (clone $postQuery)->sum('views');
+        $totalShares      = (clone $postQuery)->sum('shares');
+        $totalViews       = (clone $postQuery)->sum('views');
+        $totalImpressions = (clone $postQuery)->sum('impressions');
+        $totalReach       = (clone $postQuery)->sum('reach');
         $totalEngagement = $totalLikes + $totalComments + $totalShares + $totalViews;
-        
+
         // ---- Categories with post counts ----
         $categories = PostCategory::where('user_id', $userId)
             ->withCount(['posts' => function ($q) {
@@ -93,15 +107,21 @@ class PostController extends Controller
         // ---- Monthly data for charts (last 7 months) ----
         $months = [];
         $monthlyPostCounts = [];
+        $monthlyLikes = [];
+        $monthlyViews = [];
+        $monthlyImpressions = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = now()->subMonths($i);
             $months[] = $date->format('M');
-            $monthlyPostCounts[] = (clone $postQuery)
+            $monthPosts = (clone $postQuery)
                 ->whereMonth('created_at', $date->month)
-                ->whereYear('created_at', $date->year)
-                ->count();
+                ->whereYear('created_at', $date->year);
+            $monthlyPostCounts[] = (clone $monthPosts)->count();
+            $monthlyLikes[]      = (int) (clone $monthPosts)->sum('likes');
+            $monthlyViews[]      = (int) (clone $monthPosts)->sum('views');
+            $monthlyImpressions[] = (int) (clone $monthPosts)->sum('impressions');
         }
-    
+
         // Compute month-over-month growth for the "Growth" card
         $growthPercent = 0;
         if (count($monthlyPostCounts) >= 2) {
@@ -118,10 +138,108 @@ class PostController extends Controller
     
         // ---- Additional: total comments count (for Payments card) ----
         $totalCommentsAll = PostComment::where('user_id', $userId)->count();
-    
+
+        // ---- Comments grouped by platform ----
+        $commentsByPlatform = PostComment::where('user_id', $userId)
+            ->selectRaw('platform, count(*) as total')
+            ->groupBy('platform')
+            ->pluck('total', 'platform');
+
+        // ---- Latest inbound DMs across all connected channels ----
+        $latestMessages = Message::whereHas('conversation.channel', function ($q) use ($userId) {
+                $q->where('user_id', $userId);
+            })
+            ->where('direction', 'inbound')
+            ->with('conversation')
+            ->orderByDesc('created_at')
+            ->limit(6)
+            ->get();
+
+        $totalMessages = Message::whereHas('conversation.channel', function ($q) use ($userId) {
+            $q->where('user_id', $userId);
+        })->count();
+
+        // ---- Connected accounts overview (followers/likes/media per account) ----
+        $accountsOverview = $accounts->map(function ($account) {
+            return [
+                'id'             => $account->id,
+                'platform'       => $account->platform,
+                'name'           => $account->name ?: $account->username,
+                'username'       => $account->username,
+                'image'          => $account->image,
+                'follower_count' => (int) $account->follower_count,
+                'likes_count'    => (int) $account->likes_count,
+                'media_count'    => (int) $account->media_count,
+                'views_count'    => (int) $account->views_count,
+            ];
+        })->sortByDesc('follower_count')->values();
+
+        // ---- Engagement rate: (likes+comments+shares) / reach ----
+        // Reach under 50 makes the ratio meaningless (a handful of test
+        // engagements against near-zero reach produces absurd percentages
+        // like 4000%+) - show it as unavailable rather than a misleading number.
+        $engagementRate = $totalReach >= 50
+            ? round((($totalLikes + $totalComments + $totalShares) / $totalReach) * 100, 2)
+            : null;
+
+        // ---- Upcoming scheduled posts ----
+        $upcomingPosts = Post::where('user_id', $userId)
+            ->where('status', 'scheduled')
+            ->whereNotNull('schedule_at')
+            ->where('schedule_at', '>=', now())
+            ->with(['postAccount', 'media'])
+            ->orderBy('schedule_at')
+            ->limit(4)
+            ->get();
+
+        // ---- Last 7 days daily performance (for the tabbed chart) ----
+        $dailyLabels = [];
+        $dailyReach = [];
+        $dailyEngagement = [];
+        $dailyClicks = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $day = now()->subDays($i);
+            $dailyLabels[] = $day->format('M d');
+            $dayPosts = Post::where('user_id', $userId)->whereDate('created_at', $day->toDateString());
+            $dailyReach[] = (int) (clone $dayPosts)->sum('reach');
+            $dailyEngagement[] = (int) (clone $dayPosts)->sum(DB::raw('likes + comments + shares'));
+            $dailyClicks[] = (int) (clone $dayPosts)->sum('clicks');
+        }
+
+        // ---- Recent + top performing posts (for the two-column feed) ----
+        $recentPosts = (clone $postQuery)->with(['postAccount', 'media'])->latest()->limit(4)->get();
+        $topPosts = (clone $postQuery)->with(['postAccount', 'media'])
+            ->orderByRaw('(likes + shares + comments + reach) DESC')
+            ->limit(4)
+            ->get();
+
+        // ---- Current month calendar: which days have posts/comments/messages ----
+        $calendarMonth = now();
+        $calendarPostDays = Post::where('user_id', $userId)
+            ->whereMonth('created_at', $calendarMonth->month)
+            ->whereYear('created_at', $calendarMonth->year)
+            ->get()
+            ->groupBy(fn ($p) => $p->created_at->day)
+            ->map->count();
+        $calendarPostsThisMonth = (int) $calendarPostDays->sum();
+        $calendarCommentsThisMonth = PostComment::where('user_id', $userId)
+            ->whereMonth('created_at', $calendarMonth->month)
+            ->whereYear('created_at', $calendarMonth->year)
+            ->count();
+        $calendarMessagesThisMonth = Message::whereHas('conversation.channel', function ($q) use ($userId) {
+                $q->where('user_id', $userId);
+            })
+            ->whereMonth('created_at', $calendarMonth->month)
+            ->whereYear('created_at', $calendarMonth->year)
+            ->count();
+
         return view($this->_config['view'], compact(
             'totalAccounts',
             'accountsByPlatform',
+            'accountsOverview',
+            'totalFollowers',
+            'totalAccountLikes',
+            'totalMedia',
             'totalPosts',
             'publishedPosts',
             'scheduledPosts',
@@ -132,13 +250,36 @@ class PostController extends Controller
             'totalComments',
             'totalShares',
             'totalViews',
+            'totalImpressions',
+            'totalReach',
             'totalEngagement',
             'categories',
             'months',
             'monthlyPostCounts',
+            'monthlyLikes',
+            'monthlyViews',
+            'monthlyImpressions',
             'growthPercent',
             'recentComments',
-            'totalCommentsAll'
+            'totalCommentsAll',
+            'commentsByPlatform',
+            'latestMessages',
+            'totalMessages',
+            'dateFrom',
+            'dateTo',
+            'engagementRate',
+            'upcomingPosts',
+            'dailyLabels',
+            'dailyReach',
+            'dailyEngagement',
+            'dailyClicks',
+            'calendarMonth',
+            'calendarPostDays',
+            'calendarPostsThisMonth',
+            'calendarCommentsThisMonth',
+            'calendarMessagesThisMonth',
+            'recentPosts',
+            'topPosts'
         ));
     }
     /**

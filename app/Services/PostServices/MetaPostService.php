@@ -518,7 +518,7 @@ class MetaPostService
             'get',
             $this->baseUrl . $account->account_id . '/posts',
             [],
-            ['fields' => 'id,message,created_time,full_picture', 'limit' => $limit, 'access_token' => $account->access_token]
+            ['fields' => 'id,message,created_time,full_picture,shares,likes.summary(true)', 'limit' => $limit, 'access_token' => $account->access_token]
         );
 
         if (!$postsResponse->successful()) {
@@ -537,6 +537,8 @@ class MetaPostService
                         'platform' => 'facebook',
                         'user_id'  => $account->user_id,
                         'content'  => $item['message'] ?? '',
+                        'likes'    => $item['likes']['summary']['total_count'] ?? 0,
+                        'shares'   => $item['shares']['count'] ?? 0,
                         'status'   => 'completed',
                     ]
                 );

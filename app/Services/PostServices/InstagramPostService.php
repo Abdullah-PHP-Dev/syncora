@@ -851,7 +851,15 @@ class InstagramPostService
             }
 
             if (!empty($payload)) {
-                $post->update(['analytics_data' => $payload]);
+                $metrics = collect($payload)->keyBy('name');
+                $reach = $metrics->get('reach')['values'][0]['value'] ?? null;
+                $impressions = $metrics->get('impressions')['values'][0]['value'] ?? $metrics->get('views')['values'][0]['value'] ?? null;
+
+                $post->update([
+                    'reach'          => $reach ?? $post->reach,
+                    'impressions'    => $impressions ?? $post->impressions,
+                    'analytics_data' => $payload,
+                ]);
             }
         } catch (\Throwable $e) {
             Log::warning('Instagram media insights fetch threw.', ['post_id' => $post->id, 'error' => $e->getMessage()]);
