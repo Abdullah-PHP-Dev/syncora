@@ -7,7 +7,6 @@ use App\Services\MessagingServices\FacebookMessengerService;
 use App\Services\PostServices\MetaPostService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use App\Models\PostComment;
 /**
  * Facebook Page webhook. Meta only allows ONE registered callback URL per
  * App per object type ("page") - there is no way to have message events
@@ -51,27 +50,23 @@ class FacebookMessengerWebhookController extends Controller
      */
     public function receive(Request $request)
     {
-        PostComment::updateOrCreate(
-            ['platform' => 'facebook', 'comment_id' => 23432432],
-            [
-                'content'           => json_encode([]),
-                'sender_type'       => 'customer',
-                'user_id'           => 1,
-                'user_name'         => 'verify',
-                'post_id'           => 154,
-                'post_account_id'   => 15,
-                'parent_comment_id' => '',
-                'is_reply'          => false,
-            ]
-        );
-        // messaging.meta.* and posts.facebook.* are configured separately
-        // even though they're normally the same underlying Meta App - accept
-        // whichever verify token Meta was actually configured with.
-        $challenge = $this->messengerService->verifyWebhook($request)
-            ?? $this->postService->verifyWebhook($request);
+        // Crash-proof delivery proof: check storage/logs/laravel.log for
+        // this line after a real event to confirm Meta is actually
+        // calling this endpoint, without the foreign-key risk a hardcoded
+        // DB insert here carries (see git history on this file for why).
+        Log::info('Facebook webhook payload received', ['payload' => $request->all()]);
 
-        return $challenge !== null
-            ? response($challenge, 200)
-            : response('Forbidden', 403);
+        if (!$this->messengerService->verifySignature($request)) {
+            Log::warning('Facebook Messenger webhook signature mismatch', ['ip' => $request->ip()]);
+
+            return response('Forbidden', 403);
+        }
+
+        $payload = $request->all();
+
+        $this->messengerService->handleWebhook($payload);
+        $this->postService->handleCommentWebhook($payload, 'facebook');
+
+        return response('EVENT_RECEIVED', 200);
     }
 }

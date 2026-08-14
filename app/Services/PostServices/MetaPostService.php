@@ -531,9 +531,19 @@ class MetaPostService
 
         foreach ($postsResponse->json()['data'] ?? [] as $item) {
             try {
-                $post = Post::updateOrCreate(
-                    ['post_account_id' => $account->id, 'post_id' => $item['id']],
+                // Backfill is a one-time "don't leave a freshly connected
+                // account empty" seed, not a sync - a post already on file
+                // (eg. from a previous connect of this same account) is
+                // left untouched rather than re-fetching its media/
+                // insights/comments on every reconnect.
+                if (Post::where('post_account_id', $account->id)->where('post_id', $item['id'])->exists()) {
+                    continue;
+                }
+
+                $post = Post::create(
                     [
+                        'post_account_id' => $account->id,
+                        'post_id'  => $item['id'],
                         'platform' => 'facebook',
                         'user_id'  => $account->user_id,
                         'content'  => $item['message'] ?? '',

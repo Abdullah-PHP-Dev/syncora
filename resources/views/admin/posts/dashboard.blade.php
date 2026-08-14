@@ -169,8 +169,9 @@
                             @php $meta = $platformMeta[$post->platform] ?? ['icon' => 'bx-globe', 'class' => 'facebook']; @endphp
                             <li>
                                 <div class="dash-list-thumb">
-                                    @if($post->media->first())
-                                    <img src="{{ $post->media->first()->media_url }}" alt="">
+                                    @php $thumb = $post->media->first()->media_url ?? $post->media_url ?? null; @endphp
+                                    @if($thumb)
+                                    <img src="{{ $thumb }}" alt="">
                                     @else
                                     <span class="social-icon-mini {{ $meta['class'] }}"><i class="bx {{ $meta['icon'] }}"></i></span>
                                     @endif
@@ -201,8 +202,9 @@
                     @php $meta = $platformMeta[$post->platform] ?? ['icon' => 'bx-globe', 'class' => 'facebook']; @endphp
                     <li>
                         <div class="dash-list-thumb">
-                            @if($post->media->first())
-                            <img src="{{ $post->media->first()->media_url }}" alt="">
+                            @php $thumb = $post->media->first()->media_url ?? $post->media_url ?? null; @endphp
+                            @if($thumb)
+                            <img src="{{ $thumb }}" alt="">
                             @else
                             <span class="social-icon-mini {{ $meta['class'] }}"><i class="bx {{ $meta['icon'] }}"></i></span>
                             @endif
@@ -259,8 +261,9 @@
                     @php $meta = $platformMeta[$post->platform] ?? ['icon' => 'bx-globe', 'class' => 'facebook']; @endphp
                     <li>
                         <div class="dash-list-thumb">
-                            @if($post->media->first())
-                            <img src="{{ $post->media->first()->media_url }}" alt="">
+                            @php $thumb = $post->media->first()->media_url ?? $post->media_url ?? null; @endphp
+                            @if($thumb)
+                            <img src="{{ $thumb }}" alt="">
                             @else
                             <span class="social-icon-mini {{ $meta['class'] }}"><i class="bx {{ $meta['icon'] }}"></i></span>
                             @endif
@@ -289,8 +292,9 @@
                     @php $meta = $platformMeta[$post->platform] ?? ['icon' => 'bx-globe', 'class' => 'facebook']; @endphp
                     <li>
                         <div class="dash-list-thumb">
-                            @if($post->media->first())
-                            <img src="{{ $post->media->first()->media_url }}" alt="">
+                            @php $thumb = $post->media->first()->media_url ?? $post->media_url ?? null; @endphp
+                            @if($thumb)
+                            <img src="{{ $thumb }}" alt="">
                             @else
                             <span class="social-icon-mini {{ $meta['class'] }}"><i class="bx {{ $meta['icon'] }}"></i></span>
                             @endif

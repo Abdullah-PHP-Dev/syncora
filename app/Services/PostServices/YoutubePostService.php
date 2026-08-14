@@ -649,6 +649,18 @@ class YoutubePostService
 
         foreach ($videoIds as $videoId) {
             try {
+                // Backfill is a one-time "don't leave a freshly connected
+                // channel empty" seed, not a sync - a video already on
+                // file (eg. from a previous connect of this same channel)
+                // is left untouched rather than re-fetching its
+                // stats/comments on every reconnect. WebSub notifications
+                // (YoutubeWebhookController) call backfillOneVideo()
+                // directly and do still update on every call, since those
+                // specifically mean "this video changed."
+                if (Post::where('post_account_id', $account->id)->where('post_id', $videoId)->exists()) {
+                    continue;
+                }
+
                 $this->backfillOneVideo($account, $videoId, $commentLimit);
             } catch (\Throwable $e) {
                 Log::warning('Failed to backfill a YouTube video.', ['account_id' => $account->id, 'video_id' => $videoId, 'error' => $e->getMessage()]);
@@ -687,6 +699,8 @@ class YoutubePostService
         $snippet = $video['snippet'] ?? [];
         $stats = $video['statistics'] ?? [];
 
+        $thumbnailUrl = $snippet['thumbnails']['high']['url'] ?? ($snippet['thumbnails']['default']['url'] ?? null);
+
         $post = Post::updateOrCreate(
             ['post_account_id' => $account->id, 'post_id' => $videoId],
             [
@@ -695,13 +709,34 @@ class YoutubePostService
                 'title'       => $snippet['title'] ?? null,
                 'post_url'    => 'https://www.youtube.com/watch?v=' . $videoId,
                 'content'     => $snippet['description'] ?? '',
-                'media_url'   => $snippet['thumbnails']['high']['url'] ?? ($snippet['thumbnails']['default']['url'] ?? null),
+                'media_url'   => $thumbnailUrl,
                 'likes'       => (int) ($stats['likeCount'] ?? 0),
                 'views'       => (int) ($stats['viewCount'] ?? 0),
                 'comments'    => (int) ($stats['commentCount'] ?? 0),
                 'status'      => 'completed',
             ]
         );
+
+        // Post.media_url alone isn't enough - blade views (dashboard,
+        // Recent/Top Posts) read the post_media relation for thumbnails,
+        // not this column directly, same as the Facebook/Instagram
+        // backfills. No raw video file URL exists to store (YouTube's API
+        // never exposes one) - the thumbnail is the only real media asset
+        // available, so it's what both Post.media_url and this row use.
+        if ($thumbnailUrl) {
+            PostMedia::updateOrCreate(
+                ['post_id' => $post->id],
+                [
+                    'platform'        => 'youtube',
+                    'user_id'         => $account->user_id,
+                    'post_account_id' => $account->id,
+                    'media_id'        => $videoId,
+                    'media_url'       => $thumbnailUrl,
+                    'thumbnail_url'   => $thumbnailUrl,
+                    'media_type'      => 'video',
+                ]
+            );
+        }
 
         $commentsResult = $this->getComments($videoId, $account);
 
