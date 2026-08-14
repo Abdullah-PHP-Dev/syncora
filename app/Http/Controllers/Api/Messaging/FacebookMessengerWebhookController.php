@@ -7,7 +7,6 @@ use App\Services\MessagingServices\FacebookMessengerService;
 use App\Services\PostServices\MetaPostService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use App\Models\PostComment;
 /**
  * Facebook Page webhook. Meta only allows ONE registered callback URL per
  * App per object type ("page") - there is no way to have message events
@@ -51,19 +50,13 @@ class FacebookMessengerWebhookController extends Controller
      */
     public function receive(Request $request)
     {
-        PostComment::updateOrCreate(
-            ['platform' => 'facebook', 'comment_id' => 23432432],
-            [
-                'content'           => json_encode([]),
-                'sender_type'       => 'customer',
-                'user_id'           => 1,
-                'user_name'         => 'Anonymous',
-                'post_id'           => 154,
-                'post_account_id'   => 15,
-                'parent_comment_id' => '',
-                'is_reply'          => false,
-            ]
-        );
+        // Crash-proof delivery proof: logging can't fail on a missing
+        // foreign key the way a hardcoded PostComment insert can, so this
+        // reliably tells us whether Meta reached the endpoint at all -
+        // check storage/logs/laravel.log for this line after a real
+        // comment. Safe to remove once delivery is confirmed.
+        Log::info('Facebook webhook payload received', ['payload' => $request->all()]);
+
         if (!$this->messengerService->verifySignature($request)) {
             Log::warning('Facebook Messenger webhook signature mismatch', ['ip' => $request->ip()]);
 
@@ -71,7 +64,7 @@ class FacebookMessengerWebhookController extends Controller
         }
 
         $payload = $request->all();
-         
+
         $this->messengerService->handleWebhook($payload);
         $this->postService->handleCommentWebhook($payload, 'facebook');
 

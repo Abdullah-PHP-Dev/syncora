@@ -175,7 +175,14 @@ class PostAccountController extends Controller
             'redirect_uri'  => $this->metaCallbackUrl(),
             'state'         => $state,
             'response_type' => 'code',
-            'scope'         => 'pages_show_list,pages_manage_posts,pages_read_engagement,pages_manage_metadata,read_insights,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights',
+            // pages_read_user_content is required for Meta to actually
+            // deliver comment events on the 'feed' webhook field - without
+            // it, the App-level webhook subscription and per-Page
+            // /subscribed_apps opt-in can both be perfectly configured and
+            // Meta will still never push comment events for this Page's
+            // token. pages_manage_engagement covers the same ground on
+            // newer API versions/Advanced Access reviews.
+            'scope'         => 'pages_show_list,pages_manage_posts,pages_read_engagement,pages_manage_metadata,pages_read_user_content,pages_manage_engagement,read_insights,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights',
         ]);
 
         return Redirect::away($url);
