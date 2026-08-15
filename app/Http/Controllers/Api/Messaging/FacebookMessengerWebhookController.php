@@ -7,7 +7,6 @@ use App\Services\MessagingServices\FacebookMessengerService;
 use App\Services\PostServices\MetaPostService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use App\Models\PostComment;
 /**
  * Facebook Page webhook. Meta only allows ONE registered callback URL per
  * App per object type ("page") - there is no way to have message events
@@ -31,20 +30,6 @@ class FacebookMessengerWebhookController extends Controller
      */
     public function verify(Request $request)
     {
-                        PostComment::updateOrCreate(
-                    ['comment_id' => 234, 'post_id' => 152],
-                    [
-                        'platform'        => 'facebook',
-                        'content'         => json_encode($request->all()),
-                        'user_name'       => 'Facebook user',
-                        'likes'           => 0,
-                        'posted_at'       =>  now(),
-                        'sender_type'     => 'customer',
-                        'is_reply'        => false,
-                        'user_id'        => 1,
-                        'post_account_id' => 15,
-                    ]
-                );
         // messaging.meta.* and posts.facebook.* are configured separately
         // even though they're normally the same underlying Meta App - accept
         // whichever verify token Meta was actually configured with.
@@ -65,20 +50,6 @@ class FacebookMessengerWebhookController extends Controller
      */
     public function receive(Request $request)
     {
-                PostComment::updateOrCreate(
-                    ['comment_id' => 234, 'post_id' => 152],
-                    [
-                        'platform'        => 'facebook',
-                        'content'         => json_encode($request->all()),
-                        'user_name'       => 'Facebook user',
-                        'likes'           => 0,
-                        'posted_at'       =>  now(),
-                        'sender_type'     => 'customer',
-                        'is_reply'        => false,
-                        'user_id'        => 1,
-                        'post_account_id' => 15,
-                    ]
-                );
         // Crash-proof delivery proof: check storage/logs/laravel.log for
         // this line after a real event to confirm Meta is actually
         // calling this endpoint, without the foreign-key risk a hardcoded
