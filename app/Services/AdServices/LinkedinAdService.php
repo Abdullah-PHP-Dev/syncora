@@ -47,12 +47,15 @@ use Illuminate\Support\Facades\Storage;
  *   - TEXT_AD: LinkedIn's classic small sidebar text+logo ad, which
  *     carries its own inline content.textAd block and needs no Post.
  *
- * LinkedIn has no self-serve webhook/push product for ad events (spend,
- * impressions, clicks) any more than it does for organic engagement (see
- * LinkedInPostService's docblocks) - reporting is pull-only via the
- * adAnalytics finder. registerAdEventsCallback() below records the
- * callback URL for an admin to register by hand if the org is ever
- * approved for a push-capable product - see LinkedinAdWebhookController.
+ * LinkedIn publishes no webhook event type for ad delivery metrics (spend,
+ * impressions, clicks) - reporting is pull-only via the adAnalytics
+ * finder. (LinkedIn does have a webhook product generally, registered in
+ * the developer portal's "Webhooks" tab and gated on an approved use case,
+ * and one Marketing-side subscription API - leadNotifications, for Lead Gen
+ * Form responses, which can be scoped to a urn:li:sponsoredAccount - but
+ * neither covers delivery metrics.) registerAdEventsCallback() below
+ * records the callback URL for an admin to register by hand if LinkedIn
+ * ever ships a push-capable ads product - see LinkedinAdWebhookController.
  *
  * Targeting (see buildTargeting()) covers locations, age, gender,
  * seniority, job titles, industries, skills, company size, years of
@@ -120,9 +123,36 @@ class LinkedinAdService
         return route('admin.ads.platform.callback', 'linkedin');
     }
 
-    public function callback($state)
+    /**
+     * $platform is passed by SocialAdManagerService::callback() ahead of
+     * $state - the signature previously omitted it, so $state silently
+     * received the platform string instead. Neither is used for anything
+     * beyond the error/abort path below, but the arity now matches the
+     * caller (and TiktokAdService::callback()'s signature).
+     */
+    public function callback($platform, $state = null)
     {
+        // LinkedIn reports a refused/failed authorization by redirecting
+        // back with error/error_description instead of a code - most often
+        // `unauthorized_scope_error`, meaning the app has not been granted
+        // the Advertising API product that the r_ads/rw_ads/r_ads_reporting
+        // scopes in redirect() require. Without this branch that arrived
+        // here as a null $code and got reported as a generic token-exchange
+        // failure, hiding the real cause.
+        if (request()->filled('error')) {
+            Log::warning('LinkedIn ads OAuth authorization was refused.', [
+                'error'             => request()->input('error'),
+                'error_description' => request()->input('error_description'),
+            ]);
+
+            return redirect()->route('admin.ads.dashboard')->with('error', 'LinkedIn refused the ads authorization: ' . (request()->input('error_description') ?: request()->input('error')));
+        }
+
         $code = request()->input('code');
+
+        if (!$code) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'LinkedIn did not return an authorization code.');
+        }
 
         $tokenResponse = $this->apiService->post(
             'https://www.linkedin.com/oauth/v2/accessToken',
@@ -138,6 +168,11 @@ class LinkedinAdService
         );
 
         if (!$tokenResponse['success']) {
+            Log::warning('LinkedIn ads token exchange failed.', [
+                'status' => $tokenResponse['status'] ?? null,
+                'body'   => $tokenResponse['body'] ?? ($tokenResponse['error'] ?? null),
+            ]);
+
             return redirect()->route('admin.ads.dashboard')->with('error', $tokenResponse['data']['error_description'] ?? 'Failed to exchange code for a LinkedIn access token.');
         }
 
@@ -158,6 +193,17 @@ class LinkedinAdService
             'q' => 'authenticatedUser',
         ]);
         if (!$accountsResponse['success']) {
+            // A 403 here almost always means the token came back without the
+            // r_ads/rw_ads scopes because the app is not approved for the
+            // Advertising API product - LinkedIn issues the token anyway and
+            // only refuses at the resource, so this is the first point the
+            // problem is observable. Log the raw body; LinkedIn's error
+            // envelope names the missing permission.
+            Log::warning('LinkedIn adAccountUsers fetch failed.', [
+                'status' => $accountsResponse['status'] ?? null,
+                'body'   => $accountsResponse['body'] ?? ($accountsResponse['error'] ?? null),
+            ]);
+
             return redirect()->route('admin.ads.dashboard')->with('error', $accountsResponse['data']['message'] ?? 'Connected, but could not fetch your LinkedIn Ad Accounts.');
         }
 
@@ -244,8 +290,32 @@ class LinkedinAdService
         ]);
     }
 
+    /**
+     * Guards every write entry point below. Without it, an unconnected (or
+     * expired-and-unrefreshable) LinkedIn account fataled on
+     * $this->account->ad_account_id / $this->header['data'] deep inside the
+     * first API call, which the campaign form's AJAX handler could only
+     * render as a bare "Server Error".
+     */
+    private function accountIsUsable()
+    {
+        if (!$this->account) {
+            return $this->errorResponse('No connected LinkedIn Ad Account. Connect one from the Ads dashboard first.');
+        }
+
+        if (!($this->header['success'] ?? false)) {
+            return $this->errorResponse($this->header['error'] ?? 'The LinkedIn Ad Account token has expired. Reconnect the account from the Ads dashboard.');
+        }
+
+        return null;
+    }
+
     public function store($platform, $request)
     {
+        if ($guard = $this->accountIsUsable()) {
+            return $guard;
+        }
+
         $response = $this->storeCampaign($platform, $request);
 
         if (!$response['success']) {
@@ -970,7 +1040,15 @@ class LinkedinAdService
             $response = $this->refreshToken($this->account);
 
             if (!$response['success']) {
-                return $response;
+                // Must still carry a 'data' key: every caller reads
+                // $this->header['data'] unconditionally, so returning the
+                // bare ['success'=>false,'error'=>...] shape here used to
+                // pass null into ApiService::post()'s array $headers and
+                // die with a TypeError instead of reporting the real
+                // problem. LinkedIn only issues refresh tokens to apps
+                // approved for programmatic refresh tokens, so for most
+                // apps this path means "reconnect the account".
+                return $response + ['data' => []];
             }
 
             $accessToken = $response['data'];
@@ -1032,6 +1110,10 @@ class LinkedinAdService
 
     public function update($platform, $id, $request)
     {
+        if ($guard = $this->accountIsUsable()) {
+            return $guard;
+        }
+
         $response = $this->updateCampaign($platform, $id, $request);
 
         if (!$response['success']) {
@@ -1182,6 +1264,10 @@ class LinkedinAdService
      */
     public function updateStatus($id, $status)
     {
+        if ($guard = $this->accountIsUsable()) {
+            return $guard;
+        }
+
         $campaign = AdCampaign::findOrFail($id);
         $adGroup = AdAdGroup::whereAdCampaignId($id)->first();
 

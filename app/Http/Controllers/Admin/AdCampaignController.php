@@ -63,7 +63,18 @@ class AdCampaignController extends Controller
      */
     public function index($platform)
     {
-        $campaigns = $this->adCampaignModel->where('platform', $platform)->where('end_time', '>=', now())->orderBy('id', 'desc')->paginate(50);
+        // An open-ended campaign (no end date) stores a NULL end_time, and
+        // `end_time >= now()` is never true for NULL - so LinkedIn campaigns
+        // created without an end date (end_time is nullable in
+        // AdCampaignRequest::getLinkedinRules(), and LinkedIn campaign groups
+        // genuinely can run indefinitely) saved fine but never appeared in
+        // this listing. Treat NULL as "still running".
+        $campaigns = $this->adCampaignModel->where('platform', $platform)
+            ->where(function ($query) {
+                $query->whereNull('end_time')->orWhere('end_time', '>=', now());
+            })
+            ->orderBy('id', 'desc')
+            ->paginate(50);
 
         return view('admin.ads.' . $this->viewPlatform($platform) . '.campaigns.index', compact('campaigns', 'platform'));
     }

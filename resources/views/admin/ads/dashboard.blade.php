@@ -4,6 +4,25 @@
 
 @section('content')
 
+    {{-- Every ad platform's OAuth callback (see the *AdService::callback()
+         methods) redirects back here with a flash message on both success
+         and failure. Without this block those messages were flashed and
+         silently discarded, so a failed connect looked identical to a
+         connect that never happened - no account row, no explanation. --}}
+    @if (session('error'))
+        <div class="alert alert-danger alert-dismissible" role="alert">
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
+    @if (session('success'))
+        <div class="alert alert-success alert-dismissible" role="alert">
+            {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
     <div class="row">
         <div class="col-xxl-8 mb-6 order-0">
             <div class="card">
