@@ -120,7 +120,13 @@ class ApiService
                 'success' => $response->successful(),
                 'status' => $response->status(),
                 'data' => $response->json(),
-                'body' => $response->body()
+                'body' => $response->body(),
+                // LinkedIn's REST API returns the created entity's URN only
+                // in this response header (body is empty on a 201) - every
+                // other platform here ignores it, but LinkedInAdService's
+                // create calls (adCampaignGroups/adCampaigns/creatives/
+                // posts/images/videos) all rely on it.
+                'restli_id' => $response->header('x-restli-id'),
             ];
         } catch(\Throwable $e) {
             Log::error('API Service Error', [

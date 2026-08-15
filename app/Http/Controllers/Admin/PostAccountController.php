@@ -699,7 +699,25 @@ class PostAccountController extends Controller
         ]);
 
         if (!$aclsResponse->successful()) {
-            return redirect()->route('admin.posts.create')->with('error', 'Connected, but could not fetch your LinkedIn Organizations.');
+            Log::warning('LinkedIn organizationAcls fetch failed.', [
+                'status' => $aclsResponse->status(),
+                'body'   => $aclsResponse->body(),
+            ]);
+
+            // A 403 here almost always means the app itself hasn't been
+            // granted LinkedIn's "Community Management API" product yet
+            // (Developer Portal > app > Products) - that product is what
+            // actually backs r_organization_admin/rw_organization_admin/
+            // w_organization_social/r_organization_social. Requesting
+            // those scopes in redirectLinkedin() and getting a token back
+            // doesn't mean the token carries them; LinkedIn silently caps
+            // the grant to whatever products are approved for the app,
+            // and this call is the first one that exposes the gap.
+            $message = $aclsResponse->status() === 403
+                ? 'Connected, but this LinkedIn app is not approved for the "Community Management API" product yet, so it has no permission to list Organizations. Request access to that product in the LinkedIn Developer Portal (Products tab) and wait for approval, then reconnect.'
+                : 'Connected, but could not fetch your LinkedIn Organizations.';
+
+            return redirect()->route('admin.posts.create')->with('error', $message);
         }
 
         $created = 0;

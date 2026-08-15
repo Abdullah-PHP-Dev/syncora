@@ -19,6 +19,7 @@ class SocialAdManagerService
         'tiktok'    => TiktokAdService::class,
         'snapchat'  => SnapchatAdService::class,
         'x'         => XAdService::class,
+        'linkedin'  => LinkedinAdService::class,
     ];
 
     /**

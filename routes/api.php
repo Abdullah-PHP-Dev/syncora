@@ -103,6 +103,18 @@ Route::get('/user', function (Request $request) {
         // RunDiscordGatewayListener / `php artisan messaging:discord-listen`).
     });
 
+    // Ads - LinkedIn only for now. No GET verify handshake (same reasoning
+    // as the LinkedIn comment webhook above) - LinkedIn's Marketing API has
+    // no public push product for ad events (spend/impressions/clicks)
+    // under this module's r_ads/rw_ads/r_ads_reporting scopes, so there's
+    // no challenge-response step to answer and no real event stream that
+    // will ever call this URL. See LinkedinAdWebhookController's docblock
+    // and LinkedinAdService::registerAdEventsCallback() - reporting is
+    // pull-only via LinkedIn's adAnalytics finder instead.
+    Route::prefix('ads')->name('ads.webhook.')->group(function () {
+        Route::post('/linkedin', [\App\Http\Controllers\Api\Ads\LinkedinAdWebhookController::class, 'receive'])->name('linkedin.receive');
+    });
+
     // Email Marketing - one shared endpoint for every Mailgun event type
     // (delivered/opened/clicked/unsubscribed/complained/failed), same
     // "one URL, dispatch on the event field" shape as the messaging

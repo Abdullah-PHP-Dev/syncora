@@ -41,6 +41,8 @@ class AdCampaignRequest extends FormRequest
             $validations = $this->getYoutubeRules($requiredIfPost);
         } else if ($platform === 'x') {
             $validations = $this->getXRules($requiredIfPost);
+        } else if ($platform === 'linkedin') {
+            $validations = $this->getLinkedinRules($requiredIfPost);
         }
 
         return $validations;
@@ -705,6 +707,79 @@ class AdCampaignRequest extends FormRequest
 
                     if ($value->getSize() > $maxKb * 1024) {
                         $fail('Each file must not exceed ' . ($maxKb / 1024) . 'MB.');
+                    }
+                },
+            ],
+        ];
+    }
+
+    /**
+     * LinkedIn Marketing API. Unlike Facebook/Snapchat/TikTok there's no
+     * gender targeting facet at all on LinkedIn (see LinkedinAdService::
+     * buildTargeting()'s docblock), so there's no 'gender' rule here -
+     * countries/seniorities/age_range are the only targeting inputs.
+     * Creatives are immutable once created (LinkedinAdService::
+     * updateCreative()'s docblock), so 'media'/'creative_type' are
+     * create-only, same pattern the X/Google/YouTube rule sets above use
+     * for their own locked-at-creation fields.
+     */
+    private function getLinkedinRules(array $requiredIfPost): array
+    {
+        return [
+            'name' => ['required', 'max:255'],
+            'objective' => array_merge($requiredIfPost, [
+                'in:BRAND_AWARENESS,WEBSITE_VISIT,ENGAGEMENT,VIDEO_VIEW,LEAD_GENERATION,WEBSITE_CONVERSION'
+            ]),
+            'creative_type' => array_merge($requiredIfPost, ['in:SPONSORED_CONTENT,TEXT_AD']),
+            'bid_type' => array_merge($requiredIfPost, ['in:CPC,CPM']),
+            'bid_amount' => ['nullable', 'numeric', 'min:0.01'],
+            'budget_mode' => array_merge($requiredIfPost, ['in:daily,total']),
+            'budget' => array_merge($requiredIfPost, ['numeric', 'gt:0']),
+            'final_budget' => ['nullable'],
+            'start_time' => ['required', 'date_format:Y-m-d', 'before:end_time'],
+            'end_time' => ['nullable', 'date_format:Y-m-d', 'after:start_time'],
+            'countries' => ['required', 'array'],
+            'seniorities' => ['nullable', 'array'],
+            'seniorities.*' => ['in:unpaid,training,entry,senior,manager,director,vp,cxo,partner,owner'],
+            'age_range' => ['nullable', 'array'],
+            'age_range.*' => ['in:18-24,25-34,35-54,55+'],
+            // Real, documented LinkedIn facet (urn:li:adTargetingFacet:
+            // genders) - see LinkedinAdService::buildTargeting()'s
+            // docblock for why this app must show a discrimination notice
+            // wherever it's exposed in the UI.
+            'genders' => ['nullable', 'array'],
+            'genders.*' => ['in:male,female'],
+            // Free-text, typeahead-resolved against LinkedIn at submit
+            // time (LinkedinAdService::resolveEntityUrns()) rather than a
+            // fixed enum - comma-separated so the form can stay a single
+            // text input instead of a live-search widget.
+            'titles' => ['nullable', 'string', 'max:500'],
+            'industries' => ['nullable', 'string', 'max:500'],
+            'skills' => ['nullable', 'string', 'max:500'],
+            'employers' => ['nullable', 'string', 'max:500'],
+            'company_size' => ['nullable', 'array'],
+            'company_size.*' => ['in:1,2-10,11-50,51-200,201-500,501-1000,1001-5000,5001-10000,10001+'],
+            'years_experience_min' => ['nullable', 'integer', 'min:1', 'max:12'],
+            'years_experience_max' => ['nullable', 'integer', 'min:1', 'max:12', 'gte:years_experience_min'],
+            'description' => ['required', 'string', 'max:600'],
+            'target_link' => ['required', 'url'],
+            'call_to_action' => ['nullable', 'string'],
+            'media' => [
+                'array',
+                function ($attribute, $value, $fail) {
+                    if ($this->isMethod('post') && $this->input('creative_type') === 'SPONSORED_CONTENT' && empty($value)) {
+                        $fail('At least one image or video is required for Sponsored Content ads.');
+                    }
+                },
+            ],
+            'media.*' => [
+                'file',
+                function ($attribute, $value, $fail) {
+                    $isVideo = in_array(strtolower($value->getClientOriginalExtension()), ['mp4', 'mov', 'avi', 'mkv', 'webm']);
+                    $maxKb = $isVideo ? 512000 : 30720;
+
+                    if ($value->getSize() / 1024 > $maxKb) {
+                        $fail("The {$attribute} may not be greater than " . ($isVideo ? '500MB' : '30MB') . '.');
                     }
                 },
             ],
