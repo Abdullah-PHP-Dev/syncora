@@ -30,7 +30,7 @@ class GoogleChatWebhookController extends Controller
         $this->service = $service;
     }
 
-    public function receive(Request $request, MessageChannel $channel)
+    public function receive($userId, Request $request, MessageChannel $channel)
     {
 
         try {
