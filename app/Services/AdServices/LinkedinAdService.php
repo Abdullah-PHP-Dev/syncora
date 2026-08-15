@@ -136,13 +136,6 @@ class LinkedinAdService
             ],
             'form'
         );
-        dd([
-                'grant_type'    => 'authorization_code',
-                'code'          => $code,
-                'client_id'     => adminSetting('ads.linkedin.client_id'),
-                'client_secret' => adminSetting('ads.linkedin.client_secret'),
-                'redirect_uri'  => $this->getCallbackUrl(),
-            ], $tokenResponse);
 
         if (!$tokenResponse['success']) {
             return redirect()->route('admin.ads.dashboard')->with('error', $tokenResponse['data']['error_description'] ?? 'Failed to exchange code for a LinkedIn access token.');
