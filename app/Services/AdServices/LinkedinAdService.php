@@ -136,6 +136,7 @@ class LinkedinAdService
             ],
             'form'
         );
+        dd($tokenResponse);
 
         if (!$tokenResponse['success']) {
             return redirect()->route('admin.ads.dashboard')->with('error', $tokenResponse['data']['error_description'] ?? 'Failed to exchange code for a LinkedIn access token.');
@@ -157,7 +158,6 @@ class LinkedinAdService
         $accountsResponse = $this->apiService->get($this->config . 'adAccountUsers', $headers, [
             'q' => 'authenticatedUser',
         ]);
-        dd($accountsResponse);
         if (!$accountsResponse['success']) {
             return redirect()->route('admin.ads.dashboard')->with('error', $accountsResponse['data']['message'] ?? 'Connected, but could not fetch your LinkedIn Ad Accounts.');
         }
