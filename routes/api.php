@@ -103,17 +103,18 @@ Route::get('/user', function (Request $request) {
         // RunDiscordGatewayListener / `php artisan messaging:discord-listen`).
     });
 
-    // Ads - LinkedIn only for now. LinkedIn's webhook product does use a
-    // GET ?challengeCode= ownership handshake (unlike what an earlier
-    // version of this comment claimed), but it publishes no event type at
-    // all for ad delivery metrics (spend/impressions/clicks) under this
-    // module's r_ads/rw_ads/r_ads_reporting scopes - reporting is pull-only
-    // via LinkedIn's adAnalytics finder - so nothing will ever call this
-    // URL and there is no handshake to answer. See
-    // LinkedinAdWebhookController's docblock for the handshake/signature
-    // contract that would have to be implemented first, and
+    // Ads - LinkedIn only for now. LinkedIn's webhook product validates
+    // ownership of any URL registered in the developer portal's "Webhooks"
+    // tab (and re-validates it every ~2h) via a GET ?challengeCode=
+    // handshake, independent of which event types (if any) are actually
+    // subscribed - see LinkedinAdWebhookController::verify(). No event type
+    // exists for ad delivery metrics (spend/impressions/clicks) under this
+    // module's r_ads/rw_ads/r_ads_reporting scopes - reporting stays
+    // pull-only via LinkedIn's adAnalytics finder - but the handshake still
+    // needs answering for the URL to validate at all. See
     // LinkedinAdService::registerAdEventsCallback().
     Route::prefix('ads')->name('ads.webhook.')->group(function () {
+        Route::get('/linkedin', [\App\Http\Controllers\Api\Ads\LinkedinAdWebhookController::class, 'verify'])->name('linkedin.verify');
         Route::post('/linkedin', [\App\Http\Controllers\Api\Ads\LinkedinAdWebhookController::class, 'receive'])->name('linkedin.receive');
     });
 
