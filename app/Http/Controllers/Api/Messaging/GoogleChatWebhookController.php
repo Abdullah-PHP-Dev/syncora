@@ -32,6 +32,7 @@ class GoogleChatWebhookController extends Controller
 
     public function receive(Request $request, MessageChannel $channel)
     {
+        
         try {
             Conversation::create([
                 'platform'               => 'google_chat',
