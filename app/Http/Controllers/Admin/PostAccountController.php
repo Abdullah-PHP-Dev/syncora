@@ -20,7 +20,7 @@ use Carbon\Carbon;
  * account" flow (post_accounts rows aren't created anywhere for them -
  * confirmed by searching for PostAccount::create/updateOrCreate before
  * writing the first of these). This currently covers WhatsApp, Threads,
- * Pinterest, and Facebook/Instagram - X, LinkedIn, TikTok, and YouTube/
+ * Pinterest, Facebook/Instagram, and LinkedIn - X, TikTok, and YouTube/
  * Google still have no connect flow.
  */
 class PostAccountController extends Controller
@@ -651,13 +651,19 @@ class PostAccountController extends Controller
             'client_id'     => adminSetting('posts.linkedin.client_id'),
             'redirect_uri'  => $this->linkedinCallbackUrl(),
             'state'         => $state,
-            'scope'         => 'openid profile w_member_social r_organization_admin w_organization_social rw_organization_admin',
+            // r_organization_admin: list the Organizations this user administers
+            // (organizationAcls walk below). w_organization_social/rw_organization_admin:
+            // publish as the Organization and manage its Page. r_organization_social:
+            // read the Organization's own posts, plus their comments/likes/shares via
+            // the socialActions endpoints - without it, GET /posts, /socialActions, and
+            // the analytics endpoints below all 403 even though publishing still works.
+            'scope'         => 'openid profile w_member_social r_organization_admin r_organization_social w_organization_social rw_organization_admin',
         ]);
 
         return Redirect::away($url);
     }
 
-    public function callbackLinkedin(Request $request, ApiPostService $api)
+    public function callbackLinkedin(Request $request, ApiPostService $api, \App\Services\PostServices\LinkedInPostService $linkedInPostService)
     {
         if (!$request->filled('code') || $request->query('state') !== session('linkedin_oauth_state')) {
             return redirect()->route('admin.posts.create')->with('error', 'LinkedIn connection failed or was cancelled.');
@@ -709,7 +715,7 @@ class PostAccountController extends Controller
             $orgResponse = $api->request('get', $baseUrl . 'organizations/' . $orgId, $headers);
             $org = $orgResponse->successful() ? $orgResponse->json() : [];
 
-            PostAccount::updateOrCreate(
+            $linkedinAccount = PostAccount::updateOrCreate(
                 ['platform' => 'linkedin', 'account_id' => $orgId, 'user_id' => Auth::id()],
                 [
                     'name'         => $org['localizedName'] ?? 'LinkedIn Organization',
@@ -721,6 +727,28 @@ class PostAccountController extends Controller
                 ]
             );
             $created++;
+
+            // Each of these three is independently failure-tolerant (see
+            // their own docblocks) - this outer try/catch is a deliberate
+            // second safety net so a missing scope/analytics approval can
+            // never prevent the PostAccount above from having already
+            // saved, or block the other two operations from running. Same
+            // shape as callbackMeta()'s post-connect sync above.
+            try {
+                $linkedInPostService->syncAccountStats($linkedinAccount);
+            } catch (\Throwable $e) {
+                Log::warning('LinkedIn stats sync failed after connect.', ['account_id' => $linkedinAccount->id, 'error' => $e->getMessage()]);
+            }
+            try {
+                $linkedInPostService->subscribeToWebhooks($linkedinAccount);
+            } catch (\Throwable $e) {
+                Log::warning('LinkedIn webhook callback registration failed after connect.', ['account_id' => $linkedinAccount->id, 'error' => $e->getMessage()]);
+            }
+            try {
+                $linkedInPostService->backfillRecentPosts($linkedinAccount);
+            } catch (\Throwable $e) {
+                Log::warning('LinkedIn post backfill failed after connect.', ['account_id' => $linkedinAccount->id, 'error' => $e->getMessage()]);
+            }
         }
 
         if ($created === 0) {

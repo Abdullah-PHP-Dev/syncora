@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Post;
 use App\Models\PostMedia;
+use App\Models\PostAccount;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use getID3;
@@ -23,7 +24,7 @@ class LinkedInPostService
         $this->api = $api;
         $this->media = $media;
         $this->post = $post;
-        $this->baseUrl = adminSetting('posts.linkedin.base_url');
+        $this->baseUrl = adminSetting('posts.linkedin.base_url') ?: 'https://api.linkedin.com/rest/';
     }
 
     protected function ensureValidToken($post)
@@ -779,6 +780,241 @@ class LinkedInPostService
             'success' => true,
             'data' => $data['items']
         ];
+    }
+
+    /**
+     * Pulls the Organization's total data report (follower count, Page
+     * views, follower gain/loss over time) and stores it on the
+     * PostAccount - same "connect-time report snapshot" shape as Meta/
+     * Instagram's syncAccountStats(). Each call requires the
+     * rw_organization_admin scope granted at redirectLinkedin(); LinkedIn
+     * returns 403 on these endpoints for orgs without Page-admin-level
+     * access even though posting/reading content still works, so each
+     * fetch below is independently soft-failed rather than aborting the
+     * whole sync.
+     */
+    public function syncAccountStats(PostAccount $account): void
+    {
+        $orgUrn = 'urn:li:organization:' . $account->account_id;
+        $headers = [
+            'Authorization' => 'Bearer ' . $account->access_token,
+            'X-Restli-Protocol-Version' => '2.0.0',
+            'Linkedin-Version' => $this->linkedinVersion,
+        ];
+
+        $updates = [];
+        $insights = $account->insights ?? [];
+
+        // Total follower count - organizations/{id}'s old inline follower
+        // count field was retired; networkSizes is the documented replacement.
+        try {
+            $followersResponse = Http::withHeaders($headers)
+                ->get($this->baseUrl . 'networkSizes/' . urlencode($orgUrn), ['edgeType' => 'CompanyFollowedByMember']);
+
+            if ($followersResponse->successful()) {
+                $updates['follower_count'] = $followersResponse->json()['firstDegreeSize'] ?? $account->follower_count;
+                $insights['followers'] = $followersResponse->json();
+            } else {
+                Log::warning('LinkedIn follower count fetch failed.', [
+                    'account_id' => $account->id,
+                    'error'      => $followersResponse->json()['message'] ?? $followersResponse->body(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('LinkedIn follower count fetch threw.', ['account_id' => $account->id, 'error' => $e->getMessage()]);
+        }
+
+        // Page views / clicks / unique visitors report.
+        try {
+            $pageStatsResponse = Http::withHeaders($headers)
+                ->get($this->baseUrl . 'organizationPageStatistics', ['q' => 'organization', 'organization' => $orgUrn]);
+
+            if ($pageStatsResponse->successful()) {
+                $elements = $pageStatsResponse->json()['elements'] ?? [];
+                $updates['views_count'] = $elements[0]['totalPageStatistics']['views']['allPageViews']['pageViews'] ?? $account->views_count;
+                $insights['page_statistics'] = $elements;
+            } else {
+                // Expected unless the org has been approved for this
+                // analytics surface - not a bug, same soft-fail as
+                // Instagram's Insights fetch.
+                Log::warning('LinkedIn page statistics fetch failed.', [
+                    'account_id' => $account->id,
+                    'error'      => $pageStatsResponse->json()['message'] ?? $pageStatsResponse->body(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('LinkedIn page statistics fetch threw.', ['account_id' => $account->id, 'error' => $e->getMessage()]);
+        }
+
+        // Follower gain/loss over time (organic + paid) - kept in insights
+        // only, there's no single-number column for it on post_accounts.
+        try {
+            $followerStatsResponse = Http::withHeaders($headers)
+                ->get($this->baseUrl . 'organizationalEntityFollowerStatistics', ['q' => 'organizationalEntity', 'organizationalEntity' => $orgUrn]);
+
+            if ($followerStatsResponse->successful()) {
+                $insights['follower_statistics'] = $followerStatsResponse->json()['elements'] ?? [];
+            }
+        } catch (\Throwable $e) {
+            Log::warning('LinkedIn follower statistics fetch threw.', ['account_id' => $account->id, 'error' => $e->getMessage()]);
+        }
+
+        $updates['insights'] = $insights;
+        $account->update($updates);
+    }
+
+    /**
+     * LinkedIn has no self-serve "subscribe this org to webhooks" endpoint
+     * the way Meta's POST .../subscribed_apps does - organic comment/like/
+     * share events are not pushed to third-party apps under the standard
+     * Community Management API product this module authenticates against
+     * (see redirectLinkedin()). This records the callback URL an admin
+     * would register by hand if the org is ever approved for a push-
+     * capable LinkedIn product, and deliberately leaves
+     * webhook_subscriptions false so callers can tell engagement here is
+     * pull-based - see backfillRecentPosts()/fetchAndStoreComments() and
+     * LinkedinCommentWebhookController's docblock.
+     */
+    public function subscribeToWebhooks(PostAccount $account): void
+    {
+        $account->update([
+            'settings' => array_merge($account->settings ?? [], [
+                'webhook_callback_url' => route('comments.webhook.linkedin.receive'),
+            ]),
+        ]);
+    }
+
+    /**
+     * On connect, backfills the Organization's most recent posts (default
+     * 5) along with each post's engagement summary and latest 5 comments,
+     * so a newly connected account isn't empty until the customer
+     * publishes something new through this app. Uses updateOrCreate
+     * (rather than the "skip if a row already exists" pattern the
+     * Instagram/Facebook equivalents use) so that reconnecting the same
+     * Organization - eg. after a token expired and the user re-runs the
+     * redirect/callback flow - refreshes existing posts' engagement
+     * counts and comments instead of leaving stale data on file. Each
+     * post/summary/comments call is independently failure-tolerant - one
+     * bad post must not abort the rest of the batch.
+     */
+    public function backfillRecentPosts(PostAccount $account, int $limit = 5): void
+    {
+        $orgUrn = 'urn:li:organization:' . $account->account_id;
+        $headers = [
+            'Authorization' => 'Bearer ' . $account->access_token,
+            'X-Restli-Protocol-Version' => '2.0.0',
+            'Linkedin-Version' => $this->linkedinVersion,
+        ];
+
+        $postsResponse = Http::withHeaders($headers)->get($this->baseUrl . 'posts', [
+            'author' => $orgUrn,
+            'q'      => 'author',
+            'count'  => $limit,
+            'sortBy' => 'LAST_MODIFIED',
+        ]);
+
+        if (!$postsResponse->successful()) {
+            Log::warning('Failed to fetch LinkedIn posts for backfill.', [
+                'account_id' => $account->id,
+                'error'      => $postsResponse->json()['message'] ?? $postsResponse->body(),
+            ]);
+            return;
+        }
+
+        foreach ($postsResponse->json()['elements'] ?? [] as $item) {
+            try {
+                $postUrn = $item['id'];
+                $commentary = $item['commentary'] ?? '';
+
+                $summary = [];
+                try {
+                    $summaryResponse = Http::withHeaders($headers)->get($this->baseUrl . 'socialActions/' . urlencode($postUrn));
+                    if ($summaryResponse->successful()) {
+                        $summary = $summaryResponse->json();
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('LinkedIn post engagement summary fetch threw.', ['post_urn' => $postUrn, 'error' => $e->getMessage()]);
+                }
+
+                $content = trim(strip_tags($commentary));
+                $dotPosition = mb_strpos($content, '.');
+                $title = ($dotPosition !== false && $dotPosition < 100)
+                    ? mb_substr($content, 0, $dotPosition + 1)
+                    : mb_substr($content, 0, 100);
+
+                $post = Post::updateOrCreate(
+                    ['post_account_id' => $account->id, 'post_id' => $postUrn],
+                    [
+                        'platform'          => 'linkedin',
+                        'user_id'           => $account->user_id,
+                        'title'             => $title,
+                        'post_url'          => 'https://www.linkedin.com/feed/update/' . $postUrn,
+                        'content'           => $commentary,
+                        'likes'             => $summary['likesSummary']['totalLikes'] ?? 0,
+                        'comments'          => $summary['commentsSummary']['totalFirstLevelComments'] ?? 0,
+                        'status'            => 'completed',
+                        'platform_metadata' => $item,
+                    ]
+                );
+
+                $this->fetchAndStoreComments($account, $post, 5);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to backfill a LinkedIn post.', ['account_id' => $account->id, 'post_id' => $item['id'] ?? null, 'error' => $e->getMessage()]);
+            }
+        }
+    }
+
+    /**
+     * Stores a post's most recent first-level comments via updateOrCreate,
+     * so a re-run (reconnect, or a future scheduled resync) refreshes
+     * like counts on existing comment rows instead of erroring on a
+     * duplicate. Actor URNs are stored as the display name - resolving a
+     * commenter's real name would require a separate /rest/people call
+     * per commenter, which third-party members generally don't authorize
+     * under the org-scoped permissions this module requests.
+     */
+    private function fetchAndStoreComments(PostAccount $account, Post $post, int $limit = 5): void
+    {
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $account->access_token,
+                'X-Restli-Protocol-Version' => '2.0.0',
+                'Linkedin-Version' => $this->linkedinVersion,
+            ])->get($this->baseUrl . 'socialActions/' . urlencode($post->post_id) . '/comments', [
+                'count'     => $limit,
+                'sortOrder' => 'REVERSE_CHRONOLOGICAL',
+            ]);
+
+            if (!$response->successful()) {
+                Log::warning('LinkedIn comments fetch failed.', ['post_id' => $post->id, 'error' => $response->json()['message'] ?? $response->body()]);
+                return;
+            }
+
+            foreach (array_slice($response->json()['elements'] ?? [], 0, $limit) as $comment) {
+                if (empty($comment['id'])) {
+                    continue;
+                }
+
+                PostComment::updateOrCreate(
+                    ['comment_id' => $comment['id'], 'post_id' => $post->id],
+                    [
+                        'platform'        => 'linkedin',
+                        'user_id'         => $account->user_id,
+                        'post_account_id' => $account->id,
+                        'user_name'       => $comment['actor'] ?? 'LinkedIn user',
+                        'content'         => $comment['message']['text'] ?? '',
+                        'likes'           => $comment['likesSummary']['totalLikes'] ?? 0,
+                        'sender_type'     => 'customer',
+                        'is_reply'        => false,
+                        'status'          => 'approved',
+                        'posted_at'       => isset($comment['created']['time']) ? Carbon::createFromTimestampMs($comment['created']['time']) : now(),
+                        'imported_at'     => now(),
+                    ]
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::warning('LinkedIn comments fetch threw.', ['post_id' => $post->id, 'error' => $e->getMessage()]);
+        }
     }
 
     /**
