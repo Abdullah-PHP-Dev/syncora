@@ -193,47 +193,19 @@
                                     <form id="campaign">
                                         <div class="builder-card">
                                             <h5>Campaign Information</h5>
-                                            <div class="row">
-                                                @php
-                                                    $adGroup = $campaign->adGroups->first();
-                                                    $ageGroup = json_decode($adGroup->age_groups);
-                                                    $creative = $adGroup->creatives->first();
-                                                    $ad = $creative->ads->first();
-                                                    $media = $creative->media;
-                                                    $publisherPlatforms = json_decode($adGroup->publisher_platforms);
-                                                    $languages = json_decode($adGroup->languages); 
-                                                    $selectedCountries = json_decode($adGroup->location_ids);                                             
-                                                @endphp
-                                                <div class="col-md-12">
-                                                    <label>Platforms</label>
-                                                    <div class="platform-group">
-                                                        <div class="platform-card">
-                                                            <div class="form-check form-switch">
-                                                                <input class="form-check-input platform-switch"
-                                                                    type="checkbox" id="facebook" name="facebook" {{ in_array('facebook', $publisherPlatforms) ? 'checked' : '' }}>
-
-                                                                <label class="form-check-label ms-2" for="facebook">
-                                                                    <i class="bx bxl-facebook text-primary"></i>
-                                                                    Facebook
-                                                                </label>
-                                                            </div>
-                                                        </div>
-                                                        <div class="platform-card">
-                                                            <div class="form-check form-switch">
-                                                                <input class="form-check-input platform-switch"
-                                                                    type="checkbox" id="instagram" name="instagram"  {{ in_array('instagram', $publisherPlatforms) ? 'checked' : '' }}>
-
-                                                                <label class="form-check-label ms-2" for="instagram">
-                                                                    <i class="bx bxl-instagram text-danger"></i>
-                                                                    Instagram
-                                                                </label>
-                                                            </div>
-                                                        </div>
-                                                        <p class="error-message error-facebook error-instagram"></p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <br>
+                                            @php
+                                                $adGroup = $campaign->adGroups->first();
+                                                $ageGroup = json_decode($adGroup->age_groups);
+                                                $creative = $adGroup->creatives->first();
+                                                $ad = $creative->ads->first();
+                                                $media = $creative->media;
+                                                $languages = json_decode($adGroup->languages);
+                                                $selectedCountries = json_decode($adGroup->location_ids);
+                                                // targeting_criteria holds the resolved TikTok-side IDs plus
+                                                // every raw local selection needed to re-populate this form -
+                                                // see TiktokAdService::buildAudienceTargeting().
+                                                $targetingLocal = json_decode($adGroup->targeting_criteria ?? '{}', true)['local'] ?? [];
+                                            @endphp
                                             <div class="row">
                                                 <div class="col-md-6">
                                                     <label>Campaign Name</label>
@@ -243,24 +215,17 @@
                                                 <div class="col-md-6">
                                                     <label>Objective</label>
                                                     <select id="objective" name="objective" class="form-control">
-                                                        <option value="OUTCOME_TRAFFIC" @selected(old('objective', $campaign->objective) == 'OUTCOME_TRAFFIC')>
-                                                            Traffic
-                                                        </option>
-                                                        <option value="OUTCOME_SALES" @selected(old('objective', $campaign->objective) == 'OUTCOME_SALES')>
-                                                            Sales
-                                                        </option>
-                                                        <option value="OUTCOME_ENGAGEMENT" @selected(old('objective', $campaign->objective) == 'OUTCOME_ENGAGEMENT')>
-                                                            Engagement
-                                                        </option>
-                                                        <option value="OUTCOME_AWARENESS" @selected(old('objective', $campaign->objective) == 'OUTCOME_AWARENESS')>
-                                                            Awareness
-                                                        </option>
-                                                        <option value="OUTCOME_APP_PROMOTION" @selected(old('objective', $campaign->objective) == 'OUTCOME_APP_PROMOTION')>
-                                                            App promotion
-                                                        </option>
-                                                        <option value="OUTCOME_LEADS" @selected(old('objective', $campaign->objective) == 'OUTCOME_LEADS')>
-                                                            Leads
-                                                        </option>
+                                                        @foreach ([
+                                                            'APP_PROMOTION' => 'App Promotion',
+                                                            'WEB_CONVERSIONS' => 'Web Conversions',
+                                                            'REACH' => 'Reach',
+                                                            'TRAFFIC' => 'Traffic',
+                                                            'VIDEO_VIEWS' => 'Video Views',
+                                                            'ENGAGEMENT' => 'Engagement',
+                                                            'LEAD_GENERATION' => 'Lead Generation',
+                                                        ] as $value => $label)
+                                                            <option value="{{ $value }}" @selected(old('objective', $campaign->objective) == $value)>{{ $label }}</option>
+                                                        @endforeach
                                                     </select>
                                                     <p class="error-message error-objective"></p>
                                                 </div>
@@ -493,6 +458,9 @@
                                         </div>
                                         <div class="builder-card">
                                             <h5>Audience</h5>
+                                            @php
+                                                $selectedAgeRanges = json_decode($adGroup->age_groups ?? '[]', true) ?: [];
+                                            @endphp
                                             <div class="row">
                                                 <div class="col-md-6">
                                                     <select id="call_to_action" name="call_to_action"
@@ -511,49 +479,26 @@
                                                 </div>
                                                 <div class="col-md-6">
                                                     <select id="gender" name="gender" class="form-control">
-                                                        <option value="">Gender</option>
-                                                        <option value="male" @selected(old('gender', $adGroup->gender) == 'male')>Male</option>
-                                                        <option value="female" @selected(old('gender', $adGroup->gender) == 'female')>Female</option>
-                                                        <option value="both" @selected(old('gender', $adGroup->gender) == 'both')>Both</option>
+                                                        <option value="GENDER_UNLIMITED" @selected(old('gender', $adGroup->gender) == 'GENDER_UNLIMITED')>All</option>
+                                                        <option value="GENDER_MALE" @selected(old('gender', $adGroup->gender) == 'GENDER_MALE')>Male</option>
+                                                        <option value="GENDER_FEMALE" @selected(old('gender', $adGroup->gender) == 'GENDER_FEMALE')>Female</option>
                                                     </select>
                                                     <p class="error-message error-gender"></p>
                                                 </div>
                                             </div>
                                             <br>
                                             <div class="row">
-                                                <div class="col-md-6">
-                                                    <select id="age_from" name="age_from" class="form-control">
-                                                        <option value="">Age From</option>
-                                                    
-                                                        @for($age = 18; $age <= 65; $age++)
-                                                            <option value="{{ $age }}" 
-                                                                @selected(old('age_from', $ageGroup->age_from) == $age)>
-                                                                {{ $age }}
-                                                            </option>
-                                                        @endfor
-                                                    
-                                                    </select>
-                                                    <p class="error-message error-age_from"></p>
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <select id="age_to" name="age_to" class="form-control">
-                                                        <option value="">Age To</option>
-                                                
-                                                        @for($age = 31; $age <= 65; $age++)
-                                                            <option value="{{ $age }}"
-                                                                @selected(old('age_to', $ageGroup->age_to) == $age)>
-                                                                {{ $age }}
-                                                            </option>
-                                                        @endfor
-                                                
-                                                        <option value="45+"
-                                                            @selected(old('age_to', $adGroup->age_to) == '65+')>
-                                                            65+
-                                                        </option>
-                                                
-                                                    </select>
-                                                
-                                                    <p class="error-message error-age_to"></p>
+                                                <div class="col-md-12">
+                                                    <label>Age Range</label>
+                                                    <div class="checkbox-group">
+                                                        @foreach (['AGE_18_24' => '18 – 24', 'AGE_25_34' => '25 – 34', 'AGE_35_44' => '35 – 44', 'AGE_45_54' => '45 – 54', 'AGE_55_100' => '55+'] as $value => $label)
+                                                            <div class="form-check form-switch">
+                                                                <input class="form-check-input platform-switch" type="checkbox" name="age_range[]" value="{{ $value }}" id="age_{{ strtolower($value) }}" @checked(in_array($value, $selectedAgeRanges))>
+                                                                <label class="form-check-label" for="age_{{ strtolower($value) }}">{{ $label }}</label>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                    <p class="error-message error-age_range"></p>
                                                 </div>
                                             </div>
                                             <br>
@@ -592,6 +537,88 @@
                                                     </div>
                                                 </div>
 
+                                            </div>
+                                            <hr class="my-4">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <label>Operating System</label>
+                                                    <div class="platform-group">
+                                                        @foreach (['ANDROID' => 'Android', 'IOS' => 'iOS'] as $value => $label)
+                                                            <div class="platform-card">
+                                                                <div class="form-check form-switch">
+                                                                    <input class="form-check-input platform-switch" type="checkbox" name="operating_systems[]" value="{{ $value }}" id="os_{{ strtolower($value) }}" @checked(in_array($value, $targetingLocal['operating_systems'] ?? []))>
+                                                                    <label class="form-check-label ms-2" for="os_{{ strtolower($value) }}">{{ $label }}</label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                    <p class="error-message error-operating_systems"></p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label>Network</label>
+                                                    <div class="platform-group">
+                                                        @foreach (['WIFI' => 'Wi-Fi', '2G' => '2G', '3G' => '3G', '4G' => '4G/LTE'] as $value => $label)
+                                                            <div class="platform-card">
+                                                                <div class="form-check form-switch">
+                                                                    <input class="form-check-input platform-switch" type="checkbox" name="network_types[]" value="{{ $value }}" id="network_{{ strtolower($value) }}" @checked(in_array($value, $targetingLocal['network_types'] ?? []))>
+                                                                    <label class="form-check-label ms-2" for="network_{{ strtolower($value) }}">{{ $label }}</label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                    <p class="error-message error-network_types"></p>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-3">
+                                                <div class="col-md-6">
+                                                    <label>Device Price Range (USD, optional)</label>
+                                                    <div class="row">
+                                                        <div class="col-6">
+                                                            <input type="number" name="device_price_min" id="device_price_min" class="form-control" min="0" value="{{ $targetingLocal['device_price_min'] ?? '' }}" placeholder="Min">
+                                                            <p class="error-message error-device_price_min"></p>
+                                                        </div>
+                                                        <div class="col-6">
+                                                            <input type="number" name="device_price_max" id="device_price_max" class="form-control" min="0" value="{{ $targetingLocal['device_price_max'] ?? '' }}" placeholder="Max">
+                                                            <p class="error-message error-device_price_max"></p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <hr class="my-4">
+                                            <h6>Interests &amp; Behaviors</h6>
+                                            <div class="row">
+                                                <div class="col-md-12">
+                                                    <label>Interest Categories (comma-separated)</label>
+                                                    <input type="text" name="interest_categories" id="interest_categories" class="form-control" value="{{ $targetingLocal['interest_categories'] ?? '' }}" placeholder="e.g. Beauty & Personal Care, Gaming">
+                                                    <p class="error-message error-interest_categories"></p>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-3">
+                                                <div class="col-md-6">
+                                                    <label>Additional Interest Keywords (comma-separated)</label>
+                                                    <input type="text" name="interest_keywords" id="interest_keywords" class="form-control" value="{{ $targetingLocal['interest_keywords'] ?? '' }}" placeholder="e.g. skincare, home workout">
+                                                    <p class="error-message error-interest_keywords"></p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label>Behaviors (comma-separated)</label>
+                                                    <input type="text" name="behaviors" id="behaviors" class="form-control" value="{{ $targetingLocal['behaviors'] ?? '' }}" placeholder="e.g. Engaged with Fashion Videos">
+                                                    <p class="error-message error-behaviors"></p>
+                                                </div>
+                                            </div>
+                                            <hr class="my-4">
+                                            <h6>Custom Audiences</h6>
+                                            <p class="text-muted mb-1" style="font-size:0.8rem;">Paste in existing Custom Audience IDs from TikTok Ads Manager (comma-separated) - this app doesn't create new audiences, only targets ones you've already built.</p>
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <label>Include Audiences</label>
+                                                    <input type="text" name="audience_ids" id="audience_ids" class="form-control" value="{{ $targetingLocal['audience_ids'] ?? '' }}" placeholder="e.g. 7123456789012345678">
+                                                    <p class="error-message error-audience_ids"></p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label>Exclude Audiences</label>
+                                                    <input type="text" name="excluded_audience_ids" id="excluded_audience_ids" class="form-control" value="{{ $targetingLocal['excluded_audience_ids'] ?? '' }}" placeholder="e.g. 7123456789012345679">
+                                                    <p class="error-message error-excluded_audience_ids"></p>
+                                                </div>
                                             </div>
                                         </div>
 

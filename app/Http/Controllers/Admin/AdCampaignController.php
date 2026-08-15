@@ -42,13 +42,30 @@ class AdCampaignController extends Controller
             ->get();
     }
     /**
+     * Instagram has no dedicated Blade files of its own - it shares
+     * Facebook's entire ad set/creative shape (same FacebookAdService,
+     * same targeting spec built in storeAdGroup()/updateAdGroup()), so
+     * its campaign views reuse Facebook's folder outright rather than
+     * duplicating ~3,000 lines of identical markup. $platform itself
+     * still flows through unchanged everywhere else (routes, hidden
+     * fields, DB rows all still say 'instagram') - only the view path
+     * is aliased, the same "share the underlying flow, keep the
+     * platform key distinct" shape this controller already uses for
+     * YouTube's AdAccount lookup below.
+     */
+    private function viewPlatform(string $platform): string
+    {
+        return $platform === 'instagram' ? 'facebook' : $platform;
+    }
+
+    /**
      * Display a listing of the resource.
      */
     public function index($platform)
     {
         $campaigns = $this->adCampaignModel->where('platform', $platform)->where('end_time', '>=', now())->orderBy('id', 'desc')->paginate(50);
-    
-        return view('admin.ads.' . $platform . '.campaigns.index', compact('campaigns', 'platform'));
+
+        return view('admin.ads.' . $this->viewPlatform($platform) . '.campaigns.index', compact('campaigns', 'platform'));
     }
 
     /**
@@ -63,7 +80,7 @@ class AdCampaignController extends Controller
         $countries = $this->countryModel->all();
         $platformPages = $this->platformPages($platform);
 
-        return view('admin.ads.' . $platform . '.campaigns.create', compact('platform', 'account', 'countries', 'platformPages'));
+        return view('admin.ads.' . $this->viewPlatform($platform) . '.campaigns.create', compact('platform', 'account', 'countries', 'platformPages'));
     }
 
     /**
@@ -94,7 +111,7 @@ class AdCampaignController extends Controller
         $campaign = $this->adCampaignModel->with(['adAccount', 'adGroups', 'adGroups.creatives', 'adGroups.creatives.media', 'ads'])->find($id);
         $platformPages = $this->platformPages($platform);
 
-       return view('admin.ads.' . $platform . '.campaigns.edit', compact('platform', 'account', 'countries', 'campaign', 'platformPages'));
+       return view('admin.ads.' . $this->viewPlatform($platform) . '.campaigns.edit', compact('platform', 'account', 'countries', 'campaign', 'platformPages'));
     }
 
     /**

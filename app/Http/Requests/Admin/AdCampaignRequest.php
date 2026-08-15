@@ -135,7 +135,31 @@ class AdCampaignRequest extends FormRequest
             'gender'     => ['required'],
             'languages'     => ['required', 'array'],
             'final_budget' => ['required'],
-            'objective' => ['required', 'in:OUTCOME_TRAFFIC,OUTCOME_SALES,OUTCOME_ENGAGEMENT,OUTCOME_AWARENESS,OUTCOME_APP_PROMOTION,OUTCOME_LEADS']
+            'objective' => ['required', 'in:OUTCOME_TRAFFIC,OUTCOME_SALES,OUTCOME_ENGAGEMENT,OUTCOME_AWARENESS,OUTCOME_APP_PROMOTION,OUTCOME_LEADS'],
+            // Housing/Employment/Credit/Social-issues ads are legally
+            // barred from age/gender narrowing - FacebookAdService::
+            // storeAdGroup()'s docblock forces the broadest range
+            // server-side regardless, this just validates the enum itself.
+            'special_ad_category' => ['nullable', 'in:HOUSING,EMPLOYMENT,CREDIT,ISSUES_ELECTIONS_POLITICS'],
+            // Free-text, typeahead-resolved against Meta's Targeting
+            // Search endpoint at submit time (FacebookAdService::
+            // resolveDetailedTargeting()) rather than a fixed enum -
+            // comma-separated so the form can stay a single text input.
+            'detailed_targeting' => ['nullable', 'string', 'max:500'],
+            'life_events' => ['nullable', 'string', 'max:500'],
+            'industries' => ['nullable', 'string', 'max:500'],
+            'income' => ['nullable', 'string', 'max:500'],
+            'relationship_statuses' => ['nullable', 'array'],
+            'relationship_statuses.*' => ['in:single,in_relationship,married,engaged,its_complicated,open_relationship,widowed,separated,divorced,civil_union,domestic_partnership'],
+            'education_statuses' => ['nullable', 'array'],
+            'education_statuses.*' => ['in:HIGH_SCHOOL,UNDERGRAD,ALUM,HIGH_SCHOOL_GRAD,SOME_COLLEGE,ASSOCIATE_DEGREE,IN_GRAD_SCHOOL,MASTER_DEGREE,PROFESSIONAL_DEGREE,DOCTORATE_DEGREE,UNSPECIFIED'],
+            // Existing Custom/Lookalike Audience IDs pasted in from Ads
+            // Manager - see FacebookAdService::buildDetailedTargeting()'s
+            // docblock for why these aren't a live-searched dropdown.
+            'custom_audiences' => ['nullable', 'string', 'max:255'],
+            'excluded_custom_audiences' => ['nullable', 'string', 'max:255'],
+            'device_platforms' => ['nullable', 'array'],
+            'device_platforms.*' => ['in:mobile,desktop'],
         ];
     }
 
@@ -413,6 +437,24 @@ class AdCampaignRequest extends FormRequest
             //     },
 
             // ]
+            // Free-text, resolved against TikTok's Tool API at submit time
+            // (TiktokAdService::resolveByName()/resolveByKeyword()) rather
+            // than a fixed enum - comma-separated so the form can stay a
+            // single text input instead of a live-search widget.
+            'interest_categories' => ['nullable', 'string', 'max:500'],
+            'interest_keywords' => ['nullable', 'string', 'max:500'],
+            'behaviors' => ['nullable', 'string', 'max:500'],
+            'operating_systems' => ['nullable', 'array'],
+            'operating_systems.*' => ['in:ANDROID,IOS'],
+            'network_types' => ['nullable', 'array'],
+            'network_types.*' => ['in:WIFI,2G,3G,4G'],
+            'device_price_min' => ['nullable', 'integer', 'min:0'],
+            'device_price_max' => ['nullable', 'integer', 'min:0', 'gte:device_price_min'],
+            // Existing Custom Audience IDs pasted in from TikTok Ads
+            // Manager - see TiktokAdService::buildAudienceTargeting()'s
+            // docblock for why these aren't a live-searched dropdown.
+            'audience_ids' => ['nullable', 'string', 'max:255'],
+            'excluded_audience_ids' => ['nullable', 'string', 'max:255'],
         ];
     }
 

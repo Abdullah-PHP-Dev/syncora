@@ -352,13 +352,19 @@ class FacebookAdService
     {
         $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/campaigns';
 
+        // Special Ad Category is set once here and is immutable for the
+        // life of the campaign (Meta rejects changing it later) - see
+        // storeAdGroup()'s docblock for the targeting restrictions it
+        // triggers. Was previously hardcoded to [] (NONE) unconditionally.
+        $specialAdCategory = $request['special_ad_category'] ?? null;
+
         $payload = [
             'name'                => $request['name'],
             'status'              => 'PAUSED',
             'start_time'          => Carbon::parse($request['start_time'])->utc()->format('Y-m-d\TH:i:s.v\Z'),
             'stop_time'           => Carbon::parse($request['end_time'])->utc()->format('Y-m-d\TH:i:s.v\Z'),
             'creation_state'      => 'PUBLISHED',
-            'special_ad_categories' => [],
+            'special_ad_categories' => $specialAdCategory ? [$specialAdCategory] : [],
             'is_adset_budget_sharing_enabled' => false,
             'objective' => $request['objective'],
         ];
@@ -377,6 +383,7 @@ class FacebookAdService
             'ad_account_id'   => $this->account->id,
             'name' => $request['name'],
             'objective' => $request['objective'],
+            'special_ad_category' => $specialAdCategory,
             'platform' => $platform,
             'start_time' => $request['start_time'],
             'end_time' => $request['end_time'],
@@ -405,8 +412,40 @@ class FacebookAdService
         }
         $countries = Country::whereIn('id', $request['countries'])->pluck('code')->toArray();
         $genders = $request['gender'] == 'male' ? [1] : ($request['gender'] == 'female' ? [2] : [1, 2]);
+        $ageFrom = $request['age_from'];
+        $ageTo = $request['age_to'];
         $locales = $this->getLocale($request['languages']);
         // $locales = collect($request['langauges'] ?? [])->map(fn($lang) => $localeMap[$lang] ?? null)->filter()->values()->toArray();
+
+        // Special Ad Category (housing/employment/credit/social-issues ads)
+        // legally forbids narrowing by age or gender - Meta rejects the
+        // ad set outright otherwise. Silently forcing the broadest
+        // allowed range here (rather than surfacing a 400 from Meta) so a
+        // category chosen after the Audience step was already filled in
+        // doesn't produce a confusing rejected submission.
+        $specialAdCategory = $request['special_ad_category'] ?? null;
+
+        if ($specialAdCategory) {
+            $genders = [1, 2];
+            $ageFrom = 18;
+            $ageTo = 65;
+        }
+
+        $detailedTargeting = $this->buildDetailedTargeting($request);
+
+        if ($specialAdCategory) {
+            // Meta also restricts which Detailed Targeting entities
+            // remain eligible under a Special Ad Category (server-side,
+            // via its own "Special Ad Audience" allow-list) rather than
+            // rejecting all of them outright - but which subset is safe
+            // isn't something this app can determine client-side, so the
+            // safer default is to drop detailed targeting entirely for
+            // these campaigns rather than risk sending an entity Meta
+            // will reject.
+            $detailedTargeting['flexible_spec'] = [];
+        }
+
+        $devicePlatforms = !empty($request['device_platforms']) ? $request['device_platforms'] : ['mobile', 'desktop'];
 
         $payload = [
             'campaign_id'       => $request['campaign_id'],
@@ -425,10 +464,10 @@ class FacebookAdService
                 'genders' => $genders,
                 'locales' => $locales,
                 "age_range" => [
-                    $request['age_from'],
-                    $request['age_to']
+                    $ageFrom,
+                    $ageTo
                 ],
-                "device_platforms" => ["mobile", "desktop"],
+                "device_platforms" => $devicePlatforms,
                 "targeting_automation" => [
                     "advantage_audience" => 1,
                     "individual_setting" => [
@@ -437,6 +476,9 @@ class FacebookAdService
                     ]
                 ],
                 'publisher_platforms' => $publisherPlatforms,
+                'flexible_spec' => $detailedTargeting['flexible_spec'],
+                'custom_audiences' => $detailedTargeting['custom_audiences'],
+                'excluded_custom_audiences' => $detailedTargeting['excluded_custom_audiences'],
             ],
             'promoted_object'   => $adSetObjects['promoted_objects'],
             'is_adset_budget_sharing_enabled' => false,
@@ -480,10 +522,21 @@ class FacebookAdService
             'schedule_end_time' => $request['end_time'],
             'budget' => $request['final_budget'],
             'age_groups' => json_encode([
-                'age_from' => $request['age_from'],
-                'age_to' => $request['age_to'],
+                'age_from' => $ageFrom,
+                'age_to' => $ageTo,
             ]),
             'publisher_platforms' => json_encode($publisherPlatforms),
+            // Resolved detailed-targeting payload (for reference) plus
+            // every raw local selection needed to re-populate the edit
+            // form - same "one JSON bag" shape LinkedinAdService uses for
+            // its own targeting_criteria column.
+            'targeting_criteria' => json_encode([
+                'flexible_spec' => $detailedTargeting['flexible_spec'],
+                'custom_audiences' => $detailedTargeting['custom_audiences'],
+                'excluded_custom_audiences' => $detailedTargeting['excluded_custom_audiences'],
+                'device_platforms' => $devicePlatforms,
+                'local' => $detailedTargeting['local'],
+            ]),
             'status' => false
         ];
 
@@ -944,6 +997,186 @@ class FacebookAdService
         return $locals;
     }
 
+    /**
+     * Splits a comma-separated free-text field (Detailed Targeting/Life
+     * Events/Industries/Income/Custom Audience ID inputs) into trimmed,
+     * non-empty values.
+     */
+    private function splitCsv(?string $value): array
+    {
+        if (empty($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', explode(',', $value))));
+    }
+
+    /**
+     * Resolves free-text queries to Meta targeting entity {id,name} pairs
+     * via the Ad Account's Targeting Search endpoint (GET /act_{id}/
+     * targetingsearch?q=...&limit_type=...) - used for every detailed-
+     * targeting facet without a small static enum worth hardcoding
+     * (interests, behaviors, life_events, industries, income). One
+     * request per query since the endpoint only searches a single string
+     * at a time; each is independently best-effort so one unmatched query
+     * doesn't drop the rest.
+     */
+    private function resolveDetailedTargeting(string $limitType, array $queries): array
+    {
+        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/targetingsearch';
+        $results = [];
+
+        foreach ($queries as $query) {
+            try {
+                $response = $this->apiService->get($endpoint, $this->header['data'], [
+                    'q'          => $query,
+                    'limit_type' => $limitType,
+                    'limit'      => 1,
+                ]);
+
+                if (!$response['success'] || empty($response['data']['data'][0]['id'])) {
+                    Log::warning('Facebook targeting search found no match.', ['limit_type' => $limitType, 'query' => $query, 'response' => $response['data'] ?? null]);
+                    continue;
+                }
+
+                $results[] = [
+                    'id'   => $response['data']['data'][0]['id'],
+                    'name' => $response['data']['data'][0]['name'] ?? $query,
+                ];
+            } catch (\Throwable $e) {
+                Log::warning('Facebook targeting search threw.', ['limit_type' => $limitType, 'query' => $query, 'error' => $e->getMessage()]);
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Builds the ad set's flexible_spec / custom_audiences / excluded_
+     * custom_audiences from the form's Detailed Targeting inputs, verified
+     * against Meta's "Detailed Targeting" and "Flexible Targeting" docs.
+     * Every facet resolved here (interests, behaviors, life_events,
+     * industries, income, plus the fixed enums relationship_statuses/
+     * education_statuses) is combined into a single flexible_spec entry -
+     * multiple keys within the same entry are OR'd together per Meta's
+     * documented flexible_spec semantics, matching the default "reaches
+     * anyone matching any of these" behavior Ads Manager itself uses
+     * unless an advertiser explicitly narrows with a second AND'd group
+     * (not exposed here - see class docblock for the practical-subset
+     * scope this covers).
+     *
+     * Custom Audiences are targeted by ID, pasted in from Ads Manager
+     * rather than resolved via a live lookup - same "no live API call at
+     * page-render time" pattern XAdService's funding_instrument_id
+     * already uses - since they're the advertiser's own audiences, not a
+     * public taxonomy a typeahead search would help with.
+     *
+     * Interest/behavior *exclusions* are deliberately not supported here:
+     * Meta permanently removed Detailed Targeting Exclusions on March 31,
+     * 2025 - only excluded_custom_audiences remains a valid way to
+     * suppress an audience.
+     */
+    private function buildDetailedTargeting(array $request): array
+    {
+        $spec = [];
+        $local = [];
+
+        $interests = [];
+        $behaviors = [];
+
+        foreach ($this->splitCsv($request['detailed_targeting'] ?? '') as $query) {
+            $interestMatch = $this->resolveDetailedTargeting('interests', [$query]);
+
+            if (!empty($interestMatch)) {
+                $interests = array_merge($interests, $interestMatch);
+                continue;
+            }
+
+            $behaviorMatch = $this->resolveDetailedTargeting('behaviors', [$query]);
+
+            if (!empty($behaviorMatch)) {
+                $behaviors = array_merge($behaviors, $behaviorMatch);
+            }
+        }
+
+        if (!empty($interests)) {
+            $spec['interests'] = $interests;
+        }
+
+        if (!empty($behaviors)) {
+            $spec['behaviors'] = $behaviors;
+        }
+
+        $local['detailed_targeting'] = $request['detailed_targeting'] ?? '';
+
+        $lifeEvents = $this->resolveDetailedTargeting('life_events', $this->splitCsv($request['life_events'] ?? ''));
+
+        if (!empty($lifeEvents)) {
+            $spec['life_events'] = $lifeEvents;
+        }
+
+        $local['life_events'] = $request['life_events'] ?? '';
+
+        $industries = $this->resolveDetailedTargeting('industries', $this->splitCsv($request['industries'] ?? ''));
+
+        if (!empty($industries)) {
+            $spec['industries'] = $industries;
+        }
+
+        $local['industries'] = $request['industries'] ?? '';
+
+        $income = $this->resolveDetailedTargeting('income', $this->splitCsv($request['income'] ?? ''));
+
+        if (!empty($income)) {
+            $spec['income'] = $income;
+        }
+
+        $local['income'] = $request['income'] ?? '';
+
+        // Relationship status - fixed numeric codes per Meta's documented
+        // enum (5 is not assigned to any status and is deliberately absent).
+        $relationshipMap = [
+            'single' => 1, 'in_relationship' => 2, 'married' => 3, 'engaged' => 4,
+            'its_complicated' => 6, 'open_relationship' => 7, 'widowed' => 8,
+            'separated' => 9, 'divorced' => 10, 'civil_union' => 11, 'domestic_partnership' => 12,
+        ];
+        $relationshipStatuses = array_values(array_filter(array_map(
+            fn($r) => $relationshipMap[$r] ?? null,
+            $request['relationship_statuses'] ?? []
+        )));
+
+        if (!empty($relationshipStatuses)) {
+            $spec['relationship_statuses'] = $relationshipStatuses;
+        }
+
+        $local['relationship_statuses'] = $request['relationship_statuses'] ?? [];
+
+        // Education status - fixed enum per Meta's documented values.
+        $educationStatuses = array_values(array_intersect($request['education_statuses'] ?? [], [
+            'HIGH_SCHOOL', 'UNDERGRAD', 'ALUM', 'HIGH_SCHOOL_GRAD', 'SOME_COLLEGE',
+            'ASSOCIATE_DEGREE', 'IN_GRAD_SCHOOL', 'MASTER_DEGREE', 'PROFESSIONAL_DEGREE',
+            'DOCTORATE_DEGREE', 'UNSPECIFIED',
+        ]));
+
+        if (!empty($educationStatuses)) {
+            $spec['education_statuses'] = $educationStatuses;
+        }
+
+        $local['education_statuses'] = $request['education_statuses'] ?? [];
+
+        $customAudiences = array_map(fn($id) => ['id' => $id], $this->splitCsv($request['custom_audiences'] ?? ''));
+        $excludedCustomAudiences = array_map(fn($id) => ['id' => $id], $this->splitCsv($request['excluded_custom_audiences'] ?? ''));
+        $local['custom_audiences'] = $request['custom_audiences'] ?? '';
+        $local['excluded_custom_audiences'] = $request['excluded_custom_audiences'] ?? '';
+
+        return [
+            'flexible_spec'              => !empty($spec) ? [$spec] : [],
+            'custom_audiences'           => $customAudiences,
+            'excluded_custom_audiences'  => $excludedCustomAudiences,
+            'local'                      => $local,
+        ];
+    }
+
     private function getMediaType($fileExtension)
     {
         // Define media types based on file extensions
@@ -1258,8 +1491,31 @@ class FacebookAdService
         $countries = Country::whereIn('id', $request['countries'])->pluck('code')->toArray();
 
         $genders = $request['gender'] == 'male' ? [1] : ($request['gender'] == 'female' ? [2] : [1, 2]);
+        $ageFrom = $request['age_from'];
+        $ageTo = $request['age_to'];
         $locales = $this->getLocale($request['languages']);
         // $locales = collect($request['langauges'] ?? [])->map(fn($lang) => $localeMap[$lang] ?? null)->filter()->values()->toArray();
+
+        // Special Ad Category is immutable once the campaign is created
+        // (Meta rejects changing it) and the edit form doesn't resubmit
+        // it, so it's read from the campaign record itself rather than
+        // $request - see storeAdGroup()'s docblock for why this forces
+        // the broadest age/gender range.
+        $specialAdCategory = AdCampaign::find($campaignId)?->special_ad_category;
+
+        if ($specialAdCategory) {
+            $genders = [1, 2];
+            $ageFrom = 18;
+            $ageTo = 65;
+        }
+
+        $detailedTargeting = $this->buildDetailedTargeting($request);
+
+        if ($specialAdCategory) {
+            $detailedTargeting['flexible_spec'] = [];
+        }
+
+        $devicePlatforms = !empty($request['device_platforms']) ? $request['device_platforms'] : ['mobile', 'desktop'];
 
         $payload = [
             // 'campaign_id'       => $request['campaign_id'],
@@ -1278,10 +1534,10 @@ class FacebookAdService
                 'genders' => $genders,
                 'locales' => $locales,
                 "age_range" => [
-                    $request['age_from'],
-                    $request['age_to']
+                    $ageFrom,
+                    $ageTo
                 ],
-                "device_platforms" => ["mobile", "desktop"],
+                "device_platforms" => $devicePlatforms,
                 "targeting_automation" => [
                     "advantage_audience" => 1,
                     "individual_setting" => [
@@ -1290,6 +1546,9 @@ class FacebookAdService
                     ]
                 ],
                 'publisher_platforms' => $publisherPlatforms,
+                'flexible_spec' => $detailedTargeting['flexible_spec'],
+                'custom_audiences' => $detailedTargeting['custom_audiences'],
+                'excluded_custom_audiences' => $detailedTargeting['excluded_custom_audiences'],
             ],
             'promoted_object'   => $adSetObjects['promoted_objects'],
             'is_adset_budget_sharing_enabled' => false,
@@ -1331,10 +1590,17 @@ class FacebookAdService
             'schedule_end_time' => $request['end_time'],
             'budget' => $request['final_budget'],
             'age_groups' => json_encode([
-                'age_from' => $request['age_from'],
-                'age_to' => $request['age_to'],
+                'age_from' => $ageFrom,
+                'age_to' => $ageTo,
             ]),
             'publisher_platforms' => json_encode($publisherPlatforms),
+            'targeting_criteria' => json_encode([
+                'flexible_spec' => $detailedTargeting['flexible_spec'],
+                'custom_audiences' => $detailedTargeting['custom_audiences'],
+                'excluded_custom_audiences' => $detailedTargeting['excluded_custom_audiences'],
+                'device_platforms' => $devicePlatforms,
+                'local' => $detailedTargeting['local'],
+            ]),
             'status' => false
         ];
 

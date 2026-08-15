@@ -43,7 +43,7 @@
                                                 data-bs-toggle="dropdown"><i
                                                     class="icon-base bx bx-dots-vertical-rounded icon-md text-body"></i></a>
                                             <div class="dropdown-menu dropdown-menu-end">
-                                                <a href="{{ route('admin.ads.campaigns.edit', ['platform' => 'facebook', 'campaign' => $campaign->id]) }}" data-key="{{ $campaign->key }}"
+                                                <a href="{{ route('admin.ads.campaigns.edit', ['platform' => $platform, 'campaign' => $campaign->id]) }}" data-key="{{ $campaign->key }}"
                                                     class="dropdown-item">{{ __('admin.table.edit') }}</a>
 
                                                 <div class="dropdown-divider"></div>
@@ -124,7 +124,7 @@
         var apiUrl = "{{ route('admin.apis.store') }}";
         var getAPIUrl = "{{ route('admin.apis.show', ['api' => ':API']) }}";
         var updateAPIUrl = "{{ route('admin.apis.update', ['api' => ':API']) }}";
-        var destroyAPIUrl = "{{ route('admin.ads.campaigns.destroy', ['platform' => 'facebook', 'campaign' => ':API']) }}";
+        var destroyAPIUrl = "{{ route('admin.ads.campaigns.destroy', ['platform' => $platform, 'campaign' => ':API']) }}";
         var edit = "{{ __('admin.table.edit') }}";
         var deletebutton = "{{ __('admin.table.delete') }}";
     </script>

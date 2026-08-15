@@ -361,6 +361,23 @@
                                                     <p class="error-message error-objective"></p>
                                                 </div>
                                             </div>
+                                            <br>
+                                            <div class="row">
+                                                <div class="col-md-12">
+                                                    <label>Special Ad Category</label>
+                                                    <select id="special_ad_category" name="special_ad_category" class="form-control">
+                                                        <option value="">None</option>
+                                                        <option value="HOUSING">Housing</option>
+                                                        <option value="EMPLOYMENT">Employment</option>
+                                                        <option value="CREDIT">Credit</option>
+                                                        <option value="ISSUES_ELECTIONS_POLITICS">Social issues, elections or politics</option>
+                                                    </select>
+                                                    <p class="text-muted mb-0 mt-1" style="font-size:0.8rem;" id="specialAdCategoryNotice">
+                                                        Ads about housing, employment, credit, or social issues/elections/politics must comply with Meta's Special Ad Category policy - selecting one here disables age, gender and detailed audience targeting on this campaign to prevent discriminatory targeting. <a href="https://www.facebook.com/business/help/298000447747885" target="_blank" rel="noopener">Learn more</a>.
+                                                    </p>
+                                                    <p class="error-message error-special_ad_category"></p>
+                                                </div>
+                                            </div>
                                         </div>
                                         </div>
 
@@ -767,6 +784,98 @@
                                                 </div>
 
                                             </div>
+                                            <br>
+                                            <div class="row">
+                                                <div class="col-md-12">
+                                                    <label>Devices</label>
+                                                    <div class="platform-group">
+                                                        @foreach (['mobile' => 'Mobile', 'desktop' => 'Desktop'] as $value => $label)
+                                                            <div class="platform-card">
+                                                                <div class="form-check form-switch">
+                                                                    <input class="form-check-input platform-switch device-platform" type="checkbox" name="device_platforms[]" value="{{ $value }}" id="device_{{ $value }}" checked>
+                                                                    <label class="form-check-label ms-2" for="device_{{ $value }}">{{ $label }}</label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                    <p class="error-message error-device_platforms"></p>
+                                                </div>
+                                            </div>
+                                            <hr class="my-4">
+                                            <h6>Detailed Targeting <small class="text-muted" id="detailedTargetingLockedNote" style="display:none">- disabled by Special Ad Category</small></h6>
+                                            <div class="row">
+                                                <div class="col-md-12">
+                                                    <label>Interests &amp; Behaviors (comma-separated)</label>
+                                                    <input type="text" name="detailed_targeting" id="detailed_targeting" class="form-control targeting-field" placeholder="e.g. Fitness and wellness, Frequent travelers, Online shopping">
+                                                    <p class="error-message error-detailed_targeting"></p>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-3">
+                                                <div class="col-md-6">
+                                                    <label>Life Events (comma-separated)</label>
+                                                    <input type="text" name="life_events" id="life_events" class="form-control targeting-field" placeholder="e.g. Newlywed, New job">
+                                                    <p class="error-message error-life_events"></p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label>Industries (comma-separated)</label>
+                                                    <input type="text" name="industries" id="industries" class="form-control targeting-field" placeholder="e.g. Technology, Healthcare">
+                                                    <p class="error-message error-industries"></p>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-3">
+                                                <div class="col-md-12">
+                                                    <label>Household Income (comma-separated)</label>
+                                                    <input type="text" name="income" id="income" class="form-control targeting-field" placeholder="e.g. Top 10% of ZIP codes">
+                                                    <p class="error-message error-income"></p>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-3">
+                                                <div class="col-md-12">
+                                                    <label>Relationship Status</label>
+                                                    <div class="platform-group">
+                                                        @foreach (['single' => 'Single', 'in_relationship' => 'In a relationship', 'married' => 'Married', 'engaged' => 'Engaged', 'its_complicated' => "It's complicated", 'open_relationship' => 'Open relationship', 'widowed' => 'Widowed', 'separated' => 'Separated', 'divorced' => 'Divorced', 'civil_union' => 'Civil union', 'domestic_partnership' => 'Domestic partnership'] as $value => $label)
+                                                            <div class="platform-card">
+                                                                <div class="form-check form-switch">
+                                                                    <input class="form-check-input platform-switch targeting-field" type="checkbox" name="relationship_statuses[]" value="{{ $value }}" id="relationship_{{ $value }}">
+                                                                    <label class="form-check-label ms-2" for="relationship_{{ $value }}">{{ $label }}</label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                    <p class="error-message error-relationship_statuses"></p>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-3">
+                                                <div class="col-md-12">
+                                                    <label>Education</label>
+                                                    <div class="platform-group">
+                                                        @foreach (['HIGH_SCHOOL' => 'High school', 'UNDERGRAD' => 'In college', 'ALUM' => 'College grad', 'HIGH_SCHOOL_GRAD' => 'High school grad', 'SOME_COLLEGE' => 'Some college', 'ASSOCIATE_DEGREE' => 'Associate degree', 'IN_GRAD_SCHOOL' => 'In grad school', 'MASTER_DEGREE' => "Master's degree", 'PROFESSIONAL_DEGREE' => 'Professional degree', 'DOCTORATE_DEGREE' => 'Doctorate degree'] as $value => $label)
+                                                            <div class="platform-card">
+                                                                <div class="form-check form-switch">
+                                                                    <input class="form-check-input platform-switch targeting-field" type="checkbox" name="education_statuses[]" value="{{ $value }}" id="education_{{ $value }}">
+                                                                    <label class="form-check-label ms-2" for="education_{{ $value }}">{{ $label }}</label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                    <p class="error-message error-education_statuses"></p>
+                                                </div>
+                                            </div>
+                                            <hr class="my-4">
+                                            <h6>Custom Audiences</h6>
+                                            <p class="text-muted mb-1" style="font-size:0.8rem;">Paste in existing Custom/Lookalike Audience IDs from Ads Manager (comma-separated) - this app doesn't create new audiences, only targets ones you've already built.</p>
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <label>Include Audiences</label>
+                                                    <input type="text" name="custom_audiences" id="custom_audiences" class="form-control" placeholder="e.g. 120210000000000001">
+                                                    <p class="error-message error-custom_audiences"></p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label>Exclude Audiences</label>
+                                                    <input type="text" name="excluded_custom_audiences" id="excluded_custom_audiences" class="form-control" placeholder="e.g. 120210000000000002">
+                                                    <p class="error-message error-excluded_custom_audiences"></p>
+                                                </div>
+                                            </div>
                                         </div>
                                         </div>
 
@@ -880,8 +989,8 @@
         var getAPIUrl = "{{ route('admin.apis.show', ['api' => ':API']) }}";
         var updateAPIUrl = "{{ route('admin.apis.update', ['api' => ':API']) }}";
         var destroyAPIUrl = "{{ route('admin.apis.destroy', ['api' => ':API']) }}";
-        var url = "{{ route('admin.ads.campaigns.store', ['platform' => 'facebook']) }}";
-        var redirectUrl = "{{ route('admin.ads.campaigns.index', ['platform' => 'facebook']) }}";
+        var url = "{{ route('admin.ads.campaigns.store', ['platform' => $platform]) }}";
+        var redirectUrl = "{{ route('admin.ads.campaigns.index', ['platform' => $platform]) }}";
         var method = 'POST';
         var edit = "{{ __('admin.table.edit') }}";
         var deletebutton = "{{ __('admin.table.delete') }}";
@@ -899,6 +1008,40 @@
         // globals when #campaign is submitted.
         window.addEventListener('load', function() {
         $('#countries').select2();
+
+        // Special Ad Category (housing/employment/credit/social-issues)
+        // legally forbids age/gender/detailed-targeting narrowing - see
+        // FacebookAdService::storeAdGroup()'s docblock. Locking these
+        // fields client-side (rather than only enforcing it server-side)
+        // avoids an advertiser filling them in only to have them silently
+        // overridden on submit.
+        const specialAdCategorySelect = document.getElementById('special_ad_category');
+
+        function applySpecialAdCategoryLock() {
+            const isRestricted = !!specialAdCategorySelect?.value;
+            const lockedFields = [
+                document.getElementById('gender'),
+                document.getElementById('age_from'),
+                document.getElementById('age_to'),
+                ...document.querySelectorAll('.targeting-field'),
+            ];
+
+            lockedFields.forEach(field => {
+                if (!field) return;
+                field.disabled = isRestricted;
+            });
+
+            if (isRestricted) {
+                if (document.getElementById('gender')) document.getElementById('gender').value = 'both';
+            }
+
+            const note = document.getElementById('detailedTargetingLockedNote');
+            if (note) note.style.display = isRestricted ? '' : 'none';
+        }
+
+        specialAdCategorySelect?.addEventListener('change', applySpecialAdCategoryLock);
+        applySpecialAdCategoryLock();
+
         document.getElementById('name').addEventListener('keyup', function() {
 
             document.getElementById('previewTitle')
@@ -1224,6 +1367,15 @@
             let languages = Array.from(document.querySelectorAll('input[name="languages[]"]:checked'))
                 .map(el => el.nextElementSibling.innerText.trim()).join(', ');
 
+            let devicePlatforms = Array.from(document.querySelectorAll('input[name="device_platforms[]"]:checked'))
+                .map(el => el.nextElementSibling.innerText.trim()).join(', ');
+
+            let relationshipStatuses = Array.from(document.querySelectorAll('input[name="relationship_statuses[]"]:checked'))
+                .map(el => el.nextElementSibling.innerText.trim()).join(', ');
+
+            let educationStatuses = Array.from(document.querySelectorAll('input[name="education_statuses[]"]:checked'))
+                .map(el => el.nextElementSibling.innerText.trim()).join(', ');
+
             let mediaSummary = creativeType === 'CAROUSEL' ?
                 `${carouselItems.length} carousel image(s)` :
                 (document.getElementById('mediaInput').files.length ? '1 file selected' : 'No media selected');
@@ -1231,6 +1383,7 @@
             let html = '';
             html += reviewRow('Campaign Name', document.getElementById('name').value);
             html += reviewRow('Objective', beautifyLabel(document.getElementById('objective').value || ''));
+            html += reviewRow('Special Ad Category', beautifyLabel(specialAdCategorySelect?.value || 'None'));
             html += reviewRow('Budget Type', beautifyLabel(document.getElementById('budget_mode').value || ''));
             html += reviewRow('Total Budget', document.getElementById('total_budget').innerText);
             html += reviewRow('Start Date', document.getElementById('start_time').value);
@@ -1243,6 +1396,15 @@
             html += reviewRow('Gender', beautifyLabel(document.getElementById('gender').value || ''));
             html += reviewRow('Age Range', (document.getElementById('age_from').value || '-') + ' - ' + (document.getElementById('age_to').value || '-'));
             html += reviewRow('Languages', languages);
+            html += reviewRow('Devices', devicePlatforms);
+            html += reviewRow('Interests & Behaviors', document.getElementById('detailed_targeting').value);
+            html += reviewRow('Life Events', document.getElementById('life_events').value);
+            html += reviewRow('Industries', document.getElementById('industries').value);
+            html += reviewRow('Household Income', document.getElementById('income').value);
+            html += reviewRow('Relationship Status', relationshipStatuses);
+            html += reviewRow('Education', educationStatuses);
+            html += reviewRow('Include Audiences', document.getElementById('custom_audiences').value);
+            html += reviewRow('Exclude Audiences', document.getElementById('excluded_custom_audiences').value);
 
             document.getElementById('reviewSummary').innerHTML = html;
         }

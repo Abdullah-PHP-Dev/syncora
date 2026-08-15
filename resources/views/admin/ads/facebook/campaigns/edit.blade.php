@@ -264,8 +264,18 @@
                                                     $ad = $creative->ads->first();
                                                     $media = $creative->media;
                                                     $publisherPlatforms = json_decode($adGroup->publisher_platforms);
-                                                    $languages = json_decode($adGroup->languages); 
-                                                    $selectedCountries = json_decode($adGroup->location_ids);                                             
+                                                    $languages = json_decode($adGroup->languages);
+                                                    $selectedCountries = json_decode($adGroup->location_ids);
+                                                    // targeting_criteria holds the full resolved Detailed Targeting
+                                                    // payload plus every raw local selection needed to re-populate
+                                                    // this form - see FacebookAdService::buildDetailedTargeting().
+                                                    $targetingLocal = json_decode($adGroup->targeting_criteria ?? '{}', true)['local'] ?? [];
+                                                    $selectedDevicePlatforms = json_decode($adGroup->targeting_criteria ?? '{}', true)['device_platforms'] ?? ['mobile', 'desktop'];
+                                                    // Special Ad Category forbids age/gender/detailed-targeting
+                                                    // narrowing - see FacebookAdService::storeAdGroup()'s docblock.
+                                                    // No JS toggle needed here (unlike create.blade.php's wizard)
+                                                    // since the category itself is locked/immutable on this page.
+                                                    $isSpecialCategoryLocked = (bool) $campaign->special_ad_category;
                                                 @endphp
                                                 <div class="col-md-12">
                                                     <label>Platforms</label>
@@ -326,6 +336,20 @@
                                                         </option>
                                                     </select>
                                                     <p class="error-message error-objective"></p>
+                                                </div>
+                                            </div>
+                                            <br>
+                                            <div class="row">
+                                                <div class="col-md-12">
+                                                    <label>Special Ad Category</label>
+                                                    <select id="special_ad_category" class="form-control" disabled>
+                                                        <option value="" @selected(!$campaign->special_ad_category)>None</option>
+                                                        <option value="HOUSING" @selected($campaign->special_ad_category == 'HOUSING')>Housing</option>
+                                                        <option value="EMPLOYMENT" @selected($campaign->special_ad_category == 'EMPLOYMENT')>Employment</option>
+                                                        <option value="CREDIT" @selected($campaign->special_ad_category == 'CREDIT')>Credit</option>
+                                                        <option value="ISSUES_ELECTIONS_POLITICS" @selected($campaign->special_ad_category == 'ISSUES_ELECTIONS_POLITICS')>Social issues, elections or politics</option>
+                                                    </select>
+                                                    <p class="text-muted mb-0 mt-1" style="font-size:0.8rem;">Locked - Meta doesn't allow changing a campaign's Special Ad Category after creation. To change it, delete this campaign and create a new one.</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -594,6 +618,9 @@
                                                         <option value="both" @selected(old('gender', $adGroup->gender) == 'both')>Both</option>
                                                     </select>
                                                     <p class="error-message error-gender"></p>
+                                                    @if ($isSpecialCategoryLocked)
+                                                        <p class="text-muted mb-0 mt-1" style="font-size:0.8rem;">This campaign's Special Ad Category forces gender/age to the broadest range on save, regardless of what's selected here.</p>
+                                                    @endif
                                                 </div>
                                             </div>
                                             <br>
@@ -601,14 +628,14 @@
                                                 <div class="col-md-6">
                                                     <select id="age_from" name="age_from" class="form-control">
                                                         <option value="">Age From</option>
-                                                    
+
                                                         @for($age = 18; $age <= 65; $age++)
-                                                            <option value="{{ $age }}" 
+                                                            <option value="{{ $age }}"
                                                                 @selected(old('age_from', $ageGroup->age_from) == $age)>
                                                                 {{ $age }}
                                                             </option>
                                                         @endfor
-                                                    
+
                                                     </select>
                                                     <p class="error-message error-age_from"></p>
                                                 </div>
@@ -669,6 +696,98 @@
                                                     </div>
                                                 </div>
 
+                                            </div>
+                                            <br>
+                                            <div class="row">
+                                                <div class="col-md-12">
+                                                    <label>Devices</label>
+                                                    <div class="platform-group">
+                                                        @foreach (['mobile' => 'Mobile', 'desktop' => 'Desktop'] as $value => $label)
+                                                            <div class="platform-card">
+                                                                <div class="form-check form-switch">
+                                                                    <input class="form-check-input platform-switch device-platform" type="checkbox" name="device_platforms[]" value="{{ $value }}" id="device_{{ $value }}" @checked(in_array($value, $selectedDevicePlatforms))>
+                                                                    <label class="form-check-label ms-2" for="device_{{ $value }}">{{ $label }}</label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                    <p class="error-message error-device_platforms"></p>
+                                                </div>
+                                            </div>
+                                            <hr class="my-4">
+                                            <h6>Detailed Targeting @if ($isSpecialCategoryLocked)<small class="text-muted">- disabled by Special Ad Category</small>@endif</h6>
+                                            <div class="row">
+                                                <div class="col-md-12">
+                                                    <label>Interests &amp; Behaviors (comma-separated)</label>
+                                                    <input type="text" name="detailed_targeting" id="detailed_targeting" class="form-control targeting-field" @disabled($isSpecialCategoryLocked) value="{{ $targetingLocal['detailed_targeting'] ?? '' }}" placeholder="e.g. Fitness and wellness, Frequent travelers, Online shopping">
+                                                    <p class="error-message error-detailed_targeting"></p>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-3">
+                                                <div class="col-md-6">
+                                                    <label>Life Events (comma-separated)</label>
+                                                    <input type="text" name="life_events" id="life_events" class="form-control targeting-field" @disabled($isSpecialCategoryLocked) value="{{ $targetingLocal['life_events'] ?? '' }}" placeholder="e.g. Newlywed, New job">
+                                                    <p class="error-message error-life_events"></p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label>Industries (comma-separated)</label>
+                                                    <input type="text" name="industries" id="industries" class="form-control targeting-field" @disabled($isSpecialCategoryLocked) value="{{ $targetingLocal['industries'] ?? '' }}" placeholder="e.g. Technology, Healthcare">
+                                                    <p class="error-message error-industries"></p>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-3">
+                                                <div class="col-md-12">
+                                                    <label>Household Income (comma-separated)</label>
+                                                    <input type="text" name="income" id="income" class="form-control targeting-field" @disabled($isSpecialCategoryLocked) value="{{ $targetingLocal['income'] ?? '' }}" placeholder="e.g. Top 10% of ZIP codes">
+                                                    <p class="error-message error-income"></p>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-3">
+                                                <div class="col-md-12">
+                                                    <label>Relationship Status</label>
+                                                    <div class="platform-group">
+                                                        @foreach (['single' => 'Single', 'in_relationship' => 'In a relationship', 'married' => 'Married', 'engaged' => 'Engaged', 'its_complicated' => "It's complicated", 'open_relationship' => 'Open relationship', 'widowed' => 'Widowed', 'separated' => 'Separated', 'divorced' => 'Divorced', 'civil_union' => 'Civil union', 'domestic_partnership' => 'Domestic partnership'] as $value => $label)
+                                                            <div class="platform-card">
+                                                                <div class="form-check form-switch">
+                                                                    <input class="form-check-input platform-switch targeting-field" @disabled($isSpecialCategoryLocked) type="checkbox" name="relationship_statuses[]" value="{{ $value }}" id="relationship_{{ $value }}" @checked(in_array($value, $targetingLocal['relationship_statuses'] ?? []))>
+                                                                    <label class="form-check-label ms-2" for="relationship_{{ $value }}">{{ $label }}</label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                    <p class="error-message error-relationship_statuses"></p>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-3">
+                                                <div class="col-md-12">
+                                                    <label>Education</label>
+                                                    <div class="platform-group">
+                                                        @foreach (['HIGH_SCHOOL' => 'High school', 'UNDERGRAD' => 'In college', 'ALUM' => 'College grad', 'HIGH_SCHOOL_GRAD' => 'High school grad', 'SOME_COLLEGE' => 'Some college', 'ASSOCIATE_DEGREE' => 'Associate degree', 'IN_GRAD_SCHOOL' => 'In grad school', 'MASTER_DEGREE' => "Master's degree", 'PROFESSIONAL_DEGREE' => 'Professional degree', 'DOCTORATE_DEGREE' => 'Doctorate degree'] as $value => $label)
+                                                            <div class="platform-card">
+                                                                <div class="form-check form-switch">
+                                                                    <input class="form-check-input platform-switch targeting-field" @disabled($isSpecialCategoryLocked) type="checkbox" name="education_statuses[]" value="{{ $value }}" id="education_{{ $value }}" @checked(in_array($value, $targetingLocal['education_statuses'] ?? []))>
+                                                                    <label class="form-check-label ms-2" for="education_{{ $value }}">{{ $label }}</label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                    <p class="error-message error-education_statuses"></p>
+                                                </div>
+                                            </div>
+                                            <hr class="my-4">
+                                            <h6>Custom Audiences</h6>
+                                            <p class="text-muted mb-1" style="font-size:0.8rem;">Paste in existing Custom/Lookalike Audience IDs from Ads Manager (comma-separated) - this app doesn't create new audiences, only targets ones you've already built.</p>
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <label>Include Audiences</label>
+                                                    <input type="text" name="custom_audiences" id="custom_audiences" class="form-control" value="{{ $targetingLocal['custom_audiences'] ?? '' }}" placeholder="e.g. 120210000000000001">
+                                                    <p class="error-message error-custom_audiences"></p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label>Exclude Audiences</label>
+                                                    <input type="text" name="excluded_custom_audiences" id="excluded_custom_audiences" class="form-control" value="{{ $targetingLocal['excluded_custom_audiences'] ?? '' }}" placeholder="e.g. 120210000000000002">
+                                                    <p class="error-message error-excluded_custom_audiences"></p>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -767,11 +886,11 @@
         var changesNotSaved = "{{ __('admin.sweet-alert.changes-not-saved') }}";
         var apiUrl = "{{ route('admin.apis.store') }}";
         var getAPIUrl = "{{ route('admin.apis.show', ['api' => ':API']) }}";
-        var url = "{{ route('admin.ads.campaigns.update', ['platform' => 'facebook', 'campaign' => '__ID__']) }}";
-        url = url.replace('__ID__', campaignId);       
+        var url = "{{ route('admin.ads.campaigns.update', ['platform' => $platform, 'campaign' => '__ID__']) }}";
+        url = url.replace('__ID__', campaignId);
         var destroyAPIUrl = "{{ route('admin.apis.destroy', ['api' => ':API']) }}";
-        var redirectUrl = "{{ route('admin.ads.campaigns.index', ['platform' => 'facebook']) }}";
-        //  var url = "{{ route('admin.ads.campaigns.store', ['platform' => 'facebook']) }}";
+        var redirectUrl = "{{ route('admin.ads.campaigns.index', ['platform' => $platform]) }}";
+        //  var url = "{{ route('admin.ads.campaigns.store', ['platform' => $platform]) }}";
         var method = 'PUT';
         var edit = "{{ __('admin.table.edit') }}";
         var deletebutton = "{{ __('admin.table.delete') }}";

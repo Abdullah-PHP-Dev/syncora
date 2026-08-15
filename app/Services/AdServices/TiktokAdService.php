@@ -407,6 +407,9 @@ class TiktokAdService
                 : ['PLACEMENT_TIKTOK'];
         }
 
+        $audienceTargeting = $this->buildAudienceTargeting($request);
+        $payload = array_merge($payload, $audienceTargeting['targeting']);
+
         // storeAd()->store() chains storeCampaign() straight into this
         // with zero delay, referencing the campaign_id storeCampaign()
         // just got back - occasionally TikTok's own systems haven't
@@ -464,6 +467,14 @@ class TiktokAdService
             'conversion_bid_price'  => $payload['conversion_bid_price'] ?? null,
             'pacing'                => $payload['pacing'],
             'objective'             => $request['objective'],
+            // Resolved TikTok-side IDs (for reference) plus every raw
+            // local selection needed to re-populate the edit form - same
+            // "one JSON bag" shape LinkedinAdService/FacebookAdService
+            // use for their own targeting_criteria column.
+            'targeting_criteria'    => json_encode([
+                'targeting' => $audienceTargeting['targeting'],
+                'local'     => $audienceTargeting['local'],
+            ]),
             'status'                => false,
         ];
 
@@ -1089,6 +1100,228 @@ class TiktokAdService
             ->toArray();
     }
 
+    /**
+     * Splits a comma-separated free-text field (Interest Categories/
+     * Interest Keywords/Behaviors/Custom Audience ID inputs) into
+     * trimmed, non-empty values.
+     */
+    private function splitCsv(?string $value): array
+    {
+        if (empty($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', explode(',', $value))));
+    }
+
+    /**
+     * Interest Categories (tool/interest_category/) and Behaviors/Action
+     * Categories (tool/action_category/) are both flat-or-tree taxonomies
+     * TikTok returns in full rather than accepting a search query -
+     * fetched once per call and matched against the requested names
+     * client-side, the same "fetch-all, match locally" shape
+     * resolveLocationIds() already uses for countries. Endpoint paths
+     * verified against TikTok's official Tool API reference; the exact
+     * response envelope key names for these two specifically aren't
+     * spelled out field-for-field there the way adgroup/create/'s own
+     * body is, so flattenTikTokTaxonomy() below tries several plausible
+     * key names defensively (same pattern getIdentities() already uses
+     * for identity/get/'s own envelope) - verify against a live TikTok
+     * sandbox account before relying on this for live ad spend, per this
+     * class's own docblock.
+     */
+    private function resolveByName(string $endpoint, array $queries): array
+    {
+        if (empty($queries)) {
+            return [];
+        }
+
+        $result = $this->callTikTok('get', $this->config . $endpoint, [
+            'advertiser_id' => $this->account->ad_account_id,
+        ]);
+
+        if (!$result['success']) {
+            return [];
+        }
+
+        $entries = $this->flattenTikTokTaxonomy($result['data']);
+        $needles = array_map('strtolower', $queries);
+
+        return collect($entries)
+            ->filter(fn($entry) => collect($needles)->contains(
+                fn($needle) => str_contains(strtolower($entry['name'] ?? ''), $needle)
+            ))
+            ->pluck('id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+    }
+
+    /**
+     * Additional Interest Keywords (interest_keyword_ids) are resolved
+     * via tool/interest_keyword/recommend/'s keyword search instead of
+     * resolveByName()'s fetch-all approach - unlike Interest Categories/
+     * Behaviors, TikTok's keyword taxonomy is far too large to fetch and
+     * scan in full, so it's a live per-query search matching the same
+     * "one request per query, best-effort" shape LinkedinAdService/
+     * FacebookAdService use for their own typeahead resolution.
+     */
+    private function resolveByKeyword(array $queries): array
+    {
+        $ids = [];
+
+        foreach ($queries as $query) {
+            $result = $this->callTikTok('get', $this->config . 'tool/interest_keyword/recommend/', [
+                'advertiser_id' => $this->account->ad_account_id,
+                'keyword'       => $query,
+                'limit'         => 1,
+            ]);
+
+            if (!$result['success']) {
+                continue;
+            }
+
+            $entries = $this->flattenTikTokTaxonomy($result['data']);
+
+            if (!empty($entries[0]['id'])) {
+                $ids[] = $entries[0]['id'];
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * Flattens whichever envelope shape a Tool API discovery endpoint
+     * returned (interest categories can nest via `children`; the exact
+     * top-level list key varies by endpoint) into one flat [{id,name}]
+     * list so resolveByName()/resolveByKeyword() can match against every
+     * level uniformly regardless of which endpoint produced it.
+     */
+    private function flattenTikTokTaxonomy($data): array
+    {
+        $roots = $data['category_list']
+            ?? $data['categories']
+            ?? $data['action_categories']
+            ?? $data['keyword_list']
+            ?? $data['keywords']
+            ?? $data['list']
+            ?? [];
+
+        $flat = [];
+
+        $walk = function ($nodes) use (&$walk, &$flat) {
+            foreach ((array) $nodes as $node) {
+                $id = $node['interest_category_id']
+                    ?? $node['action_category_id']
+                    ?? $node['interest_keyword_id']
+                    ?? $node['id']
+                    ?? null;
+                $name = $node['name'] ?? null;
+
+                if ($id && $name) {
+                    $flat[] = ['id' => (string) $id, 'name' => $name];
+                }
+
+                if (!empty($node['children'])) {
+                    $walk($node['children']);
+                }
+            }
+        };
+
+        $walk($roots);
+
+        return $flat;
+    }
+
+    /**
+     * Builds the adgroup/create|update/ audience-targeting fields from
+     * the form's Interest/Behavior/Device/Custom-Audience inputs -
+     * verified against TikTok's official Tool/AdgroupCreateBody API
+     * reference. Only this practical subset of TikTok's real targeting
+     * fields is implemented; household_income, spending_power,
+     * carrier_ids, isp_ids and contextual_tag_ids are documented,
+     * discoverable TikTok facets not covered here because their exact
+     * enum values/response shapes couldn't be verified against current
+     * docs - guessing them wrong would silently break every submission
+     * that used them, worse than not exposing the field at all.
+     *
+     * action_scene is fixed to VIDEO_RELATED (TikTok's baseline behavior
+     * signal - recent video interactions) rather than exposed as its own
+     * field, and action_period to 15 days (TikTok's own documented
+     * default window for that signal) - narrower than exposing every
+     * combination TikTok supports, consistent with the "practical
+     * subset" scope this class's targeting already takes elsewhere.
+     */
+    private function buildAudienceTargeting(array $request): array
+    {
+        $targeting = [];
+
+        $interestCategoryIds = $this->resolveByName('tool/interest_category/', $this->splitCsv($request['interest_categories'] ?? ''));
+
+        if (!empty($interestCategoryIds)) {
+            $targeting['interest_category_ids'] = $interestCategoryIds;
+        }
+
+        $interestKeywordIds = $this->resolveByKeyword($this->splitCsv($request['interest_keywords'] ?? ''));
+
+        if (!empty($interestKeywordIds)) {
+            $targeting['interest_keyword_ids'] = $interestKeywordIds;
+        }
+
+        $actionCategoryIds = $this->resolveByName('tool/action_category/', $this->splitCsv($request['behaviors'] ?? ''));
+
+        if (!empty($actionCategoryIds)) {
+            $targeting['actions'] = [[
+                'action_category_ids' => $actionCategoryIds,
+                'action_period'       => 15,
+                'action_scene'        => 'VIDEO_RELATED',
+            ]];
+        }
+
+        if (!empty($request['operating_systems'])) {
+            $targeting['operating_systems'] = array_values((array) $request['operating_systems']);
+        }
+
+        if (!empty($request['network_types'])) {
+            $targeting['network_types'] = array_values((array) $request['network_types']);
+        }
+
+        if (!empty($request['device_price_min']) || !empty($request['device_price_max'])) {
+            $targeting['device_price_ranges'] = [[
+                (int) ($request['device_price_min'] ?? 0),
+                (int) ($request['device_price_max'] ?? 100000),
+            ]];
+        }
+
+        $audienceIds = $this->splitCsv($request['audience_ids'] ?? '');
+
+        if (!empty($audienceIds)) {
+            $targeting['audience_ids'] = $audienceIds;
+        }
+
+        $excludedAudienceIds = $this->splitCsv($request['excluded_audience_ids'] ?? '');
+
+        if (!empty($excludedAudienceIds)) {
+            $targeting['excluded_audience_ids'] = $excludedAudienceIds;
+        }
+
+        $local = [
+            'interest_categories'      => $request['interest_categories'] ?? '',
+            'interest_keywords'        => $request['interest_keywords'] ?? '',
+            'behaviors'                => $request['behaviors'] ?? '',
+            'operating_systems'        => $request['operating_systems'] ?? [],
+            'network_types'            => $request['network_types'] ?? [],
+            'device_price_min'         => $request['device_price_min'] ?? null,
+            'device_price_max'         => $request['device_price_max'] ?? null,
+            'audience_ids'             => $request['audience_ids'] ?? '',
+            'excluded_audience_ids'    => $request['excluded_audience_ids'] ?? '',
+        ];
+
+        return ['targeting' => $targeting, 'local' => $local];
+    }
+
     private function getMediaType($fileExtension)
     {
         $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp'];
@@ -1206,6 +1439,9 @@ class TiktokAdService
             $payload[$bidField] = (float) $request['bid_amount'];
         }
 
+        $audienceTargeting = $this->buildAudienceTargeting($request);
+        $payload = array_merge($payload, $audienceTargeting['targeting']);
+
         $result = $this->callTikTok('post', $endpoint, $payload);
 
         if (!$result['success']) {
@@ -1229,6 +1465,10 @@ class TiktokAdService
             'bid_type'            => $payload['bid_type'] ?? null,
             'bid_price'           => $payload['bid_price'] ?? null,
             'conversion_bid_price' => $payload['conversion_bid_price'] ?? null,
+            'targeting_criteria'  => json_encode([
+                'targeting' => $audienceTargeting['targeting'],
+                'local'     => $audienceTargeting['local'],
+            ]),
             'status'              => false,
         ];
 

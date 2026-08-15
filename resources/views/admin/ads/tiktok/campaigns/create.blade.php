@@ -727,6 +727,88 @@
                                                     <p class="error-message error-placements"></p>
                                                 </div>
                                             </div>
+                                            <hr class="my-4">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <label>Operating System</label>
+                                                    <div class="platform-group">
+                                                        @foreach (['ANDROID' => 'Android', 'IOS' => 'iOS'] as $value => $label)
+                                                            <div class="platform-card">
+                                                                <div class="form-check form-switch">
+                                                                    <input class="form-check-input platform-switch" type="checkbox" name="operating_systems[]" value="{{ $value }}" id="os_{{ strtolower($value) }}">
+                                                                    <label class="form-check-label ms-2" for="os_{{ strtolower($value) }}">{{ $label }}</label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                    <p class="error-message error-operating_systems"></p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label>Network</label>
+                                                    <div class="platform-group">
+                                                        @foreach (['WIFI' => 'Wi-Fi', '2G' => '2G', '3G' => '3G', '4G' => '4G/LTE'] as $value => $label)
+                                                            <div class="platform-card">
+                                                                <div class="form-check form-switch">
+                                                                    <input class="form-check-input platform-switch" type="checkbox" name="network_types[]" value="{{ $value }}" id="network_{{ strtolower($value) }}">
+                                                                    <label class="form-check-label ms-2" for="network_{{ strtolower($value) }}">{{ $label }}</label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                    <p class="error-message error-network_types"></p>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-3">
+                                                <div class="col-md-6">
+                                                    <label>Device Price Range (USD, optional)</label>
+                                                    <div class="row">
+                                                        <div class="col-6">
+                                                            <input type="number" name="device_price_min" id="device_price_min" class="form-control" min="0" placeholder="Min">
+                                                            <p class="error-message error-device_price_min"></p>
+                                                        </div>
+                                                        <div class="col-6">
+                                                            <input type="number" name="device_price_max" id="device_price_max" class="form-control" min="0" placeholder="Max">
+                                                            <p class="error-message error-device_price_max"></p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <hr class="my-4">
+                                            <h6>Interests &amp; Behaviors</h6>
+                                            <div class="row">
+                                                <div class="col-md-12">
+                                                    <label>Interest Categories (comma-separated)</label>
+                                                    <input type="text" name="interest_categories" id="interest_categories" class="form-control" placeholder="e.g. Beauty & Personal Care, Gaming">
+                                                    <p class="error-message error-interest_categories"></p>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-3">
+                                                <div class="col-md-6">
+                                                    <label>Additional Interest Keywords (comma-separated)</label>
+                                                    <input type="text" name="interest_keywords" id="interest_keywords" class="form-control" placeholder="e.g. skincare, home workout">
+                                                    <p class="error-message error-interest_keywords"></p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label>Behaviors (comma-separated)</label>
+                                                    <input type="text" name="behaviors" id="behaviors" class="form-control" placeholder="e.g. Engaged with Fashion Videos">
+                                                    <p class="error-message error-behaviors"></p>
+                                                </div>
+                                            </div>
+                                            <hr class="my-4">
+                                            <h6>Custom Audiences</h6>
+                                            <p class="text-muted mb-1" style="font-size:0.8rem;">Paste in existing Custom Audience IDs from TikTok Ads Manager (comma-separated) - this app doesn't create new audiences, only targets ones you've already built.</p>
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <label>Include Audiences</label>
+                                                    <input type="text" name="audience_ids" id="audience_ids" class="form-control" placeholder="e.g. 7123456789012345678">
+                                                    <p class="error-message error-audience_ids"></p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label>Exclude Audiences</label>
+                                                    <input type="text" name="excluded_audience_ids" id="excluded_audience_ids" class="form-control" placeholder="e.g. 7123456789012345679">
+                                                    <p class="error-message error-excluded_audience_ids"></p>
+                                                </div>
+                                            </div>
                                         </div>
                                         </div>
 
@@ -1370,6 +1452,12 @@
         let ageRanges = Array.from(document.querySelectorAll('input[name="age_range[]"]:checked'))
             .map(el => el.nextElementSibling.innerText.trim()).join(', ');
 
+        let operatingSystems = Array.from(document.querySelectorAll('input[name="operating_systems[]"]:checked'))
+            .map(el => el.nextElementSibling.innerText.trim()).join(', ');
+
+        let networkTypes = Array.from(document.querySelectorAll('input[name="network_types[]"]:checked'))
+            .map(el => el.nextElementSibling.innerText.trim()).join(', ');
+
         let mediaSummary = creativeType === 'CAROUSEL' ?
             `${carouselItems.length} carousel image(s)` :
             (mediaInput.files.length ? '1 file selected' : 'No media selected');
@@ -1391,6 +1479,14 @@
         html += reviewRow('Age Range', ageRanges);
         html += reviewRow('Gender', beautifyLabel(document.getElementById('gender').value || ''));
         html += reviewRow('Languages', languages);
+        html += reviewRow('Operating System', operatingSystems);
+        html += reviewRow('Network', networkTypes);
+        html += reviewRow('Device Price Range', (document.getElementById('device_price_min').value || '-') + ' - ' + (document.getElementById('device_price_max').value || '-'));
+        html += reviewRow('Interest Categories', document.getElementById('interest_categories').value);
+        html += reviewRow('Additional Interests', document.getElementById('interest_keywords').value);
+        html += reviewRow('Behaviors', document.getElementById('behaviors').value);
+        html += reviewRow('Include Audiences', document.getElementById('audience_ids').value);
+        html += reviewRow('Exclude Audiences', document.getElementById('excluded_audience_ids').value);
 
         document.getElementById('reviewSummary').innerHTML = html;
     }

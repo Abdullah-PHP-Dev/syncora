@@ -289,7 +289,7 @@ class LinkedinAdService
 
     private function storeCampaign($platform, $request)
     {
-        $endpoint = $this->config . 'adCampaignGroups';
+        $endpoint = $this->config . 'adAccounts/' . $this->account->ad_account_id . '/adCampaignGroups';
 
         $payload = array_filter([
             'account'     => 'urn:li:sponsoredAccount:' . $this->account->ad_account_id,
@@ -332,7 +332,7 @@ class LinkedinAdService
 
     private function storeAdGroup($platform, $request)
     {
-        $endpoint = $this->config . 'adCampaigns';
+        $endpoint = $this->config . 'adAccounts/' . $this->account->ad_account_id . '/adCampaigns';
         $targeting = $this->buildTargeting($request);
 
         $objective = $request['objective'] ?? 'WEBSITE_VISIT';
@@ -842,7 +842,7 @@ class LinkedinAdService
             ];
         }
 
-        $response = $this->apiService->post($this->config . 'creatives', $this->header['data'], $payload);
+        $response = $this->apiService->post($this->config . 'adAccounts/' . $this->account->ad_account_id . '/creatives', $this->header['data'], $payload);
 
         if (!$response['success']) {
             return $this->errorResponse($response['data']['message'] ?? 'Failed to create LinkedIn Creative.');
@@ -1069,7 +1069,7 @@ class LinkedinAdService
         $campaign = AdCampaign::findOrFail($id);
 
         $response = $this->apiService->post(
-            $this->config . 'adCampaignGroups/' . $campaign->ad_campaign_id,
+            $this->config . 'adAccounts/' . $this->account->ad_account_id . '/adCampaignGroups/' . $campaign->ad_campaign_id,
             array_merge($this->header['data'], ['X-RestLi-Method' => 'PARTIAL_UPDATE']),
             ['patch' => ['$set' => ['name' => $request['name']]]]
         );
@@ -1116,7 +1116,7 @@ class LinkedinAdService
         }
 
         $response = $this->apiService->post(
-            $this->config . 'adCampaigns/' . $adGroup->ad_adgroup_id,
+            $this->config . 'adAccounts/' . $this->account->ad_account_id . '/adCampaigns/' . $adGroup->ad_adgroup_id,
             array_merge($this->header['data'], ['X-RestLi-Method' => 'PARTIAL_UPDATE']),
             ['patch' => ['$set' => $patch]]
         );
@@ -1187,7 +1187,7 @@ class LinkedinAdService
         $adGroup = AdAdGroup::whereAdCampaignId($id)->first();
 
         $response = $this->apiService->post(
-            $this->config . 'adCampaignGroups/' . $campaign->ad_campaign_id,
+            $this->config . 'adAccounts/' . $this->account->ad_account_id . '/adCampaignGroups/' . $campaign->ad_campaign_id,
             array_merge($this->header['data'], ['X-RestLi-Method' => 'PARTIAL_UPDATE']),
             ['patch' => ['$set' => ['status' => $status]]]
         );
@@ -1200,7 +1200,7 @@ class LinkedinAdService
 
         if ($adGroup) {
             $this->apiService->post(
-                $this->config . 'adCampaigns/' . $adGroup->ad_adgroup_id,
+                $this->config . 'adAccounts/' . $this->account->ad_account_id . '/adCampaigns/' . $adGroup->ad_adgroup_id,
                 array_merge($this->header['data'], ['X-RestLi-Method' => 'PARTIAL_UPDATE']),
                 ['patch' => ['$set' => ['status' => $status]]]
             );
@@ -1258,7 +1258,7 @@ class LinkedinAdService
     {
         try {
             $response = $this->apiService->post(
-                $this->config . $resource . '/' . $id,
+                $this->config . 'adAccounts/' . $this->account->ad_account_id . '/' . $resource . '/' . $id,
                 array_merge($this->header['data'], ['X-RestLi-Method' => 'PARTIAL_UPDATE']),
                 ['patch' => ['$set' => ['status' => 'ARCHIVED']]]
             );
