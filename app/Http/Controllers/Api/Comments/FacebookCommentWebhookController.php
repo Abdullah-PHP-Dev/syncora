@@ -7,6 +7,8 @@ use App\Services\MessagingServices\FacebookMessengerService;
 use App\Services\PostServices\MetaPostService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Models\PostComment;
+
 use App\Models\Messaging\Conversation;
 /**
  * Facebook Page webhook. Meta only allows ONE registered callback URL per
