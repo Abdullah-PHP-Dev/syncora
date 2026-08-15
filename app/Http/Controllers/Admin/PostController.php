@@ -23,6 +23,7 @@ use App\Models\PostMedia;
 use App\Models\PostComment;
 use App\Models\Messaging\Message;
 use Illuminate\Support\Facades\DB;
+use App\Models\Messaging\Conversation;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
