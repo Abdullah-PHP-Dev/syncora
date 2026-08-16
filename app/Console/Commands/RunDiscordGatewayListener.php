@@ -164,11 +164,10 @@ class RunDiscordGatewayListener extends Command
 
     private function onDispatch(array $payload, MessageChannel $channel, DiscordMessagingService $service): void
     {
-        dd($payload);
         switch ($payload['t'] ?? null) {
             case 'MESSAGE_CREATE':
                 $message = $payload['d'] ?? [];
-
+    dd($message);
                 // Ignore messages sent by bots
                 if (!empty($message['author']['bot'])) {
                     return;
