@@ -136,7 +136,7 @@ class RunDiscordGatewayListener extends Command
 
         // Sanitize token: remove leading "Bot " or "Bearer " string if present
         $botToken = $this->formatGatewayToken($rawToken);
-
+        dd($botToken);
         if (empty($botToken)) {
             throw new ConnectionException("No valid Bot Token found for channel #{$channel->id}.");
         }
