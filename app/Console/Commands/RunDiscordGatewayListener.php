@@ -130,7 +130,7 @@ class RunDiscordGatewayListener extends Command
         $this->heartbeatIntervalMs = $payload['d']['heartbeat_interval'] ?? 41250;
         $this->lastHeartbeatSentAt = microtime(true);
 
-        $rawToken = 'MTUzMzU5MjU5ODI3MzQ1ODI2Nw.G-ZqSC.ZM8yjatefog_4bvhMcSF8GBaisCtQubSQWBs_U'
+        $rawToken = $channel->access_token
             ?? adminSetting('chats.discord.bot_token')
             ?? config('services.discord.bot_token');
 
