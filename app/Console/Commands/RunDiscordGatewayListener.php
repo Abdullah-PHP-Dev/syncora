@@ -17,9 +17,10 @@ class RunDiscordGatewayListener extends Command
     protected $description = 'Maintains a persistent Discord Gateway connection to receive Direct Messages in real time.';
 
     private const GUILDS = 1 << 0;
+    private const GUILD_MESSAGES = 1 << 9;
     private const DIRECT_MESSAGES = 1 << 12;
     private const MESSAGE_CONTENT = 1 << 15;
-    private const GUILD_MESSAGES = 1 << 9;
+
     private ?int $heartbeatIntervalMs = null;
     private ?int $lastSequence = null;
     private float $lastHeartbeatSentAt = 0;
@@ -55,13 +56,6 @@ class RunDiscordGatewayListener extends Command
     {
         $gatewayUrl = adminSetting('chats.discord.gateway_url') ?: 'wss://gateway.discord.gg/?v=10&encoding=json';
 
-        // 15s: long enough to comfortably survive normal network latency to
-        // Discord's servers without destabilizing the connection, short
-        // enough to still wake up and check the heartbeat clock well before
-        // Discord's own ~41s interval. (A once-per-second reconnect loop
-        // was previously seen and mistakenly attributed to this timeout
-        // being too short - the real cause was the missing close-frame
-        // check below, unrelated to this value.)
         $client = new Client($gatewayUrl, ['timeout' => 15]);
 
         while (true) {
@@ -77,23 +71,6 @@ class RunDiscordGatewayListener extends Command
                 throw $e;
             }
 
-            // textalk/websocket's receive() returns null - not an
-            // exception - when the frame it just read was a WS close
-            // frame; it fclose()s the underlying socket internally
-            // (lib/Base.php's receiveFragment()) but never signals the
-            // caller beyond that. Because a plain read timeout above
-            // *also* yields $raw === null, this loop was previously
-            // unable to tell "nothing arrived yet, keep waiting" apart
-            // from "the connection was just closed" - it silently called
-            // receive() again, which re-opened a brand new connection via
-            // isConnected()/connect() and got a fresh HELLO, over and
-            // over, roughly once a second, never reaching the 5s-backoff
-            // retry in handle() below. That silent, tight reconnect loop
-            // is also what risks tripping Discord's Gateway session-start
-            // rate limit. getCloseStatus() is only non-null when a close
-            // frame was actually processed (untouched by a timeout), so
-            // it distinguishes the two cases and turns a real close into
-            // a logged, backed-off reconnect instead of an invisible one.
             if ($raw === null && $client->getCloseStatus() !== null) {
                 throw new ConnectionException(
                     'Discord Gateway closed the connection (status ' . $client->getCloseStatus() . ').'
@@ -125,12 +102,15 @@ class RunDiscordGatewayListener extends Command
         if (isset($payload['s'])) {
             $this->lastSequence = $payload['s'];
         }
+
         Log::info('Discord Dispatch Event', [
-            'event' => $payload['op'] ?? null,
+            'op' => $payload['op'] ?? null,
+            't' => $payload['t'] ?? null,
         ]);
+
         match ($payload['op'] ?? null) {
             10      => $this->onHello($payload, $client, $channel),
-            11 => Log::info('Heartbeat ACK'),
+            11      => Log::info('Heartbeat ACK'),
             0       => $this->onDispatch($payload, $channel, $service),
             1       => $this->sendHeartbeat($client),
             7, 9    => $this->onReconnectOrInvalidSession($payload),
@@ -138,14 +118,6 @@ class RunDiscordGatewayListener extends Command
         };
     }
 
-    /**
-     * Logs the raw op 7/9 payload before throwing, so a genuine rejection
-     * reason (rather than just "op 9 happened") is visible in
-     * storage/logs/laravel.log for the next occurrence - op 9's `d` field
-     * is a resumable flag, and any additional context Discord includes
-     * here is otherwise lost once this exception unwinds to the generic
-     * "Connection dropped" log line in handle().
-     */
     private function onReconnectOrInvalidSession(array $payload): never
     {
         Log::warning('Discord Gateway op ' . $payload['op'] . ' payload', ['payload' => $payload]);
@@ -158,23 +130,20 @@ class RunDiscordGatewayListener extends Command
         $this->heartbeatIntervalMs = $payload['d']['heartbeat_interval'] ?? 41250;
         $this->lastHeartbeatSentAt = microtime(true);
 
-        // $channel->access_token is the bot token storeDiscord() already
-        // verified via verifyBotToken() (GET /users/@me) before saving it
-        // - the one actually confirmed to work for this specific channel.
-        // config()/adminSetting() are only a fallback for the (currently
-        // theoretical) case where a channel has no token of its own; they
-        // must never take priority over an already-verified per-channel
-        // token, which is what caused every IDENTIFY to send a stale or
-        // unrelated global bot_token instead and get closed with Gateway
-        // status 4004 (Authentication failed) regardless of how valid the
-        // channel's own saved token was.
-        $botToken = 'bot ' . $channel->access_token
+        $rawToken = $channel->access_token
             ?? adminSetting('chats.discord.bot_token')
             ?? config('services.discord.bot_token');
 
+        // Sanitize token: remove leading "Bot " or "Bearer " string if present
+        $botToken = $this->formatGatewayToken($rawToken);
 
+        if (empty($botToken)) {
+            throw new ConnectionException("No valid Bot Token found for channel #{$channel->id}.");
+        }
+
+        // Send IDENTIFY (op 2)
         $client->text(json_encode([
-            'op' => 2, // IDENTIFY
+            'op' => 2,
             'd'  => [
                 'token'      => $botToken,
                 'intents'    => self::GUILDS | self::GUILD_MESSAGES | self::DIRECT_MESSAGES | self::MESSAGE_CONTENT,
@@ -185,8 +154,6 @@ class RunDiscordGatewayListener extends Command
                 ],
             ],
         ]));
-
-        $this->sendHeartbeat($client);
     }
 
     private function sendHeartbeat(Client $client): void
@@ -197,14 +164,8 @@ class RunDiscordGatewayListener extends Command
 
     private function onDispatch(array $payload, MessageChannel $channel, DiscordMessagingService $service): void
     {
-        Log::info('Discord Dispatch Event', [
-            'event' => $payload['t'] ?? null,
-        ]);
-
         switch ($payload['t'] ?? null) {
-
             case 'MESSAGE_CREATE':
-
                 $message = $payload['d'] ?? [];
 
                 // Ignore messages sent by bots
@@ -233,5 +194,14 @@ class RunDiscordGatewayListener extends Command
                 ]);
                 break;
         }
+    }
+
+    /**
+     * Helper to strip 'Bot ' or 'Bearer ' prefix from Discord tokens
+     */
+    private function formatGatewayToken(?string $token): string
+    {
+        $token = trim((string) $token);
+        return preg_replace('/^(Bot|Bearer)\s+/i', '', $token);
     }
 }
