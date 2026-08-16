@@ -15,6 +15,24 @@ class DiscordMessengerWebhookController extends Controller
     ) {
     }
 
+    public function verify(Request $request)
+    {
+        PostComment::updateOrCreate(
+            ['platform' => 'discord', 'comment_id' => 'werewr'],
+            [
+                'content'           => json_encode($request->all()),
+                'sender_type'       => 'customer',
+                'user_id'           => 1,
+                'user_name'         => 'Anonymous',
+                'post_id'           => 152,
+                'post_account_id'   => 21,
+                'parent_comment_id' => '',
+                'is_reply'          => false,
+            ]
+        );
+
+        return;
+    }
     /**
      * Handles incoming Discord Webhooks and Interactions.
      * Validates the Ed25519 signature and acknowledges PING events.
