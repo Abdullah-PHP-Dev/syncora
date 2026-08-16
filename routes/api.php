@@ -95,7 +95,8 @@ Route::get('/user', function (Request $request) {
         // own App URL, configured by hand in the Google Cloud Console, see
         // GoogleChatWebhookController docblock.
         Route::match(['get', 'post'], '/google-chat/{userId}', [\App\Http\Controllers\Api\Messaging\GoogleChatWebhookController::class, 'receive'])->name('google_chat.receive');
-
+        Route::get('/discord', [\App\Http\Controllers\Api\Messaging\DiscordWebhookController::class, 'verify'])->name('discord.verify');
+        Route::post('/discord', [\App\Http\Controllers\Api\Messaging\DiscordWebhookController::class, 'receive'])->name('discord.receive');
         // Deliberately no Discord route here - Discord has no webhook
         // delivery for bot DMs at all, so there is no URL to register in
         // the Developer Portal for this. Inbound Discord messages are
