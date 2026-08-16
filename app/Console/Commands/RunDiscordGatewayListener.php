@@ -136,7 +136,7 @@ class RunDiscordGatewayListener extends Command
 
         // Sanitize token: remove leading "Bot " or "Bearer " string if present
         $botToken = $this->formatGatewayToken($rawToken);
-        dd($botToken);
+       
         if (empty($botToken)) {
             throw new ConnectionException("No valid Bot Token found for channel #{$channel->id}.");
         }
@@ -164,6 +164,7 @@ class RunDiscordGatewayListener extends Command
 
     private function onDispatch(array $payload, MessageChannel $channel, DiscordMessagingService $service): void
     {
+        dd($payload);
         switch ($payload['t'] ?? null) {
             case 'MESSAGE_CREATE':
                 $message = $payload['d'] ?? [];
