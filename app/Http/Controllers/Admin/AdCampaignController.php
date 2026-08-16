@@ -95,6 +95,43 @@ class AdCampaignController extends Controller
     }
 
     /**
+     * Vue-powered redesign of the Facebook campaign builder, matching a
+     * supplied Meta Ads Manager mockup - a parallel prototype to create()
+     * for side-by-side comparison, not a replacement, so it's routed and
+     * named separately (see routes/web.php) rather than swapped into the
+     * existing view() call above. Submits to the same store() action and
+     * AdCampaignRequest::getFacebookRules() as create.blade.php, so it's
+     * a fully working page, not a static mock. Facebook Pages and the
+     * connected Instagram account are fetched together here (unlike
+     * create(), which only loads whichever platform the route segment
+     * says) since this design shows both placement selects on one screen -
+     * see FacebookAdService::storeCreative()'s docblock for why Instagram
+     * placement is a single connected account, not a per-page picker.
+     */
+    public function createNew($platform)
+    {
+        $account = $this->adAccountModel->where('platform', 'facebook')->first();
+        $instagramAccount = $this->adAccountModel->where('platform', 'instagram')->where('user_id', Auth::id())->first();
+
+        // Mapped to plain arrays here rather than inside the view's
+        // @json() calls - an fn() => [...] arrow-closure array literal as
+        // a @json() argument trips Blade's directive-parenthesis matcher
+        // (it truncates the expression early), so the view only ever
+        // @json()s an already-built variable.
+        $countriesData = $this->countryModel->all()->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values()->all();
+        $pagesData = $this->platformPages('facebook')->map(fn ($p) => ['id' => $p->page_id, 'name' => $p->name, 'username' => $p->username, 'picture' => $p->picture])->values()->all();
+        $instagramAccountData = $instagramAccount ? ['name' => $instagramAccount->name, 'username' => $instagramAccount->username ?? null] : null;
+
+        return view('admin.ads.facebook.campaigns.create-new', [
+            'platform'             => $platform,
+            'account'              => $account,
+            'countriesData'        => $countriesData,
+            'pagesData'            => $pagesData,
+            'instagramAccountData' => $instagramAccountData,
+        ]);
+    }
+
+    /**
      * Store a newly created resource in storage.
      */
     public function store($platform, AdCampaignRequest $request)

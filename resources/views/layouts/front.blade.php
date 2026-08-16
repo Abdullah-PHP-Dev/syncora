@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ config('app.name') }}</title>
+    <link rel="icon" type="image/x-icon" href="{{ asset('assets/img/favicon/favicon.ico') }}">
+    <link rel="shortcut icon" type="image/x-icon" href="{{ asset('assets/img/favicon/favicon.ico') }}">
     <meta name="description" content="Socialeaz is an all-in-one SaaS marketplace platform for managing ads, CRM, services, and marketplace operations in one powerful system.">
     <meta property="og:title" content="{{ config('app.name') }}">
     <meta property="og:description" content="Socialeaz is an all-in-one SaaS marketplace platform for managing ads, CRM, services, and marketplace operations in one powerful system.">

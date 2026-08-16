@@ -88,6 +88,13 @@ class AdCampaignRequest extends FormRequest
             'thumbnail' => ['nullable', 'required_if:media_type,VIDEO', 'image', 'max:8192'],
             'carousel_cards' => ['nullable', 'required_if:media_type,CAROUSEL', 'json'],
             'description' => ['required', 'string'],
+            // Both optional/additive - see FacebookAdService::
+            // storeCreative()'s docblock. Only the new Vue create-new.
+            // blade.php builder sends these; when absent, description
+            // keeps doubling as both message and link description exactly
+            // as it always has for the original create.blade.php.
+            'headline' => ['nullable', 'string', 'max:255'],
+            'primary_text' => ['nullable', 'string', 'max:500'],
             'facebook' => ['nullable', 'required_without:instagram'],
             'instagram' => ['nullable', 'required_without:facebook'],
             'target_link'  => ['required', 'url'],
@@ -769,8 +776,19 @@ class AdCampaignRequest extends FormRequest
     {
         return [
             'name' => ['required', 'max:255'],
+            // TALENT_LEADS (LinkedIn's Talent Solutions "Talent Leads"
+            // objective) is deliberately not included - it requires an
+            // active LinkedIn Recruiter contract and isn't documented as
+            // a valid objectiveType on the standard Campaign Manager
+            // adCampaigns API this module authenticates against (r_ads/
+            // rw_ads/r_ads_reporting); LinkedIn's own UI greys it out for
+            // accounts without that contract too. JOB_APPLICANT, by
+            // contrast, is a documented objectiveType on this same API
+            // and works with the STANDARD_UPDATE campaign format this
+            // service already creates - see LinkedinAdService::
+            // defaultOptimizationGoal()'s docblock.
             'objective' => array_merge($requiredIfPost, [
-                'in:BRAND_AWARENESS,WEBSITE_VISIT,ENGAGEMENT,VIDEO_VIEW,LEAD_GENERATION,WEBSITE_CONVERSION'
+                'in:BRAND_AWARENESS,WEBSITE_VISIT,ENGAGEMENT,VIDEO_VIEW,LEAD_GENERATION,WEBSITE_CONVERSION,JOB_APPLICANT'
             ]),
             'creative_type' => array_merge($requiredIfPost, ['in:SPONSORED_CONTENT,TEXT_AD']),
             'bid_type' => array_merge($requiredIfPost, ['in:CPC,CPM']),

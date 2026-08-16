@@ -719,7 +719,13 @@ class FacebookAdService
             }
 
             $linkData = [
-                'message' => $request['description'],
+                // primary_text is optional and additive - only sent by the
+                // Vue create-new.blade.php builder, which collects Primary
+                // Text/Headline/Description as three distinct fields the
+                // way Meta's own Ads Manager does. The original create.
+                // blade.php has no primary_text input, so it keeps getting
+                // exactly its old behavior (description doubling as both).
+                'message' => $request['primary_text'] ?? $request['description'],
                 'link' => $request['target_link'],
                 'child_attachments' => $childAttachments,
             ];
@@ -731,8 +737,15 @@ class FacebookAdService
 
             $linkData = [
                 'link' => $request['target_link'],
+                // Meta's real link_data.name is the bold headline shown
+                // under the image - distinct from message (primary text
+                // above it) and description (small grey text below the
+                // headline). headline is optional/additive for the same
+                // reason as primary_text above; falls back to the ad's
+                // own name, the original page's only option.
+                'name' => $request['headline'] ?? $request['name'],
                 "description" => $request['description'],
-                "message" => $request['description'],
+                "message" => $request['primary_text'] ?? $request['description'],
                 'image_hash' => $request['media'][0]['media_id']
             ];
 
@@ -742,7 +755,8 @@ class FacebookAdService
 
             $linkData = [
                 'video_id' => $request['media'][0]['media_id'],
-                'title' => $request['name'],
+                'title' => $request['headline'] ?? $request['name'],
+                'message' => $request['primary_text'] ?? $request['description'],
                 'link_description' => $request['description'],
             ];
 

@@ -83,36 +83,43 @@ class DiscordMessagingService
     }
 
     /**
-     * scope=bot is the "add this bot to a server" grant - permissions=0
-     * deliberately requests no guild permission bits, since DMing a user
-     * isn't governed by guild permissions at all (only by that user's own
-     * privacy settings, see class docblock); there's nothing this app
-     * needs a guild permission bit for. response_type=code is what makes
-     * Discord also hand back an authorization code on redirect, which
-     * handleOAuthCallback() exchanges for the grant's access token/guild
-     * info below.
+     * scope=bot is the "add this bot to a server" grant; webhook.incoming
+     * additionally has Discord generate a ready-made Incoming Webhook for
+     * a channel the authorizing admin picks, returned in the token
+     * response's `webhook` field and captured into `meta` below - this is
+     * a separate, outbound-only capability (POST a message into that
+     * channel from this app) from the DM-sending the bot token handles;
+     * nothing here lets Discord push events *to* this app, see the class
+     * docblock. permissions=0 deliberately requests no guild permission
+     * bits, since DMing a user isn't governed by guild permissions at all
+     * (only by that user's own privacy settings) and this app doesn't act
+     * on guild channels beyond receiving what the Gateway listener's
+     * intents already grant it. response_type=code is what makes Discord
+     * also hand back an authorization code on redirect, which
+     * handleOAuthCallback() exchanges for the grant's access token/guild/
+     * webhook info below.
+     *
+     * Every other scope Discord offers (rpc.*, applications.*, voice,
+     * connections, guilds.join, role_connections.write, etc.) was
+     * previously requested here despite being unused - several of them
+     * (rpc, rpc.voice.read/write, rpc.notifications.read) are documented
+     * as gated to Discord-approved partners only
+     * (docs.discord.com/developers/topics/oauth2), so requesting them
+     * without that approval risked Discord rejecting the authorization
+     * outright. Trimmed to just the two scopes this class actually
+     * consumes.
      */
     public function redirect(string $state)
     {
-        $scopes = [
-            'identify', 'guilds', 'gdm.join', 'rpc.notifications.read', 
-            'rpc.video.read', 'rpc.screenshare.write', 'messages.read', 
-            'applications.store.update', 'openid', 'applications.commands.permissions.update', 
-            'email', 'guilds.join', 'bot', 'rpc.voice.read', 
-            'rpc.video.write', 'rpc.activities.write', 'applications.builds.read', 
-            'applications.entitlements', 'connections', 'guilds.members.read', 
-            'rpc', 'rpc.voice.write', 'rpc.screenshare.read', 
-            'webhook.incoming', 'applications.commands', 'role_connections.write'
-        ];
+        $scopes = ['bot', 'webhook.incoming'];
 
         $queryParams = [
-            'client_id'        => adminSetting('chats.discord.client_id'),
-            'permissions'      => '8866461766385655', // Updated to match your exact URL permissions
-            'response_type'    => 'code',
-            'redirect_uri'     => $this->redirectUri(),
-            'integration_type' => '0',
-            'scope'            => implode(' ', $scopes),
-            'state'            => $state,
+            'client_id'     => adminSetting('chats.discord.client_id'),
+            'permissions'   => '0',
+            'response_type' => 'code',
+            'redirect_uri'  => $this->redirectUri(),
+            'scope'         => implode(' ', $scopes),
+            'state'         => $state,
         ];
 
         $url = 'https://discord.com/oauth2/authorize?' . http_build_query($queryParams);

@@ -491,6 +491,13 @@ class LinkedinAdService
             'VIDEO_VIEW'         => 'MAX_VIDEO_VIEW',
             'LEAD_GENERATION'    => 'MAX_LEAD',
             'WEBSITE_CONVERSION' => 'MAX_CONVERSION',
+            // LinkedIn's own "Optimization based on ObjectiveType" table
+            // describes Job Applicants as optimizing for "clicks to job
+            // ad" - the same click-optimization semantics as Website
+            // Visit's MAX_CLICK, which is the closest documented
+            // optimizationTargetType; no distinct enum value for it is
+            // shown in LinkedIn's Campaign API reference.
+            'JOB_APPLICANT'       => 'MAX_CLICK',
             default              => 'MAX_CLICK', // WEBSITE_VISIT
         };
     }

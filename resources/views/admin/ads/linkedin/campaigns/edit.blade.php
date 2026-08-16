@@ -441,6 +441,7 @@
                                                             'VIDEO_VIEW' => 'Video Views',
                                                             'LEAD_GENERATION' => 'Lead Generation',
                                                             'WEBSITE_CONVERSION' => 'Website Conversions',
+                                                            'JOB_APPLICANT' => 'Job Applicants',
                                                         ] as $value => $label)
                                                             <option value="{{ $value }}" @selected($campaign->objective == $value)>{{ $label }}</option>
                                                         @endforeach

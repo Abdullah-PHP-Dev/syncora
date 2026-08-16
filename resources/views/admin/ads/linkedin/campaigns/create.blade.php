@@ -436,6 +436,7 @@
                                                         <option value="VIDEO_VIEW">Video Views</option>
                                                         <option value="LEAD_GENERATION">Lead Generation</option>
                                                         <option value="WEBSITE_CONVERSION">Website Conversions</option>
+                                                        <option value="JOB_APPLICANT">Job Applicants</option>
                                                     </select>
                                                     <p class="error-message error-objective"></p>
                                                 </div>
