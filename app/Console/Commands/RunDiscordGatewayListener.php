@@ -58,10 +58,10 @@ class RunDiscordGatewayListener extends Command
         // 15s: long enough to comfortably survive normal network latency to
         // Discord's servers without destabilizing the connection, short
         // enough to still wake up and check the heartbeat clock well before
-        // Discord's own ~41s interval. A too-short timeout here (2s was
-        // tried and made the connection reconnect roughly every second,
-        // never getting far enough to receive real events) isn't just a
-        // heartbeat-precision knob - it can make the read loop unstable.
+        // Discord's own ~41s interval. (A once-per-second reconnect loop
+        // was previously seen and mistakenly attributed to this timeout
+        // being too short - the real cause was the missing close-frame
+        // check below, unrelated to this value.)
         $client = new Client($gatewayUrl, ['timeout' => 15]);
 
         while (true) {
@@ -75,6 +75,29 @@ class RunDiscordGatewayListener extends Command
                     'message' => $e->getMessage(),
                 ]);
                 throw $e;
+            }
+
+            // textalk/websocket's receive() returns null - not an
+            // exception - when the frame it just read was a WS close
+            // frame; it fclose()s the underlying socket internally
+            // (lib/Base.php's receiveFragment()) but never signals the
+            // caller beyond that. Because a plain read timeout above
+            // *also* yields $raw === null, this loop was previously
+            // unable to tell "nothing arrived yet, keep waiting" apart
+            // from "the connection was just closed" - it silently called
+            // receive() again, which re-opened a brand new connection via
+            // isConnected()/connect() and got a fresh HELLO, over and
+            // over, roughly once a second, never reaching the 5s-backoff
+            // retry in handle() below. That silent, tight reconnect loop
+            // is also what risks tripping Discord's Gateway session-start
+            // rate limit. getCloseStatus() is only non-null when a close
+            // frame was actually processed (untouched by a timeout), so
+            // it distinguishes the two cases and turns a real close into
+            // a logged, backed-off reconnect instead of an invisible one.
+            if ($raw === null && $client->getCloseStatus() !== null) {
+                throw new ConnectionException(
+                    'Discord Gateway closed the connection (status ' . $client->getCloseStatus() . ').'
+                );
             }
 
             if ($raw !== null && $raw !== '') {
