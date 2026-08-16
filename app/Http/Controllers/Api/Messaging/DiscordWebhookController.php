@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Models\PostComment;
 
-class DiscordMessengerWebhookController extends Controller
+class DiscordWebhookController extends Controller
 {
     public function __construct(
         protected DiscordMessagingService $discordService,
