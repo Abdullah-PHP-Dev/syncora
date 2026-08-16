@@ -158,10 +158,19 @@ class RunDiscordGatewayListener extends Command
         $this->heartbeatIntervalMs = $payload['d']['heartbeat_interval'] ?? 41250;
         $this->lastHeartbeatSentAt = microtime(true);
 
-        // Fetch Bot Token (Use fallback to admin setting if access_token is an OAuth token)
-        $botToken = config('services.discord.bot_token') 
-            ?? adminSetting('chats.discord.bot_token') 
-            ?? $channel->access_token;
+        // $channel->access_token is the bot token storeDiscord() already
+        // verified via verifyBotToken() (GET /users/@me) before saving it
+        // - the one actually confirmed to work for this specific channel.
+        // config()/adminSetting() are only a fallback for the (currently
+        // theoretical) case where a channel has no token of its own; they
+        // must never take priority over an already-verified per-channel
+        // token, which is what caused every IDENTIFY to send a stale or
+        // unrelated global bot_token instead and get closed with Gateway
+        // status 4004 (Authentication failed) regardless of how valid the
+        // channel's own saved token was.
+        $botToken = $channel->access_token
+            ?? adminSetting('chats.discord.bot_token')
+            ?? config('services.discord.bot_token');
 
 
         $client->text(json_encode([
