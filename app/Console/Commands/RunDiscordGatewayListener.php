@@ -168,7 +168,7 @@ class RunDiscordGatewayListener extends Command
         // unrelated global bot_token instead and get closed with Gateway
         // status 4004 (Authentication failed) regardless of how valid the
         // channel's own saved token was.
-        $botToken = $channel->access_token
+        $botToken = 'bot ' . $channel->access_token
             ?? adminSetting('chats.discord.bot_token')
             ?? config('services.discord.bot_token');
 
