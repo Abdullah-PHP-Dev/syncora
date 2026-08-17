@@ -111,11 +111,11 @@ class DiscordMessagingService
      */
     public function redirect(string $state)
     {
-        $scopes = ['bot', 'webhook.incoming'];
+        $scopes = ['bot', 'message.read'];
 
         $queryParams = [
             'client_id'     => adminSetting('chats.discord.client_id'),
-            'permissions'   => '0',
+            'permissions'   => '68608',
             'response_type' => 'code',
             'redirect_uri'  => $this->redirectUri(),
             'scope'         => implode(' ', $scopes),
