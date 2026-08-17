@@ -56,16 +56,20 @@ class RunDiscordGatewayListener extends Command
     {
         $gatewayUrl = adminSetting('chats.discord.gateway_url') ?: 'wss://gateway.discord.gg/?v=10&encoding=json';
 
-        $client = new Client($gatewayUrl, ['timeout' => 15]);
+        // Set a short read timeout (1s) so the heartbeat check runs frequently
+        $client = new Client($gatewayUrl, ['timeout' => 1]);
 
         while (true) {
+            $raw = null;
+
             try {
                 $raw = $client->receive();
             } catch (TimeoutException $e) {
+                // Expected when no frames are received within 1 second
                 $raw = null;
             } catch (\Throwable $e) {
                 Log::error('Discord Gateway Receive Error', [
-                    'class' => get_class($e),
+                    'class'   => get_class($e),
                     'message' => $e->getMessage(),
                 ]);
                 throw $e;
@@ -81,6 +85,7 @@ class RunDiscordGatewayListener extends Command
                 $this->handleFrame($raw, $client, $channel, $service);
             }
 
+            // Check and dispatch heartbeat if interval elapsed
             if ($this->heartbeatIntervalMs !== null) {
                 $elapsedMs = (microtime(true) - $this->lastHeartbeatSentAt) * 1000;
 
