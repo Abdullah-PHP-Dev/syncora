@@ -170,8 +170,7 @@ class RunDiscordGatewayListener extends Command
 
     private function onDispatch(array $payload, MessageChannel $channel, DiscordMessagingService $service): void
     {
-        Log::info('test wew', $payload['t']);
-        switch ($payload['t'] ?? null) {
+        Log::info('test wew', ['event' => $payload['t'] ?? null]);        switch ($payload['t'] ?? null) {
             case 'MESSAGE_CREATE':
                 $message = $payload['d'] ?? [];
 
