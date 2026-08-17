@@ -111,15 +111,16 @@ class DiscordMessagingService
      */
     public function redirect(string $state)
     {
-        $scopes = ['bot', 'message.read'];
+        $scopes = ['bot', 'messages.read'];
 
         $queryParams = [
-            'client_id'     => adminSetting('chats.discord.client_id'),
-            'permissions'   => '68608',
-            'response_type' => 'code',
-            'redirect_uri'  => $this->redirectUri(),
-            'scope'         => implode(' ', $scopes),
-            'state'         => $state,
+            'client_id'        => adminSetting('chats.discord.client_id'),
+            'permissions'      => '68608',
+            'response_type'    => 'code',
+            'redirect_uri'     => $this->redirectUri(),
+            'integration_type' => '0', // Guild Install mode (Required for Bot authorization)
+            'scope'            => implode(' ', $scopes),
+            'state'            => $state,
         ];
 
         $url = 'https://discord.com/oauth2/authorize?' . http_build_query($queryParams);
