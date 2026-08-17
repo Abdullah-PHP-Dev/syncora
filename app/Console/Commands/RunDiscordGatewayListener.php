@@ -172,7 +172,7 @@ class RunDiscordGatewayListener extends Command
         switch ($payload['t'] ?? null) {
             case 'MESSAGE_CREATE':
                 $message = $payload['d'] ?? [];
-    dd($message);
+
                 // Ignore messages sent by bots
                 if (!empty($message['author']['bot'])) {
                     return;
