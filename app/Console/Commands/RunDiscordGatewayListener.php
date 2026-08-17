@@ -20,6 +20,7 @@ class RunDiscordGatewayListener extends Command
     private const GUILD_MESSAGES = 1 << 9;
     private const DIRECT_MESSAGES = 1 << 12;
     private const DIRECT_MESSAGE_REACTIONS = 1 << 13; // Add this
+    private const DIRECT_MESSAGE_TYPING    = 1 << 14; // Add this
     private const MESSAGE_CONTENT = 1 << 15;
 
     private ?int $heartbeatIntervalMs = null;
@@ -152,7 +153,7 @@ class RunDiscordGatewayListener extends Command
             'op' => 2,
             'd'  => [
                 'token'      => $botToken,
-                'intents'    => self::GUILDS | self::GUILD_MESSAGES | self::DIRECT_MESSAGES | self::DIRECT_MESSAGE_REACTIONS | self::MESSAGE_CONTENT,
+                'intents'    => self::GUILDS | self::GUILD_MESSAGES | self::DIRECT_MESSAGES | self::DIRECT_MESSAGE_REACTIONS | self::DIRECT_MESSAGE_TYPING | self::MESSAGE_CONTENT,
                 'properties' => [
                     'os'      => PHP_OS,
                     'browser' => 'socialeaz',
