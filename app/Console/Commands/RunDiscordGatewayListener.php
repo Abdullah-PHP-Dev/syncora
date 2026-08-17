@@ -176,6 +176,7 @@ class RunDiscordGatewayListener extends Command
 
                 // Ignore messages sent by bots
                 if (!empty($message['author']['bot'])) {
+                    Log::info('empty');
                     return;
                 }
 
