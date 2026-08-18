@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Bundle;
 use App\Models\Package;
 use App\Models\SellerBundle;
 use Carbon\Carbon;
@@ -15,7 +16,7 @@ class SubscriptionController extends Controller
 	 */
 	public function select()
 	{
-		$packages = Package::where('is_active', true)
+		$packages = Bundle::where('is_active', true)->where('is_free', false)
 			->orderBy('sort_order')
 			->get();
 
