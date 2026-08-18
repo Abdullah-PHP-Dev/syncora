@@ -47,8 +47,6 @@ class GoogleAdService
         if ($this->account) {
             $this->header = $this->getHeaders();
         }
-
-          dd('ok');
     }
 
     public function redirect($platform, $state)

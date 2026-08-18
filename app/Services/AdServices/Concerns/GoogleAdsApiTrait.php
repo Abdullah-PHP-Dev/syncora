@@ -253,6 +253,7 @@ trait GoogleAdsApiTrait
 
     protected function getHeaders()
     {
+        dd('ok',$this->tokenIsValid($this->account->expires_at));
         if ($this->tokenIsValid($this->account->expires_at)) {
             $accessToken = $this->account->access_token;
         } else {
