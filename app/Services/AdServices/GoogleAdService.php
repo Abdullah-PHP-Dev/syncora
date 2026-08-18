@@ -41,9 +41,9 @@ class GoogleAdService
        
         $this->apiService = $apiService;
         $this->account = $account->wherePlatform('google')->whereUserId(Auth::user()->id)->first();
-           dd('ok');
+         
         $this->config = adminSetting('ads.google.base_url');
-
+  dd('ok');
         if ($this->account) {
             $this->header = $this->getHeaders();
         }
