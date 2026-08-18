@@ -38,8 +38,9 @@ class GoogleAdService
 
     public function __construct(AdAccount $account, ApiService $apiService)
     {
-        dd('ok');
+       
         $this->apiService = $apiService;
+         dd('ok');
         $this->account = $account->wherePlatform('google')->whereUserId(Auth::user()->id)->first();
         $this->config = adminSetting('ads.google.base_url');
 
