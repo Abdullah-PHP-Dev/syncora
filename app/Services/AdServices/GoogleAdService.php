@@ -43,10 +43,12 @@ class GoogleAdService
         $this->account = $account->wherePlatform('google')->whereUserId(Auth::user()->id)->first();
          
         $this->config = adminSetting('ads.google.base_url');
-  dd('ok');
+
         if ($this->account) {
             $this->header = $this->getHeaders();
         }
+
+          dd('ok');
     }
 
     public function redirect($platform, $state)
