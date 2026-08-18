@@ -1136,6 +1136,19 @@ class PostAccountController extends Controller
         $accountBaseUrl = adminSetting('posts.google.account_base_url') ?: 'https://mybusinessaccountmanagement.googleapis.com/v1/';
         $accountsResponse = $api->request('get', $accountBaseUrl . 'accounts', $headers);
 
+        if (!$accountsResponse->successful()) {
+            // Almost always SERVICE_DISABLED (the My Business Account
+            // Management API is not enabled on the Cloud project) or a
+            // token minted without business.manage. Logged because the
+            // block below silently skipped it, making a Business Profile
+            // that never connects indistinguishable from a Google account
+            // that simply has no locations.
+            Log::warning('Google Business Profile accounts fetch failed.', [
+                'status' => $accountsResponse->status(),
+                'body'   => $accountsResponse->body(),
+            ]);
+        }
+
         if ($accountsResponse->successful()) {
             foreach ($accountsResponse->json()['accounts'] ?? [] as $gbpAccount) {
                 $accountName = $gbpAccount['name'] ?? null; // "accounts/{id}"
@@ -1149,6 +1162,17 @@ class PostAccountController extends Controller
                 ]);
 
                 if (!$locationsResponse->successful()) {
+                    // Separate API from the accounts call above - the
+                    // My Business *Business Information* API must be
+                    // enabled on the Cloud project in its own right, and a
+                    // 403 SERVICE_DISABLED here is why accounts can list
+                    // fine while zero locations ever get saved.
+                    Log::warning('Google Business Profile locations fetch failed.', [
+                        'account' => $accountName,
+                        'status'  => $locationsResponse->status(),
+                        'body'    => $locationsResponse->body(),
+                    ]);
+
                     continue;
                 }
 

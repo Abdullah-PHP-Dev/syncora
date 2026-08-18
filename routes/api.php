@@ -94,7 +94,14 @@ Route::get('/user', function (Request $request) {
         // Per-channel too - each Google Cloud project's Chat app has its
         // own App URL, configured by hand in the Google Cloud Console, see
         // GoogleChatWebhookController docblock.
-        Route::match(['get', 'post'], '/google-chat/{userId}', [\App\Http\Controllers\Api\Messaging\GoogleChatWebhookController::class, 'receive'])->name('google_chat.receive');
+        // {channel} (not {userId}) - the segment is the MessageChannel id, so
+        // the receiver can resolve which service account's project_number to
+        // verify the inbound Google-signed JWT against. The old {userId} name
+        // meant the controller's MessageChannel type-hint bound nothing, and
+        // MessageChannelController::storeGoogleChat() - which builds this URL
+        // with ['channel' => ...] - threw on a missing required parameter.
+        // POST only: Google Chat has no GET verification handshake.
+        Route::post('/google-chat/{channel}', [\App\Http\Controllers\Api\Messaging\GoogleChatWebhookController::class, 'receive'])->name('google_chat.receive');
         Route::get('/discord', [\App\Http\Controllers\Api\Messaging\DiscordWebhookController::class, 'verify'])->name('discord.verify');
         Route::post('/discord', [\App\Http\Controllers\Api\Messaging\DiscordWebhookController::class, 'receive'])->name('discord.receive');
         // Deliberately no Discord route here - Discord has no webhook

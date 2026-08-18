@@ -7,19 +7,27 @@ use App\Models\Messaging\MessageChannel;
 use App\Services\MessagingServices\GoogleChatMessagingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use App\Models\Messaging\Conversation;
 use Throwable;
+
 /**
  * Like Telegram/LINE/Teams, each Google Chat app's HTTP endpoint is
  * configured individually (Google Cloud Console > Google Chat API >
  * Configuration > App URL) - one Cloud project/service account per
- * channel, not a shared endpoint the way Slack/Zalo/Meta work.
+ * channel, not a shared endpoint the way Slack/Zalo/Meta work. The
+ * channel id is therefore part of the URL, so this endpoint knows which
+ * service account's project_number to verify the inbound JWT against.
  *
  * Google Chat apps can reply synchronously by returning a Message JSON
  * object directly in this response, but that only fits a request/response
  * bot, not this module's async admin-inbox reply flow - so, consistent
  * with every other webhook controller here, this just acknowledges
  * receipt and lets handleEvent() queue the actual processing.
+ *
+ * Google Chat has no GET challenge/verification handshake (that's a
+ * LinkedIn/Meta pattern) - authenticity is established per-request by the
+ * bearer JWT that chat@system.gserviceaccount.com signs, which
+ * verifyRequestToken() checks against Google's published JWKS with the
+ * Cloud project's *project number* as the expected audience.
  */
 class GoogleChatWebhookController extends Controller
 {
@@ -30,76 +38,37 @@ class GoogleChatWebhookController extends Controller
         $this->service = $service;
     }
 
-    public function receive($userId, Request $request, MessageChannel $channel)
+    /**
+     * $channel is resolved by implicit route-model binding from the
+     * {channel} segment. It was previously declared alongside an unrelated
+     * {userId} segment, which meant Laravel injected an *empty* model:
+     * $channel->platform was null, so the guard below rejected every real
+     * Google Chat delivery with a 401.
+     */
+    public function receive(MessageChannel $channel, Request $request)
     {
+        if ($channel->platform !== 'google_chat' || !$this->service->verifyRequestToken($request, $channel)) {
+            Log::warning('Google Chat webhook token invalid', [
+                'channel_id' => $channel->id,
+                'ip'         => $request->ip(),
+            ]);
+
+            return response('Unauthorized', 401);
+        }
 
         try {
-            Conversation::create([
-                'platform'               => 'google_chat',
-                'message_channel_id' => 4,
-                'external_conversation_id' => null,
-                'meta'                   => json_encode($request->all()),
-                'customer_external_id'   => time(),
-                'unread_count'           => 1,
-                'status'                 => true,
-                'assigned_user_id'       => 1,
-            ]);
-            // 1. Verify channel platform & token before saving or processing
-            if ($channel->platform !== 'google_chat' || !$this->service->verifyRequestToken($request, $channel)) {
-                Log::warning('Google Chat webhook token invalid', [
-                    'channel_id' => $channel->id, 
-                    'ip' => $request->ip()
-                ]);
-
-                return response('Unauthorized', 401);
-            }
-
-            // 2. Create the conversation record
-            Conversation::create([
-                'platform'               => 'google',
-                'external_conversation_id' => null,
-                'meta'                   => json_encode($request->all()),
-                'user_id'                => 1,
-                'customer_external_id'   => '34543',
-                'unread_count'           => 1,
-                'status'                 => true,
-                'assigned_user_id'       => 1,
-            ]);
-
-            // 3. Process the webhook event
             $this->service->handleEvent($request->all(), $channel);
-
-            return response()->json([]);
-
         } catch (Throwable $e) {
-            // Log to default Laravel log files
+            // Chat retries on a non-2xx, and a replayed MESSAGE event would
+            // just fail the same way - so this is logged and acknowledged
+            // rather than surfaced, the same shape as every other inbound
+            // webhook here.
             Log::error('Google Chat receive webhook failed: ' . $e->getMessage(), [
-                'channel_id' => $channel->id ?? null,
+                'channel_id' => $channel->id,
                 'exception'  => $e->getTraceAsString(),
-                'payload'    => $request->all(),
             ]);
-
-            // Save error details directly into your database log table
-            try {
-                Conversation::create([
-                'platform'               => 'google',
-                'external_conversation_id' => null,
-                'meta'                   => json_encode($e->getMessage()),
-                'user_id'                => 1,
-                'customer_external_id'   => '34543',
-                'unread_count'           => 1,
-                'status'                 => true,
-                'assigned_user_id'       => 1,
-            ]);
-            } catch (Throwable $dbEx) {
-                // Fallback in case database insert fails
-                Log::critical('Failed to save webhook error to database: ' . $dbEx->getMessage());
-            }
-
-            return response()->json([
-                'error'   => 'Internal server error',
-                'message' => $e->getMessage(),
-            ], 500);
         }
+
+        return response()->json([]);
     }
 }

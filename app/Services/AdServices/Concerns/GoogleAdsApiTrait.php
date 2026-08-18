@@ -2,6 +2,9 @@
 
 namespace App\Services\AdServices\Concerns;
 
+use App\Models\Admin\AdAccount;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
 use Carbon\Carbon;
 
@@ -23,8 +26,13 @@ trait GoogleAdsApiTrait
 
         $url = 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query([
             'client_id'     => $clientId,
-            'redirect_uri'  => $this->getCallbackUrl(),
+            'redirect_uri'  => $this->getCallbackUrl($platform),
             'response_type' => 'code',
+            // offline + consent are what actually mint a refresh_token.
+            // Google only returns one on the FIRST consent for a given
+            // client/user pair unless prompt=consent forces the screen
+            // again, and without it a reconnect silently yields an
+            // access-token-only response that dies 60 minutes later.
             'access_type'   => 'offline',
             'prompt'        => 'consent',
             'state'         => $state,
@@ -34,9 +42,195 @@ trait GoogleAdsApiTrait
         return Redirect::away($url);
     }
 
-    private function getCallbackUrl()
+    /**
+     * Must be byte-identical between the authorize step and the token
+     * exchange, and must be registered under the OAuth client's
+     * "Authorized redirect URIs" in the Cloud Console - Google rejects any
+     * mismatch with redirect_uri_mismatch.
+     *
+     * Built from the named route rather than a hardcoded host so the same
+     * code works on socialeaz.com and labs.socialeaz.com (both are
+     * registered on the client) instead of always claiming the production
+     * host. $platform keeps google/youtube distinct: YouTube Demand Gen
+     * runs on the same Google Ads customer, but it is its own platform key
+     * with its own registered callback.
+     */
+    private function getCallbackUrl(string $platform = 'google'): string
     {
-        return config('services.app_url') . '/admin/social/auth/google/callback';
+        return route('admin.ads.platform.callback', $platform);
+    }
+
+    /**
+     * Google/YouTube Ads had no callback() at all - SocialAdManagerService
+     * dispatches to it after Google redirects back, so connecting an
+     * account died with "Call to undefined method". Mirrors
+     * LinkedinAdService::callback(): exchange the code, enumerate every
+     * customer the member can reach, and persist one AdAccount row per
+     * usable customer.
+     */
+    public function callback($platform, $state = null)
+    {
+        $platform = in_array($platform, ['google', 'youtube'], true) ? $platform : 'google';
+
+        // Google reports a refused/cancelled consent by redirecting back
+        // with ?error=access_denied rather than a code.
+        if (request()->filled('error')) {
+            Log::warning('Google Ads OAuth authorization refused.', [
+                'error'             => request()->input('error'),
+                'error_description' => request()->input('error_description'),
+            ]);
+
+            return redirect()->route('admin.ads.dashboard')->with('error', 'Google refused the ads authorization: ' . (request()->input('error_description') ?: request()->input('error')));
+        }
+
+        $code = request()->input('code');
+
+        if (!$code) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'Google did not return an authorization code.');
+        }
+
+        $tokenEndpoint = adminSetting('ads.google.access_token') ?: 'https://oauth2.googleapis.com/token';
+
+        $tokenResponse = $this->apiService->post($tokenEndpoint, [], [
+            'code'          => $code,
+            'client_id'     => adminSetting('ads.google.client_id'),
+            'client_secret' => adminSetting('ads.google.client_secret'),
+            'redirect_uri'  => $this->getCallbackUrl($platform),
+            'grant_type'    => 'authorization_code',
+        ], 'form');
+
+        if (!$tokenResponse['success']) {
+            Log::warning('Google Ads token exchange failed.', [
+                'status' => $tokenResponse['status'] ?? null,
+                'body'   => $tokenResponse['body'] ?? ($tokenResponse['error'] ?? null),
+            ]);
+
+            return redirect()->route('admin.ads.dashboard')->with('error', $tokenResponse['data']['error_description'] ?? 'Failed to exchange code for a Google access token.');
+        }
+
+        $token = $tokenResponse['data'];
+        $accessToken = $token['access_token'] ?? null;
+
+        if (!$accessToken) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'Google returned no access token.');
+        }
+
+        // A missing refresh_token means the account can only work for the
+        // next hour - worth failing loudly rather than saving a row that
+        // silently stops refreshing. Happens when the user has previously
+        // consented and prompt=consent was not honoured.
+        if (empty($token['refresh_token'])) {
+            Log::warning('Google Ads token exchange returned no refresh_token.', ['platform' => $platform]);
+        }
+
+        $developerToken = adminSetting('ads.google.developer_token');
+
+        if (empty($developerToken)) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'No Google Ads developer token is configured (ads.google.developer_token). Get one from the Google Ads API Center on your manager account.');
+        }
+
+        $headers = [
+            'Authorization'   => 'Bearer ' . $accessToken,
+            'developer-token' => $developerToken,
+            'Content-Type'    => 'application/json',
+        ];
+
+        $loginCustomerId = adminSetting('ads.google.login_customer_id');
+
+        if (!empty($loginCustomerId)) {
+            $headers['login-customer-id'] = str_replace('-', '', $loginCustomerId);
+        }
+
+        $base = adminSetting('ads.google.base_url') ?: 'https://googleads.googleapis.com/v21/';
+
+        // Every customer this member has access to, as resource names
+        // ("customers/1234567890") - the Google Ads equivalent of
+        // LinkedIn's adAccountUsers?q=authenticatedUser walk.
+        $listResponse = $this->apiService->get($base . 'customers:listAccessibleCustomers', $headers);
+
+        if (!$listResponse['success']) {
+            // 401/403 here almost always means the developer token is not
+            // approved for this account, or the token was minted without
+            // the adwords scope. Google names the reason in the body.
+            Log::warning('Google listAccessibleCustomers failed.', [
+                'status' => $listResponse['status'] ?? null,
+                'body'   => $listResponse['body'] ?? ($listResponse['error'] ?? null),
+            ]);
+
+            return redirect()->route('admin.ads.dashboard')->with('error', $listResponse['data']['error']['message'] ?? 'Connected, but could not list your Google Ads accounts.');
+        }
+
+        $expiresAt = Carbon::now()->addSeconds($token['expires_in'] ?? 3600);
+        $connected = 0;
+        $skippedManagers = 0;
+
+        foreach ($listResponse['data']['resourceNames'] ?? [] as $resourceName) {
+            if (!preg_match('#customers/(\d+)#', $resourceName, $matches)) {
+                continue;
+            }
+
+            $customerId = $matches[1];
+
+            // descriptive_name/currency_code aren't in listAccessibleCustomers -
+            // only a GAQL query against the customer itself returns them.
+            // Best-effort: a customer under a manager needs
+            // login-customer-id to be queryable, so when this fails the row
+            // is still saved with a fallback name rather than dropped.
+            $detail = [];
+            $detailResponse = $this->apiService->post(
+                $base . 'customers/' . $customerId . '/googleAds:search',
+                $headers,
+                ['query' => 'SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.manager, customer.test_account FROM customer LIMIT 1']
+            );
+
+            if ($detailResponse['success']) {
+                $detail = $detailResponse['data']['results'][0]['customer'] ?? [];
+            } else {
+                Log::info('Google Ads customer detail lookup failed; saving with defaults.', [
+                    'customer_id' => $customerId,
+                    'body'        => $detailResponse['body'] ?? null,
+                ]);
+            }
+
+            // Manager (MCC) accounts cannot host campaigns themselves -
+            // they're the thing you'd put in login_customer_id instead.
+            if (!empty($detail['manager'])) {
+                $skippedManagers++;
+                continue;
+            }
+
+            $this->apiService->success(
+                [
+                    'platform'      => $platform,
+                    'user_id'       => Auth::id(),
+                    'name'          => $detail['descriptiveName'] ?? ('Google Ads ' . $customerId),
+                    'currency'      => $detail['currencyCode'] ?? null,
+                    'ad_account_id' => $customerId,
+                    'access_token'  => $accessToken,
+                    'refresh_token' => $token['refresh_token'] ?? null,
+                    'expires_at'    => $expiresAt,
+                    'status'        => 'active',
+                ],
+                [
+                    'platform'      => $platform,
+                    'ad_account_id' => $customerId,
+                    'user_id'       => Auth::id(),
+                ],
+                new AdAccount
+            );
+
+            $connected++;
+        }
+
+        if ($connected === 0) {
+            $hint = $skippedManagers > 0
+                ? " Only manager (MCC) accounts were returned - put the manager ID in the ads.google.login_customer_id setting and connect a client account under it."
+                : ' Make sure the Google Account you authorized has access to a Google Ads account.';
+
+            return redirect()->route('admin.ads.dashboard')->with('error', 'Connected to Google, but no usable Google Ads account was found.' . $hint);
+        }
+
+        return redirect()->route('admin.ads.dashboard')->with('success', "Connected {$connected} Google Ads account(s).");
     }
 
     /**
