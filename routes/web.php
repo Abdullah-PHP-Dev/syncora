@@ -35,15 +35,110 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	LaravelLocalizationViewPath::class,
 ]], function () {
 
-	Route::view('/', 'front.pages.home');
-	Route::view('/about', 'front.pages.about');
+
+
+
+
+	/*
+	|--------------------------------------------------------------------------
+	| Website
+	|--------------------------------------------------------------------------
+	*/
+
+	Route::view('/', 'front.pages.welcome')->name('home');
+
+	Route::get('/product', function () {
+		return view('front.pages.product');
+	})->name('product');
+
+
+	Route::get('/ai-copilot', function () {
+		return view('product.ai-copilot');
+	})->name('ai-copilot');
+
+
+	Route::get('/channels', function () {
+		return view('product.channels');
+	})->name('channels');
+
+
+	Route::get('/tools', function () {
+		return view('product.tools');
+	})->name('tools');
+
+
+	/*
+	|--------------------------------------------------------------------------
+	| Pricing
+	|--------------------------------------------------------------------------
+	*/
+
+	Route::get('/pricing', function () {
+		return view('pricing');
+	})->name('pricing');
+
+
+	/*
+	|--------------------------------------------------------------------------
+	| Company
+	|--------------------------------------------------------------------------
+	*/
+
+	Route::get('/about', function () {
+		return view('about');
+	})->name('about');
+
+
+	Route::get('/contact', function () {
+		return view('contact');
+	})->name('contact');
+
+
+	/*
+	|--------------------------------------------------------------------------
+	| Resources
+	|--------------------------------------------------------------------------
+	*/
+
+	Route::get('/guides', function () {
+		return view('guides');
+	})->name('guides');
+
+
+	Route::get('/help', function () {
+		return view('help');
+	})->name('help');
+
+
+	Route::get('/api', function () {
+		return view('api');
+	})->name('api');
+
+
+	/*
+	|--------------------------------------------------------------------------
+	| Legal
+	|--------------------------------------------------------------------------
+	*/
+
+	Route::get('/privacy', function () {
+		return view('privacy');
+	})->name('privacy');
+
+
+	Route::get('/terms', function () {
+		return view('terms');
+	})->name('terms');
+
+
+	/*Route::view('/about', 'front.pages.about');
 	Route::view('/services', 'front.pages.services');
 	Route::view('/product', 'front.pages.product');
 	Route::view('/pricing', 'front.pages.pricing');
 	Route::view('/terms', 'front.pages.terms')->name('front.terms');
 	Route::view('/privacy', 'front.pages.privacy')->name('front.privacy');
 	Route::get('/r2-upload', [\App\Http\Controllers\R2Controller::class, 'index']);
-	Route::post('/r2-upload', [\App\Http\Controllers\R2Controller::class, 'upload'])->name('r2.upload');
+	Route::post('/r2-upload', [\App\Http\Controllers\R2Controller::class, 'upload'])->name('r2.upload');*/
 
 
 	Route::middleware(['auth'])->group(function () {
@@ -62,7 +157,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 		*/
 				// subscription flow (NO middleware restriction)
 				Route::get('/subscription/select', [SubscriptionController::class, 'select']);
-				Route::post('/subscription/checkout', [SubscriptionController::class, 'checkout']);
+				Route::get('/subscription/checkout', [SubscriptionController::class, 'checkout']);
 				Route::post('/subscription/activate', [SubscriptionController::class, 'activate']);
 				Route::post('/subscription/cancel', [SubscriptionController::class, 'cancel']);
 

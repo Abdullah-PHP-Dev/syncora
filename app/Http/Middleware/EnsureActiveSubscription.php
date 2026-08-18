@@ -11,8 +11,17 @@ class EnsureActiveSubscription
 	{
 		$user = auth()->user();
 
+		if (! $user || ! $user->hasRole('seller')) {
+			abort(403);
+		}
 
-		// Adjust this if your seller/company relation is different
+
+		if (!$user->hasActiveSubscription()) {
+			return redirect('/admin/subscription/select')
+				->with('error', 'Please choose a subscription plan');
+		}
+
+		/*// Adjust this if your seller/company relation is different
 		$seller = $user?->seller ?? $user;
 
 		if (!$seller) {
@@ -38,7 +47,7 @@ class EnsureActiveSubscription
 		if ($bundle->expires_at && now()->gt($bundle->expires_at)) {
 			return redirect('/subscription/select')
 				->with('error', 'Your subscription has expired');
-		}
+		}*/
 
 		return $next($request);
 	}
