@@ -22,6 +22,7 @@ trait GoogleAdsApiTrait
 
     public function redirect($platform, $state)
     {
+        dd('ok');
         $clientId = adminSetting('ads.google.client_id');
 
         $url = 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query([
