@@ -75,6 +75,7 @@ class SocialAdManagerService
      */
     public function redirect(string $platform)
     {
+        dd($platform);
         $platform = $this->resolvePlatform($platform);
         $this->validatePlatform($platform);
 

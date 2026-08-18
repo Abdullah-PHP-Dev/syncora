@@ -22,7 +22,6 @@ trait GoogleAdsApiTrait
 
     public function redirect($platform, $state)
     {
-        dd('ok');
         $clientId = adminSetting('ads.google.client_id');
 
         $url = 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query([
@@ -39,20 +38,7 @@ trait GoogleAdsApiTrait
             'state'         => $state,
             'scope'         => 'https://www.googleapis.com/auth/adwords',
         ]);
-        dd([
-            'client_id'     => $clientId,
-            'redirect_uri'  => $this->getCallbackUrl($platform),
-            'response_type' => 'code',
-            // offline + consent are what actually mint a refresh_token.
-            // Google only returns one on the FIRST consent for a given
-            // client/user pair unless prompt=consent forces the screen
-            // again, and without it a reconnect silently yields an
-            // access-token-only response that dies 60 minutes later.
-            'access_type'   => 'offline',
-            'prompt'        => 'consent',
-            'state'         => $state,
-            'scope'         => 'https://www.googleapis.com/auth/adwords',
-        ]);
+       
         return Redirect::away($url);
     }
 
