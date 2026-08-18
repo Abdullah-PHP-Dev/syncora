@@ -79,7 +79,7 @@ class SocialAdManagerService
         $this->validatePlatform($platform);
 
         [$state] = $this->setSession($platform);
-        dd($platform);
+        
         return $this->service($platform)
             ->redirect($platform, $state);
     }

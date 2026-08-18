@@ -47,6 +47,11 @@ class GoogleAdService
         }
     }
 
+    public function redirect($platform, $state)
+    {
+        return $this->buildAuthRedirect($platform, $state);
+    }
+
     public function store($platform, $request)
     {
         $response = $this->storeBudget($platform, $request);

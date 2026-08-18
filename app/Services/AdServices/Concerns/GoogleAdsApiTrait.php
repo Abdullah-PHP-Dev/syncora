@@ -20,7 +20,16 @@ trait GoogleAdsApiTrait
 {
     protected $account, $config, $apiService, $header;
 
-    public function redirect($platform, $state)
+    /**
+     * Shared OAuth-authorize URL builder - identical for GoogleAdService and
+     * YoutubeAdService (same client, same scope, same auth server; only the
+     * callback URL differs per $platform), so it lives here once rather
+     * than risking the two drifting apart. Each class exposes its own
+     * public redirect() calling into this, matching how every other
+     * platform (Facebook/TikTok/Snapchat/LinkedIn/X) owns its redirect()
+     * directly rather than only inheriting one from a trait.
+     */
+    protected function buildAuthRedirect($platform, $state)
     {
         $clientId = adminSetting('ads.google.client_id');
 
