@@ -181,11 +181,19 @@ class YoutubeAdService
         return $this->successResponse(['resource' => $resourceName, 'id' => $campaignRecord['data']->id]);
     }
 
+    /**
+     * Standalone campaign.targetCpa was rejected live on this account for
+     * Search - see GoogleAdService::biddingStrategyPayload()'s docblock.
+     * That's an account/customer-level bidding-strategy rollout state
+     * (campaign_bidding_strategy is the same oneof regardless of campaign
+     * type), so Demand Gen gets the same bundled maximizeConversions form
+     * pre-emptively rather than waiting to hit the identical error here.
+     */
     private function biddingStrategyPayload($request)
     {
         return match ($request['bid_strategy']) {
             'MAXIMIZE_CONVERSIONS'      => ['maximizeConversions' => (object) []],
-            'TARGET_CPA'                => ['targetCpa' => ['targetCpaMicros' => (int) ((float) $request['bid_amount'] * 1000000)]],
+            'TARGET_CPA'                => ['maximizeConversions' => ['targetCpaMicros' => (int) ((float) $request['bid_amount'] * 1000000)]],
             'MAXIMIZE_CONVERSION_VALUE' => ['maximizeConversionValue' => (object) []],
             default                     => ['maximizeConversions' => (object) []],
         };

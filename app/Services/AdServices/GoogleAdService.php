@@ -151,7 +151,7 @@ class GoogleAdService
         $campaign = array_merge($campaign, $this->biddingStrategyPayload($request));
 
         $result = $this->mutate($endpoint, ['operations' => [['create' => $campaign]]]);
-        dd($result, $endpoint, ['operations' => [['create' => $campaign]]]);
+
         if (!$result['success']) {
             return $result;
         }
@@ -180,12 +180,24 @@ class GoogleAdService
         return $this->successResponse(['resource' => $resourceName, 'id' => $campaignRecord['data']->id]);
     }
 
+    /**
+     * Standalone campaign.targetCpa/targetRoas came back live "operation
+     * not allowed for the given context" on this account - Google bundled
+     * Target CPA/ROAS inside maximizeConversions/maximizeConversionValue
+     * from 2021-2025, then announced restoring them as standalone
+     * strategies again in June 2026 with "no changes required from
+     * advertisers" - evidently this account's rollout cohort still expects
+     * (or is mid-migration to) the bundled form, so that's what's used
+     * here. Revisit if Google finishes rolling out standalone support.
+     */
     private function biddingStrategyPayload($request)
     {
+        $bidMicros = (int) ((float) ($request['bid_amount'] ?? 0) * 1000000);
+
         return match ($request['bid_strategy']) {
             'MAXIMIZE_CONVERSIONS' => ['maximizeConversions' => (object) []],
-            'TARGET_CPA'           => ['targetCpa' => ['targetCpaMicros' => (int) ((float) $request['bid_amount'] * 1000000)]],
-            'TARGET_ROAS'          => ['targetRoas' => ['targetRoas' => (float) $request['bid_amount']]],
+            'TARGET_CPA'           => ['maximizeConversions' => ['targetCpaMicros' => $bidMicros]],
+            'TARGET_ROAS'          => ['maximizeConversionValue' => ['targetRoas' => (float) ($request['bid_amount'] ?? 0)]],
             'MANUAL_CPC'           => ['manualCpc' => ['enhancedCpcEnabled' => false]],
             'TARGET_SPEND'         => ['targetSpend' => (object) []],
             default                => ['manualCpc' => ['enhancedCpcEnabled' => false]],
