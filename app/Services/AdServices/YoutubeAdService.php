@@ -394,9 +394,9 @@ class YoutubeAdService
                 ],
             ],
         ];
-        dd($endpoint, ['operations' => [['create' => $payload]]]);
+        
         $result = $this->mutate($endpoint, ['operations' => [['create' => $payload]]]);
-
+dd($result, $endpoint, ['operations' => [['create' => $payload]]]);
         if (!$result['success']) {
             return $result;
         }
