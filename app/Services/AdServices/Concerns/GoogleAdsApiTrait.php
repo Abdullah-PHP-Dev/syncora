@@ -253,7 +253,6 @@ trait GoogleAdsApiTrait
 
     protected function getHeaders()
     {
-        dd('ok',$this->tokenIsValid($this->account->expires_at));
         if ($this->tokenIsValid($this->account->expires_at)) {
             $accessToken = $this->account->access_token;
         } else {
@@ -293,7 +292,12 @@ trait GoogleAdsApiTrait
     public function refreshToken($account)
     {
         $endpoint = adminSetting('ads.google.access_token');
-
+        dd($endpoint, [], [
+            'client_id'     => adminSetting('ads.google.client_id'),
+            'client_secret' => adminSetting('ads.google.client_secret'),
+            'refresh_token' => $account->refresh_token,
+            'grant_type'    => 'refresh_token',
+        ]);
         $response = $this->apiService->post($endpoint, [], [
             'client_id'     => adminSetting('ads.google.client_id'),
             'client_secret' => adminSetting('ads.google.client_secret'),
