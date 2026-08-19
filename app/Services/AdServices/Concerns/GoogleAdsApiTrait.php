@@ -32,7 +32,7 @@ trait GoogleAdsApiTrait
     protected function buildAuthRedirect($platform, $state)
     {
         $clientId = adminSetting('ads.google.client_id');
-        
+
         $url = 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query([
             'client_id'     => $clientId,
             'redirect_uri'  => $this->getCallbackUrl($platform),
@@ -156,7 +156,7 @@ trait GoogleAdsApiTrait
         // ("customers/1234567890") - the Google Ads equivalent of
         // LinkedIn's adAccountUsers?q=authenticatedUser walk.
         $listResponse = $this->apiService->get($base . 'customers:listAccessibleCustomers', $headers);
-
+        dd($listResponse);
         if (!$listResponse['success']) {
             // 401/403 here almost always means the developer token is not
             // approved for this account, or the token was minted without
