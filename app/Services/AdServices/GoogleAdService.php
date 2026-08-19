@@ -243,7 +243,7 @@ class GoogleAdService
             'bid_strategy'   => $request['bid_strategy'],
             'bid_price'      => $request['bid_amount'] ?? null,
         ];
-   dd($dataToInsert);
+        
         $adGroupRecord = $this->apiService->success($dataToInsert, ['ad_adgroup_id' => $adGroupId], new AdAdGroup);
 
         return $this->successResponse(['resource' => $resourceName, 'id' => $adGroupRecord['data']->id]);
