@@ -287,7 +287,7 @@ class GoogleAdService
                 ],
             ],
         ], $keywords);
-        dd($keywords);
+        dd($this->mutateMultiple($endpoint, $operations));
         return $this->mutateMultiple($endpoint, $operations);
     }
 
