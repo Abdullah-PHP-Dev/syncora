@@ -613,7 +613,7 @@ trait GoogleAdsApiTrait
                 'updateMask' => 'name,startDateTime,endDateTime',
             ]]]
         );
-        dd($result);
+
         if (!$result['success']) {
             return $result;
         }
