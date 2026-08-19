@@ -297,7 +297,7 @@ class GoogleAdService
 
         $headlines = $this->parseTextList($request['headlines'] ?? '', 30);
         $descriptions = $this->parseTextList($request['descriptions'] ?? '', 90);
-
+        dd($headlines, $descriptions);
         if (count($headlines) < 3) {
             return $this->errorResponse('Responsive Search Ads need at least 3 headlines.');
         }
