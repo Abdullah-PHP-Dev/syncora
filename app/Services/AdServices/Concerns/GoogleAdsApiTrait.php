@@ -428,7 +428,7 @@ trait GoogleAdsApiTrait
     protected function mutateMultiple($endpoint, array $operations)
     {
         $response = $this->apiService->post($endpoint, $this->header, ['operations' => $operations]);
-        dd($response, $endpoint, $this->header, ['operations' => $operations]);
+
         if (!$response['success']) {
             Log::warning('Google Ads mutate (multi) failed.', ['endpoint' => $endpoint, 'body' => $response['body'] ?? null]);
 
@@ -530,14 +530,23 @@ trait GoogleAdsApiTrait
     }
 
     /**
-     * Location/language (CampaignCriterion) + age/gender (AdGroupCriterion)
-     * targeting - identical shape for Search and Demand Gen, both being
-     * plain criterion resources on the same underlying customer.
+     * Location/language + age/gender targeting.
+     *
+     * Search puts location/language on CampaignCriterion. Demand Gen
+     * doesn't: DemandGenCampaignSettings.upgraded_targeting has defaulted
+     * to true since API v18 (it's immutable once the campaign exists, and
+     * storeCampaign() never sets it, so every Demand Gen campaign this app
+     * creates gets the default) - with upgraded targeting on, location/
+     * language must go through AdGroupCriterion instead, or Google rejects
+     * it with a GoogleAdsFailure whose message is the unhelpful "The error
+     * code is not in this version." and a trigger of "OWNED_AND_OPERATED"
+     * (confirmed live). Age/gender were already AdGroupCriterion for both
+     * platforms, so those are unaffected.
      */
     protected function storeTargeting($platform, $request)
     {
         $locationIds = $this->resolveGeoTargetConstants($request['countries'] ?? []);
-        
+
         if (empty($locationIds)) {
             return $this->errorResponse('Could not resolve the selected countries to Google geo target constants. Please double-check the Countries selection.');
         }
@@ -546,24 +555,29 @@ trait GoogleAdsApiTrait
         // (late September 2026) and tells API users to stop setting
         // campaign_criterion.language on new Search campaigns - doing so
         // will start returning ContextError.OPERATION_NOT_PERMITTED_FOR_
-        // CONTEXT. Demand Gen isn't affected by this change, so it still
-        // gets language criteria.
+        // CONTEXT. Demand Gen isn't affected by this specific change, so it
+        // still gets language criteria (just via AdGroupCriterion instead
+        // of CampaignCriterion - see this method's docblock).
         $languageIds = $platform === 'google'
             ? []
             : $this->resolveLanguageConstants($request['languages'] ?? []);
 
-        $campaignEndpoint = $this->config . 'customers/' . $this->customerId() . '/campaignCriteria:mutate';
+        $isDemandGen = $platform !== 'google';
+        $criteriaEndpoint = $this->config . 'customers/' . $this->customerId() . '/' .
+            ($isDemandGen ? 'adGroupCriteria' : 'campaignCriteria') . ':mutate';
+        $parentKey = $isDemandGen ? 'adGroup' : 'campaign';
+        $parentResource = $isDemandGen ? $request['adgroup_resource'] : $request['campaign_resource'];
 
         // Location and language are sent as two separate mutate calls
         // rather than one batch - batching them meant a failure on either
         // one surfaced as a single opaque error covering both operations,
         // with no way to tell which criterion actually caused it.
         $locationOperations = array_map(fn($geoResource) => ['create' => [
-            'campaign' => $request['campaign_resource'],
+            $parentKey => $parentResource,
             'location' => ['geoTargetConstant' => $geoResource],
         ]], $locationIds);
 
-        $result = $this->mutateMultiple($campaignEndpoint, $locationOperations);
+        $result = $this->mutateMultiple($criteriaEndpoint, $locationOperations);
 
         if (!$result['success']) {
             return $result;
@@ -571,12 +585,12 @@ trait GoogleAdsApiTrait
 
         if (!empty($languageIds)) {
             $languageOperations = array_map(fn($langResource) => ['create' => [
-                'campaign' => $request['campaign_resource'],
+                $parentKey => $parentResource,
                 'language' => ['languageConstant' => $langResource],
             ]], $languageIds);
 
-            $result = $this->mutateMultiple($campaignEndpoint, $languageOperations);
-        
+            $result = $this->mutateMultiple($criteriaEndpoint, $languageOperations);
+
             if (!$result['success']) {
                 return $result;
             }
