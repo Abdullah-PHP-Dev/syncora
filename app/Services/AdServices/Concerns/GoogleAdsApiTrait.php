@@ -576,7 +576,7 @@ trait GoogleAdsApiTrait
             $parentKey => $parentResource,
             'location' => ['geoTargetConstant' => $geoResource],
         ]], $locationIds);
-
+        dd('ok');
         $result = $this->mutateMultiple($criteriaEndpoint, $locationOperations);
       
         if (!$result['success']) {
@@ -628,10 +628,10 @@ trait GoogleAdsApiTrait
                     'ageRange' => ['type' => $ageRange],
                 ]];
             }
-
+   
             if (!empty($demographicOperations)) {
                 $adGroupCriteriaEndpoint = $this->config . 'customers/' . $this->customerId() . '/adGroupCriteria:mutate';
-                dd($adGroupCriteriaEndpoint, $demographicOperations);
+            
                 return $this->mutateMultiple($adGroupCriteriaEndpoint, $demographicOperations);
             }
         }
