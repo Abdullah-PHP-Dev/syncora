@@ -103,7 +103,7 @@ class YoutubeAdService
         $request['adgroup_resource'] = $response['data']['resource'];
         $request['ad_adgroup_id'] = $response['data']['id'];
 
-        $response = $this->storeTargeting($platform, $request);
+        $response = $this->storeTargeting($request);
 
         if (!$response['success']) {
             return $response;
@@ -118,12 +118,17 @@ class YoutubeAdService
      
         $payload = [
             'operations' => [[
-                'create' => $this->buildBudgetPayload($request),
+                'create' => [
+                    'name'             => $request['name'] . ' Budget ' . time(),
+                    'amountMicros'     => (int) ((float) $request['budget'] * 1000000),
+                    'deliveryMethod'   => 'STANDARD',
+                    'explicitlyShared' => false,
+                ],
             ]],
         ];
-        
+
         $result = $this->mutate($endpoint, $payload);
-        dd($endpoint, $payload, $result);
+ 
         if (!$result['success']) {
             return $result;
         }
@@ -150,9 +155,9 @@ class YoutubeAdService
         ];
 
         $campaign = array_merge($campaign, $this->biddingStrategyPayload($request));
-        
+
         $result = $this->mutate($endpoint, ['operations' => [['create' => $campaign]]]);
-dd($result, $endpoint, ['operations' => [['create' => $campaign]]]);
+
         if (!$result['success']) {
             return $result;
         }
@@ -183,7 +188,6 @@ dd($result, $endpoint, ['operations' => [['create' => $campaign]]]);
 
     private function biddingStrategyPayload($request)
     {
-        dd('ok');
         return match ($request['bid_strategy']) {
             'MAXIMIZE_CONVERSIONS'      => ['maximizeConversions' => (object) []],
             'TARGET_CPA'                => ['targetCpa' => ['targetCpaMicros' => (int) ((float) $request['bid_amount'] * 1000000)]],
@@ -304,10 +308,7 @@ dd($result, $endpoint, ['operations' => [['create' => $campaign]]]);
             'campaign' => $request['campaign_resource'],
             'name'     => $request['name'] . ' Ad Group',
             'status'   => 'ENABLED',
-            // Demand Gen ad groups take no ad_group.type - there is no
-            // DEMAND_GEN_* value in AdGroupTypeEnum at all (unlike Search's
-            // SEARCH_STANDARD); demandGenAdGroupSettings is what identifies
-            // it as a Demand Gen ad group.
+            'type'     => 'DEMAND_GEN_STANDARD',
             'demandGenAdGroupSettings' => [
                 'channelControls' => [
                     'selectedChannels' => [
