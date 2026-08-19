@@ -150,7 +150,7 @@ class GoogleAdService
                 // with the campaign type".
                 'negativeGeoTargetType' => 'PRESENCE',
             ],
-            'euPoliticalAdvertisingStatus' => 'DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING',
+            'contains_eu_political_advertising' => 'DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING',
         ];
 
         $campaign = array_merge($campaign, $this->biddingStrategyPayload($request));
