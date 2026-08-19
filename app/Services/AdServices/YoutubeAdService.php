@@ -47,7 +47,7 @@ class YoutubeAdService
         $this->apiService = $apiService;
         $this->account = $account->wherePlatform('google')->whereUserId(Auth::user()->id)->first();
 
-        $this->config = adminSetting('ads.google.base_url');
+        $this->config = adminSetting('ads.google.base_url') ?: 'https://googleads.googleapis.com/v24/';
 
         if ($this->account) {
             $this->header = $this->getHeaders();

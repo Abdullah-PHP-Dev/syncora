@@ -332,7 +332,7 @@ trait GoogleAdsApiTrait
     protected function mutate($endpoint, array $payload)
     {
         $response = $this->apiService->post($endpoint, $this->header, $payload);
-        dd($response,$endpoint, $this->header, $payload);
+
         if (!$response['success']) {
             return $this->errorResponse($response['data']['error']['message'] ?? 'Google Ads API request failed.');
         }
