@@ -331,7 +331,7 @@ class YoutubeAdService
         ];
 
         $result = $this->mutate($endpoint, ['operations' => [['create' => $adGroup]]]);
-
+        dd($result, $endpoint, ['operations' => [['create' => $adGroup]]]);
         if (!$result['success']) {
             return $result;
         }
