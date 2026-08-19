@@ -601,7 +601,7 @@ trait GoogleAdsApiTrait
         dd(['operations' => [[
                 'update'     => array_merge(['resourceName' => $campaign->ad_campaign_id], $campaignUpdate),
                 'updateMask' => 'name,start_date_time,end_date_time',
-            ]]);
+            ]]]);
         $result = $this->mutate(
             $this->config . 'customers/' . $this->customerId() . '/campaigns:mutate',
             ['operations' => [[
