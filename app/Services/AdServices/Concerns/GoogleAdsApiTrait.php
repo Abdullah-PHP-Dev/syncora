@@ -588,9 +588,9 @@ trait GoogleAdsApiTrait
                 $parentKey => $parentResource,
                 'language' => ['languageConstant' => $langResource],
             ]], $languageIds);
-    dd($criteriaEndpoint, $languageOperations);
+  
             $result = $this->mutateMultiple($criteriaEndpoint, $languageOperations);
-
+  dd($result, $criteriaEndpoint, $languageOperations);
             if (!$result['success']) {
                 return $result;
             }
