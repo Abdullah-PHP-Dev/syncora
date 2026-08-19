@@ -280,6 +280,34 @@ trait GoogleAdsApiTrait
         return $headers;
     }
 
+    /**
+     * CampaignBudget create payload, shared since it's identical between
+     * Search and Demand Gen. budget_mode 'total' needs period=CUSTOM_PERIOD
+     * with totalAmountMicros - amountMicros is the DAILY amount and is
+     * silently misinterpreted as such if used for a total budget instead
+     * (period defaults to DAILY when unset), which is what this used to do
+     * regardless of which budget_mode the form submitted. Total budgets are
+     * only accepted when the campaign itself has explicit start/end dates,
+     * which storeCampaign() already always sets.
+     */
+    protected function buildBudgetPayload($request): array
+    {
+        $budget = [
+            'name'             => $request['name'] . ' Budget ' . time(),
+            'deliveryMethod'   => 'STANDARD',
+            'explicitlyShared' => false,
+        ];
+
+        if (($request['budget_mode'] ?? 'daily') === 'total') {
+            $budget['period'] = 'CUSTOM_PERIOD';
+            $budget['totalAmountMicros'] = (int) ((float) $request['budget'] * 1000000);
+        } else {
+            $budget['amountMicros'] = (int) ((float) $request['budget'] * 1000000);
+        }
+
+        return $budget;
+    }
+
     protected function tokenIsValid($expiresAt): bool
     {
         if (!$expiresAt) {
@@ -489,7 +517,7 @@ trait GoogleAdsApiTrait
      * targeting - identical shape for Search and Demand Gen, both being
      * plain criterion resources on the same underlying customer.
      */
-    protected function storeTargeting($request)
+    protected function storeTargeting($platform, $request)
     {
         $locationIds = $this->resolveGeoTargetConstants($request['countries'] ?? []);
 
@@ -497,7 +525,15 @@ trait GoogleAdsApiTrait
             return $this->errorResponse('Could not resolve the selected countries to Google geo target constants. Please double-check the Countries selection.');
         }
 
-        $languageIds = $this->resolveLanguageConstants($request['languages'] ?? []);
+        // Google is removing campaign-level language targeting for Search
+        // (late September 2026) and tells API users to stop setting
+        // campaign_criterion.language on new Search campaigns - doing so
+        // will start returning ContextError.OPERATION_NOT_PERMITTED_FOR_
+        // CONTEXT. Demand Gen isn't affected by this change, so it still
+        // gets language criteria.
+        $languageIds = $platform === 'google'
+            ? []
+            : $this->resolveLanguageConstants($request['languages'] ?? []);
 
         $campaignEndpoint = $this->config . 'customers/' . $this->customerId() . '/campaignCriteria:mutate';
         $campaignOperations = [];

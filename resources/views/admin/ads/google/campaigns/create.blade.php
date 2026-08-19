@@ -443,7 +443,9 @@
         const bidAmountGroup = document.querySelector('.bid_amount_group');
 
         function toggleBidAmount() {
-            const needsAmount = ['TARGET_CPA', 'TARGET_ROAS'].includes(bidStrategySelect.value);
+            // MANUAL_CPC needs this too - storeAdGroup() reads bid_amount as
+            // the ad group's max CPC bid (cpcBidMicros) for that strategy.
+            const needsAmount = ['TARGET_CPA', 'TARGET_ROAS', 'MANUAL_CPC'].includes(bidStrategySelect.value);
             bidAmountGroup.style.display = needsAmount ? '' : 'none';
         }
 

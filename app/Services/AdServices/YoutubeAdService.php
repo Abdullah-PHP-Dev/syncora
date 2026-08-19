@@ -103,7 +103,7 @@ class YoutubeAdService
         $request['adgroup_resource'] = $response['data']['resource'];
         $request['ad_adgroup_id'] = $response['data']['id'];
 
-        $response = $this->storeTargeting($request);
+        $response = $this->storeTargeting($platform, $request);
 
         if (!$response['success']) {
             return $response;
@@ -118,12 +118,7 @@ class YoutubeAdService
      
         $payload = [
             'operations' => [[
-                'create' => [
-                    'name'             => $request['name'] . ' Budget ' . time(),
-                    'amountMicros'     => (int) ((float) $request['budget'] * 1000000),
-                    'deliveryMethod'   => 'STANDARD',
-                    'explicitlyShared' => false,
-                ],
+                'create' => $this->buildBudgetPayload($request),
             ]],
         ];
 
@@ -308,7 +303,10 @@ class YoutubeAdService
             'campaign' => $request['campaign_resource'],
             'name'     => $request['name'] . ' Ad Group',
             'status'   => 'ENABLED',
-            'type'     => 'DEMAND_GEN_STANDARD',
+            // Demand Gen ad groups take no ad_group.type - there is no
+            // DEMAND_GEN_* value in AdGroupTypeEnum at all (unlike Search's
+            // SEARCH_STANDARD); demandGenAdGroupSettings is what identifies
+            // it as a Demand Gen ad group.
             'demandGenAdGroupSettings' => [
                 'channelControls' => [
                     'selectedChannels' => [

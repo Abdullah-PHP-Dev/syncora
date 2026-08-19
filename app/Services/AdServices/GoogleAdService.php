@@ -88,7 +88,7 @@ class GoogleAdService
             return $response;
         }
 
-        $response = $this->storeTargeting($request);
+        $response = $this->storeTargeting($platform, $request);
 
         if (!$response['success']) {
             return $response;
@@ -103,12 +103,7 @@ class GoogleAdService
 
         $payload = [
             'operations' => [[
-                'create' => [
-                    'name'             => $request['name'] . ' Budget ' . time(),
-                    'amountMicros'     => (int) ((float) $request['budget'] * 1000000),
-                    'deliveryMethod'   => 'STANDARD',
-                    'explicitlyShared' => false,
-                ],
+                'create' => $this->buildBudgetPayload($request),
             ]],
         ];
 
@@ -157,10 +152,9 @@ class GoogleAdService
         ],
         ];
 
-   //     $campaign = array_merge($campaign, $this->biddingStrategyPayload($request));
+        $campaign = array_merge($campaign, $this->biddingStrategyPayload($request));
         
         $result = $this->mutate($endpoint, ['operations' => [['create' => $campaign]]]);
-        dd($result, $this->header, $endpoint, ['operations' => [['create' => $campaign]]]);
         if (!$result['success']) {
             return $result;
         }
