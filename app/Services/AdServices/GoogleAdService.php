@@ -146,14 +146,10 @@ class GoogleAdService
                 'negativeGeoTargetType' => 'PRESENCE',
             ],
             'containsEuPoliticalAdvertising' => 'DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING',
-            'biddingStrategyType' => 'MAXIMIZE_CONVERSIONS',
-        'maximizeConversions' => [
-            'targetCpaMicros' => 1000000,
-        ],
         ];
 
         $campaign = array_merge($campaign, $this->biddingStrategyPayload($request));
-        
+
         $result = $this->mutate($endpoint, ['operations' => [['create' => $campaign]]]);
         if (!$result['success']) {
             return $result;
