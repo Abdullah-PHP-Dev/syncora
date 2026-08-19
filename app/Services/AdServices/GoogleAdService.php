@@ -72,7 +72,7 @@ class GoogleAdService
 
         $request['campaign_resource'] = $response['data']['resource'];
         $request['ad_campaign_id'] = $response['data']['id'];
-  dd($request);
+
         $response = $this->storeAdGroup($platform, $request);
       
         if (!$response['success']) {
@@ -220,7 +220,7 @@ class GoogleAdService
         }
 
         $result = $this->mutate($endpoint, ['operations' => [['create' => $adGroup]]]);
-
+        dd($result, $endpoint, ['operations' => [['create' => $adGroup]]]);
         if (!$result['success']) {
             return $result;
         }
