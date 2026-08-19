@@ -143,9 +143,14 @@ class GoogleAdService
             ],
             'geoTargetTypeSetting' => [
                 'positiveGeoTargetType' => 'PRESENCE_OR_INTEREST',
-                'negativeGeoTargetType' => 'PRESENCE_OR_INTEREST',
+                // negative_geo_target_type doesn't accept PRESENCE_OR_INTEREST
+                // for most campaign types (Google auto-migrates existing
+                // campaigns with that combo to PRESENCE) - REST rejects it
+                // outright on create with "setting type is not compatible
+                // with the campaign type".
+                'negativeGeoTargetType' => 'PRESENCE',
             ],
-            'containsEuPoliticalAdvertising' => 'DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING',
+            'euPoliticalAdvertisingStatus' => 'DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING',
         ];
 
         $campaign = array_merge($campaign, $this->biddingStrategyPayload($request));
