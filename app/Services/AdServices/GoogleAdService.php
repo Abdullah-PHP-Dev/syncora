@@ -128,8 +128,8 @@ class GoogleAdService
         $campaign = [
             'name'                    => $request['name'],
             'status'                  => 'PAUSED',
-            'advertisingChannelType'  => 'SEARCH',
-            'campaignBudget'          => $request['budget_resource'],
+            'advertising_channel_type'  => 'SEARCH',
+            'campaign_budget'          => $request['budget_resource'],
             // v23 replaced the plain start_date/end_date (YYYY-MM-DD) fields
             // with start_date_time/end_date_time ("yyyy-MM-dd HH:mm:ss"),
             // adding time-of-day granularity - 00:00:00/23:59:59 reproduces
