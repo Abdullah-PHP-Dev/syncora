@@ -74,7 +74,7 @@ class GoogleAdService
         $request['ad_campaign_id'] = $response['data']['id'];
 
         $response = $this->storeAdGroup($platform, $request);
-
+        dd($response);
         if (!$response['success']) {
             return $response;
         }
@@ -121,7 +121,7 @@ class GoogleAdService
         $endpoint = $this->config . 'customers/' . $this->customerId() . '/campaigns:mutate';
 
         $campaign = [
-            'name'                    => $request['name'],
+            'name'                    => $request['name'] . time(),
             'status'                  => 'PAUSED',
             'advertisingChannelType'  => 'SEARCH',
             'campaignBudget'          => $request['budget_resource'],
