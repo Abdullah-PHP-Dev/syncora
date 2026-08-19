@@ -590,7 +590,7 @@ trait GoogleAdsApiTrait
             ]], $languageIds);
   
             $result = $this->mutateMultiple($criteriaEndpoint, $languageOperations);
-  dd($result, $criteriaEndpoint, $languageOperations);
+
             if (!$result['success']) {
                 return $result;
             }
