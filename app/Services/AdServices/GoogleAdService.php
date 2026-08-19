@@ -157,9 +157,9 @@ class GoogleAdService
         }
 
         $resourceName = $result['data']['resourceName'];
-
+        $campaignId = basename($resourceName);
         $dataToInsert = [
-            'ad_campaign_id'           => $resourceName,
+            'ad_campaign_id'           => $campaignId,
             'user_id'                  => Auth::id(),
             'ad_account_id'            => $this->account->id,
             'name'                     => $request['name'],
@@ -175,7 +175,7 @@ class GoogleAdService
             'status'                   => false,
         ];
 
-        $campaignRecord = $this->apiService->success($dataToInsert, ['ad_campaign_id' => $resourceName], new AdCampaign);
+        $campaignRecord = $this->apiService->success($dataToInsert, ['ad_campaign_id' => $campaignId], new AdCampaign);
 
         return $this->successResponse(['resource' => $resourceName, 'id' => $campaignRecord['data']->id]);
     }
@@ -226,11 +226,11 @@ class GoogleAdService
         }
 
         $resourceName = $result['data']['resourceName'];
-
+        $adGroupId = basename($resourceName);
         $dataToInsert = [
             'ad_campaign_id' => $request['ad_campaign_id'],
             'user_id'        => Auth::id(),
-            'ad_adgroup_id'  => $resourceName,
+            'ad_adgroup_id'  => $adGroupId,
             'ad_account_id'  => $this->account->id,
             'platform'       => $platform,
             'name'           => $adGroup['name'],
@@ -244,7 +244,7 @@ class GoogleAdService
             'bid_price'      => $request['bid_amount'] ?? null,
         ];
    dd($dataToInsert);
-        $adGroupRecord = $this->apiService->success($dataToInsert, ['ad_adgroup_id' => $resourceName], new AdAdGroup);
+        $adGroupRecord = $this->apiService->success($dataToInsert, ['ad_adgroup_id' => $adGroupId], new AdAdGroup);
 
         return $this->successResponse(['resource' => $resourceName, 'id' => $adGroupRecord['data']->id]);
     }
