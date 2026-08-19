@@ -81,7 +81,7 @@ class GoogleAdService
 
         $request['adgroup_resource'] = $response['data']['resource'];
         $request['ad_adgroup_id'] = $response['data']['id'];
-        dd($request);
+
         $response = $this->storeKeywords($request);
 
         if (!$response['success']) {
@@ -89,7 +89,7 @@ class GoogleAdService
         }
 
         $response = $this->storeTargeting($platform, $request);
-        dd($response);
+   
         if (!$response['success']) {
             return $response;
         }
@@ -319,7 +319,7 @@ class GoogleAdService
         ];
 
         $result = $this->mutate($endpoint, ['operations' => [['create' => $payload]]]);
-
+        dd($result, $endpoint, ['operations' => [['create' => $payload]]]);
         if (!$result['success']) {
             return $result;
         }
