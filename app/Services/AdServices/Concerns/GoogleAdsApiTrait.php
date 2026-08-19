@@ -576,7 +576,7 @@ trait GoogleAdsApiTrait
             ]], $languageIds);
 
             $result = $this->mutateMultiple($campaignEndpoint, $languageOperations);
-
+            dd($result, $campaignEndpoint, $languageOperations);
             if (!$result['success']) {
                 return $result;
             }
