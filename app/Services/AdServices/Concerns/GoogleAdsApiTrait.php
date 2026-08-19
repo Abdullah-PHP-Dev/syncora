@@ -578,7 +578,7 @@ trait GoogleAdsApiTrait
         ]], $locationIds);
 
         $result = $this->mutateMultiple($criteriaEndpoint, $locationOperations);
-
+        dd($result, $criteriaEndpoint, $locationOperations);
         if (!$result['success']) {
             return $result;
         }
