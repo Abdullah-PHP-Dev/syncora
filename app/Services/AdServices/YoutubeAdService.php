@@ -311,7 +311,11 @@ class YoutubeAdService
             'campaign' => $request['campaign_resource'],
             'name'     => $request['name'] . ' Ad Group',
             'status'   => 'ENABLED',
-            'type'     => 'DEMAND_GEN_STANDARD',
+            // Demand Gen ad groups take no ad_group.type - there is no
+            // DEMAND_GEN_* value in AdGroupTypeEnum at all (unlike Search's
+            // SEARCH_STANDARD); demandGenAdGroupSettings is what identifies
+            // it as a Demand Gen ad group. Confirmed live: Google rejects
+            // "DEMAND_GEN_STANDARD" outright as an invalid enum value.
             'demandGenAdGroupSettings' => [
                 'channelControls' => [
                     'selectedChannels' => [
@@ -327,7 +331,7 @@ class YoutubeAdService
         ];
 
         $result = $this->mutate($endpoint, ['operations' => [['create' => $adGroup]]]);
-        dd($result, $endpoint, ['operations' => [['create' => $adGroup]]]);
+
         if (!$result['success']) {
             return $result;
         }
