@@ -562,9 +562,9 @@ trait GoogleAdsApiTrait
             'campaign' => $request['campaign_resource'],
             'location' => ['geoTargetConstant' => $geoResource],
         ]], $locationIds);
-
+    dd($campaignEndpoint, $locationOperations);
         $result = $this->mutateMultiple($campaignEndpoint, $locationOperations);
-    dd($result, $campaignEndpoint, $locationOperations);
+
         if (!$result['success']) {
             return $result;
         }
