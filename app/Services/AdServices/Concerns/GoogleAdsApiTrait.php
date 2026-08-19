@@ -150,13 +150,13 @@ trait GoogleAdsApiTrait
             $headers['login-customer-id'] = str_replace('-', '', $loginCustomerId);
         }
 
-        $base = adminSetting('ads.google.base_url') ?: 'https://googleads.googleapis.com/v21/';
+        $base = adminSetting('ads.google.base_url') ?: 'https://googleads.googleapis.com/v24/';
 
         // Every customer this member has access to, as resource names
         // ("customers/1234567890") - the Google Ads equivalent of
         // LinkedIn's adAccountUsers?q=authenticatedUser walk.
         $listResponse = $this->apiService->get($base . 'customers:listAccessibleCustomers', $headers);
-        dd($listResponse);
+
         if (!$listResponse['success']) {
             // 401/403 here almost always means the developer token is not
             // approved for this account, or the token was minted without
