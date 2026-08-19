@@ -153,7 +153,7 @@ class GoogleAdService
             'containsEuPoliticalAdvertising' => 'DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING',
             'biddingStrategyType' => 'MAXIMIZE_CONVERSIONS',
         'maximizeConversions' => [
-            'targetCpaMicros' => $request['bid_amount'] ?? 1000000,
+            'targetCpaMicros' => 1000000,
         ],
         ];
 
