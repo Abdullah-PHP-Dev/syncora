@@ -128,8 +128,8 @@ class GoogleAdService
         $campaign = [
             'name'                    => $request['name'],
             'status'                  => 'PAUSED',
-            'advertising_channel_type'  => 'SEARCH',
-            'campaign_budget'          => $request['budget_resource'],
+            'advertisingChannelType'  => 'SEARCH',
+            'campaignBudget'          => $request['budget_resource'],
             // v23 replaced the plain start_date/end_date (YYYY-MM-DD) fields
             // with start_date_time/end_date_time ("yyyy-MM-dd HH:mm:ss"),
             // adding time-of-day granularity - 00:00:00/23:59:59 reproduces
@@ -150,7 +150,7 @@ class GoogleAdService
                 // with the campaign type".
                 'negativeGeoTargetType' => 'PRESENCE',
             ],
-            'contains_eu_political_advertising' => 'DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING',
+            'euPoliticalAdvertisingStatus' => 'DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING',
         ];
 
         $campaign = array_merge($campaign, $this->biddingStrategyPayload($request));
