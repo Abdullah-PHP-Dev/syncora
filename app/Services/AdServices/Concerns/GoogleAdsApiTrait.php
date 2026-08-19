@@ -377,7 +377,9 @@ trait GoogleAdsApiTrait
     protected function mutate($endpoint, array $payload)
     {
         $response = $this->apiService->post($endpoint, $this->header, $payload);
-
+        if ($endpoint == 'https://googleads.googleapis.com/v24/customers/9206704101/adGroupAds:mutate') {
+                dd($response);
+        }
         if (!$response['success']) {
             Log::warning('Google Ads mutate failed.', ['endpoint' => $endpoint, 'body' => $response['body'] ?? null]);
 
