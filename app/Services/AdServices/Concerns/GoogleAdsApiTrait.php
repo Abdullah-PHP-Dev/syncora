@@ -631,7 +631,7 @@ trait GoogleAdsApiTrait
 
             if (!empty($demographicOperations)) {
                 $adGroupCriteriaEndpoint = $this->config . 'customers/' . $this->customerId() . '/adGroupCriteria:mutate';
-
+                dd($adGroupCriteriaEndpoint, $demographicOperations);
                 return $this->mutateMultiple($adGroupCriteriaEndpoint, $demographicOperations);
             }
         }
