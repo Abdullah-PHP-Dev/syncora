@@ -334,10 +334,45 @@ trait GoogleAdsApiTrait
         $response = $this->apiService->post($endpoint, $this->header, $payload);
 
         if (!$response['success']) {
-            return $this->errorResponse($response['data']['error']['message'] ?? 'Google Ads API request failed.');
+            Log::warning('Google Ads mutate failed.', ['endpoint' => $endpoint, 'body' => $response['body'] ?? null]);
+
+            return $this->errorResponse($this->googleErrorMessage($response));
         }
 
         return $this->successResponse($response['data']['results'][0] ?? []);
+    }
+
+    /**
+     * error.message alone is often just the generic "Request contains an
+     * invalid argument." - the actual field-level reason (wrong enum, a
+     * bidding strategy the account isn't eligible for, etc.) is buried in
+     * error.details[].errors[], a GoogleAdsFailure payload REST-specific
+     * client libraries unwrap automatically but a raw HTTP call doesn't.
+     */
+    protected function googleErrorMessage(array $response): string
+    {
+        $error = $response['data']['error'] ?? null;
+
+        if (!$error) {
+            // ApiService caught a Throwable (timeout, DNS failure, etc.)
+            // before there was ever an HTTP response to parse - its message
+            // lives at the top level instead.
+            return $response['error'] ?? 'Google Ads API request failed.';
+        }
+
+        $detailMessages = collect($error['details'] ?? [])
+            ->flatMap(fn($detail) => $detail['errors'] ?? [])
+            ->pluck('message')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (!empty($detailMessages)) {
+            return implode(' ', $detailMessages);
+        }
+
+        return $error['message'] ?? 'Google Ads API request failed.';
     }
 
     /**
@@ -350,7 +385,9 @@ trait GoogleAdsApiTrait
         $response = $this->apiService->post($endpoint, $this->header, ['operations' => $operations]);
 
         if (!$response['success']) {
-            return $this->errorResponse($response['data']['error']['message'] ?? 'Google Ads API request failed.');
+            Log::warning('Google Ads mutate (multi) failed.', ['endpoint' => $endpoint, 'body' => $response['body'] ?? null]);
+
+            return $this->errorResponse($this->googleErrorMessage($response));
         }
 
         return $this->successResponse($response['data']['results'] ?? []);

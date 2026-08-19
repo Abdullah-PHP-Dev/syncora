@@ -134,8 +134,8 @@ class GoogleAdService
             // with start_date_time/end_date_time ("yyyy-MM-dd HH:mm:ss"),
             // adding time-of-day granularity - 00:00:00/23:59:59 reproduces
             // the old whole-day behavior.
-            // 'startDateTime'           => Carbon::parse($request['start_time'])->format('Y-m-d 00:00:00'),
-            // 'endDateTime'             => Carbon::parse($request['end_time'])->format('Y-m-d 23:59:59'),
+            'startDateTime'           => Carbon::parse($request['start_time'])->format('Y-m-d 00:00:00'),
+            'endDateTime'             => Carbon::parse($request['end_time'])->format('Y-m-d 23:59:59'),
             'networkSettings'         => [
                 'targetGoogleSearch'    => true,
                 'targetSearchNetwork'   => true,
@@ -151,7 +151,7 @@ class GoogleAdService
         $campaign = array_merge($campaign, $this->biddingStrategyPayload($request));
 
         $result = $this->mutate($endpoint, ['operations' => [['create' => $campaign]]]);
-        dd($result, $endpoint, ['operations' => [['create' => $campaign]]]);
+
         if (!$result['success']) {
             return $result;
         }
