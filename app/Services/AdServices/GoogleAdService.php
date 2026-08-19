@@ -51,7 +51,6 @@ class GoogleAdService
 
     public function redirect($platform, $state)
     {
-        dd($platform, $state);
         return $this->buildAuthRedirect($platform, $state);
     }
 
