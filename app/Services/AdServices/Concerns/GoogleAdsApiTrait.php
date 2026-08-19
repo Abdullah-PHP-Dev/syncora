@@ -518,16 +518,19 @@ trait GoogleAdsApiTrait
     protected function updateCampaignNameAndDates($campaign, $request)
     {
         $campaignUpdate = [
-            'name'      => $request['name'],
-            'startDate' => Carbon::parse($request['start_time'])->format('Y-m-d'),
-            'endDate'   => Carbon::parse($request['end_time'])->format('Y-m-d'),
+            'name'          => $request['name'],
+            // v23 replaced start_date/end_date with start_date_time/
+            // end_date_time - see storeCampaign() in GoogleAdService/
+            // YoutubeAdService for the same change on create.
+            'startDateTime' => Carbon::parse($request['start_time'])->format('Y-m-d 00:00:00'),
+            'endDateTime'   => Carbon::parse($request['end_time'])->format('Y-m-d 23:59:59'),
         ];
 
         $result = $this->mutate(
             $this->config . 'customers/' . $this->customerId() . '/campaigns:mutate',
             ['operations' => [[
                 'update'     => array_merge(['resourceName' => $campaign->ad_campaign_id], $campaignUpdate),
-                'updateMask' => 'name,start_date,end_date',
+                'updateMask' => 'name,start_date_time,end_date_time',
             ]]]
         );
 
