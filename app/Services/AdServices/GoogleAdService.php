@@ -383,21 +383,24 @@ class GoogleAdService
             $descriptions = $this->parseTextList($request['descriptions'] ?? '', 90);
 
             if (count($headlines) >= 3 && count($descriptions) >= 2) {
+                // Ad creative content is immutable through AdGroupAdService
+                // (adGroupAds:mutate) - must go through AdService against
+                // the bare Ad resource instead. See
+                // adResourceNameFromAdGroupAd()'s docblock.
                 $adUpdate = [
-                    'ad' => [
-                        'responsiveSearchAd' => [
-                            'headlines'    => array_map(fn($t) => ['text' => $t], $headlines),
-                            'descriptions' => array_map(fn($t) => ['text' => $t], $descriptions),
-                        ],
-                        'finalUrls' => [$request['target_link']],
+                    'resourceName' => $this->adResourceNameFromAdGroupAd($ad->ad_id),
+                    'responsiveSearchAd' => [
+                        'headlines'    => array_map(fn($t) => ['text' => $t], $headlines),
+                        'descriptions' => array_map(fn($t) => ['text' => $t], $descriptions),
                     ],
+                    'finalUrls' => [$request['target_link']],
                 ];
 
                 $adResult = $this->mutate(
-                    $this->config . 'customers/' . $this->customerId() . '/adGroupAds:mutate',
+                    $this->config . 'customers/' . $this->customerId() . '/ads:mutate',
                     ['operations' => [[
-                        'update'     => array_merge(['resourceName' => $ad->ad_id], $adUpdate),
-                        'updateMask' => 'ad.responsive_search_ad.headlines,ad.responsive_search_ad.descriptions,ad.final_urls',
+                        'update'     => $adUpdate,
+                        'updateMask' => 'responsiveSearchAd.headlines,responsiveSearchAd.descriptions,finalUrls',
                     ]]]
                 );
 

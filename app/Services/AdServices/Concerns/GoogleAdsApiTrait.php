@@ -251,6 +251,23 @@ trait GoogleAdsApiTrait
         return str_replace('-', '', $this->account->ad_account_id);
     }
 
+    /**
+     * adGroupAds:mutate's create response returns a composite AdGroupAd
+     * resource name (customers/{cid}/adGroupAds/{adGroupId}~{adId}), which
+     * is what gets stored as Ad::ad_id. But the ad's own creative content
+     * (headlines/descriptions/finalUrls) is immutable through
+     * AdGroupAdService - "Field 'ad.X' cannot be modified by 'UPDATE'
+     * operation" - editing it has to go through AdService against the
+     * bare Ad resource instead, so this pulls the ad ID (the part after
+     * "~") back out to build that resource name.
+     */
+    protected function adResourceNameFromAdGroupAd(string $adGroupAdResourceName): string
+    {
+        $adId = substr($adGroupAdResourceName, strrpos($adGroupAdResourceName, '~') + 1);
+
+        return 'customers/' . $this->customerId() . '/ads/' . $adId;
+    }
+
     protected function getHeaders()
     {
         if ($this->tokenIsValid($this->account->expires_at)) {

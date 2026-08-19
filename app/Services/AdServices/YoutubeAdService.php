@@ -456,22 +456,25 @@ class YoutubeAdService
             $descriptions = $this->parseTextList($request['descriptions'] ?? '', 90);
 
             if (!empty($headlines) && !empty($descriptions)) {
+                // Ad creative content is immutable through AdGroupAdService
+                // (adGroupAds:mutate) - must go through AdService against
+                // the bare Ad resource instead. See
+                // adResourceNameFromAdGroupAd()'s docblock.
                 $adUpdate = [
-                    'ad' => [
-                        'demandGenVideoResponsiveAd' => [
-                            'businessName' => ['text' => $request['business_name']],
-                            'headlines'    => array_map(fn($t) => ['text' => $t], $headlines),
-                            'descriptions' => array_map(fn($t) => ['text' => $t], $descriptions),
-                        ],
-                        'finalUrls' => [$request['target_link']],
+                    'resourceName' => $this->adResourceNameFromAdGroupAd($ad->ad_id),
+                    'demandGenVideoResponsiveAd' => [
+                        'businessName' => ['text' => $request['business_name']],
+                        'headlines'    => array_map(fn($t) => ['text' => $t], $headlines),
+                        'descriptions' => array_map(fn($t) => ['text' => $t], $descriptions),
                     ],
+                    'finalUrls' => [$request['target_link']],
                 ];
 
                 $adResult = $this->mutate(
-                    $this->config . 'customers/' . $this->customerId() . '/adGroupAds:mutate',
+                    $this->config . 'customers/' . $this->customerId() . '/ads:mutate',
                     ['operations' => [[
-                        'update'     => array_merge(['resourceName' => $ad->ad_id], $adUpdate),
-                        'updateMask' => 'ad.demand_gen_video_responsive_ad.business_name,ad.demand_gen_video_responsive_ad.headlines,ad.demand_gen_video_responsive_ad.descriptions,ad.final_urls',
+                        'update'     => $adUpdate,
+                        'updateMask' => 'demandGenVideoResponsiveAd.businessName,demandGenVideoResponsiveAd.headlines,demandGenVideoResponsiveAd.descriptions,finalUrls',
                     ]]]
                 );
 
