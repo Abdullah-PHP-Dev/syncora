@@ -427,6 +427,7 @@ trait GoogleAdsApiTrait
      */
     protected function mutateMultiple($endpoint, array $operations)
     {
+        dd($endpoint, $this->header, ['operations' => $operations]);
         $response = $this->apiService->post($endpoint, $this->header, ['operations' => $operations]);
 
         if (!$response['success']) {
