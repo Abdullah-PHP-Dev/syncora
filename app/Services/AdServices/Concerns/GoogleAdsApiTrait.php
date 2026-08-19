@@ -576,7 +576,7 @@ trait GoogleAdsApiTrait
             $parentKey => $parentResource,
             'location' => ['geoTargetConstant' => $geoResource],
         ]], $locationIds);
-        dd('ok');
+        dd($criteriaEndpoint, $locationOperations);
         $result = $this->mutateMultiple($criteriaEndpoint, $locationOperations);
       
         if (!$result['success']) {
