@@ -220,7 +220,7 @@ class GoogleAdService
         }
 
         $result = $this->mutate($endpoint, ['operations' => [['create' => $adGroup]]]);
-        dd($result, $endpoint, ['operations' => [['create' => $adGroup]]]);
+     
         if (!$result['success']) {
             return $result;
         }
@@ -245,7 +245,7 @@ class GoogleAdService
         ];
 
         $adGroupRecord = $this->apiService->success($dataToInsert, ['ad_adgroup_id' => $resourceName], new AdAdGroup);
-
+   dd($adGroupRecord);
         return $this->successResponse(['resource' => $resourceName, 'id' => $adGroupRecord['data']->id]);
     }
 
