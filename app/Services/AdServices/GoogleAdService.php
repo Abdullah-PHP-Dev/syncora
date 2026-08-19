@@ -72,9 +72,9 @@ class GoogleAdService
 
         $request['campaign_resource'] = $response['data']['resource'];
         $request['ad_campaign_id'] = $response['data']['id'];
-
+  dd($request);
         $response = $this->storeAdGroup($platform, $request);
-        dd($response);
+      
         if (!$response['success']) {
             return $response;
         }
