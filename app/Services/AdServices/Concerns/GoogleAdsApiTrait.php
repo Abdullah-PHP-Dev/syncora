@@ -32,7 +32,7 @@ trait GoogleAdsApiTrait
     protected function buildAuthRedirect($platform, $state)
     {
         $clientId = adminSetting('ads.google.client_id');
-
+        dd($this->getCallbackUrl($platform), $clientId);
         $url = 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query([
             'client_id'     => $clientId,
             'redirect_uri'  => $this->getCallbackUrl($platform),
