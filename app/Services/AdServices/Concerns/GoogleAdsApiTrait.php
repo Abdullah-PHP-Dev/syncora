@@ -598,15 +598,19 @@ trait GoogleAdsApiTrait
             'startDateTime' => Carbon::parse($request['start_time'])->format('Y-m-d 00:00:00'),
             'endDateTime'   => Carbon::parse($request['end_time'])->format('Y-m-d 23:59:59'),
         ];
-        dd(['operations' => [[
-                'update'     => array_merge(['resourceName' => $campaign->ad_campaign_id], $campaignUpdate),
-                'updateMask' => 'name,start_date_time,end_date_time',
-            ]]]);
+
+        $resourceName = str_contains($campaign->ad_campaign_id, 'customers/')
+            ? $campaign->ad_campaign_id
+            : "customers/{$this->customerId()}/campaigns/{$campaign->ad_campaign_id}";
+        
         $result = $this->mutate(
             $this->config . 'customers/' . $this->customerId() . '/campaigns:mutate',
             ['operations' => [[
-                'update'     => array_merge(['resourceName' => $campaign->ad_campaign_id], $campaignUpdate),
-                'updateMask' => 'name,start_date_time,end_date_time',
+                'update' => array_merge(
+                    ['resourceName' => $resourceName], 
+                    $campaignUpdate
+                ),
+                'updateMask' => 'name,startDateTime,endDateTime',
             ]]]
         );
         dd($result);
