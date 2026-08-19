@@ -123,7 +123,7 @@ class YoutubeAdService
         ];
         
         $result = $this->mutate($endpoint, $payload);
- dd($endpoint, $payload, $result);
+        dd($endpoint, $payload, $result);
         if (!$result['success']) {
             return $result;
         }
@@ -183,6 +183,7 @@ dd($result, $endpoint, ['operations' => [['create' => $campaign]]]);
 
     private function biddingStrategyPayload($request)
     {
+        dd('ok');
         return match ($request['bid_strategy']) {
             'MAXIMIZE_CONVERSIONS'      => ['maximizeConversions' => (object) []],
             'TARGET_CPA'                => ['targetCpa' => ['targetCpaMicros' => (int) ((float) $request['bid_amount'] * 1000000)]],
