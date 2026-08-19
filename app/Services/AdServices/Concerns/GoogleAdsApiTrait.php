@@ -537,7 +537,7 @@ trait GoogleAdsApiTrait
     protected function storeTargeting($platform, $request)
     {
         $locationIds = $this->resolveGeoTargetConstants($request['countries'] ?? []);
-
+        dd($locationIds);
         if (empty($locationIds)) {
             return $this->errorResponse('Could not resolve the selected countries to Google geo target constants. Please double-check the Countries selection.');
         }

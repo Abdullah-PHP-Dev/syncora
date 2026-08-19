@@ -102,9 +102,9 @@ class YoutubeAdService
 
         $request['adgroup_resource'] = $response['data']['resource'];
         $request['ad_adgroup_id'] = $response['data']['id'];
-  dd($request);
+
         $response = $this->storeTargeting($platform, $request);
-      
+        dd($response);
         if (!$response['success']) {
             return $response;
         }
