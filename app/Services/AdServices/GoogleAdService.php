@@ -74,7 +74,7 @@ class GoogleAdService
         $request['ad_campaign_id'] = $response['data']['id'];
 
         $response = $this->storeAdGroup($platform, $request);
-        dd($response);
+     
         if (!$response['success']) {
             return $response;
         }
@@ -270,7 +270,7 @@ class GoogleAdService
     private function storeKeywords($request)
     {
         $keywords = $this->parseKeywords($request);
-
+        dd($keywords);
         if (empty($keywords)) {
             return $this->errorResponse('At least one keyword is required for a Search campaign.');
         }
