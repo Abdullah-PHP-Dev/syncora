@@ -428,7 +428,7 @@ trait GoogleAdsApiTrait
     protected function mutateMultiple($endpoint, array $operations)
     {
         $response = $this->apiService->post($endpoint, $this->header, ['operations' => $operations]);
-
+        dd($response, $endpoint, $this->header, ['operations' => $operations]);
         if (!$response['success']) {
             Log::warning('Google Ads mutate (multi) failed.', ['endpoint' => $endpoint, 'body' => $response['body'] ?? null]);
 
@@ -562,7 +562,7 @@ trait GoogleAdsApiTrait
             'campaign' => $request['campaign_resource'],
             'location' => ['geoTargetConstant' => $geoResource],
         ]], $locationIds);
-    dd($campaignEndpoint, $locationOperations);
+
         $result = $this->mutateMultiple($campaignEndpoint, $locationOperations);
 
         if (!$result['success']) {
