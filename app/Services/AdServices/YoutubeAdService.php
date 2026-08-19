@@ -147,6 +147,10 @@ class YoutubeAdService
             'startDateTime'           => Carbon::parse($request['start_time'])->format('Y-m-d 00:00:00'),
             'endDateTime'             => Carbon::parse($request['end_time'])->format('Y-m-d 23:59:59'),
             'containsEuPoliticalAdvertising' => 'DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING',
+            'geoTargetTypeSetting' => [
+                'positiveGeoTargetType' => 'PRESENCE_OR_INTEREST',
+                'negativeGeoTargetType' => 'PRESENCE',
+            ],
         ];
 
         $campaign = array_merge($campaign, $this->biddingStrategyPayload($request));
