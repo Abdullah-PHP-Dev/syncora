@@ -276,7 +276,7 @@ class GoogleAdService
         }
 
         $endpoint = $this->config . 'customers/' . $this->customerId() . '/adGroupCriteria:mutate';
-  dd($endpoint);
+
         $operations = array_map(fn($kw) => [
             'create' => [
                 'adGroup' => $request['adgroup_resource'],
@@ -287,7 +287,7 @@ class GoogleAdService
                 ],
             ],
         ], $keywords);
-
+        dd($keywords);
         return $this->mutateMultiple($endpoint, $operations);
     }
 
