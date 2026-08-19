@@ -553,26 +553,33 @@ trait GoogleAdsApiTrait
             : $this->resolveLanguageConstants($request['languages'] ?? []);
 
         $campaignEndpoint = $this->config . 'customers/' . $this->customerId() . '/campaignCriteria:mutate';
-        $campaignOperations = [];
 
-        foreach ($locationIds as $geoResource) {
-            $campaignOperations[] = ['create' => [
-                'campaign' => $request['campaign_resource'],
-                'location' => ['geoTargetConstant' => $geoResource],
-            ]];
-        }
+        // Location and language are sent as two separate mutate calls
+        // rather than one batch - batching them meant a failure on either
+        // one surfaced as a single opaque error covering both operations,
+        // with no way to tell which criterion actually caused it.
+        $locationOperations = array_map(fn($geoResource) => ['create' => [
+            'campaign' => $request['campaign_resource'],
+            'location' => ['geoTargetConstant' => $geoResource],
+        ]], $locationIds);
 
-        foreach ($languageIds as $langResource) {
-            $campaignOperations[] = ['create' => [
-                'campaign' => $request['campaign_resource'],
-                'language' => ['languageConstant' => $langResource],
-            ]];
-        }
+        $result = $this->mutateMultiple($campaignEndpoint, $locationOperations);
 
-        $result = $this->mutateMultiple($campaignEndpoint, $campaignOperations);
-dd($result, $campaignEndpoint, $campaignOperations);
         if (!$result['success']) {
             return $result;
+        }
+
+        if (!empty($languageIds)) {
+            $languageOperations = array_map(fn($langResource) => ['create' => [
+                'campaign' => $request['campaign_resource'],
+                'language' => ['languageConstant' => $langResource],
+            ]], $languageIds);
+
+            $result = $this->mutateMultiple($campaignEndpoint, $languageOperations);
+
+            if (!$result['success']) {
+                return $result;
+            }
         }
 
         $demographicOperations = [];
