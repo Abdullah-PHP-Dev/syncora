@@ -136,7 +136,7 @@ class YoutubeAdService
         $endpoint = $this->config . 'customers/' . $this->customerId() . '/campaigns:mutate';
 
         $campaign = [
-            'name'                    => $request['name'],
+            'name'                    => $request['name'] . time(),
             'status'                  => 'PAUSED',
             'advertisingChannelType'  => 'DEMAND_GEN',
             'campaignBudget'          => $request['budget_resource'],
