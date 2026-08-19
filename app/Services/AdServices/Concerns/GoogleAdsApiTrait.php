@@ -596,29 +596,47 @@ trait GoogleAdsApiTrait
             }
         }
 
-        $demographicOperations = [];
+        // Demand Gen ad groups reject direct AgeRangeInfo/GenderInfo
+        // AdGroupCriterion attachment outright when useAudienceGrouped is
+        // set - "Audience segment attachment is not allowed when use
+        // audience grouped bit is set to true"
+        // (CANNOT_ADD_AUDIENCE_SEGMENT_CRITERION_WHEN_AUDIENCE_GROUPED_IS_
+        // SET), confirmed live. Like upgradedTargeting, this app never sets
+        // useAudienceGrouped explicitly and it's still on, so it's a
+        // Google-side default on this account, not something this code
+        // opted into. The supported replacement is Demand Gen's Audience
+        // resource (segments/demographics bundled together and referenced
+        // from the ad group) rather than individual AdGroupCriterion rows,
+        // but that mechanism isn't documented anywhere confirmable - even
+        // Google's own developer forum has the identical question sitting
+        // unanswered. Skipping demographic targeting for Demand Gen here
+        // rather than guessing at an undocumented structure and risking
+        // another blind failure; Search is unaffected.
+        if ($platform === 'google') {
+            $demographicOperations = [];
 
-        if (!empty($request['gender']) && $request['gender'] !== 'both') {
-            $demographicOperations[] = ['create' => [
-                'adGroup' => $request['adgroup_resource'],
-                'gender'  => ['type' => strtoupper($request['gender']) === 'MALE' ? 'MALE' : 'FEMALE'],
-            ]];
+            if (!empty($request['gender']) && $request['gender'] !== 'both') {
+                $demographicOperations[] = ['create' => [
+                    'adGroup' => $request['adgroup_resource'],
+                    'gender'  => ['type' => strtoupper($request['gender']) === 'MALE' ? 'MALE' : 'FEMALE'],
+                ]];
+            }
+
+            foreach ($request['age_range'] ?? [] as $ageRange) {
+                $demographicOperations[] = ['create' => [
+                    'adGroup'  => $request['adgroup_resource'],
+                    'ageRange' => ['type' => $ageRange],
+                ]];
+            }
+
+            if (!empty($demographicOperations)) {
+                $adGroupCriteriaEndpoint = $this->config . 'customers/' . $this->customerId() . '/adGroupCriteria:mutate';
+
+                return $this->mutateMultiple($adGroupCriteriaEndpoint, $demographicOperations);
+            }
         }
 
-        foreach ($request['age_range'] ?? [] as $ageRange) {
-            $demographicOperations[] = ['create' => [
-                'adGroup'  => $request['adgroup_resource'],
-                'ageRange' => ['type' => $ageRange],
-            ]];
-        }
-
-        if (empty($demographicOperations)) {
-            return $this->successResponse(null);
-        }
-
-        $adGroupCriteriaEndpoint = $this->config . 'customers/' . $this->customerId() . '/adGroupCriteria:mutate';
-  dd($adGroupCriteriaEndpoint, $demographicOperations, $this->mutateMultiple($adGroupCriteriaEndpoint, $demographicOperations));
-        return $this->mutateMultiple($adGroupCriteriaEndpoint, $demographicOperations);
+        return $this->successResponse(null);
     }
 
     /**
