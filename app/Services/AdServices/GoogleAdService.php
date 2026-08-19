@@ -154,9 +154,9 @@ class GoogleAdService
         ];
 
         $campaign = array_merge($campaign, $this->biddingStrategyPayload($request));
-
+        
         $result = $this->mutate($endpoint, ['operations' => [['create' => $campaign]]]);
-
+        dd($result, $endpoint, ['operations' => [['create' => $campaign]]]);
         if (!$result['success']) {
             return $result;
         }
