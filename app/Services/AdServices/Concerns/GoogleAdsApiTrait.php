@@ -578,7 +578,7 @@ trait GoogleAdsApiTrait
         ]], $locationIds);
 
         $result = $this->mutateMultiple($criteriaEndpoint, $locationOperations);
-        dd($result, $criteriaEndpoint, $locationOperations);
+      
         if (!$result['success']) {
             return $result;
         }
@@ -590,12 +590,12 @@ trait GoogleAdsApiTrait
             ]], $languageIds);
 
             $result = $this->mutateMultiple($criteriaEndpoint, $languageOperations);
-
+  dd($result, $criteriaEndpoint, $languageOperations);
             if (!$result['success']) {
                 return $result;
             }
         }
-
+  dd('ok');
         $demographicOperations = [];
 
         if (!empty($request['gender']) && $request['gender'] !== 'both') {
