@@ -331,17 +331,18 @@ class YoutubeAdService
         ];
 
         $result = $this->mutate($endpoint, ['operations' => [['create' => $adGroup]]]);
-        dd($result, $endpoint, ['operations' => [['create' => $adGroup]]]);
+  
         if (!$result['success']) {
             return $result;
         }
 
         $resourceName = $result['data']['resourceName'];
+        $adGroupId = basename($resourceName);
 
         $dataToInsert = [
             'ad_campaign_id' => $request['ad_campaign_id'],
             'user_id'        => Auth::id(),
-            'ad_adgroup_id'  => $resourceName,
+            'ad_adgroup_id'  => $adGroupId,
             'ad_account_id'  => $this->account->id,
             'platform'       => $platform,
             'name'           => $adGroup['name'],
@@ -354,7 +355,7 @@ class YoutubeAdService
             'bid_price'      => $request['bid_amount'] ?? null,
         ];
 
-        $adGroupRecord = $this->apiService->success($dataToInsert, ['ad_adgroup_id' => $resourceName], new AdAdGroup);
+        $adGroupRecord = $this->apiService->success($dataToInsert, ['ad_adgroup_id' => $adGroupId], new AdAdGroup);
 
         return $this->successResponse(['resource' => $resourceName, 'id' => $adGroupRecord['data']->id]);
     }
