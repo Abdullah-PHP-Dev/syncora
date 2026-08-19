@@ -578,7 +578,7 @@ trait GoogleAdsApiTrait
         ]], $locationIds);
 
         $result = $this->mutateMultiple($criteriaEndpoint, $locationOperations);
-        dd($languageIds, $result);
+    
         if (!$result['success']) {
             return $result;
         }
@@ -588,7 +588,7 @@ trait GoogleAdsApiTrait
                 $parentKey => $parentResource,
                 'language' => ['languageConstant' => $langResource],
             ]], $languageIds);
-
+    dd($criteriaEndpoint, $languageOperations);
             $result = $this->mutateMultiple($criteriaEndpoint, $languageOperations);
 
             if (!$result['success']) {
