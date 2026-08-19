@@ -590,12 +590,12 @@ trait GoogleAdsApiTrait
             ]], $languageIds);
 
             $result = $this->mutateMultiple($criteriaEndpoint, $languageOperations);
-  dd($result, $criteriaEndpoint, $languageOperations);
+
             if (!$result['success']) {
                 return $result;
             }
         }
-  dd('ok');
+
         $demographicOperations = [];
 
         if (!empty($request['gender']) && $request['gender'] !== 'both') {
@@ -617,7 +617,7 @@ trait GoogleAdsApiTrait
         }
 
         $adGroupCriteriaEndpoint = $this->config . 'customers/' . $this->customerId() . '/adGroupCriteria:mutate';
-
+  dd($adGroupCriteriaEndpoint, $demographicOperations);
         return $this->mutateMultiple($adGroupCriteriaEndpoint, $demographicOperations);
     }
 
