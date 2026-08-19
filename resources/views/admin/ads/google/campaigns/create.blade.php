@@ -302,15 +302,17 @@
                                                 </div>
                                                 <div class="row mt-3">
                                                     <div class="col-md-12">
-                                                        <label>Headlines * (one per line, min 3, max 30 chars each)</label>
+                                                        <label>Headlines * (one per line, 3-15 headlines, max 30 characters each)</label>
                                                         <textarea name="headlines" id="headlines" rows="6" class="form-control" required placeholder="Best Running Shoes Online&#10;Free Shipping Today&#10;Shop the New Collection"></textarea>
+                                                        <small class="form-text text-muted" id="headlinesCount"></small>
                                                         <p class="error-message error-headlines"></p>
                                                     </div>
                                                 </div>
                                                 <div class="row mt-3">
                                                     <div class="col-md-12">
-                                                        <label>Descriptions * (one per line, min 2, max 90 chars each)</label>
+                                                        <label>Descriptions * (one per line, 2-4 descriptions, max 90 characters each)</label>
                                                         <textarea name="descriptions" id="descriptions" rows="4" class="form-control" required placeholder="Get the best deals on running shoes. Shop now and save.&#10;Free returns within 30 days. Order today."></textarea>
+                                                        <small class="form-text text-muted" id="descriptionsCount"></small>
                                                         <p class="error-message error-descriptions"></p>
                                                     </div>
                                                 </div>
@@ -459,15 +461,40 @@
         // ------------------------------------------------------------------
         // LIVE SEARCH AD PREVIEW
         // ------------------------------------------------------------------
+        function nonEmptyLines(value) {
+            return value.split(/\r\n|\r|\n/).map(l => l.trim()).filter(Boolean);
+        }
+
+        // Lines past `max` are silently dropped server-side
+        // (GoogleAdService::storeAd() caps at Google's RSA limits) - this
+        // just surfaces that before submit instead of the count quietly
+        // shrinking with no explanation.
+        function updateLineCountHint(textareaId, hintId, min, max) {
+            const lines = nonEmptyLines(document.getElementById(textareaId).value);
+            const hint = document.getElementById(hintId);
+            const over = lines.length > max;
+
+            hint.textContent = over
+                ? `${lines.length} entered - only the first ${max} will be used.`
+                : `${lines.length} of ${min}-${max}`;
+            hint.classList.toggle('text-danger', over);
+            hint.classList.toggle('text-muted', !over);
+        }
+
         document.getElementById('headlines')?.addEventListener('input', function() {
-            const first = this.value.split(/\r\n|\r|\n/).map(l => l.trim()).filter(Boolean)[0];
+            const first = nonEmptyLines(this.value)[0];
             document.getElementById('previewHeadline').innerText = first || 'Your Headline Here';
+            updateLineCountHint('headlines', 'headlinesCount', 3, 15);
         });
 
         document.getElementById('descriptions')?.addEventListener('input', function() {
-            const first = this.value.split(/\r\n|\r|\n/).map(l => l.trim()).filter(Boolean)[0];
+            const first = nonEmptyLines(this.value)[0];
             document.getElementById('previewDescription').innerText = first || 'Your ad description will appear here as you type.';
+            updateLineCountHint('descriptions', 'descriptionsCount', 2, 4);
         });
+
+        updateLineCountHint('headlines', 'headlinesCount', 3, 15);
+        updateLineCountHint('descriptions', 'descriptionsCount', 2, 4);
 
         document.getElementById('target_link')?.addEventListener('input', function() {
             try {

@@ -687,6 +687,10 @@ class AdCampaignRequest extends FormRequest
             // headlines/descriptions/business_name/final URL.
             'video_id' => array_merge($requiredIfPost, ['string']),
             'headlines' => ['required', 'string'],
+            // Optional - YoutubeAdService::storeAd()/update() fall back to
+            // reusing headlines[] for the ad's required longHeadlines
+            // asset when this is left blank.
+            'long_headlines' => ['nullable', 'string'],
             'descriptions' => ['required', 'string'],
             'business_name' => ['required', 'string', 'max:25'],
             'call_to_action' => array_merge($requiredIfPost, [

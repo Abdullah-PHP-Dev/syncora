@@ -377,9 +377,7 @@ trait GoogleAdsApiTrait
     protected function mutate($endpoint, array $payload)
     {
         $response = $this->apiService->post($endpoint, $this->header, $payload);
-        if ($endpoint == 'https://googleads.googleapis.com/v24/customers/9206704101/adGroupAds:mutate') {
-                dd($response);
-        }
+
         if (!$response['success']) {
             Log::warning('Google Ads mutate failed.', ['endpoint' => $endpoint, 'body' => $response['body'] ?? null]);
 
@@ -521,12 +519,21 @@ trait GoogleAdsApiTrait
             ->all();
     }
 
-    protected function parseTextList($value, int $maxLength): array
+    /**
+     * $maxCount silently drops entries past the asset-type's cap (eg. RSA's
+     * 15 headlines / 4 descriptions, Demand Gen's 5 of each) rather than
+     * sending Google an oversized array and letting a
+     * collectionSizeError.TOO_MANY reject the whole create - same
+     * trade-off $maxLength already makes per-line by truncating instead of
+     * rejecting.
+     */
+    protected function parseTextList($value, int $maxLength, ?int $maxCount = null): array
     {
         return collect(preg_split('/\r\n|\r|\n/', $value ?? ''))
             ->map(fn($line) => trim($line))
             ->filter()
             ->map(fn($line) => mb_substr($line, 0, $maxLength))
+            ->when($maxCount !== null, fn($collection) => $collection->take($maxCount))
             ->values()
             ->all();
     }

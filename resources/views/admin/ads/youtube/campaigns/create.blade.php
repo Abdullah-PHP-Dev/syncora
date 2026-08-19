@@ -340,15 +340,25 @@
                                                 </div>
                                                 <div class="row mt-3">
                                                     <div class="col-md-12">
-                                                        <label>Headlines * (one per line, max 40 chars each)</label>
+                                                        <label>Headlines * (one per line, 1-5 headlines, max 40 characters each - include at least one 30 characters or shorter for placements with less room)</label>
                                                         <textarea name="headlines" id="headlines" rows="4" class="form-control" required placeholder="Discover the New Collection&#10;Shop Today, Save Big"></textarea>
+                                                        <small class="form-text text-muted" id="headlinesCount"></small>
                                                         <p class="error-message error-headlines"></p>
                                                     </div>
                                                 </div>
                                                 <div class="row mt-3">
                                                     <div class="col-md-12">
-                                                        <label>Descriptions * (one per line, max 90 chars each)</label>
+                                                        <label>Long Headlines (one per line, 1-5, max 90 characters each - shown on placements with more room; leave blank to reuse the headlines above)</label>
+                                                        <textarea name="long_headlines" id="long_headlines" rows="4" class="form-control" placeholder="Discover Our Full New Collection, Now Online"></textarea>
+                                                        <small class="form-text text-muted" id="longHeadlinesCount"></small>
+                                                        <p class="error-message error-long_headlines"></p>
+                                                    </div>
+                                                </div>
+                                                <div class="row mt-3">
+                                                    <div class="col-md-12">
+                                                        <label>Descriptions * (one per line, 1-5 descriptions, max 90 characters each)</label>
                                                         <textarea name="descriptions" id="descriptions" rows="4" class="form-control" required placeholder="Free shipping on all orders over $50. Shop now."></textarea>
+                                                        <small class="form-text text-muted" id="descriptionsCount"></small>
                                                         <p class="error-message error-descriptions"></p>
                                                     </div>
                                                 </div>
@@ -528,15 +538,45 @@
             document.getElementById('previewBusinessName').innerText = this.value || 'Business Name';
         });
 
+        function nonEmptyLines(value) {
+            return value.split(/\r\n|\r|\n/).map(l => l.trim()).filter(Boolean);
+        }
+
+        // Lines past `max` are silently dropped server-side
+        // (YoutubeAdService::storeAd() caps at Google's Demand Gen video
+        // ad limits) - this just surfaces that before submit instead of
+        // the count quietly shrinking with no explanation.
+        function updateLineCountHint(textareaId, hintId, min, max) {
+            const lines = nonEmptyLines(document.getElementById(textareaId).value);
+            const hint = document.getElementById(hintId);
+            const over = lines.length > max;
+
+            hint.textContent = over
+                ? `${lines.length} entered - only the first ${max} will be used.`
+                : `${lines.length} of ${min}-${max}`;
+            hint.classList.toggle('text-danger', over);
+            hint.classList.toggle('text-muted', !over);
+        }
+
         document.getElementById('headlines')?.addEventListener('input', function() {
-            const first = this.value.split(/\r\n|\r|\n/).map(l => l.trim()).filter(Boolean)[0];
+            const first = nonEmptyLines(this.value)[0];
             document.getElementById('previewHeadline').innerText = first || 'Your Headline Here';
+            updateLineCountHint('headlines', 'headlinesCount', 1, 5);
+        });
+
+        document.getElementById('long_headlines')?.addEventListener('input', function() {
+            updateLineCountHint('long_headlines', 'longHeadlinesCount', 0, 5);
         });
 
         document.getElementById('descriptions')?.addEventListener('input', function() {
-            const first = this.value.split(/\r\n|\r|\n/).map(l => l.trim()).filter(Boolean)[0];
+            const first = nonEmptyLines(this.value)[0];
             document.getElementById('previewDescription').innerText = first || 'Your ad description will appear here as you type.';
+            updateLineCountHint('descriptions', 'descriptionsCount', 1, 5);
         });
+
+        updateLineCountHint('headlines', 'headlinesCount', 1, 5);
+        updateLineCountHint('long_headlines', 'longHeadlinesCount', 0, 5);
+        updateLineCountHint('descriptions', 'descriptionsCount', 1, 5);
 
         const callToActionSelect = document.getElementById('call_to_action');
         const targetLinkInput = document.getElementById('target_link');
@@ -639,8 +679,9 @@
             let ageRanges = Array.from(document.querySelectorAll('input[name="age_range[]"]:checked'))
                 .map(el => beautifyLabel(el.value.replace('AGE_RANGE_', ''))).join(', ');
 
-            let headlineCount = document.getElementById('headlines').value.split(/\r\n|\r|\n/).map(l => l.trim()).filter(Boolean).length;
-            let descriptionCount = document.getElementById('descriptions').value.split(/\r\n|\r|\n/).map(l => l.trim()).filter(Boolean).length;
+            let headlineCount = nonEmptyLines(document.getElementById('headlines').value).length;
+            let longHeadlineCount = nonEmptyLines(document.getElementById('long_headlines').value).length;
+            let descriptionCount = nonEmptyLines(document.getElementById('descriptions').value).length;
 
             let html = '';
             html += reviewRow('Campaign Name', document.getElementById('name').value);
@@ -653,6 +694,7 @@
             html += reviewRow('Business Name', document.getElementById('business_name').value);
             html += reviewRow('Call To Action', beautifyLabel(callToActionSelect.value));
             html += reviewRow('Headlines', headlineCount + ' headline(s)');
+            html += reviewRow('Long Headlines', longHeadlineCount > 0 ? (longHeadlineCount + ' long headline(s)') : 'Reusing headlines above');
             html += reviewRow('Descriptions', descriptionCount + ' description(s)');
             html += reviewRow('Final URL', document.getElementById('target_link').value);
             html += reviewRow('Countries', countries);

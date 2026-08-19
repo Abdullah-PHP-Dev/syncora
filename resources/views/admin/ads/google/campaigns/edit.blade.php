@@ -285,14 +285,14 @@
                                                 </div>
                                                 <div class="row mt-3">
                                                     <div class="col-md-12">
-                                                        <label>Headlines * (one per line, min 3, max 30 chars each)</label>
+                                                        <label>Headlines * (one per line, 3-15 headlines, max 30 characters each)</label>
                                                         <textarea name="headlines" id="headlines" rows="6" class="form-control" required>{{ $headlineLines }}</textarea>
                                                         <p class="error-message error-headlines"></p>
                                                     </div>
                                                 </div>
                                                 <div class="row mt-3">
                                                     <div class="col-md-12">
-                                                        <label>Descriptions * (one per line, min 2, max 90 chars each)</label>
+                                                        <label>Descriptions * (one per line, 2-4 descriptions, max 90 characters each)</label>
                                                         <textarea name="descriptions" id="descriptions" rows="4" class="form-control" required>{{ $descriptionLines }}</textarea>
                                                         <p class="error-message error-descriptions"></p>
                                                     </div>

@@ -368,8 +368,21 @@ class YoutubeAdService
     {
         $endpoint = $this->config . 'customers/' . $this->customerId() . '/adGroupAds:mutate';
 
-        $headlines = $this->parseTextList($request['headlines'] ?? '', 40);
-        $descriptions = $this->parseTextList($request['descriptions'] ?? '', 90);
+        // Demand Gen video responsive ad: 1-5 headlines (40 chars each),
+        // 1-5 long headlines (90 chars each, a distinct required asset -
+        // see longHeadlines below), 1-5 descriptions (90 chars each).
+        $headlines = $this->parseTextList($request['headlines'] ?? '', 40, 5);
+        $descriptions = $this->parseTextList($request['descriptions'] ?? '', 90, 5);
+
+        // Falls back to the short headlines when the form doesn't send a
+        // dedicated long_headlines field, so existing submissions still
+        // work - longHeadlines is required (see the note below) but
+        // doesn't have to be distinct copy from headlines.
+        $longHeadlines = $this->parseTextList($request['long_headlines'] ?? '', 90, 5);
+
+        if (empty($longHeadlines)) {
+            $longHeadlines = $headlines;
+        }
 
         if (empty($headlines)) {
             return $this->errorResponse('At least one headline is required.');
@@ -390,13 +403,20 @@ class YoutubeAdService
                     'videos'       => [['asset' => $request['video_asset_resource']]],
                     'logoImages'   => [['asset' => $request['logo_asset_resource']]],
                     'headlines'    => array_map(fn($t) => ['text' => $t], $headlines),
+                    // Google's create-campaign sample lists longHeadlines as
+                    // a sibling of headlines/descriptions, and a live
+                    // "collectionSizeError: TOO_FEW" pointing at the whole
+                    // demand_gen_video_responsive_ad object (rather than a
+                    // specific sub-field) confirmed it's actually required,
+                    // not the optional field the docs implied.
+                    'longHeadlines' => array_map(fn($t) => ['text' => $t], $longHeadlines),
                     'descriptions' => array_map(fn($t) => ['text' => $t], $descriptions),
                 ],
             ],
         ];
         
         $result = $this->mutate($endpoint, ['operations' => [['create' => $payload]]]);
-dd($result, $endpoint, ['operations' => [['create' => $payload]]]);
+
         if (!$result['success']) {
             return $result;
         }
@@ -461,8 +481,13 @@ dd($result, $endpoint, ['operations' => [['create' => $payload]]]);
         }
 
         if ($ad && $creative) {
-            $headlines = $this->parseTextList($request['headlines'] ?? '', 40);
-            $descriptions = $this->parseTextList($request['descriptions'] ?? '', 90);
+            $headlines = $this->parseTextList($request['headlines'] ?? '', 40, 5);
+            $descriptions = $this->parseTextList($request['descriptions'] ?? '', 90, 5);
+            $longHeadlines = $this->parseTextList($request['long_headlines'] ?? '', 90, 5);
+
+            if (empty($longHeadlines)) {
+                $longHeadlines = $headlines;
+            }
 
             if (!empty($headlines) && !empty($descriptions)) {
                 // Ad creative content is immutable through AdGroupAdService
@@ -472,9 +497,10 @@ dd($result, $endpoint, ['operations' => [['create' => $payload]]]);
                 $adUpdate = [
                     'resourceName' => $this->adResourceNameFromAdGroupAd($ad->ad_id),
                     'demandGenVideoResponsiveAd' => [
-                        'businessName' => ['text' => $request['business_name']],
-                        'headlines'    => array_map(fn($t) => ['text' => $t], $headlines),
-                        'descriptions' => array_map(fn($t) => ['text' => $t], $descriptions),
+                        'businessName'  => ['text' => $request['business_name']],
+                        'headlines'     => array_map(fn($t) => ['text' => $t], $headlines),
+                        'longHeadlines' => array_map(fn($t) => ['text' => $t], $longHeadlines),
+                        'descriptions'  => array_map(fn($t) => ['text' => $t], $descriptions),
                     ],
                     'finalUrls' => [$request['target_link']],
                 ];
@@ -483,7 +509,7 @@ dd($result, $endpoint, ['operations' => [['create' => $payload]]]);
                     $this->config . 'customers/' . $this->customerId() . '/ads:mutate',
                     ['operations' => [[
                         'update'     => $adUpdate,
-                        'updateMask' => 'demandGenVideoResponsiveAd.businessName,demandGenVideoResponsiveAd.headlines,demandGenVideoResponsiveAd.descriptions,finalUrls',
+                        'updateMask' => 'demandGenVideoResponsiveAd.businessName,demandGenVideoResponsiveAd.headlines,demandGenVideoResponsiveAd.longHeadlines,demandGenVideoResponsiveAd.descriptions,finalUrls',
                     ]]]
                 );
 

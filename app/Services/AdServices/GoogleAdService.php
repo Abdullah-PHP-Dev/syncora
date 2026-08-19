@@ -295,8 +295,10 @@ class GoogleAdService
     {
         $endpoint = $this->config . 'customers/' . $this->customerId() . '/adGroupAds:mutate';
 
-        $headlines = $this->parseTextList($request['headlines'] ?? '', 30);
-        $descriptions = $this->parseTextList($request['descriptions'] ?? '', 90);
+        // Responsive Search Ads: 3-15 headlines (30 chars each), 2-4
+        // descriptions (90 chars each).
+        $headlines = $this->parseTextList($request['headlines'] ?? '', 30, 15);
+        $descriptions = $this->parseTextList($request['descriptions'] ?? '', 90, 4);
 
         if (count($headlines) < 3) {
             return $this->errorResponse('Responsive Search Ads need at least 3 headlines.');
@@ -379,8 +381,8 @@ class GoogleAdService
         }
 
         if ($ad && $creative) {
-            $headlines = $this->parseTextList($request['headlines'] ?? '', 30);
-            $descriptions = $this->parseTextList($request['descriptions'] ?? '', 90);
+            $headlines = $this->parseTextList($request['headlines'] ?? '', 30, 15);
+            $descriptions = $this->parseTextList($request['descriptions'] ?? '', 90, 4);
 
             if (count($headlines) >= 3 && count($descriptions) >= 2) {
                 // Ad creative content is immutable through AdGroupAdService
