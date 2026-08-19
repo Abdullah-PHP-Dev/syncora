@@ -89,7 +89,7 @@ class GoogleAdService
         }
 
         $response = $this->storeTargeting($platform, $request);
-
+        dd($response);
         if (!$response['success']) {
             return $response;
         }
@@ -287,7 +287,7 @@ class GoogleAdService
                 ],
             ],
         ], $keywords);
-        dd($this->mutateMultiple($endpoint, $operations));
+
         return $this->mutateMultiple($endpoint, $operations);
     }
 
