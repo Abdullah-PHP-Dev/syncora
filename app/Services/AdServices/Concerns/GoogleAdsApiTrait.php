@@ -551,10 +551,10 @@ trait GoogleAdsApiTrait
         $languageIds = $platform === 'google'
             ? []
             : $this->resolveLanguageConstants($request['languages'] ?? []);
-dd($languageIds);
+
         $campaignEndpoint = $this->config . 'customers/' . $this->customerId() . '/campaignCriteria:mutate';
         $campaignOperations = [];
-
+dd($campaignEndpoint);
         foreach ($locationIds as $geoResource) {
             $campaignOperations[] = ['create' => [
                 'campaign' => $request['campaign_resource'],
