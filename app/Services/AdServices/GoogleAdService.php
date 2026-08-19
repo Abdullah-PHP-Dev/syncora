@@ -81,7 +81,7 @@ class GoogleAdService
 
         $request['adgroup_resource'] = $response['data']['resource'];
         $request['ad_adgroup_id'] = $response['data']['id'];
-
+        dd($request);
         $response = $this->storeKeywords($request);
 
         if (!$response['success']) {
