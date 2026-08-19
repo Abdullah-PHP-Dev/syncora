@@ -270,13 +270,13 @@ class GoogleAdService
     private function storeKeywords($request)
     {
         $keywords = $this->parseKeywords($request);
-        dd($keywords);
+      
         if (empty($keywords)) {
             return $this->errorResponse('At least one keyword is required for a Search campaign.');
         }
 
         $endpoint = $this->config . 'customers/' . $this->customerId() . '/adGroupCriteria:mutate';
-
+  dd($endpoint);
         $operations = array_map(fn($kw) => [
             'create' => [
                 'adGroup' => $request['adgroup_resource'],
