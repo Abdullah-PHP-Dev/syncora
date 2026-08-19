@@ -564,7 +564,7 @@ trait GoogleAdsApiTrait
         ]], $locationIds);
 
         $result = $this->mutateMultiple($campaignEndpoint, $locationOperations);
-
+    dd($result, $campaignEndpoint, $locationOperations);
         if (!$result['success']) {
             return $result;
         }
@@ -576,7 +576,7 @@ trait GoogleAdsApiTrait
             ]], $languageIds);
 
             $result = $this->mutateMultiple($campaignEndpoint, $languageOperations);
-            dd($result, $campaignEndpoint, $languageOperations);
+        
             if (!$result['success']) {
                 return $result;
             }
