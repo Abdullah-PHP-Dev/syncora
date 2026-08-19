@@ -319,7 +319,7 @@ class GoogleAdService
         ];
 
         $result = $this->mutate($endpoint, ['operations' => [['create' => $payload]]]);
-        dd($result, $endpoint, ['operations' => [['create' => $payload]]]);
+      
         if (!$result['success']) {
             return $result;
         }
