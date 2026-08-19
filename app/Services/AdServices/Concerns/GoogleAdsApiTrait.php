@@ -292,12 +292,7 @@ trait GoogleAdsApiTrait
     public function refreshToken($account)
     {
         $endpoint = adminSetting('ads.google.access_token');
-        dd($endpoint, [], [
-            'client_id'     => adminSetting('ads.google.client_id'),
-            'client_secret' => adminSetting('ads.google.client_secret'),
-            'refresh_token' => $account->refresh_token,
-            'grant_type'    => 'refresh_token',
-        ]);
+        
         $response = $this->apiService->post($endpoint, [], [
             'client_id'     => adminSetting('ads.google.client_id'),
             'client_secret' => adminSetting('ads.google.client_secret'),
