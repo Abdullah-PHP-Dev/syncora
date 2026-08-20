@@ -200,10 +200,17 @@
                                             <div class="builder-card">
                                                 <h5>Campaign Information</h5>
                                                 <div class="row">
-                                                    <div class="col-md-12">
+                                                    <div class="col-md-8">
                                                         <label>Campaign Name *</label>
                                                         <input type="text" name="name" id="name" class="form-control" required maxlength="255">
                                                         <p class="error-message error-name"></p>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <label>Advertising Channel Type *</label>
+                                                        <select name="advertising_channel_type" id="advertising_channel_type" class="form-control" required>
+                                                            <option value="SEARCH">Search</option>
+                                                        </select>
+                                                        <small class="form-text text-muted" id="channelTypeHint">Responsive Search Ad campaign - keyword-targeted, Search Network.</small>
                                                     </div>
                                                 </div>
                                                 <div class="row mt-3">
@@ -441,8 +448,49 @@
             $('#countries').select2();
         }
 
+        const channelTypeSelect = document.getElementById('advertising_channel_type');
         const bidStrategySelect = document.getElementById('bid_strategy');
         const bidAmountGroup = document.querySelector('.bid_amount_group');
+
+        // Mirrors GoogleAdService::biddingStrategyPayload()'s match arms
+        // exactly - only SEARCH is buildable by this form today, but
+        // keeping the bid-strategy list driven by channel type (rather
+        // than hardcoded in the <select>) means a future channel type
+        // can't silently end up offering a bidding strategy the backend
+        // has no case for.
+        const CHANNEL_TYPE_BID_STRATEGIES = {
+            SEARCH: [
+                ['MAXIMIZE_CONVERSIONS', 'Maximize Conversions'],
+                ['TARGET_CPA', 'Target CPA'],
+                ['TARGET_ROAS', 'Target ROAS'],
+                ['MANUAL_CPC', 'Manual CPC'],
+                ['TARGET_SPEND', 'Maximize Clicks'],
+            ],
+        };
+
+        const CHANNEL_TYPE_HINTS = {
+            SEARCH: 'Responsive Search Ad campaign - keyword-targeted, Search Network.',
+        };
+
+        function syncBidStrategyOptions() {
+            const strategies = CHANNEL_TYPE_BID_STRATEGIES[channelTypeSelect.value] || [];
+            const previous = bidStrategySelect.value;
+
+            bidStrategySelect.innerHTML = strategies
+                .map(([value, label]) => `<option value="${value}">${label}</option>`)
+                .join('');
+
+            // Keep the previous pick if it's still valid for the new
+            // channel type, otherwise fall back to the first option.
+            if (strategies.some(([value]) => value === previous)) {
+                bidStrategySelect.value = previous;
+            }
+
+            document.getElementById('channelTypeHint').textContent =
+                CHANNEL_TYPE_HINTS[channelTypeSelect.value] || '';
+
+            toggleBidAmount();
+        }
 
         function toggleBidAmount() {
             // MANUAL_CPC needs this too - storeAdGroup() reads bid_amount as
@@ -451,8 +499,9 @@
             bidAmountGroup.style.display = needsAmount ? '' : 'none';
         }
 
+        channelTypeSelect.addEventListener('change', syncBidStrategyOptions);
         bidStrategySelect.addEventListener('change', toggleBidAmount);
-        toggleBidAmount();
+        syncBidStrategyOptions();
 
         function beautifyLabel(value) {
             return (value || '').toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());

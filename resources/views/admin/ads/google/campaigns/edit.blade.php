@@ -212,10 +212,15 @@
                                             <div class="builder-card">
                                                 <h5>Campaign Information</h5>
                                                 <div class="row">
-                                                    <div class="col-md-12">
+                                                    <div class="col-md-8">
                                                         <label>Campaign Name *</label>
                                                         <input type="text" name="name" id="name" class="form-control" required maxlength="255" value="{{ $campaign->name }}">
                                                         <p class="error-message error-name"></p>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <label>Advertising Channel Type</label>
+                                                        <input type="text" class="form-control" value="{{ ucwords(strtolower(str_replace('_', ' ', $campaign->advertising_channel_type ?? 'SEARCH'))) }}" disabled readonly>
+                                                        <small class="form-text text-muted">Locked at creation - can't be changed.</small>
                                                     </div>
                                                 </div>
                                                 <div class="row mt-3">

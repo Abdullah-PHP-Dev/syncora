@@ -217,10 +217,17 @@
                                             <div class="builder-card">
                                                 <h5>Campaign Information</h5>
                                                 <div class="row">
-                                                    <div class="col-md-12">
+                                                    <div class="col-md-8">
                                                         <label>Campaign Name *</label>
                                                         <input type="text" name="name" id="name" class="form-control" required maxlength="255">
                                                         <p class="error-message error-name"></p>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <label>Advertising Channel Type *</label>
+                                                        <select name="advertising_channel_type" id="advertising_channel_type" class="form-control" required>
+                                                            <option value="DEMAND_GEN">Demand Gen</option>
+                                                        </select>
+                                                        <small class="form-text text-muted" id="channelTypeHint">Demand Gen video ad - YouTube surfaces only (in-feed, in-stream, Shorts).</small>
                                                     </div>
                                                 </div>
                                                 <div class="row mt-3">
@@ -491,8 +498,47 @@
             $('#countries').select2();
         }
 
+        const channelTypeSelect = document.getElementById('advertising_channel_type');
         const bidStrategySelect = document.getElementById('bid_strategy');
         const bidAmountGroup = document.querySelector('.bid_amount_group');
+
+        // Mirrors YoutubeAdService::biddingStrategyPayload()'s match arms
+        // exactly - only DEMAND_GEN is buildable by this form today, but
+        // keeping the bid-strategy list driven by channel type (rather
+        // than hardcoded in the <select>) means a future channel type
+        // can't silently end up offering a bidding strategy the backend
+        // has no case for. manualCpc is deliberately absent - Google
+        // rejects it for Demand Gen (confirmed live).
+        const CHANNEL_TYPE_BID_STRATEGIES = {
+            DEMAND_GEN: [
+                ['MAXIMIZE_CONVERSIONS', 'Maximize Conversions'],
+                ['TARGET_CPA', 'Target CPA'],
+                ['MAXIMIZE_CONVERSION_VALUE', 'Maximize Conversion Value'],
+                ['TARGET_CPC', 'Target CPC'],
+            ],
+        };
+
+        const CHANNEL_TYPE_HINTS = {
+            DEMAND_GEN: 'Demand Gen video ad - YouTube surfaces only (in-feed, in-stream, Shorts).',
+        };
+
+        function syncBidStrategyOptions() {
+            const strategies = CHANNEL_TYPE_BID_STRATEGIES[channelTypeSelect.value] || [];
+            const previous = bidStrategySelect.value;
+
+            bidStrategySelect.innerHTML = strategies
+                .map(([value, label]) => `<option value="${value}">${label}</option>`)
+                .join('');
+
+            if (strategies.some(([value]) => value === previous)) {
+                bidStrategySelect.value = previous;
+            }
+
+            document.getElementById('channelTypeHint').textContent =
+                CHANNEL_TYPE_HINTS[channelTypeSelect.value] || '';
+
+            toggleBidAmount();
+        }
 
         function toggleBidAmount() {
             const needsAmount = ['TARGET_CPA', 'TARGET_CPC'].includes(bidStrategySelect.value);
@@ -501,8 +547,9 @@
                 bidStrategySelect.value === 'TARGET_CPC' ? 'Target CPC' : 'Target CPA';
         }
 
+        channelTypeSelect.addEventListener('change', syncBidStrategyOptions);
         bidStrategySelect.addEventListener('change', toggleBidAmount);
-        toggleBidAmount();
+        syncBidStrategyOptions();
 
         function beautifyLabel(value) {
             return (value || '').toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
