@@ -799,26 +799,41 @@ export default {
   },
   methods: {
 
+    // Backend groups every platform a single quick-post submission was
+    // published to under raw.platforms (see PostController::
+    // platformsForGroups()) - one entry per {platform_key, status,
+    // post_id, post_url}. Falls back to wrapping raw.platform_key alone
+    // for older/ungrouped responses that never had a platforms array.
     transformPost(raw) {
 
-      const key = raw.platform_key;
+      const entries = (raw.platforms && raw.platforms.length)
+        ? raw.platforms
+        : [{ platform_key: raw.platform_key, status: raw.status, post_id: raw.id, post_url: raw.post_url }];
 
-      const meta = platformMeta[key] || {
-        key,
-        name: raw.platform_key,
-        icon: 'fas fa-share-alt',
-        color: '#5D87FF'
-      };
+      const platforms = entries.map(entry => {
+        const key = entry.platform_key;
+        const meta = platformMeta[key] || {
+          key,
+          name: entry.platform_key,
+          icon: 'fas fa-share-alt',
+          color: '#5D87FF'
+        };
+
+        return {
+          ...meta,
+          key,
+          post_id: entry.post_id,
+          status: entry.status,
+          page: raw.account_name || meta.page,
+          handle: raw.account_handle || meta.handle
+        };
+      });
 
       return {
 
         ...raw,
 
-        platforms: [{
-          ...meta,
-          page: raw.account_name || meta.page,
-          handle: raw.account_handle || meta.handle
-        }]
+        platforms
 
       };
 
@@ -871,7 +886,12 @@ export default {
 
     previewUrl(post, platform) {
 
-      return `${this.previewUrlBase}/${post.id}/preview/${platform.key}`;
+      // platform.post_id is that specific platform's own Post row - falls
+      // back to the card's representative post.id for older responses
+      // without a grouped platforms array. Without this, every icon in a
+      // grouped card would link to the same (wrong) post regardless of
+      // which platform was clicked.
+      return `${this.previewUrlBase}/${platform.post_id || post.id}/preview/${platform.key}`;
 
     },
 

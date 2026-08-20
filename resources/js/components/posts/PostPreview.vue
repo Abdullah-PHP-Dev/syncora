@@ -536,6 +536,16 @@ export default {
     initialPost: {
       type: Object,
       default: null
+    },
+
+    // Every Post row sharing this one's group_id (see PostController::
+    // preview()'s docblock) - one entry per platform the same quick-post
+    // submission was published to, each shaped exactly like initialPost.
+    // Falls back to just [initialPost] when empty, so a single-platform
+    // post (or an older cached view without this prop) still works.
+    groupPosts: {
+      type: Array,
+      default: () => []
     }
 
   },
@@ -557,11 +567,7 @@ export default {
 
   created() {
 
-
-  console.log('initialPost', this.initialPost);
-    console.log('engagement', this.initialPost.engagement);
-    console.log('comments', this.initialPost.engagement?.comments);
-    this.post = this.buildPost(this.initialPost);
+    this.post = this.buildPost(this.initialPost, this.groupPosts);
 
     if (this.post) {
 
@@ -645,24 +651,15 @@ export default {
 
   methods: {
 
-    buildPost(raw) {
+    // groupPosts holds one raw post per platform the same quick-post
+    // submission went to (empty for older/ungrouped posts, in which case
+    // this just falls back to treating `raw` as a group of one - the
+    // original single-platform behavior). platforms/engagement/
+    // platformUrls end up keyed/indexed by platform so switchPlatform()
+    // can flip activeKey with everything already loaded, no refetch.
+    buildPost(raw, groupPosts) {
 
       if (!raw) return null;
-
-      const key = raw.platform_key;
-
-      const meta = platformMeta[key] || {
-        key,
-        name: raw.platform_key,
-        icon: 'fas fa-share-alt',
-        color: '#5D87FF'
-      };
-
-      const platformInfo = {
-        ...meta,
-        page: raw.account_name || meta.page,
-        handle: raw.account_handle || meta.handle
-      };
 
       const mapComment = (comment) => ({
         ...comment,
@@ -673,27 +670,54 @@ export default {
         }))
       });
 
-      const kinds = reactionKindsByPlatform[key] || reactionKindsByPlatform.facebook;
-      const total = raw.engagement.reactionsTotal;
-      const reactions = kinds.map((kind, i) => ({ ...kind, count: i === 0 ? total : 0 }));
+      const members = (groupPosts && groupPosts.length) ? groupPosts : [raw];
+
+      const platforms = [];
+      const engagement = {};
+      const platformUrls = {};
+
+      members.forEach(member => {
+
+        const key = member.platform_key;
+
+        const meta = platformMeta[key] || {
+          key,
+          name: member.platform_key,
+          icon: 'fas fa-share-alt',
+          color: '#5D87FF'
+        };
+
+        platforms.push({
+          ...meta,
+          key,
+          post_id: member.id,
+          page: member.account_name || meta.page,
+          handle: member.account_handle || meta.handle
+        });
+
+        const kinds = reactionKindsByPlatform[key] || reactionKindsByPlatform.facebook;
+        const total = member.engagement.reactionsTotal;
+        const reactions = kinds.map((kind, i) => ({ ...kind, count: i === 0 ? total : 0 }));
+
+        engagement[key] = {
+          ...member.engagement,
+          reactions,
+          comments: (member.engagement.comments || []).map(mapComment)
+        };
+
+        platformUrls[key] = member.platform_url || '#';
+
+      });
 
       return {
 
         ...raw,
 
-        platforms: [platformInfo],
+        platforms,
 
-        engagement: {
-          [key]: {
-            ...raw.engagement,
-            reactions,
-            comments: (raw.engagement.comments || []).map(mapComment)
-          }
-        },
+        engagement,
 
-        platformUrls: {
-          [key]: raw.platform_url || '#'
-        }
+        platformUrls
 
       };
 
@@ -705,7 +729,10 @@ export default {
 
       if (window.history && window.history.replaceState) {
 
-        window.history.replaceState(null, '', `${this.backUrl}/${this.post.id}/preview/${p.key}`);
+        // p.post_id is that platform's own Post row - reloading/sharing
+        // this URL re-fetches the whole group regardless of which member's
+        // id is in it, but pointing at the right one keeps the URL honest.
+        window.history.replaceState(null, '', `${this.backUrl}/${p.post_id || this.post.id}/preview/${p.key}`);
 
       }
 

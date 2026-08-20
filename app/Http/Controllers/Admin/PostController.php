@@ -291,9 +291,10 @@ class PostController extends Controller
         $userId = Auth::id();
         $perPage = min((int) $request->input('per_page', 6), 50) ?: 6;
 
-        $posts = $this->buildPostsQuery($request, $userId)
-            ->paginate($perPage)
-            ->through(fn ($post) => $this->formatPostSummary($post));
+        $posts = $this->buildPostsQuery($request, $userId)->paginate($perPage);
+        $platformsByPostId = $this->platformsForGroups($posts->getCollection(), $userId);
+
+        $posts->through(fn ($post) => $this->formatPostSummary($post, $platformsByPostId[$post->id] ?? null));
 
         return response()->json([
             'data' => $posts->items(),
@@ -318,9 +319,10 @@ class PostController extends Controller
 
         $platform = $platform ?? 'facebook';
 
-        $posts = $this->buildPostsQuery($request, $userId)
-            ->paginate(6)
-            ->through(fn ($post) => $this->formatPostSummary($post));
+        $posts = $this->buildPostsQuery($request, $userId)->paginate(6);
+        $platformsByPostId = $this->platformsForGroups($posts->getCollection(), $userId);
+
+        $posts->through(fn ($post) => $this->formatPostSummary($post, $platformsByPostId[$post->id] ?? null));
 
         $platformCounts = $this->platformCounts($userId);
 
@@ -328,12 +330,26 @@ class PostController extends Controller
     }
 
     /**
-     * Apply search/status/platform/sort filters shared by the listing endpoints.
+     * Apply search/status/platform/sort filters shared by the listing
+     * endpoints, and collapse every Post row sharing a group_id (one
+     * PostController::quickStore() submission fanned out across several
+     * platforms) down to a single representative row - the earliest one
+     * created. COALESCE(group_id, id) treats every ungrouped post (created
+     * before this grouping existed, or via the full composer's store(),
+     * which doesn't set group_id) as its own group of one, so nothing
+     * outside quick-post's multi-platform case changes shape. The other
+     * posts in each group are re-attached afterwards by platformsForGroups().
      */
     private function buildPostsQuery(Request $request, int $userId)
     {
         $query = Post::with(['postAccount', 'media', 'user'])
-            ->where('user_id', $userId);
+            ->where('user_id', $userId)
+            ->whereIn('id', function ($sub) use ($userId) {
+                $sub->selectRaw('MIN(id)')
+                    ->from('posts')
+                    ->where('user_id', $userId)
+                    ->groupBy(DB::raw('COALESCE(group_id, id)'));
+            });
 
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
@@ -347,12 +363,69 @@ class PostController extends Controller
         }
 
         if ($platform = $request->input('platform')) {
-            $query->where('platform', strtolower($platform));
+            $platform = strtolower($platform);
+
+            // A grouped card should match if ANY platform in its batch was
+            // published to the filtered platform, not just its
+            // representative row.
+            $query->where(function ($q) use ($platform, $userId) {
+                $q->where('platform', $platform)
+                    ->orWhereIn(DB::raw('COALESCE(group_id, id)'), function ($sub) use ($platform, $userId) {
+                        $sub->select(DB::raw('COALESCE(group_id, id)'))
+                            ->from('posts')
+                            ->where('user_id', $userId)
+                            ->where('platform', $platform);
+                    });
+            });
         }
 
         $query->orderBy('created_at', $request->input('sort') === 'oldest' ? 'asc' : 'desc');
 
         return $query;
+    }
+
+    /**
+     * For a page of representative Post rows, fetch every sibling post
+     * sharing the same COALESCE(group_id, id) key (i.e. every platform a
+     * single quick-post submission was published to), keyed by the
+     * representative post's own id so formatPostSummary() can attach them.
+     */
+    private function platformsForGroups($posts, int $userId): array
+    {
+        $groupKeys = $posts->pluck('id')
+            ->merge($posts->pluck('group_id')->filter())
+            ->unique()
+            ->values();
+
+        if ($groupKeys->isEmpty()) {
+            return [];
+        }
+
+        $siblings = Post::where('user_id', $userId)
+            ->where(function ($q) use ($groupKeys) {
+                $q->whereIn('group_id', $groupKeys)
+                    ->orWhereIn('id', $groupKeys);
+            })
+            ->get(['id', 'group_id', 'platform', 'status', 'post_url']);
+
+        $map = [];
+
+        foreach ($posts as $post) {
+            $key = $post->group_id ?? $post->id;
+
+            $map[$post->id] = $siblings
+                ->filter(fn ($sibling) => ($sibling->group_id ?? $sibling->id) === $key)
+                ->map(fn ($sibling) => [
+                    'platform_key' => $sibling->platform,
+                    'status' => ucfirst($sibling->status ?? 'draft'),
+                    'post_id' => $sibling->id,
+                    'post_url' => $sibling->post_url,
+                ])
+                ->values()
+                ->all();
+        }
+
+        return $map;
     }
 
     /**
@@ -376,23 +449,76 @@ class PostController extends Controller
     /**
      * Show a dedicated per-platform preview of a post, with a sidebar
      * to switch between the other connected platforms for the same post.
+     * "Same post" = every Post row sharing this one's group_id (one
+     * PostController::quickStore() submission fanned out across
+     * platforms) - see buildPostsQuery()'s docblock for the same
+     * COALESCE(group_id, id) grouping used by the listing. Every member is
+     * sent to the view so PostPreview.vue can switch between platforms
+     * instantly client-side with no reload/refetch.
      */
     public function preview($postId, $platform)
     {
-        $post = Post::with([
+        $post = $this->postWithPreviewRelations()
+            ->where('user_id', Auth::id())
+            ->find($postId);
+
+        if (!$post) {
+            return view('admin.posts.preview', [
+                'postId' => $postId,
+                'platform' => $platform,
+                'post' => null,
+                'groupPosts' => [],
+            ]);
+        }
+
+        $this->refreshInstagramCommentsIfNeeded($post);
+
+        $groupKey = $post->group_id ?? $post->id;
+
+        $groupPosts = $this->postWithPreviewRelations()
+            ->where('user_id', Auth::id())
+            ->where(function ($query) use ($groupKey) {
+                $query->where('group_id', $groupKey)->orWhere('id', $groupKey);
+            })
+            ->get()
+            ->each(fn ($member) => $this->refreshInstagramCommentsIfNeeded($member))
+            ->map(fn ($member) => $this->formatPostForPreview($member))
+            ->values();
+
+        return view('admin.posts.preview', [
+            'postId' => $postId,
+            'platform' => $platform,
+            'post' => $this->formatPostForPreview($post),
+            'groupPosts' => $groupPosts,
+        ]);
+    }
+
+    /**
+     * The relation set every preview() query needs, factored out so the
+     * "requested post" lookup and the "rest of its group" lookup can't
+     * silently drift apart.
+     */
+    private function postWithPreviewRelations()
+    {
+        return Post::with([
             'user',
             'postAccount',
             'media',
             'postComments' => function ($query) {
                 $query->topLevel()->with('replies');
             },
-        ])
-        ->where('user_id', Auth::id())
-        ->find($postId);
+        ]);
+    }
 
+    /**
+     * Instagram's comment count often arrives before the comments
+     * themselves are fetched/stored, so the preview backfills them lazily
+     * the first time a given Instagram post is actually opened.
+     */
+    private function refreshInstagramCommentsIfNeeded(Post $post): void
+    {
         if (
-            $post
-            && strtolower($post->platform) === 'instagram'
+            strtolower($post->platform) === 'instagram'
             && $post->postComments->isEmpty()
             && (int) ($post->comments ?? 0) > 0
         ) {
@@ -402,12 +528,6 @@ class PostController extends Controller
                 $query->topLevel()->with('replies');
             }]);
         }
-
-        return view('admin.posts.preview', [
-            'postId' => $postId,
-            'platform' => $platform,
-            'post' => $post ? $this->formatPostForPreview($post) : null,
-        ]);
     }
 
     /**
@@ -546,14 +666,29 @@ class PostController extends Controller
     /**
      * Shape a post + its relations into the format the Vue dashboard/preview expect.
      */
-    private function formatPostSummary(Post $post): array
+    /**
+     * @param array|null $platforms Every platform this post's quick-post
+     *   batch was published to (from platformsForGroups()) - one entry per
+     *   {platform_key, status, post_id, post_url}. Falls back to a single
+     *   entry built from $post itself for callers (e.g. show()) that never
+     *   grouped, so this stays a safe default rather than a breaking change.
+     */
+    private function formatPostSummary(Post $post, ?array $platforms = null): array
     {
         $type = $this->resolvePostType($post);
         $primaryMedia = $post->media->first();
 
+        $platforms ??= [[
+            'platform_key' => $post->platform,
+            'status' => ucfirst($post->status ?? 'draft'),
+            'post_id' => $post->id,
+            'post_url' => $post->post_url,
+        ]];
+
         return [
             'id' => $post->id,
             'platform_key' => $post->platform,
+            'platforms' => $platforms,
             'type' => $type,
             'status' => ucfirst($post->status ?? 'draft'),
             'title' => $post->title ?: (Str::limit($post->content ?? '', 60) ?: 'Untitled Post'),
@@ -773,6 +908,109 @@ class PostController extends Controller
     }
 
     /**
+     * Uploads a quick-post's media to R2 exactly once, shared across every
+     * platform the post is published to. Every *PostService::store()
+     * previously called its own uploadMediaToS3() independently, so one
+     * quick post to N platforms wrote N duplicate copies of the same file
+     * under N platform-namespaced paths. This mirrors
+     * MetaPostService::uploadMediaToS3()'s logic/return shape
+     * (['success' => bool, 'media' => [[...]]]) so it's a drop-in
+     * replacement wherever a service checks $data['uploaded_media'], but
+     * writes under a platform-neutral uploads/quick/media/ path instead.
+     *
+     * @param \Illuminate\Http\UploadedFile[] $files
+     */
+    private function uploadQuickPostMedia(array $files): array
+    {
+        try {
+            $media = [];
+
+            foreach ($files as $file) {
+                $extension = strtolower($file->getClientOriginalExtension());
+                $mimeType  = $file->getMimeType();
+                $fileSize  = $file->getSize();
+                $fileName  = time() . '_' . uniqid() . '.' . $extension;
+
+                $s3Path = "uploads/quick/media/{$fileName}";
+
+                Storage::disk('r2')->put(
+                    $s3Path,
+                    file_get_contents($file->getRealPath()),
+                    ['visibility' => 'public']
+                );
+
+                $url = Storage::disk('r2')->url($s3Path);
+
+                $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'avif'];
+                $videoExtensions = ['mp4', 'mov', 'avi', 'wmv', 'mkv', 'webm', 'm4v'];
+
+                $mediaType = 'file';
+
+                if (in_array($extension, $imageExtensions)) {
+                    $mediaType = $extension === 'gif' ? 'gif' : 'image';
+                }
+
+                if (in_array($extension, $videoExtensions)) {
+                    $mediaType = 'video';
+                }
+
+                $width = null;
+                $height = null;
+                $duration = null;
+
+                if ($mediaType === 'image' || $mediaType === 'gif') {
+                    $imageInfo = @getimagesize($file->getRealPath());
+
+                    if ($imageInfo) {
+                        $width = $imageInfo[0];
+                        $height = $imageInfo[1];
+                    }
+                }
+
+                if ($mediaType === 'video' && class_exists(\getID3::class)) {
+                    $getID3 = new \getID3();
+                    $info = $getID3->analyze($file->getRealPath());
+
+                    $duration = isset($info['playtime_seconds'])
+                        ? round($info['playtime_seconds'], 2)
+                        : null;
+
+                    $width = $info['video']['resolution_x'] ?? $width;
+                    $height = $info['video']['resolution_y'] ?? $height;
+                }
+
+                $media[] = [
+                    'success'        => true,
+                    'media_type'     => $mediaType,
+                    'file_name'      => $fileName,
+                    'original_name'  => $file->getClientOriginalName(),
+                    'extension'      => $extension,
+                    'mime_type'      => $mimeType,
+                    'file_size'      => $fileSize,
+                    'file_size_mb'   => round($fileSize / 1024 / 1024, 2),
+                    'width'          => $width,
+                    'height'         => $height,
+                    'duration_seconds' => $duration,
+                    'thumbnail_url'  => null,
+                    'alt_text'       => pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME),
+                    'url'            => $url,
+                    'path'           => $s3Path,
+                ];
+            }
+
+            return [
+                'success' => true,
+                'media'   => $media,
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Publish the Quick Post composer's post straight to every connected
      * account for each selected platform (no page/category picker in that UI).
      */
@@ -817,7 +1055,28 @@ class PostController extends Controller
             'schedule_at' => $scheduleMode ? $validated['schedule_at'] : null,
             'expiry_mode' => 0,
             'expiry_at' => null,
+            // Ties every platform's Post row from this submission together
+            // so the listing can show them as one card - see
+            // buildPostsQuery()'s COALESCE(group_id, id) grouping.
+            'group_id' => (string) Str::uuid(),
         ];
+
+        // Uploaded once here rather than by each platform's own
+        // uploadMediaToS3() - see uploadQuickPostMedia()'s docblock.
+        // $data['uploaded_media'] being set is what tells each service to
+        // skip its own re-upload.
+        if (!empty($data['media'])) {
+            $uploadResult = $this->uploadQuickPostMedia($data['media']);
+
+            if (!$uploadResult['success']) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => [['message' => $uploadResult['message'] ?? 'Failed to upload media.']],
+                ], 422);
+            }
+
+            $data['uploaded_media'] = $uploadResult['media'];
+        }
 
         $results = [];
         $errors = [];
@@ -945,12 +1204,25 @@ class PostController extends Controller
                 ], 500);
             }
       
-            // Delete locally
+            // Delete locally - reference-aware: a media_url can be shared
+            // by other PostMedia rows (other platforms in the same quick-
+            // post batch, or any other post that happens to reference the
+            // same file), since PostController::uploadQuickPostMedia()
+            // uploads once and every platform's Post/PostMedia rows point
+            // at the same URL. Only delete from R2 once nothing else does.
             if (count($post->media)) {
                 foreach ($post->media as $media) {
+                    $stillReferenced = PostMedia::where('media_url', $media->media_url)
+                        ->where('id', '!=', $media->id)
+                        ->exists();
+
+                    if ($stillReferenced) {
+                        continue;
+                    }
+
                     $path = parse_url($media->media_url, PHP_URL_PATH);
                     if ($path) {
-                        $path = ltrim($path, '/'); 
+                        $path = ltrim($path, '/');
                         Storage::disk('r2')->delete($path);
                     }
                 }

@@ -90,7 +90,12 @@ class XPostService
         $mediaType = null;
         $mediaExtension = null;
 
-        if (!empty($data['ai_image_url'])) {
+        if (isset($data['uploaded_media'])) {
+            // Already uploaded once by PostController::quickStore() and
+            // shared across every platform in this submission - see
+            // uploadQuickPostMedia()'s docblock.
+            $uploadResult = ['success' => true, 'media' => $data['uploaded_media']];
+        } elseif (!empty($data['ai_image_url'])) {
             $mediaExtension = strtolower(pathinfo(
                 parse_url($data['ai_image_url'], PHP_URL_PATH),
                 PATHINFO_EXTENSION
@@ -115,6 +120,7 @@ class XPostService
                     'platform' => 'x',
                     'visibility' => 'public',
                     'user_id' => Auth::user()->id,
+                    'group_id' => $data['group_id'] ?? null,
                     'post_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
                     'page_id' => $page->account_id,

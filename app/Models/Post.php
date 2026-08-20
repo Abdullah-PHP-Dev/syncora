@@ -24,6 +24,7 @@ class Post extends Model
         'platform',
         'post_id',
         'user_id',
+        'group_id',
         'post_account_id',
         'post_category_id',
         'title',

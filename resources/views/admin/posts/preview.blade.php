@@ -13,6 +13,7 @@
 <post-preview
     :post-id="{{ (int) $postId }}"
     :initial-post='@json($post)'
+    :group-posts='@json($groupPosts)'
     platform="{{ $platform }}"
     back-url="{{ url('admin/posts/listing') }}"
     user-name="{{ auth()->user()->name ?? 'Admin' }}"></post-preview>

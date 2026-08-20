@@ -78,7 +78,12 @@ class MetaPostService
         $successCount = 0;
         $uploadResult = [];
 
-        if (isset($data['ai_image_url'])) {
+        if (isset($data['uploaded_media'])) {
+            // Already uploaded once by PostController::quickStore() and
+            // shared across every platform in this submission - see
+            // uploadQuickPostMedia()'s docblock.
+            $uploadResult = ['success' => true, 'media' => $data['uploaded_media']];
+        } elseif (isset($data['ai_image_url'])) {
             $mediaUrl = $data['ai_image_url'];
         } else {
             $uploadResult = $this->uploadMediaToS3($data['media']);
@@ -100,6 +105,7 @@ class MetaPostService
                     'platform' => 'facebook',
                     'visibility' => 'public',
                     'user_id' => Auth::user()->id,
+                    'group_id' => $data['group_id'] ?? null,
                     'post_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
                     'page_id' => $page->account_id,
