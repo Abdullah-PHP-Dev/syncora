@@ -147,16 +147,19 @@ class YoutubeAdService
             'startDateTime'           => Carbon::parse($request['start_time'])->format('Y-m-d 00:00:00'),
             'endDateTime'             => Carbon::parse($request['end_time'])->format('Y-m-d 23:59:59'),
             'containsEuPoliticalAdvertising' => 'DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING',
-            'geoTargetTypeSetting' => [
-                'positiveGeoTargetType' => 'PRESENCE_OR_INTEREST',
-                'negativeGeoTargetType' => 'PRESENCE',
-            ],
+            // geoTargetTypeSetting (positive/negative presence-vs-interest)
+            // is a Search/Display concept - Demand Gen doesn't use it at
+            // the campaign level at all (its location targeting runs
+            // through AdGroupCriterion instead, see storeTargeting()'s
+            // docblock on upgradedTargeting). Setting it here got rejected
+            // live with "The operation is not allowed for the given
+            // context." - confirmed by campaign creation succeeding
+            // earlier in testing without this field present.
         ];
 
         $campaign = array_merge($campaign, $this->biddingStrategyPayload($request));
 
         $result = $this->mutate($endpoint, ['operations' => [['create' => $campaign]]]);
-        dd($result, $endpoint, ['operations' => [['create' => $campaign]]]);
         if (!$result['success']) {
             return $result;
         }
