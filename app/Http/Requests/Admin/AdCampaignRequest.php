@@ -668,10 +668,10 @@ class AdCampaignRequest extends FormRequest
             'start_time' => ['required', 'date'],
             'end_time' => ['required', 'date', 'after:start_time'],
             'bid_strategy' => array_merge($requiredIfPost, [
-                'in:MAXIMIZE_CONVERSIONS,TARGET_CPA,MAXIMIZE_CONVERSION_VALUE'
+                'in:MAXIMIZE_CONVERSIONS,TARGET_CPA,MAXIMIZE_CONVERSION_VALUE,TARGET_CPC'
             ]),
             'bid_amount' => [
-                'required_if:bid_strategy,TARGET_CPA',
+                'required_if:bid_strategy,TARGET_CPA,TARGET_CPC',
                 'nullable',
                 'numeric',
                 'min:0.01',

@@ -199,6 +199,14 @@ class YoutubeAdService
             'MAXIMIZE_CONVERSIONS'      => ['maximizeConversions' => (object) []],
             'TARGET_CPA'                => ['maximizeConversions' => ['targetCpaMicros' => (int) ((float) $request['bid_amount'] * 1000000)]],
             'MAXIMIZE_CONVERSION_VALUE' => ['maximizeConversionValue' => (object) []],
+            // Unlike Target CPA/ROAS, Target CPC was never bundled inside
+            // maximizeConversions - it's its own standalone bidding
+            // strategy (campaign.targetCpc.targetCpcMicros, added in API
+            // v22 for Demand Gen's "Clicks" goal). manualCpc is explicitly
+            // NOT supported for Demand Gen (confirmed: rejected live with
+            // ContextError.OPERATION_NOT_PERMITTED_FOR_CONTEXT), so this is
+            // the only click-cost-target option here.
+            'TARGET_CPC'                => ['targetCpc' => ['targetCpcMicros' => (int) ((float) $request['bid_amount'] * 1000000)]],
             default                     => ['maximizeConversions' => (object) []],
         };
     }

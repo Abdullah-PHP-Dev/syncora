@@ -266,11 +266,12 @@
                                                             <option value="MAXIMIZE_CONVERSIONS">Maximize Conversions</option>
                                                             <option value="TARGET_CPA">Target CPA</option>
                                                             <option value="MAXIMIZE_CONVERSION_VALUE">Maximize Conversion Value</option>
+                                                            <option value="TARGET_CPC">Target CPC</option>
                                                         </select>
                                                         <p class="error-message error-bid_strategy"></p>
                                                     </div>
                                                     <div class="col-md-6 bid_amount_group" style="display:none">
-                                                        <label>Target CPA</label>
+                                                        <label id="bidAmountLabel">Target CPA</label>
                                                         <div class="input-group">
                                                             <span class="input-group-text">{{ $account->currency ?? 'USD' }}</span>
                                                             <input class="form-control" name="bid_amount" id="bid_amount" type="number" step="0.01" min="0.01">
@@ -494,7 +495,10 @@
         const bidAmountGroup = document.querySelector('.bid_amount_group');
 
         function toggleBidAmount() {
-            bidAmountGroup.style.display = bidStrategySelect.value === 'TARGET_CPA' ? '' : 'none';
+            const needsAmount = ['TARGET_CPA', 'TARGET_CPC'].includes(bidStrategySelect.value);
+            bidAmountGroup.style.display = needsAmount ? '' : 'none';
+            document.getElementById('bidAmountLabel').textContent =
+                bidStrategySelect.value === 'TARGET_CPC' ? 'Target CPC' : 'Target CPA';
         }
 
         bidStrategySelect.addEventListener('change', toggleBidAmount);
