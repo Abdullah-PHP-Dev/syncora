@@ -462,7 +462,16 @@ class InstagramPostService
                     $payload['image_url'] = $mediaItem->media_url;
                 } else {
                     $payload['video_url'] = $mediaItem->media_url;
-                    $payload['media_type'] = 'VIDEO';
+                    // media_type=VIDEO for a single (non-carousel) post is
+                    // deprecated - Instagram now rejects it outright with
+                    // "Invalid parameter: Unsupported media type VIDEO:
+                    // The VIDEO value for media_type is deprecated. Use
+                    // the REELS media type to publish a video to your
+                    // Instagram feed." share_to_feed defaults to true, so
+                    // this still appears in the main feed, not just Reels.
+                    // VIDEO remains correct for carousel children below -
+                    // this only affects the single-media case.
+                    $payload['media_type'] = 'REELS';
                 }
                 $response = $this->api->request('post', $endpoint, [], $payload, 'form');
 
@@ -1067,15 +1076,35 @@ class InstagramPostService
         ];
     }
 
+    /**
+     * error.message alone is often a generic top-level string ("Invalid
+     * parameter") - the actual reason (eg. a deprecated media_type value)
+     * lives in error.error_user_msg / error_user_title, which Graph API
+     * includes for exactly this kind of user-actionable rejection. Logging
+     * the full body means the next "Invalid parameter"-class failure is
+     * diagnosable from the log instead of needing to reproduce it.
+     */
     private function errorResponse($model, $response)
     {
+        $error = $response->json()['error'] ?? [];
+
+        $message = collect([
+            $error['error_user_title'] ?? null,
+            $error['error_user_msg'] ?? null,
+        ])->filter()->implode(' - ') ?: ($error['message'] ?? 'Unknown error');
+
+        Log::warning('Instagram API error', [
+            'status' => $response->status(),
+            'body' => $response->body(),
+        ]);
+
         $model->status = 'failed';
-        $model->error_message = $response->json()['error']['message'] ?? 'Unknown error';
+        $model->error_message = $message;
         $model->save();
 
         return [
             'success' => false,
-            'message' => $response->json()['error']['message'] ?? 'Unknown error'
+            'message' => $message,
         ];
     }
 }
