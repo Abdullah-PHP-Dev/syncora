@@ -20,6 +20,7 @@ class PostAccount extends Model
         'user_id',
         'account_id',
         'parent_account_id',
+        'business_id',
         'username',
         'account_url',
         'image',

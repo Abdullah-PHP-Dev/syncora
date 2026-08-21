@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Post;
 use Illuminate\Support\Facades\Auth;
+use App\Models\PostAccount;
 use App\Models\PostMedia;
 use getID3;
 use App\Models\PostComment;
@@ -15,6 +16,13 @@ use App\Jobs\Posts\ResolveTiktokPublishStatus;
 class TiktokPostService
 {
     protected $api, $post, $media, $baseUrl;
+
+    /**
+     * Why a token error is stashed instead of returned: ensureValidToken()
+     * has to answer a plain bool (its callers branch on it), but the caller
+     * still needs TikTok's actual reason to surface on the post.
+     */
+    protected ?string $lastTokenError = null;
 
     public function __construct(ApiPostService $api, Post $post, PostMedia $media)
     {
@@ -26,9 +34,23 @@ class TiktokPostService
     /**
      * Ensure valid access token by refreshing if needed
      */
-    protected function ensureValidToken($post)
+    protected function ensureValidToken($subject): bool
     {
-        $account = $post->postAccount;
+        $this->lastTokenError = null;
+
+        // Accepts a Post or a PostAccount. getComments() already called
+        // this with an account, which then ran `$account->postAccount` -
+        // always null on a PostAccount - so every comment fetch died on a
+        // null read before reaching TikTok.
+        $account = $subject instanceof PostAccount
+            ? $subject
+            : ($subject->postAccount ?? null);
+
+        if (!$account) {
+            $this->lastTokenError = 'No TikTok account is linked to this record.';
+            return false;
+        }
+
         // Token still valid
         if (
             !empty($account->expires_in)
@@ -37,29 +59,41 @@ class TiktokPostService
             return true;
         }
 
-        $clientId = adminSetting('posts.tiktok.client_id');
-        $clientSecret = adminSetting('posts.tiktok.client_secret');
+        if (empty($account->refresh_token)) {
+            $this->lastTokenError = 'The TikTok access token has expired and no refresh token is stored - reconnect the account.';
+            return false;
+        }
 
-        $response = Http::asForm()->post('https://open.tiktokapis.com/v2/oauth/token/', [
-            'client_key' => $clientId,
-            'client_secret' => $clientSecret,
-            'grant_type' => 'refresh_token',
+        $response = Http::asForm()->post("{$this->baseUrl}/oauth/token/", [
+            'client_key'    => adminSetting('posts.tiktok.client_id'),
+            'client_secret' => adminSetting('posts.tiktok.client_secret'),
+            'grant_type'    => 'refresh_token',
             'refresh_token' => $account->refresh_token,
         ]);
 
-        if (!$response->successful()) {
-            return $this->errorResponse($post, $response);
+        $tokenData = $response->json() ?? [];
+
+        // A failed refresh comes back as HTTP 200 with an `error` key in
+        // the body, so the status alone doesn't tell you anything. The
+        // previous version returned errorResponse()'s array here, which is
+        // truthy - so `if (!$this->ensureValidToken(...))` never fired and
+        // publishing carried straight on with a dead token.
+        if (!$response->successful() || empty($tokenData['access_token'])) {
+            $this->lastTokenError = $tokenData['error_description']
+                ?? $tokenData['error']
+                ?? 'Failed to refresh the TikTok access token.';
+
+            return false;
         }
 
-        $tokenData = $response->json();
-
         $account->update([
-            'access_token'      => $tokenData['access_token'],
-            'refresh_token'     => $tokenData['refresh_token'] ?? $account->refresh_token,
-            'expires_in'   => now()->addSeconds($tokenData['expires_in']),
+            'access_token'  => $tokenData['access_token'],
+            'refresh_token' => $tokenData['refresh_token'] ?? $account->refresh_token,
+            'expires_in'    => now()->addSeconds($tokenData['expires_in'] ?? 86400),
         ]);
 
         $account->refresh();
+
         return true;
     }
 
@@ -79,10 +113,29 @@ class TiktokPostService
             // uploadQuickPostMedia()'s docblock.
             $uploadResult = ['success' => true, 'media' => $data['uploaded_media']];
         } elseif (!empty($data['ai_image_url'])) {
+            // The AI branch used to set $mediaExtension and nothing else,
+            // so the media loop below hit an undefined $uploadResult and
+            // every AI-generated TikTok post died before it was saved.
+            // Normalised into the same shape uploadMediaToS3() returns.
             $mediaExtension = strtolower(pathinfo(
                 parse_url($data['ai_image_url'], PHP_URL_PATH),
                 PATHINFO_EXTENSION
             ));
+
+            $uploadResult = [
+                'success' => true,
+                'media'   => [[
+                    'url'              => $data['ai_image_url'],
+                    'media_type'       => in_array($mediaExtension, ['mp4', 'mov', 'webm']) ? 'video' : 'image',
+                    'file_name'        => basename(parse_url($data['ai_image_url'], PHP_URL_PATH)),
+                    'file_size'        => null,
+                    'width'            => null,
+                    'height'           => null,
+                    'duration_seconds' => null,
+                    'thumbnail_url'    => null,
+                    'alt_text'         => $data['title'] ?? null,
+                ]],
+            ];
         } else {
             $uploadResult = $this->uploadMediaToS3($data['media']);
 
@@ -309,14 +362,18 @@ class TiktokPostService
     {
         try {
             $account = $post->postAccount;
+
             if (!$this->ensureValidToken($post)) {
                 $post->update([
-                    'status' => 'failed',
-                    'error_message' => 'Failed to refresh access token'
+                    'status'        => 'failed',
+                    'error_message' => $this->lastTokenError ?? 'Failed to refresh access token',
                 ]);
 
-                return ['success' => false];
+                return ['success' => false, 'message' => $this->lastTokenError];
             }
+
+            // ensureValidToken() may have just written a new token.
+            $account->refresh();
 
             // Fetch current creator configuration limits
             $creatorResponse = Http::withToken($account->access_token)
@@ -324,11 +381,21 @@ class TiktokPostService
                 ->withBody('{}', 'application/json')
                 ->post("{$this->baseUrl}/post/publish/creator_info/query/");
 
-            if (!$creatorResponse->successful()) {
-                return $this->errorResponse($creatorResponse, $account->platform);
+            $creatorBody = $creatorResponse->json() ?? [];
+
+            // creator_info/query answers 200 with error.code != "ok" for
+            // the cases that matter most here (spam_risk_too_many_posts,
+            // unaudited client, rate limits), so the HTTP status alone
+            // isn't a success signal. The old call also passed
+            // ($response, $platformString) into errorResponse($model,
+            // $response) - arguments in the wrong order, which fataled on
+            // ->save() against an HTTP response object instead of
+            // recording the real API error on the post.
+            if (!$creatorResponse->successful() || ($creatorBody['error']['code'] ?? 'ok') !== 'ok') {
+                return $this->errorResponse($post, $creatorResponse);
             }
 
-            $creatorResponseData = $creatorResponse->json()['data'] ?? [];
+            $creatorResponseData = $creatorBody['data'] ?? [];
 
             // Trigger the media router
             $result = $this->pushMediaToTiktok($post, $creatorResponseData, $account);
@@ -415,6 +482,112 @@ class TiktokPostService
     }
 
     /**
+     * TikTok rejects any privacy_level that isn't in the creator's own
+     * privacy_level_options for that account, and an unaudited client is
+     * only ever offered SELF_ONLY. The old code hardcoded SELF_ONLY for
+     * every video (so even an approved app kept publishing privately) and
+     * took options[0] blindly for photos - whatever TikTok happened to
+     * list first. This maps the post's stored visibility onto what the
+     * account actually allows, and falls back to the safest option.
+     */
+    protected function resolvePrivacyLevel($post, array $creatorInfo): string
+    {
+        $options = $creatorInfo['privacy_level_options'] ?? [];
+
+        $preferred = match (strtolower((string) ($post->visibility ?? 'public'))) {
+            'private', 'self', 'only_me' => 'SELF_ONLY',
+            'friends', 'mutual'          => 'MUTUAL_FOLLOW_FRIENDS',
+            'followers'                  => 'FOLLOWER_OF_CREATOR',
+            default                      => 'PUBLIC_TO_EVERYONE',
+        };
+
+        if (in_array($preferred, $options, true)) {
+            return $preferred;
+        }
+
+        // SELF_ONLY is always on offer, including for unaudited clients.
+        return in_array('SELF_ONLY', $options, true)
+            ? 'SELF_ONLY'
+            : ($options[0] ?? 'SELF_ONLY');
+    }
+
+    /**
+     * creator_info/query reports per-account interaction locks
+     * (comment_disabled / duet_disabled / stitch_disabled). Sending
+     * disable_comment=false when the creator has comments switched off is
+     * both an API error and a breach of TikTok's UX guidelines - one of
+     * the more common app-review rejections. All three were previously
+     * hardcoded to false. $includeVideoOnly is false for photo posts,
+     * where duet/stitch don't exist as concepts.
+     */
+    protected function interactionSettings(array $creatorInfo, bool $includeVideoOnly = true): array
+    {
+        $settings = [
+            'disable_comment' => (bool) ($creatorInfo['comment_disabled'] ?? false),
+        ];
+
+        if ($includeVideoOnly) {
+            $settings['disable_duet']   = (bool) ($creatorInfo['duet_disabled'] ?? false);
+            $settings['disable_stitch'] = (bool) ($creatorInfo['stitch_disabled'] ?? false);
+        }
+
+        return $settings;
+    }
+
+    /**
+     * Commercial-content disclosure, which TikTok's Direct Post review
+     * checks for explicitly. Read defensively: these two flags only carry
+     * a real value once the composer exposes the matching "Your brand" /
+     * "Branded content" checkboxes. Until then both default to false,
+     * which is the correct "not commercial content" declaration.
+     */
+    protected function brandSettings($post, string $privacyLevel): array
+    {
+        $brandOrganic = (bool) ($post->brand_organic_toggle ?? false); // "Your brand"
+        $brandContent = (bool) ($post->brand_content_toggle ?? false); // paid partnership
+
+        // TikTok refuses branded content on a private post.
+        if ($privacyLevel === 'SELF_ONLY') {
+            $brandContent = false;
+        }
+
+        return [
+            'brand_organic_toggle' => $brandOrganic,
+            'brand_content_toggle' => $brandContent,
+        ];
+    }
+
+    /**
+     * post/publish/{video,content}/init/ answers 200 with an error.code
+     * other than "ok" for url_ownership_unverified,
+     * spam_risk_too_many_posts, privacy_level_option_mismatch and
+     * friends. The old check only read the HTTP status, so all of those
+     * came back as success with a null publish_id and the post was
+     * marked completed while nothing had been published.
+     */
+    protected function readInitResponse($response, string $fallbackMessage): array
+    {
+        $body      = $response->json() ?? [];
+        $errorCode = $body['error']['code'] ?? 'ok';
+        $publishId = data_get($body, 'data.publish_id');
+
+        if (!$response->successful() || $errorCode !== 'ok' || !$publishId) {
+            $message = $body['error']['message'] ?? $fallbackMessage;
+
+            // By far the most common PULL_FROM_URL failure, and TikTok's
+            // own message doesn't say which domain needs verifying.
+            if ($errorCode === 'url_ownership_unverified') {
+                $message = 'TikTok rejected the media URL: the domain serving it is not verified for this app. '
+                    . 'Verify the CDN domain (CDN_URL) under Content Posting API - Verify domains in the TikTok developer portal.';
+            }
+
+            return ['success' => false, 'message' => $message, 'error_code' => $errorCode];
+        }
+
+        return ['success' => true, 'publish_id' => $publishId];
+    }
+
+    /**
      * Publish Photo Post (Single or Multiple)
      */
     protected function publishPhoto($token, $post, array $photoUrls, $creatorResponseData): array
@@ -429,14 +602,16 @@ class TiktokPostService
                 ? mb_substr($contentWithoutHashtags, 0, $dotPosition + 1)
                 : mb_substr($contentWithoutHashtags, 0, 85);
 
+            $privacyLevel = $this->resolvePrivacyLevel($post, $creatorResponseData);
+
             $payload = [
-                'post_info' => [
-                    'title' => $title ?: 'Post Image',
-                    'description' => $post->content ?? '',
-                    'privacy_level' => $creatorResponseData['privacy_level_options'][0] ?? 'PUBLIC',
-                    'disable_comment' => false,
+                'post_info' => array_merge([
+                    // Photo posts cap title at 90 and description at 4000.
+                    'title'          => mb_substr($title ?: 'Post Image', 0, 90),
+                    'description'    => mb_substr($post->content ?? '', 0, 4000),
+                    'privacy_level'  => $privacyLevel,
                     'auto_add_music' => false,
-                ],
+                ], $this->interactionSettings($creatorResponseData, false), $this->brandSettings($post, $privacyLevel)),
                 'source_info' => [
                     'source' => 'PULL_FROM_URL',
                     'photo_cover_index' => 0,
@@ -450,14 +625,7 @@ class TiktokPostService
                 ->acceptJson()
                 ->post("{$this->baseUrl}/post/publish/content/init/", $payload);
 
-            if (!$response->successful()) {
-                return ['success' => false, 'message' => $response->json()['error']['message'] ?? 'Failed initialization for photo upload.'];
-            }
-
-            return [
-                'success' => true,
-                'publish_id' => data_get($response->json(), 'data.publish_id'),
-            ];
+            return $this->readInitResponse($response, 'Failed initialization for photo upload.');
         } catch (\Exception $e) {
             return [
                 'success' => false,
@@ -472,14 +640,29 @@ class TiktokPostService
     protected function publishVideo($token, $post, string $videoUrl, $creatorResponseData): array
     {
         try {
+            $privacyLevel = $this->resolvePrivacyLevel($post, $creatorResponseData);
+
+            // Reject an over-length video here rather than spending a
+            // publish attempt on a guaranteed rejection - the cap is
+            // per-account and arrives with creator_info/query.
+            $maxDuration = (int) ($creatorResponseData['max_video_post_duration_sec'] ?? 0);
+            $duration    = (int) ($post->media->first()->duration_seconds ?? 0);
+
+            if ($maxDuration > 0 && $duration > $maxDuration) {
+                return [
+                    'success' => false,
+                    'message' => "This video is {$duration}s long - the connected TikTok account can only post videos up to {$maxDuration}s.",
+                ];
+            }
+
             $payload = [
-                'post_info' => [
-                    'title' => mb_substr($post->content ?? '', 0, 150), // Title string field setup
-                    'privacy_level' => 'SELF_ONLY',
-                    'disable_duet' => false,
-                    'disable_comment' => false,
-                    'disable_stitch' => false,
-                ],
+                'post_info' => array_merge([
+                    // TikTok's video caption field: 2200 characters. The
+                    // old 150 silently truncated most captions, hashtags
+                    // included.
+                    'title'         => mb_substr($post->content ?? '', 0, 2200),
+                    'privacy_level' => $privacyLevel,
+                ], $this->interactionSettings($creatorResponseData), $this->brandSettings($post, $privacyLevel)),
                 'source_info' => [
                     'source' => 'PULL_FROM_URL',
                     'video_url' => $videoUrl,
@@ -489,15 +672,8 @@ class TiktokPostService
             $response = Http::withToken($token)
                 ->acceptJson()
                 ->post("{$this->baseUrl}/post/publish/video/init/", $payload);
-            
-            if (!$response->successful()) {
-                return ['success' => false, 'message' => $response->json()['error']['message'] ?? 'Failed initialization for video upload.'];
-            }
 
-            return [
-                'success' => true,
-                'publish_id' => data_get($response->json(), 'data.publish_id'),
-            ];
+            return $this->readInitResponse($response, 'Failed initialization for video upload.');
         } catch (\Exception $e) {
             return [
                 'success' => false,
@@ -596,14 +772,48 @@ class TiktokPostService
     {
         $account = $comment->postAccount;
 
-        $this->ensureValidToken($comment->post);
+        // Was ensureValidToken($comment->post) - null for any comment whose
+        // post row has gone, and the refresh result was never checked.
+        if (!$this->ensureValidToken($account)) {
+            return [
+                'success' => false,
+                'message' => $this->lastTokenError ?? 'Failed to refresh the TikTok access token.',
+            ];
+        }
+
+        $account->refresh();
+
+        $videoId = $comment->post?->post_id ?? ($data['video_id'] ?? null);
+
+        if (!$videoId || !$comment->comment_id) {
+            return [
+                'success' => false,
+                'message' => 'Cannot reply: the TikTok video id or parent comment id is missing on this record.',
+            ];
+        }
+
+        // NOTE ON WHICH API THIS IS: comment reply lives on the TikTok
+        // *Business* API (business-api.tiktok.com), which is a different
+        // product from the Login Kit / Content Posting App configured in
+        // the developer portal. It needs its own app under TikTok for
+        // Business, a TikTok Business Account, and a business_id - the
+        // open_id stored in account_id here is NOT a business_id, so this
+        // call only works once a business_id has actually been resolved
+        // and stored. Guarded rather than left to fail silently.
+        if (!$account->business_id) {
+            return [
+                'success' => false,
+                'message' => 'TikTok comment replies require the TikTok Business API: no business_id is stored for this account. '
+                    . 'The Login Kit app configured in the developer portal does not grant comment access on its own.',
+            ];
+        }
 
         // TikTok Business API endpoint for creating a reply to an existing comment
         $endpoint = 'https://business-api.tiktok.com/open_api/v1.3/business/comment/reply/create/';
 
         $payload = [
-            "business_id" => $account->account_id,
-            "video_id"    => $comment->post?->post_id ?? $data['video_id'], // TikTok item_id / video_id
+            "business_id" => $account->business_id,
+            "video_id"    => $videoId,                                      // TikTok item_id / video_id
             "comment_id"  => $comment->comment_id,                          // Parent comment ID to reply to
             "text"        => $data['body'] ?? ''                             // Reply content
         ];
@@ -657,48 +867,58 @@ class TiktokPostService
         ];
     }
 
+    /**
+     * Same product caveat as publishComment(): this is the TikTok Business
+     * API, not the Login Kit app in the developer portal. There is no
+     * comment-reading scope on that app at all - the previous first call
+     * here went to the Research API (research/video/comment/list/), which
+     * is approved only for academic research and was in any case dead
+     * code, its result overwritten by the very next assignment.
+     */
     public function getComments($videoId, $account)
     {
-
         if (!$this->ensureValidToken($account)) {
-            $errors = [
+            return [
                 'success' => false,
-                'message' => 'Failed to refresh access token'
+                'message' => $this->lastTokenError ?? 'Failed to refresh access token',
             ];
         }
-        $response = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $account->access_token,
-            'Content-Type'  => 'application/json',
-        ])->post(
-            'https://open.tiktokapis.com/v2/research/video/comment/list/',
-            [
-                'video_id' => $videoId,
-                'max_count' => 100,
-                'cursor' => 0,
-            ]
-        )->json();
+
+        $account->refresh();
+
+        if (!$account->business_id) {
+            return [
+                'success' => false,
+                'message' => 'Reading TikTok comments requires the TikTok Business API: no business_id is stored for this account.',
+                'data'    => [],
+            ];
+        }
 
         $response = Http::withToken($account->access_token)
             ->get(
                 'https://business-api.tiktok.com/open_api/v1.3/business/comment/list/',
                 [
-                    "business_id" => $account->account_id,
-                    "video_id" => $videoId,
-                    "status" => "PUBLIC"
+                    "business_id" => $account->business_id,
+                    "video_id"    => $videoId,
+                    "status"      => "PUBLIC",
                 ]
             );
-        $data = $response->json();
 
-        if (!$response->successful()) {
+        $data = $response->json() ?? [];
+
+        // The Business API keeps its real status in the body's `code`
+        // (0 = ok) and returns 200 even for auth failures.
+        if (!$response->successful() || ($data['code'] ?? 0) !== 0) {
             return [
                 'success' => false,
-                'message' => $data['error']['message']
+                'message' => $data['message'] ?? $data['error']['message'] ?? 'Failed to fetch TikTok comments.',
+                'data'    => [],
             ];
         }
 
         return [
             'success' => true,
-            'data' => $data['items']
+            'data'    => $data['data']['comments'] ?? $data['items'] ?? [],
         ];
     }
 
