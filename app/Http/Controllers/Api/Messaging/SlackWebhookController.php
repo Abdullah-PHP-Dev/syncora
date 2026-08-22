@@ -30,63 +30,13 @@ class SlackWebhookController extends Controller
 
     public function receive(Request $request)
     {
-        Conversation::create([
-                'message_channel_id'      => 26,
-                'platform'                => 'slack',
-                'assigned_user_id'        => 1,
-                'external_conversation_id' => 'debug-hit',
-                'customer_external_id'    => 'debug-' . now()->format('YmdHis'),
-                'customer_name'           => 'DEBUG webhook hit',
-                'last_message_preview'    => substr(json_encode($request->all()), 0, 500),
-                'meta'                    => [
-                    'debug'              => true,
-                    'auth_header_present' => $request->hasHeader('Authorization'),
-                    'auth_header_prefix' => substr((string) $request->header('Authorization'), 0, 20),
-                    'token_valid'        => '',
-                    'channel_platform'   => 'slack',
-                    'ip'                 => $request->ip(),
-                    'headers'            => $request->headers->all(),
-                    'raw_body'           => $request->all(),
-                ],
-            ]);
-        // Resolved from the payload's own team_id rather than hardcoded -
-        // this is a shared per-App endpoint (see class docblock), so there
-        // is no single fixed channel id that's valid across every
-        // workspace/environment. A literal id here (previously 3, then 25)
-        // FK-violates the moment that specific row doesn't exist, which is
-        // exactly what was happening locally.
-        $debugTeamId = $request->input('team_id');
-        $debugChannel = $debugTeamId
-            ? MessageChannel::where('platform', 'slack')->where('external_id', $debugTeamId)->first()
-            : null;
-
-        // message_channel_id is a NOT NULL FK (conversations table), so this
-        // only fires once a channel actually resolves - the url_verification
-        // handshake payload has no team_id at all, and would otherwise crash
-        // this debug insert before ever reaching the real handshake response
-        // below.
-        if ($debugChannel) {
-            Conversation::create([
-                'message_channel_id'      => $debugChannel->id,
-                'platform'                => 'slack',
-                'assigned_user_id'        => 1,
-                'external_conversation_id' => 'debug-hit',
-                'customer_external_id'    => 'debug-' . now()->format('YmdHis'),
-                'customer_name'           => 'DEBUG webhook hit',
-                'last_message_preview'    => substr(json_encode($request->all()), 0, 500),
-                'meta'                    => [
-                    'debug'              => true,
-                    'auth_header_present' => $request->hasHeader('Authorization'),
-                    'auth_header_prefix' => substr((string) $request->header('Authorization'), 0, 20),
-                    'token_valid'        => '',
-                    'channel_platform'   => 'slack',
-                    'ip'                 => $request->ip(),
-                    'headers'            => $request->headers->all(),
-                    'raw_body'           => $request->all(),
-                ],
-            ]);
-        }
-
+        // Nothing writes to the database before this point. The debug
+        // insert below used to run first, unconditionally, against a
+        // hardcoded message_channel_id - which both let any unauthenticated
+        // caller create conversation rows and 500'd the whole endpoint with
+        // an FK violation whenever that literal id didn't exist locally.
+        // Slack retries a failing Request URL and eventually disables it,
+        // so that crash took down every delivery, images included.
         if (!$this->service->verifySignature($request)) {
             Log::warning('Slack webhook signature mismatch', ['ip' => $request->ip()]);
 
@@ -112,8 +62,40 @@ class SlackWebhookController extends Controller
             return response('OK', 200);
         }
 
+        $this->recordDebugHit($request, $channel, $payload);
+
         $this->service->handleWebhook($payload, $channel);
 
         return response('OK', 200);
+    }
+
+    /**
+     * Temporary diagnostic left over from tracing why inbound Slack
+     * deliveries weren't landing - writes one row per verified delivery so
+     * the raw envelope can be inspected from the admin. Runs against the
+     * channel already resolved from the payload's team_id, and only after
+     * verifySignature() has passed, so it can't be driven by an
+     * unauthenticated caller. Delete this method and its call once inbound
+     * Slack messages are confirmed working.
+     */
+    private function recordDebugHit(Request $request, MessageChannel $channel, array $payload): void
+    {
+        Conversation::create([
+            'message_channel_id'       => $channel->id,
+            'platform'                 => 'slack',
+            'assigned_user_id'         => 1,
+            'external_conversation_id' => 'debug-hit',
+            'customer_external_id'     => 'debug-' . now()->format('YmdHis'),
+            'customer_name'            => 'DEBUG webhook hit',
+            'last_message_preview'     => substr(json_encode($payload), 0, 500),
+            'meta'                     => [
+                'debug'     => true,
+                'event_type' => $payload['event']['type'] ?? null,
+                'subtype'   => $payload['event']['subtype'] ?? null,
+                'has_files' => !empty($payload['event']['files']),
+                'ip'        => $request->ip(),
+                'raw_body'  => $payload,
+            ],
+        ]);
     }
 }

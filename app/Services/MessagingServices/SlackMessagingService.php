@@ -10,6 +10,7 @@ use App\Services\ApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
 
@@ -251,16 +252,29 @@ class SlackMessagingService
      * Only `event_callback` deliveries reach here (the webhook
      * controller answers `url_verification`'s one-time challenge itself,
      * before any channel lookup is even possible). Filters out anything
-     * that isn't a fresh human DM: subtypes (message_changed/deleted,
-     * channel_join, etc.) and the bot's own messages echoing back,
-     * identified by either the `bot_id` field appearing at all or the
-     * sender matching this channel's own bot_user_id.
+     * that isn't a fresh human DM: edits/deletions and join/leave notices
+     * (which arrive as subtyped messages) and the bot's own messages
+     * echoing back, identified by either the `bot_id` field appearing at
+     * all or the sender matching this channel's own bot_user_id.
      */
     public function handleWebhook(array $payload, MessageChannel $channel): void
     {
         $event = $payload['event'] ?? [];
 
-        if (($event['type'] ?? null) !== 'message' || ($event['channel_type'] ?? null) !== 'im' || !empty($event['subtype'])) {
+        if (($event['type'] ?? null) !== 'message' || ($event['channel_type'] ?? null) !== 'im') {
+            return;
+        }
+
+        // An allowlist, not `!empty($event['subtype'])`. A DM carrying an
+        // attachment is delivered as a message with subtype `file_share`
+        // and a `files` array - so rejecting every subtyped message
+        // discarded *only* the messages with images in them, which is
+        // exactly why text DMs arrived and image DMs never did. The
+        // file_share subtype stopped going to RTM connections years ago
+        // but is still sent over the Events API, which is what this uses.
+        $subtype = $event['subtype'] ?? null;
+
+        if ($subtype !== null && $subtype !== 'file_share') {
             return;
         }
 
@@ -321,12 +335,35 @@ class SlackMessagingService
         }
 
         $mimeType = $file['mimetype'] ?? 'application/octet-stream';
-        $type = match (true) {
-            str_starts_with($mimeType, 'image/') => 'image',
-            str_starts_with($mimeType, 'video/') => 'video',
-            str_starts_with($mimeType, 'audio/') => 'audio',
-            default => 'file',
-        };
+
+        // files.slack.com answers a request it won't authorize with an
+        // HTML sign-in page under a 200, not a 4xx - so successful() alone
+        // would happily store that page to R2 under the image's own name
+        // and produce a broken attachment with nothing logged. Comparing
+        // what came back against the mimetype Slack already told us to
+        // expect turns that into a visible failure instead. The bot token
+        // needs the `files:read` scope for this fetch to return real bytes.
+        $returnedType = strtok((string) $response->header('Content-Type'), ';');
+
+        // A sign-in page is text/html, and so is a genuinely shared .html
+        // file - but an HTML body where Slack promised anything else is
+        // always the error page, and family comparison alone misses it
+        // (text/html and application/pdf both collapse to 'file').
+        $isUnexpectedHtml = $returnedType === 'text/html' && $mimeType !== 'text/html';
+
+        if ($returnedType && ($isUnexpectedHtml || $this->mediaFamily($returnedType) !== $this->mediaFamily($mimeType))) {
+            Log::warning('Slack file download did not return the expected media type', [
+                'channel_id' => $channel->id,
+                'file_id'    => $file['id'] ?? null,
+                'expected'   => $mimeType,
+                'received'   => $returnedType,
+                'hint'       => 'the bot token most likely lacks the files:read scope',
+            ]);
+
+            return null;
+        }
+
+        $type = $this->mediaFamily($mimeType);
 
         $fileName = ($file['id'] ?? uniqid()) . '_' . ($file['name'] ?? 'file');
         $s3Path = "uploads/slack/media/{$fileName}";
@@ -340,5 +377,22 @@ class SlackMessagingService
             'file_name' => $file['name'] ?? null,
             'file_size' => $file['size'] ?? null,
         ];
+    }
+
+    /**
+     * Collapses a mimetype to the coarse attachment kind this module
+     * stores. Also what the Content-Type check above compares on, so a
+     * `image/jpeg` file served back as `image/jpg` isn't treated as a
+     * mismatch - only an actual family change (an HTML error page where an
+     * image was promised) is.
+     */
+    private function mediaFamily(string $mimeType): string
+    {
+        return match (true) {
+            str_starts_with($mimeType, 'image/') => 'image',
+            str_starts_with($mimeType, 'video/') => 'video',
+            str_starts_with($mimeType, 'audio/') => 'audio',
+            default => 'file',
+        };
     }
 }
