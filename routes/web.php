@@ -188,13 +188,6 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 				Route::get('ads/{platform}/callback', [AdController::class, 'callback'])->name('ads.platform.callback');
 
-				// Registered ahead of the resource route below so this
-				// literal segment isn't swallowed by the resource's
-				// GET ads/{platform}/campaigns/{campaign} (show) route,
-				// which would otherwise treat "create-new" as a campaign ID.
-				Route::get('ads/{platform}/campaigns/create-new', [AdCampaignController::class, 'createNew'])
-					->name('ads.campaigns.create_new');
-
 				Route::resource('ads/{platform}/campaigns', AdCampaignController::class)
 					->names('ads.campaigns');
 

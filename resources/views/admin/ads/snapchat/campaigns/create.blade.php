@@ -233,7 +233,8 @@
                             </a>
                         </div>
 
-                        <div class="campaign-builder">
+                        @push('styles')<link rel="stylesheet" href="{{ asset('assets/css/ad-builder.css') }}">@endpush
+                        <div class="campaign-builder brand-snapchat">
                             <div class="builder-header">
                                 <div class="social-icon-mini snapchat">
                                     <i class="bx bxl-snapchat"></i>
@@ -1663,4 +1664,5 @@
         var method = 'POST';
     </script>
     <script src="{{ asset('assets/js/admin/api.js') }}"></script>
+    <script src="{{ asset('assets/js/ad-builder.js') }}"></script>
 @endpush
