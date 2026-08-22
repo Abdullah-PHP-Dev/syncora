@@ -433,9 +433,14 @@ class MessageChannelController extends Controller
         }
 
         $channel = MessageChannel::updateOrCreate(
-            ['platform' => 'google_chat', 'external_id' => $key['client_email']],
+            // Scoped by user_id too, matching the (user_id, platform,
+            // external_id) unique index this table actually enforces -
+            // omitting it meant a second Socialeaz user connecting the
+            // same service account would find and silently reassign the
+            // first user's existing channel row instead of getting their
+            // own, since the lookup ignored who's currently authenticated.
+            ['user_id' => Auth::id(), 'platform' => 'google_chat', 'external_id' => $key['client_email']],
             [
-                'user_id'      => Auth::id(),
                 'name'         => $validated['name'],
                 'access_token' => $key['private_key'],
                 'meta'         => ['project_number' => $projectNumber, 'project_id' => $key['project_id'] ?? null],
@@ -444,6 +449,15 @@ class MessageChannelController extends Controller
         );
 
         $webhookUrl = route('messaging.webhook.google_chat.receive', ['channel' => $channel->id]);
+
+        // Recorded, not just displayed: whenever the Chat app's
+        // Authentication Audience is the endpoint URL (and it always is,
+        // once the app is a Workspace add-on), Google echoes this exact
+        // string back as the inbound token's `aud` claim, so
+        // GoogleChatMessagingService::verifyRequestToken() has to compare
+        // against the URL the admin was actually told to paste - not one
+        // recomputed later from an APP_URL that may since have changed.
+        $channel->update(['meta' => array_merge($channel->meta ?? [], ['endpoint_url' => $webhookUrl])]);
 
         return redirect()->route('admin.chats.channels')->with(
             'success',

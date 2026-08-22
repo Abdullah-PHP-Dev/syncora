@@ -67,6 +67,32 @@ use Carbon\Carbon;
  */
 class GoogleChatMessagingService
 {
+    /**
+     * Fixed across every Chat app on Earth - the identity Google Chat
+     * signs *classic* (non-add-on) interaction requests as.
+     */
+    private const CHAT_ISSUER = 'chat@system.gserviceaccount.com';
+
+    /**
+     * Google's own OIDC certificates - deliberately not chat@system's own
+     * key set ($jwksUrl below). Both "HTTP endpoint URL" audience modes
+     * (see verifyRequestToken()) carry a *Google-signed* ID token minted
+     * on behalf of a service account, so the signature verifies against
+     * these keys and the signing service account is named by the token's
+     * `email` claim - exactly what Google's own samples do via
+     * id_token.verify_oauth2_token()/OAuth2Client.verifyIdToken(). Only
+     * the project-number mode gets a JWT that chat@system self-signs.
+     */
+    private const GOOGLE_OIDC_CERTS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
+
+    /**
+     * The service agent that signs requests once a Chat app is built as a
+     * Google Workspace add-on - shown in the Cloud console under Chat API
+     * > Configuration > Connection settings > Service Account Email. It's
+     * per-project, hence the project number placeholder.
+     */
+    private const ADD_ON_SIGNER_TEMPLATE = 'service-%s@gcp-sa-gsuiteaddons.iam.gserviceaccount.com';
+
     private string $baseUrl;
     private string $tokenUrl;
     private string $scope;
@@ -472,16 +498,21 @@ class GoogleChatMessagingService
      * rest of that window, even once Google's endpoint recovers seconds
      * later.
      */
-    private function getJwks(): array
+    private function getJwks(string $jwksUrl): array
     {
-        $cached = Cache::get('google_chat_jwks');
+        // Keyed by URL, not a single 'google_chat_jwks' entry: two
+        // different key sets are in play now (chat@system's own, and
+        // Google's OIDC certs), and caching them under one key would
+        // serve whichever was fetched first to both callers.
+        $cacheKey = 'google_chat_jwks_' . md5($jwksUrl);
+        $cached = Cache::get($cacheKey);
 
         if ($cached) {
             return $cached;
         }
 
         try {
-            $response = Http::get($this->jwksUrl);
+            $response = Http::get($jwksUrl);
         } catch (\Throwable) {
             return ['keys' => []];
         }
@@ -491,36 +522,209 @@ class GoogleChatMessagingService
         }
 
         $jwks = $response->json();
-        Cache::put('google_chat_jwks', $jwks, 86400);
+        Cache::put($cacheKey, $jwks, 86400);
 
         return $jwks;
     }
 
     /**
-     * Issuer is fixed and identical across every Chat app; audience is
-     * the *project number* collected when this channel was connected
-     * (see class docblock) - a token minted for a different Cloud project
-     * must not be accepted just because Google itself signed it.
+     * Google sends one of three different bearer tokens here depending on
+     * how the app is configured in the Cloud console, and they are not
+     * interchangeable - which is why only checking for the project-number
+     * one (all this used to do) rejected every real delivery from an app
+     * configured either of the other two ways:
+     *
+     * 1. Authentication Audience = "Project Number" (classic Chat app):
+     *    a JWT chat@system.gserviceaccount.com self-signs. iss is that
+     *    address, aud is the Cloud project *number*, and the signature
+     *    verifies against chat@system's own key set ($jwksUrl).
+     *
+     * 2. Authentication Audience = "HTTP endpoint URL" (classic Chat
+     *    app): a Google-signed OIDC ID token. iss is accounts.google.com,
+     *    aud is this endpoint's URL, and chat@system appears in the
+     *    `email` claim rather than in iss.
+     *
+     * 3. Chat app built as a Google Workspace add-on - what the
+     *    "Build this Chat app as a Workspace add-on" checkbox produces,
+     *    and irreversible once saved: same Google-signed ID token as (2),
+     *    same endpoint-URL audience, but `email` is the project's add-on
+     *    service agent (ADD_ON_SIGNER_TEMPLATE) instead of chat@system.
+     *
+     * The audience is bound to this channel in every case - to its Cloud
+     * project number in (1), to its own webhook URL in (2) and (3) - so a
+     * token minted for a different project or a different app can't be
+     * replayed here just because Google itself signed it.
      */
     public function verifyRequestToken(Request $request, MessageChannel $channel): bool
     {
-        $header = (string) $request->header('Authorization');
-
-        if (!str_starts_with($header, 'Bearer ')) {
+        // Case-insensitive scheme and tolerant of repeated whitespace:
+        // str_starts_with('Bearer ') silently rejected an otherwise valid
+        // 'bearer <token>'.
+        if (!preg_match('/^Bearer\s+(\S+)$/i', (string) $request->header('Authorization'), $matches)) {
             return false;
         }
 
-        $jwt = substr($header, 7);
+        $jwt = $matches[1];
+        $issuer = $this->peekIssuer($jwt);
+
+        if ($issuer === null) {
+            return false;
+        }
+
+        // The issuer decides which key set can even verify the signature,
+        // so it has to be read before the token is decoded - unverified,
+        // then confirmed by the decode succeeding against exactly the key
+        // set that issuer implies.
+        $selfSigned = $issuer === self::CHAT_ISSUER;
+        $claims = $this->decodeToken($jwt, $selfSigned ? $this->jwksUrl : self::GOOGLE_OIDC_CERTS_URL);
+
+        if (!$claims) {
+            return false;
+        }
+
+        return $selfSigned
+            ? $this->audienceMatchesProjectNumber($claims, $channel)
+            : $this->audienceMatchesEndpointUrl($claims, $channel);
+    }
+
+    /**
+     * Reads `iss` out of an as-yet-unverified token. Safe precisely
+     * because nothing is trusted on the strength of it: it only selects
+     * which key set the signature is then checked against, and a token
+     * claiming an issuer it wasn't signed by fails that check.
+     */
+    private function peekIssuer(string $jwt): ?string
+    {
+        $segments = explode('.', $jwt);
+
+        if (count($segments) !== 3) {
+            return null;
+        }
 
         try {
-            $keys = JWK::parseKeySet($this->getJwks(), 'RS256');
-            $claims = JWT::decode($jwt, $keys);
+            $payload = json_decode(JWT::urlsafeB64Decode($segments[1]), true, 512, JSON_THROW_ON_ERROR);
         } catch (\Throwable) {
+            return null;
+        }
+
+        return isset($payload['iss']) && is_string($payload['iss']) ? $payload['iss'] : null;
+    }
+
+    private function decodeToken(string $jwt, string $jwksUrl): ?object
+    {
+        try {
+            return JWT::decode($jwt, JWK::parseKeySet($this->getJwks($jwksUrl), 'RS256'));
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function audienceMatchesProjectNumber(object $claims, MessageChannel $channel): bool
+    {
+        $projectNumber = (string) ($channel->meta['project_number'] ?? '');
+        $audience = (string) ($claims->aud ?? '');
+
+        return $projectNumber !== '' && hash_equals($projectNumber, $audience);
+    }
+
+    /**
+     * Both ID-token modes ((2) and (3) above) prove Google signed the
+     * token; what distinguishes a request meant for *this* app from one
+     * meant for any other Google-signed caller is the pair of `email`
+     * (which service account Google minted it for) and `aud` (which
+     * endpoint it was minted to call), so both are checked.
+     */
+    private function audienceMatchesEndpointUrl(object $claims, MessageChannel $channel): bool
+    {
+        // Present on Google's service-account ID tokens; checked when
+        // present rather than required, so a future token that omits it
+        // doesn't start silently 401ing every inbound message.
+        if (isset($claims->email_verified) && !$claims->email_verified) {
             return false;
         }
 
-        return ($claims->iss ?? null) === 'chat@system.gserviceaccount.com'
-            && ($claims->aud ?? null) === (string) ($channel->meta['project_number'] ?? null);
+        $email = (string) ($claims->email ?? '');
+        $projectNumber = (string) ($channel->meta['project_number'] ?? '');
+        $addOnSigner = $projectNumber === '' ? null : sprintf(self::ADD_ON_SIGNER_TEMPLATE, $projectNumber);
+
+        $signedForThisApp = hash_equals(self::CHAT_ISSUER, $email)
+            || ($addOnSigner !== null && hash_equals($addOnSigner, $email));
+
+        if (!$signedForThisApp) {
+            return false;
+        }
+
+        $audience = $this->normalizeEndpointUrl((string) ($claims->aud ?? ''));
+
+        if ($audience === '') {
+            return false;
+        }
+
+        foreach ($this->endpointUrls($channel) as $candidate) {
+            if (hash_equals($this->normalizeEndpointUrl($candidate), $audience)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * meta['endpoint_url'] is the URL this channel actually handed the
+     * admin to paste into the Cloud console (recorded by
+     * MessageChannelController::storeGoogleChat()); route() is recomputed
+     * as a fallback for channels connected before that was stored. They
+     * differ whenever APP_URL has changed since, and Google's audience
+     * claim echoes back whatever is *currently* configured in the
+     * console - so both are accepted rather than only the freshly
+     * generated one.
+     */
+    private function endpointUrls(MessageChannel $channel): array
+    {
+        return array_filter([
+            $channel->meta['endpoint_url'] ?? null,
+            route('messaging.webhook.google_chat.receive', ['channel' => $channel->id]),
+        ]);
+    }
+
+    private function normalizeEndpointUrl(string $url): string
+    {
+        return rtrim(trim($url), '/');
+    }
+
+    /**
+     * A Chat app built as a Google Workspace add-on (the irreversible
+     * "Build this Chat app as a Workspace add-on" checkbox in the Cloud
+     * console) is delivered the Workspace add-on EventObject instead of
+     * the Chat API interaction Event, and the two are not the same
+     * shape: the message and space move under chat.messagePayload, the
+     * sender moves to chat.user, and there is no top-level `type` at all
+     * - the event kind is implied by *which* chat.*Payload key is
+     * present. Flattened back to the interaction-Event shape here so
+     * everything downstream only ever deals with one payload format.
+     *
+     * Only messagePayload is mapped: addedToSpacePayload /
+     * removedFromSpacePayload / buttonClickedPayload / appCommandPayload
+     * are exactly the event kinds handleEvent() already discards.
+     */
+    private function normalizeEvent(array $payload): array
+    {
+        if (!isset($payload['chat']) || !is_array($payload['chat'])) {
+            return $payload;
+        }
+
+        $chat = $payload['chat'];
+
+        if (!isset($chat['messagePayload']) || !is_array($chat['messagePayload'])) {
+            return [];
+        }
+
+        return [
+            'type'    => 'MESSAGE',
+            'message' => $chat['messagePayload']['message'] ?? [],
+            'space'   => $chat['messagePayload']['space'] ?? [],
+            'user'    => $chat['user'] ?? [],
+        ];
     }
 
     /**
@@ -534,6 +738,8 @@ class GoogleChatMessagingService
      */
     public function handleEvent(array $payload, MessageChannel $channel): void
     {
+        $payload = $this->normalizeEvent($payload);
+
         if (($payload['type'] ?? null) !== 'MESSAGE') {
             return;
         }
@@ -541,7 +747,10 @@ class GoogleChatMessagingService
         $message = $payload['message'] ?? [];
         $space = $message['space'] ?? $payload['space'] ?? [];
 
-        if (($space['type'] ?? null) !== 'DM') {
+        // `type: 'DM'` is the interaction-event spelling; `spaceType:
+        // 'DIRECT_MESSAGE'` is what the Space resource itself uses, and
+        // it's the one that comes through on add-on payloads.
+        if (($space['type'] ?? null) !== 'DM' && ($space['spaceType'] ?? null) !== 'DIRECT_MESSAGE') {
             return;
         }
 
