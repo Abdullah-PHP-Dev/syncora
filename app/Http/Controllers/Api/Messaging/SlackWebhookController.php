@@ -31,7 +31,7 @@ class SlackWebhookController extends Controller
     public function receive(Request $request)
     {
         Conversation::create([
-                'message_channel_id'      => 25,
+                'message_channel_id'      => 26,
                 'platform'                => 'slack',
                 'assigned_user_id'        => 1,
                 'external_conversation_id' => 'debug-hit',
