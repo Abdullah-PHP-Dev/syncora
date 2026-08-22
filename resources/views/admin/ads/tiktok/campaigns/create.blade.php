@@ -233,7 +233,8 @@
                             </a>
                         </div>
 
-                        <div class="campaign-builder">
+                        @push('styles')<link rel="stylesheet" href="{{ asset('assets/css/ad-builder.css') }}">@endpush
+                        <div class="campaign-builder brand-tiktok">
                             <div class="builder-header">
                                 <div class="social-icon-mini tiktok">
                                     <i class="bx bxl-tiktok"></i>
@@ -1591,4 +1592,5 @@
     var method = 'POST';
 </script>
     <script src="{{ asset('assets/js/admin/api.js') }}"></script>
+    <script src="{{ asset('assets/js/ad-builder.js') }}"></script>
 @endpush

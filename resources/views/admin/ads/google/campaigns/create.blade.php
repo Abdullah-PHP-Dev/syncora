@@ -2,164 +2,17 @@
 
 @section('title', 'Create Google Campaign')
 
-<style>
-    .campaign-builder {
-        max-width: 1400px;
-        margin: auto;
-    }
-
-    .builder-header {
-        text-align: center;
-        margin-bottom: 30px;
-    }
-
-    .campaign-steps {
-        display: flex;
-        justify-content: center;
-        gap: 15px;
-        margin-top: 20px;
-        flex-wrap: wrap;
-    }
-
-    .step {
-        background: #f3f5f8;
-        padding: 10px 20px;
-        border-radius: 30px;
-        cursor: pointer;
-        transition: .3s;
-    }
-
-    .step.active {
-        background: #4285F4;
-        color: #fff;
-        box-shadow: 0 5px 15px rgba(66, 133, 244, .3);
-    }
-
-    .builder-card {
-        background: white;
-        border-radius: 20px;
-        padding: 25px;
-        margin-bottom: 25px;
-        box-shadow: 0 5px 25px rgba(0, 0, 0, .08);
-    }
-
-    .platform-group {
-        display: flex;
-        gap: 15px;
-        flex-wrap: wrap;
-    }
-
-    .platform-card {
-        min-width: 200px;
-        padding: 15px 20px;
-        border: 1px solid #e5e7eb;
-        border-radius: 14px;
-        background: #fff;
-        transition: .3s;
-    }
-
-    .preview-card {
-        position: sticky;
-        top: 20px;
-        background: white;
-        border-radius: 20px;
-        box-shadow: 0 5px 25px rgba(0, 0, 0, .08);
-        overflow: hidden;
-    }
-
-    .preview-header {
-        background: #4285F4;
-        color: white;
-        padding: 15px;
-        font-weight: 600;
-    }
-
-    .search-preview {
-        padding: 15px;
-    }
-
-    .search-ad-label {
-        color: #006621;
-        font-size: 12px;
-        font-weight: 600;
-    }
-
-    .search-ad-headline {
-        color: #1a0dab;
-        font-size: 18px;
-        margin: 4px 0;
-    }
-
-    .search-ad-url {
-        color: #006621;
-        font-size: 13px;
-    }
-
-    .search-ad-desc {
-        color: #4d5156;
-        font-size: 13px;
-        margin-top: 4px;
-    }
-
-    .error-message {
-        color: red;
-        font-size: 0.8rem;
-        margin-top: 5px;
-    }
-
-    .wizard-step {
-        display: none;
-    }
-
-    .wizard-step.active {
-        display: block;
-    }
-
-    .review-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 10px 0;
-        border-bottom: 1px solid #eef1f5;
-    }
-
-    .review-row:last-child {
-        border-bottom: none;
-    }
-
-    .review-row span:first-child {
-        color: #6b7280;
-    }
-
-    .review-row span:last-child {
-        font-weight: 600;
-        text-align: right;
-    }
-
-    .wizard-nav {
-        display: flex;
-        justify-content: space-between;
-        margin-top: 10px;
-    }
-
-    .step.has-error {
-        box-shadow: 0 0 0 2px #dc3545;
-    }
-
-    .step.has-error::after {
-        content: '!';
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 16px;
-        height: 16px;
-        margin-left: 6px;
-        border-radius: 50%;
-        background: #dc3545;
-        color: #fff;
-        font-size: 11px;
-        font-weight: 700;
-    }
-</style>
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('assets/css/ad-builder.css') }}">
+    <style>
+        /* Google-specific search-ad preview */
+        .campaign-builder .search-preview { padding: 15px; }
+        .campaign-builder .search-ad-label { color: #006621; font-size: 12px; font-weight: 600; }
+        .campaign-builder .search-ad-headline { color: #1a0dab; font-size: 18px; margin: 4px 0; }
+        .campaign-builder .search-ad-url { color: #006621; font-size: 13px; }
+        .campaign-builder .search-ad-desc { color: #4d5156; font-size: 13px; margin-top: 4px; }
+    </style>
+@endpush
 
 @section('content')
     <div class="col-xxl-12 mb-0">
@@ -175,7 +28,7 @@
                             </a>
                         </div>
 
-                        <div class="campaign-builder">
+                        <div class="campaign-builder brand-google">
                             <div class="builder-header">
                                 <div class="social-icon-mini google">
                                     <i class="bx bxl-google"></i>
@@ -734,4 +587,5 @@
         var method = 'POST';
     </script>
     <script src="{{ asset('assets/js/admin/api.js') }}"></script>
+    <script src="{{ asset('assets/js/ad-builder.js') }}"></script>
 @endpush

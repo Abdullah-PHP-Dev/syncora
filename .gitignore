@@ -28,3 +28,9 @@ Homestead.json
 .env.production
 .phpactor.json
 auth.json
+.env.local
+.env.*.local
+.DS_Store
+.playwright-mcp/
+fb-create-redesign.png
+login.png
