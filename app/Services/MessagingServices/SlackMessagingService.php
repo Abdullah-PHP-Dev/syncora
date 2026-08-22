@@ -56,6 +56,16 @@ class SlackMessagingService
 
     public function redirect($state)
     {
+        dd([
+            'client_id'    => adminSetting('chats.slack.client_id'),
+            // Bot scopes only - this app never acts as an installing human
+            // user, just as the bot itself, so there's no separate
+            // user_scope needed. team:read is only for the team.info call
+            // in handleCallback() (workspace name/icon), not for messaging.
+            'scope'        => 'chat:write,im:history,im:read,im:write,users:read,files:read,team:read',
+            'redirect_uri' => $this->callbackUrl(),
+            'state'        => $state,
+        ]);
         $url = (adminSetting('messaging.slack.authorize_url') ?: 'https://slack.com/oauth/v2/authorize') . '?' . http_build_query([
             'client_id'    => adminSetting('chats.slack.client_id'),
             // Bot scopes only - this app never acts as an installing human
@@ -72,7 +82,7 @@ class SlackMessagingService
 
     private function callbackUrl(): string
     {
-        return config('services.app_url') . '/admin/messaging/slack';
+        return config('services.app_url') . '/admin/messaging/auth/slack/callback';
     }
 
     /**
