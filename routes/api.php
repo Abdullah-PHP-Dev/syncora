@@ -101,7 +101,10 @@ Route::get('/user', function (Request $request) {
         // MessageChannelController::storeGoogleChat() - which builds this URL
         // with ['channel' => ...] - threw on a missing required parameter.
         // POST only: Google Chat has no GET verification handshake.
-        Route::post('/google-chat/{channel}', [\App\Http\Controllers\Api\Messaging\GoogleChatWebhookController::class, 'receive'])->name('google_chat.receive');
+        Route::match(['get', 'post'], '/google-chat/{channel}', [
+            \App\Http\Controllers\Api\Messaging\GoogleChatWebhookController::class,
+            'receive'
+        ])->name('google_chat.receive');
         Route::get('/discord', [\App\Http\Controllers\Api\Messaging\DiscordWebhookController::class, 'verify'])->name('discord.verify');
         Route::post('/discord', [\App\Http\Controllers\Api\Messaging\DiscordWebhookController::class, 'receive'])->name('discord.receive');
         // Deliberately no Discord route here - Discord has no webhook
