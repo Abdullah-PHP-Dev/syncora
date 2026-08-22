@@ -57,7 +57,7 @@ class SlackMessagingService
     public function redirect($state)
     {
         $url = (adminSetting('messaging.slack.authorize_url') ?: 'https://slack.com/oauth/v2/authorize') . '?' . http_build_query([
-            'client_id'    => adminSetting('messaging.slack.client_id'),
+            'client_id'    => adminSetting('chats.slack.client_id'),
             // Bot scopes only - this app never acts as an installing human
             // user, just as the bot itself, so there's no separate
             // user_scope needed. team:read is only for the team.info call
@@ -72,7 +72,7 @@ class SlackMessagingService
 
     private function callbackUrl(): string
     {
-        return config('services.app_url') . '/admin/messaging/auth/slack/callback';
+        return config('services.app_url') . '/admin/messaging/slack';
     }
 
     /**
@@ -84,8 +84,8 @@ class SlackMessagingService
     public function handleCallback(string $code): array
     {
         $tokenResponse = $this->apiService->post(adminSetting('messaging.slack.token_url') ?: 'https://slack.com/api/oauth.v2.access', [], [
-            'client_id'     => adminSetting('messaging.slack.client_id'),
-            'client_secret' => adminSetting('messaging.slack.client_secret'),
+            'client_id'     => adminSetting('chats.slack.client_id'),
+            'client_secret' => adminSetting('chats.slack.client_secret'),
             'code'          => $code,
             'redirect_uri'  => $this->callbackUrl(),
         ], 'form');
@@ -242,7 +242,7 @@ class SlackMessagingService
         }
 
         $baseString = "v0:{$timestamp}:{$request->getContent()}";
-        $expected = 'v0=' . hash_hmac('sha256', $baseString, adminSetting('messaging.slack.signing_secret'));
+        $expected = 'v0=' . hash_hmac('sha256', $baseString, adminSetting('chats.slack.signing_secret'));
 
         return hash_equals($expected, $signature);
     }
