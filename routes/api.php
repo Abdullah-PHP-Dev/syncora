@@ -84,7 +84,7 @@ Route::get('/user', function (Request $request) {
         // Also a shared per-App endpoint - Slack's one-time url_verification
         // handshake and every event_callback delivery both land here, see
         // SlackWebhookController docblock.
-        Route::match(['get', 'post'], [\App\Http\Controllers\Api\Messaging\SlackWebhookController::class, 'receive'])->name('slack.receive');
+        Route::match(['get', 'post'], '/slack', [\App\Http\Controllers\Api\Messaging\SlackWebhookController::class, 'receive'])->name('slack.receive');
 
         // Per-channel again, like Telegram/LINE - each Azure Bot
         // registration's "Messaging endpoint" is set by hand in the Azure
