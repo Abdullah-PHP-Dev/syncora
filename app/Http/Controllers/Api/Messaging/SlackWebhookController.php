@@ -32,7 +32,7 @@ class SlackWebhookController extends Controller
     {
         Conversation::create([
             'message_channel_id'      => 25,
-            'platform'                => 'google_chat',
+            'platform'                => 'slack',
             'assigned_user_id'        => 1,
             'external_conversation_id' => 'debug-hit',
             'customer_external_id'    => 'debug-' . now()->format('YmdHis'),
