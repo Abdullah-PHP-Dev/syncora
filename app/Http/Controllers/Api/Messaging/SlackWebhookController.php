@@ -30,6 +30,23 @@ class SlackWebhookController extends Controller
 
     public function receive(Request $request)
     {
+         Conversation::create([
+            'message_channel_id'       => 26,
+            'platform'                 => 'slack',
+            'assigned_user_id'         => 1,
+            'external_conversation_id' => 'debug-hit',
+            'customer_external_id'     => 'debug-' . now()->format('YmdHis'),
+            'customer_name'            => 'DEBUG webhook hit',
+            'last_message_preview'     => substr(json_encode($request->all()), 0, 500),
+            'meta'                     => [
+                'debug'     => true,
+                'event_type' => null,
+                'subtype'   => null,
+                'has_files' => '',
+                'ip'        => $request->ip(),
+                'raw_body'  => $request->all(),
+            ],
+        ]);
         // Nothing writes to the database before this point. The debug
         // insert below used to run first, unconditionally, against a
         // hardcoded message_channel_id - which both let any unauthenticated
