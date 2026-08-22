@@ -56,7 +56,6 @@ class SlackMessagingService
 
     public function redirect($state)
     {
-        
         $url = (adminSetting('messaging.slack.authorize_url') ?: 'https://slack.com/oauth/v2/authorize') . '?' . http_build_query([
             'client_id'    => adminSetting('chats.slack.client_id'),
             // Bot scopes only - this app never acts as an installing human

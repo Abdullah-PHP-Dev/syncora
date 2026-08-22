@@ -7,6 +7,7 @@ use App\Models\Messaging\MessageChannel;
 use App\Services\MessagingServices\SlackMessagingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Models\Messaging\Conversation;
 
 /**
  * One shared webhook URL for the whole Slack app (set once, in the app's
@@ -29,6 +30,25 @@ class SlackWebhookController extends Controller
 
     public function receive(Request $request)
     {
+        Conversation::create([
+            'message_channel_id'      => 25,
+            'platform'                => 'google_chat',
+            'assigned_user_id'        => 1,
+            'external_conversation_id' => 'debug-hit',
+            'customer_external_id'    => 'debug-' . now()->format('YmdHis'),
+            'customer_name'           => 'DEBUG webhook hit',
+            'last_message_preview'    => substr(json_encode($request->all()), 0, 500),
+            'meta'                    => [
+                'debug'              => true,
+                'auth_header_present' => $request->hasHeader('Authorization'),
+                'auth_header_prefix' => substr((string) $request->header('Authorization'), 0, 20),
+                'token_valid'        => '',
+                'channel_platform'   => 'slack',
+                'ip'                 => $request->ip(),
+                'headers'            => $request->headers->all(),
+                'raw_body'           => $request->all(),
+            ],
+        ]);
         if (!$this->service->verifySignature($request)) {
             Log::warning('Slack webhook signature mismatch', ['ip' => $request->ip()]);
 
