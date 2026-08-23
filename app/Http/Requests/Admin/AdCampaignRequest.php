@@ -4,6 +4,7 @@ namespace App\Http\Requests\Admin;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class AdCampaignRequest extends FormRequest
 {
@@ -50,12 +51,46 @@ class AdCampaignRequest extends FormRequest
 
     private function getFacebookRules(array $requiredIfPost): array
     {
+        // The builder lets a submission either create a new campaign/ad set
+        // or reuse an existing one (attaching the new ad to it). The fields
+        // that feed storeCampaign()/storeAdGroup() are therefore only
+        // required when that step is actually creating something new -
+        // expressed with Rule::requiredIf against the two *_mode inputs.
+        // Absent modes default to 'new', so the edit form (PUT/PATCH, which
+        // never sends them) keeps its original "everything required"
+        // behaviour untouched.
+        $creatingCampaign = fn () => ($this->input('campaign_mode', 'new') === 'new');
+        $creatingAdSet = fn () => ($this->input('adset_mode', 'new') === 'new');
+        // Dates are consumed by both the campaign and the ad set, so they
+        // are required whenever either step creates something new.
+        $creatingCampaignOrAdSet = fn () => ($creatingCampaign() || $creatingAdSet());
+        // Ad-set-only fields that were previously required on POST but
+        // optional on update ($requiredIfPost): stay optional on update,
+        // and on POST are required only when a new ad set is being created.
+        $isPost = $this->isMethod('post');
+        $creatingAdSetOnPost = fn () => ($isPost && $this->input('adset_mode', 'new') === 'new');
+
         return [
+            'campaign_mode' => array_merge($requiredIfPost, ['in:new,existing']),
+            'adset_mode' => array_merge($requiredIfPost, ['in:new,existing']),
+            'existing_campaign_id' => [
+                Rule::requiredIf(fn () => $this->input('campaign_mode') === 'existing'),
+                'nullable',
+                Rule::exists('ad_campaigns', 'id')->where(fn ($q) => $q
+                    ->where('user_id', auth()->id())
+                    ->where('platform', $this->route('platform'))),
+            ],
+            'existing_adset_id' => [
+                Rule::requiredIf(fn () => $this->input('adset_mode') === 'existing'),
+                'nullable',
+                Rule::exists('ad_adgroups', 'id')->where(fn ($q) => $q
+                    ->where('user_id', auth()->id())
+                    ->where('platform', $this->route('platform'))),
+            ],
             'name' => ['required'],
-            'final_budget' => ['nullable'],
-            'budget' => ['required'],
-            'start_time' => ['required', 'date_format:Y-m-d', 'before:end_time'],
-            'end_time'   => ['required', 'date_format:Y-m-d', 'after:start_time'],
+            'budget' => [Rule::requiredIf($creatingAdSet)],
+            'start_time' => [Rule::requiredIf($creatingCampaignOrAdSet), 'date_format:Y-m-d', 'before:end_time'],
+            'end_time'   => [Rule::requiredIf($creatingCampaignOrAdSet), 'date_format:Y-m-d', 'after:start_time'],
             //  'brand_name' => ['required', 'string'],
             'media' => array_merge($requiredIfPost, [
                 'array',
@@ -89,18 +124,18 @@ class AdCampaignRequest extends FormRequest
             'carousel_cards' => ['nullable', 'required_if:media_type,CAROUSEL', 'json'],
             'description' => ['required', 'string'],
             // Both optional/additive - see FacebookAdService::
-            // storeCreative()'s docblock. Only the new Vue create-new.
-            // blade.php builder sends these; when absent, description
-            // keeps doubling as both message and link description exactly
-            // as it always has for the original create.blade.php.
+            // storeCreative()'s docblock. The Vue campaign builder
+            // (facebook/campaigns/create.blade.php) sends these; when
+            // absent, description keeps doubling as both message and link
+            // description exactly as it always has.
             'headline' => ['nullable', 'string', 'max:255'],
             'primary_text' => ['nullable', 'string', 'max:500'],
             'facebook' => ['nullable', 'required_without:instagram'],
             'instagram' => ['nullable', 'required_without:facebook'],
             'target_link'  => ['required', 'url'],
             //'ad_format' => ['required', 'in:FEED,STORIES,SEARCH_RESULTS,MARKET_PLACE'],
-            'countries' => ['array', 'required'],
-            'budget_mode' => ['required', 'in:daily_budget,lifetime_budget'],
+            'countries' => ['array', Rule::requiredIf($creatingAdSet)],
+            'budget_mode' => [Rule::requiredIf($creatingAdSet), 'in:daily_budget,lifetime_budget'],
             'call_to_action' => array_merge($requiredIfPost, ['in:SHOP_NOW,BOOK_TRAVEL,CONTACT_US,DONATE,DONATE_NOW,GET_DIRECTIONS,GO_LIVE,
                                 INTERESTED,LEARN_MORE,LIKE_PAGE,MESSAGE_PAGE,
                                 RAISE_MONEY,SAVE,SEND_TIP,VIEW_INSTAGRAM_PROFILE,INSTAGRAM_MESSAGE,
@@ -122,27 +157,27 @@ class AdCampaignRequest extends FormRequest
                                 EVENT_RSVP,CIVIC_ACTION,SEND_INVITES,REFER_FRIENDS,REQUEST_TIME,SEE_MENU,
                                 SEARCH,TRY_IT,TRY_ON,LINK_CARD,DIAL_CODE,FIND_YOUR_GROUPS,START_ORDER']),
             //'account_to_use' => ['required', 'in:Twsaa,Store'],
-            'optimization_goal' => array_merge($requiredIfPost, ['in:' . implode(',', [
+            'optimization_goal' => array_merge([Rule::requiredIf($creatingAdSetOnPost)], ['in:' . implode(',', [
                 'LINK_CLICKS', 'LANDING_PAGE_VIEWS', 'REACH', 'IMPRESSIONS', 'AD_RECALL_LIFT',
                 'POST_ENGAGEMENT', 'THRUPLAY', 'CONVERSATIONS',
                 'LEAD_GENERATION', 'QUALITY_LEAD',
                 'APP_INSTALLS', 'APP_INSTALLS_AND_OFFSITE_CONVERSIONS',
                 'OFFSITE_CONVERSIONS',
             ])]),
-            'billing_event'    => array_merge($requiredIfPost, ['in:NONE,CLICKS,IMPRESSIONS,LINK_CLICKS,OFFER_CLAIMS,PAGE_LIKES,POST_ENGAGEMENT,THRUPLAY,PURCHASE,LISTING_INTERACTION']),
+            'billing_event'    => array_merge([Rule::requiredIf($creatingAdSetOnPost)], ['in:NONE,CLICKS,IMPRESSIONS,LINK_CLICKS,OFFER_CLAIMS,PAGE_LIKES,POST_ENGAGEMENT,THRUPLAY,PURCHASE,LISTING_INTERACTION']),
             'destination_type'    => ['nullable', 'in:WEBSITE,APP,MESSENGER,WHATSAPP'],
-            'bid_amount'    => array_merge($requiredIfPost),
+            'bid_amount'    => [Rule::requiredIf($creatingAdSetOnPost)],
             'pixel_id'           => ['nullable', 'string', 'max:255', 'required_if:optimization_goal,OFFSITE_CONVERSIONS'],
             'page_id'            => ['string', 'max:255', 'nullable'],
             'application_id'     => ['nullable', 'string', 'max:255', 'required_if:objective,OUTCOME_APP_PROMOTION'],
             'object_store_url'    => ['nullable', 'string', 'max:255', 'required_if:objective,OUTCOME_APP_PROMOTION'],
             'custom_event_type'     => ['nullable', 'string', 'max:255', 'required_if:optimization_goal,OFFSITE_CONVERSIONS'],
-            'age_to'     => ['required'],
-            'age_from'     => ['required'],
-            'gender'     => ['required'],
-            'languages'     => ['required', 'array'],
-            'final_budget' => ['required'],
-            'objective' => ['required', 'in:OUTCOME_TRAFFIC,OUTCOME_SALES,OUTCOME_ENGAGEMENT,OUTCOME_AWARENESS,OUTCOME_APP_PROMOTION,OUTCOME_LEADS'],
+            'age_to'     => [Rule::requiredIf($creatingAdSet)],
+            'age_from'     => [Rule::requiredIf($creatingAdSet)],
+            'gender'     => [Rule::requiredIf($creatingAdSet)],
+            'languages'     => [Rule::requiredIf($creatingAdSet), 'array'],
+            'final_budget' => [Rule::requiredIf($creatingAdSet)],
+            'objective' => [Rule::requiredIf($creatingCampaign), 'in:OUTCOME_TRAFFIC,OUTCOME_SALES,OUTCOME_ENGAGEMENT,OUTCOME_AWARENESS,OUTCOME_APP_PROMOTION,OUTCOME_LEADS'],
             // Housing/Employment/Credit/Social-issues ads are legally
             // barred from age/gender narrowing - FacebookAdService::
             // storeAdGroup()'s docblock forces the broadest range

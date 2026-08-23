@@ -91,44 +91,48 @@ class AdCampaignController extends Controller
         $countries = $this->countryModel->all();
         $platformPages = $this->platformPages($platform);
 
+        // Facebook's create page is the redesigned single-screen builder
+        // (create.blade.php) - a Vue-powered layout that shows Facebook
+        // Pages and the connected Instagram account together, so it needs
+        // its dropdown data as plain arrays. They're mapped here rather
+        // than inside the view's @json() calls because an fn() => [...]
+        // arrow-closure array literal passed straight to @json() trips
+        // Blade's directive-parenthesis matcher (it truncates the
+        // expression early); the view only ever @json()s a built variable.
+        // See FacebookAdService::storeCreative()'s docblock for why the
+        // Instagram placement is a single connected account, not a
+        // per-page picker.
+        if ($this->viewPlatform($platform) === 'facebook') {
+            $instagramAccount = $this->adAccountModel->where('platform', 'instagram')->where('user_id', Auth::id())->first();
+
+            // Campaigns/ad sets this user already created on this platform,
+            // for the builder's "Use existing" options. Only rows that made
+            // it to Meta (have a remote id) can be reused. Each ad set
+            // carries its local campaign FK (ad_campaign_id) so the builder
+            // can filter ad sets down to the chosen existing campaign.
+            $existingCampaigns = $this->adCampaignModel
+                ->where('user_id', Auth::id())->where('platform', $platform)
+                ->whereNotNull('ad_campaign_id')->orderByDesc('id')->get()
+                ->map(fn ($c) => ['id' => $c->id, 'name' => $c->name ?: ('Campaign #' . $c->id), 'objective' => $c->objective])
+                ->values()->all();
+            $existingAdsets = \App\Models\Admin\AdAdGroup::query()
+                ->where('user_id', Auth::id())->where('platform', $platform)
+                ->whereNotNull('ad_adgroup_id')->orderByDesc('id')->get()
+                ->map(fn ($a) => ['id' => $a->id, 'name' => $a->name ?: ('Ad Set #' . $a->id), 'campaign_id' => $a->ad_campaign_id])
+                ->values()->all();
+
+            return view('admin.ads.facebook.campaigns.create', [
+                'platform'             => $platform,
+                'account'              => $account,
+                'countriesData'        => $countries->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values()->all(),
+                'pagesData'            => $platformPages->map(fn ($p) => ['id' => $p->page_id, 'name' => $p->name, 'username' => $p->username, 'picture' => $p->picture])->values()->all(),
+                'instagramAccountData' => $instagramAccount ? ['name' => $instagramAccount->name, 'username' => $instagramAccount->username ?? null] : null,
+                'existingCampaigns'    => $existingCampaigns,
+                'existingAdsets'       => $existingAdsets,
+            ]);
+        }
+
         return view('admin.ads.' . $this->viewPlatform($platform) . '.campaigns.create', compact('platform', 'account', 'countries', 'platformPages'));
-    }
-
-    /**
-     * Vue-powered redesign of the Facebook campaign builder, matching a
-     * supplied Meta Ads Manager mockup - a parallel prototype to create()
-     * for side-by-side comparison, not a replacement, so it's routed and
-     * named separately (see routes/web.php) rather than swapped into the
-     * existing view() call above. Submits to the same store() action and
-     * AdCampaignRequest::getFacebookRules() as create.blade.php, so it's
-     * a fully working page, not a static mock. Facebook Pages and the
-     * connected Instagram account are fetched together here (unlike
-     * create(), which only loads whichever platform the route segment
-     * says) since this design shows both placement selects on one screen -
-     * see FacebookAdService::storeCreative()'s docblock for why Instagram
-     * placement is a single connected account, not a per-page picker.
-     */
-    public function createNew($platform)
-    {
-        $account = $this->adAccountModel->where('platform', 'facebook')->first();
-        $instagramAccount = $this->adAccountModel->where('platform', 'instagram')->where('user_id', Auth::id())->first();
-
-        // Mapped to plain arrays here rather than inside the view's
-        // @json() calls - an fn() => [...] arrow-closure array literal as
-        // a @json() argument trips Blade's directive-parenthesis matcher
-        // (it truncates the expression early), so the view only ever
-        // @json()s an already-built variable.
-        $countriesData = $this->countryModel->all()->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values()->all();
-        $pagesData = $this->platformPages('facebook')->map(fn ($p) => ['id' => $p->page_id, 'name' => $p->name, 'username' => $p->username, 'picture' => $p->picture])->values()->all();
-        $instagramAccountData = $instagramAccount ? ['name' => $instagramAccount->name, 'username' => $instagramAccount->username ?? null] : null;
-
-        return view('admin.ads.facebook.campaigns.create-new', [
-            'platform'             => $platform,
-            'account'              => $account,
-            'countriesData'        => $countriesData,
-            'pagesData'            => $pagesData,
-            'instagramAccountData' => $instagramAccountData,
-        ]);
     }
 
     /**

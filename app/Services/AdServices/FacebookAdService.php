@@ -296,24 +296,66 @@ class FacebookAdService
     public function store($platform, $request)
     {
 
-        // Step 2: create campaign
-        $response = $this->storeCampaign($platform, $request);
+        // Step 1: campaign - either create a fresh one, or reuse an
+        // existing campaign the user already created (the builder's
+        // "Use existing campaign" option) and attach the new ad set/ad to
+        // it. When reusing, we pull the Meta campaign id (ad_campaign_id)
+        // for the ad set's Graph payload and the local PK (id) for the DB
+        // foreign key - the same two values storeCampaign() would return -
+        // and inherit the objective/special-ad-category so the ad set's
+        // promoted_object still matches the campaign.
+        if (($request['campaign_mode'] ?? 'new') === 'existing') {
+            $campaign = AdCampaign::where('user_id', Auth::id())
+                ->where('platform', $platform)
+                ->find($request['existing_campaign_id'] ?? null);
 
-        if (!$response['success']) {
-            return $response;
+            if (!$campaign) {
+                return $this->errorResponse('The selected campaign could not be found.');
+            }
+
+            $request['campaign_id'] = $campaign->ad_campaign_id; // Meta campaign id
+            $request['ad_campaign_id'] = $campaign->id;          // local PK
+            $request['objective'] = $campaign->objective;
+            $request['special_ad_category'] = $campaign->special_ad_category;
+        } else {
+            $response = $this->storeCampaign($platform, $request);
+
+            if (!$response['success']) {
+                return $response;
+            }
+
+            $request['campaign_id'] = $response['data']['ad_campaign_id'];
+            $request['ad_campaign_id'] = $response['data']['id'];
         }
 
-        $request['campaign_id'] = $response['data']['ad_campaign_id'];
-        $request['ad_campaign_id'] = $response['data']['id'];
-        // Step 2: create Ad Group
-        $response = $this->storeAdGroup($platform, $request);
+        // Step 2: ad set - create a new one, or attach the new ad to an
+        // existing ad set ("Use existing ad set"). Reusing an ad set only
+        // makes sense under an existing campaign, so the builder gates the
+        // option that way; here we take the ad set's Meta id (for the ad's
+        // Graph payload) and derive the local campaign PK from the ad set
+        // itself so the new Ad row is filed under the right campaign.
+        if (($request['adset_mode'] ?? 'new') === 'existing') {
+            $adset = AdAdGroup::where('user_id', Auth::id())
+                ->where('platform', $platform)
+                ->find($request['existing_adset_id'] ?? null);
 
-        if (!$response['success']) {
-            return $response;
+            if (!$adset) {
+                return $this->errorResponse('The selected ad set could not be found.');
+            }
+
+            $request['adgroup_id'] = $adset->ad_adgroup_id;       // Meta ad set id
+            $request['ad_adgroup_id'] = $adset->id;               // local PK
+            $request['ad_campaign_id'] = $adset->ad_campaign_id;  // local campaign PK
+        } else {
+            $response = $this->storeAdGroup($platform, $request);
+
+            if (!$response['success']) {
+                return $response;
+            }
+
+            $request['adgroup_id'] = $response['data']['ad_adgroup_id'];
+            $request['ad_adgroup_id'] = $response['data']['id'];
         }
-
-        $request['adgroup_id'] = $response['data']['ad_adgroup_id'];
-        $request['ad_adgroup_id'] = $response['data']['id'];
 
         // Step 3: create Media
         $response = $this->storeMedia($platform, $request);
@@ -719,12 +761,12 @@ class FacebookAdService
             }
 
             $linkData = [
-                // primary_text is optional and additive - only sent by the
-                // Vue create-new.blade.php builder, which collects Primary
-                // Text/Headline/Description as three distinct fields the
-                // way Meta's own Ads Manager does. The original create.
-                // blade.php has no primary_text input, so it keeps getting
-                // exactly its old behavior (description doubling as both).
+                // primary_text is optional and additive - the Vue campaign
+                // builder (facebook/campaigns/create.blade.php) collects
+                // Primary Text/Headline/Description as three distinct fields
+                // the way Meta's own Ads Manager does. When primary_text is
+                // absent, description keeps doubling as both message and
+                // link description exactly as before.
                 'message' => $request['primary_text'] ?? $request['description'],
                 'link' => $request['target_link'],
                 'child_attachments' => $childAttachments,

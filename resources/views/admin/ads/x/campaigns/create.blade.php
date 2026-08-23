@@ -200,7 +200,8 @@
                             </a>
                         </div>
 
-                        <div class="campaign-builder">
+                        @push('styles')<link rel="stylesheet" href="{{ asset('assets/css/ad-builder.css') }}">@endpush
+                        <div class="campaign-builder brand-x">
                             <div class="builder-header">
                                 <div class="social-icon-mini x">
                                     <i class="bx bxl-twitter"></i>
@@ -694,4 +695,5 @@
         var method = 'POST';
     </script>
     <script src="{{ asset('assets/js/admin/api.js') }}"></script>
+    <script src="{{ asset('assets/js/ad-builder.js') }}"></script>
 @endpush
