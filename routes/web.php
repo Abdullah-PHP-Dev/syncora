@@ -157,7 +157,13 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 		*/
 				// subscription flow (NO middleware restriction)
 				Route::get('/subscription/select', [SubscriptionController::class, 'select']);
-				Route::get('/subscription/checkout', [SubscriptionController::class, 'checkout']);
+				Route::get('/subscription/plans', [SubscriptionController::class, 'plans']);
+				Route::get('/subscription/checkout', [SubscriptionController::class, 'showCheckout'])->name('subscription.checkout');
+				Route::post('/subscription/checkout', [SubscriptionController::class, 'checkoutProcess'])->name('subscription.checkout.process');
+				Route::get('/subscription/checkout-data', [SubscriptionController::class, 'checkoutData'])->name('subscription.checkout.data');
+
+			/*	Route::post('/subscription/checkout', [SubscriptionController::class, 'checkout'])
+					->name('subscription.checkout.process');*/
 				Route::post('/subscription/activate', [SubscriptionController::class, 'activate']);
 				Route::post('/subscription/cancel', [SubscriptionController::class, 'cancel']);
 

@@ -19,18 +19,15 @@ class SubscriptionService
 
 	public function assignFreeTrial(User $user): Subscription
 	{
-		$bundle = Bundle::query()
-			->where('is_free', true)
-			->where('is_active', true)
-			->first();
+
+
+		$bundle = Bundle::query()->where('is_free', true)->where('is_active', true)->first();
 
 		if (! $bundle) {
 			throw new RuntimeException('Free bundle not found.');
 		}
 
-		[$start, $end] = $this->resolveDates(
-			data_get($bundle->meta, 'trial_days', self::DEFAULT_TRIAL_DAYS)
-		);
+		[$start, $end] = $this->resolveDates( data_get($bundle->meta, 'trial_days', self::DEFAULT_TRIAL_DAYS));
 
 		return DB::transaction(function () use ($user, $bundle, $start, $end) {
 			$subscription = Subscription::updateOrCreate(
@@ -135,7 +132,7 @@ class SubscriptionService
 	{
 		$start = now();
 
-		return [$start, $start->copy()->addMonths($months)];
+		return [$start, $start->copy()->addDays($months)];
 	}
 
 	public function checkout(
@@ -154,10 +151,10 @@ class SubscriptionService
 		$amount = $bundle['price'] * $this->resolveCycleToMonths($cycle);
 		$plan = $bundle;
 		$cycle = $cycle;
-		$this->validatePaymentAttempts($user);
+		//$this->validatePaymentAttempts($user);
 
 
-		$transaction = WalletTransaction::create([
+		/*$transaction = WalletTransaction::create([
 			                                         'seller_id' => $user->id,
 			                                         'amount' => $amount,
 			                                         'direction' => 'debit',
@@ -172,7 +169,7 @@ class SubscriptionService
 				                                         'cycle' => $cycle,
 				                                         'starts_at' => now()->toISOString(),
 			                                         ],
-		                                         ]);
+		                                         ]);*/
 
 
 		$payment = app(PaymentManager::class)
@@ -183,7 +180,7 @@ class SubscriptionService
 				      'bundle' => $bundle,
 				      'cycle' => $cycle,
 				      'type' => self::DEFAULT_SUBSCRIPTION,
-				      'transaction' => $transaction,
+				    /*  'transaction' => $transaction,*/
 			      ]);
 
 		/**
