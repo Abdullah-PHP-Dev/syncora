@@ -215,13 +215,17 @@ class PostController extends Controller
             ->get();
 
         // ---- Current month calendar: which days have posts/comments/messages ----
-        $calendarMonth = now();
-        $calendarPostDays = Post::where('user_id', $userId)
+        $calendarMonth = $request->filled('cal')
+            ? \Carbon\Carbon::createFromFormat('Y-m', $request->query('cal'))->startOfMonth()
+            : now();
+        $calendarMonthPosts = Post::where('user_id', $userId)
             ->whereMonth('created_at', $calendarMonth->month)
             ->whereYear('created_at', $calendarMonth->year)
+            ->with('media')
+            ->orderBy('created_at')
             ->get()
-            ->groupBy(fn ($p) => $p->created_at->day)
-            ->map->count();
+            ->groupBy(fn ($p) => $p->created_at->day);
+        $calendarPostDays = $calendarMonthPosts->map->count();
         $calendarPostsThisMonth = (int) $calendarPostDays->sum();
         $calendarCommentsThisMonth = PostComment::where('user_id', $userId)
             ->whereMonth('created_at', $calendarMonth->month)
@@ -232,6 +236,34 @@ class PostController extends Controller
             })
             ->whereMonth('created_at', $calendarMonth->month)
             ->whereYear('created_at', $calendarMonth->year)
+            ->count();
+
+        // ---- Unread inbox count, for the header notification bell ----
+        $totalUnreadMessages = Conversation::whereHas('channel', function ($q) use ($userId) {
+            $q->where('user_id', $userId);
+        })->sum('unread_count');
+
+        // ---- Week-over-week reach/engagement trend (real previous-7-days
+        // comparison, not a fabricated percentage) - used on the stat cards ----
+        $prevWeekReach = (int) Post::where('user_id', $userId)
+            ->whereBetween('created_at', [now()->subDays(13), now()->subDays(7)])
+            ->sum('reach');
+        $prevWeekEngagement = (int) Post::where('user_id', $userId)
+            ->whereBetween('created_at', [now()->subDays(13), now()->subDays(7)])
+            ->sum(DB::raw('likes + comments + shares'));
+        $currWeekReach = array_sum($dailyReach);
+        $currWeekEngagement = array_sum($dailyEngagement);
+        $reachChangePercent = $prevWeekReach > 0
+            ? round((($currWeekReach - $prevWeekReach) / $prevWeekReach) * 100, 1)
+            : null;
+        $engagementChangePercent = $prevWeekEngagement > 0
+            ? round((($currWeekEngagement - $prevWeekEngagement) / $prevWeekEngagement) * 100, 1)
+            : null;
+
+        // ---- New accounts connected in the last 7 days, for the Connected
+        // Accounts card (real signal, since follower history isn't tracked) ----
+        $newAccountsThisWeek = PostAccount::where('user_id', $userId)
+            ->where('created_at', '>=', now()->subDays(7))
             ->count();
 
         return view($this->_config['view'], compact(
@@ -275,12 +307,17 @@ class PostController extends Controller
             'dailyEngagement',
             'dailyClicks',
             'calendarMonth',
+            'calendarMonthPosts',
             'calendarPostDays',
             'calendarPostsThisMonth',
             'calendarCommentsThisMonth',
             'calendarMessagesThisMonth',
             'recentPosts',
-            'topPosts'
+            'topPosts',
+            'totalUnreadMessages',
+            'reachChangePercent',
+            'engagementChangePercent',
+            'newAccountsThisWeek'
         ));
     }
     /**
