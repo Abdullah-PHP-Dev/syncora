@@ -133,6 +133,6 @@ class User extends Authenticatable
 	{
 
 		return $this->subscription &&
-			($this->subscription->status === 'active' || $this->subscription->status === 'trial');
+			($this->subscription->status === 'active');
 	}
 }

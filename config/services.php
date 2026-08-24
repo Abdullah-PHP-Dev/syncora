@@ -34,6 +34,15 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+
+    'payment' => [
+
+	    'tap' => [
+		    'secret_key'  => env('TAP_SECRET_KEY'),
+		    'public_key'  => env('TAP_PUBLIC_KEY'),
+		    'merchant_id' => env('TAP_MERCHANT_ID'),
+	    ]
+    ],
     // No trailing slash - every consumer of this value (OAuth redirect_uri
     // builders across the Messaging and Ads modules) appends a leading-
     // slash path directly, eg. config('services.app_url') . '/admin/...'.

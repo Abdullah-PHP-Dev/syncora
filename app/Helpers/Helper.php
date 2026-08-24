@@ -2,6 +2,13 @@
 
 use App\Models\Admin\AdminSetting;
 
+
+function lang()
+{
+	return LaravelLocalization::getCurrentLocale();
+}
+
+
 if (! function_exists('adminSetting')) {
 
     /**
