@@ -39,6 +39,25 @@
         'draft'     => ['label' => 'Draft',     'class' => 'muted'],
     ];
 
+    // PostMedia::media_type is one of 'image' | 'gif' | 'video' | 'file' (the
+    // catch-all the upload services use for everything else - xlsx, pdf, docx,
+    // zip, ...). Videos never get a thumbnail_url generated (upload services
+    // leave it null - see MetaPostService::uploadMediaToS3()), and "file"
+    // uploads obviously aren't renderable as <img> either, so every spot that
+    // shows a post's media needs to branch on this rather than assuming
+    // media_url is always an image.
+    if (! function_exists('dash_media_preview')) {
+        function dash_media_preview($media) {
+            if (! $media) return null;
+            $ext = strtoupper(pathinfo($media->media_url ?? '', PATHINFO_EXTENSION));
+            return match ($media->media_type ?? 'file') {
+                'image', 'gif' => ['kind' => 'image', 'url' => $media->media_url],
+                'video' => ['kind' => 'video', 'url' => $media->thumbnail_url, 'ext' => $ext],
+                default => ['kind' => 'file', 'ext' => $ext ?: 'FILE'],
+            };
+        }
+    }
+
     $isCurrentMonth = $calendarMonth->isSameMonth(now());
     $prevCalMonth = $calendarMonth->copy()->subMonthNoOverflow()->format('Y-m');
     $nextCalMonth = $calendarMonth->copy()->addMonthNoOverflow()->format('Y-m');
@@ -240,15 +259,22 @@
                             @forelse($recentPosts as $post)
                             @php
                                 $meta = $platformMeta[$post->platform] ?? ['icon' => 'bx-globe', 'class' => 'facebook', 'label' => ucfirst($post->platform)];
-                                $thumb = $post->media->first()->thumbnail_url ?? $post->media->first()->media_url ?? $post->media_url ?? null;
+                                $preview = dash_media_preview($post->media->first());
                                 $sm = $statusMeta[$post->status] ?? ['label' => ucfirst($post->status), 'class' => 'muted'];
                             @endphp
                             <tr>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
-                                        <div class="dash-list-thumb">
-                                            @if($thumb)
-                                            <img src="{{ $thumb }}" alt="">
+                                        <div class="dash-list-thumb {{ ($preview['kind'] ?? null) === 'video' ? 'dash-list-thumb-video' : '' }}">
+                                            @if($preview && $preview['kind'] === 'image')
+                                            <img src="{{ $preview['url'] }}" alt="" onerror="this.remove()">
+                                            @elseif($preview && $preview['kind'] === 'video')
+                                                @if($preview['url'])
+                                                <img src="{{ $preview['url'] }}" alt="" onerror="this.remove()">
+                                                @endif
+                                                <span class="dash-media-video-badge"><i class="bx bx-play-circle"></i></span>
+                                            @elseif($preview && $preview['kind'] === 'file')
+                                            <span class="dash-media-file-badge">{{ $preview['ext'] }}</span>
                                             @else
                                             <span class="social-icon-mini {{ $meta['class'] }}"><i class="bx {{ $meta['icon'] }}"></i></span>
                                             @endif
@@ -284,10 +310,17 @@
                             @if($loop->first && $post->reach > 0)
                             <span class="dash-badge-best">Best Reach</span>
                             @endif
-                            <div class="dash-list-thumb dash-list-thumb-lg">
-                                @php $thumb = $post->media->first()->thumbnail_url ?? $post->media->first()->media_url ?? $post->media_url ?? null; @endphp
-                                @if($thumb)
-                                <img src="{{ $thumb }}" alt="">
+                            @php $preview = dash_media_preview($post->media->first()); @endphp
+                            <div class="dash-list-thumb dash-list-thumb-lg {{ ($preview['kind'] ?? null) === 'video' ? 'dash-list-thumb-video' : '' }}">
+                                @if($preview && $preview['kind'] === 'image')
+                                <img src="{{ $preview['url'] }}" alt="" onerror="this.remove()">
+                                @elseif($preview && $preview['kind'] === 'video')
+                                    @if($preview['url'])
+                                    <img src="{{ $preview['url'] }}" alt="" onerror="this.remove()">
+                                    @endif
+                                    <span class="dash-media-video-badge"><i class="bx bx-play-circle"></i></span>
+                                @elseif($preview && $preview['kind'] === 'file')
+                                <span class="dash-media-file-badge">{{ $preview['ext'] }}</span>
                                 @else
                                 <span class="social-icon-mini {{ $meta['class'] }}"><i class="bx {{ $meta['icon'] }}"></i></span>
                                 @endif
@@ -325,13 +358,20 @@
                     @endfor
                     @for($day=1;$day<=$calendarMonth->daysInMonth;$day++)
                         @php
-                            $dayPosts = $calendarMonthPosts[$day] ?? null;
-                            $dayThumb = $dayPosts?->first()?->media->first()->thumbnail_url ?? $dayPosts?->first()?->media->first()->media_url ?? null;
+                            $dayPreview = $dayPosts = $calendarMonthPosts[$day] ?? null;
+                            $dayPreview = dash_media_preview($dayPosts?->first()?->media->first());
                             $isToday = $isCurrentMonth && $day == now()->day;
                         @endphp
-                        <div class="dash-calendar-day {{ $isToday ? 'is-today' : '' }} {{ $dayPosts ? 'has-post' : '' }}" title="{{ $dayPosts ? $dayPosts->count().' post(s)' : '' }}">
-                            @if($dayThumb)
-                            <img src="{{ $dayThumb }}" alt="">
+                        <div class="dash-calendar-day {{ $isToday ? 'is-today' : '' }} {{ $dayPosts ? 'has-post' : '' }} {{ $dayPreview ? 'dash-calendar-day-'.$dayPreview['kind'] : '' }}" title="{{ $dayPosts ? $dayPosts->count().' post(s)' : '' }}">
+                            @if($dayPreview && $dayPreview['kind'] === 'image')
+                            <img src="{{ $dayPreview['url'] }}" alt="" onerror="this.remove()">
+                            @elseif($dayPreview && $dayPreview['kind'] === 'video')
+                                @if($dayPreview['url'])
+                                <img src="{{ $dayPreview['url'] }}" alt="" onerror="this.remove()">
+                                @endif
+                                <i class="bx bx-play-circle dash-calendar-media-icon"></i>
+                            @elseif($dayPreview && $dayPreview['kind'] === 'file')
+                            <i class="bx bxs-file-blank dash-calendar-media-icon"></i>
                             @endif
                             <span>{{ $day }}</span>
                         </div>
@@ -529,9 +569,19 @@
 .socialeaz-dash .dash-list { list-style: none; margin: 0; padding: 0; }
 .socialeaz-dash .dash-list li { display: flex; align-items: center; gap: .75rem; padding: .6rem 0; border-bottom: 1px solid var(--dash-border); position: relative; }
 .socialeaz-dash .dash-list li:last-child { border-bottom: none; }
-.socialeaz-dash .dash-list-thumb { width: 40px; height: 40px; border-radius: .5rem; overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--dash-card-hover); }
+.socialeaz-dash .dash-list-thumb { width: 40px; height: 40px; border-radius: .5rem; overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--dash-card-hover); position: relative; }
 .socialeaz-dash .dash-list-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .socialeaz-dash .dash-list-thumb-lg { width: 100%; height: 110px; border-radius: .6rem; }
+.socialeaz-dash .dash-media-video-badge {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(20,20,40,.35); color: #fff; font-size: 1.15rem;
+}
+.socialeaz-dash .dash-list-thumb-video { background: #1e1e2d; }
+.socialeaz-dash .dash-media-video-badge i { font-size: 1.5rem; }
+.socialeaz-dash .dash-media-file-badge {
+    display: inline-flex; align-items: center; justify-content: center; width: 100%; height: 100%;
+    background: var(--dash-primary); color: #fff; font-size: .62rem; font-weight: 700; letter-spacing: .02em;
+}
 .socialeaz-dash .dash-list-body { flex: 1; min-width: 0; }
 .socialeaz-dash .dash-list-body p { color: var(--dash-text); font-size: .8125rem; margin: 0; }
 .socialeaz-dash .dash-list-body small { color: var(--dash-muted); font-size: .7rem; }
@@ -565,7 +615,11 @@
 .socialeaz-dash .dash-calendar-day img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .55; }
 .socialeaz-dash .dash-calendar-day span { position: relative; z-index: 1; }
 .socialeaz-dash .dash-calendar-day.has-post span { color: #fff; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
-.socialeaz-dash .dash-calendar-day.has-post:not(:has(img))::after { content: ''; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: var(--dash-primary); }
+.socialeaz-dash .dash-calendar-day.has-post:not(.dash-calendar-day-image):not(.dash-calendar-day-video):not(.dash-calendar-day-file)::after { content: ''; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: var(--dash-primary); }
+.socialeaz-dash .dash-calendar-media-icon { position: absolute; top: 2px; right: 2px; z-index: 1; font-size: .7rem; color: var(--dash-primary); }
+.socialeaz-dash .dash-calendar-day-video:not(:has(img)) { background: #1e1e2d; }
+.socialeaz-dash .dash-calendar-day-video:not(:has(img)) span { color: #fff; }
+.socialeaz-dash .dash-calendar-day-video:not(:has(img)) .dash-calendar-media-icon { color: #fff; }
 .socialeaz-dash .dash-calendar-day.is-today { background: linear-gradient(135deg, var(--dash-primary), var(--dash-primary-2)); color: #fff; font-weight: 700; }
 .socialeaz-dash .dash-calendar-day.is-today span { color: #fff; }
 .socialeaz-dash .dash-calendar-legend { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1rem; font-size: .7rem; color: var(--dash-muted); }
