@@ -9,7 +9,6 @@
 @section('content')
 
 
-
     <section class="hero-section">
 
         <div class="grid-bg opacity-75"></div>

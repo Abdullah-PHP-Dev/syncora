@@ -1,135 +1,369 @@
-<nav class="layout-navbar container-xxl navbar-detached navbar navbar-expand-xl align-items-center bg-navbar-theme"
-     id="layout-navbar">
+<nav class="admin-navbar" id="layout-navbar">
 
-    <!-- Menu Toggle -->
-    <div class="layout-menu-toggle navbar-nav align-items-xl-center me-4 me-xl-0 d-xl-none">
-        <a class="nav-item nav-link px-0 me-xl-6" href="javascript:void(0)">
-            <i class="icon-base bx bx-menu icon-md"></i>
-        </a>
-    </div>
+    <!-- =====================================================
+         LEFT
+    ====================================================== -->
+    <div class="admin-navbar-left">
 
-    <div class="navbar-nav-right d-flex align-items-center justify-content-end" id="navbar-collapse">
+        <!-- Desktop Sidebar Toggle -->
+        <button type="button"
+                class="admin-menu-toggle d-none d-xl-flex"
+                id="adminSidebarToggle"
+                aria-label="Toggle sidebar"
+                title="Toggle sidebar">
+            <i class="bx bx-menu"></i>
+        </button>
+
+        <!-- Mobile Menu -->
+        <button type="button"
+                class="admin-menu-toggle d-xl-none"
+                aria-label="Open menu"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#layout-menu">
+            <i class="bx bx-menu"></i>
+        </button>
 
         <!-- Search -->
-        <div class="navbar-nav align-items-center me-auto">
-            <div class="nav-item d-flex align-items-center">
-                <span class="w-px-22 h-px-22">
-                    <i class="icon-base bx bx-search icon-md"></i>
-                </span>
+        <div class="admin-search">
+            <i class="bx bx-search"></i>
 
-                <input type="text"
-                       class="form-control border-0 shadow-none ps-1 ps-sm-2 d-md-block d-none"
-                       placeholder="Search..."
-                       aria-label="Search..." />
-            </div>
+            <input type="text"
+                   placeholder="Search..."
+                   aria-label="Search">
+
+            <span class="admin-search-shortcut">
+                ⌘ K
+            </span>
         </div>
 
-        <!-- Right Menu -->
-        <ul class="navbar-nav flex-row align-items-center ms-md-auto">
+    </div>
 
-            <!-- GitHub Button -->
-            <li class="nav-item lh-1 me-4">
-                <a class="github-button"
-                   href="https://github.com/themeselection/sneat-bootstrap-html-admin-template-free"
-                   data-icon="octicon-star"
-                   data-size="large"
-                   data-show-count="true"
-                   aria-label="Star Sneat on GitHub">
-                    Star
-                </a>
-            </li>
+
+    <!-- =====================================================
+         RIGHT
+    ====================================================== -->
+    <div class="admin-navbar-right">
+
+        <!-- =================================================
+             SUBSCRIPTION STATUS
+        ================================================== -->
+        @php
+            $hasActiveSubscription = isset($subscription)
+                && $subscription
+                && (
+                    !isset($subscription->active)
+                    || $subscription->active
+                );
+
+            $remainingDays = 0;
+
+            if ($hasActiveSubscription && isset($subscription->remaining_days)) {
+                $remainingDays = max(0, (int) $subscription->remaining_days);
+            }
+
+            $subscriptionPlan = $hasActiveSubscription
+                ? ($subscription->plan_name ?? 'Premium')
+                : 'Free Plan';
+        @endphp
+
+        <a href="{{ url('admin/subscription/select') }}"
+           class="admin-subscription-status {{ !$hasActiveSubscription ? 'is-free' : '' }}">
+
+            @if($hasActiveSubscription)
+
+                @if($remainingDays <= 7)
+                    <span class="admin-subscription-dot warning"></span>
+                @elseif($remainingDays <= 30)
+                    <span class="admin-subscription-dot attention"></span>
+                @else
+                    <span class="admin-subscription-dot"></span>
+                @endif
+
+                <span class="admin-subscription-info">
+
+                    <span class="admin-subscription-plan">
+                        {{ $subscriptionPlan }}
+                    </span>
+
+                    <span class="admin-subscription-days">
+                        @if($remainingDays <= 0)
+                            Expired
+                        @elseif($remainingDays == 1)
+                            1 day left
+                        @else
+                            {{ $remainingDays }} days left
+                        @endif
+                    </span>
+
+                </span>
+
+            @else
+
+                <span class="admin-subscription-icon">
+                    <i class="bx bx-sparkles"></i>
+                </span>
+
+                <span class="admin-subscription-info">
+
+                    <span class="admin-subscription-plan">
+                        Free Plan
+                    </span>
+
+                    <span class="admin-subscription-days">
+                        Upgrade
+                    </span>
+
+                </span>
+
+            @endif
+
+        </a>
+
+
+        <!-- =================================================
+             LANGUAGE
+        ================================================== -->
+        <div class="dropdown">
+
+            <button type="button"
+                    class="admin-navbar-icon dropdown-toggle"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                    title="Language">
+
+                <i class="bx bx-globe"></i>
+
+            </button>
+
+            <ul class="dropdown-menu dropdown-menu-end admin-language-dropdown">
+
+                <li>
+                    <a href="#"
+                       class="dropdown-item admin-language-item">
+
+                        <span class="admin-language-flag">
+                            🇬🇧
+                        </span>
+
+                        <span>
+                            English
+                        </span>
+
+                        @if(app()->getLocale() == 'en')
+                            <i class="bx bx-check admin-language-check"></i>
+                        @endif
+
+                    </a>
+                </li>
+
+                <li>
+                    <a href="#"
+                       class="dropdown-item admin-language-item">
+
+                        <span class="admin-language-flag">
+                            🇸🇦
+                        </span>
+
+                        <span>
+                            العربية
+                        </span>
+
+                        @if(app()->getLocale() == 'ar')
+                            <i class="bx bx-check admin-language-check"></i>
+                        @endif
+
+                    </a>
+                </li>
+
+            </ul>
+
+        </div>
+
+
+        <!-- =================================================
+             NOTIFICATIONS
+        ================================================== -->
+        <button type="button"
+                class="admin-navbar-icon admin-notification-button"
+                title="Notifications">
+
+            <i class="bx bx-bell"></i>
+
+            <span class="admin-notification-dot"></span>
+
+        </button>
+
+
+        <!-- =================================================
+             USER
+        ================================================== -->
+        <div class="admin-user dropdown">
+
+            <a href="javascript:void(0);"
+               class="admin-user-toggle dropdown-toggle"
+               data-bs-toggle="dropdown"
+               aria-expanded="false">
+
+                <div class="admin-user-avatar">
+
+                    <img src="{{ asset('assets/img/avatars/1.png') }}"
+                         alt="User Avatar">
+
+                    <span class="admin-user-online"></span>
+
+                </div>
+
+                <div class="admin-user-info d-none d-sm-flex">
+
+                    <span class="admin-user-name">
+                        {{ auth()->user()->name ?? 'Guest User' }}
+                    </span>
+
+                    <span class="admin-user-role">
+                        {{ auth()->user()->role ?? 'Administrator' }}
+                    </span>
+
+                </div>
+
+                <i class="bx bx-chevron-down admin-user-chevron d-none d-sm-block"></i>
+
+            </a>
+
 
             <!-- User Dropdown -->
-            <li class="nav-item navbar-dropdown dropdown-user dropdown">
+            <ul class="dropdown-menu dropdown-menu-end admin-user-dropdown">
 
-                <a class="nav-link dropdown-toggle hide-arrow p-0"
-                   href="javascript:void(0);"
-                   data-bs-toggle="dropdown">
+                <!-- Profile Header -->
+                <li class="admin-dropdown-profile">
 
-                    <div class="avatar avatar-online">
-                        <img src="{{ asset('assets/img/avatars/1.png') }}"
-                             alt="User Avatar"
-                             class="w-px-40 h-auto rounded-circle" />
+                    <div class="admin-dropdown-profile-inner">
+
+                        <div class="admin-user-avatar admin-user-avatar-lg">
+
+                            <img src="{{ asset('assets/img/avatars/1.png') }}"
+                                 alt="User Avatar">
+
+                            <span class="admin-user-online"></span>
+
+                        </div>
+
+                        <div>
+
+                            <div class="admin-dropdown-name">
+                                {{ auth()->user()->name ?? 'Guest User' }}
+                            </div>
+
+                            <div class="admin-dropdown-role">
+                                {{ auth()->user()->role ?? 'Administrator' }}
+                            </div>
+
+                        </div>
+
                     </div>
 
-                </a>
+                </li>
 
-                <ul class="dropdown-menu dropdown-menu-end">
 
-                    <!-- User Info -->
-                    <li>
-                        <a class="dropdown-item" href="#">
-                            <div class="d-flex">
+                <li>
+                    <hr class="dropdown-divider">
+                </li>
 
-                                <div class="flex-shrink-0 me-3">
-                                    <div class="avatar avatar-online">
-                                        <img src="{{ asset('assets/img/avatars/1.png') }}"
-                                             class="w-px-40 h-auto rounded-circle"
-                                             alt="User Avatar" />
-                                    </div>
-                                </div>
 
-                                <div class="flex-grow-1">
-                                    <h6 class="mb-0">
-                                        {{ auth()->user()->name ?? 'Guest User' }}
-                                    </h6>
-                                    <small class="text-body-secondary">
-                                        {{ auth()->user()->role ?? 'User' }}
-                                    </small>
-                                </div>
+                <!-- Profile -->
+                <li>
 
-                            </div>
-                        </a>
-                    </li>
+                    <a class="dropdown-item admin-dropdown-item"
+                       href="{{ route('admin.profiles.show', ['profile' => Auth::user()->id]) }}">
 
-                    <li><div class="dropdown-divider my-1"></div></li>
+                        <span class="admin-dropdown-icon">
+                            <i class="bx bx-user"></i>
+                        </span>
 
-                    <!-- Profile -->
-                    <li>
-                        <a class="dropdown-item" href="{{route('admin.profiles.show', ['profile' => Auth::user()->id])}}">
-                            <i class="icon-base bx bx-user icon-md me-3"></i>
-                            <span>{{ __('admin.profile.my_profile') }}</span>
-                        </a>
-                    </li>
+                        <span>
+                            {{ __('admin.profile.my_profile') }}
+                        </span>
 
-                    <!-- Settings -->
-                    <li>
-                        <a class="dropdown-item" href="#">
-                            <i class="icon-base bx bx-cog icon-md me-3"></i>
-                            <span>{{ __('admin.setting.header') }}</span>
-                        </a>
-                    </li>
+                    </a>
 
-                    <!-- Billing -->
-                    <li>
-                        <a class="dropdown-item" href="{{url('admin/subscription/select')}}">
-                            <span class="d-flex align-items-center">
-                                <i class="icon-base bx bx-credit-card icon-md me-3"></i>
-                                <span class="flex-grow-1">{{ __('admin.setting.billing_plan') }}</span>
+                </li>
 
-                            </span>
-                        </a>
-                    </li>
 
-                    <li><div class="dropdown-divider my-1"></div></li>
+                <!-- Settings -->
+                <li>
 
-                    <!-- Logout -->
-                    <li>
-                        <a class="dropdown-item" href="{{ route('logout') }}"
-                           onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+                    <a class="dropdown-item admin-dropdown-item"
+                       href="#">
 
-                            <i class="icon-base bx bx-power-off icon-md me-3"></i>
-                            <span>{{ __('admin.setting.logout') }}</span>
-                        </a>
+                        <span class="admin-dropdown-icon">
+                            <i class="bx bx-cog"></i>
+                        </span>
 
-                        <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
-                            @csrf
-                        </form>
-                    </li>
+                        <span>
+                            {{ __('admin.setting.header') }}
+                        </span>
 
-                </ul>
-            </li>
+                    </a>
 
-        </ul>
+                </li>
+
+
+                <!-- Billing -->
+                <li>
+
+                    <a class="dropdown-item admin-dropdown-item"
+                       href="{{ url('admin/subscription/select') }}">
+
+                        <span class="admin-dropdown-icon">
+                            <i class="bx bx-credit-card"></i>
+                        </span>
+
+                        <span>
+                            {{ __('admin.setting.billing_plan') }}
+                        </span>
+
+                    </a>
+
+                </li>
+
+
+                <li>
+                    <hr class="dropdown-divider">
+                </li>
+
+
+                <!-- Logout -->
+                <li>
+
+                    <a class="dropdown-item admin-dropdown-item admin-logout-item"
+                       href="{{ route('logout') }}"
+                       onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+
+                        <span class="admin-dropdown-icon">
+                            <i class="bx bx-log-out"></i>
+                        </span>
+
+                        <span>
+                            {{ __('admin.setting.logout') }}
+                        </span>
+
+                    </a>
+
+
+                    <form id="logout-form"
+                          action="{{ route('logout') }}"
+                          method="POST"
+                          class="d-none">
+
+                        @csrf
+
+                    </form>
+
+                </li>
+
+            </ul>
+
+        </div>
+
     </div>
+
 </nav>

@@ -19,7 +19,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet" />
+    <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+            rel="stylesheet"
+    />
 
     <!-- Iconify Icons -->
     <link rel="stylesheet" href="{{ asset('assets/vendor/fonts/iconify-icons.css') }}" />
@@ -28,6 +31,10 @@
     <link rel="stylesheet" href="{{ asset('assets/vendor/css/core.css') }}" />
     <link rel="stylesheet" href="{{ asset('assets/css/demo.css') }}" />
     <link rel="stylesheet" href="{{ asset('assets/css/admin.css') }}" />
+    <link
+            rel="stylesheet"
+            href="{{ asset('assets/css/socialeaz-admin.css') }}"
+    />
     <!-- Vendor CSS -->
     <link rel="stylesheet" href="{{ asset('assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css') }}" />
     <link rel="stylesheet" href="{{ asset('assets/vendor/libs/apex-charts/apex-charts.css') }}" />
@@ -62,51 +69,8 @@
                     @yield('content')
 
                 </div>
-                <footer class="content-footer footer bg-footer-theme">
-                    <div class="container-xxl">
-                        <div
-                                class="footer-container d-flex align-items-center justify-content-between py-4 flex-md-row flex-column">
-                            <div class="mb-2 mb-md-0">
-                                &#169;
-                                <script>
-                                    document.write(new Date().getFullYear());
-                                </script>
-                                , made with ❤️ by
-                                <a href="https://themeselection.com" target="_blank" class="footer-link">ThemeSelection</a>
-                            </div>
-                            <div class="d-none d-lg-inline-block">
-                                <a
-                                        href="https://themeselection.com/item/category/admin-templates/"
-                                        target="_blank"
-                                        class="footer-link me-4"
-                                >Admin Templates</a
-                                >
+                @include('layouts.partials.footer')
 
-                                <a href="https://themeselection.com/license/" class="footer-link me-4" target="_blank">License</a>
-                                <a
-                                        href="https://themeselection.com/item/category/bootstrap-admin-templates/"
-                                        target="_blank"
-                                        class="footer-link me-4"
-                                >Bootstrap Dashboard</a
-                                >
-
-                                <a
-                                        href="https://demos.themeselection.com/sneat-bootstrap-html-admin-template/documentation/"
-                                        target="_blank"
-                                        class="footer-link me-4"
-                                >Documentation</a
-                                >
-
-                                <a
-                                        href="https://github.com/themeselection/sneat-bootstrap-html-admin-template-free/issues"
-                                        target="_blank"
-                                        class="footer-link"
-                                >Support</a
-                                >
-                            </div>
-                        </div>
-                    </div>
-                </footer>
             </div>
 
         </div>
@@ -125,6 +89,32 @@
 <!-- Vendors JS -->
 <script src="{{ asset('assets/vendor/libs/apex-charts/apexcharts.js') }}"></script>
 
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+
+        const navbar = document.getElementById('layout-navbar');
+
+        if (!navbar) {
+            return;
+        }
+
+        function handleNavbarScroll() {
+            if (window.scrollY > 5) {
+                navbar.classList.add('is-scrolled');
+            } else {
+                navbar.classList.remove('is-scrolled');
+            }
+        }
+
+        handleNavbarScroll();
+
+        window.addEventListener('scroll', handleNavbarScroll, {
+            passive: true
+        });
+
+    });
+</script>
 <!-- Main JS -->
 <script src="{{ asset('assets/js/main.js') }}"></script>
 @vite(['resources/css/app.css', 'resources/js/app.js'])
