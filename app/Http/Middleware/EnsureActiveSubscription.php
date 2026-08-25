@@ -10,6 +10,8 @@ class EnsureActiveSubscription
 	public function handle(Request $request, Closure $next)
 	{
 		$user = auth()->user();
+		$role = $user->getRoleNames()->first();
+
 
 		if (! $user || ! $user->hasRole('seller')) {
 			abort(403);

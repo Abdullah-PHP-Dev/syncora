@@ -1,187 +1,348 @@
-<!-- Menu -->
-<aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme">
+<aside id="layout-menu" class="layout-menu menu-vertical admin-sidebar">
 
-    <!-- App Brand -->
-    <div class="app-brand demo">
-        <a href="{{ url('/') }}" class="app-brand-link">
-      <span class="app-brand-logo demo">
-        {{-- SVG Logo (unchanged) --}}
-        <span class="text-primary">
-         {{--{{ config('app.name') }}--}}
-        </span>
-      </span>
+    {{-- =========================================================
+         SIDEBAR HEADER
+    ========================================================== --}}
+    <div class="admin-sidebar-header">
 
-            <span class="app-brand-text demo menu-text fw-bold ms-2">
-        {{ config('app.name') }}
-      </span>
+        <a href="{{ url('/') }}" class="admin-sidebar-brand">
+
+            <span class="admin-sidebar-brand-icon">
+                {{-- Keep your existing SVG/logo here --}}
+                <span class="text-primary"></span>
+            </span>
+
+            <span class="admin-sidebar-brand-name">
+                {{ config('app.name') }}
+            </span>
+
         </a>
 
-        <a href="javascript:void(0);" class="layout-menu-toggle menu-link text-large ms-auto">
-            <i class="bx bx-chevron-left d-block d-xl-none align-middle"></i>
-        </a>
+        <button type="button"
+                class="admin-sidebar-collapse layout-menu-toggle"
+                aria-label="Toggle sidebar"
+                title="Collapse sidebar">
+
+            <i class="bx bx-chevron-left"></i>
+
+        </button>
+
     </div>
 
-    <div class="menu-divider mt-0"></div>
-    <div class="menu-inner-shadow"></div>
 
-    <ul class="menu-inner py-1">
+    {{-- =========================================================
+         SIDEBAR MENU
+    ========================================================== --}}
+    <div class="admin-sidebar-body">
 
-        {{-- DASHBOARD --}}
-        <li class="menu-item {{ request()->routeIs('dashboard') || request()->routeIs('crm-dashboard')  ? 'active open' : '' }}">
-            <a href="javascript:void(0);" class="menu-link menu-toggle">
-                <i class="menu-icon tf-icons bx bx-home-smile"></i>
-                <div>Dashboards</div>
-                <span class="badge rounded-pill bg-danger ms-auto">5</span>
-            </a>
+        <ul class="menu-inner admin-sidebar-menu">
 
-            <ul class="menu-sub">
-                <li class="menu-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                    <a href="{{ url('/admin/dashboard') }}" class="menu-link">Analytics</a>
-                </li>
+            {{-- DASHBOARD --}}
+            <li class="menu-item {{ request()->routeIs('admin.dashboard') || request()->routeIs('crm-dashboard') ? 'active' : '' }}">
 
-                <li class="menu-item {{ request()->routeIs('crm-dashboard') ? 'active' : '' }}">
-                    <a href="{{ url('/admin/dashboard/crm') }}" class="menu-link">CRM</a>
-                </li>
+                <a href="{{ url('/admin/dashboard') }}"
+                   class="menu-link">
 
-                <li class="menu-item">
-                    <a href="#" class="menu-link">eCommerce</a>
-                </li>
+                    <i class="menu-icon tf-icons bx bx-grid-alt"></i>
 
-                <li class="menu-item">
-                    <a href="#" class="menu-link">Logistics</a>
-                </li>
+                    <span>Dashboard</span>
 
-                <li class="menu-item">
-                    <a href="#" class="menu-link">Academy</a>
-                </li>
-            </ul>
-        </li>
+                </a>
 
-        {{-- LAYOUTS --}}
-        <li class="menu-item">
-            <a href="#" class="menu-link menu-toggle">
-                <i class="menu-icon tf-icons bx bx-layout"></i>
-                <div>Layouts</div>
-            </a>
+            </li>
 
-            <ul class="menu-sub">
-                <li class="menu-item"><a href="#" class="menu-link">Without menu</a></li>
-                <li class="menu-item"><a href="#" class="menu-link">Without navbar</a></li>
-                <li class="menu-item"><a href="#" class="menu-link">Fluid</a></li>
-                <li class="menu-item"><a href="#" class="menu-link">Container</a></li>
-                <li class="menu-item"><a href="#" class="menu-link">Blank</a></li>
-            </ul>
-        </li>
 
-        {{-- FRONT PAGES --}}
-        <li class="menu-item">
-            <a href="#" class="menu-link menu-toggle">
-                <i class="menu-icon tf-icons bx bx-store"></i>
-                <div>Front Pages</div>
-            </a>
+            {{-- =================================================
+                 MANAGEMENT
+            ================================================== --}}
+            <li class="admin-sidebar-section">
+                <span>Management</span>
+            </li>
 
-            <ul class="menu-sub">
-                <li class="menu-item"><a href="#" class="menu-link">Landing</a></li>
-                <li class="menu-item"><a href="#" class="menu-link">Pricing</a></li>
-                <li class="menu-item"><a href="#" class="menu-link">Payment</a></li>
-                <li class="menu-item"><a href="#" class="menu-link">Checkout</a></li>
-                <li class="menu-item"><a href="#" class="menu-link">Help Center</a></li>
-            </ul>
-        </li>
-        <li class="menu-item {{ (request()->routeIs('admin.ads.*') || request()->routeIs('admin.posts.*') || request()->routeIs('admin.chats.*') || request()->routeIs('admin.comments.*') || request()->routeIs('admin.email.*')) ? 'active open' : '' }}">
-            <a href="#" class="menu-link menu-toggle">
-                <i class="menu-icon tf-icons bx bx-broadcast"></i>
-                <div>{{ __('admin.marketing_tools.header') }}</div>
-            </a>
 
-            <ul class="menu-sub">
-                <li class="menu-item  {{ request()->routeIs('admin.ads.*')  ? 'active' : '' }}"><a href="{{route('admin.ads.dashboard')}}" class="menu-link">{{ __('admin.marketing_tools.ads.header') }}</a></li>
-                <li class="menu-item {{ request()->routeIs('admin.posts.*')  ? 'active' : '' }}"><a href="{{route('admin.posts.dashboard')}}" class="menu-link">{{ __('admin.marketing_tools.posts.header') }}</a></li>
-                <li class="menu-item {{ request()->routeIs('admin.chats.*')  ? 'active' : '' }}"><a href="{{route('admin.chats.dashboard')}}" class="menu-link">{{ __('admin.marketing_tools.chats.header') }}</a></li>
-                <li class="menu-item {{ request()->routeIs('admin.comments.*')  ? 'active' : '' }}"><a href="{{route('admin.comments.dashboard')}}" class="menu-link">{{ __('admin.marketing_tools.comments.header') }}</a></li>
-                <li class="menu-item {{ request()->routeIs('admin.email.*')  ? 'active' : '' }}"><a href="{{route('admin.email.dashboard')}}" class="menu-link">{{ __('admin.marketing_tools.email.header') }}</a></li>
-            </ul>
-        </li>
+            {{-- MARKETING --}}
+            <li class="menu-item
+                {{
+                    (
+                        request()->routeIs('admin.ads.*') ||
+                        request()->routeIs('admin.posts.*') ||
+                        request()->routeIs('admin.chats.*') ||
+                        request()->routeIs('admin.comments.*') ||
+                        request()->routeIs('admin.email.*')
+                    ) ? 'active open' : ''
+                }}">
 
-        {{-- APPS & PAGES --}}
-        <li class="menu-header small text-uppercase">
-            <span class="menu-header-text">Apps & Pages</span>
-        </li>
-        <li class="menu-item {{ request()->routeIs('admin.apis.*')  ? 'active' : '' }}"><a href="{{route('admin.apis.index')}}" class="menu-link"><i class="bx bx-chat me-2"></i>{{__('admin.api.header')}}</a></li>
-        <li class="menu-item {{ request()->routeIs('admin.integrations.*')  ? 'active' : '' }}"><a href="{{route('admin.integrations.index')}}" class="menu-link"><i class="bx bx-plug me-2"></i>Integrations</a></li>
-        <li class="menu-item"><a href="#" class="menu-link"><i class="bx bx-envelope me-2"></i>Email</a></li>
-        <li class="menu-item"><a href="#" class="menu-link"><i class="bx bx-chat me-2"></i>Chat</a></li>
-        <li class="menu-item"><a href="#" class="menu-link"><i class="bx bx-calendar me-2"></i>Calendar</a></li>
-        <li class="menu-item"><a href="#" class="menu-link"><i class="bx bx-grid me-2"></i>Kanban</a></li>
+                <a href="javascript:void(0)"
+                   class="menu-link menu-toggle">
 
-        {{-- ACCOUNT --}}
-        <li class="menu-item">
-            <a href="#" class="menu-link menu-toggle">
-                <i class="menu-icon tf-icons bx bx-dock-top"></i>
-                <div>Account Settings</div>
-            </a>
-            <ul class="menu-sub">
-                <li class="menu-item"><a href="#" class="menu-link">Account</a></li>
-                <li class="menu-item"><a href="#" class="menu-link">Notifications</a></li>
-                <li class="menu-item"><a href="#" class="menu-link">Connections</a></li>
-            </ul>
-        </li>
+                    <i class="menu-icon tf-icons bx bx-broadcast"></i>
 
-        {{-- AUTH --}}
-        <li class="menu-item">
-            <a href="#" class="menu-link menu-toggle">
-                <i class="menu-icon tf-icons bx bx-lock-open-alt"></i>
-                <div>Authentications</div>
-            </a>
-            <ul class="menu-sub">
-                <li class="menu-item"><a href="#" class="menu-link">Login</a></li>
-                <li class="menu-item"><a href="#" class="menu-link">Register</a></li>
-                <li class="menu-item"><a href="#" class="menu-link">Forgot Password</a></li>
-            </ul>
-        </li>
+                    <span>
+                        {{ __('admin.marketing_tools.header') }}
+                    </span>
 
-        {{-- COMPONENTS --}}
-        <li class="menu-header small text-uppercase">
-            <span class="menu-header-text">Components</span>
-        </li>
+                </a>
 
-        <li class="menu-item"><a href="#" class="menu-link"><i class="bx bx-collection me-2"></i>Cards</a></li>
+                <ul class="menu-sub">
 
-        {{-- UI --}}
-        <li class="menu-item">
-            <a href="#" class="menu-link menu-toggle">
-                <i class="menu-icon tf-icons bx bx-box"></i>
-                <div>User Interface</div>
-            </a>
+                    <li class="menu-item {{ request()->routeIs('admin.ads.*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.ads.dashboard') }}"
+                           class="menu-link">
+                            {{ __('admin.marketing_tools.ads.header') }}
+                        </a>
+                    </li>
 
-            <ul class="menu-sub">
-                <li class="menu-item"><a href="#" class="menu-link">Accordion</a></li>
-                <li class="menu-item"><a href="#" class="menu-link">Alerts</a></li>
-                <li class="menu-item"><a href="#" class="menu-link">Buttons</a></li>
-                <li class="menu-item"><a href="#" class="menu-link">Modals</a></li>
-            </ul>
-        </li>
+                    <li class="menu-item {{ request()->routeIs('admin.posts.*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.posts.dashboard') }}"
+                           class="menu-link">
+                            {{ __('admin.marketing_tools.posts.header') }}
+                        </a>
+                    </li>
 
-        {{-- TABLES --}}
-        <li class="menu-header small text-uppercase">
-            <span class="menu-header-text">Forms & Tables</span>
-        </li>
+                    <li class="menu-item {{ request()->routeIs('admin.chats.*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.chats.dashboard') }}"
+                           class="menu-link">
+                            {{ __('admin.marketing_tools.chats.header') }}
+                        </a>
+                    </li>
 
-        <li class="menu-item"><a href="#" class="menu-link"><i class="bx bx-table me-2"></i>Tables</a></li>
+                    <li class="menu-item {{ request()->routeIs('admin.comments.*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.comments.dashboard') }}"
+                           class="menu-link">
+                            {{ __('admin.marketing_tools.comments.header') }}
+                        </a>
+                    </li>
 
-        {{-- SUPPORT --}}
-        <li class="menu-item">
-            <a href="https://github.com/" target="_blank" class="menu-link">
-                <i class="bx bx-support me-2"></i>Support
-            </a>
-        </li>
+                    <li class="menu-item {{ request()->routeIs('admin.email.*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.email.dashboard') }}"
+                           class="menu-link">
+                            {{ __('admin.marketing_tools.email.header') }}
+                        </a>
+                    </li>
 
-        <li class="menu-item">
-            <a href="https://docs.example.com" target="_blank" class="menu-link">
-                <i class="bx bx-file me-2"></i>Documentation
-            </a>
-        </li>
+                </ul>
 
-    </ul>
+            </li>
+
+
+            {{-- API --}}
+            <li class="menu-item {{ request()->routeIs('admin.apis.*') ? 'active' : '' }}">
+
+                <a href="{{ route('admin.apis.index') }}"
+                   class="menu-link">
+
+                    <i class="menu-icon tf-icons bx bx-code-alt"></i>
+
+                    <span>
+                        {{ __('admin.api.header') }}
+                    </span>
+
+                </a>
+
+            </li>
+
+
+            {{-- =================================================
+                 APPLICATIONS
+            ================================================== --}}
+            <li class="admin-sidebar-section">
+                <span>Applications</span>
+            </li>
+
+
+            <li class="menu-item">
+                <a href="#" class="menu-link">
+                    <i class="menu-icon tf-icons bx bx-envelope"></i>
+                    <span>Email</span>
+                </a>
+            </li>
+
+
+            <li class="menu-item">
+                <a href="#" class="menu-link">
+                    <i class="menu-icon tf-icons bx bx-message-rounded"></i>
+                    <span>Chat</span>
+                </a>
+            </li>
+
+
+            <li class="menu-item">
+                <a href="#" class="menu-link">
+                    <i class="menu-icon tf-icons bx bx-calendar"></i>
+                    <span>Calendar</span>
+                </a>
+            </li>
+
+
+            <li class="menu-item">
+                <a href="#" class="menu-link">
+                    <i class="menu-icon tf-icons bx bx-task"></i>
+                    <span>Kanban</span>
+                </a>
+            </li>
+
+
+            {{-- =================================================
+                 ACCOUNT
+            ================================================== --}}
+            <li class="admin-sidebar-section">
+                <span>Account</span>
+            </li>
+
+
+            <li class="menu-item">
+
+                <a href="javascript:void(0)"
+                   class="menu-link menu-toggle">
+
+                    <i class="menu-icon tf-icons bx bx-user-circle"></i>
+
+                    <span>Account Settings</span>
+
+                </a>
+
+                <ul class="menu-sub">
+
+                    <li class="menu-item">
+                        <a href="#" class="menu-link">
+                            Account
+                        </a>
+                    </li>
+
+                    <li class="menu-item">
+                        <a href="#" class="menu-link">
+                            Notifications
+                        </a>
+                    </li>
+
+                    <li class="menu-item">
+                        <a href="#" class="menu-link">
+                            Connections
+                        </a>
+                    </li>
+
+                </ul>
+
+            </li>
+
+
+            <li class="menu-item">
+
+                <a href="javascript:void(0)"
+                   class="menu-link menu-toggle">
+
+                    <i class="menu-icon tf-icons bx bx-lock-alt"></i>
+
+                    <span>Authentications</span>
+
+                </a>
+
+                <ul class="menu-sub">
+
+                    <li class="menu-item">
+                        <a href="#" class="menu-link">
+                            Login
+                        </a>
+                    </li>
+
+                    <li class="menu-item">
+                        <a href="#" class="menu-link">
+                            Register
+                        </a>
+                    </li>
+
+                    <li class="menu-item">
+                        <a href="#" class="menu-link">
+                            Forgot Password
+                        </a>
+                    </li>
+
+                </ul>
+
+            </li>
+
+
+            {{-- =================================================
+                 DATA
+            ================================================== --}}
+            <li class="admin-sidebar-section">
+                <span>Data</span>
+            </li>
+
+
+            <li class="menu-item">
+                <a href="#" class="menu-link">
+                    <i class="menu-icon tf-icons bx bx-table"></i>
+                    <span>Tables</span>
+                </a>
+            </li>
+
+
+            {{-- =================================================
+                 SUPPORT
+            ================================================== --}}
+            <li class="admin-sidebar-section">
+                <span>Support</span>
+            </li>
+
+
+            <li class="menu-item">
+
+                <a href="https://github.com/"
+                   target="_blank"
+                   class="menu-link">
+
+                    <i class="menu-icon tf-icons bx bx-support"></i>
+
+                    <span>Support</span>
+
+                    <i class="bx bx-link-external admin-sidebar-external"></i>
+
+                </a>
+
+            </li>
+
+
+            <li class="menu-item">
+
+                <a href="https://docs.example.com"
+                   target="_blank"
+                   class="menu-link">
+
+                    <i class="menu-icon tf-icons bx bx-file"></i>
+
+                    <span>Documentation</span>
+
+                    <i class="bx bx-link-external admin-sidebar-external"></i>
+
+                </a>
+
+            </li>
+
+        </ul>
+
+    </div>
+
+
+    {{-- =========================================================
+         SIDEBAR FOOTER
+    ========================================================== --}}
+    <div class="admin-sidebar-footer">
+
+        <a href="{{ url('admin/subscription/select') }}"
+           class="admin-sidebar-subscription">
+
+            <i class="bx bx-crown"></i>
+
+            <div>
+                <strong>Subscription</strong>
+                <small>Manage your plan</small>
+            </div>
+
+            <i class="bx bx-chevron-right"></i>
+
+        </a>
+
+    </div>
+
 </aside>
-<!-- / Menu -->
