@@ -3146,3 +3146,8 @@
         transform: rotate(360deg);
     }
 }
+.menu .menu-sub > .menu-item > .menu-link::before,
+.menu-vertical .menu-item.active:not(.open) > .menu-link:not(.menu-toggle)::before{
+
+   display:none;
+}
