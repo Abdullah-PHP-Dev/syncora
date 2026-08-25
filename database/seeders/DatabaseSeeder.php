@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
 		                PackageSeeder::class,
                         CountrySeeder::class,
 		                BundleSeeder::class,
+		                IntegrationSeeder::class,
 	                ]);
         User::factory()->create([
             'name' => 'Test User',

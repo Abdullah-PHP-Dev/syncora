@@ -24,6 +24,7 @@ use App\Http\Controllers\Admin\EmailSubscriberController;
 use App\Http\Controllers\Admin\EmailTemplateController;
 use App\Http\Controllers\Admin\EmailCampaignController;
 use App\Http\Controllers\EmailUnsubscribeController;
+use App\Http\Controllers\Admin\IntegrationController;
 
 
 Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
@@ -209,6 +210,18 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 				Route::get('ads/{platform}/identities', [AdCampaignController::class, 'identities'])
 					->name('ads.identities');
+
+
+				// INTEGRATIONS - pixels/analytics/AI/ads services with a
+				// pasted ID or API key each (no OAuth - see
+				// Integration::getCredentialFieldsAttribute()), scoped per
+				// user like everything else here.
+				Route::get('integrations', [IntegrationController::class, 'index'])
+					->name('integrations.index');
+				Route::post('integrations/{integration}', [IntegrationController::class, 'store'])
+					->name('integrations.store');
+				Route::delete('integrations/connections/{userIntegration}', [IntegrationController::class, 'destroy'])
+					->name('integrations.destroy');
 
 
 				// POSTS
