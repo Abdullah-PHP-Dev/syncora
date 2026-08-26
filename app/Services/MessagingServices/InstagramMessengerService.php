@@ -31,8 +31,8 @@ class InstagramMessengerService
         $result = $this->graphApiCall('POST', 'me/messages', [
             'recipient'    => ['id' => $conversation->customer_external_id],
             'message'      => $message,
-            'access_token' => $channel->access_token,
-        ], $channel->access_token);
+            'access_token' => $channel->socialAccount->access_token,
+        ], $channel->socialAccount->access_token);
 
         if (!$result['success']) {
             Log::error('Instagram message reply failed.', [
@@ -75,10 +75,10 @@ class InstagramMessengerService
                     'url'  => $a['payload']['url'] ?? null,
                 ])->filter(fn($a) => $a['url'])->values()->all();
 
-                $profile = $this->fetchUserProfile($event['sender']['id'], $channel->access_token);
+                $profile = $this->fetchUserProfile($event['sender']['id'], $channel->socialAccount->access_token);
 
                 ProcessInboundMessage::dispatch(
-                    messageChannelId: $channel->id,
+                    socialAccountId: $channel->social_account_id,
                     customerExternalId: $event['sender']['id'],
                     customerName: $profile['name'] ?? null,
                     customerAvatarUrl: $profile['profile_pic'] ?? null,
@@ -128,7 +128,7 @@ class InstagramMessengerService
 
     public function syncChannelDetails(MessageChannel $channel): void
     {
-        $result = $this->graphApiCall('GET', $channel->external_id, ['fields' => 'biography,website'], $channel->access_token);
+        $result = $this->graphApiCall('GET', $channel->external_id, ['fields' => 'biography,website'], $channel->socialAccount->access_token);
 
         if (!$result['success']) {
             Log::warning('Instagram channel details sync failed.', ['channel_id' => $channel->id, 'error' => $result['error'] ?? null]);
@@ -140,7 +140,7 @@ class InstagramMessengerService
 
     public function subscribeToWebhooks(MessageChannel $channel): void
     {
-        $result = $this->graphApiCall('POST', $channel->external_id . '/subscribed_apps', ['subscribed_fields' => 'messages'], $channel->access_token);
+        $result = $this->graphApiCall('POST', $channel->external_id . '/subscribed_apps', ['subscribed_fields' => 'messages'], $channel->socialAccount->access_token);
 
         if ($result['success'] && ($result['data']['success'] ?? false)) {
             $channel->update(['webhook_subscribed' => true]);
@@ -154,7 +154,7 @@ class InstagramMessengerService
         $result = $this->graphApiCall('GET', $channel->external_id . '/conversations', [
             'fields' => "participants,updated_time,messages.limit({$messageLimit}){id,message,from,created_time}",
             'limit'  => $conversationLimit,
-        ], $channel->access_token);
+        ], $channel->socialAccount->access_token);
 
         if (!$result['success']) {
             Log::warning('Instagram conversation backfill failed.', ['channel_id' => $channel->id, 'error' => $result['error'] ?? null]);
@@ -176,10 +176,10 @@ class InstagramMessengerService
                     continue;
                 }
 
-                $profile = $this->fetchUserProfile($customer['id'], $channel->access_token);
+                $profile = $this->fetchUserProfile($customer['id'], $channel->socialAccount->access_token);
 
                 $conversation = Conversation::updateOrCreate(
-                    ['message_channel_id' => $channel->id, 'customer_external_id' => $customer['id']],
+                    ['social_account_id' => $channel->social_account_id, 'customer_external_id' => $customer['id']],
                     [
                         'platform'            => 'instagram',
                         'customer_name'       => $profile['name'] ?? null,

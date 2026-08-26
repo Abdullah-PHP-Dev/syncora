@@ -52,7 +52,7 @@ class LinkedinCommentWebhookController extends Controller
             [
                 'platform'        => 'linkedin',
                 'user_id'         => $post->user_id,
-                'post_account_id' => $post->post_account_id,
+                'social_account_id' => $post->social_account_id,
                 'user_name'       => $payload['actor'] ?? 'LinkedIn user',
                 'content'         => $payload['message']['text'] ?? ($payload['text'] ?? ''),
                 'sender_type'     => 'customer',

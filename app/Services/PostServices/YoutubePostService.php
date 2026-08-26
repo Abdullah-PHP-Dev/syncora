@@ -6,7 +6,7 @@ use App\Services\PostServices\ApiPostService;
 use Carbon\Carbon;
 use App\Jobs\UploadYoutubeVideoJob;
 use App\Models\Post;
-use App\Models\PostAccount;
+use App\Models\SocialAccount;
 use App\Models\PostMedia;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
@@ -35,7 +35,7 @@ class YoutubePostService
     protected function ensureValidToken($post)
     {
 
-        $account = $post->postAccount;
+        $account = $post->socialAccount;
         if (
             $account->expires_in &&
             now()->lt(Carbon::parse($account->expires_in)->subMinutes(5))
@@ -74,15 +74,15 @@ class YoutubePostService
     }
 
     /**
-     * Same refresh as ensureValidToken() above, but takes the PostAccount
-     * directly instead of assuming a Post whose ->postAccount resolves it -
-     * ensureValidToken($account) (passing a PostAccount straight in, as
-     * getComments() below used to) silently no-ops because PostAccount
-     * has no ->postAccount relation of its own, so the token just never
+     * Same refresh as ensureValidToken() above, but takes the SocialAccount
+     * directly instead of assuming a Post whose ->socialAccount resolves it -
+     * ensureValidToken($account) (passing a SocialAccount straight in, as
+     * getComments() below used to) silently no-ops because SocialAccount
+     * has no ->socialAccount relation of its own, so the token just never
      * gets refreshed. Used by every analytics/backfill path here, which
-     * only ever has a PostAccount in hand, not a Post.
+     * only ever has a SocialAccount in hand, not a Post.
      */
-    protected function ensureFreshAccountToken(PostAccount $account): bool
+    protected function ensureFreshAccountToken(SocialAccount $account): bool
     {
         if ($account->expires_in && now()->lt(Carbon::parse($account->expires_in)->subMinutes(5))) {
             return true;
@@ -157,9 +157,9 @@ class YoutubePostService
                     'visibility' => 'public',
                     'user_id' => Auth::user()->id,
                     'group_id' => $data['group_id'] ?? null,
-                    'post_account_id' => $page->id,
+                    'social_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
-                    'page_id' => $page->account_id,
+                    'page_id' => $page->platform_account_id,
                     'content' => $data['content'] ?? null,
                     'schedule_mode' => $data['schedule_mode'] ?? 0,
                     'schedule_at' => $data['schedule_at'] ?? null,
@@ -176,7 +176,7 @@ class YoutubePostService
                             'platform' => 'youtube',
                             'visibility' => 'public',
                             'user_id' => Auth::user()->id,
-                            'post_account_id' => $page->id,
+                            'social_account_id' => $page->id,
                             'post_category_id' => $data['category_id'],
                             'media_url' => $media['url'],
                             'media_type' => $media['media_type'],
@@ -196,7 +196,7 @@ class YoutubePostService
                 $results[] = $post;
             } catch (\Exception $e) {
                 $errors[] = [
-                    'page_id' => $page->account_id,
+                    'page_id' => $page->platform_account_id,
                     'page_name' => $page->page_name ?? $page->name,
                     'message' => $e->getMessage()
                 ];
@@ -350,7 +350,7 @@ class YoutubePostService
     public function publishPost($post)
     {
         try {
-            $account = $post->postAccount;
+            $account = $post->socialAccount;
             if (!$this->ensureValidToken($post)) {
                 $post->update([
                     'status' => 'failed',
@@ -534,14 +534,14 @@ class YoutubePostService
      * platforms. The raw statistics payload is merged into `insights`
      * for anything not surfaced via a dedicated column.
      */
-    public function syncAccountStats(PostAccount $account): void
+    public function syncAccountStats(SocialAccount $account): void
     {
         $this->ensureFreshAccountToken($account);
 
         $response = Http::withToken($account->access_token)
             ->get("{$this->baseUrl}/channels", [
                 'part' => 'statistics',
-                'id'   => $account->account_id,
+                'id'   => $account->platform_account_id,
             ]);
 
         if (!$response->successful()) {
@@ -582,9 +582,9 @@ class YoutubePostService
      * renewed before then - callers should re-invoke this periodically
      * (see YoutubeWebhookController's docblock for the renewal command).
      */
-    public function subscribeToWebhooks(PostAccount $account): void
+    public function subscribeToWebhooks(SocialAccount $account): void
     {
-        $topic = 'https://www.youtube.com/xml/feeds/videos.xml?channel_id=' . $account->account_id;
+        $topic = 'https://www.youtube.com/xml/feeds/videos.xml?channel_id=' . $account->platform_account_id;
         $callback = route('comments.webhook.youtube.receive');
 
         try {
@@ -622,13 +622,13 @@ class YoutubePostService
      * failure-tolerant - one bad video must not abort the rest of the
      * batch.
      */
-    public function backfillRecentPosts(PostAccount $account, int $videoLimit = 4, int $commentLimit = 5): void
+    public function backfillRecentPosts(SocialAccount $account, int $videoLimit = 4, int $commentLimit = 5): void
     {
         $this->ensureFreshAccountToken($account);
 
         $searchResponse = Http::withToken($account->access_token)
             ->get("{$this->baseUrl}/search", [
-                'channelId'  => $account->account_id,
+                'channelId'  => $account->platform_account_id,
                 'part'       => 'id',
                 'order'      => 'date',
                 'type'       => 'video',
@@ -663,7 +663,7 @@ class YoutubePostService
                 // (YoutubeWebhookController) call backfillOneVideo()
                 // directly and do still update on every call, since those
                 // specifically mean "this video changed."
-                if (Post::where('post_account_id', $account->id)->where('post_id', $videoId)->exists()) {
+                if (Post::where('social_account_id', $account->id)->where('post_id', $videoId)->exists()) {
                     continue;
                 }
 
@@ -681,7 +681,7 @@ class YoutubePostService
      * YoutubeWebhookController (a single new video announced via
      * WebSub) so both paths store identically-shaped data.
      */
-    public function backfillOneVideo(PostAccount $account, string $videoId, int $commentLimit = 5): ?Post
+    public function backfillOneVideo(SocialAccount $account, string $videoId, int $commentLimit = 5): ?Post
     {
         $this->ensureFreshAccountToken($account);
 
@@ -708,7 +708,7 @@ class YoutubePostService
         $thumbnailUrl = $snippet['thumbnails']['high']['url'] ?? ($snippet['thumbnails']['default']['url'] ?? null);
 
         $post = Post::updateOrCreate(
-            ['post_account_id' => $account->id, 'post_id' => $videoId],
+            ['social_account_id' => $account->id, 'post_id' => $videoId],
             [
                 'platform'    => 'youtube',
                 'user_id'     => $account->user_id,
@@ -735,7 +735,7 @@ class YoutubePostService
                 [
                     'platform'        => 'youtube',
                     'user_id'         => $account->user_id,
-                    'post_account_id' => $account->id,
+                    'social_account_id' => $account->id,
                     'media_id'        => $videoId,
                     'media_url'       => $thumbnailUrl,
                     'thumbnail_url'   => $thumbnailUrl,
@@ -765,7 +765,7 @@ class YoutubePostService
                         'user_avatar_url' => $top['authorProfileImageUrl'] ?? null,
                         'likes'           => (int) ($top['likeCount'] ?? 0),
                         'post_id'         => $post->id,
-                        'post_account_id' => $account->id,
+                        'social_account_id' => $account->id,
                         'is_reply'        => false,
                     ]
                 );
@@ -818,11 +818,11 @@ class YoutubePostService
                 ];
             }
 
-            $this->ensureValidToken($post->postAccount);
+            $this->ensureValidToken($post->socialAccount);
 
             $endpoint = "{$this->baseUrl}/videos?id={$post->post_id}";
 
-            $response = Http::withToken($post->postAccount->access_token)
+            $response = Http::withToken($post->socialAccount->access_token)
                 ->delete($endpoint);
 
             $responseData = $response->json();
@@ -976,7 +976,7 @@ class YoutubePostService
      */
     public function publishComment($comment, $data)
     {
-        $account = $comment->postAccount;
+        $account = $comment->socialAccount;
 
         $this->ensureValidToken($comment->post);
 
@@ -1027,7 +1027,7 @@ class YoutubePostService
             'is_reply'          => true,
             'user_name'         => Auth::user()?->name ?? 'Support',
             'comment_id'        => $commentId,
-            'post_account_id'   => $comment->postAccount?->id
+            'social_account_id'   => $comment->socialAccount?->id
         ]);
 
         return [
@@ -1071,7 +1071,7 @@ class YoutubePostService
      */
     public function destroyComment($chat)
     {
-        $this->ensureValidToken($chat->postAccount);
+        $this->ensureValidToken($chat->socialAccount);
 
         $endpoint = 'https://www.googleapis.com/youtube/v3/comments?id=' . $chat->comment_id;
 
@@ -1081,7 +1081,7 @@ class YoutubePostService
             'delete',
             $endpoint,
             [
-                'Authorization' => 'Bearer ' . $chat->postAccount->access_token,
+                'Authorization' => 'Bearer ' . $chat->socialAccount->access_token,
             ],
             [
                 'id' => $chat->comment_id

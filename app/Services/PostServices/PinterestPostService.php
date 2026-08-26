@@ -19,8 +19,8 @@ use Illuminate\Support\Facades\Http;
  * board (board_id is required on every Create Pin call) - Pinterest has
  * no equivalent of a plain profile feed. Rather than adding a
  * board-picker to the composer (a bigger UX change affecting every
- * platform's shared fields), each connected PostAccount gets one default
- * board resolved/created at connect time and stored in `settings.
+ * platform's shared fields), each connected SocialAccount gets one default
+ * board resolved/created at connect time and stored in `metadata.settings.
  * board_id` (see PostAccountController::callbackPinterest) - matching how
  * this app already stashes platform-specific extras (WhatsApp's waba_id)
  * in that same JSON column rather than bespoke tables.
@@ -43,9 +43,9 @@ class PinterestPostService
 
     protected function ensureValidToken($post)
     {
-        $account = $post->postAccount;
+        $account = $post->socialAccount;
 
-        if (!empty($account->expires_in) && Carbon::parse($account->expires_in)->gt(now()->addMinutes(5))) {
+        if (!empty($account->expires_at) && Carbon::parse($account->expires_at)->gt(now()->addMinutes(5))) {
             return true;
         }
 
@@ -70,7 +70,7 @@ class PinterestPostService
 
         $account->update([
             'access_token' => $tokenData['access_token'],
-            'expires_in'   => now()->addSeconds($tokenData['expires_in'] ?? 2592000),
+            'expires_at'   => now()->addSeconds($tokenData['expires_in'] ?? 2592000),
         ]);
 
         $account->refresh();
@@ -102,7 +102,7 @@ class PinterestPostService
                     'platform'         => 'pinterest',
                     'visibility'       => 'public',
                     'user_id'          => Auth::id(),
-                    'post_account_id'  => $page->id,
+                    'social_account_id'  => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
                     'content'          => $data['content'] ?? null,
                     'post_url'         => $data['url'] ?? null,
@@ -125,7 +125,7 @@ class PinterestPostService
                     'post_id'          => $post->id,
                     'visibility'       => 'public',
                     'user_id'          => Auth::id(),
-                    'post_account_id'  => $page->id,
+                    'social_account_id'  => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
                     'media_url'        => $media['url'],
                     'media_type'       => $media['media_type'],
@@ -140,7 +140,7 @@ class PinterestPostService
                 $results[] = $post;
             } catch (\Exception $e) {
                 $errors[] = [
-                    'page_id'   => $page->account_id,
+                    'page_id'   => $page->platform_account_id,
                     'page_name' => $page->name,
                     'message'   => $e->getMessage(),
                 ];
@@ -168,8 +168,8 @@ class PinterestPostService
             return ['success' => false];
         }
 
-        $account = $post->postAccount;
-        $boardId = $account->settings['board_id'] ?? null;
+        $account = $post->socialAccount;
+        $boardId = $account->metadata['settings']['board_id'] ?? null;
 
         if (!$boardId) {
             $post->update(['status' => 'failed', 'error_message' => 'This Pinterest account has no default board configured.']);
@@ -237,7 +237,7 @@ class PinterestPostService
     private function registerAndUploadVideo($mediaItem, $post): array
     {
         $registerResponse = $this->api->request('post', $this->baseUrl . 'media', [
-            'Authorization' => 'Bearer ' . $post->postAccount->access_token,
+            'Authorization' => 'Bearer ' . $post->socialAccount->access_token,
         ], ['media_type' => 'video']);
 
         if (!$registerResponse->successful()) {
@@ -269,7 +269,7 @@ class PinterestPostService
 
         for ($attempt = 0; $attempt < 15; $attempt++) {
             $statusResponse = $this->api->request('get', $this->baseUrl . "media/{$mediaId}", [
-                'Authorization' => 'Bearer ' . $post->postAccount->access_token,
+                'Authorization' => 'Bearer ' . $post->socialAccount->access_token,
             ]);
 
             $status = $statusResponse->json()['status'] ?? null;
@@ -300,7 +300,7 @@ class PinterestPostService
         $this->ensureValidToken($post);
 
         $response = $this->api->request('delete', $this->baseUrl . "pins/{$post->post_id}", [
-            'Authorization' => 'Bearer ' . $post->postAccount->access_token,
+            'Authorization' => 'Bearer ' . $post->socialAccount->access_token,
         ]);
 
         if (!$response->successful()) {

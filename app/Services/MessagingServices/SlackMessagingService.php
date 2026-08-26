@@ -6,6 +6,7 @@ use App\Jobs\Messaging\ProcessInboundMessage;
 use App\Models\Messaging\Conversation;
 use App\Models\Messaging\Message;
 use App\Models\Messaging\MessageChannel;
+use App\Models\SocialAccount;
 use App\Services\ApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -110,16 +111,23 @@ class SlackMessagingService
             $icon = $infoResponse['data']['team']['icon']['image_132'] ?? null;
         }
 
+        $account = SocialAccount::updateOrCreate(
+            ['platform' => 'slack', 'platform_account_id' => $team['id'], 'user_id' => Auth::id()],
+            [
+                'name'                     => $team['name'] ?? 'Slack Workspace',
+                'username'                 => $team['name'] ?? null,
+                'avatar_url'               => $icon,
+                'access_token'             => $token['access_token'],
+                'is_token_valid'           => true,
+                'has_messaging_permission' => true,
+            ]
+        );
+
         $channel = MessageChannel::updateOrCreate(
             ['platform' => 'slack', 'external_id' => $team['id']],
             [
-                'user_id'      => Auth::id(),
-                'name'         => $team['name'] ?? 'Slack Workspace',
-                'username'     => $team['name'] ?? null,
-                'avatar_url'   => $icon,
-                'access_token' => $token['access_token'],
-                'meta'         => ['bot_user_id' => $token['bot_user_id'] ?? null],
-                'status'       => true,
+                'social_account_id' => $account->id,
+                'meta'              => ['bot_user_id' => $token['bot_user_id'] ?? null],
             ]
         );
 
@@ -136,7 +144,7 @@ class SlackMessagingService
     private function resolveDmChannel(MessageChannel $channel, string $userId): ?string
     {
         $response = $this->apiService->post($this->baseUrl . 'conversations.open', [
-            'Authorization' => 'Bearer ' . $channel->access_token,
+            'Authorization' => 'Bearer ' . $channel->socialAccount->access_token,
         ], ['users' => $userId], 'form');
 
         return ($response['success'] && !empty($response['data']['ok']))
@@ -163,7 +171,7 @@ class SlackMessagingService
         }
 
         $response = $this->apiService->post($this->baseUrl . 'chat.postMessage', [
-            'Authorization' => 'Bearer ' . $channel->access_token,
+            'Authorization' => 'Bearer ' . $channel->socialAccount->access_token,
         ], [
             'channel' => $dmChannelId,
             'text'    => $text,
@@ -192,7 +200,7 @@ class SlackMessagingService
         $channel = $message->conversation->channel;
 
         $response = $this->apiService->post($this->baseUrl . 'chat.update', [
-            'Authorization' => 'Bearer ' . $channel->access_token,
+            'Authorization' => 'Bearer ' . $channel->socialAccount->access_token,
         ], [
             'channel' => $message->conversation->external_conversation_id,
             'ts'      => $message->external_message_id,
@@ -211,7 +219,7 @@ class SlackMessagingService
         $channel = $message->conversation->channel;
 
         $response = $this->apiService->post($this->baseUrl . 'chat.delete', [
-            'Authorization' => 'Bearer ' . $channel->access_token,
+            'Authorization' => 'Bearer ' . $channel->socialAccount->access_token,
         ], [
             'channel' => $message->conversation->external_conversation_id,
             'ts'      => $message->external_message_id,
@@ -296,7 +304,7 @@ class SlackMessagingService
         }
 
         ProcessInboundMessage::dispatch(
-            messageChannelId: $channel->id,
+            socialAccountId: $channel->social_account_id,
             customerExternalId: $userId,
             externalConversationId: $event['channel'] ?? null,
             externalMessageId: $event['ts'] ?? null,
@@ -325,7 +333,7 @@ class SlackMessagingService
         // dead/unreachable file URL must not crash the whole webhook
         // request.
         try {
-            $response = Http::withToken($channel->access_token)->get($url);
+            $response = Http::withToken($channel->socialAccount->access_token)->get($url);
         } catch (\Throwable) {
             return null;
         }

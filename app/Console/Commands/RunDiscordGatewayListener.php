@@ -32,7 +32,7 @@ class RunDiscordGatewayListener extends Command
             return self::FAILURE;
         }
 
-        $this->info("Starting Discord Gateway listener for channel #{$channel->id} ({$channel->name}).");
+        $this->info("Starting Discord Gateway listener for channel #{$channel->id} ({$channel->socialAccount->name}).");
 
         $loop = Loop::get();
         $connector = new Connector($loop);
@@ -70,7 +70,7 @@ class RunDiscordGatewayListener extends Command
                         });
 
                         // IDENTIFY (op 2)
-                        $rawToken = $channel->access_token
+                        $rawToken = $channel->socialAccount->access_token
                             ?? adminSetting('chats.discord.bot_token')
                             ?? config('services.discord.bot_token');
 

@@ -27,7 +27,7 @@ class PostComment extends Model
         
         // Relationships
         'user_id',
-        'post_account_id',
+        'social_account_id',
         'post_id',
         
         // User Information
@@ -175,11 +175,11 @@ class PostComment extends Model
     }
 
     /**
-     * Get the post account this comment belongs to.
+     * Get the social account this comment belongs to.
      */
-    public function postAccount(): BelongsTo
+    public function socialAccount(): BelongsTo
     {
-        return $this->belongsTo(PostAccount::class, 'post_account_id');
+        return $this->belongsTo(SocialAccount::class);
     }
 
     /**

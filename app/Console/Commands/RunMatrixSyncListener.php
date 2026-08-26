@@ -43,9 +43,9 @@ class RunMatrixSyncListener extends Command
         }
 
         $homeserverUrl = rtrim($channel->meta['homeserver_url'] ?? '', '/');
-        $authHeader = ['Authorization' => 'Bearer ' . $channel->access_token];
+        $authHeader = ['Authorization' => 'Bearer ' . $channel->socialAccount->access_token];
 
-        $this->info("Starting Matrix /sync listener for channel #{$channel->id} ({$channel->name}). This process runs forever.");
+        $this->info("Starting Matrix /sync listener for channel #{$channel->id} ({$channel->socialAccount->name}). This process runs forever.");
 
         // The very first /sync without a `since` token returns full
         // current state plus recent timeline for every joined room -

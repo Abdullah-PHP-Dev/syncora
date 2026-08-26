@@ -10,6 +10,7 @@ use Mcamara\LaravelLocalization\Facades\LaravelLocalization;
 use App\Http\Controllers\Admin\AdController;
 use App\Http\Controllers\Admin\PostController;
 use App\Http\Controllers\Admin\PostAccountController;
+use App\Http\Controllers\Admin\SocialAccountController;
 use App\Http\Controllers\Admin\ChatController;
 use App\Http\Controllers\Admin\MessageChannelController;
 use App\Http\Controllers\Admin\PostCommentController;
@@ -275,6 +276,19 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('post-accounts.google.callback');
 				Route::delete('post-accounts/{account}', [PostAccountController::class, 'destroy'])
 					->name('post-accounts.destroy');
+
+				// Unified combined-consent connect flow (posting + messaging +
+				// ads scopes in one redirect) for the four platforms where
+				// that's achievable in one OAuth app - see SocialAuthService.
+				// Additive alongside the per-module flows above/below: an
+				// account connected either way upserts into the same
+				// social_accounts row (matched on platform+platform_account_id
+				// +user_id), so nothing here replaces the existing buttons.
+				Route::get('social-accounts/{platform}/redirect', [SocialAccountController::class, 'redirect'])
+					->name('social-accounts.redirect');
+				Route::get('social-accounts/{platform}/callback', [SocialAccountController::class, 'callback'])
+					->name('social-accounts.callback');
+
 				Route::resource('categories', PostCategoryController::class);
 
 

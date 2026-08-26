@@ -37,11 +37,11 @@ class PostCategory extends Model
 
     /**
      * Get all accounts in this category (many-to-many via pivot table).
-     * If you use a pivot table 'post_accounts'.
+     * If you use a pivot table 'social_accounts'.
      */
-    public function postAccount()
+    public function socialAccount()
     {
-        return $this->belongsTo(PostAccount::class, 'post_account_id');
+        return $this->belongsTo(SocialAccount::class, 'social_account_id');
     }
 
     /**

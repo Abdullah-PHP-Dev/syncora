@@ -4,7 +4,7 @@ namespace App\Services\AdServices;
 
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Auth;
-use App\Models\Admin\AdAccount;
+use App\Models\SocialAccount;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdMedia;
@@ -46,7 +46,7 @@ class SnapchatAdService
 {
     protected $account, $config, $apiService, $header;
 
-    public function __construct(AdAccount $account, ApiService $apiService)
+    public function __construct(SocialAccount $account, ApiService $apiService)
     {
         $this->apiService = $apiService;
         $this->account = $account->wherePlatform('snapchat')->whereUserId(Auth::user()->id)->first();
@@ -119,7 +119,7 @@ class SnapchatAdService
 
     private function storeCampaign($platform, $request)
     {
-        $endpoint = $this->config . 'adaccounts/' . $this->account->ad_account_id . '/campaigns';
+        $endpoint = $this->config . 'adaccounts/' . $this->account->platform_account_id . '/campaigns';
 
         $objectiveProperties = ['objective_v2_type' => $request['objective']];
 
@@ -134,7 +134,7 @@ class SnapchatAdService
 
         $payload = [
             'campaigns' => [[
-                'ad_account_id' => $this->account->ad_account_id,
+                'ad_account_id' => $this->account->platform_account_id,
                 'name'          => $request['name'],
                 'status'        => 'PAUSED',
                 'start_time'    => Carbon::parse($request['start_time'])->utc()->format('Y-m-d\TH:i:s.v\Z'),
@@ -160,7 +160,7 @@ class SnapchatAdService
         $dataToInsert = [
             'ad_campaign_id'   => $id,
             'user_id'          => Auth::user()->id,
-            'ad_account_id'    => $this->account->id,
+            'social_account_id'    => $this->account->id,
             'name'             => $request['name'],
             'objective'        => $request['objective'],
             'budget_mode'      => $request['budget_mode'],
@@ -280,7 +280,7 @@ class SnapchatAdService
             'ad_campaign_id'      => $request['ad_campaign_id'],
             'user_id'             => Auth::user()->id,
             'ad_adgroup_id'       => $id,
-            'ad_account_id'       => $this->account->id,
+            'social_account_id'       => $this->account->id,
             'name'                => $request['name'],
             'location_ids'        => json_encode($countries),
             'platform'            => $platform,
@@ -321,10 +321,10 @@ class SnapchatAdService
 
             $containerResult = $this->parseSnapResponse(
                 $this->apiService->post(
-                    $this->config . "adaccounts/{$this->account->ad_account_id}/media",
+                    $this->config . "adaccounts/{$this->account->platform_account_id}/media",
                     $this->header['data'],
                     ['media' => [[
-                        'ad_account_id' => $this->account->ad_account_id,
+                        'ad_account_id' => $this->account->platform_account_id,
                         'type'          => strtoupper($mediaType),
                         'name'          => $fileName,
                     ]]]
@@ -370,7 +370,7 @@ class SnapchatAdService
 
             $dataToInsert = [
                 'ad_media_id'    => $snapMediaId,
-                'ad_account_id'  => $this->account->id,
+                'social_account_id'  => $this->account->id,
                 'ad_campaign_id' => $request['ad_campaign_id'],
                 'platform'       => $platform,
                 'name'           => $fileName,
@@ -445,7 +445,7 @@ class SnapchatAdService
             'ad_adgroup_id'   => $request['ad_adgroup_id'],
             'ad_creative_id'  => $id,
             'platform'        => 'snapchat',
-            'ad_account_id'   => $this->account->id,
+            'social_account_id'   => $this->account->id,
             'ad_campaign_id'  => $request['ad_campaign_id'],
             'name'            => $request['name'],
             'message'         => $request['description'] ?? null,
@@ -492,16 +492,16 @@ class SnapchatAdService
         $payload = array_merge([
             'name'          => $request['name'],
             'type'          => $request['creative_type'],
-            'ad_account_id' => $this->account->ad_account_id,
+            'ad_account_id' => $this->account->platform_account_id,
             'headline'      => $request['description'],
             'brand_name'    => $request['name'],
             'top_snap_media_id' => $media['media_id'],
-            'profile_properties' => ['profile_id' => $this->account->profile_id],
+            'profile_properties' => ['profile_id' => ($this->account->metadata['profile_id'] ?? null)],
         ], $properties);
 
         $result = $this->parseSnapResponse(
             $this->apiService->post(
-                $this->config . "adaccounts/{$this->account->ad_account_id}/creatives",
+                $this->config . "adaccounts/{$this->account->platform_account_id}/creatives",
                 $this->header['data'],
                 ['creatives' => [$payload]]
             ),
@@ -539,16 +539,16 @@ class SnapchatAdService
             $cardPayload = array_merge([
                 'name'          => $request['name'] . ' - Card ' . ($index + 1),
                 'type'          => 'SNAP_AD',
-                'ad_account_id' => $this->account->ad_account_id,
+                'ad_account_id' => $this->account->platform_account_id,
                 'headline'      => $cardMedia?->title ?: $request['description'],
                 'brand_name'    => $request['name'],
                 'top_snap_media_id' => $media['media_id'],
-                'profile_properties' => ['profile_id' => $this->account->profile_id],
+                'profile_properties' => ['profile_id' => ($this->account->metadata['profile_id'] ?? null)],
             ], $properties);
 
             $cardResult = $this->parseSnapResponse(
                 $this->apiService->post(
-                    $this->config . "adaccounts/{$this->account->ad_account_id}/creatives",
+                    $this->config . "adaccounts/{$this->account->platform_account_id}/creatives",
                     $this->header['data'],
                     ['creatives' => [$cardPayload]]
                 ),
@@ -566,7 +566,7 @@ class SnapchatAdService
         $compositePayload = [
             'name'          => $request['name'],
             'type'          => 'COMPOSITE',
-            'ad_account_id' => $this->account->ad_account_id,
+            'ad_account_id' => $this->account->platform_account_id,
             'headline'      => $request['description'],
             'brand_name'    => $request['name'],
             'composite_properties' => ['creative_ids' => $cardCreativeIds],
@@ -574,7 +574,7 @@ class SnapchatAdService
 
         $result = $this->parseSnapResponse(
             $this->apiService->post(
-                $this->config . "adaccounts/{$this->account->ad_account_id}/creatives",
+                $this->config . "adaccounts/{$this->account->platform_account_id}/creatives",
                 $this->header['data'],
                 ['creatives' => [$compositePayload]]
             ),
@@ -710,7 +710,7 @@ class SnapchatAdService
             'status'         => false,
             'platform'       => 'snapchat',
             'type'           => $request['creative_type'],
-            'ad_account_id'  => $this->account->id,
+            'social_account_id'  => $this->account->id,
             'ad_campaign_id' => $request['ad_campaign_id'],
             'name'           => $request['name'],
             'call_to_action' => $request['call_to_action'] ?? null,
@@ -894,7 +894,7 @@ class SnapchatAdService
 
         $result = $this->parseSnapResponse(
             $this->apiService->put(
-                $this->config . 'adaccounts/' . $this->account->ad_account_id . '/campaigns',
+                $this->config . 'adaccounts/' . $this->account->platform_account_id . '/campaigns',
                 $this->header['data'],
                 ['campaigns' => [[
                     'id'   => $campaign->ad_campaign_id,
@@ -969,7 +969,7 @@ class SnapchatAdService
             'ad_campaign_id'      => $campaignId,
             'user_id'             => Auth::user()->id,
             'ad_adgroup_id'       => $adGroup->ad_adgroup_id,
-            'ad_account_id'       => $this->account->id,
+            'social_account_id'       => $this->account->id,
             'name'                => $request['name'],
             'location_ids'        => json_encode($countries),
             'platform'            => $platform,
@@ -1009,7 +1009,7 @@ class SnapchatAdService
 
         $result = $this->parseSnapResponse(
             $this->apiService->put(
-                $this->config . "adaccounts/{$this->account->ad_account_id}/creatives",
+                $this->config . "adaccounts/{$this->account->platform_account_id}/creatives",
                 $this->header['data'],
                 ['creatives' => [array_merge([
                     'id'       => $existingCreative->ad_creative_id,
@@ -1083,7 +1083,7 @@ class SnapchatAdService
 
         $result = $this->parseSnapResponse(
             $this->apiService->put(
-                $this->config . 'adaccounts/' . $this->account->ad_account_id . '/campaigns',
+                $this->config . 'adaccounts/' . $this->account->platform_account_id . '/campaigns',
                 $this->header['data'],
                 ['campaigns' => [['id' => $campaign->ad_campaign_id, 'status' => $status]]]
             ),

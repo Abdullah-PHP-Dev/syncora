@@ -90,7 +90,7 @@ class WhatsAppPostService
                     'platform'         => 'whatsapp',
                     'visibility'       => 'public',
                     'user_id'          => Auth::id(),
-                    'post_account_id'  => $page->id,
+                    'social_account_id'  => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
                     'content'          => $data['content'] ?? null,
                     'media_url'        => $mediaUrl,
@@ -111,7 +111,7 @@ class WhatsAppPostService
                         'post_id'          => $post->id,
                         'visibility'       => 'public',
                         'user_id'          => Auth::id(),
-                        'post_account_id'  => $page->id,
+                        'social_account_id'  => $page->id,
                         'post_category_id' => $data['category_id'] ?? 1,
                         'media_url'        => $uploadedMedia['url'],
                         'media_type'       => $uploadedMedia['media_type'],
@@ -135,7 +135,7 @@ class WhatsAppPostService
                 $results[] = $post;
             } catch (\Exception $e) {
                 $errors[] = [
-                    'page_id'   => $page->account_id,
+                    'page_id'   => $page->platform_account_id,
                     'page_name' => $page->name,
                     'message'   => $e->getMessage(),
                 ];
@@ -185,9 +185,9 @@ class WhatsAppPostService
      */
     public function publishPost($post)
     {
-        $account = $post->postAccount;
+        $account = $post->socialAccount;
 
-        if (!$account || empty($account->access_token) || empty($account->account_id)) {
+        if (!$account || empty($account->access_token) || empty($account->platform_account_id)) {
             $post->update(['status' => 'failed', 'error_message' => 'WhatsApp account is not connected or missing its phone number ID.']);
 
             return ['success' => false, 'message' => 'WhatsApp account is not connected.'];
@@ -219,7 +219,7 @@ class WhatsAppPostService
             ];
         }
 
-        $endpoint = $this->baseUrl . $account->account_id . '/messages';
+        $endpoint = $this->baseUrl . $account->platform_account_id . '/messages';
         $recipients = $post->whatsappRecipients()->where('status', 'pending')->get();
 
         $sentCount = 0;

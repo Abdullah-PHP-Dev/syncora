@@ -3,6 +3,7 @@
 namespace App\Services\MessagingServices\Concerns;
 
 use App\Models\Messaging\MessageChannel;
+use App\Models\SocialAccount;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -139,18 +140,25 @@ trait InstagramMessagingTrait
                 $ig = $page['instagram_business_account'];
                 $pageAccessToken = $page['access_token'];
 
+                $account = SocialAccount::updateOrCreate(
+                    ['platform' => 'instagram', 'platform_account_id' => $ig['id'], 'user_id' => Auth::id()],
+                    [
+                        'name'                     => $ig['name'] ?? $ig['username'] ?? 'Instagram Business',
+                        'username'                 => $ig['username'] ?? null,
+                        'avatar_url'               => $ig['profile_picture_url'] ?? null,
+                        'access_token'             => $pageAccessToken,
+                        'refresh_token'            => $userToken,
+                        'is_token_valid'           => true,
+                        'has_messaging_permission' => true,
+                    ]
+                );
+
                 $channel = MessageChannel::updateOrCreate(
                     ['platform' => 'instagram', 'external_id' => $ig['id']],
                     [
-                        'user_id'       => Auth::id(),
-                        'name'          => $ig['name'] ?? $ig['username'] ?? 'Instagram Business',
-                        'username'      => $ig['username'] ?? null,
-                        'avatar_url'    => $ig['profile_picture_url'] ?? null,
-                        'access_token'  => $pageAccessToken,
-                        'refresh_token' => $userToken,
-                        'expires_at'    => now()->addSeconds($expiresIn),
-                        'status'        => true,
-                        'meta'          => ['auth_type' => 'instagram_business'],
+                        'social_account_id' => $account->id,
+                        'expires_at'        => now()->addSeconds($expiresIn),
+                        'meta'              => ['auth_type' => 'instagram_business'],
                     ]
                 );
 

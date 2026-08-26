@@ -2,7 +2,7 @@
 
 namespace App\Services\AdServices;
 
-use App\Models\Admin\AdAccount;
+use App\Models\SocialAccount;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdMedia;
@@ -88,7 +88,7 @@ class LinkedinAdService
     protected $account, $config, $apiService, $header;
     protected string $linkedinVersion = '202606';
 
-    public function __construct(AdAccount $account, ApiService $apiService)
+    public function __construct(SocialAccount $account, ApiService $apiService)
     {
         $this->apiService = $apiService;
         $this->account = $account->wherePlatform('linkedin')->whereUserId(Auth::user()->id)->first();
@@ -228,10 +228,11 @@ class LinkedinAdService
             }
 
             // Ad accounts and Organization Pages are different LinkedIn
-            // entities linked by this `reference` field - stored in the
-            // generic `profile_id` column (the same one SnapchatAdService
-            // uses for its own account->profile relationship) so
-            // createSponsoredPost() knows which Organization to author as.
+            // entities linked by this `reference` field - stored in
+            // `metadata['profile_id']` (the same convention
+            // SnapchatAdService uses for its own account->profile
+            // relationship) so createSponsoredPost() knows which
+            // Organization to author as.
             $orgId = null;
             if (!empty($detail['reference']) && preg_match('#urn:li:organization:(\d+)#', $detail['reference'], $orgMatch)) {
                 $orgId = $orgMatch[1];
@@ -242,20 +243,19 @@ class LinkedinAdService
                     'platform'      => 'linkedin',
                     'user_id'       => Auth::id(),
                     'name'          => $detail['name'] ?? "LinkedIn Ad Account {$accountId}",
-                    'currency'      => $detail['currency'] ?? null,
-                    'ad_account_id' => $accountId,
-                    'profile_id'    => $orgId,
+                    'platform_account_id' => $accountId,
                     'access_token'  => $accessToken,
                     'refresh_token' => $data['refresh_token'] ?? null,
                     'expires_at'    => $expiresAt,
-                    'status'        => 'active',
+                    'has_ads_permission' => true,
+                    'metadata'      => array_filter(['currency' => $detail['currency'] ?? null, 'profile_id' => $orgId]),
                 ],
                 [
                     'platform'      => 'linkedin',
-                    'ad_account_id' => $accountId,
+                    'platform_account_id' => $accountId,
                     'user_id'       => Auth::id(),
                 ],
-                new AdAccount
+                new SocialAccount
             );
 
             $connected++;
@@ -281,19 +281,20 @@ class LinkedinAdService
      * capable LinkedIn product; reporting stays pull-only via the
      * adAnalytics finder in the meantime.
      */
-    private function registerAdEventsCallback(AdAccount $account): void
+    private function registerAdEventsCallback(SocialAccount $account): void
     {
-        $account->update([
-            'settings' => array_merge($account->settings ?? [], [
-                'ad_events_callback_url' => route('ads.webhook.linkedin.receive'),
-            ]),
+        $metadata = $account->metadata ?? [];
+        $metadata['settings'] = array_merge($metadata['settings'] ?? [], [
+            'ad_events_callback_url' => route('ads.webhook.linkedin.receive'),
         ]);
+
+        $account->update(['metadata' => $metadata]);
     }
 
     /**
      * Guards every write entry point below. Without it, an unconnected (or
      * expired-and-unrefreshable) LinkedIn account fataled on
-     * $this->account->ad_account_id / $this->header['data'] deep inside the
+     * $this->account->platform_account_id / $this->header['data'] deep inside the
      * first API call, which the campaign form's AJAX handler could only
      * render as a bare "Server Error".
      */
@@ -358,10 +359,10 @@ class LinkedinAdService
 
     private function storeCampaign($platform, $request)
     {
-        $endpoint = $this->config . 'adAccounts/' . $this->account->ad_account_id . '/adCampaignGroups';
+        $endpoint = $this->config . 'adAccounts/' . $this->account->platform_account_id . '/adCampaignGroups';
 
         $payload = array_filter([
-            'account'     => 'urn:li:sponsoredAccount:' . $this->account->ad_account_id,
+            'account'     => 'urn:li:sponsoredAccount:' . $this->account->platform_account_id,
             'name'        => $request['name'],
             'status'      => 'DRAFT',
             'runSchedule' => array_filter([
@@ -385,7 +386,7 @@ class LinkedinAdService
         $dataToInsert = [
             'ad_campaign_id' => $id,
             'user_id'        => Auth::id(),
-            'ad_account_id'  => $this->account->id,
+            'social_account_id'  => $this->account->id,
             'name'           => $request['name'],
             'objective'      => $request['objective'] ?? null,
             'platform'       => $platform,
@@ -401,7 +402,7 @@ class LinkedinAdService
 
     private function storeAdGroup($platform, $request)
     {
-        $endpoint = $this->config . 'adAccounts/' . $this->account->ad_account_id . '/adCampaigns';
+        $endpoint = $this->config . 'adAccounts/' . $this->account->platform_account_id . '/adCampaigns';
         $targeting = $this->buildTargeting($request);
 
         $objective = $request['objective'] ?? 'WEBSITE_VISIT';
@@ -410,7 +411,7 @@ class LinkedinAdService
         $creativeType = $request['creative_type'] ?? 'SPONSORED_CONTENT';
 
         $payload = array_filter([
-            'account'                => 'urn:li:sponsoredAccount:' . $this->account->ad_account_id,
+            'account'                => 'urn:li:sponsoredAccount:' . $this->account->platform_account_id,
             'campaignGroup'          => 'urn:li:sponsoredCampaignGroup:' . $request['campaign_id'],
             'name'                   => $request['name'],
             'type'                   => $creativeType === 'TEXT_AD' ? 'TEXT_AD' : 'SPONSORED_UPDATES',
@@ -454,7 +455,7 @@ class LinkedinAdService
             'ad_campaign_id'      => $request['ad_campaign_id'],
             'user_id'             => Auth::id(),
             'ad_adgroup_id'       => $id,
-            'ad_account_id'       => $this->account->id,
+            'social_account_id'       => $this->account->id,
             'name'                => $request['name'],
             'platform'            => $platform,
             'objective'           => $objective,
@@ -772,7 +773,7 @@ class LinkedinAdService
 
             $dataToInsert = [
                 'ad_media_id'    => $urn,
-                'ad_account_id'  => $this->account->id,
+                'social_account_id'  => $this->account->id,
                 'ad_campaign_id' => $request['ad_campaign_id'],
                 'platform'       => $platform,
                 'name'           => $fileName,
@@ -806,7 +807,7 @@ class LinkedinAdService
     {
         $initResponse = $this->apiService->post($this->config . 'images?action=initializeUpload', $this->header['data'], [
             'initializeUploadRequest' => [
-                'owner' => 'urn:li:sponsoredAccount:' . $this->account->ad_account_id,
+                'owner' => 'urn:li:sponsoredAccount:' . $this->account->platform_account_id,
             ],
         ]);
 
@@ -835,7 +836,7 @@ class LinkedinAdService
 
         $initResponse = $this->apiService->post($this->config . 'videos?action=initializeUpload', $this->header['data'], [
             'initializeUploadRequest' => [
-                'owner'           => 'urn:li:sponsoredAccount:' . $this->account->ad_account_id,
+                'owner'           => 'urn:li:sponsoredAccount:' . $this->account->platform_account_id,
                 'fileSizeBytes'   => $fileSize,
                 'uploadCaptions'  => false,
                 'uploadThumbnail' => false,
@@ -918,7 +919,7 @@ class LinkedinAdService
             ];
         }
 
-        $response = $this->apiService->post($this->config . 'adAccounts/' . $this->account->ad_account_id . '/creatives', $this->header['data'], $payload);
+        $response = $this->apiService->post($this->config . 'adAccounts/' . $this->account->platform_account_id . '/creatives', $this->header['data'], $payload);
 
         if (!$response['success']) {
             return $this->errorResponse($response['data']['message'] ?? 'Failed to create LinkedIn Creative.');
@@ -935,7 +936,7 @@ class LinkedinAdService
             'ad_adgroup_id'  => $request['ad_adgroup_id'],
             'ad_creative_id' => $id,
             'platform'       => 'linkedin',
-            'ad_account_id'  => $this->account->id,
+            'social_account_id'  => $this->account->id,
             'ad_campaign_id' => $request['ad_campaign_id'],
             'name'           => $request['name'],
             'type'           => $creativeType,
@@ -968,7 +969,7 @@ class LinkedinAdService
      */
     private function createSponsoredPost($request)
     {
-        $organizationId = $this->account->profile_id ?? $this->account->ad_account_id;
+        $organizationId = $this->account->metadata['profile_id'] ?? $this->account->platform_account_id;
 
         $payload = [
             'author'                    => 'urn:li:organization:' . $organizationId,
@@ -1030,7 +1031,7 @@ class LinkedinAdService
             'status'         => false,
             'platform'       => 'linkedin',
             'type'           => $request['creative_type'] ?? 'SPONSORED_CONTENT',
-            'ad_account_id'  => $this->account->id,
+            'social_account_id'  => $this->account->id,
             'ad_campaign_id' => $request['ad_campaign_id'],
             'name'           => $request['name'],
             'call_to_action' => $request['call_to_action'] ?? null,
@@ -1157,7 +1158,7 @@ class LinkedinAdService
         $campaign = AdCampaign::findOrFail($id);
 
         $response = $this->apiService->post(
-            $this->config . 'adAccounts/' . $this->account->ad_account_id . '/adCampaignGroups/' . $campaign->ad_campaign_id,
+            $this->config . 'adAccounts/' . $this->account->platform_account_id . '/adCampaignGroups/' . $campaign->ad_campaign_id,
             array_merge($this->header['data'], ['X-RestLi-Method' => 'PARTIAL_UPDATE']),
             ['patch' => ['$set' => ['name' => $request['name']]]]
         );
@@ -1204,7 +1205,7 @@ class LinkedinAdService
         }
 
         $response = $this->apiService->post(
-            $this->config . 'adAccounts/' . $this->account->ad_account_id . '/adCampaigns/' . $adGroup->ad_adgroup_id,
+            $this->config . 'adAccounts/' . $this->account->platform_account_id . '/adCampaigns/' . $adGroup->ad_adgroup_id,
             array_merge($this->header['data'], ['X-RestLi-Method' => 'PARTIAL_UPDATE']),
             ['patch' => ['$set' => $patch]]
         );
@@ -1217,7 +1218,7 @@ class LinkedinAdService
             'ad_campaign_id'      => $campaignId,
             'user_id'             => Auth::id(),
             'ad_adgroup_id'       => $adGroup->ad_adgroup_id,
-            'ad_account_id'       => $this->account->id,
+            'social_account_id'       => $this->account->id,
             'name'                => $request['name'],
             'platform'            => $platform,
             'objective'           => $objective,
@@ -1279,7 +1280,7 @@ class LinkedinAdService
         $adGroup = AdAdGroup::whereAdCampaignId($id)->first();
 
         $response = $this->apiService->post(
-            $this->config . 'adAccounts/' . $this->account->ad_account_id . '/adCampaignGroups/' . $campaign->ad_campaign_id,
+            $this->config . 'adAccounts/' . $this->account->platform_account_id . '/adCampaignGroups/' . $campaign->ad_campaign_id,
             array_merge($this->header['data'], ['X-RestLi-Method' => 'PARTIAL_UPDATE']),
             ['patch' => ['$set' => ['status' => $status]]]
         );
@@ -1292,7 +1293,7 @@ class LinkedinAdService
 
         if ($adGroup) {
             $this->apiService->post(
-                $this->config . 'adAccounts/' . $this->account->ad_account_id . '/adCampaigns/' . $adGroup->ad_adgroup_id,
+                $this->config . 'adAccounts/' . $this->account->platform_account_id . '/adCampaigns/' . $adGroup->ad_adgroup_id,
                 array_merge($this->header['data'], ['X-RestLi-Method' => 'PARTIAL_UPDATE']),
                 ['patch' => ['$set' => ['status' => $status]]]
             );
@@ -1350,7 +1351,7 @@ class LinkedinAdService
     {
         try {
             $response = $this->apiService->post(
-                $this->config . 'adAccounts/' . $this->account->ad_account_id . '/' . $resource . '/' . $id,
+                $this->config . 'adAccounts/' . $this->account->platform_account_id . '/' . $resource . '/' . $id,
                 array_merge($this->header['data'], ['X-RestLi-Method' => 'PARTIAL_UPDATE']),
                 ['patch' => ['$set' => ['status' => 'ARCHIVED']]]
             );

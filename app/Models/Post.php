@@ -25,7 +25,7 @@ class Post extends Model
         'post_id',
         'user_id',
         'group_id',
-        'post_account_id',
+        'social_account_id',
         'post_category_id',
         'title',
         'post_url',
@@ -207,9 +207,9 @@ class Post extends Model
     /**
      * Get the social account this post belongs to.
      */
-    public function postAccount(): BelongsTo
+    public function socialAccount(): BelongsTo
     {
-        return $this->belongsTo(PostAccount::class, 'post_account_id');
+        return $this->belongsTo(SocialAccount::class);
     }
 
     /**
@@ -516,7 +516,7 @@ class Post extends Model
         // Handle Google / Google Business Profile (GBP) posts
         if (in_array($platform, ['google', 'gmb', 'google_my_business', 'google_business_profile'])) {
             // If your model stores the location ID separately or inside post_account metadata:
-            $locationId = $this->postAccount->account_id ?? null;
+            $locationId = $this->socialAccount->platform_account_id ?? null;
     
             if ($locationId) {
                 // Business Profile Manager direct post URL

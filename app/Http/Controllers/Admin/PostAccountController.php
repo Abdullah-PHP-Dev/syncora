@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\PostAccount;
+use App\Models\SocialAccount;
 use App\Services\PostServices\ApiPostService;
 use App\Services\PostServices\InstagramPostService;
 use App\Services\PostServices\MetaPostService;
@@ -17,8 +17,8 @@ use Carbon\Carbon;
 
 /**
  * Most platforms in the Posts module still have no working "connect an
- * account" flow (post_accounts rows aren't created anywhere for them -
- * confirmed by searching for PostAccount::create/updateOrCreate before
+ * account" flow (social_accounts rows aren't created anywhere for them -
+ * confirmed by searching for SocialAccount::create/updateOrCreate before
  * writing the first of these). This currently covers WhatsApp, Threads,
  * Pinterest, Facebook/Instagram, and LinkedIn - X, TikTok, and YouTube/
  * Google still have no connect flow.
@@ -53,14 +53,14 @@ class PostAccountController extends Controller
 
         $data = $check->json();
 
-        PostAccount::updateOrCreate(
-            ['platform' => 'whatsapp', 'account_id' => $validated['phone_number_id'], 'user_id' => Auth::id()],
+        SocialAccount::updateOrCreate(
+            ['platform' => 'whatsapp', 'platform_account_id' => $validated['phone_number_id'], 'user_id' => Auth::id()],
             [
-                'name'         => $validated['name'],
-                'username'     => $data['display_phone_number'] ?? null,
-                'access_token' => $validated['access_token'],
-                'is_active'    => true,
-                'status'       => 'active',
+                'name'                    => $validated['name'],
+                'username'                => $data['display_phone_number'] ?? null,
+                'access_token'            => $validated['access_token'],
+                'is_token_valid'          => true,
+                'has_posting_permission'  => true,
             ]
         );
 
@@ -130,15 +130,15 @@ class PostAccountController extends Controller
 
         $data = $check->json();
 
-        $account = PostAccount::updateOrCreate(
-            ['platform' => 'whatsapp', 'account_id' => $validated['phone_number_id'], 'user_id' => Auth::id()],
+        $account = SocialAccount::updateOrCreate(
+            ['platform' => 'whatsapp', 'platform_account_id' => $validated['phone_number_id'], 'user_id' => Auth::id()],
             [
-                'name'         => $validated['business_name'] ?: ($data['verified_name'] ?? 'WhatsApp Business'),
-                'username'     => $data['display_phone_number'] ?? null,
-                'access_token' => $accessToken,
-                'is_active'    => true,
-                'status'       => 'active',
-                'settings'     => ['waba_id' => $validated['waba_id']],
+                'name'                   => $validated['business_name'] ?: ($data['verified_name'] ?? 'WhatsApp Business'),
+                'username'               => $data['display_phone_number'] ?? null,
+                'access_token'           => $accessToken,
+                'is_token_valid'         => true,
+                'has_posting_permission' => true,
+                'metadata'               => ['settings' => ['waba_id' => $validated['waba_id']]],
             ]
         );
 
@@ -245,16 +245,16 @@ class PostAccountController extends Controller
         $expiresAt = Carbon::now()->addDays(60);
 
         foreach ($pagesResponse->json()['data'] ?? [] as $page) {
-            $facebookAccount = PostAccount::updateOrCreate(
-                ['platform' => 'facebook', 'account_id' => $page['id'], 'user_id' => Auth::id()],
+            $facebookAccount = SocialAccount::updateOrCreate(
+                ['platform' => 'facebook', 'platform_account_id' => $page['id'], 'user_id' => Auth::id()],
                 [
-                    'name'         => $page['name'],
-                    'username'     => $page['name'],
-                    'image'        => $page['picture']['data']['url'] ?? null,
-                    'access_token' => $page['access_token'],
-                    'expires_in'   => $expiresAt,
-                    'is_active'    => true,
-                    'status'       => 'active',
+                    'name'                   => $page['name'],
+                    'username'               => $page['name'],
+                    'avatar_url'             => $page['picture']['data']['url'] ?? null,
+                    'access_token'           => $page['access_token'],
+                    'expires_at'             => $expiresAt,
+                    'is_token_valid'         => true,
+                    'has_posting_permission' => true,
                 ]
             );
             $created['facebook']++;
@@ -264,7 +264,7 @@ class PostAccountController extends Controller
             // throwing) - this outer try/catch is a deliberate second
             // safety net so a Page too small for Meta's Insights API, or
             // a token missing a scope, can never prevent the
-            // PostAccount above from having already saved, or block the
+            // SocialAccount above from having already saved, or block the
             // other two operations from running.
             try {
                 $metaPostService->syncAccountStats($facebookAccount);
@@ -285,16 +285,16 @@ class PostAccountController extends Controller
             if (!empty($page['instagram_business_account']['id'])) {
                 $ig = $page['instagram_business_account'];
 
-                $instagramAccount = PostAccount::updateOrCreate(
-                    ['platform' => 'instagram', 'account_id' => $ig['id'], 'user_id' => Auth::id()],
+                $instagramAccount = SocialAccount::updateOrCreate(
+                    ['platform' => 'instagram', 'platform_account_id' => $ig['id'], 'user_id' => Auth::id()],
                     [
-                        'name'         => $ig['username'] ?? $page['name'],
-                        'username'     => $ig['username'] ?? null,
-                        'image'        => $ig['profile_picture_url'] ?? null,
-                        'access_token' => $page['access_token'],
-                        'expires_in'   => $expiresAt,
-                        'is_active'    => true,
-                        'status'       => 'active',
+                        'name'                   => $ig['username'] ?? $page['name'],
+                        'username'               => $ig['username'] ?? null,
+                        'avatar_url'             => $ig['profile_picture_url'] ?? null,
+                        'access_token'           => $page['access_token'],
+                        'expires_at'             => $expiresAt,
+                        'is_token_valid'         => true,
+                        'has_posting_permission' => true,
                     ]
                 );
                 $created['instagram']++;
@@ -406,16 +406,16 @@ class PostAccountController extends Controller
 
         $profileData = $profile->successful() ? $profile->json() : [];
 
-        PostAccount::updateOrCreate(
-            ['platform' => 'threads', 'account_id' => $threadsUserId, 'user_id' => Auth::id()],
+        SocialAccount::updateOrCreate(
+            ['platform' => 'threads', 'platform_account_id' => $threadsUserId, 'user_id' => Auth::id()],
             [
-                'name'         => $profileData['username'] ?? 'Threads Account',
-                'username'     => $profileData['username'] ?? null,
-                'image'        => $profileData['threads_profile_picture_url'] ?? null,
-                'access_token' => $accessToken,
-                'expires_in'   => Carbon::now()->addSeconds($expiresIn),
-                'is_active'    => true,
-                'status'       => 'active',
+                'name'                   => $profileData['username'] ?? 'Threads Account',
+                'username'               => $profileData['username'] ?? null,
+                'avatar_url'             => $profileData['threads_profile_picture_url'] ?? null,
+                'access_token'           => $accessToken,
+                'expires_at'             => Carbon::now()->addSeconds($expiresIn),
+                'is_token_valid'         => true,
+                'has_posting_permission' => true,
             ]
         );
 
@@ -491,18 +491,18 @@ class PostAccountController extends Controller
             return redirect()->route('admin.posts.create')->with('error', 'Connected to Pinterest, but no board could be found or created for posting.');
         }
 
-        PostAccount::updateOrCreate(
-            ['platform' => 'pinterest', 'account_id' => $profileData['username'] ?? $token['access_token'], 'user_id' => Auth::id()],
+        SocialAccount::updateOrCreate(
+            ['platform' => 'pinterest', 'platform_account_id' => $profileData['username'] ?? $token['access_token'], 'user_id' => Auth::id()],
             [
-                'name'          => $profileData['username'] ?? 'Pinterest Account',
-                'username'      => $profileData['username'] ?? null,
-                'image'         => $profileData['profile_image'] ?? null,
-                'access_token'  => $token['access_token'],
-                'refresh_token' => $token['refresh_token'] ?? null,
-                'expires_in'    => Carbon::now()->addSeconds($token['expires_in'] ?? 2592000),
-                'is_active'     => true,
-                'status'        => 'active',
-                'settings'      => ['board_id' => $boardId],
+                'name'                   => $profileData['username'] ?? 'Pinterest Account',
+                'username'               => $profileData['username'] ?? null,
+                'avatar_url'             => $profileData['profile_image'] ?? null,
+                'access_token'           => $token['access_token'],
+                'refresh_token'          => $token['refresh_token'] ?? null,
+                'expires_at'             => Carbon::now()->addSeconds($token['expires_in'] ?? 2592000),
+                'is_token_valid'         => true,
+                'has_posting_permission' => true,
+                'metadata'               => ['settings' => ['board_id' => $boardId]],
             ]
         );
 
@@ -608,17 +608,17 @@ class PostAccountController extends Controller
 
         $user = $userResponse->json()['data'];
 
-        PostAccount::updateOrCreate(
-            ['platform' => 'x', 'account_id' => $user['id'], 'user_id' => Auth::id()],
+        SocialAccount::updateOrCreate(
+            ['platform' => 'x', 'platform_account_id' => $user['id'], 'user_id' => Auth::id()],
             [
-                'name'          => $user['name'] ?? $user['username'],
-                'username'      => $user['username'] ?? null,
-                'image'         => $user['profile_image_url'] ?? null,
-                'access_token'  => $token['access_token'],
-                'refresh_token' => $token['refresh_token'] ?? null,
-                'expires_in'    => Carbon::now()->addSeconds($token['expires_in'] ?? 7200),
-                'is_active'     => true,
-                'status'        => 'active',
+                'name'                   => $user['name'] ?? $user['username'],
+                'username'               => $user['username'] ?? null,
+                'avatar_url'             => $user['profile_image_url'] ?? null,
+                'access_token'           => $token['access_token'],
+                'refresh_token'          => $token['refresh_token'] ?? null,
+                'expires_at'             => Carbon::now()->addSeconds($token['expires_in'] ?? 7200),
+                'is_token_valid'         => true,
+                'has_posting_permission' => true,
             ]
         );
 
@@ -733,15 +733,15 @@ class PostAccountController extends Controller
             $orgResponse = $api->request('get', $baseUrl . 'organizations/' . $orgId, $headers);
             $org = $orgResponse->successful() ? $orgResponse->json() : [];
 
-            $linkedinAccount = PostAccount::updateOrCreate(
-                ['platform' => 'linkedin', 'account_id' => $orgId, 'user_id' => Auth::id()],
+            $linkedinAccount = SocialAccount::updateOrCreate(
+                ['platform' => 'linkedin', 'platform_account_id' => $orgId, 'user_id' => Auth::id()],
                 [
-                    'name'         => $org['localizedName'] ?? 'LinkedIn Organization',
-                    'username'     => $org['vanityName'] ?? null,
-                    'access_token' => $accessToken,
-                    'expires_in'   => Carbon::now()->addSeconds($token['expires_in'] ?? 5184000),
-                    'is_active'    => true,
-                    'status'       => 'active',
+                    'name'                   => $org['localizedName'] ?? 'LinkedIn Organization',
+                    'username'               => $org['vanityName'] ?? null,
+                    'access_token'           => $accessToken,
+                    'expires_at'             => Carbon::now()->addSeconds($token['expires_in'] ?? 5184000),
+                    'is_token_valid'         => true,
+                    'has_posting_permission' => true,
                 ]
             );
             $created++;
@@ -749,7 +749,7 @@ class PostAccountController extends Controller
             // Each of these three is independently failure-tolerant (see
             // their own docblocks) - this outer try/catch is a deliberate
             // second safety net so a missing scope/analytics approval can
-            // never prevent the PostAccount above from having already
+            // never prevent the SocialAccount above from having already
             // saved, or block the other two operations from running. Same
             // shape as callbackMeta()'s post-connect sync above.
             try {
@@ -862,26 +862,32 @@ class PostAccountController extends Controller
         $igUser = $userResponse->json();
         $accId  = $igUser['id'] ?? $igUserId;
 
-        // 5. Store / Update PostAccount Record
-        $instagramAccount = PostAccount::updateOrCreate(
+        // 5. Store / Update SocialAccount Record
+        $instagramAccount = SocialAccount::updateOrCreate(
             [
-                'platform'   => 'instagram',
-                'account_id' => $accId,
-                'user_id'    => Auth::id(),
+                'platform'             => 'instagram',
+                'platform_account_id'  => $accId,
+                'user_id'              => Auth::id(),
             ],
             [
-                'name'         => $igUser['name'] ?? $igUser['username'] ?? 'Instagram Business',
-                'username'     => $igUser['username'] ?? null,
-                'avatar'       => $igUser['profile_picture_url'] ?? null,
-                'access_token' => $accessToken,
-                'expires_in'   => Carbon::now()->addSeconds($expiresIn),
-                'is_active'    => true,
-                'status'       => 'active',
+                'name'                   => $igUser['name'] ?? $igUser['username'] ?? 'Instagram Business',
+                'username'               => $igUser['username'] ?? null,
+                // Bug fix: this used to write an 'avatar' key, which isn't
+                // a real column on the old PostAccount model's fillable
+                // (nor is it 'avatar_url'/'image'), so it was silently
+                // dropped by mass-assignment protection and the standalone
+                // Instagram Login flow never actually persisted an avatar.
+                // Now correctly targets avatar_url.
+                'avatar_url'             => $igUser['profile_picture_url'] ?? null,
+                'access_token'           => $accessToken,
+                'expires_at'             => Carbon::now()->addSeconds($expiresIn),
+                'is_token_valid'         => true,
+                'has_posting_permission' => true,
                 // Tags this account as a standalone Instagram Login token
                 // (graph.instagram.com), distinct from callbackMeta()'s
                 // Facebook Page tokens (graph.facebook.com) - see
                 // InstagramPostService::resolveBaseUrl().
-                'settings'     => ['auth_type' => 'instagram_login'],
+                'metadata'               => ['settings' => ['auth_type' => 'instagram_login']],
             ]
         );
 
@@ -989,23 +995,25 @@ class PostAccountController extends Controller
 
         $profile = $profileResponse->successful() ? ($profileResponse->json()['data']['user'] ?? []) : [];
 
-        PostAccount::updateOrCreate(
-            ['platform' => 'tiktok', 'account_id' => $token['open_id'], 'user_id' => Auth::id()],
+        SocialAccount::updateOrCreate(
+            ['platform' => 'tiktok', 'platform_account_id' => $token['open_id'], 'user_id' => Auth::id()],
             [
-                'name'             => $profile['display_name'] ?? 'TikTok Account',
-                'username'         => $profile['username'] ?? null,
-                'image'            => $profile['avatar_url'] ?? null,
-                'access_token'     => $token['access_token'],
-                'refresh_token'    => $token['refresh_token'] ?? null,
-                'expires_in'       => Carbon::now()->addSeconds($token['expires_in'] ?? 86400),
-                'is_active'        => true,
-                'status'           => 'active',
-                'follower_count'   => $profile['follower_count'],
-                'description'      => $profile['bio_description'],
-                'account_url'      => $profile['profile_deep_link'],
-                'likes_count'      => $profile['likes_count'],
-                'following_count'  => $profile['following_count'],
-                'media_count'      => $profile['video_count'],
+                'name'                   => $profile['display_name'] ?? 'TikTok Account',
+                'username'               => $profile['username'] ?? null,
+                'avatar_url'             => $profile['avatar_url'] ?? null,
+                'access_token'           => $token['access_token'],
+                'refresh_token'          => $token['refresh_token'] ?? null,
+                'expires_at'             => Carbon::now()->addSeconds($token['expires_in'] ?? 86400),
+                'is_token_valid'         => true,
+                'has_posting_permission' => true,
+                'followers_count'        => $profile['follower_count'],
+                'likes_count'            => $profile['likes_count'],
+                'metadata'               => [
+                    'description'     => $profile['bio_description'],
+                    'account_url'     => $profile['profile_deep_link'],
+                    'following_count' => $profile['following_count'],
+                    'media_count'     => $profile['video_count'],
+                ],
             ]
         );
 
@@ -1085,22 +1093,24 @@ class PostAccountController extends Controller
         if ($channelResponse->successful() && !empty($channelResponse->json()['items'])) {
             $channel = $channelResponse->json()['items'][0];
 
-            $youtubeAccount = PostAccount::updateOrCreate(
-                ['platform' => 'youtube', 'account_id' => $channel['id'], 'user_id' => Auth::id()],
+            $youtubeAccount = SocialAccount::updateOrCreate(
+                ['platform' => 'youtube', 'platform_account_id' => $channel['id'], 'user_id' => Auth::id()],
                 [
-                    'name'          => $channel['snippet']['title'] ?? 'YouTube Channel',
-                    'username'      => $channel['snippet']['customUrl'] ?? null,
-                    'description'     => $channel['snippet']['description'] ?? '',
-                    'image'         => $channel['snippet']['thumbnails']['default']['url'] ?? null,
-                    'account_url'   => 'https://www.youtube.com/' . $channel['snippet']['customUrl'] ?? null,
-                    'access_token'  => $accessToken,
-                    'media_count'   => $channel['statistics']['videoCount'] ?? null,
-                    'views_count'    => $channel['statistics']['viewCount'] ?? null,
-                    'follower_count'  => $channel['statistics']['subscriberCount'] ?? null,
-                    'refresh_token' => $token['refresh_token'] ?? null,
-                    'expires_in'    => $expiresAt,
-                    'is_active'     => true,
-                    'status'        => 'active',
+                    'name'                   => $channel['snippet']['title'] ?? 'YouTube Channel',
+                    'username'               => $channel['snippet']['customUrl'] ?? null,
+                    'avatar_url'             => $channel['snippet']['thumbnails']['default']['url'] ?? null,
+                    'access_token'           => $accessToken,
+                    'followers_count'        => $channel['statistics']['subscriberCount'] ?? null,
+                    'refresh_token'          => $token['refresh_token'] ?? null,
+                    'expires_at'             => $expiresAt,
+                    'is_token_valid'         => true,
+                    'has_posting_permission' => true,
+                    'metadata'               => [
+                        'description'  => $channel['snippet']['description'] ?? '',
+                        'account_url'  => 'https://www.youtube.com/' . $channel['snippet']['customUrl'] ?? null,
+                        'media_count'  => $channel['statistics']['videoCount'] ?? null,
+                        'views_count'  => $channel['statistics']['viewCount'] ?? null,
+                    ],
                 ]
             );
             $created['youtube']++;
@@ -1127,12 +1137,12 @@ class PostAccountController extends Controller
 
         // Google Business Profile - every location under every account the
         // user manages, mirroring GooglePostService's accounts/{parent}/
-        // locations/{account_id} nesting (parent_account_id stores the raw
-        // GBP account id a location belongs to - GooglePostService reads
-        // it directly as a URL path segment, not as a post_accounts.id
-        // foreign key, despite the model's own parentAccount() relation
-        // assuming the latter; this matches what publishPost() actually
-        // needs to work).
+        // locations/{account_id} nesting (metadata['parent_account_id']
+        // stores the raw GBP account id a location belongs to -
+        // GooglePostService reads it directly as a URL path segment, not
+        // as a social_accounts.id foreign key - SocialAccount has no
+        // parent_account_id column at all, so this is folded into
+        // metadata instead).
         $accountBaseUrl = adminSetting('posts.google.account_base_url') ?: 'https://mybusinessaccountmanagement.googleapis.com/v1/';
         $accountsResponse = $api->request('get', $accountBaseUrl . 'accounts', $headers);
 
@@ -1185,16 +1195,16 @@ class PostAccountController extends Controller
                         continue;
                     }
 
-                    PostAccount::updateOrCreate(
-                        ['platform' => 'google', 'account_id' => $locationId, 'user_id' => Auth::id()],
+                    SocialAccount::updateOrCreate(
+                        ['platform' => 'google', 'platform_account_id' => $locationId, 'user_id' => Auth::id()],
                         [
-                            'name'              => $location['title'] ?? 'Google Business location',
-                            'parent_account_id' => $gbpAccountId,
-                            'access_token'      => $accessToken,
-                            'refresh_token'     => $token['refresh_token'] ?? null,
-                            'expires_in'        => $expiresAt,
-                            'is_active'         => true,
-                            'status'            => 'active',
+                            'name'                   => $location['title'] ?? 'Google Business location',
+                            'access_token'           => $accessToken,
+                            'refresh_token'          => $token['refresh_token'] ?? null,
+                            'expires_at'             => $expiresAt,
+                            'is_token_valid'         => true,
+                            'has_posting_permission' => true,
+                            'metadata'               => ['parent_account_id' => $gbpAccountId],
                         ]
                     );
                     $created['google']++;
@@ -1217,7 +1227,7 @@ class PostAccountController extends Controller
         return url('/admin/post-accounts/google/callback');
     }
 
-    public function destroy(PostAccount $account)
+    public function destroy(SocialAccount $account)
     {
         abort_unless($account->user_id === Auth::id(), 403);
 

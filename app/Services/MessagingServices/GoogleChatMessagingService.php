@@ -6,6 +6,7 @@ use App\Jobs\Messaging\ProcessInboundMessage;
 use App\Models\Messaging\Conversation;
 use App\Models\Messaging\Message;
 use App\Models\Messaging\MessageChannel;
+use App\Models\SocialAccount;
 use App\Services\ApiService;
 use Firebase\JWT\JWK;
 use Firebase\JWT\JWT;
@@ -291,17 +292,22 @@ class GoogleChatMessagingService
                 continue;
             }
 
-            MessageChannel::updateOrCreate(
-                ['platform' => 'google_chat', 'external_id' => $spaceName, 'user_id' => $userId],
+            $account = SocialAccount::updateOrCreate(
+                ['platform' => 'google_chat', 'platform_account_id' => $spaceName, 'user_id' => $userId],
                 [
-                    'name'          => $space['displayName'] ?? ($googleUser['email'] ?? 'Google Chat space'),
-                    'username'      => $googleUser['email'] ?? null,
-                    'avatar_url'    => $googleUser['picture'] ?? null,
-                    'access_token'  => $accessToken,
-                    'refresh_token' => $token['refresh_token'] ?? null,
-                    'expires_at'    => $expiresAt,
-                    'status'        => true,
+                    'name'                     => $space['displayName'] ?? ($googleUser['email'] ?? 'Google Chat space'),
+                    'username'                 => $googleUser['email'] ?? null,
+                    'avatar_url'               => $googleUser['picture'] ?? null,
+                    'access_token'             => $accessToken,
+                    'refresh_token'            => $token['refresh_token'] ?? null,
+                    'is_token_valid'           => true,
+                    'has_messaging_permission' => true,
                 ]
+            );
+
+            MessageChannel::updateOrCreate(
+                ['platform' => 'google_chat', 'external_id' => $spaceName],
+                ['social_account_id' => $account->id, 'expires_at' => $expiresAt]
             );
             $created++;
         }
@@ -320,11 +326,11 @@ class GoogleChatMessagingService
     private function ensureUserAccessToken(MessageChannel $channel): ?string
     {
         if ($channel->expires_at && $channel->expires_at->isFuture()) {
-            return $channel->access_token;
+            return $channel->socialAccount->access_token;
         }
 
         $response = $this->apiService->post($this->tokenUrl, [], [
-            'refresh_token' => $channel->refresh_token,
+            'refresh_token' => $channel->socialAccount->refresh_token,
             'client_id'     => adminSetting('chats.google.client_id'),
             'client_secret' => adminSetting('chats.google.client_secret'),
             'grant_type'    => 'refresh_token',
@@ -336,9 +342,10 @@ class GoogleChatMessagingService
 
         $accessToken = $response['data']['access_token'];
 
+        $channel->socialAccount->update(['access_token' => $accessToken]);
+
         $channel->update([
-            'access_token' => $accessToken,
-            'expires_at'   => Carbon::now()->addSeconds($response['data']['expires_in'] ?? 3600),
+            'expires_at' => Carbon::now()->addSeconds($response['data']['expires_in'] ?? 3600),
         ]);
 
         return $accessToken;
@@ -360,7 +367,7 @@ class GoogleChatMessagingService
             return $cached;
         }
 
-        $token = $this->fetchAccessToken($channel->external_id, $channel->access_token);
+        $token = $this->fetchAccessToken($channel->external_id, $channel->socialAccount->access_token);
         $accessToken = $token['access_token'] ?? null;
 
         if ($accessToken) {
@@ -772,7 +779,7 @@ class GoogleChatMessagingService
         }
 
         ProcessInboundMessage::dispatch(
-            messageChannelId: $channel->id,
+            socialAccountId: $channel->social_account_id,
             customerExternalId: $sender['name'],
             customerName: $sender['displayName'] ?? null,
             customerAvatarUrl: $sender['avatarUrl'] ?? null,

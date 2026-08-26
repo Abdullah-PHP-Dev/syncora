@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Services\MessagingServices\DiscordMessagingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use App\Models\PostComment;
 
 class DiscordWebhookController extends Controller
 {
@@ -21,19 +20,6 @@ class DiscordWebhookController extends Controller
      */
     public function receive(Request $request)
     {
-                PostComment::updateOrCreate(
-            ['platform' => 'discord', 'comment_id' => 'werewr'],
-            [
-                'content'           => json_encode($request->all()),
-                'sender_type'       => 'customer',
-                'user_id'           => 1,
-                'user_name'         => 'Anonymous',
-                'post_id'           => 152,
-                'post_account_id'   => 21,
-                'parent_comment_id' => '',
-                'is_reply'          => false,
-            ]
-        );
         $signature = $request->header('X-Signature-Ed25519');
         $timestamp = $request->header('X-Signature-Timestamp');
         $body = $request->getContent();
@@ -58,26 +44,7 @@ class DiscordWebhookController extends Controller
             return response()->json(['type' => 1], 200);
         }
 
-        // 3. Optional: Safely log/store real non-PING payloads
-        try {
-            PostComment::updateOrCreate(
-                ['platform' => 'discord', 'comment_id' => $payload['id'] ?? uniqid('discord_')],
-                [
-                    'content'           => json_encode($payload),
-                    'sender_type'       => 'customer',
-                    'user_id'           => 1,
-                    'user_name'         => 'Anonymous',
-                    'post_id'           => 152,
-                    'post_account_id'   => 21,
-                    'parent_comment_id' => '',
-                    'is_reply'          => false,
-                ]
-            );
-        } catch (\Throwable $e) {
-            Log::error('Failed saving Discord webhook comment log', ['error' => $e->getMessage()]);
-        }
-
-        // 4. Process incoming Discord events / messages
+        // 3. Process incoming Discord events / messages
         $this->discordService->handleWebhookPayload($payload);
 
         return response()->json(['status' => 'success'], 200);

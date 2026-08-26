@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Post;
 use App\Models\PostMedia;
-use App\Models\PostAccount;
+use App\Models\SocialAccount;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use getID3;
@@ -29,11 +29,11 @@ class LinkedInPostService
 
     protected function ensureValidToken($post)
     {
-        $account = $post->postAccount;
+        $account = $post->socialAccount;
         // Token still valid
         if (
-            !empty($account->expires_in)
-            && Carbon::parse($account->expires_in)->gt(now()->addMinutes(5))
+            !empty($account->expires_at)
+            && Carbon::parse($account->expires_at)->gt(now()->addMinutes(5))
         ) {
             return true;
         }
@@ -59,7 +59,7 @@ class LinkedInPostService
         $account->update([
             'access_token'       => $tokenData['access_token'],
             'refresh_token' => $tokenData['refresh_token'] ?? $account->refresh_token,
-            'expires_in'    => now()->addSeconds($tokenData['expires_in']),
+            'expires_at'    => now()->addSeconds($tokenData['expires_in']),
         ]);
 
         $account->refresh();
@@ -123,9 +123,9 @@ class LinkedInPostService
                     'visibility' => 'public',
                     'user_id' => Auth::user()->id,
                     'group_id' => $data['group_id'] ?? null,
-                    'post_account_id' => $page->id,
+                    'social_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
-                    'page_id' => $page->account_id,
+                    'page_id' => $page->platform_account_id,
                     'content' => $data['content'] ?? null,
                     'schedule_mode' => $data['schedule_mode'] ?? 0,
                     'schedule_at' => $data['schedule_at'] ?? null,
@@ -142,7 +142,7 @@ class LinkedInPostService
                             'platform' => 'linkedin',
                             'visibility' => 'public',
                             'user_id' => Auth::user()->id,
-                            'post_account_id' => $page->id,
+                            'social_account_id' => $page->id,
                             'post_category_id' => $data['category_id'],
                             'media_url' => $media['url'],
                             'media_type' => $media['media_type'],
@@ -165,7 +165,7 @@ class LinkedInPostService
                 $results[] = $post;
             } catch (\Exception $e) {
                 $errors[] = [
-                    'page_id' => $page->account_id,
+                    'page_id' => $page->platform_account_id,
                     'page_name' => $page->page_name ?? $page->name,
                     'message' => $e->getMessage()
                 ];
@@ -320,7 +320,7 @@ class LinkedInPostService
     public function publishPost($post)
     {
         $this->ensureValidToken($post);
-        $account = $post->postAccount;
+        $account = $post->socialAccount;
         // Build post payload handles multiple media processing
         $payload = $this->buildLinkedinPostPayload($account, $post);
 
@@ -352,7 +352,7 @@ class LinkedInPostService
     protected function buildLinkedinPostPayload($account, $post): array
     {
         $payload = [
-            'author' => 'urn:li:organization:' . $account->account_id,
+            'author' => 'urn:li:organization:' . $account->platform_account_id,
             'commentary' => $post->content,
             'visibility' => 'PUBLIC',
             'distribution' => [
@@ -497,7 +497,7 @@ class LinkedInPostService
                'Linkedin-Version' => $this->linkedinVersion,
            ])->post($this->baseUrl . "images?action=initializeUpload", [
                'initializeUploadRequest' => [
-                   'owner' => 'urn:li:organization:' . $account->account_id,
+                   'owner' => 'urn:li:organization:' . $account->platform_account_id,
                ]
            ]);
 
@@ -545,7 +545,7 @@ class LinkedInPostService
                'Linkedin-Version' => $this->linkedinVersion,
            ])->post($this->baseUrl . "videos?action=initializeUpload", [
                'initializeUploadRequest' => [
-                   'owner' => 'urn:li:organization:' . $account->account_id,
+                   'owner' => 'urn:li:organization:' . $account->platform_account_id,
                    'fileSizeBytes' => $fileSize,
                    'uploadCaptions' => false,
                    'uploadThumbnail' => false,
@@ -631,7 +631,7 @@ class LinkedInPostService
 
         // LinkedIn expects actor URN and message text in JSON format
         $payload = [
-            'actor' => $comment->postAccount->account_id, // e.g., 'urn:li:person:XXXX' or 'urn:li:organization:XXXX'
+            'actor' => $comment->socialAccount->platform_account_id, // e.g., 'urn:li:person:XXXX' or 'urn:li:organization:XXXX'
             'message' => [
                 'text' => $data['body']
             ]
@@ -641,7 +641,7 @@ class LinkedInPostService
             'post',
             $endpoint,
             [
-                'Authorization' => "Bearer {$comment->postAccount->access_token}",
+                'Authorization' => "Bearer {$comment->socialAccount->access_token}",
                 'Content-Type'  => 'application/json',
                 'LinkedIn-Version' => '202401', // Update to your target API version
                 'X-Restli-Protocol-Version' => '2.0.0'
@@ -677,7 +677,7 @@ class LinkedInPostService
             'is_reply'          => true,
             'user_name'         => 'support',
             'comment_id'        => $commentId,
-            'post_account_id'   => $comment->postAccount?->id
+            'social_account_id'   => $comment->socialAccount?->id
         ]);
 
         return [
@@ -715,7 +715,7 @@ class LinkedInPostService
     public function destroy($post): array
     {
         try {
-            $account = $post->postAccount;
+            $account = $post->socialAccount;
 
             $this->ensureValidToken($post);
    
@@ -791,7 +791,7 @@ class LinkedInPostService
     /**
      * Pulls the Organization's total data report (follower count, Page
      * views, follower gain/loss over time) and stores it on the
-     * PostAccount - same "connect-time report snapshot" shape as Meta/
+     * SocialAccount - same "connect-time report snapshot" shape as Meta/
      * Instagram's syncAccountStats(). Each call requires the
      * rw_organization_admin scope granted at redirectLinkedin(); LinkedIn
      * returns 403 on these endpoints for orgs without Page-admin-level
@@ -799,9 +799,9 @@ class LinkedInPostService
      * fetch below is independently soft-failed rather than aborting the
      * whole sync.
      */
-    public function syncAccountStats(PostAccount $account): void
+    public function syncAccountStats(SocialAccount $account): void
     {
-        $orgUrn = 'urn:li:organization:' . $account->account_id;
+        $orgUrn = 'urn:li:organization:' . $account->platform_account_id;
         $headers = [
             'Authorization' => 'Bearer ' . $account->access_token,
             'X-Restli-Protocol-Version' => '2.0.0',
@@ -809,7 +809,8 @@ class LinkedInPostService
         ];
 
         $updates = [];
-        $insights = $account->insights ?? [];
+        $metadata = $account->metadata ?? [];
+        $insights = $metadata['insights'] ?? [];
 
         // Total follower count - organizations/{id}'s old inline follower
         // count field was retired; networkSizes is the documented replacement.
@@ -818,7 +819,7 @@ class LinkedInPostService
                 ->get($this->baseUrl . 'networkSizes/' . urlencode($orgUrn), ['edgeType' => 'CompanyFollowedByMember']);
 
             if ($followersResponse->successful()) {
-                $updates['follower_count'] = $followersResponse->json()['firstDegreeSize'] ?? $account->follower_count;
+                $updates['followers_count'] = $followersResponse->json()['firstDegreeSize'] ?? $account->followers_count;
                 $insights['followers'] = $followersResponse->json();
             } else {
                 Log::warning('LinkedIn follower count fetch failed.', [
@@ -837,7 +838,7 @@ class LinkedInPostService
 
             if ($pageStatsResponse->successful()) {
                 $elements = $pageStatsResponse->json()['elements'] ?? [];
-                $updates['views_count'] = $elements[0]['totalPageStatistics']['views']['allPageViews']['pageViews'] ?? $account->views_count;
+                $metadata['views_count'] = $elements[0]['totalPageStatistics']['views']['allPageViews']['pageViews'] ?? ($metadata['views_count'] ?? null);
                 $insights['page_statistics'] = $elements;
             } else {
                 // Expected unless the org has been approved for this
@@ -865,7 +866,8 @@ class LinkedInPostService
             Log::warning('LinkedIn follower statistics fetch threw.', ['account_id' => $account->id, 'error' => $e->getMessage()]);
         }
 
-        $updates['insights'] = $insights;
+        $metadata['insights'] = $insights;
+        $updates['metadata'] = $metadata;
         $account->update($updates);
     }
 
@@ -881,11 +883,13 @@ class LinkedInPostService
      * pull-based - see backfillRecentPosts()/fetchAndStoreComments() and
      * LinkedinCommentWebhookController's docblock.
      */
-    public function subscribeToWebhooks(PostAccount $account): void
+    public function subscribeToWebhooks(SocialAccount $account): void
     {
         $account->update([
-            'settings' => array_merge($account->settings ?? [], [
-                'webhook_callback_url' => route('comments.webhook.linkedin.receive'),
+            'metadata' => array_merge($account->metadata ?? [], [
+                'settings' => array_merge($account->metadata['settings'] ?? [], [
+                    'webhook_callback_url' => route('comments.webhook.linkedin.receive'),
+                ]),
             ]),
         ]);
     }
@@ -903,9 +907,9 @@ class LinkedInPostService
      * post/summary/comments call is independently failure-tolerant - one
      * bad post must not abort the rest of the batch.
      */
-    public function backfillRecentPosts(PostAccount $account, int $limit = 5): void
+    public function backfillRecentPosts(SocialAccount $account, int $limit = 5): void
     {
-        $orgUrn = 'urn:li:organization:' . $account->account_id;
+        $orgUrn = 'urn:li:organization:' . $account->platform_account_id;
         $headers = [
             'Authorization' => 'Bearer ' . $account->access_token,
             'X-Restli-Protocol-Version' => '2.0.0',
@@ -949,7 +953,7 @@ class LinkedInPostService
                     : mb_substr($content, 0, 100);
 
                 $post = Post::updateOrCreate(
-                    ['post_account_id' => $account->id, 'post_id' => $postUrn],
+                    ['social_account_id' => $account->id, 'post_id' => $postUrn],
                     [
                         'platform'          => 'linkedin',
                         'user_id'           => $account->user_id,
@@ -979,7 +983,7 @@ class LinkedInPostService
      * per commenter, which third-party members generally don't authorize
      * under the org-scoped permissions this module requests.
      */
-    private function fetchAndStoreComments(PostAccount $account, Post $post, int $limit = 5): void
+    private function fetchAndStoreComments(SocialAccount $account, Post $post, int $limit = 5): void
     {
         try {
             $response = Http::withHeaders([
@@ -1006,7 +1010,7 @@ class LinkedInPostService
                     [
                         'platform'        => 'linkedin',
                         'user_id'         => $account->user_id,
-                        'post_account_id' => $account->id,
+                        'social_account_id' => $account->id,
                         'user_name'       => $comment['actor'] ?? 'LinkedIn user',
                         'content'         => $comment['message']['text'] ?? '',
                         'likes'           => $comment['likesSummary']['totalLikes'] ?? 0,

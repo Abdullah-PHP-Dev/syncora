@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Messaging\MessageChannel;
+use App\Models\SocialAccount;
 use App\Services\ApiService;
 use App\Services\MessagingServices\DiscordMessagingService;
 use App\Services\MessagingServices\FacebookMessengerService;
@@ -29,7 +30,14 @@ class MessageChannelController extends Controller
 {
     public function index()
     {
-        $channels = MessageChannel::where('user_id', Auth::id())->orderBy('platform')->get();
+        // user_id no longer lives on message_channels - it moved to the
+        // parent social_accounts row, so scoping to the current admin's
+        // channels has to go through that relation instead of a direct
+        // column lookup.
+        $channels = MessageChannel::whereHas('socialAccount', fn($q) => $q->where('user_id', Auth::id()))
+            ->with('socialAccount')
+            ->orderBy('platform')
+            ->get();
 
         return view('admin.chats.channels', compact('channels'));
     }
@@ -146,15 +154,22 @@ class MessageChannelController extends Controller
 
         $bot = $check['data']['result'];
 
+        $account = SocialAccount::updateOrCreate(
+            ['platform' => 'telegram', 'platform_account_id' => (string) $bot['id'], 'user_id' => Auth::id()],
+            [
+                'name'                     => $validated['name'],
+                'username'                 => $bot['username'] ?? null,
+                'access_token'             => $validated['bot_token'],
+                'is_token_valid'           => true,
+                'has_messaging_permission' => true,
+            ]
+        );
+
         $channel = MessageChannel::updateOrCreate(
             ['platform' => 'telegram', 'external_id' => (string) $bot['id']],
             [
-                'user_id'      => Auth::id(),
-                'name'         => $validated['name'],
-                'username'     => $bot['username'] ?? null,
-                'access_token' => $validated['bot_token'],
-                'verify_token' => Str::random(40),
-                'status'       => true,
+                'social_account_id' => $account->id,
+                'verify_token'      => Str::random(40),
             ]
         );
 
@@ -194,15 +209,20 @@ class MessageChannelController extends Controller
             return back()->withErrors(['phone_number_id' => 'Could not verify this phone number ID/token with Meta.']);
         }
 
+        $account = SocialAccount::updateOrCreate(
+            ['platform' => 'whatsapp', 'platform_account_id' => $validated['phone_number_id'], 'user_id' => Auth::id()],
+            [
+                'name'                     => $validated['name'],
+                'username'                 => $check['data']['display_phone_number'] ?? null,
+                'access_token'             => $validated['access_token'],
+                'is_token_valid'           => true,
+                'has_messaging_permission' => true,
+            ]
+        );
+
         MessageChannel::updateOrCreate(
             ['platform' => 'whatsapp', 'external_id' => $validated['phone_number_id']],
-            [
-                'user_id'      => Auth::id(),
-                'name'         => $validated['name'],
-                'username'     => $check['data']['display_phone_number'] ?? null,
-                'access_token' => $validated['access_token'],
-                'status'       => true,
-            ]
+            ['social_account_id' => $account->id]
         );
 
         return redirect()->route('admin.chats.channels')->with('success', 'WhatsApp number connected.');
@@ -234,16 +254,23 @@ class MessageChannelController extends Controller
 
         $bot = $check['data'];
 
+        $account = SocialAccount::updateOrCreate(
+            ['platform' => 'line', 'platform_account_id' => $bot['userId'], 'user_id' => Auth::id()],
+            [
+                'name'                     => $validated['name'],
+                'username'                 => $bot['displayName'] ?? null,
+                'avatar_url'               => $bot['pictureUrl'] ?? null,
+                'access_token'             => $validated['access_token'],
+                'is_token_valid'           => true,
+                'has_messaging_permission' => true,
+            ]
+        );
+
         $channel = MessageChannel::updateOrCreate(
             ['platform' => 'line', 'external_id' => $bot['userId']],
             [
-                'user_id'      => Auth::id(),
-                'name'         => $validated['name'],
-                'username'     => $bot['displayName'] ?? null,
-                'avatar_url'   => $bot['pictureUrl'] ?? null,
-                'access_token' => $validated['access_token'],
-                'verify_token' => $validated['channel_secret'],
-                'status'       => true,
+                'social_account_id' => $account->id,
+                'verify_token'      => $validated['channel_secret'],
             ]
         );
 
@@ -298,18 +325,27 @@ class MessageChannelController extends Controller
         $oa = $result['oa'];
         $token = $result['token'];
 
+        $account = SocialAccount::updateOrCreate(
+            ['platform' => 'zalo', 'platform_account_id' => $oa['oa_id'], 'user_id' => Auth::id()],
+            [
+                'name'                     => session('zalo_pending_name') ?: ($oa['name'] ?? 'Zalo OA'),
+                'username'                 => $oa['name'] ?? null,
+                'avatar_url'               => $oa['avatar'] ?? null,
+                'access_token'             => $token['access_token'],
+                'refresh_token'            => $token['refresh_token'] ?? null,
+                'expires_at'               => now()->addSeconds((int) ($token['expires_in'] ?? 3600)),
+                'is_token_valid'           => true,
+                'has_messaging_permission' => true,
+            ]
+        );
+
         MessageChannel::updateOrCreate(
             ['platform' => 'zalo', 'external_id' => $oa['oa_id']],
             [
-                'user_id'       => Auth::id(),
-                'name'          => session('zalo_pending_name') ?: ($oa['name'] ?? 'Zalo OA'),
-                'username'      => $oa['name'] ?? null,
-                'avatar_url'    => $oa['avatar'] ?? null,
-                'access_token'  => $token['access_token'],
-                'refresh_token' => $token['refresh_token'] ?? null,
-                'verify_token'  => session('zalo_pending_secret'),
-                'expires_at'    => now()->addSeconds((int) ($token['expires_in'] ?? 3600)),
-                'status'        => true,
+                'social_account_id' => $account->id,
+                // oa_secret_key stashed pre-redirect - stays on MessageChannel,
+                // it's the webhook signature secret, not an identity/token field.
+                'verify_token' => session('zalo_pending_secret'),
             ]
         );
 
@@ -372,14 +408,19 @@ class MessageChannelController extends Controller
             return back()->withErrors(['app_password' => 'Could not authenticate with this Microsoft App ID/Password against the Bot Framework.']);
         }
 
+        $account = SocialAccount::updateOrCreate(
+            ['platform' => 'teams', 'platform_account_id' => $validated['app_id'], 'user_id' => Auth::id()],
+            [
+                'name'                     => $validated['name'],
+                'access_token'             => $validated['app_password'],
+                'is_token_valid'           => true,
+                'has_messaging_permission' => true,
+            ]
+        );
+
         $channel = MessageChannel::updateOrCreate(
             ['platform' => 'teams', 'external_id' => $validated['app_id']],
-            [
-                'user_id'      => Auth::id(),
-                'name'         => $validated['name'],
-                'access_token' => $validated['app_password'],
-                'status'       => true,
-            ]
+            ['social_account_id' => $account->id]
         );
 
         $webhookUrl = route('messaging.webhook.teams.receive', ['channel' => $channel->id]);
@@ -432,19 +473,30 @@ class MessageChannelController extends Controller
             return back()->withErrors(['project_number' => 'Could not automatically detect this project\'s number - please enter it manually. Find it in Google Cloud Console under "Project info" on your project\'s dashboard.']);
         }
 
-        $channel = MessageChannel::updateOrCreate(
+        $account = SocialAccount::updateOrCreate(
             // Scoped by user_id too, matching the (user_id, platform,
-            // external_id) unique index this table actually enforces -
-            // omitting it meant a second Socialeaz user connecting the
-            // same service account would find and silently reassign the
-            // first user's existing channel row instead of getting their
-            // own, since the lookup ignored who's currently authenticated.
-            ['user_id' => Auth::id(), 'platform' => 'google_chat', 'external_id' => $key['client_email']],
+            // platform_account_id) identity this now lives under - omitting
+            // it meant a second Socialeaz user connecting the same service
+            // account would find and silently reassign the first user's
+            // existing account row instead of getting their own, since the
+            // lookup ignored who's currently authenticated. message_channels
+            // itself no longer has a user_id column at all (dropped in
+            // 2026_08_26_100005_drop_legacy_account_columns_and_tables), so
+            // this scoping has to live on the SocialAccount lookup now.
+            ['platform' => 'google_chat', 'platform_account_id' => $key['client_email'], 'user_id' => Auth::id()],
             [
-                'name'         => $validated['name'],
-                'access_token' => $key['private_key'],
-                'meta'         => ['project_number' => $projectNumber, 'project_id' => $key['project_id'] ?? null],
-                'status'       => true,
+                'name'                     => $validated['name'],
+                'access_token'             => $key['private_key'],
+                'is_token_valid'           => true,
+                'has_messaging_permission' => true,
+            ]
+        );
+
+        $channel = MessageChannel::updateOrCreate(
+            ['platform' => 'google_chat', 'external_id' => $key['client_email']],
+            [
+                'social_account_id' => $account->id,
+                'meta'              => ['project_number' => $projectNumber, 'project_id' => $key['project_id'] ?? null],
             ]
         );
 
@@ -527,15 +579,22 @@ class MessageChannelController extends Controller
             return back()->withErrors(['access_token' => 'Could not verify this access token against that homeserver.']);
         }
 
+        $account = SocialAccount::updateOrCreate(
+            ['platform' => 'matrix', 'platform_account_id' => $check['user_id'], 'user_id' => Auth::id()],
+            [
+                'name'                     => $validated['name'],
+                'username'                 => $check['user_id'],
+                'access_token'             => $validated['access_token'],
+                'is_token_valid'           => true,
+                'has_messaging_permission' => true,
+            ]
+        );
+
         $channel = MessageChannel::updateOrCreate(
             ['platform' => 'matrix', 'external_id' => $check['user_id']],
             [
-                'user_id'      => Auth::id(),
-                'name'         => $validated['name'],
-                'username'     => $check['user_id'],
-                'access_token' => $validated['access_token'],
-                'meta'         => ['homeserver_url' => rtrim($validated['homeserver_url'], '/')],
-                'status'       => true,
+                'social_account_id' => $account->id,
+                'meta'              => ['homeserver_url' => rtrim($validated['homeserver_url'], '/')],
             ]
         );
 
@@ -609,18 +668,30 @@ class MessageChannelController extends Controller
 
         $bot = $check['bot'];
 
-        $channel = MessageChannel::updateOrCreate(
-            ['platform' => 'discord', 'external_id' => $bot['id']],
+        $account = SocialAccount::updateOrCreate(
+            ['platform' => 'discord', 'platform_account_id' => $bot['id'], 'user_id' => Auth::id()],
             [
-                'user_id'      => Auth::id(),
-                'name'         => $validated['name'],
-                'username'     => $bot['username'] ?? null,
-                'avatar_url'   => !empty($bot['avatar'])
+                'name'                     => $validated['name'],
+                'username'                 => $bot['username'] ?? null,
+                'avatar_url'               => !empty($bot['avatar'])
                     ? "https://cdn.discordapp.com/avatars/{$bot['id']}/{$bot['avatar']}.png"
                     : null,
-                'access_token' => $validated['bot_token'],
-                'status'       => true,
+                'access_token'             => $validated['bot_token'],
+                'is_token_valid'           => true,
+                'has_messaging_permission' => true,
             ]
+        );
+
+        // Keyed by external_id = bot_id (Discord's Application ID and bot
+        // user ID are the same snowflake) so DiscordMessagingService::
+        // handleOAuthCallback() - triggered later by redirectDiscord()/
+        // callbackDiscord()'s "authorize to a server" flow - can find this
+        // exact row via the client_id it gets back from Discord, and attach
+        // guild/webhook info to it without ever touching the real bot token
+        // stored on $account above.
+        $channel = MessageChannel::updateOrCreate(
+            ['platform' => 'discord', 'external_id' => $bot['id']],
+            ['social_account_id' => $account->id]
         );
 
         return redirect()->route('admin.chats.channels')->with(
@@ -631,7 +702,7 @@ class MessageChannelController extends Controller
 
     public function destroy(MessageChannel $channel)
     {
-        abort_unless($channel->user_id === Auth::id(), 403);
+        abort_unless($channel->socialAccount->user_id === Auth::id(), 403);
 
         $channel->delete();
 

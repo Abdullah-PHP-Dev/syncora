@@ -2,7 +2,7 @@
 
 namespace App\Services\AdServices\Concerns;
 
-use App\Models\Admin\AdAccount;
+use App\Models\SocialAccount;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
@@ -74,7 +74,7 @@ trait GoogleAdsApiTrait
      * dispatches to it after Google redirects back, so connecting an
      * account died with "Call to undefined method". Mirrors
      * LinkedinAdService::callback(): exchange the code, enumerate every
-     * customer the member can reach, and persist one AdAccount row per
+     * customer the member can reach, and persist one SocialAccount row per
      * usable customer.
      */
     public function callback($platform, $state = null)
@@ -213,19 +213,19 @@ trait GoogleAdsApiTrait
                     'platform'      => $platform,
                     'user_id'       => Auth::id(),
                     'name'          => $detail['descriptiveName'] ?? ('Google Ads ' . $customerId),
-                    'currency'      => $detail['currencyCode'] ?? null,
-                    'ad_account_id' => $customerId,
+                    'platform_account_id' => $customerId,
                     'access_token'  => $accessToken,
                     'refresh_token' => $token['refresh_token'] ?? null,
                     'expires_at'    => $expiresAt,
-                    'status'        => 'active',
+                    'has_ads_permission' => true,
+                    'metadata'      => array_filter(['currency' => $detail['currencyCode'] ?? null]),
                 ],
                 [
                     'platform'      => $platform,
-                    'ad_account_id' => $customerId,
+                    'platform_account_id' => $customerId,
                     'user_id'       => Auth::id(),
                 ],
-                new AdAccount
+                new SocialAccount
             );
 
             $connected++;
@@ -248,7 +248,7 @@ trait GoogleAdsApiTrait
      */
     protected function customerId(): string
     {
-        return str_replace('-', '', $this->account->ad_account_id);
+        return str_replace('-', '', $this->account->platform_account_id);
     }
 
     /**

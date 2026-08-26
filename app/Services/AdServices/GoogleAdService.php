@@ -2,7 +2,7 @@
 
 namespace App\Services\AdServices;
 
-use App\Models\Admin\AdAccount;
+use App\Models\SocialAccount;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdCreative;
@@ -36,7 +36,7 @@ class GoogleAdService
 {
     use GoogleAdsApiTrait;
 
-    public function __construct(AdAccount $account, ApiService $apiService)
+    public function __construct(SocialAccount $account, ApiService $apiService)
     {
        
         $this->apiService = $apiService;
@@ -161,7 +161,7 @@ class GoogleAdService
         $dataToInsert = [
             'ad_campaign_id'           => $campaignId,
             'user_id'                  => Auth::id(),
-            'ad_account_id'            => $this->account->id,
+            'social_account_id'            => $this->account->id,
             'name'                     => $request['name'],
             'platform'                 => $platform,
             'advertising_channel_type' => 'SEARCH',
@@ -231,7 +231,7 @@ class GoogleAdService
             'ad_campaign_id' => $request['ad_campaign_id'],
             'user_id'        => Auth::id(),
             'ad_adgroup_id'  => $adGroupId,
-            'ad_account_id'  => $this->account->id,
+            'social_account_id'  => $this->account->id,
             'platform'       => $platform,
             'name'           => $adGroup['name'],
             'status'         => false,
@@ -334,7 +334,7 @@ class GoogleAdService
                 'ad_adgroup_id'  => $request['ad_adgroup_id'],
                 'ad_creative_id' => $resourceName,
                 'platform'       => $platform,
-                'ad_account_id'  => $this->account->id,
+                'social_account_id'  => $this->account->id,
                 'ad_campaign_id' => $request['ad_campaign_id'],
                 'name'           => $request['name'],
                 'type'           => 'RESPONSIVE_SEARCH_AD',
@@ -355,7 +355,7 @@ class GoogleAdService
                 'ad_id'          => $resourceName,
                 'status'         => false,
                 'platform'       => $platform,
-                'ad_account_id'  => $this->account->id,
+                'social_account_id'  => $this->account->id,
                 'ad_campaign_id' => $request['ad_campaign_id'],
                 'name'           => $request['name'],
                 'type'           => 'RESPONSIVE_SEARCH_AD',

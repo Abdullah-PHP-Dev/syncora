@@ -3,12 +3,10 @@
 namespace App\Http\Controllers\Api\Messaging;
 
 use App\Http\Controllers\Controller;
-use App\Models\Messaging\Conversation;
 use App\Models\Messaging\MessageChannel;
 use App\Services\MessagingServices\GoogleChatMessagingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -49,35 +47,7 @@ class GoogleChatWebhookController extends Controller
      */
     public function receive(MessageChannel $channel, Request $request)
     {
-        Conversation::create([
-            'message_channel_id'      => $channel->id,
-            'platform'                => 'google_chat',
-            'assigned_user_id'        => 1,
-            'external_conversation_id' => 'debug-hit',
-            'customer_external_id'    => 'debug-' . now()->format('YmdHis') . '-' . Str::random(6),
-            'customer_name'           => 'DEBUG webhook hit',
-            'last_message_preview'    => substr(json_encode($request->all()), 0, 500),
-            'meta'                    => [
-                'debug'              => true,
-                'auth_header_present' => $request->hasHeader('Authorization'),
-                'auth_header_prefix' => substr((string) $request->header('Authorization'), 0, 20),
-                'token_valid'        => '',
-                'channel_platform'   => $channel->platform,
-                'ip'                 => $request->ip(),
-                'headers'            => $request->headers->all(),
-                'raw_body'           => $request->all(),
-            ],
-        ]);
         $tokenValid = $channel->platform === 'google_chat' && $this->service->verifyRequestToken($request, $channel);
-
-        // TEMP DEBUG - writes one row per hit to this endpoint regardless
-        // of auth outcome, so it's visible directly in the conversations
-        // table/admin UI whether Google is reaching the server at all
-        // (vs. the request never arriving - network/DNS/webserver routing,
-        // outside this app's code) and if it is, why verifyRequestToken()
-        // accepted or rejected it. Remove this block once the delivery
-        // issue is diagnosed - it's not meant to ship.
-        
 
         if (!$tokenValid) {
             Log::warning('Google Chat webhook token invalid', [

@@ -419,7 +419,7 @@
                                                 <div class="col-md-4">
                                                     <label>Budget</label>
                                                     <div class="input-group">
-                                                        <span class="input-group-text">{{ $account->currency }}</span>
+                                                        <span class="input-group-text">{{ $account->metadata['currency'] ?? null }}</span>
                                                         <input class="form-control" name="budget" id="budget"
                                                             type="number" step="0.01">
                                                     </div>
@@ -430,7 +430,7 @@
                                                 <div class="col-md-4">
                                                     <label>Bid Amount</label>
                                                     <div class="input-group">
-                                                        <span class="input-group-text">{{ $account->currency }}</span>
+                                                        <span class="input-group-text">{{ $account->metadata['currency'] ?? null }}</span>
                                                         <input class="form-control" name="bid_amount" id="bid_amount"
                                                             type="number" step="0.01">
                                                     </div>
@@ -452,7 +452,7 @@
                                                             <div class="d-flex justify-content-between mb-2">
                                                                 <span>Budget</span>
                                                                 <strong>
-                                                                    {{ $account->currency }}
+                                                                    {{ $account->metadata['currency'] ?? null }}
                                                                     <span id="budget_amount">0.00</span>
                                                                 </strong>
                                                             </div>
@@ -461,7 +461,7 @@
                                                             <div class="d-flex justify-content-between mb-2 text-muted">
                                                                 <span>VAT (15%)</span>
                                                                 <strong>
-                                                                    {{ $account->currency }}
+                                                                    {{ $account->metadata['currency'] ?? null }}
                                                                     <span id="vat_amount">0.00</span>
                                                                 </strong>
                                                             </div>
@@ -474,7 +474,7 @@
                                                             <div class="d-flex justify-content-between">
                                                                 <h5 class="mb-0">Total Budget</h5>
                                                                 <h5 class="mb-0 text-primary">
-                                                                    {{ $account->currency }}
+                                                                    {{ $account->metadata['currency'] ?? null }}
                                                                     
                                                                     <span id="total_budget">0.00</span>
                                                                 </h5>

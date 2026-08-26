@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Http\Requests\Admin\AdCampaignRequest;
 use App\Models\Admin\AdCampaign;
-use App\Models\Admin\AdAccount;
+use App\Models\SocialAccount;
 use App\Models\Admin\PlatformPage;
 use App\Models\Country;
 use App\Services\AdServices\SocialAdManagerService;
@@ -17,7 +17,7 @@ class AdCampaignController extends Controller
 {
     protected $adCampaignModel, $adAccountModel, $platformPageModel, $countryModel, $socialAdManager;
 
-    public function __construct(AdCampaign $adCampaignModel, AdAccount $adAccountModel, PlatformPage $platformPageModel, Country $countryModel, SocialAdManagerService $socialAdManager)
+    public function __construct(AdCampaign $adCampaignModel, SocialAccount $adAccountModel, PlatformPage $platformPageModel, Country $countryModel, SocialAdManagerService $socialAdManager)
     {
         set_time_limit(0);
         $this->adCampaignModel = $adCampaignModel;
@@ -51,7 +51,7 @@ class AdCampaignController extends Controller
      * fields, DB rows all still say 'instagram') - only the view path
      * is aliased, the same "share the underlying flow, keep the
      * platform key distinct" shape this controller already uses for
-     * YouTube's AdAccount lookup below.
+     * YouTube's SocialAccount lookup below.
      */
     private function viewPlatform(string $platform): string
     {
@@ -87,7 +87,7 @@ class AdCampaignController extends Controller
         // YouTube Demand Gen campaigns run through the same Google Ads
         // customer as Search campaigns - there's no separate "YouTube Ads
         // account" - so account-linked status is read off the 'google' row.
-        $account = $this->adAccountModel->where('platform', $platform === 'youtube' ? 'google' : $platform)->first();
+        $account = $this->adAccountModel->where('has_ads_permission', true)->where('platform', $platform === 'youtube' ? 'google' : $platform)->first();
         $countries = $this->countryModel->all();
         $platformPages = $this->platformPages($platform);
 
@@ -110,8 +110,8 @@ class AdCampaignController extends Controller
      */
     public function createNew($platform)
     {
-        $account = $this->adAccountModel->where('platform', 'facebook')->first();
-        $instagramAccount = $this->adAccountModel->where('platform', 'instagram')->where('user_id', Auth::id())->first();
+        $account = $this->adAccountModel->where('has_ads_permission', true)->where('platform', 'facebook')->first();
+        $instagramAccount = $this->adAccountModel->where('has_ads_permission', true)->where('platform', 'instagram')->where('user_id', Auth::id())->first();
 
         // Mapped to plain arrays here rather than inside the view's
         // @json() calls - an fn() => [...] arrow-closure array literal as
@@ -154,9 +154,9 @@ class AdCampaignController extends Controller
      */
     public function edit($platform, string $id)
     {
-        $account = $this->adAccountModel->where('platform', $platform === 'youtube' ? 'google' : $platform)->first();
+        $account = $this->adAccountModel->where('has_ads_permission', true)->where('platform', $platform === 'youtube' ? 'google' : $platform)->first();
         $countries = $this->countryModel->all();
-        $campaign = $this->adCampaignModel->with(['adAccount', 'adGroups', 'adGroups.creatives', 'adGroups.creatives.media', 'ads'])->find($id);
+        $campaign = $this->adCampaignModel->with(['socialAccount', 'adGroups', 'adGroups.creatives', 'adGroups.creatives.media', 'ads'])->find($id);
         $platformPages = $this->platformPages($platform);
 
        return view('admin.ads.' . $this->viewPlatform($platform) . '.campaigns.edit', compact('platform', 'account', 'countries', 'campaign', 'platformPages'));

@@ -7,17 +7,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use App\Models\SocialAccount;
 use App\Models\User;
 
 class AdMedia extends Model
 {
     protected $table = 'ad_media';
-    protected $fillable = ['user_id','ad_media_id','platform','ad_account_id','ad_campaign_id','name','file_name','download_link','type','status','image_category','url','upload_by_type', 'ad_format','signature', 'file_id', 'title', 'description', 'thumbnail_url'];
+    protected $fillable = ['user_id','ad_media_id','platform','social_account_id','ad_campaign_id','name','file_name','download_link','type','status','image_category','url','upload_by_type', 'ad_format','signature', 'file_id', 'title', 'description', 'thumbnail_url'];
 
 
-    public function adAccount(): BelongsTo
+    public function socialAccount(): BelongsTo
     {
-        return $this->belongsTo(AdAccount::class);
+        return $this->belongsTo(SocialAccount::class);
     }
 
     public function user(): BelongsTo

@@ -67,7 +67,7 @@ class MatrixMessagingService
 
     private function authHeader(MessageChannel $channel): array
     {
-        return ['Authorization' => 'Bearer ' . $channel->access_token];
+        return ['Authorization' => 'Bearer ' . $channel->socialAccount->access_token];
     }
 
     private function homeserverUrl(MessageChannel $channel): string
@@ -225,7 +225,7 @@ class MatrixMessagingService
         }
 
         ProcessInboundMessage::dispatch(
-            messageChannelId: $channel->id,
+            socialAccountId: $channel->social_account_id,
             customerExternalId: $event['sender'],
             externalConversationId: $roomId,
             externalMessageId: $event['event_id'] ?? null,
@@ -261,7 +261,7 @@ class MatrixMessagingService
         // homeserver that's temporarily unreachable must not crash the
         // sync listener's message processing.
         try {
-            $response = Http::withToken($channel->access_token)
+            $response = Http::withToken($channel->socialAccount->access_token)
                 ->get($this->homeserverUrl($channel) . "/_matrix/client/v1/media/download/{$serverName}/{$mediaId}");
         } catch (\Throwable) {
             return null;

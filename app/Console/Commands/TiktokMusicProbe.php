@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Admin\AdAccount;
+use App\Models\SocialAccount;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 
@@ -22,7 +22,7 @@ class TiktokMusicProbe extends Command
 
     public function handle(): int
     {
-        $account = AdAccount::wherePlatform('tiktok')->whereNotNull('access_token')->latest('id')->first();
+        $account = SocialAccount::wherePlatform('tiktok')->where('has_ads_permission', true)->whereNotNull('access_token')->latest('id')->first();
 
         if (!$account) {
             $this->error('No TikTok ad account with an access token found.');
@@ -32,12 +32,12 @@ class TiktokMusicProbe extends Command
         $base = adminSetting('ads.tiktok.base_url');
 
         $this->info('Base URL     : ' . $base);
-        $this->info('Advertiser   : ' . $account->ad_account_id);
+        $this->info('Advertiser   : ' . $account->platform_account_id);
         $this->newLine();
 
         // 1. Commercial Music Library - what does the catalog actually hold?
         $this->probe('file/music/get/', $base . 'file/music/get/', $account, [
-            'advertiser_id' => $account->ad_account_id,
+            'advertiser_id' => $account->platform_account_id,
             'page_size'     => (int) $this->option('page-size'),
         ]);
 
@@ -45,7 +45,7 @@ class TiktokMusicProbe extends Command
         //    that got rejected), ask TikTok what it thinks of it.
         if ($musicId = $this->option('music-id')) {
             $this->probe('file/music/get/ (filtered)', $base . 'file/music/get/', $account, [
-                'advertiser_id' => $account->ad_account_id,
+                'advertiser_id' => $account->platform_account_id,
                 'music_ids'     => [$musicId],
             ]);
         }
@@ -60,7 +60,7 @@ class TiktokMusicProbe extends Command
         return self::SUCCESS;
     }
 
-    private function uploadProbe(string $base, AdAccount $account): void
+    private function uploadProbe(string $base, SocialAccount $account): void
     {
         $this->line('=== file/music/upload/ (raw response) ===');
 
@@ -72,7 +72,7 @@ class TiktokMusicProbe extends Command
                 ->timeout(60)
                 ->attach('music_file', file_get_contents($path), 'probe.wav')
                 ->post($base . 'file/music/upload/', [
-                    ['name' => 'advertiser_id',   'contents' => $account->ad_account_id],
+                    ['name' => 'advertiser_id',   'contents' => $account->platform_account_id],
                     ['name' => 'upload_type',     'contents' => 'UPLOAD_BY_FILE'],
                     ['name' => 'file_name',       'contents' => 'probe.wav'],
                     ['name' => 'music_signature', 'contents' => md5_file($path)],
@@ -106,7 +106,7 @@ class TiktokMusicProbe extends Command
             . 'data' . pack('V', $dataSize) . str_repeat("\0", $dataSize);
     }
 
-    private function probe(string $label, string $url, AdAccount $account, array $query): void
+    private function probe(string $label, string $url, SocialAccount $account, array $query): void
     {
         $this->line("=== {$label} ===");
 

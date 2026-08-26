@@ -3,7 +3,7 @@
 namespace App\Services\AdServices;
 
 use Illuminate\Support\Facades\Redirect;
-use App\Models\Admin\AdAccount;
+use App\Models\SocialAccount;
 use App\Models\Admin\PlatformPage;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
@@ -24,7 +24,7 @@ class FacebookAdService
 {
     protected $platform, $account, $mediaAccountModel, $config, $httpClient, $apiService, $header, $state, $codeVerifier;
 
-    public function __construct(AdAccount $account, ApiService $apiService)
+    public function __construct(SocialAccount $account, ApiService $apiService)
     {
         $this->apiService = $apiService;
         $this->account = $account->wherePlatform('facebook')->whereUserId(Auth::user()->id)->first();
@@ -108,19 +108,19 @@ class FacebookAdService
                         'platform'      => 'facebook',
                         'user_id'       => Auth::id(),
                         'name'          => $fbData['name'] ?? "Facebook Ad Account {$rawAccountId}",
-                        'currency'      => $currency ?? null,
-                        'ad_account_id' => $rawAccountId,
+                        'platform_account_id' => $rawAccountId,
                         'access_token'  => $accessToken,
                         'refresh_token' => data_get($data, 'refresh_token'),
                         'expires_at'    => $expiresAt,
-                        'status'        => 'active',
+                        'has_ads_permission' => true,
+                        'metadata'      => array_filter(['currency' => $currency ?? null]),
                     ],
                     [
                         'platform'      => 'facebook',
-                        'ad_account_id' => $rawAccountId,
+                        'platform_account_id' => $rawAccountId,
                         'user_id'       => Auth::id()
                     ],
-                    new AdAccount
+                    new SocialAccount
                 );
 
                 $localAccountId = $fbAccountRecord['data']['id'] ?? null;
@@ -135,7 +135,7 @@ class FacebookAdService
                     [
                         'platform'         => 'facebook',
                         'user_id'          => Auth::id(),
-                        'ad_account_id'    => $localAccountId,
+                        'social_account_id' => $localAccountId,
                         'page_id'          => $page['id'],
                         'name'             => $page['name'] ?? null,
                         'username'         => $page['username'] ?? null,
@@ -171,19 +171,19 @@ class FacebookAdService
                         'platform'      => 'instagram',
                         'user_id'       => Auth::id(),
                         'name'          => $igAccount['name'] ?? $igAccount['username'] ?? "Instagram Account {$igId}",
-                        'ad_account_id' => $igId, // Store IG Actor / Profile ID in ad_account_id or profile_id
+                        'platform_account_id' => $igId, // Store IG Actor / Profile ID in platform_account_id
                         'access_token'  => $accessToken,
                         'refresh_token' => data_get($data, 'refresh_token'),
                         'expires_at'    => $expiresAt,
-                        'status'        => 'active',
-                        'currency'      => $currency ?? null,
+                        'has_ads_permission' => true,
+                        'metadata'      => array_filter(['currency' => $currency ?? null]),
                     ],
                     [
-                        'platform'      => 'instagram', 
-                        'ad_account_id' => $igId, 
+                        'platform'      => 'instagram',
+                        'platform_account_id' => $igId,
                         'user_id'       => Auth::id()
                     ],
-                    new AdAccount
+                    new SocialAccount
                 );
             }
         }
@@ -251,7 +251,7 @@ class FacebookAdService
 
         if (!$response->successful()) {
             Log::warning('Facebook Instagram lookup: ad account instagram_accounts request failed', [
-                'ad_account_id' => $adAccountId,
+                'platform_account_id' => $adAccountId,
                 'response'      => $response->json(),
             ]);
 
@@ -350,7 +350,7 @@ class FacebookAdService
 
     private function storeCampaign($platform, $request)
     {
-        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/campaigns';
+        $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/campaigns';
 
         // Special Ad Category is set once here and is immutable for the
         // life of the campaign (Meta rejects changing it later) - see
@@ -380,7 +380,7 @@ class FacebookAdService
         $dataToInsert = [
             'ad_campaign_id'     => $id,
             'user_id'         => Auth::user()->id,
-            'ad_account_id'   => $this->account->id,
+            'social_account_id'   => $this->account->id,
             'name' => $request['name'],
             'objective' => $request['objective'],
             'special_ad_category' => $specialAdCategory,
@@ -399,7 +399,7 @@ class FacebookAdService
 
     private function storeAdGroup($platform, $request)
     {
-        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adsets';
+        $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/adsets';
         $adSetObjects = $this->getPromotedObject($request);
         $publisherPlatforms = [];
 
@@ -506,7 +506,7 @@ class FacebookAdService
             'ad_campaign_id'     => $request['ad_campaign_id'],
             'user_id'         => Auth::user()->id,
             'ad_adgroup_id'         => $id,
-            'ad_account_id'   => $this->account->id,
+            'social_account_id'   => $this->account->id,
             'name' => $request['name'],
             'location_ids' => json_encode($countries),
             'promotion_target_type' => json_encode($adSetObjects['promoted_objects']),
@@ -582,7 +582,7 @@ class FacebookAdService
 
             $dataToInsert = [
                 'ad_media_id'       => $mediaHash,
-                'ad_account_id'     => $this->account->id,
+                'social_account_id'     => $this->account->id,
                 'ad_campaign_id'    => $request['ad_campaign_id'],
                 'platform'          => 'facebook',
                 'name'              => $fileName,
@@ -623,7 +623,7 @@ class FacebookAdService
      */
     private function uploadImage($media, $fileName)
     {
-        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adimages';
+        $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/adimages';
 
         $payload = [
             'file_name' => $fileName,
@@ -649,7 +649,7 @@ class FacebookAdService
      */
     private function uploadVideo($media, $fileName)
     {
-        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/advideos';
+        $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/advideos';
 
         // Multipart upload must not carry a JSON content-type header.
         $authHeader = ['Authorization' => $this->header['data']['Authorization']];
@@ -688,7 +688,7 @@ class FacebookAdService
 
     private function storeCreative($platform, $request)
     {
-        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adcreatives';
+        $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/adcreatives';
         $payload = [
             'name' => $request['name'],
             'object_story_spec' => [
@@ -697,9 +697,9 @@ class FacebookAdService
         ];
 
         if (isset($request['instagram'])) {
-            $loginUser = AdAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
+            $loginUser = SocialAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
             if ($loginUser) {
-                $payload['object_story_spec']['instagram_actor_id'] = $loginUser->ad_account_id;
+                $payload['object_story_spec']['instagram_actor_id'] = $loginUser->platform_account_id;
             }
         }
 
@@ -782,7 +782,7 @@ class FacebookAdService
             'ad_adgroup_id'            => $request['ad_adgroup_id'],
             'ad_creative_id'              => $id,
             'platform'                 => 'facebook',
-            'ad_account_id'            => $this->account->id,
+            'social_account_id'            => $this->account->id,
             'ad_campaign_id'           => $request['ad_campaign_id'],
             'name'                     => $request['name'],
             'ad_format'                => $request['ad_format'] ?? null,
@@ -815,7 +815,7 @@ class FacebookAdService
 
     private function storeAd($platform, $request)
     {
-        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/ads';
+        $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/ads';
 
 
         $payload = [
@@ -842,7 +842,7 @@ class FacebookAdService
             'ad_id'                    => $id,
             'status'                   => false,
             'platform'                 => 'facebook',
-            'ad_account_id'            => $this->account->id,
+            'social_account_id'            => $this->account->id,
             'ad_campaign_id'           => $request['ad_campaign_id'],
             'name'                     => $request['name'],
             'call_to_action'           => $request['call_to_action'],
@@ -1037,7 +1037,7 @@ class FacebookAdService
      */
     private function resolveDetailedTargeting(string $limitType, array $queries): array
     {
-        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/targetingsearch';
+        $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/targetingsearch';
         $results = [];
 
         foreach ($queries as $query) {
@@ -1588,7 +1588,7 @@ class FacebookAdService
             'ad_campaign_id'     => $campaignId,
             'user_id'         => Auth::user()->id,
             'ad_adgroup_id'         => $adGroup->ad_adgroup_id,
-            'ad_account_id'   => $this->account->id,
+            'social_account_id'   => $this->account->id,
             'name' => $request['name'],
             'location_ids' => json_encode($countries),
             'promotion_target_type' => json_encode($adSetObjects['promoted_objects']),
@@ -1637,9 +1637,9 @@ class FacebookAdService
         ];
 
         if (isset($request['instagram'])) {
-            $loginUser = AdAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
+            $loginUser = SocialAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
             if ($loginUser) {
-                $payload['object_story_spec']['instagram_actor_id'] = $loginUser->ad_account_id;
+                $payload['object_story_spec']['instagram_actor_id'] = $loginUser->platform_account_id;
             }
         }
 
@@ -1690,7 +1690,7 @@ class FacebookAdService
             'ad_adgroup_id'            => $request['ad_adgroup_id'],
             'ad_creative_id'              => $creativeId,
             'platform'                 => 'facebook',
-            'ad_account_id'            => $this->account->id,
+            'social_account_id'            => $this->account->id,
             'ad_campaign_id'           => $request['ad_campaign_id'],
             'name'                     => $request['name'],
             'ad_format'                => $request['ad_format'] ?? null,
@@ -1749,7 +1749,7 @@ class FacebookAdService
             'ad_id'                    => $ad->ad_id,
             'status'                   => false,
             'platform'                 => 'facebook',
-            'ad_account_id'            => $this->account->id,
+            'social_account_id'            => $this->account->id,
             'ad_campaign_id'           => $request['ad_campaign_id'],
             'name'                     => $request['name'],
             'call_to_action'           => $request['call_to_action'],
@@ -1816,9 +1816,9 @@ class FacebookAdService
         if (count($media)) {
             foreach ($media as $each) {
                 if ($creative->type === 'IMAGE') {
-                    $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adimages';
+                    $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/adimages';
                 } else if ($creative->type === 'VIDEO') {
-                    $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/advideos';
+                    $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/advideos';
                 } else if ($creative->type === 'CAROUSEL') {
                 }
 

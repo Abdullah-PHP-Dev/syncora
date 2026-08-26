@@ -18,7 +18,7 @@ use App\Services\PostServices\WhatsAppPostService;
 use App\Services\PostServices\ThreadsPostService;
 use App\Services\PostServices\PinterestPostService;
 use App\Models\PostCategory;
-use App\Models\PostAccount;
+use App\Models\SocialAccount;
 use App\Models\PostMedia;
 use App\Models\PostComment;
 use App\Models\Messaging\Message;
@@ -67,12 +67,12 @@ class PostController extends Controller
         $dateTo   = $request->filled('to') ? \Carbon\Carbon::parse($request->query('to'))->endOfDay() : null;
 
         // ---- Accounts ----
-        $accounts = PostAccount::whereUserId($userId)->get();
+        $accounts = SocialAccount::whereUserId($userId)->get();
         $totalAccounts = $accounts->count();
         $accountsByPlatform = $accounts->groupBy('platform')->map->count();
-        $totalFollowers = (int) $accounts->sum('follower_count');
+        $totalFollowers = (int) $accounts->sum('followers_count');
         $totalAccountLikes = (int) $accounts->sum('likes_count');
-        $totalMedia = (int) $accounts->sum('media_count');
+        $totalMedia = (int) $accounts->sum(fn ($account) => (int) ($account->metadata['media_count'] ?? 0));
 
         // ---- Posts Query ----
         $postQuery = Post::where('user_id', $userId);
@@ -167,11 +167,11 @@ class PostController extends Controller
                 'platform'       => $account->platform,
                 'name'           => $account->name ?: $account->username,
                 'username'       => $account->username,
-                'image'          => $account->image,
-                'follower_count' => (int) $account->follower_count,
+                'image'          => $account->avatar_url,
+                'follower_count' => (int) $account->followers_count,
                 'likes_count'    => (int) $account->likes_count,
-                'media_count'    => (int) $account->media_count,
-                'views_count'    => (int) $account->views_count,
+                'media_count'    => (int) ($account->metadata['media_count'] ?? 0),
+                'views_count'    => (int) ($account->metadata['views_count'] ?? 0),
             ];
         })->sortByDesc('follower_count')->values();
 
@@ -188,7 +188,7 @@ class PostController extends Controller
             ->where('status', 'scheduled')
             ->whereNotNull('schedule_at')
             ->where('schedule_at', '>=', now())
-            ->with(['postAccount', 'media'])
+            ->with(['socialAccount', 'media'])
             ->orderBy('schedule_at')
             ->limit(4)
             ->get();
@@ -208,8 +208,8 @@ class PostController extends Controller
         }
 
         // ---- Recent + top performing posts (for the two-column feed) ----
-        $recentPosts = (clone $postQuery)->with(['postAccount', 'media'])->latest()->limit(4)->get();
-        $topPosts = (clone $postQuery)->with(['postAccount', 'media'])
+        $recentPosts = (clone $postQuery)->with(['socialAccount', 'media'])->latest()->limit(4)->get();
+        $topPosts = (clone $postQuery)->with(['socialAccount', 'media'])
             ->orderByRaw('(likes + shares + comments + reach) DESC')
             ->limit(4)
             ->get();
@@ -262,7 +262,7 @@ class PostController extends Controller
 
         // ---- New accounts connected in the last 7 days, for the Connected
         // Accounts card (real signal, since follower history isn't tracked) ----
-        $newAccountsThisWeek = PostAccount::where('user_id', $userId)
+        $newAccountsThisWeek = SocialAccount::where('user_id', $userId)
             ->where('created_at', '>=', now()->subDays(7))
             ->count();
 
@@ -379,7 +379,7 @@ class PostController extends Controller
      */
     private function buildPostsQuery(Request $request, int $userId)
     {
-        $query = Post::with(['postAccount', 'media', 'user'])
+        $query = Post::with(['socialAccount', 'media', 'user'])
             ->where('user_id', $userId)
             ->whereIn('id', function ($sub) use ($userId) {
                 $sub->selectRaw('MIN(id)')
@@ -539,7 +539,7 @@ class PostController extends Controller
     {
         return Post::with([
             'user',
-            'postAccount',
+            'socialAccount',
             'media',
             'postComments' => function ($query) {
                 $query->topLevel()->with('replies');
@@ -588,7 +588,7 @@ class PostController extends Controller
                 'platform' => $comment->platform,
                 'comment_id' => 'seed_' . Str::random(12),
                 'parent_comment_id' => $comment->id,
-                'post_account_id' => $comment->post_account_id,
+                'social_account_id' => $comment->social_account_id,
                 'post_id' => $comment->post_id,
                 'user_id' => Auth::id(),
                 'user_name' => Auth::user()->name ?? 'Support',
@@ -648,7 +648,7 @@ class PostController extends Controller
             'platform' => $post->platform,
             'comment_id' => 'seed_' . Str::random(12),
             'parent_comment_id' => null,
-            'post_account_id' => $post->post_account_id,
+            'social_account_id' => $post->social_account_id,
             'post_id' => $post->id,
             'user_id' => Auth::id(),
             'user_name' => Auth::user()->name ?? 'Support',
@@ -739,8 +739,8 @@ class PostController extends Controller
             'views' => (int) ($post->views ?? 0),
             'author' => $post->user->name ?? 'You',
             'created_at' => optional($post->created_at)->format('Y-m-d'),
-            'account_name' => $post->postAccount->name ?? $post->postAccount->username ?? null,
-            'account_handle' => $post->postAccount->username ? '@' . $post->postAccount->username : null,
+            'account_name' => $post->socialAccount->name ?? $post->socialAccount->username ?? null,
+            'account_handle' => $post->socialAccount->username ? '@' . $post->socialAccount->username : null,
         ];
     }
 
@@ -800,7 +800,7 @@ class PostController extends Controller
             ->orderBy('id', 'desc')
             ->get();
     
-        $accounts = PostAccount::whereUserId($userId)->get();
+        $accounts = SocialAccount::whereUserId($userId)->get();
      
         // Fetch scheduled posts (past and future) for this platform
         $scheduledPosts = Post::where('user_id', $userId)
@@ -837,7 +837,7 @@ class PostController extends Controller
     
                     foreach ($validated['platforms'] as $platform) {
     
-                        $pages = PostAccount::where([
+                        $pages = SocialAccount::where([
                             'user_id' => $userId,
                             'platform' => $platform
                         ])->whereIn(
@@ -1120,7 +1120,7 @@ class PostController extends Controller
 
         foreach ($validated['platforms'] as $platform) {
 
-            $pages = PostAccount::where(['user_id' => $userId, 'platform' => $platform])->get();
+            $pages = SocialAccount::where(['user_id' => $userId, 'platform' => $platform])->get();
 
             if ($pages->isEmpty()) {
                 $errors[] = ['message' => "No connected {$platform} account found. Connect one first."];
@@ -1179,7 +1179,7 @@ class PostController extends Controller
 
     public function destroy($postId)
     {
-        $post = Post::with('postAccount', 'postComments' ,'media')->find($postId);
+        $post = Post::with('socialAccount', 'postComments' ,'media')->find($postId);
         $error = [];
         if (!$post) {
             return response()->json([
@@ -1284,7 +1284,7 @@ class PostController extends Controller
     {
         $post = Post::with([
             'user',
-            'postAccount',
+            'socialAccount',
            // 'category',
             'category',
             'media',
@@ -1295,8 +1295,8 @@ class PostController extends Controller
         ])->findOrFail($postId);
 
         return view('admin.posts.show', compact('post'));
-        // $post = Post::with('postAccount')->findOrFail($postId);
-        // $socialPlatform = $post->postAccount->platform;
+        // $post = Post::with('socialAccount')->findOrFail($postId);
+        // $socialPlatform = $post->socialAccount->platform;
     
         // $post->load([
         //     'postComments',
@@ -1310,7 +1310,7 @@ class PostController extends Controller
     }
 
     public function getTypePost(Request $request) {
-        $query = Post::with(['media', 'postAccount']) ->where('user_id', Auth::user()->id);
+        $query = Post::with(['media', 'socialAccount']) ->where('user_id', Auth::user()->id);
         $type = $request->type;
 
         switch ($type) {
@@ -1334,7 +1334,7 @@ class PostController extends Controller
         
         $posts = $query->paginate(10);
 
-        $categories = PostCategory::with(['postAccount', 'posts'])->where([
+        $categories = PostCategory::with(['socialAccount', 'posts'])->where([
             'user_id' => Auth::user()->id
         ])->orderBy('id', 'desc')->paginate(50);
 

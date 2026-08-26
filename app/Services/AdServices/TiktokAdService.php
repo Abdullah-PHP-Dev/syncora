@@ -2,7 +2,7 @@
 
 namespace App\Services\AdServices;
 
-use App\Models\Admin\AdAccount;
+use App\Models\SocialAccount;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdMedia;
@@ -37,7 +37,7 @@ class TiktokAdService
 {
     protected $account, $config, $apiService, $header;
 
-    public function __construct(AdAccount $account, ApiService $apiService)
+    public function __construct(SocialAccount $account, ApiService $apiService)
     {
         $this->apiService = $apiService;
         $this->account = $account->wherePlatform('tiktok')->whereUserId(Auth::user()->id)->first();
@@ -150,13 +150,13 @@ class TiktokAdService
                     'platform'      => $platform,
                     'user_id'       => Auth::user()->id,
                     'name'          => $details['name'] ?? "TikTok Advertiser {$advertiserId}",
-                    'currency'      => $details['currency'] ?? null,
-                    'ad_account_id' => $advertiserId,
+                    'platform_account_id' => $advertiserId,
                     'access_token'  => $accessToken,
-                    'status'        => 'active',
+                    'has_ads_permission' => true,
+                    'metadata'      => array_filter(['currency' => $details['currency'] ?? null]),
                 ],
-                ['platform' => $platform, 'ad_account_id' => $advertiserId, 'user_id' => Auth::user()->id],
-                new AdAccount
+                ['platform' => $platform, 'platform_account_id' => $advertiserId, 'user_id' => Auth::user()->id],
+                new SocialAccount
             );
 
             $connected++;
@@ -223,7 +223,7 @@ class TiktokAdService
         $endpoint = $this->config . 'campaign/create/';
 
         $payload = [
-            'advertiser_id'      => $this->account->ad_account_id,
+            'advertiser_id'      => $this->account->platform_account_id,
             'campaign_name'      => $request['name'] . ' ' . time(),
             'objective_type'     => $request['objective'],
             'budget_mode'        => $request['budget_mode'],
@@ -253,7 +253,7 @@ class TiktokAdService
         $dataToInsert = [
             'ad_campaign_id'      => $id,
             'user_id'             => Auth::user()->id,
-            'ad_account_id'       => $this->account->id,
+            'social_account_id'       => $this->account->id,
             'name'                => $request['name'] . ' ' . time(),
             'objective'           => $request['objective'],
             'platform'            => $platform,
@@ -306,7 +306,7 @@ class TiktokAdService
         }
 
         $payload = [
-            'advertiser_id'      => $this->account->ad_account_id,
+            'advertiser_id'      => $this->account->platform_account_id,
             'campaign_id'        => $request['campaign_id'],
             'adgroup_name'       => $request['name'],
             'promotion_type'     => $request['promotion_type'] ?? null,
@@ -444,7 +444,7 @@ class TiktokAdService
             'ad_campaign_id'        => $request['ad_campaign_id'],
             'user_id'               => Auth::user()->id,
             'ad_adgroup_id'         => $id,
-            'ad_account_id'         => $this->account->id,
+            'social_account_id'         => $this->account->id,
             'name'                  => $request['name'],
             'promotion_type'        => $request['promotion_type'] ?? null,
             'promotion_target_type' => $request['promotion_target_type'] ?? null,
@@ -520,7 +520,7 @@ class TiktokAdService
 
             $dataToInsert = [
                 'ad_media_id'       => $result['data']['id'],
-                'ad_account_id'     => $this->account->id,
+                'social_account_id'     => $this->account->id,
                 'ad_campaign_id'    => $request['ad_campaign_id'],
                 'platform'          => $platform,
                 'name'              => $fileName,
@@ -558,7 +558,7 @@ class TiktokAdService
         $endpoint = $this->config . 'file/image/ad/upload/';
 
         $result = $this->callTikTokMultipart($endpoint, [
-            'advertiser_id'   => $this->account->ad_account_id,
+            'advertiser_id'   => $this->account->platform_account_id,
             'upload_type'     => 'UPLOAD_BY_FILE',
             'file_name'       => $fileName,
             'image_signature' => md5_file($media->getRealPath()),
@@ -592,7 +592,7 @@ class TiktokAdService
         $endpoint = $this->config . 'file/video/ad/upload/';
 
         $result = $this->callTikTokMultipart($endpoint, [
-            'advertiser_id'   => $this->account->ad_account_id,
+            'advertiser_id'   => $this->account->platform_account_id,
             'upload_type'     => 'UPLOAD_BY_FILE',
             'file_name'       => $fileName,
             'video_signature' => md5_file($media->getRealPath()),
@@ -655,7 +655,7 @@ class TiktokAdService
         $fileName = time() . '_' . uniqid() . '.' . strtolower($coverMedia->getClientOriginalExtension());
 
         $result = $this->callTikTokMultipart($this->config . 'file/image/ad/upload/', [
-            'advertiser_id'   => $this->account->ad_account_id,
+            'advertiser_id'   => $this->account->platform_account_id,
             'upload_type'     => 'UPLOAD_BY_FILE',
             'file_name'       => $fileName,
             'image_signature' => md5_file($coverMedia->getRealPath()),
@@ -686,7 +686,7 @@ class TiktokAdService
     private function fetchVideoCoverImageId(string $videoId): ?string
     {
         $infoResult = $this->callTikTok('get', $this->config . 'file/video/ad/info/', [
-            'advertiser_id' => $this->account->ad_account_id,
+            'advertiser_id' => $this->account->platform_account_id,
             'video_ids'     => json_encode([$videoId]),
         ]);
 
@@ -707,7 +707,7 @@ class TiktokAdService
         $coverFileName = 'cover_' . $videoId . '.jpg';
 
         $uploadResult = $this->callTikTokMultipart($this->config . 'file/image/ad/upload/', [
-            'advertiser_id'   => $this->account->ad_account_id,
+            'advertiser_id'   => $this->account->platform_account_id,
             'upload_type'     => 'UPLOAD_BY_FILE',
             'file_name'       => $coverFileName,
             'image_signature' => md5_file($tmpPath),
@@ -736,7 +736,7 @@ class TiktokAdService
         $endpoint = $this->config . 'file/music/upload/';
 
         $result = $this->callTikTokMultipart($endpoint, [
-            'advertiser_id'   => $this->account->ad_account_id,
+            'advertiser_id'   => $this->account->platform_account_id,
             'upload_type'     => 'UPLOAD_BY_FILE',
             'file_name'       => $fileName,
             'music_signature' => md5_file($media->getRealPath()),
@@ -847,7 +847,7 @@ class TiktokAdService
     private function getDefaultMusicId(): ?string
     {
         $result = $this->callTikTok('get', $this->config . 'file/music/get/', [
-            'advertiser_id' => $this->account->ad_account_id,
+            'advertiser_id' => $this->account->platform_account_id,
             'page_size'     => 1,
         ]);
 
@@ -862,7 +862,7 @@ class TiktokAdService
         $creative = $creativeResponse['data'];
 
         $result = $this->callTikTok('post', $endpoint, [
-            'advertiser_id' => $this->account->ad_account_id,
+            'advertiser_id' => $this->account->platform_account_id,
             'adgroup_id'    => $request['adgroup_id'],
             'creatives'     => [$creative],
         ]);
@@ -891,7 +891,7 @@ class TiktokAdService
                 'ad_adgroup_id'   => $request['ad_adgroup_id'],
                 'ad_creative_id'  => $adId,
                 'platform'        => $platform,
-                'ad_account_id'   => $this->account->id,
+                'social_account_id'   => $this->account->id,
                 'ad_campaign_id'  => $request['ad_campaign_id'],
                 'name'            => $request['name'],
                 'ad_format'       => $creative['ad_format'],
@@ -921,7 +921,7 @@ class TiktokAdService
                 'ad_id'           => $adId,
                 'status'          => false,
                 'platform'        => $platform,
-                'ad_account_id'   => $this->account->id,
+                'social_account_id'   => $this->account->id,
                 'ad_campaign_id'  => $request['ad_campaign_id'],
                 'name'            => $request['name'],
                 'call_to_action'  => $request['call_to_action'],
@@ -960,7 +960,7 @@ class TiktokAdService
     public function getIdentities(): array
     {
         $result = $this->callTikTok('get', $this->config . 'identity/get/', [
-            'advertiser_id' => $this->account->ad_account_id,
+            'advertiser_id' => $this->account->platform_account_id,
         ]);
 
         if (!$result['success']) {
@@ -1067,7 +1067,7 @@ class TiktokAdService
         }
 
         $result = $this->callTikTok('get', $this->config . 'tool/region/', [
-            'advertiser_id'  => $this->account->ad_account_id,
+            'advertiser_id'  => $this->account->platform_account_id,
             'placements'     => ['PLACEMENT_TIKTOK'],
             'objective_type' => $objective,
             'level_range'    => 'TO_COUNTRY',
@@ -1137,7 +1137,7 @@ class TiktokAdService
         }
 
         $result = $this->callTikTok('get', $this->config . $endpoint, [
-            'advertiser_id' => $this->account->ad_account_id,
+            'advertiser_id' => $this->account->platform_account_id,
         ]);
 
         if (!$result['success']) {
@@ -1173,7 +1173,7 @@ class TiktokAdService
 
         foreach ($queries as $query) {
             $result = $this->callTikTok('get', $this->config . 'tool/interest_keyword/recommend/', [
-                'advertiser_id' => $this->account->ad_account_id,
+                'advertiser_id' => $this->account->platform_account_id,
                 'keyword'       => $query,
                 'limit'         => 1,
             ]);
@@ -1383,7 +1383,7 @@ class TiktokAdService
         $endpoint = $this->config . 'campaign/update/';
 
         $result = $this->callTikTok('post', $endpoint, [
-            'advertiser_id' => $this->account->ad_account_id,
+            'advertiser_id' => $this->account->platform_account_id,
             'campaign_id'   => $campaign->ad_campaign_id,
             'campaign_name' => $request['name'],
         ]);
@@ -1412,7 +1412,7 @@ class TiktokAdService
         $endpoint = $this->config . 'adgroup/update/';
 
         $payload = [
-            'advertiser_id'      => $this->account->ad_account_id,
+            'advertiser_id'      => $this->account->platform_account_id,
             'adgroup_id'         => $adGroup->ad_adgroup_id,
             'adgroup_name'       => $request['name'],
             'schedule_start_time' => Carbon::parse($request['start_time'])->format('Y-m-d H:i:s'),
@@ -1452,7 +1452,7 @@ class TiktokAdService
             'ad_campaign_id'      => $campaignId,
             'user_id'             => Auth::user()->id,
             'ad_adgroup_id'       => $adGroup->ad_adgroup_id,
-            'ad_account_id'       => $this->account->id,
+            'social_account_id'       => $this->account->id,
             'name'                => $request['name'],
             'location_ids'        => json_encode($locationIds),
             'platform'            => $platform,
@@ -1494,7 +1494,7 @@ class TiktokAdService
         $creative['ad_id'] = $existingAd->ad_id;
 
         $result = $this->callTikTok('post', $this->config . 'ad/update/', [
-            'advertiser_id' => $this->account->ad_account_id,
+            'advertiser_id' => $this->account->platform_account_id,
             'adgroup_id'    => $adGroup['ad_adgroup_id'],
             'creatives'     => [$creative],
         ]);
@@ -1555,7 +1555,7 @@ class TiktokAdService
         $isActive = $status === 'ACTIVE';
 
         $result = $this->callTikTok('post', $this->config . 'campaign/status/update/', [
-            'advertiser_id'    => $this->account->ad_account_id,
+            'advertiser_id'    => $this->account->platform_account_id,
             'campaign_ids'     => [$campaign->ad_campaign_id],
             'operation_status' => $operationStatus,
         ]);
@@ -1566,7 +1566,7 @@ class TiktokAdService
 
         if ($adGroup) {
             $this->callTikTok('post', $this->config . 'adgroup/status/update/', [
-                'advertiser_id'    => $this->account->ad_account_id,
+                'advertiser_id'    => $this->account->platform_account_id,
                 'adgroup_ids'      => [$adGroup->ad_adgroup_id],
                 'operation_status' => $operationStatus,
             ]);
@@ -1575,7 +1575,7 @@ class TiktokAdService
 
         if ($ad) {
             $this->callTikTok('post', $this->config . 'ad/status/update/', [
-                'advertiser_id'    => $this->account->ad_account_id,
+                'advertiser_id'    => $this->account->platform_account_id,
                 'adgroup_id'       => $adGroup->ad_adgroup_id ?? null,
                 'ad_ids'           => [$ad->ad_id],
                 'operation_status' => $operationStatus,
@@ -1604,7 +1604,7 @@ class TiktokAdService
         // asset library, so uploaded media is only removed locally below.
         if ($ad) {
             $result = $this->callTikTok('post', $this->config . 'ad/status/update/', [
-                'advertiser_id'    => $this->account->ad_account_id,
+                'advertiser_id'    => $this->account->platform_account_id,
                 'adgroup_id'       => $adGroup->ad_adgroup_id ?? null,
                 'ad_ids'           => [$ad->ad_id],
                 'operation_status' => 'DELETE',
@@ -1624,7 +1624,7 @@ class TiktokAdService
             }
 
             $result = $this->callTikTok('post', $this->config . 'adgroup/status/update/', [
-                'advertiser_id'    => $this->account->ad_account_id,
+                'advertiser_id'    => $this->account->platform_account_id,
                 'adgroup_ids'      => [$adGroup->ad_adgroup_id],
                 'operation_status' => 'DELETE',
             ]);
@@ -1638,7 +1638,7 @@ class TiktokAdService
 
         if ($campaign->ad_campaign_id) {
             $result = $this->callTikTok('post', $this->config . 'campaign/status/update/', [
-                'advertiser_id'    => $this->account->ad_account_id,
+                'advertiser_id'    => $this->account->platform_account_id,
                 'campaign_ids'     => [$campaign->ad_campaign_id],
                 'operation_status' => 'DELETE',
             ]);

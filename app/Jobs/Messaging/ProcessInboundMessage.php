@@ -6,7 +6,7 @@ use App\Events\Messaging\MessageCreated;
 use App\Models\Messaging\Conversation;
 use App\Models\Messaging\Message;
 use App\Models\Messaging\MessageAttachment;
-use App\Models\Messaging\MessageChannel;
+use App\Models\SocialAccount;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -28,7 +28,7 @@ class ProcessInboundMessage implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public function __construct(
-        public int $messageChannelId,
+        public int $socialAccountId,
         public string $customerExternalId,
         public ?string $customerName = null,
         public ?string $customerAvatarUrl = null,
@@ -43,9 +43,9 @@ class ProcessInboundMessage implements ShouldQueue
 
     public function handle(): void
     {
-        $channel = MessageChannel::find($this->messageChannelId);
+        $account = SocialAccount::find($this->socialAccountId);
 
-        if (!$channel) {
+        if (!$account) {
             return;
         }
 
@@ -57,20 +57,20 @@ class ProcessInboundMessage implements ShouldQueue
             return;
         }
 
-        $message = DB::transaction(function () use ($channel) {
+        $message = DB::transaction(function () use ($account) {
             $conversation = Conversation::firstOrCreate(
                 [
-                    'message_channel_id'   => $this->messageChannelId,
+                    'social_account_id'    => $this->socialAccountId,
                     'customer_external_id' => $this->customerExternalId,
                 ],
                 [
-                    'platform'                 => MessageChannel::find($this->messageChannelId)->platform,
+                    'platform'                 => $account->platform,
                     'external_conversation_id' => $this->externalConversationId,
                     'customer_name'            => $this->customerName,
                     'customer_avatar_url'      => $this->customerAvatarUrl,
                     'meta'                     => $this->conversationMeta,
                     'status'                   => 'open',
-                    'assigned_user_id'         => $channel->user_id,
+                    'assigned_user_id'         => $account->user_id,
                 ]
             );
 
@@ -104,7 +104,7 @@ class ProcessInboundMessage implements ShouldQueue
                 'type'                => $this->type,
                 'body'                => $this->body,
                 'status'              => 'delivered',
-                'user_id'              => $channel->user_id,
+                'user_id'              => $account->user_id,
                 'sent_at'             => now(),
                 'delivered_at'        => now(),
             ]);

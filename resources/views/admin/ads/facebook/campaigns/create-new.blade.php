@@ -636,7 +636,7 @@
             pages: @json($pagesData),
             instagramAccount: @json($instagramAccountData),
             hasAdAccount: {{ $account ? 'true' : 'false' }},
-            currency: @json($account->currency ?? 'USD'),
+            currency: @json($account->metadata['currency'] ?? 'USD'),
             storeUrl: @json(route('admin.ads.campaigns.store', ['platform' => 'facebook'])),
             indexUrl: @json(route('admin.ads.campaigns.index', ['platform' => 'facebook'])),
         };

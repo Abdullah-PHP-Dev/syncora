@@ -5,6 +5,7 @@ namespace App\Services\MessagingServices;
 use App\Jobs\Messaging\ProcessInboundMessage;
 use App\Models\Messaging\Conversation;
 use App\Models\Messaging\MessageChannel;
+use App\Models\SocialAccount;
 use App\Services\ApiService;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
@@ -100,17 +101,24 @@ class XMessagingService
 
         $user = $userResponse['data']['data'];
 
+        $account = SocialAccount::updateOrCreate(
+            ['platform' => 'x', 'platform_account_id' => $user['id'], 'user_id' => \Illuminate\Support\Facades\Auth::id()],
+            [
+                'name'                     => $user['name'] ?? $user['username'],
+                'username'                 => $user['username'] ?? null,
+                'avatar_url'               => $user['profile_image_url'] ?? null,
+                'access_token'             => $accessToken,
+                'refresh_token'            => $tokenResponse['data']['refresh_token'] ?? null,
+                'is_token_valid'           => true,
+                'has_messaging_permission' => true,
+            ]
+        );
+
         $channel = MessageChannel::updateOrCreate(
             ['platform' => 'x', 'external_id' => $user['id']],
             [
-                'user_id'       => \Illuminate\Support\Facades\Auth::id(),
-                'name'          => $user['name'] ?? $user['username'],
-                'username'      => $user['username'] ?? null,
-                'avatar_url'    => $user['profile_image_url'] ?? null,
-                'access_token'  => $accessToken,
-                'refresh_token' => $tokenResponse['data']['refresh_token'] ?? null,
-                'expires_at'    => Carbon::now()->addSeconds($tokenResponse['data']['expires_in'] ?? 7200),
-                'status'        => true,
+                'social_account_id' => $account->id,
+                'expires_at'        => Carbon::now()->addSeconds($tokenResponse['data']['expires_in'] ?? 7200),
             ]
         );
 
@@ -122,30 +130,33 @@ class XMessagingService
     private function ensureFreshToken(MessageChannel $channel): string
     {
         if ($channel->expires_at && now()->lt($channel->expires_at)) {
-            return $channel->access_token;
+            return $channel->socialAccount->access_token;
         }
 
-        if (!$channel->refresh_token) {
-            return $channel->access_token;
+        if (!$channel->socialAccount->refresh_token) {
+            return $channel->socialAccount->access_token;
         }
 
         $response = $this->apiService->post(adminSetting('messaging.x.token_url'), [], [
             'grant_type'    => 'refresh_token',
-            'refresh_token' => $channel->refresh_token,
+            'refresh_token' => $channel->socialAccount->refresh_token,
             'client_id'     => adminSetting('messaging.x.client_id'),
         ], 'form');
 
         if ($response['success']) {
-            $channel->update([
+            $channel->socialAccount->update([
                 'access_token'  => $response['data']['access_token'],
-                'refresh_token' => $response['data']['refresh_token'] ?? $channel->refresh_token,
-                'expires_at'    => Carbon::now()->addSeconds($response['data']['expires_in'] ?? 7200),
+                'refresh_token' => $response['data']['refresh_token'] ?? $channel->socialAccount->refresh_token,
             ]);
 
-            return $channel->access_token;
+            $channel->update([
+                'expires_at' => Carbon::now()->addSeconds($response['data']['expires_in'] ?? 7200),
+            ]);
+
+            return $response['data']['access_token'];
         }
 
-        return $channel->access_token;
+        return $channel->socialAccount->access_token;
     }
 
     public function sendMessage(Conversation $conversation, array $data)
@@ -222,7 +233,7 @@ class XMessagingService
             $sender = $users->get($event['sender_id']);
 
             ProcessInboundMessage::dispatch(
-                messageChannelId: $channel->id,
+                socialAccountId: $channel->social_account_id,
                 customerExternalId: $event['sender_id'],
                 customerName: $sender['name'] ?? $sender['username'] ?? null,
                 customerAvatarUrl: $sender['profile_image_url'] ?? null,

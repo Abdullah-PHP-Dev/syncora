@@ -3,6 +3,7 @@
 namespace App\Services\MessagingServices\Concerns;
 
 use App\Models\Messaging\MessageChannel;
+use App\Models\SocialAccount;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -163,17 +164,21 @@ trait MetaMessagingTrait
         $created = 0;
 
         foreach ($pagesResponse['data']['data'] ?? [] as $page) {
+            $account = SocialAccount::updateOrCreate(
+                ['platform' => 'facebook', 'platform_account_id' => $page['id'], 'user_id' => Auth::id()],
+                [
+                    'name'                      => $page['name'],
+                    'avatar_url'                => $page['picture']['data']['url'] ?? null,
+                    'access_token'              => $page['access_token'],
+                    'refresh_token'             => $page['access_token'],
+                    'is_token_valid'            => true,
+                    'has_messaging_permission'  => true,
+                ]
+            );
+
             $channel = MessageChannel::updateOrCreate(
                 ['platform' => 'facebook', 'external_id' => $page['id']],
-                [
-                    'user_id'       => Auth::id(),
-                    'name'          => $page['name'],
-                    'username'      => null,
-                    'avatar_url'    => $page['picture']['data']['url'] ?? null,
-                    'access_token'  => $page['access_token'],
-                    'refresh_token' => $page['access_token'],
-                    'status'        => true,
-                ]
+                ['social_account_id' => $account->id]
             );
             $created++;
 

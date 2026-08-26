@@ -2,7 +2,7 @@
 
 namespace App\Services\AdServices;
 
-use App\Models\Admin\AdAccount;
+use App\Models\SocialAccount;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdCreative;
@@ -27,7 +27,10 @@ use Carbon\Carbon;
  * Ads API writes. That's why `ad_accounts.token_secret` already existed as
  * a column before this module was written - it's the OAuth 1.0a access
  * token secret, alongside `access_token` for the token itself and
- * `client_id`/`client_secret` for the consumer key/secret.
+ * `client_id`/`client_secret` for the consumer key/secret. Now that this
+ * module reads from the unified `social_accounts` table, the OAuth 1.0a
+ * token secret lives at `metadata['legacy_token_secret']` and the numeric
+ * X user ID at `metadata['profile_id']` (see storeTweet()/oauthHeader()).
  *
  * Hierarchy: Campaign (budget, funding_instrument_id) -> Line Item (the
  * ad-group equivalent: objective, placements, bid) -> a nullcast
@@ -51,7 +54,7 @@ class XAdService
 {
     protected $account, $config, $uploadUrl, $apiService;
 
-    public function __construct(AdAccount $account, ApiService $apiService)
+    public function __construct(SocialAccount $account, ApiService $apiService)
     {
         $this->apiService = $apiService;
         $this->account = $account->wherePlatform('x')->whereUserId(Auth::user()->id)->first();
@@ -140,7 +143,7 @@ class XAdService
             $url,
             $allParams,
             adminSetting('ads.x.client_secret'),
-            $this->account->token_secret ?? ''
+            $this->account->metadata['legacy_token_secret'] ?? ''
         );
 
         return 'OAuth ' . collect($oauthParams)->map(fn($v, $k) => rawurlencode($k) . '="' . rawurlencode($v) . '"')->implode(', ');
@@ -176,7 +179,7 @@ class XAdService
 
     private function accountId(): string
     {
-        return $this->account->ad_account_id;
+        return $this->account->platform_account_id;
     }
 
     // ------------------------------------------------------------------
@@ -261,7 +264,7 @@ class XAdService
         $dataToInsert = [
             'ad_campaign_id'        => $campaignId,
             'user_id'               => Auth::id(),
-            'ad_account_id'         => $this->account->id,
+            'social_account_id'         => $this->account->id,
             'name'                  => $request['name'],
             'platform'              => $platform,
             'funding_instrument_id' => $request['funding_instrument_id'],
@@ -310,7 +313,7 @@ class XAdService
             'ad_campaign_id' => $request['ad_campaign_id'],
             'user_id'        => Auth::id(),
             'ad_adgroup_id'  => $lineItemId,
-            'ad_account_id'  => $this->account->id,
+            'social_account_id'  => $this->account->id,
             'platform'       => $platform,
             'name'           => $params['name'],
             'objective'      => $request['objective'],
@@ -481,7 +484,7 @@ class XAdService
             [
                 'user_id'        => Auth::id(),
                 'platform'       => $platform,
-                'ad_account_id'  => $this->account->id,
+                'social_account_id'  => $this->account->id,
                 'ad_campaign_id' => $request['ad_campaign_id'],
                 'name'           => $fileName,
                 'file_name'      => $fileName,
@@ -506,7 +509,7 @@ class XAdService
      */
     private function storeTweet($platform, $request, $mediaKey = null)
     {
-        if (empty($this->account->profile_id)) {
+        if (empty($this->account->metadata['profile_id'] ?? null)) {
             return $this->errorResponse('This X account is missing its numeric user ID (profile_id) - required to create a promoted Tweet. Reconnect the account.');
         }
 
@@ -519,7 +522,7 @@ class XAdService
         $params = [
             'text'       => $text,
             'nullcast'   => 'true',
-            'as_user_id' => $this->account->profile_id,
+            'as_user_id' => $this->account->metadata['profile_id'] ?? null,
         ];
 
         if ($mediaKey) {
@@ -540,7 +543,7 @@ class XAdService
                 'ad_adgroup_id'  => $request['ad_adgroup_id'],
                 'ad_creative_id' => $tweetId,
                 'platform'       => $platform,
-                'ad_account_id'  => $this->account->id,
+                'social_account_id'  => $this->account->id,
                 'ad_campaign_id' => $request['ad_campaign_id'],
                 'name'           => $request['name'],
                 'type'           => 'PROMOTED_TWEET',
@@ -575,7 +578,7 @@ class XAdService
                 'ad_id'          => $promotedTweetId,
                 'status'         => false,
                 'platform'       => $platform,
-                'ad_account_id'  => $this->account->id,
+                'social_account_id'  => $this->account->id,
                 'ad_campaign_id' => $request['ad_campaign_id'],
                 'name'           => $request['name'],
                 'type'           => 'PROMOTED_TWEET',

@@ -44,9 +44,9 @@ class ThreadsPostService
      */
     protected function ensureValidToken($post)
     {
-        $account = $post->postAccount;
+        $account = $post->socialAccount;
 
-        if (!empty($account->expires_in) && Carbon::parse($account->expires_in)->gt(now()->addMinutes(5))) {
+        if (!empty($account->expires_at) && Carbon::parse($account->expires_at)->gt(now()->addMinutes(5))) {
             return true;
         }
 
@@ -65,7 +65,7 @@ class ThreadsPostService
 
         $account->update([
             'access_token' => $tokenData['access_token'],
-            'expires_in'   => now()->addSeconds($tokenData['expires_in'] ?? 5184000), // 60 days
+            'expires_at'   => now()->addSeconds($tokenData['expires_in'] ?? 5184000), // 60 days
         ]);
 
         $account->refresh();
@@ -101,7 +101,7 @@ class ThreadsPostService
                     'platform'         => 'threads',
                     'visibility'       => 'public',
                     'user_id'          => Auth::id(),
-                    'post_account_id'  => $page->id,
+                    'social_account_id'  => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
                     'content'          => $data['content'] ?? null,
                     'schedule_mode'    => $data['schedule_mode'] ?? 0,
@@ -117,7 +117,7 @@ class ThreadsPostService
                         'post_id'          => $post->id,
                         'visibility'       => 'public',
                         'user_id'          => Auth::id(),
-                        'post_account_id'  => $page->id,
+                        'social_account_id'  => $page->id,
                         'post_category_id' => $data['category_id'] ?? 1,
                         'media_url'        => $media['url'],
                         'media_type'       => $media['media_type'],
@@ -134,7 +134,7 @@ class ThreadsPostService
                 $results[] = $post;
             } catch (\Exception $e) {
                 $errors[] = [
-                    'page_id'   => $page->account_id,
+                    'page_id'   => $page->platform_account_id,
                     'page_name' => $page->name,
                     'message'   => $e->getMessage(),
                 ];
@@ -179,8 +179,8 @@ class ThreadsPostService
         // before publishing a Threads media container".
         sleep(30);
 
-        $account = $post->postAccount;
-        $endpoint = $this->baseUrl . $account->account_id . '/threads_publish';
+        $account = $post->socialAccount;
+        $endpoint = $this->baseUrl . $account->platform_account_id . '/threads_publish';
 
         $response = $this->api->request('post', $endpoint, [], [
             'creation_id'  => $container['container_id'],
@@ -209,8 +209,8 @@ class ThreadsPostService
     protected function createMediaContainer($post)
     {
         try {
-            $account = $post->postAccount;
-            $endpoint = $this->baseUrl . $account->account_id . '/threads';
+            $account = $post->socialAccount;
+            $endpoint = $this->baseUrl . $account->platform_account_id . '/threads';
             $mediaCount = count($post->media);
 
             if ($mediaCount === 0) {
@@ -302,7 +302,7 @@ class ThreadsPostService
         $endpoint = $this->baseUrl . $post->post_id;
 
         $response = $this->api->request('delete', $endpoint, [], [
-            'access_token' => $post->postAccount->access_token,
+            'access_token' => $post->socialAccount->access_token,
         ]);
 
         if (!$response->successful()) {

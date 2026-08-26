@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\Admin\AdAccount;
+use App\Models\SocialAccount;
 use Carbon\Carbon;
 
 use App\Services\AdServices\SocialAdManagerService;
@@ -13,14 +13,15 @@ class AdController extends Controller
 {
     protected $adAccountModel;
 
-    public function __construct(AdAccount $adAccountModel)
+    public function __construct(SocialAccount $adAccountModel)
     {
         $this->adAccountModel = $adAccountModel;
     }
 
     public function dashboard()
     {
-        $accounts = $this->adAccountModel->whereNotNull('access_token')
+        $accounts = $this->adAccountModel->where('has_ads_permission', true)
+            ->whereNotNull('access_token')
             ->where('expires_at', '>', now())
             ->get()
             ->groupBy('platform');

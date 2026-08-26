@@ -231,7 +231,7 @@
                                                     </div>
                                                     <div class="col-md-6">
                                                         <label>Budget</label>
-                                                        <input type="text" class="form-control" value="{{ $account->currency ?? 'USD' }} {{ $campaign->budget }}" disabled>
+                                                        <input type="text" class="form-control" value="{{ $account->metadata['currency'] ?? 'USD' }} {{ $campaign->budget }}" disabled>
                                                     </div>
                                                 </div>
                                                 <div class="row mt-3">

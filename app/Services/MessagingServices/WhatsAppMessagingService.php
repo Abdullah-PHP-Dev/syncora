@@ -45,7 +45,7 @@ class WhatsAppMessagingService
             $payload['text'] = ['body' => $data['body']];
         }
 
-        $result = $this->graphApiCall('POST', $channel->external_id . '/messages', $payload, $channel->access_token);
+        $result = $this->graphApiCall('POST', $channel->external_id . '/messages', $payload, $channel->socialAccount->access_token);
 
         if (!$result['success']) {
             return $result;
@@ -87,7 +87,7 @@ class WhatsAppMessagingService
                     $body = $message['text']['body'] ?? null;
 
                     if (in_array($type, ['image', 'video', 'audio', 'document', 'sticker'], true) && !empty($message[$type]['id'])) {
-                        $media = $this->resolveMedia($message[$type]['id'], $channel->access_token, $channel->platform);
+                        $media = $this->resolveMedia($message[$type]['id'], $channel->socialAccount->access_token, $channel->platform);
 
                         if ($media) {
                             $attachments[] = $media;
@@ -96,7 +96,7 @@ class WhatsAppMessagingService
                     }
 
                     ProcessInboundMessage::dispatch(
-                        messageChannelId: $channel->id,
+                        socialAccountId: $channel->social_account_id,
                         customerExternalId: $waId,
                         customerName: $contactName,
                         externalMessageId: $message['id'] ?? null,

@@ -110,14 +110,14 @@ class ZaloMessagingService
 
     public function refreshToken(MessageChannel $channel): bool
     {
-        if (empty($channel->refresh_token)) {
+        if (empty($channel->socialAccount->refresh_token)) {
             return false;
         }
 
         $response = $this->apiService->post(adminSetting('messaging.zalo.token_url'), [
             'secret_key' => adminSetting('messaging.zalo.app_secret'),
         ], [
-            'refresh_token' => $channel->refresh_token,
+            'refresh_token' => $channel->socialAccount->refresh_token,
             'app_id'        => adminSetting('messaging.zalo.app_id'),
             'grant_type'    => 'refresh_token',
         ], 'form');
@@ -133,10 +133,13 @@ class ZaloMessagingService
 
         $token = $response['data'];
 
-        $channel->update([
+        $channel->socialAccount->update([
             'access_token'  => $token['access_token'],
-            'refresh_token' => $token['refresh_token'] ?? $channel->refresh_token,
-            'expires_at'    => now()->addSeconds((int) ($token['expires_in'] ?? 3600)),
+            'refresh_token' => $token['refresh_token'] ?? $channel->socialAccount->refresh_token,
+        ]);
+
+        $channel->update([
+            'expires_at' => now()->addSeconds((int) ($token['expires_in'] ?? 3600)),
         ]);
 
         return true;
@@ -145,7 +148,7 @@ class ZaloMessagingService
     private function ensureFreshToken(MessageChannel $channel): string
     {
         if ($channel->expires_at && now()->lt($channel->expires_at)) {
-            return $channel->access_token;
+            return $channel->socialAccount->access_token;
         }
 
         $this->refreshToken($channel);
@@ -239,7 +242,7 @@ class ZaloMessagingService
         $attachments = array_filter($attachments);
 
         ProcessInboundMessage::dispatch(
-            messageChannelId: $channel->id,
+            socialAccountId: $channel->social_account_id,
             customerExternalId: $senderId,
             externalMessageId: $message['msg_id'] ?? null,
             type: !empty($attachments) ? array_values($attachments)[0]['type'] : 'text',

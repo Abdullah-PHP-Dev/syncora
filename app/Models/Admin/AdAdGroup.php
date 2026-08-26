@@ -5,20 +5,21 @@ namespace App\Models\Admin;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\SocialAccount;
 use App\Models\User;
 
 class AdAdGroup extends Model
 {
     protected $table = "ad_adgroups";
-    protected $fillable = ['ad_adgroup_id', 'user_id', 'platform', 'ad_account_id', 'ad_campaign_id', 'name', 'promotion_type', 'promotion_target_type', 'placement_type', 'placements', 'location_ids',
+    protected $fillable = ['ad_adgroup_id', 'user_id', 'platform', 'social_account_id', 'ad_campaign_id', 'name', 'promotion_type', 'promotion_target_type', 'placement_type', 'placements', 'location_ids',
         'gender', 'operating_systems', 'operating_systems', 'audience_type', 'budget_mode', 'budget', 'schedule_type', 'schedule_start_time', 'schedule_end_time', 'optimization_goal', 'bid_type',
         'bid_price', 'conversion_bid_price', 'deep_bid_type', 'roas_bid', 'bid_display_mode', 'billing_event', 'pacing', 'status', 'age_groups', 'primary_web_event_tag',
         'ios', 'android', 'objective', 'publisher_platforms', 'languages', 'destination_type', 'bid_strategy', 'keywords', 'targeting_criteria'
     ];
 
-    public function adAccount(): BelongsTo
+    public function socialAccount(): BelongsTo
     {
-        return $this->belongsTo(AdAccount::class);
+        return $this->belongsTo(SocialAccount::class);
     }
 
     public function user(): BelongsTo

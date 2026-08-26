@@ -28,7 +28,7 @@ class TiktokPostService
      */
     protected function ensureValidToken($post)
     {
-        $account = $post->postAccount;
+        $account = $post->socialAccount;
         // Token still valid
         if (
             !empty($account->expires_in)
@@ -109,9 +109,9 @@ class TiktokPostService
                     'visibility' => 'public',
                     'user_id' => Auth::user()->id,
                     'group_id' => $data['group_id'] ?? null,
-                    'post_account_id' => $page->id,
+                    'social_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
-                    'page_id' => $page->account_id,
+                    'page_id' => $page->platform_account_id,
                     'content' => $data['content'] ?? null,
                     'schedule_mode' => $data['schedule_mode'] ?? 0,
                     'schedule_at' => $data['schedule_at'] ?? null,
@@ -127,7 +127,7 @@ class TiktokPostService
                             'post_id' => $post->id,
                             'visibility' => 'public',
                             'user_id' => Auth::user()->id,
-                            'post_account_id' => $page->id,
+                            'social_account_id' => $page->id,
                             'post_category_id' => $data['category_id'],
                             'media_url' => $media['url'],
                             'media_type' => $media['media_type'],
@@ -150,7 +150,7 @@ class TiktokPostService
                 $results[] = $post;
             } catch (\Exception $e) {
                 $errors[] = [
-                    'page_id' => $page->account_id,
+                    'page_id' => $page->platform_account_id,
                     'page_name' => $page->page_name ?? $page->name,
                     'message' => $e->getMessage()
                 ];
@@ -308,7 +308,7 @@ class TiktokPostService
     public function publishPost($post)
     {
         try {
-            $account = $post->postAccount;
+            $account = $post->socialAccount;
             if (!$this->ensureValidToken($post)) {
                 $post->update([
                     'status' => 'failed',
@@ -594,7 +594,7 @@ class TiktokPostService
      */
     public function publishComment($data, $comment)
     {
-        $account = $comment->postAccount;
+        $account = $comment->socialAccount;
 
         $this->ensureValidToken($comment->post);
 
@@ -602,7 +602,7 @@ class TiktokPostService
         $endpoint = 'https://business-api.tiktok.com/open_api/v1.3/business/comment/reply/create/';
 
         $payload = [
-            "business_id" => $account->account_id,
+            "business_id" => $account->platform_account_id,
             "video_id"    => $comment->post?->post_id ?? $data['video_id'], // TikTok item_id / video_id
             "comment_id"  => $comment->comment_id,                          // Parent comment ID to reply to
             "text"        => $data['body'] ?? ''                             // Reply content
@@ -647,7 +647,7 @@ class TiktokPostService
             'is_reply'          => true,
             'user_name'         => Auth::user()?->name ?? 'Support',
             'comment_id'        => $commentId,
-            'post_account_id'   => $comment->postAccount?->id
+            'social_account_id'   => $comment->socialAccount?->id
         ]);
 
         return [
@@ -682,7 +682,7 @@ class TiktokPostService
             ->get(
                 'https://business-api.tiktok.com/open_api/v1.3/business/comment/list/',
                 [
-                    "business_id" => $account->account_id,
+                    "business_id" => $account->platform_account_id,
                     "video_id" => $videoId,
                     "status" => "PUBLIC"
                 ]

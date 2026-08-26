@@ -54,7 +54,7 @@ class DiscordMessagingService
 
     private function authHeader(MessageChannel $channel): array
     {
-        return ['Authorization' => 'Bot ' . $channel->access_token];
+        return ['Authorization' => 'Bot ' . $channel->socialAccount->access_token];
     }
 
     public function verifyBotToken(string $token): array
@@ -172,12 +172,16 @@ class DiscordMessagingService
             return ['success' => false, 'error' => 'Connect this bot with its bot token first (see "Connect Discord Bot" below), then authorize it to a server.'];
         }
 
-        $channel->update([
-            'name'           => $guild['name'] ?? $channel->name,
-            'username'       => $guild['name'] ?? $channel->username,
-            'avatar_url'     => isset($guild['icon'])
+        $channel->socialAccount->update([
+            'name'       => $guild['name'] ?? $channel->socialAccount->name,
+            'username'   => $guild['name'] ?? $channel->socialAccount->username,
+            'avatar_url' => isset($guild['icon'])
                 ? "https://cdn.discordapp.com/icons/{$guild['id']}/{$guild['icon']}.png"
-                : $channel->avatar_url,
+                : $channel->socialAccount->avatar_url,
+            'is_token_valid' => true,
+        ]);
+
+        $channel->update([
             'meta'           => json_encode([
                 'token_type'     => $data['token_type'] ?? null,
                 'scope'          => $data['scope'] ?? null,
@@ -187,7 +191,6 @@ class DiscordMessagingService
                 'webhook_url'    => $webhook['url'] ?? null,
                 'channel_id'     => $webhook['channel_id'] ?? null,
             ]),
-            'status'         => true,
             'last_synced_at' => Carbon::now(),
         ]);
 
@@ -327,7 +330,7 @@ class DiscordMessagingService
             : null;
 
         ProcessInboundMessage::dispatch(
-            messageChannelId: $channel->id,
+            socialAccountId: $channel->social_account_id,
             customerExternalId: $author['id'],
             customerName: $author['global_name'] ?? $author['username'] ?? null,
             customerAvatarUrl: $avatarUrl,
