@@ -30,6 +30,24 @@ if (! function_exists('adminSetting')) {
      */
     function adminSetting(string $key, $default = null)
     {
+        // Every *Service class reads its config through this helper from
+        // its own constructor, and Laravel's console kernel eagerly
+        // constructs every discovered Artisan command (not just the one
+        // being run) to register them - so on a brand-new database,
+        // `php artisan migrate:fresh` itself crashes here before its own
+        // migrations (including the one creating admin_settings) ever run.
+        // Cached per-request/process: the table's existence can't change
+        // mid-run, so this only costs one extra query the very first time.
+        static $tableExists = null;
+
+        if ($tableExists === null) {
+            $tableExists = \Illuminate\Support\Facades\Schema::hasTable('admin_settings');
+        }
+
+        if (! $tableExists) {
+            return $default;
+        }
+
         $setting = AdminSetting::where('key', $key)->first();
 
         if (! $setting) {

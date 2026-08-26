@@ -22,7 +22,7 @@ class Bundle extends Model
 		'allow_integration',
 		'features',
 		'allowed_categories',
-		'allowed_product_rules',
+		'allowed_product',
 		'limits',
 		'meta',
 	];
@@ -35,7 +35,7 @@ class Bundle extends Model
 	protected $casts = [
 		'features' => 'array',
 		'allowed_categories' => 'array',
-		'allowed_product_rules' => 'array',
+		'allowed_product' => 'array',
 		'limits' => 'array',
 		'meta' => 'array',
 		'is_default' => 'boolean',

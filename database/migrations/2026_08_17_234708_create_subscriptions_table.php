@@ -8,6 +8,18 @@ return new class extends Migration
 {
 	public function up(): void
 	{
+		// Redesign of the original plan_id/starts_at/expires_at subscriptions
+		// table (2026_06_13_214641_create_subscriptions_table) into this
+		// bundle-based schema. On every environment migrated so far, the old
+		// table was dropped by hand before this ran - nothing in the app
+		// reads plan_id/starts_at off `subscriptions` any more (SellerBundle
+		// is the model still using those column names, an unrelated table).
+		// Doing the drop here instead makes a genuine fresh install
+		// (`migrate:fresh`) reproduce that same transition without manual
+		// intervention; this has no effect on already-migrated databases
+		// since a migration only runs once.
+		Schema::dropIfExists('subscriptions');
+
 		Schema::create('subscriptions', function (Blueprint $table) {
 			$table->id();
 
