@@ -37,8 +37,8 @@ class YoutubePostService
 
         $account = $post->socialAccount;
         if (
-            $account->expires_in &&
-            now()->lt(Carbon::parse($account->expires_in)->subMinutes(5))
+            $account->expires_at &&
+            now()->lt(Carbon::parse($account->expires_at)->subMinutes(5))
         ) {
             return true;
         }
@@ -66,7 +66,7 @@ class YoutubePostService
         $account->update([
             'access_token'       => $tokenData['access_token'],
             'refresh_token' => $tokenData['refresh_token'] ?? $account->refresh_token,
-            'expires_in'    => now()->addSeconds($tokenData['expires_in']),
+            'expires_at'    => now()->addSeconds($tokenData['expires_in']),
         ]);
 
         $account->refresh();
@@ -84,7 +84,7 @@ class YoutubePostService
      */
     protected function ensureFreshAccountToken(SocialAccount $account): bool
     {
-        if ($account->expires_in && now()->lt(Carbon::parse($account->expires_in)->subMinutes(5))) {
+        if ($account->expires_at && now()->lt(Carbon::parse($account->expires_at)->subMinutes(5))) {
             return true;
         }
 
@@ -109,7 +109,7 @@ class YoutubePostService
         $account->update([
             'access_token'  => $tokenData['access_token'],
             'refresh_token' => $tokenData['refresh_token'] ?? $account->refresh_token,
-            'expires_in'    => now()->addSeconds($tokenData['expires_in']),
+            'expires_at'    => now()->addSeconds($tokenData['expires_in']),
         ]);
 
         return true;
@@ -529,10 +529,10 @@ class YoutubePostService
      * right after connect and safe to re-run any time. YouTube's channel
      * statistics don't include likes/shares - those only exist per-video,
      * not at the channel level, so this only ever populates
-     * follower_count (subscriberCount), views_count (viewCount) and
+     * subscribers_count (subscriberCount), views_count (viewCount) and
      * media_count (videoCount), same as syncAccountStats() on the other
-     * platforms. The raw statistics payload is merged into `insights`
-     * for anything not surfaced via a dedicated column.
+     * platforms. The raw statistics payload is merged into
+     * metadata['insights'] for anything not surfaced via a dedicated column.
      */
     public function syncAccountStats(SocialAccount $account): void
     {
@@ -559,10 +559,10 @@ class YoutubePostService
         }
 
         $account->update([
-            'follower_count' => $stats['hiddenSubscriberCount'] ?? false ? $account->follower_count : ($stats['subscriberCount'] ?? $account->follower_count),
-            'views_count'    => $stats['viewCount'] ?? $account->views_count,
-            'media_count'    => $stats['videoCount'] ?? $account->media_count,
-            'insights'       => array_merge($account->insights ?? [], ['channel' => $stats]),
+            'subscribers_count' => ($stats['hiddenSubscriberCount'] ?? false) ? $account->subscribers_count : ($stats['subscriberCount'] ?? $account->subscribers_count),
+            'views_count'       => $stats['viewCount'] ?? $account->views_count,
+            'media_count'       => $stats['videoCount'] ?? $account->media_count,
+            'metadata'          => array_merge($account->metadata ?? [], ['insights' => array_merge($account->metadata['insights'] ?? [], ['channel' => $stats])]),
         ]);
     }
 

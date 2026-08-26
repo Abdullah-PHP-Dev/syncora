@@ -35,8 +35,8 @@ class GooglePostService
         $account = $post->socialAccount;
         // Token still valid
         if (
-            !empty($account->expires_in)
-            && Carbon::parse($account->expires_in)->gt(now()->addMinutes(5))
+            !empty($account->expires_at)
+            && Carbon::parse($account->expires_at)->gt(now()->addMinutes(5))
         ) {
             return true;
         }
@@ -62,7 +62,7 @@ class GooglePostService
         $account->update([
             'access_token'     => $tokenData['access_token'],
             'refresh_token' => $tokenData['refresh_token'] ?? $account->refresh_token,
-            'expires_in'  => now()->addSeconds($tokenData['expires_in']),
+            'expires_at'  => now()->addSeconds($tokenData['expires_in']),
         ]);
 
         $account->refresh();

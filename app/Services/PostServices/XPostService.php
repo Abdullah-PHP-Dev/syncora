@@ -31,8 +31,8 @@ class XPostService
     {
         $account = $post->socialAccount;
         if (
-            $account->expires_in &&
-            now()->lt(Carbon::parse($account->expires_in)->subMinutes(5))
+            $account->expires_at &&
+            now()->lt(Carbon::parse($account->expires_at)->subMinutes(5))
         ) {
             return true;
         }
@@ -62,7 +62,7 @@ class XPostService
         $account->update([
             'access_token'   => $token['access_token'],
             'refresh_token'  => $token['refresh_token'] ?? $account->refresh_token,
-            'expires_in'     => now()->addSeconds($token['expires_in']),
+            'expires_at'     => now()->addSeconds($token['expires_in']),
         ]);
 
         $account->refresh();

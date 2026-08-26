@@ -497,6 +497,10 @@ class PostAccountController extends Controller
                 'name'                   => $profileData['username'] ?? 'Pinterest Account',
                 'username'               => $profileData['username'] ?? null,
                 'avatar_url'             => $profileData['profile_image'] ?? null,
+                'followers_count'        => $profileData['follower_count'] ?? null,
+                'following_count'        => $profileData['following_count'] ?? null,
+                'views_count'            => $profileData['monthly_views'] ?? null,
+                'media_count'            => $profileData['pin_count'] ?? null,
                 'access_token'           => $token['access_token'],
                 'refresh_token'          => $token['refresh_token'] ?? null,
                 'expires_at'             => Carbon::now()->addSeconds($token['expires_in'] ?? 2592000),
@@ -600,13 +604,14 @@ class PostAccountController extends Controller
 
         $userResponse = $api->request('get', $baseUrl . 'users/me', [
             'Authorization' => 'Bearer ' . $token['access_token'],
-        ], ['user.fields' => 'profile_image_url,username,name']);
+        ], ['user.fields' => 'profile_image_url,username,name,public_metrics']);
 
         if (!$userResponse->successful()) {
             return redirect()->route('admin.posts.create')->with('error', 'Connected, but failed to fetch the X account profile.');
         }
 
         $user = $userResponse->json()['data'];
+        $metrics = $user['public_metrics'] ?? [];
 
         SocialAccount::updateOrCreate(
             ['platform' => 'x', 'platform_account_id' => $user['id'], 'user_id' => Auth::id()],
@@ -614,6 +619,9 @@ class PostAccountController extends Controller
                 'name'                   => $user['name'] ?? $user['username'],
                 'username'               => $user['username'] ?? null,
                 'avatar_url'             => $user['profile_image_url'] ?? null,
+                'followers_count'        => $metrics['followers_count'] ?? null,
+                'following_count'        => $metrics['following_count'] ?? null,
+                'media_count'            => $metrics['tweet_count'] ?? null,
                 'access_token'           => $token['access_token'],
                 'refresh_token'          => $token['refresh_token'] ?? null,
                 'expires_at'             => Carbon::now()->addSeconds($token['expires_in'] ?? 7200),
@@ -1008,11 +1016,11 @@ class PostAccountController extends Controller
                 'has_posting_permission' => true,
                 'followers_count'        => $profile['follower_count'],
                 'likes_count'            => $profile['likes_count'],
+                'following_count'        => $profile['following_count'],
+                'media_count'            => $profile['video_count'],
                 'metadata'               => [
                     'description'     => $profile['bio_description'],
                     'account_url'     => $profile['profile_deep_link'],
-                    'following_count' => $profile['following_count'],
-                    'media_count'     => $profile['video_count'],
                 ],
             ]
         );
@@ -1100,7 +1108,9 @@ class PostAccountController extends Controller
                     'username'               => $channel['snippet']['customUrl'] ?? null,
                     'avatar_url'             => $channel['snippet']['thumbnails']['default']['url'] ?? null,
                     'access_token'           => $accessToken,
-                    'followers_count'        => $channel['statistics']['subscriberCount'] ?? null,
+                    'subscribers_count'      => $channel['statistics']['subscriberCount'] ?? null,
+                    'views_count'            => $channel['statistics']['viewCount'] ?? null,
+                    'media_count'            => $channel['statistics']['videoCount'] ?? null,
                     'refresh_token'          => $token['refresh_token'] ?? null,
                     'expires_at'             => $expiresAt,
                     'is_token_valid'         => true,
@@ -1108,8 +1118,6 @@ class PostAccountController extends Controller
                     'metadata'               => [
                         'description'  => $channel['snippet']['description'] ?? '',
                         'account_url'  => 'https://www.youtube.com/' . $channel['snippet']['customUrl'] ?? null,
-                        'media_count'  => $channel['statistics']['videoCount'] ?? null,
-                        'views_count'  => $channel['statistics']['viewCount'] ?? null,
                     ],
                 ]
             );

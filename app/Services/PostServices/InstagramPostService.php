@@ -694,10 +694,8 @@ class InstagramPostService
             $data = $fieldsResponse->json();
             $account->update([
                 'followers_count' => $data['followers_count'] ?? $account->followers_count,
-                'metadata'        => array_merge($account->metadata ?? [], [
-                    'following_count' => $data['follows_count'] ?? ($account->metadata['following_count'] ?? null),
-                    'media_count'     => $data['media_count'] ?? ($account->metadata['media_count'] ?? null),
-                ]),
+                'following_count' => $data['follows_count'] ?? $account->following_count,
+                'media_count'     => $data['media_count'] ?? $account->media_count,
             ]);
         } else {
             Log::warning('Failed to fetch Instagram account fields.', [

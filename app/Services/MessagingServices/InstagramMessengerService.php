@@ -128,7 +128,7 @@ class InstagramMessengerService
 
     public function syncChannelDetails(MessageChannel $channel): void
     {
-        $result = $this->graphApiCall('GET', $channel->external_id, ['fields' => 'biography,website'], $channel->socialAccount->access_token);
+        $result = $this->graphApiCall('GET', $channel->external_id, ['fields' => 'biography,website,followers_count,follows_count,media_count'], $channel->socialAccount->access_token);
 
         if (!$result['success']) {
             Log::warning('Instagram channel details sync failed.', ['channel_id' => $channel->id, 'error' => $result['error'] ?? null]);
@@ -136,6 +136,12 @@ class InstagramMessengerService
         }
 
         $channel->update(['meta' => array_merge($channel->meta ?? [], ['profile' => $result['data']])]);
+
+        $channel->socialAccount->update(array_filter([
+            'followers_count' => $result['data']['followers_count'] ?? null,
+            'following_count' => $result['data']['follows_count'] ?? null,
+            'media_count'     => $result['data']['media_count'] ?? null,
+        ], fn ($value) => $value !== null));
     }
 
     public function subscribeToWebhooks(MessageChannel $channel): void

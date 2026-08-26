@@ -155,7 +155,8 @@ class SocialAuthService
                     'avatar_url' => $page['picture']['data']['url'] ?? null,
                     'category' => $page['category'] ?? null,
                     'account_type' => 'page',
-                    'followers_count' => $page['followers_count'] ?? $page['fan_count'] ?? null,
+                    'followers_count' => $page['followers_count'] ?? null,
+                    'likes_count' => $page['fan_count'] ?? null,
                     'access_token' => $page['access_token'],
                     'refresh_token' => $page['access_token'],
                     'token_type' => 'page',
@@ -307,12 +308,13 @@ class SocialAuthService
                     'avatar_url' => $channel['snippet']['thumbnails']['default']['url'] ?? null,
                     'account_type' => 'channel',
                     'subscribers_count' => $channel['statistics']['subscriberCount'] ?? null,
+                    'views_count' => $channel['statistics']['viewCount'] ?? null,
+                    'media_count' => $channel['statistics']['videoCount'] ?? null,
                     'access_token' => $accessToken,
                     'refresh_token' => $refreshToken,
                     'is_token_valid' => true,
                     'expires_at' => $expiresAt,
                     'has_posting_permission' => true,
-                    'metadata' => ['video_count' => $channel['statistics']['videoCount'] ?? null],
                 ]
             );
             $connected++;
@@ -583,6 +585,8 @@ class SocialAuthService
                 'account_type' => 'profile',
                 'followers_count' => $profile['follower_count'] ?? null,
                 'likes_count' => $profile['likes_count'] ?? null,
+                'following_count' => $profile['following_count'] ?? null,
+                'media_count' => $profile['video_count'] ?? null,
                 'access_token' => $token['access_token'],
                 'refresh_token' => $token['refresh_token'] ?? null,
                 'is_token_valid' => true,
@@ -591,8 +595,6 @@ class SocialAuthService
                 'metadata' => [
                     'description' => $profile['bio_description'] ?? null,
                     'account_url' => $profile['profile_deep_link'] ?? null,
-                    'following_count' => $profile['following_count'] ?? null,
-                    'media_count' => $profile['video_count'] ?? null,
                 ],
             ]
         );

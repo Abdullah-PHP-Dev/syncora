@@ -838,7 +838,7 @@ class LinkedInPostService
 
             if ($pageStatsResponse->successful()) {
                 $elements = $pageStatsResponse->json()['elements'] ?? [];
-                $metadata['views_count'] = $elements[0]['totalPageStatistics']['views']['allPageViews']['pageViews'] ?? ($metadata['views_count'] ?? null);
+                $updates['views_count'] = $elements[0]['totalPageStatistics']['views']['allPageViews']['pageViews'] ?? $account->views_count;
                 $insights['page_statistics'] = $elements;
             } else {
                 // Expected unless the org has been approved for this

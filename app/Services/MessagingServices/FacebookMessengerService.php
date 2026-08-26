@@ -151,6 +151,10 @@ class FacebookMessengerService
         }
 
         $channel->update(['meta' => array_merge($channel->meta ?? [], ['profile' => $result['data']])]);
+
+        if (isset($result['data']['fan_count'])) {
+            $channel->socialAccount->update(['likes_count' => $result['data']['fan_count']]);
+        }
     }
 
     /**
