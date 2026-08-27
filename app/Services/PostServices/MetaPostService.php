@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use getID3;
+use Illuminate\Contracts\Encryption\DecryptException;
 use App\Models\Messaging\Conversation;
 
 class MetaPostService
@@ -286,7 +287,6 @@ class MetaPostService
                 'media' => $media
             ];
         } catch (\Exception $e) {
-            dd($e->getMessage());
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -301,46 +301,87 @@ class MetaPostService
      public function publishPost($post)
      {
         $account = $post->socialAccount;
-        if (!$this->ensureValidToken($post)) {
-            $post->update([
-                'status' => 'failed',
-                'error_message' => 'Failed to refresh access token'
-            ]);
 
-            return ['success' => false];
-        }
+        try {
+            if (!$this->ensureValidToken($post)) {
+                $post->update([
+                    'status' => 'failed',
+                    'error_message' => 'Failed to refresh access token'
+                ]);
 
-        $result = $this->publishPostOnMeta($post, $account);
+                return ['success' => false];
+            }
 
-        if ($result['success']) {
-            $post->update([
-                'post_id' => $result['post_id'],
-                'status' => 'completed'
-            ]);
-            return ['success' => true];
-        } else {
-            $post->update([
-                'status' => 'failed',
-                'error_message' => $result['message']
-            ]);
-            return ['success' => false];
+            $result = $this->publishPostOnMeta($post, $account);
+
+            if ($result['success']) {
+                $post->update([
+                    'post_id' => $result['post_id'],
+                    'status' => 'completed'
+                ]);
+                return ['success' => true];
+            } else {
+                $post->update([
+                    'status' => 'failed',
+                    'error_message' => $result['message'] ?? $result['error'] ?? 'Unknown error'
+                ]);
+                return ['success' => false];
+            }
+        } catch (DecryptException $e) {
+            // Catches decrypt failures from BOTH ensureValidToken() (reads
+            // access_token to refresh it) and publishPostOnMeta() (reads it
+            // to actually post) - one handler instead of duplicating this
+            // in both places. Always means APP_KEY changed since this
+            // account's token was encrypted, or the row is corrupted -
+            // there is no way to recover the token, only reconnecting the
+            // account fixes it, so mark it invalid rather than let every
+            // future run silently retry a token that can never decrypt.
+            return $this->handleTokenDecryptFailure($post, $account, $e);
         }
      }
+
+    private function handleTokenDecryptFailure($post, $account, DecryptException $e): array
+    {
+        Log::warning('Facebook access token failed to decrypt - marking account invalid.', [
+            'account_id' => $account?->id,
+            'post_id'    => $post->id,
+            'error'      => $e->getMessage(),
+        ]);
+
+        $account?->update(['is_token_valid' => false]);
+
+        $message = "This account's access token could not be decrypted (the encryption key may have changed since it was connected). Please reconnect this account.";
+
+        $post->update([
+            'status' => 'failed',
+            'error_message' => $message,
+        ]);
+
+        return ['success' => false, 'error' => $message];
+    }
 
     /**
      * Publish to a single Facebook page
      */
-    protected function publishPostOnMeta($post, $account)
-    {
-        $accountId = $account->platform_account_id;
+protected function publishPostOnMeta($post, $account)
+{
+    try {
+        // 1. Safely retrieve the decrypted access token
         $accessToken = $account->access_token;
-        $endpoint = $this->baseUrl . $account->platform_account_id . "/feed?access_token={$accessToken}";
+        $accountId = $account->platform_account_id;
+
+        if (empty($accessToken)) {
+            throw new \Exception("Access token is missing or empty for account ID {$account->id}.");
+        }
+
+        $endpoint = $this->baseUrl . $accountId . "/feed?access_token={$accessToken}";
         $payload = ['message' => $post->content];
 
+        // 2. Handle Media Uploads if present
         if (!empty($post->media)) {
             $media = $this->uploadMediaToMeta($post, $accessToken);
            
-            if (!$media['success']) {
+            if (!($media['success'] ?? false)) {
                 $post->status = 'failed';
                 $post->error_message = $media['message'] ?? $media['error'] ?? 'Facebook media publish faced an error.';  
                 $post->save();
@@ -348,7 +389,7 @@ class MetaPostService
                 return $media;
             }
 
-            // If it was a video that published directly, complete the process here
+            // If video published directly during upload step
             if (isset($media['direct_published']) && $media['direct_published']) {
                 $post->update([
                     'post_id' => $media['id'],
@@ -362,6 +403,7 @@ class MetaPostService
             $payload['attached_media'] = $media['media'];
         }
         
+        // 3. Send API Request
         $response = $this->api->request('post', $endpoint, ['Content-Type' => 'application/json'], $payload, 'json');
        
         if (!$response->successful()) {
@@ -370,12 +412,31 @@ class MetaPostService
         
         $post->update([
             'post_id' => $response['id'],
+            'error_message' => '',
             'status' => 'completed'
         ]);
 
         return ['success' => true];
 
+    } catch (DecryptException $e) {
+        // Not caught here - re-thrown to publishPost()'s single
+        // handleTokenDecryptFailure() handler, which also covers the
+        // ensureValidToken() decrypt site, so this failure mode only has
+        // one place that marks the account invalid.
+        throw $e;
+    } catch (\Throwable $e) {
+        // Catches all other runtime errors / network exceptions
+        $post->update([
+            'status' => 'failed',
+            'error_message' => $e->getMessage()
+        ]);
+
+        return [
+            'success' => false,
+            'error' => $e->getMessage()
+        ];
     }
+}
 
     private function uploadMediaToMeta($post, $accessToken) {
         $attachedMedia = [];
