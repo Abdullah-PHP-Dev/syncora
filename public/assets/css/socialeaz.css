@@ -208,6 +208,7 @@ img {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
 
     border-radius: 10px;
 
@@ -218,6 +219,15 @@ img {
     font-size: 17px;
 
     flex-shrink: 0;
+}
+
+.brand-logo img,
+.auth-brand-logo img,
+.auth-preview-brand img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
 }
 
 .nav-link-custom {
@@ -1936,6 +1946,7 @@ button,
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
 
     border-radius: 12px;
 
@@ -2136,6 +2147,7 @@ button,
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
 
     border-radius: 9px;
 

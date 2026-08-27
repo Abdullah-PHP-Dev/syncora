@@ -7,7 +7,7 @@
 
             <div class="admin-footer-brand">
                 <span class="admin-footer-brand-icon">
-                    {{ strtoupper(substr(config('app.name'), 0, 1)) }}
+                    <img src="{{ asset('assets/img/logo/socialeaz-logo-32.png') }}" alt="{{ config('app.name') }}">
                 </span>
 
                 <span class="admin-footer-brand-name">
@@ -27,19 +27,13 @@
         {{-- Right --}}
         <div class="admin-footer-right">
 
-            <a href="#"
-               class="admin-footer-link">
-                <i class="bx bx-help-circle"></i>
-                <span>Help</span>
-            </a>
-
-            <a href="#"
+            <a href="{{ route('terms') }}"
                class="admin-footer-link">
                 <i class="bx bx-file"></i>
-                <span>Documentation</span>
+                <span>Terms</span>
             </a>
 
-            <a href="#"
+            <a href="{{ route('privacy') }}"
                class="admin-footer-link">
                 <i class="bx bx-shield-quarter"></i>
                 <span>Privacy</span>

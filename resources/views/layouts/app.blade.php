@@ -14,6 +14,8 @@
 
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{{ asset('assets/img/favicon/favicon.ico') }}" />
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/img/logo/socialeaz-logo-32.png') }}" />
+    <link rel="apple-touch-icon" href="{{ asset('assets/img/logo/socialeaz-logo-128.png') }}" />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

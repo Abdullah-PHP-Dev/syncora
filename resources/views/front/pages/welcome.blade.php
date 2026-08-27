@@ -809,8 +809,9 @@
     ========================================================= --}}
 
     <section
+            id="ai-copilot"
             class="ai-section py-5"
-            style="padding-top:100px!important;padding-bottom:100px!important;"
+            style="padding-top:100px!important;padding-bottom:100px!important;scroll-margin-top:90px;"
     >
 
         <div class="container">
@@ -993,8 +994,9 @@
     ========================================================= --}}
 
     <section
+            id="channels"
             class="py-5"
-            style="padding-top:100px!important;padding-bottom:100px!important;"
+            style="padding-top:100px!important;padding-bottom:100px!important;scroll-margin-top:90px;"
     >
 
         <div class="container">
@@ -1100,8 +1102,9 @@
     ========================================================= --}}
 
     <section
+            id="tools"
             class="bg-soft border-top border-bottom py-5"
-            style="padding-top:100px!important;padding-bottom:100px!important;"
+            style="padding-top:100px!important;padding-bottom:100px!important;scroll-margin-top:90px;"
     >
 
         <div class="container">

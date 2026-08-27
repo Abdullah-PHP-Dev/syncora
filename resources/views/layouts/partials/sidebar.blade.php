@@ -8,8 +8,7 @@
         <a href="{{ url('/') }}" class="admin-sidebar-brand">
 
             <span class="admin-sidebar-brand-icon">
-                {{-- Keep your existing SVG/logo here --}}
-                <span class="text-primary"></span>
+                <img src="{{ asset('assets/img/logo/socialeaz-logo-64.png') }}" alt="{{ config('app.name') }}">
             </span>
 
             <span class="admin-sidebar-brand-name">

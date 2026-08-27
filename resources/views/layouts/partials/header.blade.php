@@ -44,7 +44,7 @@
             >
 
                 <span class="brand-logo">
-                    S
+                    <img src="{{ asset('assets/img/logo/socialeaz-logo-64.png') }}" alt="Socialeaz">
                 </span>
 
                 Socialeaz

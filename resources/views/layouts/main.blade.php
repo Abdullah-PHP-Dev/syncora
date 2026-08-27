@@ -18,6 +18,12 @@
             name="description"
             content="@yield('meta_description', 'The AI-powered social media workspace for creators, teams and agencies.')"
     >
+
+    <link rel="icon" type="image/x-icon" href="{{ asset('assets/img/favicon/favicon.ico') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/img/logo/socialeaz-logo-32.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('assets/img/logo/socialeaz-logo-128.png') }}">
+    <meta property="og:image" content="{{ asset('assets/img/logo/socialeaz-logo-512.png') }}">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
 
     <link rel="preconnect"
@@ -65,7 +71,7 @@
 
 
 {{-- Footer --}}
-@include('layouts.partials.footer')
+@include('layouts.partials.site-footer')
 
 
 {{-- Bootstrap JS --}}

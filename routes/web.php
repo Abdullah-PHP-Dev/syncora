@@ -53,18 +53,21 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	})->name('product');
 
 
+	// These are sections on the homepage itself (no standalone
+	// product.ai-copilot / product.channels / product.tools views exist),
+	// so route to the matching in-page anchor instead of a 404.
 	Route::get('/ai-copilot', function () {
-		return view('product.ai-copilot');
+		return redirect(route('home') . '#ai-copilot');
 	})->name('ai-copilot');
 
 
 	Route::get('/channels', function () {
-		return view('product.channels');
+		return redirect(route('home') . '#channels');
 	})->name('channels');
 
 
 	Route::get('/tools', function () {
-		return view('product.tools');
+		return redirect(route('home') . '#tools');
 	})->name('tools');
 
 
@@ -75,7 +78,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	*/
 
 	Route::get('/pricing', function () {
-		return view('pricing');
+		return view('front.pages.pricing');
 	})->name('pricing');
 
 
@@ -122,22 +125,13 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	|--------------------------------------------------------------------------
 	*/
 
-	Route::get('/privacy', function () {
-		return view('privacy');
-	})->name('privacy');
+	Route::view('/privacy', 'front.pages.privacy')->name('privacy');
 
-
-	Route::get('/terms', function () {
-		return view('terms');
-	})->name('terms');
+	Route::view('/terms', 'front.pages.terms')->name('terms');
 
 
 	/*Route::view('/about', 'front.pages.about');
 	Route::view('/services', 'front.pages.services');
-	Route::view('/product', 'front.pages.product');
-	Route::view('/pricing', 'front.pages.pricing');
-	Route::view('/terms', 'front.pages.terms')->name('front.terms');
-	Route::view('/privacy', 'front.pages.privacy')->name('front.privacy');
 	Route::get('/r2-upload', [\App\Http\Controllers\R2Controller::class, 'index']);
 	Route::post('/r2-upload', [\App\Http\Controllers\R2Controller::class, 'upload'])->name('r2.upload');*/
 

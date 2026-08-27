@@ -32,7 +32,7 @@
         <div class="auth-visual-content">
 
             <a href="{{ route('home') }}" class="auth-brand">
-                <span class="auth-brand-logo">S</span>
+                <span class="auth-brand-logo"><img src="{{ asset('assets/img/logo/socialeaz-logo-64.png') }}" alt="Socialeaz"></span>
                 <span>Socialeaz</span>
             </a>
 
@@ -116,7 +116,7 @@
         <div class="auth-form-container auth-register-form-container">
 
             <a href="{{ route('home') }}" class="auth-mobile-brand">
-                <span class="auth-brand-logo">S</span>
+                <span class="auth-brand-logo"><img src="{{ asset('assets/img/logo/socialeaz-logo-64.png') }}" alt="Socialeaz"></span>
                 Socialeaz
             </a>
 

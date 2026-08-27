@@ -31,7 +31,7 @@
 
             {{-- Brand --}}
             <a href="{{ route('home') }}" class="auth-brand">
-                <span class="auth-brand-logo">S</span>
+                <span class="auth-brand-logo"><img src="{{ asset('assets/img/logo/socialeaz-logo-64.png') }}" alt="Socialeaz"></span>
                 <span>Socialeaz</span>
             </a>
 
@@ -72,7 +72,7 @@
 
                     {{-- Sidebar --}}
                     <div class="auth-preview-sidebar">
-                        <div class="auth-preview-brand">S</div>
+                        <div class="auth-preview-brand"><img src="{{ asset('assets/img/logo/socialeaz-logo-32.png') }}" alt="Socialeaz"></div>
 
                         <div class="auth-preview-nav active">
                             <i class="bi bi-grid"></i>
@@ -185,7 +185,7 @@
 
             {{-- Mobile brand --}}
             <a href="{{ route('home') }}" class="auth-mobile-brand">
-                <span class="auth-brand-logo">S</span>
+                <span class="auth-brand-logo"><img src="{{ asset('assets/img/logo/socialeaz-logo-64.png') }}" alt="Socialeaz"></span>
                 Socialeaz
             </a>
 
