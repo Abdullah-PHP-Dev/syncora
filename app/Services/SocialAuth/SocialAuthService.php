@@ -287,7 +287,7 @@ class SocialAuthService
                 continue;
             }
 
-            SocialAccount::updateOrCreate(
+            $fbAdAccount = SocialAccount::updateOrCreate(
                 ['platform' => 'facebook', 'platform_account_id' => $adAccount['id'], 'user_id' => $userId],
                 [
                     'name' => $adAccount['name'] ?? 'Facebook Ad Account',
@@ -302,6 +302,11 @@ class SocialAuthService
                     ],
                 ]
             );
+            $fbAdAccount->syncAdDetails([
+                'currency' => $adAccount['currency'] ?? null,
+                'business_id' => $adAccount['business']['id'] ?? null,
+                'account_status' => (string) ($adAccount['account_status'] ?? null),
+            ]);
             $adAccountsConnected++;
         }
 
@@ -471,7 +476,7 @@ class SocialAuthService
                 continue;
             }
 
-            SocialAccount::updateOrCreate(
+            $googleAdAccount = SocialAccount::updateOrCreate(
                 ['platform' => 'google', 'platform_account_id' => $customerId, 'user_id' => $userId],
                 [
                     'name' => $detail['descriptiveName'] ?? "Google Ads Customer {$customerId}",
@@ -484,6 +489,9 @@ class SocialAuthService
                     'metadata' => ['currency' => $detail['currencyCode'] ?? null],
                 ]
             );
+            $googleAdAccount->syncAdDetails([
+                'currency' => $detail['currencyCode'] ?? null,
+            ]);
             $connected++;
         }
 
@@ -600,7 +608,7 @@ class SocialAuthService
             $accountResponse = $this->api->get($baseUrl . 'adAccounts/' . $accountId, $headers);
             $account = $accountResponse['success'] ? $accountResponse['data'] : [];
 
-            SocialAccount::updateOrCreate(
+            $linkedinAdAccount = SocialAccount::updateOrCreate(
                 ['platform' => 'linkedin', 'platform_account_id' => $accountId, 'user_id' => $userId],
                 [
                     'name' => $account['name'] ?? "LinkedIn Ad Account {$accountId}",
@@ -612,6 +620,9 @@ class SocialAuthService
                     'metadata' => ['currency' => $account['currency'] ?? null],
                 ]
             );
+            $linkedinAdAccount->syncAdDetails([
+                'currency' => $account['currency'] ?? null,
+            ]);
             $adAccountsConnected++;
         }
 

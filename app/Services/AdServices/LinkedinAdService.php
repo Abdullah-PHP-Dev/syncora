@@ -258,6 +258,10 @@ class LinkedinAdService
                 new SocialAccount
             );
 
+            $result['data']->syncAdDetails([
+                'currency' => $detail['currency'] ?? null,
+            ]);
+
             $connected++;
 
             try {

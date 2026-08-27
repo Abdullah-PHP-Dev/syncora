@@ -74,7 +74,137 @@ class SnapchatAdService
 
     private function getCallbackUrl()
     {
-        return config('services.app_url') . '/admin/social/auth/snapchat/callback';
+        // Was config('services.app_url') . '/admin/social/auth/snapchat/callback',
+        // which matches no registered route - the real path is
+        // admin/ads/{platform}/callback (named admin.ads.platform.callback),
+        // same as TikTok/LinkedIn's already-working ad connect flows.
+        return route('admin.ads.platform.callback', 'snapchat');
+    }
+
+    /**
+     * Was previously missing entirely - SocialAdManagerService::callback()
+     * would fatal with "Call to undefined method" the moment anyone tried
+     * to actually finish connecting a Snapchat account, so there was no
+     * working path to get a Snapchat SocialAccount row at all.
+     *
+     * A Snapchat Ad Account always sits under exactly one Organization
+     * (developers.snap.com/api/marketing-api/#organizations), so this is
+     * a two-hop fetch: list the organizations the authenticated user
+     * belongs to, then list each organization's ad accounts. One
+     * SocialAccount row is created per ad account, same as every other
+     * platform's ads connect flow.
+     */
+    public function callback($platform, $state)
+    {
+        $code = request()->input('code');
+
+        if (!$code) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'Snapchat did not return an authorization code.');
+        }
+
+        $tokenResponse = $this->apiService->post(adminSetting('ads.snapchat.access_token'), [
+            'Content-Type' => 'application/x-www-form-urlencoded',
+        ], [
+            'client_id'     => adminSetting('ads.snapchat.client_id'),
+            'client_secret' => adminSetting('ads.snapchat.client_secret'),
+            'code'          => $code,
+            'grant_type'    => 'authorization_code',
+            'redirect_uri'  => $this->getCallbackUrl(),
+        ], 'form');
+
+        if (!$tokenResponse['success']) {
+            return redirect()->route('admin.ads.dashboard')->with('error', $tokenResponse['data']['error_description'] ?? 'Failed to exchange code for a Snapchat access token.');
+        }
+
+        $token = $tokenResponse['data'];
+        $accessToken = $token['access_token'] ?? null;
+        $refreshToken = $token['refresh_token'] ?? null;
+        $expiresAt = now()->addSeconds($token['expires_in'] ?? 1800);
+
+        if (!$accessToken) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'Snapchat did not return an access token.');
+        }
+
+        $headers = [
+            'Authorization' => "Bearer {$accessToken}",
+            'Content-Type'  => 'application/json',
+        ];
+
+        $orgsResponse = $this->apiService->get($this->config . 'me/organizations', $headers);
+
+        if (!$orgsResponse['success']) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'Connected to Snapchat, but failed to fetch your organizations.');
+        }
+
+        $organizations = collect($orgsResponse['data']['organizations'] ?? [])
+            ->pluck('organization')
+            ->filter();
+
+        $connected = 0;
+
+        foreach ($organizations as $organization) {
+            $orgId = $organization['id'] ?? null;
+
+            if (!$orgId) {
+                continue;
+            }
+
+            $adAccountsResponse = $this->apiService->get($this->config . "organizations/{$orgId}/adaccounts", $headers);
+
+            if (!$adAccountsResponse['success']) {
+                continue;
+            }
+
+            $adAccounts = collect($adAccountsResponse['data']['adaccounts'] ?? [])
+                ->pluck('adaccount')
+                ->filter();
+
+            foreach ($adAccounts as $adAccount) {
+                $adAccountId = $adAccount['id'] ?? null;
+
+                if (!$adAccountId) {
+                    continue;
+                }
+
+                $result = $this->apiService->success(
+                    [
+                        'platform'            => 'snapchat',
+                        'user_id'             => Auth::id(),
+                        'name'                => $adAccount['name'] ?? "Snapchat Ad Account {$adAccountId}",
+                        'platform_account_id' => $adAccountId,
+                        'access_token'        => $accessToken,
+                        'refresh_token'       => $refreshToken,
+                        'is_token_valid'      => true,
+                        'expires_at'          => $expiresAt,
+                        'has_ads_permission'  => true,
+                        'metadata'            => array_filter([
+                            'currency'         => $adAccount['currency'] ?? null,
+                            'organization_id'  => $orgId,
+                        ]),
+                    ],
+                    [
+                        'platform'            => 'snapchat',
+                        'platform_account_id' => $adAccountId,
+                        'user_id'             => Auth::id(),
+                    ],
+                    new SocialAccount
+                );
+
+                $result['data']->syncAdDetails([
+                    'currency'    => $adAccount['currency'] ?? null,
+                    'timezone'    => $adAccount['timezone'] ?? null,
+                    'business_id' => $orgId,
+                ]);
+
+                $connected++;
+            }
+        }
+
+        if ($connected === 0) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'Connected to Snapchat, but no usable Ad Account was found where you have a role.');
+        }
+
+        return redirect()->route('admin.ads.dashboard')->with('success', "Connected {$connected} Snapchat Ad Account(s).");
     }
 
     public function store($platform, $request)

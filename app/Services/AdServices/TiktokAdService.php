@@ -145,7 +145,7 @@ class TiktokAdService
         foreach ($advertiserIds as $advertiserId) {
             $details = $advertiserDetails->get($advertiserId, []);
 
-            $this->apiService->success(
+            $result = $this->apiService->success(
                 [
                     'platform'      => $platform,
                     'user_id'       => Auth::user()->id,
@@ -158,6 +158,10 @@ class TiktokAdService
                 ['platform' => $platform, 'platform_account_id' => $advertiserId, 'user_id' => Auth::user()->id],
                 new SocialAccount
             );
+
+            $result['data']->syncAdDetails([
+                'currency' => $details['currency'] ?? null,
+            ]);
 
             $connected++;
         }

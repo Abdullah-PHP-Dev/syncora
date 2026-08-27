@@ -67,12 +67,12 @@ class PostController extends Controller
         $dateTo   = $request->filled('to') ? \Carbon\Carbon::parse($request->query('to'))->endOfDay() : null;
 
         // ---- Accounts ----
-        $accounts = SocialAccount::whereUserId($userId)->get();
+        $accounts = SocialAccount::whereUserId($userId)->with('postDetails')->get();
         $totalAccounts = $accounts->count();
         $accountsByPlatform = $accounts->groupBy('platform')->map->count();
         $totalFollowers = (int) $accounts->sum('followers_count');
         $totalAccountLikes = (int) $accounts->sum('likes_count');
-        $totalMedia = (int) $accounts->sum(fn ($account) => (int) ($account->metadata['media_count'] ?? 0));
+        $totalMedia = (int) $accounts->sum(fn ($account) => (int) $account->media_count);
 
         // ---- Posts Query ----
         $postQuery = Post::where('user_id', $userId);
@@ -170,8 +170,8 @@ class PostController extends Controller
                 'image'          => $account->avatar_url,
                 'follower_count' => (int) $account->followers_count,
                 'likes_count'    => (int) $account->likes_count,
-                'media_count'    => (int) ($account->metadata['media_count'] ?? 0),
-                'views_count'    => (int) ($account->metadata['views_count'] ?? 0),
+                'media_count'    => (int) $account->media_count,
+                'views_count'    => (int) $account->views_count,
             ];
         })->sortByDesc('follower_count')->values();
 

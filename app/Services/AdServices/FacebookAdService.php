@@ -123,6 +123,11 @@ class FacebookAdService
                     new SocialAccount
                 );
 
+                $fbAccountRecord['data']->syncAdDetails([
+                    'currency' => $currency ?? null,
+                    'business_id' => $fbData['business']['id'] ?? null,
+                ]);
+
                 $localAccountId = $fbAccountRecord['data']['id'] ?? null;
                 $connected++;
             }
@@ -166,7 +171,7 @@ class FacebookAdService
             foreach ($instagrams as $igAccount) {
                 $igId = $igAccount['id'];
                 $instagramSaved = $igAccount['name'];
-                $this->apiService->success(
+                $igAccountRecord = $this->apiService->success(
                     [
                         'platform'      => 'instagram',
                         'user_id'       => Auth::id(),
@@ -185,6 +190,11 @@ class FacebookAdService
                     ],
                     new SocialAccount
                 );
+
+                $igAccountRecord['data']->syncAdDetails([
+                    'currency' => $currency ?? null,
+                    'business_id' => $fbData['business']['id'] ?? null,
+                ]);
             }
         }
 
