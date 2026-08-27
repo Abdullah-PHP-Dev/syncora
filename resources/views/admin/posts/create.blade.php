@@ -976,7 +976,7 @@
 
                         @foreach ($platforms as $platform)
                             @php
-                                $socialPages = $accounts->where('platform', $platform)->whereNotNull('access_token');
+                                $socialPages = $accounts->where('platform', $platform)->where('has_posting_permission', true)->whereNotNull('access_token');
                                 $isVideoPlatform = in_array($platform, ['tiktok', 'youtube']);
                             @endphp
                             @if ($socialPages->count() > 0)

@@ -800,8 +800,11 @@ class PostController extends Controller
             ->orderBy('id', 'desc')
             ->get();
     
-        $accounts = SocialAccount::whereUserId($userId)->get();
-     
+        // has_posting_permission excludes ad-account-only rows (eg. a
+        // Facebook act_... Ad Account) - this list feeds the "select a
+        // page to post to" picker below, which an ad account can never be.
+        $accounts = SocialAccount::whereUserId($userId)->where('has_posting_permission', true)->get();
+
         // Fetch scheduled posts (past and future) for this platform
         $scheduledPosts = Post::where('user_id', $userId)
             // ->where('platform', $platform)
@@ -837,9 +840,15 @@ class PostController extends Controller
     
                     foreach ($validated['platforms'] as $platform) {
     
+                        // has_posting_permission is a second safety net here
+                        // (the create page already only offers posting-
+                        // permitted accounts as checkboxes) so a tampered
+                        // request can't slip an ad-account id through
+                        // selected_pages and have it treated as postable.
                         $pages = SocialAccount::where([
                             'user_id' => $userId,
-                            'platform' => $platform
+                            'platform' => $platform,
+                            'has_posting_permission' => true,
                         ])->whereIn(
                             'id',
                             $validated['selected_pages'][$platform] ?? []
@@ -1120,7 +1129,14 @@ class PostController extends Controller
 
         foreach ($validated['platforms'] as $platform) {
 
-            $pages = SocialAccount::where(['user_id' => $userId, 'platform' => $platform])->get();
+            // has_posting_permission excludes ad-account-only rows (eg. a
+            // Facebook act_... Ad Account, a Google Ads customer) - those
+            // share this same platform+user but can't receive a content
+            // post, so without this filter quickStore() would try to
+            // publish to them too.
+            $pages = SocialAccount::where(['user_id' => $userId, 'platform' => $platform])
+                ->where('has_posting_permission', true)
+                ->get();
 
             if ($pages->isEmpty()) {
                 $errors[] = ['message' => "No connected {$platform} account found. Connect one first."];

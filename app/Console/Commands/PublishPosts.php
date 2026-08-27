@@ -61,7 +61,7 @@ class PublishPosts extends Command
             ->where('status', '!=', 'completed')
             ->orderBy('id')
             ->chunkById(50, function ($posts) {
-
+           
                 foreach ($posts as $post) {
 
                     try {
