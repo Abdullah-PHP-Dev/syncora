@@ -241,10 +241,6 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('post-accounts.whatsapp.store');
 				Route::post('post-accounts/whatsapp/embedded', [PostAccountController::class, 'storeWhatsappEmbedded'])
 					->name('post-accounts.whatsapp.embedded');
-				Route::get('post-accounts/meta/redirect', [PostAccountController::class, 'redirectMeta'])
-					->name('post-accounts.meta.redirect');
-				Route::get('post-accounts/meta/callback', [PostAccountController::class, 'callbackMeta'])
-					->name('post-accounts.meta.callback');
 
 				Route::get('post-accounts/instagram/redirect', [PostAccountController::class, 'redirectInstagram'])
 					->name('post-accounts.instagram.redirect');
@@ -262,28 +258,22 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('post-accounts.x.redirect');
 				Route::get('post-accounts/x/callback', [PostAccountController::class, 'callbackX'])
 					->name('post-accounts.x.callback');
-				Route::get('post-accounts/linkedin/redirect', [PostAccountController::class, 'redirectLinkedin'])
-					->name('post-accounts.linkedin.redirect');
-				Route::get('post-accounts/linkedin/callback', [PostAccountController::class, 'callbackLinkedin'])
-					->name('post-accounts.linkedin.callback');
-				Route::get('post-accounts/tiktok/redirect', [PostAccountController::class, 'redirectTiktok'])
-					->name('post-accounts.tiktok.redirect');
-				Route::get('post-accounts/tiktok/callback', [PostAccountController::class, 'callbackTiktok'])
-					->name('post-accounts.tiktok.callback');
-				Route::get('post-accounts/google/redirect', [PostAccountController::class, 'redirectGoogle'])
-					->name('post-accounts.google.redirect');
-				Route::get('post-accounts/google/callback', [PostAccountController::class, 'callbackGoogle'])
-					->name('post-accounts.google.callback');
 				Route::delete('post-accounts/{account}', [PostAccountController::class, 'destroy'])
 					->name('post-accounts.destroy');
 
 				// Unified combined-consent connect flow (posting + messaging +
-				// ads scopes in one redirect) for the four platforms where
-				// that's achievable in one OAuth app - see SocialAuthService.
-				// Additive alongside the per-module flows above/below: an
-				// account connected either way upserts into the same
-				// social_accounts row (matched on platform+platform_account_id
-				// +user_id), so nothing here replaces the existing buttons.
+				// ads scopes in one redirect) for Facebook, Google, LinkedIn,
+				// and TikTok - the platforms whose OAuth model supports
+				// requesting all three at once - see SocialAuthService. This
+				// is now the ONLY connect route for these four platforms:
+				// it replaced their separate post-accounts.*/messaging.auth.*
+				// entries (removed below), since every account connected
+				// through either used to upsert into the same social_accounts
+				// row anyway. Every other platform keeps its existing
+				// dedicated route, either because it has no combined-scope
+				// option (TikTok Ads has its own separate OAuth app - see
+				// ads.redirect) or because it's a genuinely different
+				// product (Google Chat vs. YouTube/Business Profile).
 				Route::get('social-accounts/{platform}/redirect', [SocialAccountController::class, 'redirect'])
 					->name('social-accounts.redirect');
 				Route::get('social-accounts/{platform}/callback', [SocialAccountController::class, 'callback'])
@@ -313,10 +303,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				// conversations themselves)
 				Route::get('chats/channels', [MessageChannelController::class, 'index'])
 					->name('chats.channels');
-				Route::get('messaging/auth/meta/redirect', [MessageChannelController::class, 'redirectMeta'])
-					->name('messaging.auth.meta.redirect');
-				Route::get('messaging/auth/meta/callback', [MessageChannelController::class, 'callbackMeta'])
-					->name('messaging.auth.meta.callback');
+				// Facebook Messenger connects through social-accounts.redirect
+				// now (platform=facebook) - see the comment above that route.
 				Route::get('messaging/auth/instagram/redirect', [MessageChannelController::class, 'redirectInstagram'])
 					->name('messaging.auth.instagram.redirect');
 				Route::get('messaging/auth/instagram/callback', [MessageChannelController::class, 'callbackInstagram'])

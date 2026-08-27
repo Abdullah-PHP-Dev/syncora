@@ -7,7 +7,6 @@ use App\Models\Messaging\MessageChannel;
 use App\Models\SocialAccount;
 use App\Services\ApiService;
 use App\Services\MessagingServices\DiscordMessagingService;
-use App\Services\MessagingServices\FacebookMessengerService;
 use App\Services\MessagingServices\GoogleChatMessagingService;
 use App\Services\MessagingServices\InstagramMessengerService;
 use App\Services\MessagingServices\MatrixMessagingService;
@@ -40,39 +39,6 @@ class MessageChannelController extends Controller
             ->get();
 
         return view('admin.chats.channels', compact('channels'));
-    }
-
-    /**
-     * Facebook Page connections only - see MetaMessagingTrait::redirect()/
-     * handleMetaCallback(). Instagram Direct has its own native login flow
-     * below (redirectInstagram()/callbackInstagram()), not this one.
-     */
-    public function redirectMeta(FacebookMessengerService $service)
-    {
-        $state = Str::uuid()->toString();
-        session(['messaging_oauth_state_meta' => $state]);
-
-        return $service->redirect($state);
-    }
-
-    public function callbackMeta(Request $request, FacebookMessengerService $service)
-    {
-        if (!$request->filled('code') || $request->query('state') !== session('messaging_oauth_state_meta')) {
-            Log::info('Meta messaging OAuth callback failed or was cancelled.', $request->only(['error', 'error_reason', 'error_description']));
-
-            return redirect()->route('admin.chats.channels')->with('error', 'Meta connection failed or was cancelled.');
-        }
-
-        session()->forget('messaging_oauth_state_meta');
-
-        $result = $service->handleMetaCallback($request->query('code'));
-
-        return redirect()->route('admin.chats.channels')->with(
-            $result['success'] ? 'success' : 'error',
-            $result['success']
-                ? "Connected {$result['data']['facebook']} Facebook Page(s)."
-                : ($result['error'] ?? 'Meta connection failed.')
-        );
     }
 
     /**

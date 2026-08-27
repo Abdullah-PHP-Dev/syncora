@@ -399,7 +399,7 @@
                     <div class="channel-platform-icon facebook mx-auto"><i class="bx bxl-facebook"></i></div>
                     <h6>Facebook Messenger</h6>
                     <p class="text-muted">Connects every Page you manage for Messenger conversations.</p>
-                    <a href="{{ route('admin.messaging.auth.meta.redirect') }}" class="btn btn-primary btn-sm">Connect Facebook</a>
+                    <a href="{{ route('admin.social-accounts.redirect', ['platform' => 'facebook']) }}" class="btn btn-primary btn-sm">Connect Facebook</a>
                 </div>
             </div>
 

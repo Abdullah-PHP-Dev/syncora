@@ -5,6 +5,12 @@ namespace App\Services\SocialAuth;
 use App\Models\Messaging\MessageChannel;
 use App\Models\SocialAccount;
 use App\Services\ApiService;
+use App\Services\MessagingServices\FacebookMessengerService;
+use App\Services\MessagingServices\InstagramMessengerService;
+use App\Services\PostServices\InstagramPostService;
+use App\Services\PostServices\LinkedInPostService;
+use App\Services\PostServices\MetaPostService;
+use App\Services\PostServices\YoutubePostService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -36,8 +42,15 @@ class SocialAuthService
 {
     private const SUPPORTED_PLATFORMS = ['facebook', 'google', 'linkedin', 'tiktok'];
 
-    public function __construct(private ApiService $api)
-    {
+    public function __construct(
+        private ApiService $api,
+        private MetaPostService $metaPostService,
+        private InstagramPostService $instagramPostService,
+        private YoutubePostService $youtubePostService,
+        private LinkedInPostService $linkedInPostService,
+        private FacebookMessengerService $facebookMessengerService,
+        private InstagramMessengerService $instagramMessengerService,
+    ) {
     }
 
     public function isSupported(string $platform): bool
@@ -168,10 +181,45 @@ class SocialAuthService
             );
             $pagesConnected++;
 
-            MessageChannel::updateOrCreate(
+            $pageChannel = MessageChannel::updateOrCreate(
                 ['platform' => 'facebook', 'external_id' => $page['id']],
                 ['social_account_id' => $pageAccount->id]
             );
+
+            // Each of these is independently failure-tolerant (internally
+            // try/caught, logs and returns rather than throwing) - this
+            // outer try/catch is a deliberate second safety net so the
+            // account/channel above stay saved even if a sync/subscribe/
+            // backfill call fails (eg. too small for Insights, or a token
+            // missing a scope). Without these, has_posting_permission and
+            // has_messaging_permission would be true but comments/DMs would
+            // never actually arrive, since Meta only pushes webhook events
+            // to Pages that completed the /subscribed_apps opt-in below.
+            try {
+                $this->metaPostService->subscribeToWebhooks($pageAccount);
+            } catch (\Throwable $e) {
+                Log::warning('Facebook post webhook subscribe failed after unified connect.', ['account_id' => $pageAccount->id, 'error' => $e->getMessage()]);
+            }
+            try {
+                $this->metaPostService->backfillRecentPosts($pageAccount);
+            } catch (\Throwable $e) {
+                Log::warning('Facebook post backfill failed after unified connect.', ['account_id' => $pageAccount->id, 'error' => $e->getMessage()]);
+            }
+            try {
+                $this->facebookMessengerService->syncChannelDetails($pageChannel);
+            } catch (\Throwable $e) {
+                Log::warning('Facebook channel details sync failed after unified connect.', ['channel_id' => $pageChannel->id, 'error' => $e->getMessage()]);
+            }
+            try {
+                $this->facebookMessengerService->subscribeToWebhooks($pageChannel);
+            } catch (\Throwable $e) {
+                Log::warning('Facebook channel webhook subscribe failed after unified connect.', ['channel_id' => $pageChannel->id, 'error' => $e->getMessage()]);
+            }
+            try {
+                $this->facebookMessengerService->backfillRecentConversations($pageChannel);
+            } catch (\Throwable $e) {
+                Log::warning('Facebook conversation backfill failed after unified connect.', ['channel_id' => $pageChannel->id, 'error' => $e->getMessage()]);
+            }
 
             if (!empty($page['instagram_business_account']['id'])) {
                 $ig = $page['instagram_business_account'];
@@ -196,10 +244,36 @@ class SocialAuthService
                 );
                 $instagramConnected++;
 
-                MessageChannel::updateOrCreate(
+                $igChannel = MessageChannel::updateOrCreate(
                     ['platform' => 'instagram', 'external_id' => $ig['id']],
                     ['social_account_id' => $igAccount->id]
                 );
+
+                try {
+                    $this->instagramPostService->subscribeToWebhooks($igAccount);
+                } catch (\Throwable $e) {
+                    Log::warning('Instagram post webhook subscribe failed after unified connect.', ['account_id' => $igAccount->id, 'error' => $e->getMessage()]);
+                }
+                try {
+                    $this->instagramPostService->backfillRecentPosts($igAccount);
+                } catch (\Throwable $e) {
+                    Log::warning('Instagram post backfill failed after unified connect.', ['account_id' => $igAccount->id, 'error' => $e->getMessage()]);
+                }
+                try {
+                    $this->instagramMessengerService->syncChannelDetails($igChannel);
+                } catch (\Throwable $e) {
+                    Log::warning('Instagram channel details sync failed after unified connect.', ['channel_id' => $igChannel->id, 'error' => $e->getMessage()]);
+                }
+                try {
+                    $this->instagramMessengerService->subscribeToWebhooks($igChannel);
+                } catch (\Throwable $e) {
+                    Log::warning('Instagram channel webhook subscribe failed after unified connect.', ['channel_id' => $igChannel->id, 'error' => $e->getMessage()]);
+                }
+                try {
+                    $this->instagramMessengerService->backfillRecentConversations($igChannel);
+                } catch (\Throwable $e) {
+                    Log::warning('Instagram conversation backfill failed after unified connect.', ['channel_id' => $igChannel->id, 'error' => $e->getMessage()]);
+                }
             }
         }
 
@@ -301,7 +375,7 @@ class SocialAuthService
         $connected = 0;
 
         foreach ($response['data']['items'] ?? [] as $channel) {
-            SocialAccount::updateOrCreate(
+            $channelAccount = SocialAccount::updateOrCreate(
                 ['platform' => 'youtube', 'platform_account_id' => $channel['id'], 'user_id' => $userId],
                 [
                     'name' => $channel['snippet']['title'] ?? 'YouTube Channel',
@@ -318,6 +392,21 @@ class SocialAuthService
                 ]
             );
             $connected++;
+
+            // WebSub (PubSubHubbub) subscription for new-upload push
+            // notifications, and a one-time pull of recent videos/comments -
+            // without this the channel row exists but YoutubeWebhookController
+            // never receives anything for it.
+            try {
+                $this->youtubePostService->subscribeToWebhooks($channelAccount);
+            } catch (\Throwable $e) {
+                Log::warning('YouTube webhook subscribe failed after unified connect.', ['account_id' => $channelAccount->id, 'error' => $e->getMessage()]);
+            }
+            try {
+                $this->youtubePostService->backfillRecentPosts($channelAccount);
+            } catch (\Throwable $e) {
+                Log::warning('YouTube video backfill failed after unified connect.', ['account_id' => $channelAccount->id, 'error' => $e->getMessage()]);
+            }
         }
 
         return $connected;
@@ -464,7 +553,7 @@ class SocialAuthService
             $orgResponse = $this->api->get($baseUrl . 'organizations/' . $orgId, $headers);
             $org = $orgResponse['success'] ? $orgResponse['data'] : [];
 
-            SocialAccount::updateOrCreate(
+            $orgAccount = SocialAccount::updateOrCreate(
                 ['platform' => 'linkedin', 'platform_account_id' => $orgId, 'user_id' => $userId],
                 [
                     'name' => $org['localizedName'] ?? 'LinkedIn Organization',
@@ -477,6 +566,23 @@ class SocialAuthService
                 ]
             );
             $orgsConnected++;
+
+            // subscribeToWebhooks() is a soft no-op on LinkedIn (it only
+            // records a callback URL - LinkedIn doesn't push organic
+            // engagement events under the standard API tier), but
+            // backfillRecentPosts() genuinely pulls in existing posts/
+            // comments, so it's still worth calling both for consistency
+            // with the other platforms.
+            try {
+                $this->linkedInPostService->subscribeToWebhooks($orgAccount);
+            } catch (\Throwable $e) {
+                Log::warning('LinkedIn webhook subscribe failed after unified connect.', ['account_id' => $orgAccount->id, 'error' => $e->getMessage()]);
+            }
+            try {
+                $this->linkedInPostService->backfillRecentPosts($orgAccount);
+            } catch (\Throwable $e) {
+                Log::warning('LinkedIn post backfill failed after unified connect.', ['account_id' => $orgAccount->id, 'error' => $e->getMessage()]);
+            }
         }
 
         $adAccountsResponse = $this->api->get($baseUrl . 'adAccountUsers', $headers, [

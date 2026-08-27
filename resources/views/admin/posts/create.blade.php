@@ -939,7 +939,7 @@
                     <div class="card-header bg-light fw-semibold d-flex justify-content-between align-items-center">
                         <span>{{ __('admin.marketing_tools.posts.select_platforms') }}</span>
                         <div class="d-flex gap-2 flex-wrap">
-                            <a href="{{ route('admin.post-accounts.meta.redirect') }}" class="btn btn-outline-primary btn-sm">
+                            <a href="{{ route('admin.social-accounts.redirect', ['platform' => 'facebook']) }}" class="btn btn-outline-primary btn-sm">
                                 <i class="fab fa-facebook"></i> Connect Facebook
                             </a>
                             <a href="{{ route('admin.post-accounts.instagram.redirect') }}" class="btn btn-outline-primary btn-sm">
@@ -954,13 +954,13 @@
                             <a href="{{ route('admin.post-accounts.x.redirect') }}" class="btn btn-outline-dark btn-sm">
                                 <i class="fab fa-x-twitter"></i> Connect X
                             </a>
-                            <a href="{{ route('admin.post-accounts.linkedin.redirect') }}" class="btn btn-outline-info btn-sm">
+                            <a href="{{ route('admin.social-accounts.redirect', ['platform' => 'linkedin']) }}" class="btn btn-outline-info btn-sm">
                                 <i class="fab fa-linkedin"></i> Connect LinkedIn
                             </a>
-                            <a href="{{ route('admin.post-accounts.tiktok.redirect') }}" class="btn btn-outline-dark btn-sm">
+                            <a href="{{ route('admin.social-accounts.redirect', ['platform' => 'tiktok']) }}" class="btn btn-outline-dark btn-sm">
                                 <i class="fab fa-tiktok"></i> Connect TikTok
                             </a>
-                            <a href="{{ route('admin.post-accounts.google.redirect') }}" class="btn btn-outline-danger btn-sm">
+                            <a href="{{ route('admin.social-accounts.redirect', ['platform' => 'google']) }}" class="btn btn-outline-danger btn-sm">
                                 <i class="fab fa-google"></i> Connect Google / YouTube
                             </a>
                             <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#connectWhatsappModal">
