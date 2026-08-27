@@ -1026,8 +1026,8 @@ class InstagramPostService
      */
     public function updatePost($postId, $data, $token)
     {
-        $account = SocialPost::with('postAccount')->where('post_id', $postId)->first();
-        $this->ensureValidToken($account->postAccount);
+        $account = Post::with('socialAccount')->where('post_id', $postId)->first();
+        $this->ensureValidToken($account->socialAccount);
 
         $payload = [
             'message' => $data['content'],

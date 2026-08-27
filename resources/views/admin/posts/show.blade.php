@@ -287,7 +287,7 @@
                         </div>
                         <div>
                             <h5 class="fw-bold mb-0 text-dark">
-                                {{ $post->postAccount->name ?? ucfirst($post->platform) }}
+                                {{ $post->socialAccount->name ?? ucfirst($post->platform) }}
                             </h5>
                             <div class="d-flex align-items-center gap-2 text-muted small mt-1">
                                 <span><i class="far fa-user me-1"></i> Author: <strong>{{ $post->user->name ?? 'System' }}</strong></span>

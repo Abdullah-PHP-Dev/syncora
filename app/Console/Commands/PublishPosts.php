@@ -57,7 +57,7 @@ class PublishPosts extends Command
     {
         $this->info('Publishing scheduled posts...');
 
-        Post::with(['postAccount', 'media'])
+        Post::with(['socialAccount', 'media'])
             ->where('status', '!=', 'completed')
             ->orderBy('id')
             ->chunkById(50, function ($posts) {

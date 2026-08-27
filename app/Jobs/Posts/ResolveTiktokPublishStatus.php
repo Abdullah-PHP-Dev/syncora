@@ -44,7 +44,7 @@ class ResolveTiktokPublishStatus implements ShouldQueue
             return;
         }
 
-        $account = $post->postAccount;
+        $account = $post->socialAccount;
 
         if (!$account) {
             return;
