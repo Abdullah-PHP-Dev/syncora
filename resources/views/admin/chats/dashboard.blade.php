@@ -257,22 +257,92 @@
         padding: 24px;
         display: flex;
         flex-direction: column;
-        gap: 14px;
         background: #fdfdff;
+    }
+
+    /* Centered pill divider between messages sent on different days -
+       "Today" / "Yesterday" / "Aug 25, 2026" - lets a long thread be
+       scanned without re-reading every bubble's own timestamp. */
+    .date-separator {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 18px 0 10px;
+    }
+
+    .date-separator:first-child {
+        margin-top: 0;
+    }
+
+    .date-separator span {
+        background: #fff;
+        border: 1px solid #eef1f5;
+        color: #8a90a3;
+        font-size: .66rem;
+        font-weight: 700;
+        letter-spacing: .03em;
+        text-transform: uppercase;
+        padding: 4px 14px;
+        border-radius: 20px;
+        box-shadow: 0 1px 4px rgba(20, 20, 43, .05);
     }
 
     .message-row {
         display: flex;
+        margin-top: 14px;
+    }
+
+    .date-separator + .message-row {
+        margin-top: 0;
+    }
+
+    /* Consecutive messages from the same side within a few minutes sit
+       close together, like WhatsApp/Messenger/Slack - only a genuine
+       gap (new sender, or time has passed) gets full spacing. */
+    .message-row.is-grouped {
+        margin-top: 3px;
     }
 
     .message-row.outbound {
         justify-content: flex-end;
     }
 
+    .message-row-inner {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        max-width: 72%;
+        min-width: 0;
+    }
+
+    .message-row.outbound .message-row-inner {
+        flex-direction: row-reverse;
+    }
+
+    .message-avatar {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        object-fit: cover;
+        flex-shrink: 0;
+        margin-bottom: 2px;
+    }
+
+    /* Reserve the avatar's width even when hidden, so grouped bubbles
+       stay aligned with the one at the end of the group that shows it. */
+    .message-row.is-grouped .message-avatar {
+        visibility: hidden;
+    }
+
+    .message-col {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
     .message-bubble {
-        max-width: 60%;
         padding: 11px 15px;
-        border-radius: 16px;
+        border-radius: 18px;
         white-space: pre-wrap;
         word-break: break-word;
         line-height: 1.45;
@@ -307,11 +377,25 @@
         margin-top: 5px;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
     }
 
     .message-row.outbound .message-meta {
         justify-content: flex-end;
+    }
+
+    .message-status-icon {
+        font-size: .82rem;
+        line-height: 1;
+        display: inline-flex;
+    }
+
+    .message-status-icon.sent {
+        color: #9ea5b5;
+    }
+
+    .message-status-icon.failed {
+        color: #dc3545;
     }
 
     .message-actions {
@@ -751,7 +835,11 @@
                     </div>
                     <div class="thread-messages" id="threadMessages">`;
 
-                messages.forEach(m => html += renderMessage(m, conversation.platform));
+                let previousMessage = null;
+                messages.forEach(m => {
+                    html += renderMessage(m, conversation.platform, previousMessage);
+                    previousMessage = m;
+                });
 
                 html += `</div>
                     <div class="thread-composer">
@@ -771,6 +859,7 @@
                 scrollThreadToBottom();
                 window.currentConversationId = conversation.id;
                 window.currentConversationPlatform = conversation.platform;
+                window.currentConversationAvatar = conversation.customer_avatar_url || '{{ asset('assets/img/avatars/1.png') }}';
             }
 
             function escapeAttr(str) {
@@ -782,9 +871,59 @@
                     .replace(/>/g, '&gt;');
             }
 
-            function renderMessage(m, platform) {
+            // Two messages sit close together (no divider gap) when
+            // they're the same side of the conversation and land within
+            // a few minutes of each other, same day - the same clustering
+            // rule WhatsApp/Messenger/Slack use.
+            function shouldGroupWithPrevious(current, previous) {
+                if (!previous || !previous.direction || !previous.created_at) return false;
+                if (current.direction !== previous.direction) return false;
+                if (!isSameDay(previous.created_at, current.created_at)) return false;
+                const curTime = new Date(current.created_at).getTime();
+                const prevTime = new Date(previous.created_at).getTime();
+                if (isNaN(curTime) || isNaN(prevTime)) return false;
+                return Math.abs(curTime - prevTime) < 3 * 60 * 1000;
+            }
+
+            function isSameDay(aIso, bIso) {
+                const a = new Date(aIso), b = new Date(bIso);
+                return a.toDateString() === b.toDateString();
+            }
+
+            function dateSeparatorLabel(iso) {
+                const d = new Date(iso);
+                const today = new Date();
+                const yesterday = new Date();
+                yesterday.setDate(today.getDate() - 1);
+                if (d.toDateString() === today.toDateString()) return 'Today';
+                if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+                const opts = { month: 'short', day: 'numeric' };
+                if (d.getFullYear() !== today.getFullYear()) opts.year = 'numeric';
+                return d.toLocaleDateString(undefined, opts);
+            }
+
+            function formatMessageTime(iso) {
+                const d = new Date(iso);
+                if (isNaN(d.getTime())) return '';
+                return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+            }
+
+            function renderAvatarHtml(direction) {
+                if (direction !== 'inbound') return '';
+                const src = window.currentConversationAvatar || '{{ asset('assets/img/avatars/1.png') }}';
+                return `<img class="message-avatar" src="${src}" onerror="this.src='{{ asset('assets/img/avatars/1.png') }}'">`;
+            }
+
+            function renderMessage(m, platform, previous) {
+                let separatorHtml = '';
+                if (!previous || !isSameDay(previous.created_at, m.created_at)) {
+                    separatorHtml = `<div class="date-separator"><span>${dateSeparatorLabel(m.created_at)}</span></div>`;
+                }
+
+                const isGrouped = shouldGroupWithPrevious(m, previous);
+
                 if (m.deleted_at) {
-                    return renderDeletedMessageRow(m);
+                    return separatorHtml + renderDeletedMessageRow(m, isGrouped);
                 }
 
                 let attachmentHtml = '';
@@ -806,30 +945,43 @@
                     actionsHtml += '</span>';
                 }
 
-                return `
-                    <div class="message-row ${m.direction}" data-message-id="${m.id}">
-                        <div>
-                            <div class="message-bubble ${failedClass}" data-message-body="${escapeAttr(m.body)}">
-                                ${attachmentHtml}
-                                ${m.body ? escapeHtml(m.body) : ''}
-                            </div>
-                            <div class="message-meta text-${m.direction === 'outbound' ? 'end' : 'start'}">
-                                <span class="message-meta-text">${timeAgo(m.created_at)}${m.status === 'failed' ? ' · failed to send' : ''}${m.edited_at ? ' · edited' : ''}</span>
-                                ${actionsHtml}
+                let statusIconHtml = '';
+                if (m.direction === 'outbound') {
+                    if (m.status === 'failed') statusIconHtml = '<i class="bx bx-error-circle message-status-icon failed" title="Failed to send"></i>';
+                    else if (m.status === 'sent') statusIconHtml = '<i class="bx bx-check message-status-icon sent" title="Sent"></i>';
+                }
+
+                return separatorHtml + `
+                    <div class="message-row ${m.direction} ${isGrouped ? 'is-grouped' : ''}" data-message-id="${m.id}" data-direction="${m.direction}" data-created-at="${m.created_at}">
+                        <div class="message-row-inner">
+                            ${renderAvatarHtml(m.direction)}
+                            <div class="message-col">
+                                <div class="message-bubble ${failedClass}" data-message-body="${escapeAttr(m.body)}">
+                                    ${attachmentHtml}
+                                    ${m.body ? escapeHtml(m.body) : ''}
+                                </div>
+                                <div class="message-meta text-${m.direction === 'outbound' ? 'end' : 'start'}">
+                                    <span class="message-meta-text">${formatMessageTime(m.created_at)}${m.edited_at ? ' · edited' : ''}</span>
+                                    ${statusIconHtml}
+                                    ${actionsHtml}
+                                </div>
                             </div>
                         </div>
                     </div>`;
             }
 
-            function renderDeletedMessageRow(m) {
+            function renderDeletedMessageRow(m, isGrouped) {
                 return `
-                    <div class="message-row ${m.direction}" data-message-id="${m.id}">
-                        <div>
-                            <div class="message-bubble is-deleted">
-                                <i class="bx bx-block"></i> This message was deleted
-                            </div>
-                            <div class="message-meta text-${m.direction === 'outbound' ? 'end' : 'start'}">
-                                <span class="message-meta-text">${timeAgo(m.created_at)}</span>
+                    <div class="message-row ${m.direction} ${isGrouped ? 'is-grouped' : ''}" data-message-id="${m.id}" data-direction="${m.direction}" data-created-at="${m.created_at}">
+                        <div class="message-row-inner">
+                            ${renderAvatarHtml(m.direction)}
+                            <div class="message-col">
+                                <div class="message-bubble is-deleted">
+                                    <i class="bx bx-block"></i> This message was deleted
+                                </div>
+                                <div class="message-meta text-${m.direction === 'outbound' ? 'end' : 'start'}">
+                                    <span class="message-meta-text">${formatMessageTime(m.created_at)}</span>
+                                </div>
                             </div>
                         </div>
                     </div>`;
@@ -850,7 +1002,12 @@
                 if ($(`#threadMessages .message-row[data-message-id="${message.id}"]`).length) {
                     return;
                 }
-                $('#threadMessages').append(renderMessage(message, platform));
+                const $lastRow = $('#threadMessages .message-row').last();
+                const previous = $lastRow.length ? {
+                    direction: $lastRow.data('direction'),
+                    created_at: $lastRow.data('created-at'),
+                } : null;
+                $('#threadMessages').append(renderMessage(message, platform, previous));
                 scrollThreadToBottom();
             }
 

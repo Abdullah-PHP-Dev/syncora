@@ -13,46 +13,85 @@
     </div>
 </div>
 <div class="thread-messages" id="threadMessages">
+    @php $previousMessage = null; @endphp
     @foreach ($messages as $message)
-        <div class="message-row {{ $message->direction }}" data-message-id="{{ $message->id }}">
-            <div>
-                @if ($message->deleted_at)
-                    <div class="message-bubble is-deleted">
-                        <i class="bx bx-block"></i> This message was deleted
-                    </div>
-                @else
-                    <div class="message-bubble {{ $message->status === 'failed' ? 'failed' : '' }}" data-message-body="{{ $message->body }}">
-                        @foreach ($message->attachments as $attachment)
-                            <div class="message-attachment">
-                                @if ($attachment->type === 'image')
-                                    <img src="{{ $attachment->url }}">
-                                @elseif ($attachment->type === 'video')
-                                    <video src="{{ $attachment->url }}" controls></video>
-                                @else
-                                    <a href="{{ $attachment->url }}" target="_blank">📎 Attachment</a>
-                                @endif
-                            </div>
-                        @endforeach
-                        @if ($message->body){{ $message->body }}@endif
-                    </div>
-                @endif
-                <div class="message-meta text-{{ $message->direction === 'outbound' ? 'end' : 'start' }}">
-                    <span class="message-meta-text">
-                        {{ $message->created_at->diffForHumans(null, true) }}@if ($message->status === 'failed') · failed to send @endif @if ($message->edited_at) · edited @endif
-                    </span>
-                    @if (!$message->deleted_at && $message->direction === 'outbound' && $message->status === 'sent' && (in_array($conversation->platform, $editCapablePlatforms) || in_array($conversation->platform, $deleteCapablePlatforms)))
-                        <span class="message-actions">
-                            @if (in_array($conversation->platform, $editCapablePlatforms))
-                                <button type="button" class="message-action-btn" data-action="edit" title="Edit"><i class="bx bx-pencil"></i></button>
-                            @endif
-                            @if (in_array($conversation->platform, $deleteCapablePlatforms))
-                                <button type="button" class="message-action-btn" data-action="delete" title="Delete"><i class="bx bx-trash"></i></button>
-                            @endif
-                        </span>
+        @php
+            $isGrouped = $previousMessage
+                && $previousMessage->direction === $message->direction
+                && $previousMessage->created_at->isSameDay($message->created_at)
+                && $previousMessage->created_at->diffInMinutes($message->created_at) < 3;
+            $showDateSeparator = !$previousMessage || !$previousMessage->created_at->isSameDay($message->created_at);
+        @endphp
+        @if ($showDateSeparator)
+            <div class="date-separator">
+                <span>
+                    @if ($message->created_at->isToday())
+                        Today
+                    @elseif ($message->created_at->isYesterday())
+                        Yesterday
+                    @else
+                        {{ $message->created_at->format($message->created_at->year === now()->year ? 'M j' : 'M j, Y') }}
                     @endif
+                </span>
+            </div>
+        @endif
+        <div
+                class="message-row {{ $message->direction }} {{ $isGrouped ? 'is-grouped' : '' }}"
+                data-message-id="{{ $message->id }}"
+                data-direction="{{ $message->direction }}"
+                data-created-at="{{ $message->created_at->toIso8601String() }}"
+        >
+            <div class="message-row-inner">
+                @if ($message->direction === 'inbound')
+                    <img class="message-avatar" src="{{ $conversation->customer_avatar_url ?: asset('assets/img/avatars/1.png') }}" onerror="this.src='{{ asset('assets/img/avatars/1.png') }}'">
+                @endif
+                <div class="message-col">
+                    @if ($message->deleted_at)
+                        <div class="message-bubble is-deleted">
+                            <i class="bx bx-block"></i> This message was deleted
+                        </div>
+                    @else
+                        <div class="message-bubble {{ $message->status === 'failed' ? 'failed' : '' }}" data-message-body="{{ $message->body }}">
+                            @foreach ($message->attachments as $attachment)
+                                <div class="message-attachment">
+                                    @if ($attachment->type === 'image')
+                                        <img src="{{ $attachment->url }}">
+                                    @elseif ($attachment->type === 'video')
+                                        <video src="{{ $attachment->url }}" controls></video>
+                                    @else
+                                        <a href="{{ $attachment->url }}" target="_blank">📎 Attachment</a>
+                                    @endif
+                                </div>
+                            @endforeach
+                            @if ($message->body){{ $message->body }}@endif
+                        </div>
+                    @endif
+                    <div class="message-meta text-{{ $message->direction === 'outbound' ? 'end' : 'start' }}">
+                        <span class="message-meta-text">
+                            {{ $message->created_at->format('g:i A') }}@if ($message->edited_at) · edited @endif
+                        </span>
+                        @if (!$message->deleted_at && $message->direction === 'outbound')
+                            @if ($message->status === 'failed')
+                                <i class="bx bx-error-circle message-status-icon failed" title="Failed to send"></i>
+                            @elseif ($message->status === 'sent')
+                                <i class="bx bx-check message-status-icon sent" title="Sent"></i>
+                            @endif
+                        @endif
+                        @if (!$message->deleted_at && $message->direction === 'outbound' && $message->status === 'sent' && (in_array($conversation->platform, $editCapablePlatforms) || in_array($conversation->platform, $deleteCapablePlatforms)))
+                            <span class="message-actions">
+                                @if (in_array($conversation->platform, $editCapablePlatforms))
+                                    <button type="button" class="message-action-btn" data-action="edit" title="Edit"><i class="bx bx-pencil"></i></button>
+                                @endif
+                                @if (in_array($conversation->platform, $deleteCapablePlatforms))
+                                    <button type="button" class="message-action-btn" data-action="delete" title="Delete"><i class="bx bx-trash"></i></button>
+                                @endif
+                            </span>
+                        @endif
+                    </div>
                 </div>
             </div>
         </div>
+        @php $previousMessage = $message; @endphp
     @endforeach
 </div>
 <div class="thread-composer">
@@ -71,4 +110,5 @@
 <script>
     window.currentConversationId = {{ $conversation->id }};
     window.currentConversationPlatform = @json($conversation->platform);
+    window.currentConversationAvatar = @json($conversation->customer_avatar_url ?: asset('assets/img/avatars/1.png'));
 </script>
