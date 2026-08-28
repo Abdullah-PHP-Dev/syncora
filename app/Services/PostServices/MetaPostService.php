@@ -368,6 +368,7 @@ protected function publishPostOnMeta($post, $account)
     try {
         // 1. Safely retrieve the decrypted access token
         $accessToken = $account->access_token;
+    
         $accountId = $account->platform_account_id;
 
         if (empty($accessToken)) {
@@ -419,12 +420,14 @@ protected function publishPostOnMeta($post, $account)
         return ['success' => true];
 
     } catch (DecryptException $e) {
+            dd($e->getMessage(), $account);
         // Not caught here - re-thrown to publishPost()'s single
         // handleTokenDecryptFailure() handler, which also covers the
         // ensureValidToken() decrypt site, so this failure mode only has
         // one place that marks the account invalid.
         throw $e;
     } catch (\Throwable $e) {
+              dd($e->getMessage(), $account);
         // Catches all other runtime errors / network exceptions
         $post->update([
             'status' => 'failed',
