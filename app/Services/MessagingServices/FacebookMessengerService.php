@@ -25,17 +25,21 @@ class FacebookMessengerService
 
     public function sendMessage(Conversation $conversation, array $data)
     {
-        $channel = $conversation->channel;
+        // Conversation::channel() resolves straight to a SocialAccount
+        // (not a MessageChannel - that indirection was removed in the
+        // social_accounts consolidation), which already carries both the
+        // Page id and the access token directly.
+        $account = $conversation->channel;
 
         $message = !empty($data['media_url'])
             ? ['attachment' => ['type' => $data['media_type'] ?? 'image', 'payload' => ['url' => $data['media_url'], 'is_reusable' => true]]]
             : ['text' => $data['body']];
 
-        $result = $this->graphApiCall('POST', $channel->external_id . '/messages', [
+        $result = $this->graphApiCall('POST', $account->platform_account_id . '/messages', [
             'messaging_type' => 'RESPONSE',
             'recipient'      => ['id' => $conversation->customer_external_id],
             'message'        => $message,
-        ], $channel->socialAccount->access_token);
+        ], $account->access_token);
 
         if (!$result['success']) {
             return $result;
