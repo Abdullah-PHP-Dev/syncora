@@ -334,10 +334,23 @@
         visibility: hidden;
     }
 
+    /* Root cause of bubbles ballooning to full container width instead
+       of hugging their text: a column flexbox defaults align-items to
+       "stretch", so .message-bubble (a flex item here) was stretching to
+       fill .message-col's cross-axis width on every render, worse for
+       whichever message ended up in the widest column. flex-start (and
+       flex-end for outbound, so bubbles hug the correct edge under the
+       right-aligned row) makes every bubble shrink-wrap to its own
+       content again, like a real chat bubble. */
     .message-col {
         display: flex;
         flex-direction: column;
+        align-items: flex-start;
         min-width: 0;
+    }
+
+    .message-row.outbound .message-col {
+        align-items: flex-end;
     }
 
     .message-bubble {
