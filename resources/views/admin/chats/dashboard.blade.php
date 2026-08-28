@@ -2,6 +2,14 @@
 
 @section('title', 'Unified Inbox')
 
+{{-- Was a bare <style> tag outside any @section/@push - with @extends,
+     that renders before layouts.app's own <head> content, so this loaded
+     BEFORE admin.css/socialeaz-admin.css instead of after. Harmless today
+     (nothing in those files currently targets these classes), but any
+     future rule with equal specificity there would have silently won the
+     cascade over this page's own styling. @push puts it in the right
+     place: inside <head>, after those stylesheets. --}}
+@push('styles')
 <style>
     .inbox-topbar {
         display: flex;
@@ -354,6 +362,14 @@
     }
 
     .message-bubble {
+        /* Belt-and-suspenders on top of .message-col's align-items: an
+           explicit width keeps the bubble content-sized even if a
+           parent's flex alignment gets overridden by something else -
+           width:auto is what "stretch" actually stretches, so giving it
+           a real width value opts it out of that regardless. */
+        width: fit-content;
+        max-width: 100%;
+        align-self: flex-start;
         padding: 11px 15px;
         border-radius: 18px;
         white-space: pre-wrap;
@@ -370,6 +386,7 @@
     }
 
     .message-row.outbound .message-bubble {
+        align-self: flex-end;
         background: linear-gradient(135deg, #4338ca 0%, #6d28d9 55%, #9333ea 100%);
         color: #fff;
         border-bottom-right-radius: 4px;
@@ -647,6 +664,7 @@
         font-size: .85rem;
     }
 </style>
+@endpush
 
 @section('content')
     <div class="col-xxl-12 mb-0">
