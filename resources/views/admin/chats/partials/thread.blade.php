@@ -6,10 +6,22 @@
      capability lists, ultimately by ChatController) and inherited here
      automatically since this partial is included, not rendered in isolation. --}}
 <div class="thread-header">
-    <img class="conversation-avatar" src="{{ $conversation->customer_avatar_url ?: asset('assets/img/avatars/1.png') }}" onerror="this.src='{{ asset('assets/img/avatars/1.png') }}'">
-    <div>
-        <div class="fw-semibold">{{ $conversation->customer_name ?: 'Unknown' }}</div>
-        <span class="platform-badge" style="background:{{ $platformColors[$conversation->platform] ?? '#6d28d9' }}">{{ $platformLabel($conversation->platform) }}</span>
+    <div class="thread-header-identity">
+        <img class="conversation-avatar" src="{{ $conversation->customer_avatar_url ?: asset('assets/img/avatars/1.png') }}" onerror="this.src='{{ asset('assets/img/avatars/1.png') }}'">
+        <div>
+            <div class="fw-semibold">{{ $conversation->customer_name ?: 'Unknown' }}</div>
+            <div class="thread-header-badges">
+                <span class="platform-badge" style="background:{{ $platformColors[$conversation->platform] ?? '#6d28d9' }}">{{ $platformLabel($conversation->platform) }}</span>
+                <span class="status-pill {{ $conversation->status }}">
+                    <span class="status-pill-dot"></span>
+                    {{ $conversation->status === 'open' ? 'Active' : ucfirst($conversation->status) }}
+                </span>
+            </div>
+        </div>
+    </div>
+    <div class="thread-header-actions">
+        <button type="button" class="btn-thread-action" id="summarizeBtn" title="AI conversation summary - coming soon"><i class="bx bx-list-check"></i> Summarize</button>
+        <button type="button" class="btn-details-toggle" id="toggleDetailsBtn" title="Chat details"><i class="bx bx-info-circle"></i></button>
     </div>
 </div>
 <div class="thread-messages" id="threadMessages">
@@ -63,10 +75,13 @@
                                     @endif
                                 </div>
                             @endforeach
-                            @if ($message->body){{ $message->body }}@endif
+                            @if ($message->body)<span class="message-bubble-text">{{ trim($message->body) }}</span>@endif
                         </div>
                     @endif
                     <div class="message-meta text-{{ $message->direction === 'outbound' ? 'end' : 'start' }}">
+                        <span class="message-platform-badge" style="background:{{ $platformColors[$conversation->platform] ?? '#6d28d9' }}" title="{{ $platformLabel($conversation->platform) }}">
+                            <i class="bx {{ $platformIcons[$conversation->platform] ?? 'bx-message-rounded-dots' }}"></i>
+                        </span>
                         <span class="message-meta-text">
                             {{ $message->created_at->format('g:i A') }}@if ($message->edited_at) · edited @endif
                         </span>
@@ -94,6 +109,18 @@
         @php $previousMessage = $message; @endphp
     @endforeach
 </div>
+<div class="ai-copilot-panel" id="aiCopilotPanel">
+    <div class="ai-copilot-header">
+        <span class="ai-copilot-title"><i class="bx bx-bulb"></i> AI Copilot</span>
+        <button type="button" class="ai-copilot-close" id="aiCopilotCloseBtn" title="Hide"><i class="bx bx-x"></i></button>
+    </div>
+    <div class="ai-copilot-actions">
+        <button type="button" class="ai-copilot-btn" data-ai-action="draft"><i class="bx bx-edit-alt"></i> Draft a Professional Reply</button>
+        <button type="button" class="ai-copilot-btn" data-ai-action="summarize"><i class="bx bx-list-ul"></i> Summarize this conversation</button>
+        <button type="button" class="ai-copilot-btn" data-ai-action="tone"><i class="bx bx-happy-alt"></i> Adjust Tone (Friendly/Helpful)</button>
+        <button type="button" class="ai-copilot-btn" data-ai-action="translate"><i class="bx bx-globe"></i> Translate</button>
+    </div>
+</div>
 <div class="thread-composer">
     <form id="replyForm" enctype="multipart/form-data" class="w-100">
         @csrf
@@ -103,6 +130,7 @@
             <textarea name="body" class="form-control" rows="1" placeholder="Type a reply..."></textarea>
             <input type="file" name="media" id="replyMedia" hidden accept="image/*,video/*">
             <button type="button" class="btn-composer-attach" onclick="document.getElementById('replyMedia').click()"><i class="bx bx-paperclip"></i></button>
+            <button type="button" class="btn-ai-compose" id="aiComposeToggleBtn" title="Open AI Copilot"><i class="bx bx-magic-wand"></i> AI Compose</button>
             <button type="submit" class="btn-composer-send">Send</button>
         </div>
     </form>

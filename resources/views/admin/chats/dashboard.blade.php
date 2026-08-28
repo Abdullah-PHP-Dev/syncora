@@ -372,10 +372,24 @@
         align-self: flex-start;
         padding: 11px 15px;
         border-radius: 18px;
-        white-space: pre-wrap;
-        word-break: break-word;
         line-height: 1.45;
         font-size: .92rem;
+    }
+
+    /* white-space:pre-wrap belongs on the text itself, not the bubble -
+       it used to sit on .message-bubble directly, which meant it also
+       preserved every bit of the Blade/JS template's own source
+       indentation surrounding the message body as real, visible
+       spaces (invisible in a terminal/editor, very visible in a browser)
+       - a 5-character message like "Hello" was rendering as dozens of
+       leading/trailing spaces plus "Hello", and width:fit-content was
+       correctly sizing around all of that, not just the word. Scoping
+       pre-wrap to this inner span means only the customer's own
+       intentional line breaks are preserved; everything around it uses
+       normal whitespace collapsing again. */
+    .message-bubble-text {
+        white-space: pre-wrap;
+        word-break: break-word;
     }
 
     .message-row.inbound .message-bubble {
@@ -663,6 +677,396 @@
         color: #a7adba;
         font-size: .85rem;
     }
+
+    /* =========================================================
+       TOPBAR - "Explore AI Features" CTA
+    ========================================================= */
+    .btn-ai-feature {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        border: none;
+        border-radius: 10px;
+        padding: 8px 16px;
+        font-size: .82rem;
+        font-weight: 700;
+        color: #fff;
+        background: linear-gradient(135deg, #4338ca 0%, #6d28d9 55%, #9333ea 100%);
+        box-shadow: 0 4px 12px rgba(109, 40, 217, .28);
+        transition: transform .15s ease;
+    }
+
+    .btn-ai-feature:hover {
+        color: #fff;
+        transform: translateY(-1px);
+    }
+
+    /* =========================================================
+       FILTER BAR - channel/status/agent, above the conversation list
+    ========================================================= */
+    .inbox-filter-bar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 14px;
+        flex-wrap: wrap;
+        background: #fff;
+        border-bottom: 1px solid #eef1f5;
+    }
+
+    .filter-pill-all {
+        border: none;
+        border-radius: 20px;
+        padding: 5px 15px;
+        font-size: .74rem;
+        font-weight: 700;
+        color: #fff;
+        background: linear-gradient(135deg, #4338ca 0%, #6d28d9 45%, #9333ea 100%);
+        flex-shrink: 0;
+    }
+
+    .filter-select {
+        border: 1px solid #eef1f5;
+        background: #f8f9fc;
+        color: #5b6373;
+        border-radius: 20px;
+        padding: 5px 26px 5px 13px;
+        font-size: .74rem;
+        font-weight: 600;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a93a6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        min-width: 0;
+    }
+
+    .filter-select:focus {
+        outline: none;
+        border-color: #c7bbf0;
+    }
+
+    /* =========================================================
+       THREAD HEADER - status pill + action buttons
+    ========================================================= */
+    .thread-header {
+        justify-content: space-between;
+    }
+
+    .thread-header-identity {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .thread-header-badges {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 2px;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: .7rem;
+        font-weight: 700;
+        color: #5b6373;
+    }
+
+    .status-pill-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #a7adba;
+    }
+
+    .status-pill.open .status-pill-dot {
+        background: #2fb344;
+    }
+
+    .thread-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .btn-thread-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid #e5e7f0;
+        background: #fff;
+        color: #4b3fb0;
+        border-radius: 9px;
+        padding: 7px 13px;
+        font-size: .78rem;
+        font-weight: 600;
+        transition: all .15s ease;
+    }
+
+    .btn-thread-action:hover {
+        background: #f5f3ff;
+        border-color: #d9defa;
+        color: #4b3fb0;
+    }
+
+    .btn-details-toggle {
+        border: 1px solid #e5e7f0;
+        background: #fff;
+        color: #8a93a6;
+        border-radius: 9px;
+        width: 32px;
+        height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* =========================================================
+       MESSAGE PLATFORM BADGE - which channel this specific
+       message came in on, next to its timestamp.
+    ========================================================= */
+    .message-platform-badge {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 8px;
+        flex-shrink: 0;
+    }
+
+    /* =========================================================
+       AI COPILOT PANEL - sits above the composer. Every action
+       here is presentational only for now (no AI backend wired
+       up yet) - clicking shows a "coming soon" toast rather than
+       pretending to do something it can't.
+    ========================================================= */
+    .ai-copilot-panel {
+        margin: 0 20px 12px;
+        border: 1px solid #e5ddfb;
+        border-radius: 14px;
+        background: linear-gradient(180deg, #faf9ff 0%, #f5f3ff 100%);
+        overflow: hidden;
+    }
+
+    .ai-copilot-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 14px;
+        border-bottom: 1px solid #eee7fd;
+    }
+
+    .ai-copilot-title {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: .82rem;
+        font-weight: 700;
+        color: #4b3fb0;
+    }
+
+    .ai-copilot-title i {
+        font-size: 15px;
+    }
+
+    .ai-copilot-close {
+        border: none;
+        background: transparent;
+        color: #a7adba;
+        width: 22px;
+        height: 22px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+    }
+
+    .ai-copilot-close:hover {
+        background: #ece7fb;
+        color: #5b6373;
+    }
+
+    .ai-copilot-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        padding: 12px 14px;
+    }
+
+    .ai-copilot-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid #eef1f5;
+        background: #fff;
+        color: #3a3f52;
+        border-radius: 10px;
+        padding: 9px 11px;
+        font-size: .78rem;
+        font-weight: 600;
+        text-align: left;
+        transition: all .15s ease;
+    }
+
+    .ai-copilot-btn:hover {
+        border-color: #d9defa;
+        background: #faf9ff;
+    }
+
+    .ai-copilot-btn i {
+        font-size: 15px;
+        color: #6d28d9;
+        flex-shrink: 0;
+    }
+
+    .btn-ai-compose {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid #e5ddfb;
+        background: #f5f3ff;
+        color: #4b3fb0;
+        border-radius: 20px;
+        padding: 8px 16px;
+        font-size: .8rem;
+        font-weight: 700;
+        flex-shrink: 0;
+        transition: all .15s ease;
+    }
+
+    .btn-ai-compose:hover {
+        background: #eee7fd;
+        color: #4b3fb0;
+    }
+
+    /* =========================================================
+       CHAT DETAILS PANEL - right-hand column. Every figure in
+       here is real data pulled for the active conversation
+       (message count, assigned agent, other platforms this same
+       customer name appears under) except AI Sentiment and Open
+       Cases, which have no backing feature yet and say so rather
+       than showing a fabricated number.
+    ========================================================= */
+    .chat-details-panel {
+        width: 280px;
+        flex-shrink: 0;
+        border-left: 1px solid #eef1f5;
+        background: #fff;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .chat-details-panel.is-hidden {
+        display: none;
+    }
+
+    .details-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 18px;
+        border-bottom: 1px solid #eef1f5;
+        font-weight: 700;
+    }
+
+    .details-close {
+        border: none;
+        background: transparent;
+        color: #a7adba;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .details-close:hover {
+        background: #f3f4fb;
+        color: #5b6373;
+    }
+
+    .details-section {
+        padding: 16px 18px;
+        border-bottom: 1px solid #f3f5f9;
+    }
+
+    .details-section-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: .72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #a7adba;
+        margin-bottom: 10px;
+    }
+
+    .details-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: .84rem;
+        margin-bottom: 7px;
+    }
+
+    .details-row-label {
+        color: #8a93a6;
+    }
+
+    .details-row-value {
+        color: #2b2f3a;
+        font-weight: 600;
+        text-align: right;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .details-platform-icons {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .details-platform-icon {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 13px;
+    }
+
+    .details-empty {
+        color: #a7adba;
+        font-size: .82rem;
+        font-style: italic;
+    }
+
+    .details-placeholder {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #a7adba;
+        font-size: .8rem;
+        background: #f8f9fc;
+        border: 1px dashed #e5e7f0;
+        border-radius: 10px;
+        padding: 10px 12px;
+    }
 </style>
 @endpush
 
@@ -673,9 +1077,14 @@
                 <h4 class="inbox-title"><i class="bx bx-message-dots"></i> Unified Inbox</h4>
                 <p class="inbox-subtitle">{{ $conversations->count() }} conversation{{ $conversations->count() === 1 ? '' : 's' }} across every connected channel</p>
             </div>
-            <a href="{{ route('admin.chats.channels') }}" class="btn btn-outline-primary btn-sm">
-                <i class="bx bx-plug"></i> Manage Channels
-            </a>
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn-ai-feature" id="exploreAiFeaturesBtn">
+                    <i class="bx bx-sparkles"></i> Explore AI Features
+                </button>
+                <a href="{{ route('admin.chats.channels') }}" class="btn btn-outline-primary btn-sm">
+                    <i class="bx bx-plug"></i> Manage Channels
+                </a>
+            </div>
         </div>
 
         @php
@@ -731,17 +1140,35 @@
                     Conversations
                     <span class="inbox-sidebar-count">{{ $conversations->count() }}</span>
                 </div>
-                <div class="platform-filter">
-                    <button type="button" class="platform-filter-btn active" data-platform="">All</button>
-                    @foreach ($activePlatforms as $platform)
-                        <button type="button" class="platform-filter-btn" data-platform="{{ $platform }}">{{ $platformLabel($platform) }}</button>
-                    @endforeach
+                <div class="inbox-filter-bar">
+                    <button type="button" class="filter-pill-all" id="clearFiltersBtn">All</button>
+                    <select class="filter-select" id="channelFilter" title="Filter by channel">
+                        <option value="">Channel</option>
+                        @foreach ($activePlatforms as $platform)
+                            <option value="{{ $platform }}">{{ $platformLabel($platform) }}</option>
+                        @endforeach
+                    </select>
+                    <select class="filter-select" id="statusFilter" title="Filter by status">
+                        <option value="">Status</option>
+                        <option value="open">Active</option>
+                        <option value="closed">Closed</option>
+                        <option value="archived">Archived</option>
+                    </select>
+                    <select class="filter-select" id="agentFilter" title="Filter by agent">
+                        <option value="">Agent</option>
+                        <option value="unassigned">Unassigned</option>
+                        @foreach ($assignableUsers as $user)
+                            <option value="{{ $user->id }}">{{ $user->name }}</option>
+                        @endforeach
+                    </select>
                 </div>
                 <div class="conversation-list" id="conversationList">
                     @forelse ($conversations as $conversation)
                         <div class="conversation-item {{ $activeConversation && $activeConversation->id === $conversation->id ? 'active' : '' }}"
                              data-id="{{ $conversation->id }}"
-                             data-platform="{{ $conversation->platform }}">
+                             data-platform="{{ $conversation->platform }}"
+                             data-status="{{ $conversation->status }}"
+                             data-agent="{{ $conversation->assigned_user_id ?: 'unassigned' }}">
                             <div style="position:relative">
                                 <img class="conversation-avatar" src="{{ $conversation->customer_avatar_url ?: asset('assets/img/avatars/1.png') }}" onerror="this.src='{{ asset('assets/img/avatars/1.png') }}'">
                                 <span class="platform-dot {{ $conversation->platform }}"><i class="bx {{ $platformIcons[$conversation->platform] ?? 'bx-message-rounded-dots' }}"></i></span>
@@ -773,6 +1200,16 @@
                         <div class="inbox-empty-icon"><i class="bx bx-message-dots"></i></div>
                         <div>Select a conversation to start replying</div>
                     </div>
+                @endif
+            </div>
+
+            <div class="chat-details-panel {{ $activeConversation ? '' : 'is-hidden' }}" id="chatDetailsPanel">
+                @if ($activeConversation)
+                    @include('admin.chats.partials.details-panel', [
+                        'conversation' => $activeConversation,
+                        'platformHistory' => $platformHistory,
+                        'messageCount' => $messageCount,
+                    ])
                 @endif
             </div>
         </div>
@@ -811,6 +1248,7 @@
             // AJAX) - used only by renderThread()'s platform badge.
             const platformLabels = @json($platformLabels);
             const platformColors = @json($platformColors);
+            const platformIcons = @json($platformIcons);
 
             // Straight from MessagingManagerService, not a second
             // hand-maintained list - see that class's editCapablePlatforms()/
@@ -846,6 +1284,7 @@
                 $.get(showUrlTemplate.replace(':ID', id), function(res) {
                     if (!res.success) return;
                     renderThread(res.conversation, res.messages);
+                    renderDetailsPanel(res.conversation, res.platformHistory || [], res.messageCount || res.messages.length);
                 });
             }
 
@@ -855,13 +1294,27 @@
 
             function renderThread(conversation, messages) {
                 const badgeColor = platformColors[conversation.platform] || '#6d28d9';
+                const isActive = conversation.status === 'open';
+                const statusLabel = isActive ? 'Active' : (conversation.status ? conversation.status.charAt(0).toUpperCase() + conversation.status.slice(1) : 'Open');
 
                 let html = `
                     <div class="thread-header">
-                        <img class="conversation-avatar" src="${conversation.customer_avatar_url || '{{ asset('assets/img/avatars/1.png') }}'}" onerror="this.src='{{ asset('assets/img/avatars/1.png') }}'">
-                        <div>
-                            <div class="fw-semibold">${escapeHtml(conversation.customer_name || 'Unknown')}</div>
-                            <span class="platform-badge" style="background:${badgeColor}">${platformLabel(conversation.platform)}</span>
+                        <div class="thread-header-identity">
+                            <img class="conversation-avatar" src="${conversation.customer_avatar_url || '{{ asset('assets/img/avatars/1.png') }}'}" onerror="this.src='{{ asset('assets/img/avatars/1.png') }}'">
+                            <div>
+                                <div class="fw-semibold">${escapeHtml(conversation.customer_name || 'Unknown')}</div>
+                                <div class="thread-header-badges">
+                                    <span class="platform-badge" style="background:${badgeColor}">${platformLabel(conversation.platform)}</span>
+                                    <span class="status-pill ${isActive ? 'open' : ''}">
+                                        <span class="status-pill-dot"></span>
+                                        ${statusLabel}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="thread-header-actions">
+                            <button type="button" class="btn-thread-action" id="summarizeBtn" title="AI conversation summary - coming soon"><i class="bx bx-list-check"></i> Summarize</button>
+                            <button type="button" class="btn-details-toggle" id="toggleDetailsBtn" title="Chat details"><i class="bx bx-info-circle"></i></button>
                         </div>
                     </div>
                     <div class="thread-messages" id="threadMessages">`;
@@ -873,6 +1326,18 @@
                 });
 
                 html += `</div>
+                    <div class="ai-copilot-panel" id="aiCopilotPanel">
+                        <div class="ai-copilot-header">
+                            <span class="ai-copilot-title"><i class="bx bx-bulb"></i> AI Copilot</span>
+                            <button type="button" class="ai-copilot-close" id="aiCopilotCloseBtn" title="Hide"><i class="bx bx-x"></i></button>
+                        </div>
+                        <div class="ai-copilot-actions">
+                            <button type="button" class="ai-copilot-btn" data-ai-action="draft"><i class="bx bx-edit-alt"></i> Draft a Professional Reply</button>
+                            <button type="button" class="ai-copilot-btn" data-ai-action="summarize"><i class="bx bx-list-ul"></i> Summarize this conversation</button>
+                            <button type="button" class="ai-copilot-btn" data-ai-action="tone"><i class="bx bx-happy-alt"></i> Adjust Tone (Friendly/Helpful)</button>
+                            <button type="button" class="ai-copilot-btn" data-ai-action="translate"><i class="bx bx-globe"></i> Translate</button>
+                        </div>
+                    </div>
                     <div class="thread-composer">
                         <form id="replyForm" enctype="multipart/form-data" class="w-100">
                             <input type="hidden" name="conversation_id" value="${conversation.id}">
@@ -881,6 +1346,7 @@
                                 <textarea name="body" class="form-control" rows="1" placeholder="Type a reply..."></textarea>
                                 <input type="file" name="media" id="replyMedia" hidden accept="image/*,video/*">
                                 <button type="button" class="btn-composer-attach" onclick="document.getElementById('replyMedia').click()"><i class="bx bx-paperclip"></i></button>
+                                <button type="button" class="btn-ai-compose" id="aiComposeToggleBtn" title="Open AI Copilot"><i class="bx bx-magic-wand"></i> AI Compose</button>
                                 <button type="submit" class="btn-composer-send">Send</button>
                             </div>
                         </form>
@@ -891,6 +1357,53 @@
                 window.currentConversationId = conversation.id;
                 window.currentConversationPlatform = conversation.platform;
                 window.currentConversationAvatar = conversation.customer_avatar_url || '{{ asset('assets/img/avatars/1.png') }}';
+            }
+
+            function renderDetailsPanel(conversation, platformHistory, messageCount) {
+                const $panel = $('#chatDetailsPanel');
+                const name = escapeHtml(conversation.customer_name || 'Unknown');
+                const agentName = escapeHtml((conversation.assigned_user && conversation.assigned_user.name) || 'Unassigned');
+                const meta = conversation.meta || {};
+
+                let icons = '';
+                (platformHistory || []).forEach(p => {
+                    const color = platformColors[p] || '#6d28d9';
+                    const icon = platformIcons[p] || 'bx-message-rounded-dots';
+                    icons += `<span class="details-platform-icon" style="background:${color}" title="${platformLabel(p)}"><i class="bx ${icon}"></i></span>`;
+                });
+
+                const lastActivity = conversation.last_message_at ? timeAgo(conversation.last_message_at) + ' ago' : '—';
+
+                $panel.removeClass('is-hidden').html(`
+                    <div class="details-header">
+                        Chat Details
+                        <button type="button" class="details-close" id="closeDetailsBtn" title="Hide panel"><i class="bx bx-x"></i></button>
+                    </div>
+                    <div class="details-section">
+                        <div class="details-section-title">${name}'s Contact Details</div>
+                        <div class="details-row"><span class="details-row-label">Name</span><span class="details-row-value">${name}</span></div>
+                        <div class="details-row"><span class="details-row-label">Agent</span><span class="details-row-value">${agentName}</span></div>
+                        ${meta.phone ? `<div class="details-row"><span class="details-row-label">Phone</span><span class="details-row-value">${escapeHtml(meta.phone)}</span></div>` : ''}
+                        ${meta.email ? `<div class="details-row"><span class="details-row-label">E-mail</span><span class="details-row-value">${escapeHtml(meta.email)}</span></div>` : ''}
+                    </div>
+                    <div class="details-section">
+                        <div class="details-section-title">Platform History</div>
+                        <div class="details-platform-icons">${icons}</div>
+                    </div>
+                    <div class="details-section">
+                        <div class="details-section-title">Recent Activity</div>
+                        <div class="details-row"><span class="details-row-label">Messages</span><span class="details-row-value">${messageCount}</span></div>
+                        <div class="details-row"><span class="details-row-label">Last activity</span><span class="details-row-value">${lastActivity}</span></div>
+                    </div>
+                    <div class="details-section">
+                        <div class="details-section-title">Open Cases</div>
+                        <div class="details-empty">No open cases.</div>
+                    </div>
+                    <div class="details-section">
+                        <div class="details-section-title">AI Sentiment Analysis</div>
+                        <div class="details-placeholder"><i class="bx bx-time-five"></i> Not available yet</div>
+                    </div>
+                `);
             }
 
             function escapeAttr(str) {
@@ -982,16 +1495,18 @@
                     else if (m.status === 'sent') statusIconHtml = '<i class="bx bx-check message-status-icon sent" title="Sent"></i>';
                 }
 
+                const badgeColor = platformColors[platform] || '#6d28d9';
+                const badgeIcon = platformIcons[platform] || 'bx-message-rounded-dots';
+                const platformBadgeHtml = `<span class="message-platform-badge" style="background:${badgeColor}" title="${platformLabel(platform)}"><i class="bx ${badgeIcon}"></i></span>`;
+
                 return separatorHtml + `
                     <div class="message-row ${m.direction} ${isGrouped ? 'is-grouped' : ''}" data-message-id="${m.id}" data-direction="${m.direction}" data-created-at="${m.created_at}">
                         <div class="message-row-inner">
                             ${renderAvatarHtml(m.direction)}
                             <div class="message-col">
-                                <div class="message-bubble ${failedClass}" data-message-body="${escapeAttr(m.body)}">
-                                    ${attachmentHtml}
-                                    ${m.body ? escapeHtml(m.body) : ''}
-                                </div>
+                                <div class="message-bubble ${failedClass}" data-message-body="${escapeAttr(m.body)}">${attachmentHtml}${m.body ? `<span class="message-bubble-text">${escapeHtml(m.body.trim())}</span>` : ''}</div>
                                 <div class="message-meta text-${m.direction === 'outbound' ? 'end' : 'start'}">
+                                    ${platformBadgeHtml}
                                     <span class="message-meta-text">${formatMessageTime(m.created_at)}${m.edited_at ? ' · edited' : ''}</span>
                                     ${statusIconHtml}
                                     ${actionsHtml}
@@ -1245,17 +1760,70 @@
             });
 
             // ------------------------------------------------------------------
-            // PLATFORM FILTER
+            // CHANNEL / STATUS / AGENT FILTERS - all client-side over the
+            // already-loaded conversation list (it's already fully in the
+            // DOM), so no extra request per filter change. "All" clears
+            // every select back to its default option.
             // ------------------------------------------------------------------
-            $('.platform-filter-btn').on('click', function() {
-                $('.platform-filter-btn').removeClass('active');
-                $(this).addClass('active');
-                const platform = $(this).data('platform');
+            function applyConversationFilters() {
+                const channel = $('#channelFilter').val();
+                const status = $('#statusFilter').val();
+                const agent = $('#agentFilter').val();
 
                 $('.conversation-item').each(function() {
-                    const show = !platform || $(this).data('platform') === platform;
-                    $(this).toggle(show);
+                    const $item = $(this);
+                    const matches = (!channel || $item.data('platform') === channel)
+                        && (!status || $item.data('status') === status)
+                        && (!agent || String($item.data('agent')) === agent);
+                    $item.toggle(matches);
                 });
+            }
+
+            $('#channelFilter, #statusFilter, #agentFilter').on('change', applyConversationFilters);
+
+            $('#clearFiltersBtn').on('click', function() {
+                $('#channelFilter, #statusFilter, #agentFilter').val('');
+                applyConversationFilters();
+            });
+
+            // ------------------------------------------------------------------
+            // AI FEATURES - Summarize / Copilot actions / Explore AI Features
+            // are presentational for now (no AI backend wired up yet). A
+            // toast rather than silent no-ops so it's honest about not being
+            // implemented instead of looking broken.
+            // ------------------------------------------------------------------
+            function aiComingSoonToast() {
+                if (window.Swal) {
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Coming soon',
+                        text: 'AI-powered replies are on the roadmap and not wired up yet.',
+                        confirmButtonColor: '#6d28d9',
+                    });
+                } else {
+                    alert('Coming soon - AI-powered replies are on the roadmap and not wired up yet.');
+                }
+            }
+
+            $(document).on('click', '#exploreAiFeaturesBtn, #summarizeBtn, .ai-copilot-btn', aiComingSoonToast);
+
+            $(document).on('click', '#aiComposeToggleBtn', function() {
+                $('#aiCopilotPanel').toggle();
+            });
+
+            $(document).on('click', '#aiCopilotCloseBtn', function() {
+                $('#aiCopilotPanel').hide();
+            });
+
+            // ------------------------------------------------------------------
+            // CHAT DETAILS PANEL toggle
+            // ------------------------------------------------------------------
+            $(document).on('click', '#toggleDetailsBtn', function() {
+                $('#chatDetailsPanel').toggleClass('is-hidden');
+            });
+
+            $(document).on('click', '#closeDetailsBtn', function() {
+                $('#chatDetailsPanel').addClass('is-hidden');
             });
 
             // ------------------------------------------------------------------

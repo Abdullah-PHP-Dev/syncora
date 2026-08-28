@@ -42,12 +42,17 @@ class ChatController extends Controller
             : $conversations->first();
 
         $messages = collect();
+        $platformHistory = collect();
+        $messageCount = 0;
 
         if ($activeConversation) {
             $messages = Message::with('attachments')
                 ->where('conversation_id', $activeConversation->id)
                 ->orderBy('created_at')
                 ->get();
+
+            $platformHistory = $this->platformHistoryFor($activeConversation);
+            $messageCount = $messages->count();
 
             $activeConversation->update(['unread_count' => 0]);
         }
@@ -58,10 +63,40 @@ class ChatController extends Controller
         $editCapablePlatforms = $this->messagingManager->editCapablePlatforms();
         $deleteCapablePlatforms = $this->messagingManager->deleteCapablePlatforms();
 
+        // Every user this inbox's conversations could plausibly be
+        // assigned to - just the current admin today (there's no team/
+        // multi-agent concept elsewhere in this app yet), but the Agent
+        // filter and Chat Details panel are wired against real
+        // assigned_user_id data rather than a hardcoded name, so this
+        // grows for free whenever that changes.
+        $assignableUsers = \App\Models\User::whereIn('id', $conversations->pluck('assigned_user_id')->filter()->push(Auth::id())->unique())->get(['id', 'name']);
+
         return view('admin.chats.dashboard', compact(
             'conversations', 'activeConversation', 'messages',
-            'editCapablePlatforms', 'deleteCapablePlatforms'
+            'editCapablePlatforms', 'deleteCapablePlatforms',
+            'platformHistory', 'messageCount', 'assignableUsers'
         ));
+    }
+
+    /**
+     * Best-effort "which other platforms is this same person on" - there
+     * is no cross-platform identity system (a customer's id is different
+     * per platform), so this matches purely on customer_name among this
+     * user's other conversations. Real data, honestly a heuristic rather
+     * than a guaranteed match - two different customers who happen to
+     * share a name would incorrectly appear connected.
+     */
+    protected function platformHistoryFor(Conversation $conversation): \Illuminate\Support\Collection
+    {
+        if (!$conversation->customer_name) {
+            return collect([$conversation->platform]);
+        }
+
+        return Conversation::whereHas('channel', fn($q) => $q->where('user_id', Auth::id()))
+            ->where('customer_name', $conversation->customer_name)
+            ->pluck('platform')
+            ->unique()
+            ->values();
     }
 
     /**
@@ -74,6 +109,13 @@ class ChatController extends Controller
         abort_unless($conversation->channel->user_id === Auth::id(), 403);
 
         $conversation->update(['unread_count' => 0]);
+        // assignedUser only serializes into the JSON response below if it's
+        // been eager-loaded first - Eloquent doesn't lazy-resolve relations
+        // for you at toJson() time the way Blade's magic property access
+        // does, so without this the Chat Details panel would always show
+        // "Unassigned" after switching conversations via AJAX even when an
+        // agent is actually assigned.
+        $conversation->load('assignedUser');
 
         $messages = Message::with('attachments')
             ->where('conversation_id', $conversation->id)
@@ -81,9 +123,11 @@ class ChatController extends Controller
             ->get();
 
         return response()->json([
-            'success'      => true,
-            'conversation' => $conversation,
-            'messages'     => $messages,
+            'success'         => true,
+            'conversation'    => $conversation,
+            'messages'        => $messages,
+            'platformHistory' => $this->platformHistoryFor($conversation),
+            'messageCount'    => $messages->count(),
         ]);
     }
 
