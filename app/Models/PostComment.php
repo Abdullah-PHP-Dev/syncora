@@ -59,7 +59,8 @@ class PostComment extends Model
         'is_reply',
         'status',
         'error_message',
-        
+        'read_at',
+
         // Timestamps
         'posted_at',
         'imported_at',
@@ -114,6 +115,7 @@ class PostComment extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
+        'read_at' => 'datetime',
     ];
 
     /**
@@ -249,6 +251,26 @@ class PostComment extends Model
     {
         return $query->where('status', 'pending')
             ->where('is_approved', false);
+    }
+
+    /**
+     * Scope a query to only include comments not yet marked read (see
+     * markAsRead() below) - backs the navbar notification center.
+     */
+    public function scopeUnread($query)
+    {
+        return $query->whereNull('read_at');
+    }
+
+    /**
+     * Mark this comment as read, for the notification center's
+     * click-to-view action.
+     */
+    public function markAsRead(): void
+    {
+        if (! $this->read_at) {
+            $this->update(['read_at' => now()]);
+        }
     }
 
     /**

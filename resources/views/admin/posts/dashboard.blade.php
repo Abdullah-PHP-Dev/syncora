@@ -28,16 +28,11 @@
         'google' => '#4285F4', 'pinterest' => '#E60023', 'whatsapp' => '#25D366', 'threads' => '#000000',
     ];
 
-    // Short display form for large counters (12400 -> "12.4K"), matching the
-    // target design's stat-card style without pretending precision we don't have.
-    if (! function_exists('dash_short')) {
-        function dash_short($n) {
-            $n = (float) $n;
-            if ($n >= 1000000) return rtrim(rtrim(number_format($n / 1000000, 1), '0'), '.') . 'M';
-            if ($n >= 1000)    return rtrim(rtrim(number_format($n / 1000, 1), '0'), '.') . 'K';
-            return number_format($n);
-        }
-    }
+    // dash_short() and dash_media_preview() live in app/Helpers/Helper.php
+    // now (autoloaded project-wide, alongside adminSetting() etc.) instead
+    // of being declared here - a view shouldn't be defining global
+    // functions, and the new <x-post-media-thumb> component depends on
+    // dash_media_preview() too.
 
     $statusMeta = [
         'published' => ['label' => 'Published', 'class' => 'success'],
@@ -47,25 +42,6 @@
         'failed'    => ['label' => 'Failed',    'class' => 'danger'],
         'draft'     => ['label' => 'Draft',     'class' => 'muted'],
     ];
-
-    // PostMedia::media_type is one of 'image' | 'gif' | 'video' | 'file' (the
-    // catch-all the upload services use for everything else - xlsx, pdf, docx,
-    // zip, ...). Videos never get a thumbnail_url generated (upload services
-    // leave it null - see MetaPostService::uploadMediaToS3()), and "file"
-    // uploads obviously aren't renderable as <img> either, so every spot that
-    // shows a post's media needs to branch on this rather than assuming
-    // media_url is always an image.
-    if (! function_exists('dash_media_preview')) {
-        function dash_media_preview($media) {
-            if (! $media) return null;
-            $ext = strtoupper(pathinfo($media->media_url ?? '', PATHINFO_EXTENSION));
-            return match ($media->media_type ?? 'file') {
-                'image', 'gif' => ['kind' => 'image', 'url' => $media->media_url],
-                'video' => ['kind' => 'video', 'url' => $media->thumbnail_url, 'ext' => $ext],
-                default => ['kind' => 'file', 'ext' => $ext ?: 'FILE'],
-            };
-        }
-    }
 
     $isCurrentMonth = $calendarMonth->isSameMonth(now());
     $prevCalMonth = $calendarMonth->copy()->subMonthNoOverflow()->format('Y-m');
@@ -115,39 +91,33 @@
     <!-- 1. Overview KPIs -->
     <div class="row g-4 mb-6">
         <div class="col-6 col-lg-3">
-            <div class="dash-card dash-stat">
-                <div class="dash-stat-label">Connected Accounts</div>
-                <div class="d-flex align-items-end justify-content-between">
-                    <div class="dash-stat-value">{{ $totalAccounts }}</div>
+            <x-metric-card label="Connected Accounts" :value="$totalAccounts">
+                <x-slot:valueExtra>
                     <div class="dash-mini-icons">
                         @foreach($accountsByPlatform->keys()->take(4) as $p)
                             @php $m = $platformMeta[$p] ?? null; @endphp
                             @if($m)
-                            <span class="social-icon-mini {{ $m['class'] }}"><i class="bx {{ $m['icon'] }}"></i></span>
+                            <x-platform-icon :icon="$m['icon']" :color="$platformBrandColors[$p] ?? '#7c5cff'" />
                             @endif
                         @endforeach
                     </div>
-                </div>
-                <div class="dash-stat-foot">
+                </x-slot:valueExtra>
+                <x-slot:foot>
                     Across {{ $accountsByPlatform->count() }} platform{{ $accountsByPlatform->count() == 1 ? '' : 's' }}
                     @if($newAccountsThisWeek > 0)
                     <span class="dash-trend dash-trend-up">+{{ $newAccountsThisWeek }} this week</span>
                     @endif
-                </div>
-            </div>
+                </x-slot:foot>
+            </x-metric-card>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="dash-card dash-stat">
-                <div class="dash-stat-label">Total Followers</div>
-                <div class="dash-stat-value">{{ dash_short($totalFollowers) }}</div>
-                <div class="dash-stat-foot">Across all platforms</div>
-            </div>
+            <x-metric-card label="Total Followers" :value="dash_short($totalFollowers)">
+                <x-slot:foot>Across all platforms</x-slot:foot>
+            </x-metric-card>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="dash-card dash-stat">
-                <div class="dash-stat-label">Engagement Rate</div>
-                <div class="dash-stat-value">{{ $engagementRate === null ? '—' : $engagementRate.'%' }}</div>
-                <div class="dash-stat-foot">
+            <x-metric-card label="Engagement Rate" :value="$engagementRate === null ? '—' : $engagementRate.'%'">
+                <x-slot:foot>
                     @if($engagementChangePercent === null)
                         {{ $engagementRate === null ? 'Not enough reach data yet' : '(likes + comments + shares) / reach' }}
                     @else
@@ -156,15 +126,13 @@
                             {{ abs($engagementChangePercent) }}%
                         </span> vs last 7 days
                     @endif
-                </div>
+                </x-slot:foot>
                 <div id="engagementSparkline" class="dash-sparkline"></div>
-            </div>
+            </x-metric-card>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="dash-card dash-stat">
-                <div class="dash-stat-label">Total Reach</div>
-                <div class="dash-stat-value">{{ dash_short($totalReach) }}</div>
-                <div class="dash-stat-foot">
+            <x-metric-card label="Total Reach" :value="dash_short($totalReach)">
+                <x-slot:foot>
                     @if($reachChangePercent === null)
                         vs previous period
                     @else
@@ -173,9 +141,9 @@
                             {{ abs($reachChangePercent) }}%
                         </span> vs last 7 days
                     @endif
-                </div>
+                </x-slot:foot>
                 <div id="reachSparkline" class="dash-sparkline"></div>
-            </div>
+            </x-metric-card>
         </div>
     </div>
 
@@ -387,30 +355,19 @@
                             @forelse($recentPosts as $post)
                             @php
                                 $meta = $platformMeta[$post->platform] ?? ['icon' => 'bx-globe', 'class' => 'facebook', 'label' => ucfirst($post->platform)];
-                                $preview = dash_media_preview($post->media->first());
                                 $sm = $statusMeta[$post->status] ?? ['label' => ucfirst($post->status), 'class' => 'muted'];
                             @endphp
                             <tr>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
-                                        <div class="dash-list-thumb {{ ($preview['kind'] ?? null) === 'video' ? 'dash-list-thumb-video' : '' }}">
-                                            @if($preview && $preview['kind'] === 'image')
-                                            <img src="{{ $preview['url'] }}" alt="" onerror="this.remove()">
-                                            @elseif($preview && $preview['kind'] === 'video')
-                                                @if($preview['url'])
-                                                <img src="{{ $preview['url'] }}" alt="" onerror="this.remove()">
-                                                @endif
-                                                <span class="dash-media-video-badge"><i class="bx bx-play-circle"></i></span>
-                                            @elseif($preview && $preview['kind'] === 'file')
-                                            <span class="dash-media-file-badge">{{ $preview['ext'] }}</span>
-                                            @else
-                                            <span class="social-icon-mini {{ $meta['class'] }}"><i class="bx {{ $meta['icon'] }}"></i></span>
-                                            @endif
-                                        </div>
+                                        <x-post-media-thumb
+                                            :media="$post->media->first()"
+                                            :fallback-icon="$meta['icon']"
+                                            :fallback-color="$platformBrandColors[$post->platform] ?? '#7c5cff'" />
                                         <span class="dash-table-title">{{ Str::limit($post->content ?: '(no caption)', 42) }}</span>
                                     </div>
                                 </td>
-                                <td><span class="social-icon-mini social-icon-xs {{ $meta['class'] }}"><i class="bx {{ $meta['icon'] }}"></i></span></td>
+                                <td><x-platform-icon :icon="$meta['icon']" :color="$platformBrandColors[$post->platform] ?? '#7c5cff'" size="xs" /></td>
                                 <td>{{ dash_short($post->reach) }}</td>
                                 <td>{{ dash_short($post->likes + $post->comments + $post->shares) }}</td>
                                 <td>{{ $post->created_at->format('M j, Y') }}</td>
@@ -488,21 +445,11 @@
                             @if($loop->first && $post->reach > 0)
                             <span class="dash-badge-best">Best Reach</span>
                             @endif
-                            @php $preview = dash_media_preview($post->media->first()); @endphp
-                            <div class="dash-list-thumb dash-list-thumb-lg {{ ($preview['kind'] ?? null) === 'video' ? 'dash-list-thumb-video' : '' }}">
-                                @if($preview && $preview['kind'] === 'image')
-                                <img src="{{ $preview['url'] }}" alt="" onerror="this.remove()">
-                                @elseif($preview && $preview['kind'] === 'video')
-                                    @if($preview['url'])
-                                    <img src="{{ $preview['url'] }}" alt="" onerror="this.remove()">
-                                    @endif
-                                    <span class="dash-media-video-badge"><i class="bx bx-play-circle"></i></span>
-                                @elseif($preview && $preview['kind'] === 'file')
-                                <span class="dash-media-file-badge">{{ $preview['ext'] }}</span>
-                                @else
-                                <span class="social-icon-mini {{ $meta['class'] }}"><i class="bx {{ $meta['icon'] }}"></i></span>
-                                @endif
-                            </div>
+                            <x-post-media-thumb
+                                :media="$post->media->first()"
+                                :fallback-icon="$meta['icon']"
+                                :fallback-color="$platformBrandColors[$post->platform] ?? '#7c5cff'"
+                                size="lg" />
                             <p class="mb-0 mt-2">{{ Str::limit($post->content ?: '(no caption)', 40) }}</p>
                             <small>{{ dash_short($post->reach) }} reach · {{ dash_short($post->likes) }} likes</small>
                         </div>
@@ -691,72 +638,54 @@
 
 {{-- =========================================================
      ADD ACCOUNT MODAL - opened from the "Add Account" tile on the
-     Connected Accounts row. Deliberately matches the "Connect Social
-     Accounts" modal already established on the Ads dashboard
-     (admin/ads/dashboard.blade.php #socialConnectModal) - same
-     .social-modal/.social-card-mini/.social-icon-mini classes from the
-     global assets/css/admin.css (no new CSS needed), same header
-     copy. Each tile is a straight GET link into that platform's
-     existing posting OAuth redirect route (the same ones
-     posts/create.blade.php already uses) - this doesn't invent a new
-     connect flow, it just surfaces the existing ones without leaving
-     the dashboard first. WhatsApp is the one exception: its connect
-     flow is an embedded-signup JS widget that only exists on the
-     Create Post page, so it links there instead of authorizing
-     directly.
+     Connected Accounts row. Renders the same shared social-connect-
+     modal Blade component the Ads dashboard uses (see
+     resources/views/components/social-connect-modal.blade.php) -
+     posting only supplies its own platform list and OAuth redirect
+     routes (the same ones posts/create.blade.php already uses); the
+     markup/styling lives in exactly one place. WhatsApp is the one
+     exception: its connect flow is an embedded-signup JS widget that
+     only exists on the Create Post page, so it links there instead of
+     authorizing directly.
 ========================================================= --}}
-<div class="modal fade" id="addAccountModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg social-modal">
-            <div class="modal-header border-0 pb-0 mt-0 pt-0">
-                <div>
-                    <h4 class="mb-1 font-weight-bold mb-0 mt-0">{{ __('admin.marketing_tools.ads.accounts.connect_header') }}</h4>
-                    <small class="text-muted">{{ __('admin.marketing_tools.ads.accounts.manage_account_description') }}</small>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body pt-4">
-                <div class="row">
-                    @php
-                        $connectPlatforms = [
-                            ['key' => 'facebook',  'class' => 'facebook',  'label' => 'Facebook',  'url' => route('admin.social-accounts.redirect', ['platform' => 'facebook'])],
-                            ['key' => 'instagram', 'class' => 'instagram', 'label' => 'Instagram', 'url' => route('admin.post-accounts.instagram.redirect')],
-                            ['key' => 'threads',   'class' => 'threads',   'label' => 'Threads',   'url' => route('admin.post-accounts.threads.redirect')],
-                            ['key' => 'pinterest', 'class' => 'pinterest', 'label' => 'Pinterest', 'url' => route('admin.post-accounts.pinterest.redirect')],
-                            ['key' => 'x',         'class' => 'twitter',   'label' => 'X',         'url' => route('admin.post-accounts.x.redirect')],
-                            ['key' => 'linkedin',  'class' => 'linkedin',  'label' => 'LinkedIn',  'url' => route('admin.social-accounts.redirect', ['platform' => 'linkedin'])],
-                            ['key' => 'tiktok',    'class' => 'tiktok',    'label' => 'TikTok',    'url' => route('admin.social-accounts.redirect', ['platform' => 'tiktok'])],
-                            ['key' => 'google',    'class' => 'google',    'label' => 'Google / YouTube', 'url' => route('admin.social-accounts.redirect', ['platform' => 'google'])],
-                            ['key' => 'whatsapp',  'class' => 'whatsapp',  'label' => 'WhatsApp',  'url' => route('admin.posts.create')],
-                        ];
-                        $connectPlatformIcons = [
-                            'facebook' => 'bxl-facebook', 'instagram' => 'bxl-instagram', 'threads' => 'bx-at',
-                            'pinterest' => 'bx-share-alt', 'x' => 'bxl-twitter', 'linkedin' => 'bxl-linkedin',
-                            'tiktok' => 'bxl-tiktok', 'google' => 'bxl-google', 'whatsapp' => 'bxl-whatsapp',
-                        ];
-                    @endphp
-                    @foreach($connectPlatforms as $cp)
-                    <div class="col-6 col-md-2 mb-3">
-                        <div class="social-card-mini">
-                            <a href="{{ $cp['url'] }}">
-                                <div class="social-icon-mini {{ $cp['class'] }}">
-                                    <i class="bx {{ $connectPlatformIcons[$cp['key']] }}"></i>
-                                </div>
-                                <h6 class="mt-2 mb-1">{{ $cp['label'] }}</h6>
-                                <small class="disconnected-text">{{ __('admin.marketing_tools.ads.accounts.connect') }}</small>
-                            </a>
-                        </div>
-                    </div>
-                    @endforeach
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+@php
+    $postingConnectPlatforms = [
+        ['key' => 'facebook',  'class' => 'facebook',  'icon' => 'bxl-facebook',  'label' => 'Facebook',  'url' => route('admin.social-accounts.redirect', ['platform' => 'facebook'])],
+        ['key' => 'instagram', 'class' => 'instagram', 'icon' => 'bxl-instagram', 'label' => 'Instagram', 'url' => route('admin.post-accounts.instagram.redirect')],
+        ['key' => 'threads',   'class' => 'threads',   'icon' => 'bx-at',         'label' => 'Threads',   'url' => route('admin.post-accounts.threads.redirect')],
+        ['key' => 'pinterest', 'class' => 'pinterest', 'icon' => 'bx-share-alt',  'label' => 'Pinterest', 'url' => route('admin.post-accounts.pinterest.redirect')],
+        ['key' => 'x',         'class' => 'twitter',   'icon' => 'bxl-twitter',   'label' => 'X',         'url' => route('admin.post-accounts.x.redirect')],
+        ['key' => 'linkedin',  'class' => 'linkedin',  'icon' => 'bxl-linkedin',  'label' => 'LinkedIn',  'url' => route('admin.social-accounts.redirect', ['platform' => 'linkedin'])],
+        ['key' => 'tiktok',    'class' => 'tiktok',    'icon' => 'bxl-tiktok',    'label' => 'TikTok',    'url' => route('admin.social-accounts.redirect', ['platform' => 'tiktok'])],
+        ['key' => 'google',    'class' => 'google',    'icon' => 'bxl-google',    'label' => 'Google / YouTube', 'url' => route('admin.social-accounts.redirect', ['platform' => 'google'])],
+        ['key' => 'whatsapp',  'class' => 'whatsapp',  'icon' => 'bxl-whatsapp',  'label' => 'WhatsApp',  'url' => route('admin.posts.create')],
+    ];
+@endphp
+<x-social-connect-modal id="addAccountModal" :platforms="$postingConnectPlatforms" />
 @endsection
 
 @push('styles')
 <style>
+/* Status colors, declared once at :root rather than only inside
+   .socialeaz-dash - .dash-badge-* (Blade-rendered, inside the wrapper)
+   and .cal-status-badge.* (built by vanilla JS for the calendar modals,
+   which deliberately render outside .socialeaz-dash - see the big
+   comment further down) used to each hardcode their own copy of these
+   same five rgba/hex pairs. :root custom properties are visible
+   regardless of DOM nesting, so both can reference the same values now. */
+:root {
+    --status-success-bg: rgba(22,163,74,.1);
+    --status-success-color: #16a34a;
+    --status-info-bg: rgba(8,145,178,.1);
+    --status-info-color: #0891b2;
+    --status-warning-bg: rgba(217,119,6,.1);
+    --status-warning-color: #d97706;
+    --status-danger-bg: rgba(225,29,72,.1);
+    --status-danger-color: #e11d48;
+    --status-muted-bg: rgba(139,141,156,.12);
+    --status-muted-color: #8b8d9c;
+}
+
 .socialeaz-dash {
     --dash-bg: #f5f5fa;
     --dash-card: #ffffff;
@@ -823,18 +752,14 @@
 .socialeaz-dash .dash-trend-down { color: var(--dash-danger); }
 .socialeaz-dash .dash-sparkline { margin-top: .5rem; height: 32px; }
 
-/* Brand colors - not defined anywhere globally, so the icon chips render flat
-   without these; kept scoped to this page rather than touching admin.css. */
-.socialeaz-dash .social-icon-mini.facebook  { background: #1877F2; }
-.socialeaz-dash .social-icon-mini.instagram { background: linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888); }
-.socialeaz-dash .social-icon-mini.tiktok    { background: #000000; }
-.socialeaz-dash .social-icon-mini.twitter   { background: #1DA1F2; }
-.socialeaz-dash .social-icon-mini.linkedin  { background: #0A66C2; }
-.socialeaz-dash .social-icon-mini.youtube   { background: #FF0000; }
-.socialeaz-dash .social-icon-mini.google    { background: #4285F4; }
-.socialeaz-dash .social-icon-mini.pinterest { background: #E60023; }
-.socialeaz-dash .social-icon-mini.whatsapp  { background: #25D366; }
-.socialeaz-dash .social-icon-mini.threads   { background: #000000; }
+/* Brand colors used to be duplicated here as one .social-icon-mini.{platform}
+   rule per platform, scoped under .socialeaz-dash - and had quietly drifted
+   out of sync with $platformBrandColors below (Twitter/X, Google, and
+   Instagram no longer matched), so the same platform icon rendered a
+   different color depending on where on the page it was. The
+   platform-icon Blade component now takes the color as a prop straight
+   from $platformBrandColors instead, so there is exactly one place
+   these values live. */
 .socialeaz-dash .social-icon-xs { width: 26px !important; height: 26px !important; font-size: 12px !important; border-radius: 7px !important; }
 
 .socialeaz-dash .dash-account-card {
@@ -928,11 +853,11 @@
 .socialeaz-dash .dash-table tr:last-child td { border-bottom: none; }
 .socialeaz-dash .dash-table-title { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .socialeaz-dash .dash-badge { display: inline-block; padding: .2rem .55rem; border-radius: .4rem; font-size: .68rem; font-weight: 600; }
-.socialeaz-dash .dash-badge-success { background: rgba(22,163,74,.1); color: var(--dash-success); }
-.socialeaz-dash .dash-badge-info { background: rgba(8,145,178,.1); color: var(--dash-info); }
-.socialeaz-dash .dash-badge-warning { background: rgba(217,119,6,.1); color: var(--dash-warning); }
-.socialeaz-dash .dash-badge-danger { background: rgba(225,29,72,.1); color: var(--dash-danger); }
-.socialeaz-dash .dash-badge-muted { background: rgba(139,141,156,.12); color: var(--dash-muted); }
+.socialeaz-dash .dash-badge-success { background: var(--status-success-bg); color: var(--status-success-color); }
+.socialeaz-dash .dash-badge-info { background: var(--status-info-bg); color: var(--status-info-color); }
+.socialeaz-dash .dash-badge-warning { background: var(--status-warning-bg); color: var(--status-warning-color); }
+.socialeaz-dash .dash-badge-danger { background: var(--status-danger-bg); color: var(--status-danger-color); }
+.socialeaz-dash .dash-badge-muted { background: var(--status-muted-bg); color: var(--status-muted-color); }
 
 .socialeaz-dash .dash-calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; }
 .socialeaz-dash .dash-calendar-head { color: var(--dash-muted); font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; padding-bottom: .5rem; }
@@ -1197,11 +1122,11 @@
     display: inline-block; padding: .25rem .65rem; border-radius: .4rem;
     font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .02em;
 }
-.cal-status-badge.success { background: rgba(22,163,74,.1); color: #16a34a; }
-.cal-status-badge.info { background: rgba(8,145,178,.1); color: #0891b2; }
-.cal-status-badge.warning { background: rgba(217,119,6,.1); color: #d97706; }
-.cal-status-badge.danger { background: rgba(225,29,72,.1); color: #e11d48; }
-.cal-status-badge.muted { background: rgba(139,141,156,.12); color: #8b8d9c; }
+.cal-status-badge.success { background: var(--status-success-bg); color: var(--status-success-color); }
+.cal-status-badge.info { background: var(--status-info-bg); color: var(--status-info-color); }
+.cal-status-badge.warning { background: var(--status-warning-bg); color: var(--status-warning-color); }
+.cal-status-badge.danger { background: var(--status-danger-bg); color: var(--status-danger-color); }
+.cal-status-badge.muted { background: var(--status-muted-bg); color: var(--status-muted-color); }
 
 /* =========================================================
    "Create post" modal - copied from the same design already used

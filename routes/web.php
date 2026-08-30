@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\PostController;
 use App\Http\Controllers\Admin\PostAccountController;
 use App\Http\Controllers\Admin\SocialAccountController;
 use App\Http\Controllers\Admin\ChatController;
+use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\MessageChannelController;
 use App\Http\Controllers\Admin\PostCommentController;
 use App\Http\Controllers\Admin\ProfileController;
@@ -299,6 +300,15 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('chats.messages.update');
 				Route::delete('platform/chats/messages/{message}', [ChatController::class, 'destroyMessage'])
 					->name('chats.messages.destroy');
+
+				// NOTIFICATION CENTER - combined unread Comments + Messages
+				// badge/dropdown in the navbar. Conversation-type items reuse
+				// chats.read above; comments needed their own mark-read route
+				// since PostComment had no read-tracking before this.
+				Route::get('notifications', [NotificationController::class, 'index'])
+					->name('notifications.index');
+				Route::patch('platform/comments/{comment}/read', [NotificationController::class, 'markCommentRead'])
+					->name('comments.read');
 
 				// CHATS - connected channel management (separate from the
 				// conversations themselves)

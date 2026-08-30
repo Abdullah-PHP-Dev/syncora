@@ -181,17 +181,19 @@
 
 
         <!-- =================================================
-             NOTIFICATIONS
+             NOTIFICATIONS - combined unread Comments + Messages.
+             Own Vue root (see resources/js/app.js) - the navbar renders
+             outside the #app root's DOM subtree, so this can't be
+             registered as a plain component inside that root.
         ================================================== -->
-        <button type="button"
-                class="admin-navbar-icon admin-notification-button"
-                title="Notifications">
-
-            <i class="bx bx-bell"></i>
-
-            <span class="admin-notification-dot"></span>
-
-        </button>
+        <div id="notification-center-root">
+            <notification-center
+                index-url="{{ route('admin.notifications.index') }}"
+                comment-read-url-template="{{ route('admin.comments.read', ['comment' => ':id']) }}"
+                conversation-read-url-template="{{ route('admin.chats.read', ['conversation' => ':id']) }}"
+                current-user-id="{{ auth()->id() }}"
+            ></notification-center>
+        </div>
 
 
         <!-- =================================================

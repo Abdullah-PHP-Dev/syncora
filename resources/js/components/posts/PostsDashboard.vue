@@ -75,21 +75,13 @@
           <i :class="platform.icon"></i>
         </span>
 
-        <span v-else class="platform-tab-avatar-wrap">
-          <img
-              v-if="platform.avatarUrl"
-              class="platform-tab-avatar"
-              :src="platform.avatarUrl">
-          <span
-              v-else
-              class="platform-tab-avatar platform-tab-avatar-fallback"
-              :style="{ background: platform.color + '1a', color: platform.color }">
-            <i :class="platform.icon"></i>
-          </span>
-          <span class="platform-tab-badge" :style="{ background: platform.color }">
-            <i :class="platform.icon"></i>
-          </span>
-        </span>
+        <account-avatar-badge
+            v-else
+            style="margin-right: 15px;"
+            :avatar-url="platform.avatarUrl"
+            :icon="platform.icon"
+            :color="platform.color"
+            :size="44" />
 
         <div class="platform-info">
           <strong>{{ platform.accountName || platform.name }}</strong>
@@ -301,25 +293,11 @@
                   :href="previewUrl(post, platform)"
                   :title="platform.page + ' · ' + platform.name">
 
-                <span class="platform-avatar-wrap">
-
-                  <img
-                      v-if="platform.avatar"
-                      class="platform-avatar-img"
-                      :src="platform.avatar">
-
-                  <span
-                      v-else
-                      class="platform-avatar-fallback"
-                      :style="{background:platform.color + '1a', color:platform.color}">
-                    <i :class="platform.icon"></i>
-                  </span>
-
-                  <span class="platform-avatar-badge" :style="{background:platform.color}">
-                    <i :class="platform.icon"></i>
-                  </span>
-
-                </span>
+                <account-avatar-badge
+                    :avatar-url="platform.avatar"
+                    :icon="platform.icon"
+                    :color="platform.color"
+                    :size="32" />
 
                 <span class="platform-account-name">{{ platform.page }}</span>
 
@@ -541,25 +519,11 @@
                   :class="{active: quickPost.platforms.includes(platform.key)}"
                   @click="toggleQuickPlatform(platform.key)">
 
-                <span class="quick-account-avatar-wrap">
-
-                  <img
-                      v-if="platform.avatarUrl"
-                      class="quick-account-avatar"
-                      :src="platform.avatarUrl">
-
-                  <span
-                      v-else
-                      class="quick-account-avatar quick-account-avatar-fallback"
-                      :style="{background: platform.color + '1a', color: platform.color}">
-                    <i :class="platform.icon"></i>
-                  </span>
-
-                  <span class="quick-account-badge" :style="{background: platform.color}">
-                    <i :class="platform.icon"></i>
-                  </span>
-
-                </span>
+                <account-avatar-badge
+                    :avatar-url="platform.avatarUrl"
+                    :icon="platform.icon"
+                    :color="platform.color"
+                    :size="32" />
 
                 <span class="quick-account-name">{{ platform.accountName }}</span>
 
@@ -634,8 +598,13 @@
 
 <script>
 import { platformMeta, platformOrder } from '../../data/mockPosts';
+import AccountAvatarBadge from './AccountAvatarBadge.vue';
 
 export default {
+
+  components: {
+    AccountAvatarBadge
+  },
 
   props: {
 
@@ -1931,53 +1900,6 @@ export default {
   transition: .25s;
 }
 
-.platform-tab-avatar-wrap {
-  position: relative;
-  width: 44px;
-  height: 44px;
-  flex-shrink: 0;
-  margin-right: 15px;
-}
-
-.platform-tab-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  object-fit: cover;
-  display: block;
-}
-
-.platform-tab-avatar-fallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-}
-
-.platform-tab-badge {
-  position: absolute;
-  bottom: -2px;
-  right: -2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid #fff;
-}
-
-.platform-tab-badge i {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  font-size: 9px;
-  color: #fff;
-  line-height: 1;
-  margin: 0;
-}
 
 .platform-info {
   display: flex;
@@ -2200,56 +2122,6 @@ export default {
   text-decoration:none;
 }
 
-.platform-avatar-wrap{
-  position:relative;
-  width:32px;
-  height:32px;
-  flex-shrink:0;
-}
-
-.platform-avatar-img{
-  width:100%;
-  height:100%;
-  border-radius:50%;
-  object-fit:cover;
-  display:block;
-}
-
-.platform-avatar-fallback{
-  width:100%;
-  height:100%;
-  border-radius:50%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:14px;
-}
-
-.platform-avatar-badge{
-  position:absolute;
-  bottom:-2px;
-  right:-2px;
-  width:18px;
-  height:18px;
-  border-radius:50%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  border:2px solid #fff;
-}
-
-.platform-avatar-badge i{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  width:100%;
-  height:100%;
-  font-size:9px;
-  color:#fff;
-  line-height:1;
-  margin:0;
-}
-
 .platform-account-name{
   font-size:13px;
   font-weight:600;
@@ -2416,53 +2288,6 @@ export default {
   background:#5D87FF;
   border-color:#5D87FF;
   color:#fff;
-}
-
-.quick-account-avatar-wrap{
-  position:relative;
-  flex-shrink:0;
-  width:32px;
-  height:32px;
-}
-
-.quick-account-avatar{
-  width:32px;
-  height:32px;
-  border-radius:50%;
-  object-fit:cover;
-  display:block;
-}
-
-.quick-account-avatar-fallback{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:14px;
-}
-
-.quick-account-badge{
-  position:absolute;
-  bottom:-2px;
-  right:-2px;
-  width:18px;
-  height:18px;
-  border-radius:50%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  border:2px solid #fff;
-}
-
-.quick-account-badge i{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  width:100%;
-  height:100%;
-  font-size:9px;
-  color:#fff;
-  line-height:1;
-  margin:0;
 }
 
 .quick-account-name{
