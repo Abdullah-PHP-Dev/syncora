@@ -184,8 +184,13 @@ class PostController extends Controller
             : null;
 
         // ---- Upcoming scheduled posts ----
+        // Every post is written with status 'pending' when queued (see
+        // MetaPostService::store() etc.) and only flips to 'completed'/
+        // 'failed' once social:publish-posts runs it - there is no
+        // 'scheduled' status literal anywhere in the write path, so a
+        // pending post with a future schedule_at IS the "scheduled" one.
         $upcomingPosts = Post::where('user_id', $userId)
-            ->where('status', 'scheduled')
+            ->where('status', 'pending')
             ->whereNotNull('schedule_at')
             ->where('schedule_at', '>=', now())
             ->with(['socialAccount', 'media'])
@@ -218,13 +223,59 @@ class PostController extends Controller
         $calendarMonth = $request->filled('cal')
             ? \Carbon\Carbon::createFromFormat('Y-m', $request->query('cal'))->startOfMonth()
             : now();
+        // A content calendar has to key posts by the day they're actually
+        // scheduled for, not the day the DB row was created - scheduling
+        // something today for next Friday must show up on Friday's cell,
+        // not today's. (published_at is listed in Post::$fillable but
+        // isn't a real column on this table - not something to build on
+        // here - so "already published/no schedule" falls back to
+        // created_at, same as before.) schedule_at and created_at can
+        // each fall in a different month, so the query nets anything
+        // touching this month via either, then groups in PHP by whichever
+        // date is actually the right one to display for that post.
+        $calendarEffectiveDate = fn ($p) => $p->schedule_mode && $p->schedule_at
+            ? $p->schedule_at
+            : $p->created_at;
+
         $calendarMonthPosts = Post::where('user_id', $userId)
-            ->whereMonth('created_at', $calendarMonth->month)
-            ->whereYear('created_at', $calendarMonth->year)
-            ->with('media')
-            ->orderBy('created_at')
+            ->where(function ($q) use ($calendarMonth) {
+                $q->whereMonth('schedule_at', $calendarMonth->month)->whereYear('schedule_at', $calendarMonth->year)
+                    ->orWhere(function ($q2) use ($calendarMonth) {
+                        $q2->whereNull('schedule_at')
+                            ->whereMonth('created_at', $calendarMonth->month)->whereYear('created_at', $calendarMonth->year);
+                    });
+            })
+            ->with('media', 'socialAccount')
             ->get()
-            ->groupBy(fn ($p) => $p->created_at->day);
+            ->filter(fn ($p) => $calendarEffectiveDate($p)?->isSameMonth($calendarMonth))
+            ->sortBy($calendarEffectiveDate)
+            ->groupBy(fn ($p) => $calendarEffectiveDate($p)->day)
+            ->map(function ($dayPosts) {
+                // Collapse posts sharing a group_id (one quickStore()
+                // submission fanned out across several platforms) into a
+                // single representative entry - the same COALESCE(group_id,
+                // id) grouping buildPostsQuery() uses for the main posts
+                // listing, so a post sent to both Facebook and Instagram at
+                // once shows up as one calendar entry, not two.
+                return $dayPosts->groupBy(fn ($p) => $p->group_id ?? $p->id)
+                    ->map(function ($groupMembers) {
+                        $representative = $groupMembers->first();
+                        $representative->setAttribute('group_platforms', $groupMembers->map(fn ($m) => [
+                            'platform' => $m->platform,
+                            'status' => $m->status,
+                            'post_id' => $m->id,
+                        ])->values());
+                        return $representative;
+                    })
+                    ->values();
+            });
+
+        // Posting-permitted accounts, for the calendar's "quick post" modal
+        // platform picker - same has_posting_permission gate as the main
+        // create page, so an ad-only account can't be selected here either.
+        $postingAccounts = SocialAccount::where('user_id', $userId)
+            ->where('has_posting_permission', true)
+            ->get();
         $calendarPostDays = $calendarMonthPosts->map->count();
         $calendarPostsThisMonth = (int) $calendarPostDays->sum();
         $calendarCommentsThisMonth = PostComment::where('user_id', $userId)
@@ -317,7 +368,8 @@ class PostController extends Controller
             'totalUnreadMessages',
             'reachChangePercent',
             'engagementChangePercent',
-            'newAccountsThisWeek'
+            'newAccountsThisWeek',
+            'postingAccounts'
         ));
     }
     /**
@@ -363,7 +415,15 @@ class PostController extends Controller
 
         $platformCounts = $this->platformCounts($userId);
 
-        return view('admin.posts.index_vue', compact('posts', 'platform', 'platformCounts'));
+        // Real connected accounts (name, username, avatar_url, platform)
+        // for the "Create post" modal's picker, so it shows the actual
+        // Page/Profile you're posting as instead of a bare platform logo.
+        $postingAccounts = SocialAccount::where('user_id', $userId)
+            ->where('has_posting_permission', true)
+            ->get(['id', 'platform', 'name', 'username', 'avatar_url'])
+            ->values();
+
+        return view('admin.posts.index_vue', compact('posts', 'platform', 'platformCounts', 'postingAccounts'));
     }
 
     /**
@@ -438,12 +498,13 @@ class PostController extends Controller
             return [];
         }
 
-        $siblings = Post::where('user_id', $userId)
+        $siblings = Post::with('socialAccount')
+            ->where('user_id', $userId)
             ->where(function ($q) use ($groupKeys) {
                 $q->whereIn('group_id', $groupKeys)
                     ->orWhereIn('id', $groupKeys);
             })
-            ->get(['id', 'group_id', 'platform', 'status', 'post_url']);
+            ->get(['id', 'group_id', 'platform', 'status', 'post_url', 'social_account_id']);
 
         $map = [];
 
@@ -453,10 +514,17 @@ class PostController extends Controller
             $map[$post->id] = $siblings
                 ->filter(fn ($sibling) => ($sibling->group_id ?? $sibling->id) === $key)
                 ->map(fn ($sibling) => [
-                    'platform_key' => $sibling->platform,
-                    'status' => ucfirst($sibling->status ?? 'draft'),
-                    'post_id' => $sibling->id,
-                    'post_url' => $sibling->post_url,
+                    'platform_key'     => $sibling->platform,
+                    'status'           => ucfirst($sibling->status ?? 'draft'),
+                    'post_id'          => $sibling->id,
+                    'post_url'         => $sibling->post_url,
+                    // The actual connected Page/Profile this platform entry
+                    // was published as - shown instead of a bare platform
+                    // logo, same identity data the calendar's account
+                    // picker uses.
+                    'account_name'     => $sibling->socialAccount->name ?? $sibling->socialAccount->username ?? null,
+                    'account_username' => $sibling->socialAccount->username ?? null,
+                    'account_avatar'   => $sibling->socialAccount->avatar_url ?? null,
                 ])
                 ->values()
                 ->all();
@@ -716,10 +784,13 @@ class PostController extends Controller
         $primaryMedia = $post->media->first();
 
         $platforms ??= [[
-            'platform_key' => $post->platform,
-            'status' => ucfirst($post->status ?? 'draft'),
-            'post_id' => $post->id,
-            'post_url' => $post->post_url,
+            'platform_key'     => $post->platform,
+            'status'           => ucfirst($post->status ?? 'draft'),
+            'post_id'          => $post->id,
+            'post_url'         => $post->post_url,
+            'account_name'     => $post->socialAccount->name ?? $post->socialAccount->username ?? null,
+            'account_username' => $post->socialAccount->username ?? null,
+            'account_avatar'   => $post->socialAccount->avatar_url ?? null,
         ]];
 
         return [
@@ -1313,7 +1384,7 @@ class PostController extends Controller
         return view('admin.posts.show', compact('post'));
         // $post = Post::with('socialAccount')->findOrFail($postId);
         // $socialPlatform = $post->socialAccount->platform;
-    
+
         // $post->load([
         //     'postComments',
         //     'category',
@@ -1323,6 +1394,71 @@ class PostController extends Controller
         //     'post',
         //     'socialPlatform'
         // ));
+    }
+
+    /**
+     * JSON summary for the "view post" popup the calendar opens when a day
+     * with an existing post is clicked - a lighter version of show() (no
+     * nested comment replies, no category) since this only needs to
+     * render a quick preview, not the full posts.show page. The popup's
+     * own "Open full post" link goes to the real show() page for anything
+     * beyond that.
+     *
+     * Resolves the whole group_id family (same COALESCE(group_id, id)
+     * grouping buildPostsQuery()/preview() use), not just the one post id
+     * given - a quickStore() submission fanned out across Facebook and
+     * Instagram is one logical post, and the popup should show both
+     * platforms' accounts, stats, and status, not just whichever platform
+     * happened to be clicked in the calendar.
+     */
+    public function quickView($postId)
+    {
+        $anchor = Post::where('user_id', Auth::id())->findOrFail($postId);
+        $groupKey = $anchor->group_id ?? $anchor->id;
+
+        $members = Post::with(['media', 'socialAccount'])
+            ->where('user_id', Auth::id())
+            ->where(function ($q) use ($groupKey) {
+                $q->where('group_id', $groupKey)->orWhere('id', $groupKey);
+            })
+            ->get();
+
+        $primary = $members->firstWhere('id', $anchor->id) ?? $members->first();
+
+        return response()->json([
+            'success' => true,
+            'post' => [
+                'id'            => $primary->id,
+                'content'       => $primary->content,
+                'schedule_mode' => (bool) $primary->schedule_mode,
+                'schedule_at'   => $primary->schedule_at?->toIso8601String(),
+                'published_at'  => $primary->published_at?->toIso8601String(),
+                'created_at'    => $primary->created_at?->toIso8601String(),
+                'media'         => $primary->media->map(fn ($m) => [
+                    'type' => $m->media_type,
+                    'url'  => $m->media_url,
+                ]),
+                'platforms'     => $members->map(fn ($m) => [
+                    'post_id'         => $m->id,
+                    'platform'        => $m->platform,
+                    'status'          => $m->status,
+                    'error_message'   => $m->error_message,
+                    'post_url'        => $m->post_url,
+                    'account_name'    => $m->socialAccount->name ?? $m->socialAccount->username ?? ucfirst($m->platform),
+                    'account_username'=> $m->socialAccount->username ?? null,
+                    'account_avatar'  => $m->socialAccount->avatar_url ?? null,
+                    'stats' => [
+                        'likes'       => (int) $m->likes,
+                        'comments'    => (int) $m->comments,
+                        'shares'      => (int) $m->shares,
+                        'views'       => (int) $m->views,
+                        'impressions' => (int) $m->impressions,
+                        'reach'       => (int) $m->reach,
+                    ],
+                ])->values(),
+                'edit_url'      => route('admin.posts.show', $primary->id),
+            ],
+        ]);
     }
 
     public function getTypePost(Request $request) {

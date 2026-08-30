@@ -56,7 +56,7 @@ class WhatsAppMessagingService
 
     public function verifyWebhook(Request $request): ?string
     {
-        return $this->verifyMetaWebhook($request, adminSetting('messaging.meta.webhook_verify_token'));
+        return $this->verifyMetaWebhook($request, adminSetting('posts.facebook.webhook_verify_token'));
     }
 
     public function verifySignature(Request $request): bool

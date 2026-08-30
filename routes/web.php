@@ -233,6 +233,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::get('posts/data', [PostController::class, 'index'])->name('posts.data');
 				Route::get('posts/{post}/preview/{platform}', [PostController::class, 'preview'])->name('posts.preview');
 				Route::post('posts/quick', [PostController::class, 'quickStore'])->name('posts.quick');
+					Route::get('posts/{post}/quick-view', [PostController::class, 'quickView'])->name('posts.quick-view');
 				Route::post('posts/listing/comments/{comment}/replies', [PostController::class, 'storeReply'])->name('posts.comments.reply');
 				Route::post('posts/listing/{post}/comments', [PostController::class, 'storeComment'])->name('posts.comments.store');
 				Route::get('posts', [PostController::class, 'dashboard']);

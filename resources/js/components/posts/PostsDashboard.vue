@@ -71,13 +71,28 @@
           :class="{ active: activePlatform === platform.name }"
           @click="activePlatform = platform.name">
 
-        <i
-            :class="platform.icon"
-            :style="{ color: activePlatform === platform.name ? '#fff' : platform.color }">
-        </i>
+        <span v-if="platform.key === 'all'" class="platform-tab-icon" :style="{ background: activePlatform === platform.name ? 'rgba(255,255,255,.2)' : platform.color + '1a', color: activePlatform === platform.name ? '#fff' : platform.color }">
+          <i :class="platform.icon"></i>
+        </span>
+
+        <span v-else class="platform-tab-avatar-wrap">
+          <img
+              v-if="platform.avatarUrl"
+              class="platform-tab-avatar"
+              :src="platform.avatarUrl">
+          <span
+              v-else
+              class="platform-tab-avatar platform-tab-avatar-fallback"
+              :style="{ background: platform.color + '1a', color: platform.color }">
+            <i :class="platform.icon"></i>
+          </span>
+          <span class="platform-tab-badge" :style="{ background: platform.color }">
+            <i :class="platform.icon"></i>
+          </span>
+        </span>
 
         <div class="platform-info">
-          <strong>{{ platform.name }}</strong>
+          <strong>{{ platform.accountName || platform.name }}</strong>
           <small>{{ platform.count }} Posts</small>
         </div>
 
@@ -282,14 +297,31 @@
               <a
                   v-for="platform in post.platforms"
                   :key="platform.name"
-                  class="platform-avatar"
+                  class="platform-account-pill"
                   :href="previewUrl(post, platform)"
-                  :title="'View on ' + platform.name">
+                  :title="platform.page + ' · ' + platform.name">
 
-                <i
-                    :class="platform.icon"
-                    :style="{color:platform.color}">
-                </i>
+                <span class="platform-avatar-wrap">
+
+                  <img
+                      v-if="platform.avatar"
+                      class="platform-avatar-img"
+                      :src="platform.avatar">
+
+                  <span
+                      v-else
+                      class="platform-avatar-fallback"
+                      :style="{background:platform.color + '1a', color:platform.color}">
+                    <i :class="platform.icon"></i>
+                  </span>
+
+                  <span class="platform-avatar-badge" :style="{background:platform.color}">
+                    <i :class="platform.icon"></i>
+                  </span>
+
+                </span>
+
+                <span class="platform-account-name">{{ platform.page }}</span>
 
               </a>
 
@@ -503,18 +535,33 @@
             <div class="quick-platform-select">
 
               <div
-                  v-for="platform in platformOptions"
+                  v-for="platform in accountOptions"
                   :key="platform.key"
-                  class="quick-platform-chip"
+                  class="quick-account-chip"
                   :class="{active: quickPost.platforms.includes(platform.key)}"
                   @click="toggleQuickPlatform(platform.key)">
 
-                <i
-                    :class="platform.icon"
-                    :style="{color: quickPost.platforms.includes(platform.key) ? '#fff' : platform.color}">
-                </i>
+                <span class="quick-account-avatar-wrap">
 
-                {{ platform.name }}
+                  <img
+                      v-if="platform.avatarUrl"
+                      class="quick-account-avatar"
+                      :src="platform.avatarUrl">
+
+                  <span
+                      v-else
+                      class="quick-account-avatar quick-account-avatar-fallback"
+                      :style="{background: platform.color + '1a', color: platform.color}">
+                    <i :class="platform.icon"></i>
+                  </span>
+
+                  <span class="quick-account-badge" :style="{background: platform.color}">
+                    <i :class="platform.icon"></i>
+                  </span>
+
+                </span>
+
+                <span class="quick-account-name">{{ platform.accountName }}</span>
 
               </div>
 
@@ -627,6 +674,16 @@ export default {
       default: ''
     },
 
+    // Real connected accounts ({id, platform, name, username, avatar_url}) -
+    // the "Create post" modal shows these instead of bare platform logos,
+    // same reasoning as the calendar's picker (resources/views/admin/posts/
+    // dashboard.blade.php): picking "Facebook" should look like picking the
+    // actual connected Page, not an abstract network icon.
+    postingAccounts: {
+      type: Array,
+      default: () => []
+    },
+
     initialTotal: {
       type: Number,
       default: 0
@@ -727,6 +784,44 @@ export default {
 
     },
 
+    // One chip per connected platform (deduped - quickCreateUrl posts to
+    // every posting-permitted account on a platform at once, so a second
+    // Facebook Page can't be targeted separately), carrying the real
+    // account's name/avatar alongside that platform's icon/color. Falls
+    // back to platformOptions when no real accounts were passed in, so
+    // this still renders something sensible if the prop is ever omitted.
+    accountOptions() {
+
+      if (!this.postingAccounts || !this.postingAccounts.length) {
+        return this.platformOptions.map(p => ({ ...p, accountName: p.name, avatarUrl: null }));
+      }
+
+      const seen = new Set();
+      const options = [];
+
+      this.postingAccounts.forEach(account => {
+        if (seen.has(account.platform)) return;
+        seen.add(account.platform);
+
+        const meta = platformMeta[account.platform] || {
+          key: account.platform,
+          name: account.platform,
+          icon: 'fas fa-share-alt',
+          color: '#5D87FF'
+        };
+
+        options.push({
+          ...meta,
+          accountName: account.name || account.username || meta.name,
+          avatarUrl: account.avatar_url || null
+        });
+
+      });
+
+      return options;
+
+    },
+
     canSubmitQuickPost() {
 
       return (this.quickPost.content.trim().length > 0 || this.quickPost.mediaPreview)
@@ -786,13 +881,18 @@ export default {
 
     platformTabs() {
 
-      return this.platforms.map(platform => ({
+      return this.platforms.map(platform => {
 
-        ...platform,
+        const account = this.accountOptions.find(a => a.key === platform.key);
 
-        count: this.platformCountsData[platform.key] || 0
+        return {
+          ...platform,
+          accountName: account ? account.accountName : null,
+          avatarUrl: account ? account.avatarUrl : null,
+          count: this.platformCountsData[platform.key] || 0
+        };
 
-      }));
+      });
 
     }
 
@@ -824,8 +924,13 @@ export default {
           key,
           post_id: entry.post_id,
           status: entry.status,
-          page: raw.account_name || meta.page,
-          handle: raw.account_handle || meta.handle
+          // Each platform in the group carries its OWN connected account -
+          // falling back to raw.account_name here would show the same one
+          // account's name under every platform badge in a multi-platform
+          // post, which is wrong the moment two different Pages are involved.
+          page: entry.account_name || raw.account_name || meta.page,
+          handle: entry.account_username ? ('@' + entry.account_username) : (raw.account_handle || meta.handle),
+          avatar: entry.account_avatar || null
         };
       });
 
@@ -1734,12 +1839,6 @@ export default {
 
 }
 
-.post-platform i:first-child{
-
-  margin-right:8px;
-
-}
-
 .post-body h4{
 
   font-size:22px;
@@ -1819,9 +1918,65 @@ export default {
   color: #fff;
 }
 
-.platform-tab i {
-  font-size: 26px;
+.platform-tab-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
   margin-right: 15px;
+  flex-shrink: 0;
+  transition: .25s;
+}
+
+.platform-tab-avatar-wrap {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  margin-right: 15px;
+}
+
+.platform-tab-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.platform-tab-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.platform-tab-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+}
+
+.platform-tab-badge i {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 9px;
+  color: #fff;
+  line-height: 1;
+  margin: 0;
 }
 
 .platform-info {
@@ -2023,29 +2178,86 @@ export default {
 .platform-icons{
   display:flex;
   align-items:center;
-  gap:8px;
+  flex-wrap:wrap;
+  gap:6px;
 }
 
-.platform-avatar{
-  width:34px;
-  height:34px;
+.platform-account-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 14px 6px 6px;
+  border-radius:30px;
+  border:1px solid #E5E7EB;
+  text-decoration:none;
+  transition:.2s;
+  max-width:190px;
+}
+
+.platform-account-pill:hover{
+  border-color:#5D87FF;
+  box-shadow:0 2px 8px rgba(93,135,255,.15);
+  text-decoration:none;
+}
+
+.platform-avatar-wrap{
+  position:relative;
+  width:32px;
+  height:32px;
+  flex-shrink:0;
+}
+
+.platform-avatar-img{
+  width:100%;
+  height:100%;
   border-radius:50%;
-  background:#F5F7FA;
+  object-fit:cover;
+  display:block;
+}
+
+.platform-avatar-fallback{
+  width:100%;
+  height:100%;
+  border-radius:50%;
   display:flex;
   align-items:center;
   justify-content:center;
-  border:1px solid #E5E7EB;
-  transition:.25s;
+  font-size:14px;
 }
 
-.platform-avatar:hover{
-  transform:translateY(-2px);
-  background:#fff;
-  box-shadow:0 5px 12px rgba(0,0,0,.08);
+.platform-avatar-badge{
+  position:absolute;
+  bottom:-2px;
+  right:-2px;
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border:2px solid #fff;
 }
 
-.platform-avatar i{
-  font-size:15px;
+.platform-avatar-badge i{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  height:100%;
+  font-size:9px;
+  color:#fff;
+  line-height:1;
+  margin:0;
+}
+
+.platform-account-name{
+  font-size:13px;
+  font-weight:600;
+  color:#2A3547;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  max-width:140px;
 }
 
 /* ==========================
@@ -2186,11 +2398,11 @@ export default {
   gap:10px;
 }
 
-.quick-platform-chip{
+.quick-account-chip{
   display:flex;
   align-items:center;
   gap:8px;
-  padding:8px 14px;
+  padding:6px 14px 6px 6px;
   border-radius:30px;
   border:1px solid #E5E7EB;
   cursor:pointer;
@@ -2200,10 +2412,64 @@ export default {
   transition:.2s;
 }
 
-.quick-platform-chip.active{
+.quick-account-chip.active{
   background:#5D87FF;
   border-color:#5D87FF;
   color:#fff;
+}
+
+.quick-account-avatar-wrap{
+  position:relative;
+  flex-shrink:0;
+  width:32px;
+  height:32px;
+}
+
+.quick-account-avatar{
+  width:32px;
+  height:32px;
+  border-radius:50%;
+  object-fit:cover;
+  display:block;
+}
+
+.quick-account-avatar-fallback{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:14px;
+}
+
+.quick-account-badge{
+  position:absolute;
+  bottom:-2px;
+  right:-2px;
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border:2px solid #fff;
+}
+
+.quick-account-badge i{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  height:100%;
+  font-size:9px;
+  color:#fff;
+  line-height:1;
+  margin:0;
+}
+
+.quick-account-name{
+  max-width:140px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
 
 .quick-schedule-row{

@@ -55,6 +55,7 @@
             quick-create-url="{{ route('admin.posts.quick') }}"
             preview-url-base="{{ url('admin/posts') }}"
             user-name="{{ auth()->user()->name ?? 'Admin' }}"
+            :posting-accounts='@json($postingAccounts)'
     ></posts-dashboard>
 
 
