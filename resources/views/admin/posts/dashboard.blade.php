@@ -53,12 +53,12 @@
     <!-- Header -->
     <div class="dash-header d-flex flex-wrap align-items-start justify-content-between gap-4 mb-6">
         <div>
-            <h4 class="dash-title mb-1">Welcome back, {{ explode(' ', trim(auth()->user()->name ?? 'there'))[0] }}! <span>👋</span></h4>
-            <p class="dash-subtitle mb-0">Here's what's happening with your social media presence today.</p>
+            <h4 class="dash-title mb-1">{{ __('admin.dashboard_page.welcome_back', ['name' => explode(' ', trim(auth()->user()->name ?? 'there'))[0]]) }} <span>👋</span></h4>
+            <p class="dash-subtitle mb-0">{{ __('admin.dashboard_page.welcome_subtitle') }}</p>
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
             <form method="GET" action="{{ route('admin.posts.dashboard') }}" class="d-flex align-items-center gap-2">
-                <input type="text" id="dashboardDateRange" name="date_range" class="dash-input" style="max-width:210px;" placeholder="Select date range" autocomplete="off" value="{{ $dateFrom && $dateTo ? $dateFrom->format('M j').' - '.$dateTo->format('M j, Y') : '' }}" />
+                <input type="text" id="dashboardDateRange" name="date_range" class="dash-input" style="max-width:210px;" placeholder="{{ __('admin.dashboard_page.select_date_range') }}" autocomplete="off" value="{{ $dateFrom && $dateTo ? $dateFrom->format('M j').' - '.$dateTo->format('M j, Y') : '' }}" />
                 <input type="hidden" name="from" id="dashboardFromInput" value="{{ $dateFrom?->format('Y-m-d') }}" />
                 <input type="hidden" name="to" id="dashboardToInput" value="{{ $dateTo?->format('Y-m-d') }}" />
                 <button type="submit" class="dash-btn dash-btn-ghost"><i class="bx bx-calendar"></i></button>
@@ -66,14 +66,14 @@
                 <a href="{{ route('admin.posts.dashboard') }}" class="dash-btn dash-btn-ghost"><i class="bx bx-x"></i></a>
                 @endif
             </form>
-            <a href="{{ route('admin.chats.dashboard') }}" class="dash-btn dash-btn-ghost dash-bell" title="Unread messages">
+            <a href="{{ route('admin.chats.dashboard') }}" class="dash-btn dash-btn-ghost dash-bell" title="{{ __('admin.dashboard_page.messages') }}">
                 <i class="bx bx-bell"></i>
                 @if($totalUnreadMessages > 0)
                 <span class="dash-bell-badge">{{ $totalUnreadMessages > 9 ? '9+' : $totalUnreadMessages }}</span>
                 @endif
             </a>
             <a href="{{ route('admin.posts.index') }}" class="dash-btn dash-btn-primary">
-                <i class="bx bx-plus"></i> Create Post
+                <i class="bx bx-plus"></i> {{ __('admin.dashboard_page.create_post') }}
             </a>
         </div>
     </div>
@@ -91,7 +91,7 @@
     <!-- 1. Overview KPIs -->
     <div class="row g-4 mb-6">
         <div class="col-6 col-lg-3">
-            <x-metric-card label="Connected Accounts" :value="$totalAccounts">
+            <x-metric-card :label="__('admin.dashboard_page.connected_accounts')" :value="$totalAccounts">
                 <x-slot:valueExtra>
                     <div class="dash-mini-icons">
                         @foreach($accountsByPlatform->keys()->take(4) as $p)
@@ -103,43 +103,43 @@
                     </div>
                 </x-slot:valueExtra>
                 <x-slot:foot>
-                    Across {{ $accountsByPlatform->count() }} platform{{ $accountsByPlatform->count() == 1 ? '' : 's' }}
+                    {{ trans_choice('admin.dashboard_page.across_platforms', $accountsByPlatform->count(), ['count' => $accountsByPlatform->count()]) }}
                     @if($newAccountsThisWeek > 0)
-                    <span class="dash-trend dash-trend-up">+{{ $newAccountsThisWeek }} this week</span>
+                    <span class="dash-trend dash-trend-up">+{{ $newAccountsThisWeek }} {{ __('admin.dashboard_page.this_week') }}</span>
                     @endif
                 </x-slot:foot>
             </x-metric-card>
         </div>
         <div class="col-6 col-lg-3">
-            <x-metric-card label="Total Followers" :value="dash_short($totalFollowers)">
-                <x-slot:foot>Across all platforms</x-slot:foot>
+            <x-metric-card :label="__('admin.dashboard_page.total_followers')" :value="dash_short($totalFollowers)">
+                <x-slot:foot>{{ __('admin.dashboard_page.across_all_platforms') }}</x-slot:foot>
             </x-metric-card>
         </div>
         <div class="col-6 col-lg-3">
-            <x-metric-card label="Engagement Rate" :value="$engagementRate === null ? '—' : $engagementRate.'%'">
+            <x-metric-card :label="__('admin.dashboard_page.engagement_rate')" :value="$engagementRate === null ? '—' : $engagementRate.'%'">
                 <x-slot:foot>
                     @if($engagementChangePercent === null)
-                        {{ $engagementRate === null ? 'Not enough reach data yet' : '(likes + comments + shares) / reach' }}
+                        {{ $engagementRate === null ? __('admin.dashboard_page.not_enough_reach_data') : __('admin.dashboard_page.engagement_formula') }}
                     @else
                         <span class="dash-trend {{ $engagementChangePercent >= 0 ? 'dash-trend-up' : 'dash-trend-down' }}">
                             <i class="bx {{ $engagementChangePercent >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt' }}"></i>
                             {{ abs($engagementChangePercent) }}%
-                        </span> vs last 7 days
+                        </span> {{ __('admin.dashboard_page.vs_last_7_days') }}
                     @endif
                 </x-slot:foot>
                 <div id="engagementSparkline" class="dash-sparkline"></div>
             </x-metric-card>
         </div>
         <div class="col-6 col-lg-3">
-            <x-metric-card label="Total Reach" :value="dash_short($totalReach)">
+            <x-metric-card :label="__('admin.dashboard_page.total_reach')" :value="dash_short($totalReach)">
                 <x-slot:foot>
                     @if($reachChangePercent === null)
-                        vs previous period
+                        {{ __('admin.dashboard_page.vs_previous_period') }}
                     @else
                         <span class="dash-trend {{ $reachChangePercent >= 0 ? 'dash-trend-up' : 'dash-trend-down' }}">
                             <i class="bx {{ $reachChangePercent >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt' }}"></i>
                             {{ abs($reachChangePercent) }}%
-                        </span> vs last 7 days
+                        </span> {{ __('admin.dashboard_page.vs_last_7_days') }}
                     @endif
                 </x-slot:foot>
                 <div id="reachSparkline" class="dash-sparkline"></div>
@@ -152,14 +152,14 @@
          needs before the analytics below mean anything. -->
     <div class="dash-card mb-6">
         <div class="dash-card-header">
-            <h6 class="mb-0">Connected Accounts</h6>
-            <a href="{{ route('admin.posts.create') }}" class="dash-link">Manage Accounts</a>
+            <h6 class="mb-0">{{ __('admin.dashboard_page.connected_accounts') }}</h6>
+            <a href="{{ route('admin.posts.create') }}" class="dash-link">{{ __('admin.dashboard_page.manage_accounts') }}</a>
         </div>
         <div class="row g-3">
             <div class="col-6 col-md-4 col-xl-2">
                 <button type="button" class="dash-add-account-card" data-bs-toggle="modal" data-bs-target="#addAccountModal">
                     <i class="bx bx-plus-circle"></i>
-                    <span>Add Account</span>
+                    <span>{{ __('admin.dashboard_page.add_account') }}</span>
                 </button>
             </div>
             @forelse($accountsOverview as $acct)
@@ -170,9 +170,9 @@
                 // Second stat is whichever of likes/media/views this
                 // platform actually reports first - not every account has
                 // all four (eg. YouTube has no "likes" concept here).
-                $secondStat = $acct['likes_count'] ? ['value' => $acct['likes_count'], 'label' => 'Likes']
-                    : ($acct['media_count'] ? ['value' => $acct['media_count'], 'label' => 'Posts']
-                    : ['value' => $acct['views_count'], 'label' => 'Views']);
+                $secondStat = $acct['likes_count'] ? ['value' => $acct['likes_count'], 'label' => __('admin.dashboard_page.likes')]
+                    : ($acct['media_count'] ? ['value' => $acct['media_count'], 'label' => __('admin.dashboard_page.posts')]
+                    : ['value' => $acct['views_count'], 'label' => __('admin.dashboard_page.views')]);
             @endphp
             <div class="col-6 col-md-4 col-xl-2">
                 <div class="dash-account-card">
@@ -191,18 +191,18 @@
                     <div class="dash-account-stats">
                         <div>
                             <strong>{{ dash_short($acct['follower_count']) }}</strong>
-                            <span>{{ $isYoutube ? 'Subs' : 'Followers' }}</span>
+                            <span>{{ $isYoutube ? __('admin.dashboard_page.subs') : __('admin.dashboard_page.followers') }}</span>
                         </div>
                         <div>
                             <strong>{{ dash_short($secondStat['value']) }}</strong>
                             <span>{{ $secondStat['label'] }}</span>
                         </div>
                     </div>
-                    <div class="dash-status-pill"><span class="dot"></span> Connected</div>
+                    <div class="dash-status-pill"><span class="dot"></span> {{ __('admin.dashboard_page.connected') }}</div>
                 </div>
             </div>
             @empty
-            <div class="col-12 dash-empty-row">No accounts connected yet.</div>
+            <div class="col-12 dash-empty-row">{{ __('admin.dashboard_page.no_accounts_connected') }}</div>
             @endforelse
             
         </div>
@@ -214,8 +214,8 @@
         <div class="col-lg-8">
             <div class="dash-card h-100">
                 <div class="d-flex align-items-center justify-content-between mb-2">
-                    <h6 class="mb-0">Performance Overview</h6>
-                    <span class="dash-chip">Last 7 Days</span>
+                    <h6 class="mb-0">{{ __('admin.dashboard_page.performance_overview') }}</h6>
+                    <span class="dash-chip">{{ __('admin.dashboard_page.last_7_days') }}</span>
                 </div>
                 <div id="performanceChart"></div>
             </div>
@@ -224,31 +224,31 @@
         <!-- Performance Summary -->
         <div class="col-lg-4">
             <div class="dash-card h-100">
-                <h6 class="mb-3">Performance Summary</h6>
+                <h6 class="mb-3">{{ __('admin.dashboard_page.performance_summary') }}</h6>
                 <ul class="dash-summary-list">
                     <li>
                         <span class="dash-summary-icon primary"><i class="bx bx-file"></i></span>
-                        <span class="dash-summary-label">Total Posts</span>
+                        <span class="dash-summary-label">{{ __('admin.dashboard_page.total_posts') }}</span>
                         <span class="dash-summary-value">{{ $totalPosts }}</span>
                     </li>
                     <li>
                         <span class="dash-summary-icon info"><i class="bx bx-show"></i></span>
-                        <span class="dash-summary-label">Total Reach</span>
+                        <span class="dash-summary-label">{{ __('admin.dashboard_page.total_reach') }}</span>
                         <span class="dash-summary-value">{{ dash_short($totalReach) }}</span>
                     </li>
                     <li>
                         <span class="dash-summary-icon warning"><i class="bx bx-bulb"></i></span>
-                        <span class="dash-summary-label">Total Engagements</span>
+                        <span class="dash-summary-label">{{ __('admin.dashboard_page.total_engagements') }}</span>
                         <span class="dash-summary-value">{{ dash_short($totalLikes + $totalComments + $totalShares) }}</span>
                     </li>
                     <li>
                         <span class="dash-summary-icon success"><i class="bx bx-mouse"></i></span>
-                        <span class="dash-summary-label">Total Clicks</span>
+                        <span class="dash-summary-label">{{ __('admin.dashboard_page.total_clicks') }}</span>
                         <span class="dash-summary-value">{{ dash_short(array_sum($dailyClicks)) }}</span>
                     </li>
                 </ul>
                 <a href="{{ route('admin.posts.index') }}" class="dash-link d-inline-flex align-items-center gap-1">
-                    View detailed report <i class="bx bx-right-arrow-alt"></i>
+                    {{ __('admin.dashboard_page.view_detailed_report') }} <i class="bx bx-right-arrow-alt"></i>
                 </a>
             </div>
         </div>
@@ -265,7 +265,7 @@
                  than being squeezed into a 4-column-wide card. -->
             <div class="dash-card mb-4">
                 <div class="dash-card-header">
-                    <h6 class="mb-0">Content Calendar</h6>
+                    <h6 class="mb-0">{{ __('admin.dashboard_page.content_calendar') }}</h6>
                     <div class="d-flex align-items-center gap-2">
                         <a href="{{ route('admin.posts.dashboard', array_merge(request()->except('cal'), ['cal' => $prevCalMonth])) }}" class="dash-cal-nav"><i class="bx bx-chevron-left"></i></a>
                         <span class="dash-chip">{{ $calendarMonth->format('F Y') }}</span>
@@ -327,28 +327,28 @@
                     @endfor
                 </div>
                 <div class="dash-calendar-legend">
-                    <span><i class="dot dot-primary"></i> {{ $calendarPostsThisMonth }} Posts</span>
-                    <span><i class="dot dot-success"></i> {{ $calendarCommentsThisMonth }} Comments</span>
-                    <span><i class="dot dot-info"></i> {{ $calendarMessagesThisMonth }} Messages</span>
+                    <span><i class="dot dot-primary"></i> {{ $calendarPostsThisMonth }} {{ __('admin.dashboard_page.posts') }}</span>
+                    <span><i class="dot dot-success"></i> {{ $calendarCommentsThisMonth }} {{ __('admin.dashboard_page.comments') }}</span>
+                    <span><i class="dot dot-info"></i> {{ $calendarMessagesThisMonth }} {{ __('admin.dashboard_page.messages') }}</span>
                 </div>
             </div>
 
             <!-- Recent Posts table -->
             <div class="dash-card mb-4">
                 <div class="dash-card-header">
-                    <h6 class="mb-0">Recent Posts</h6>
-                    <a href="{{ route('admin.posts.index') }}" class="dash-link">View All Posts</a>
+                    <h6 class="mb-0">{{ __('admin.dashboard_page.recent_posts') }}</h6>
+                    <a href="{{ route('admin.posts.index') }}" class="dash-link">{{ __('admin.dashboard_page.view_all_posts') }}</a>
                 </div>
                 <div class="table-responsive">
                     <table class="dash-table">
                         <thead>
                             <tr>
-                                <th>Post</th>
-                                <th>Platform</th>
-                                <th>Reach</th>
-                                <th>Engagement</th>
-                                <th>Date</th>
-                                <th>Status</th>
+                                <th>{{ __('admin.dashboard_page.post') }}</th>
+                                <th>{{ __('admin.dashboard_page.platform') }}</th>
+                                <th>{{ __('admin.dashboard_page.reach') }}</th>
+                                <th>{{ __('admin.dashboard_page.engagement') }}</th>
+                                <th>{{ __('admin.dashboard_page.date') }}</th>
+                                <th>{{ __('admin.dashboard_page.status') }}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -364,7 +364,7 @@
                                             :media="$post->media->first()"
                                             :fallback-icon="$meta['icon']"
                                             :fallback-color="$platformBrandColors[$post->platform] ?? '#7c5cff'" />
-                                        <span class="dash-table-title">{{ Str::limit($post->content ?: '(no caption)', 42) }}</span>
+                                        <span class="dash-table-title">{{ Str::limit($post->content ?: __('admin.dashboard_page.no_caption'), 42) }}</span>
                                     </div>
                                 </td>
                                 <td><x-platform-icon :icon="$meta['icon']" :color="$platformBrandColors[$post->platform] ?? '#7c5cff'" size="xs" /></td>
@@ -374,7 +374,7 @@
                                 <td><span class="dash-badge dash-badge-{{ $sm['class'] }}">{{ $sm['label'] }}</span></td>
                             </tr>
                             @empty
-                            <tr><td colspan="6" class="dash-empty-row">No posts yet.</td></tr>
+                            <tr><td colspan="6" class="dash-empty-row">{{ __('admin.dashboard_page.no_posts_yet') }}</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -387,8 +387,8 @@
             <!-- Upcoming Posts -->
             <div class="dash-card mb-4">
                 <div class="dash-card-header">
-                    <h6 class="mb-0">Upcoming Posts</h6>
-                    <a href="{{ route('admin.posts.index') }}" class="dash-link">View All</a>
+                    <h6 class="mb-0">{{ __('admin.dashboard_page.upcoming_posts') }}</h6>
+                    <a href="{{ route('admin.posts.index') }}" class="dash-link">{{ __('admin.dashboard_page.view_all') }}</a>
                 </div>
                 <ul class="dash-list">
                     @forelse($upcomingPosts as $post)
@@ -412,7 +412,7 @@
                             </span>
                         </span>
                         <div class="dash-list-body">
-                            <p class="mb-0">{{ Str::limit($post->content ?: '(no caption)', 34) }}</p>
+                            <p class="mb-0">{{ Str::limit($post->content ?: __('admin.dashboard_page.no_caption'), 34) }}</p>
                             <small>{{ $accountName }} &middot; {{ $meta['label'] ?? ucfirst($post->platform) }}</small>
                         </div>
                         <div class="dash-list-when">
@@ -421,7 +421,7 @@
                         </div>
                     </li>
                     @empty
-                    <li class="dash-empty-row">Nothing scheduled yet.</li>
+                    <li class="dash-empty-row">{{ __('admin.dashboard_page.nothing_scheduled') }}</li>
                     @endforelse
                 </ul>
             </div>
@@ -434,8 +434,8 @@
                  viewport width. -->
             <div class="dash-card mb-4">
                 <div class="dash-card-header">
-                    <h6 class="mb-0">Top Performing Posts</h6>
-                    <a href="{{ route('admin.posts.index') }}" class="dash-link">View All</a>
+                    <h6 class="mb-0">{{ __('admin.dashboard_page.top_performing_posts') }}</h6>
+                    <a href="{{ route('admin.posts.index') }}" class="dash-link">{{ __('admin.dashboard_page.view_all') }}</a>
                 </div>
                 <div class="row g-3">
                     @forelse($topPosts as $post)
@@ -443,19 +443,19 @@
                     <div class="col-6">
                         <div class="dash-top-post">
                             @if($loop->first && $post->reach > 0)
-                            <span class="dash-badge-best">Best Reach</span>
+                            <span class="dash-badge-best">{{ __('admin.dashboard_page.best_reach') }}</span>
                             @endif
                             <x-post-media-thumb
                                 :media="$post->media->first()"
                                 :fallback-icon="$meta['icon']"
                                 :fallback-color="$platformBrandColors[$post->platform] ?? '#7c5cff'"
                                 size="lg" />
-                            <p class="mb-0 mt-2">{{ Str::limit($post->content ?: '(no caption)', 40) }}</p>
-                            <small>{{ dash_short($post->reach) }} reach · {{ dash_short($post->likes) }} likes</small>
+                            <p class="mb-0 mt-2">{{ Str::limit($post->content ?: __('admin.dashboard_page.no_caption'), 40) }}</p>
+                            <small>{{ __('admin.dashboard_page.reach_likes', ['reach' => dash_short($post->reach), 'likes' => dash_short($post->likes)]) }}</small>
                         </div>
                     </div>
                     @empty
-                    <div class="col-12 dash-empty-row">No posts yet.</div>
+                    <div class="col-12 dash-empty-row">{{ __('admin.dashboard_page.no_posts_yet') }}</div>
                     @endforelse
                 </div>
             </div>
@@ -463,24 +463,24 @@
             <!-- Inbox Overview -->
             <div class="dash-card">
                 <div class="dash-card-header">
-                    <h6 class="mb-0">Inbox Overview</h6>
-                    <a href="{{ route('admin.chats.dashboard') }}" class="dash-link">View All</a>
+                    <h6 class="mb-0">{{ __('admin.dashboard_page.inbox_overview') }}</h6>
+                    <a href="{{ route('admin.chats.dashboard') }}" class="dash-link">{{ __('admin.dashboard_page.view_all') }}</a>
                 </div>
                 <div class="dash-inbox-grid">
                     <a href="{{ route('admin.chats.dashboard') }}" class="dash-inbox-tile">
                         <span class="dash-inbox-icon primary"><i class="bx bx-envelope"></i></span>
                         <div class="dash-inbox-value">{{ $totalMessages }}</div>
-                        <div class="dash-inbox-label">Messages</div>
+                        <div class="dash-inbox-label">{{ __('admin.dashboard_page.messages') }}</div>
                     </a>
                     <a href="{{ route('admin.comments.dashboard') }}" class="dash-inbox-tile">
                         <span class="dash-inbox-icon danger"><i class="bx bx-comment-detail"></i></span>
                         <div class="dash-inbox-value">{{ $totalCommentsAll }}</div>
-                        <div class="dash-inbox-label">Comments</div>
+                        <div class="dash-inbox-label">{{ __('admin.dashboard_page.comments') }}</div>
                     </a>
-                    <div class="dash-inbox-tile" title="Mention tracking isn't wired up yet">
+                    <div class="dash-inbox-tile" title="{{ __('admin.dashboard_page.mention_tracking_not_wired') }}">
                         <span class="dash-inbox-icon success"><i class="bx bx-at"></i></span>
                         <div class="dash-inbox-value">0</div>
-                        <div class="dash-inbox-label">Mentions</div>
+                        <div class="dash-inbox-label">{{ __('admin.dashboard_page.mentions') }}</div>
                     </div>
                 </div>
             </div>
@@ -499,7 +499,7 @@
             <form id="calendarQuickPostForm" enctype="multipart/form-data">
                 @csrf
                 <div class="modal-header">
-                    <h5 class="modal-title">Create post <span class="text-muted fw-normal fs-6" id="calendarQuickPostDateLabel"></span></h5>
+                    <h5 class="modal-title">{{ __('admin.dashboard_page.create_post_modal_title') }} <span class="text-muted fw-normal fs-6" id="calendarQuickPostDateLabel"></span></h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -509,11 +509,11 @@
                         <div class="composer-avatar">{{ strtoupper(substr(Auth::user()->name ?? 'A', 0, 1)) }}</div>
                         <div>
                             <strong>{{ Auth::user()->name ?? 'Admin' }}</strong>
-                            <div class="composer-audience"><i class="bx bx-group"></i> Friends</div>
+                            <div class="composer-audience"><i class="bx bx-group"></i> {{ __('admin.dashboard_page.friends') }}</div>
                         </div>
                     </div>
 
-                    <textarea name="content" class="quick-textarea" rows="4" placeholder="What's on your mind, {{ explode(' ', Auth::user()->name ?? 'Admin')[0] }}?"></textarea>
+                    <textarea name="content" class="quick-textarea" rows="4" placeholder="{{ __('admin.dashboard_page.whats_on_your_mind', ['name' => explode(' ', Auth::user()->name ?? 'Admin')[0]]) }}"></textarea>
 
                     <div class="quick-media-preview d-none" id="calendarQuickMediaPreview">
                         <img class="d-none" id="calendarQuickMediaImg">
@@ -521,7 +521,7 @@
                         <button type="button" class="remove-media-btn" id="calendarQuickMediaRemove"><i class="bx bx-x"></i></button>
                     </div>
 
-                    <div class="quick-platform-label">Post to</div>
+                    <div class="quick-platform-label">{{ __('admin.dashboard_page.post_to') }}</div>
                     <div class="quick-platform-select" id="calendarQuickPostPlatforms">
                         @php $seenPlatforms = []; @endphp
                         @foreach($postingAccounts as $account)
@@ -553,20 +553,20 @@
                             </div>
                         @endforeach
                         @if(empty($seenPlatforms))
-                            <p class="text-muted small mb-0">No connected posting accounts yet. <a href="{{ route('admin.posts.create') }}">Connect one</a> first.</p>
+                            <p class="text-muted small mb-0">{{ __('admin.dashboard_page.no_connected_posting_accounts') }} <a href="{{ route('admin.posts.create') }}">{{ __('admin.dashboard_page.connect_one') }}</a> {{ __('admin.dashboard_page.first') }}.</p>
                         @endif
                     </div>
 
                     <div class="quick-schedule-row">
                         <label class="quick-checkbox">
                             <input type="checkbox" name="schedule_mode" value="1" id="calendarQuickPostScheduleToggle" checked>
-                            Schedule for later
+                            {{ __('admin.dashboard_page.schedule_for_later') }}
                         </label>
                         <input type="datetime-local" name="schedule_at" id="calendarQuickPostScheduleAt" class="modern-select">
                     </div>
 
                     <div class="add-to-post-row">
-                        <span>Add to your post</span>
+                        <span>{{ __('admin.dashboard_page.add_to_your_post') }}</span>
                         <div class="add-to-post-icons">
                             <label class="media-upload-btn" title="Photo/Video">
                                 <i class="bx bx-image" style="color:#45BD62"></i>
@@ -580,7 +580,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-primary w-100" id="calendarQuickPostSubmit">
-                        <span id="calendarQuickPostSubmitLabel">Post</span>
+                        <span id="calendarQuickPostSubmitLabel">{{ __('admin.dashboard_page.post_button') }}</span>
                     </button>
                 </div>
             </form>
@@ -608,9 +608,9 @@
                 </div>
             </div>
             <div class="modal-footer cal-modal-footer">
-                <button type="button" class="cal-btn cal-btn-ghost" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="cal-btn cal-btn-ghost" data-bs-dismiss="modal">{{ __('admin.dashboard_page.close') }}</button>
                 <a href="#" class="cal-btn cal-btn-primary" id="calendarViewPostOpenLink">
-                    <i class="bx bx-link-external"></i> Open full post
+                    <i class="bx bx-link-external"></i> {{ __('admin.dashboard_page.open_full_post') }}
                 </a>
             </div>
         </div>

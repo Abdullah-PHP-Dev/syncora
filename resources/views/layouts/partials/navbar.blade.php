@@ -9,15 +9,15 @@
         <button type="button"
                 class="admin-menu-toggle d-none d-xl-flex"
                 id="adminSidebarToggle"
-                aria-label="Toggle sidebar"
-                title="Toggle sidebar">
+                aria-label="{{ __('admin.navbar.toggle_sidebar') }}"
+                title="{{ __('admin.navbar.toggle_sidebar') }}">
             <i class="bx bx-menu"></i>
         </button>
 
         <!-- Mobile Menu -->
         <button type="button"
                 class="admin-menu-toggle d-xl-none"
-                aria-label="Open menu"
+                aria-label="{{ __('admin.navbar.open_menu') }}"
                 data-bs-toggle="offcanvas"
                 data-bs-target="#layout-menu">
             <i class="bx bx-menu"></i>
@@ -28,8 +28,8 @@
             <i class="bx bx-search"></i>
 
             <input type="text"
-                   placeholder="Search..."
-                   aria-label="Search">
+                   placeholder="{{ __('admin.navbar.search_placeholder') }}"
+                   aria-label="{{ __('admin.navbar.search_placeholder') }}">
 
             <span class="admin-search-shortcut">
                 ⌘ K
@@ -62,8 +62,8 @@
             }
 
             $subscriptionPlan = $hasActiveSubscription
-                ? ($subscription->plan_name ?? 'Premium')
-                : 'Free Plan';
+                ? ($subscription->plan_name ?? __('admin.navbar.premium'))
+                : __('admin.navbar.free_plan');
         @endphp
 
         <a href="{{ url('admin/subscription/select') }}"
@@ -86,13 +86,7 @@
                     </span>
 
                     <span class="admin-subscription-days">
-                        @if($remainingDays <= 0)
-                            Expired
-                        @elseif($remainingDays == 1)
-                            1 day left
-                        @else
-                            {{ $remainingDays }} days left
-                        @endif
+                        {{ trans_choice('admin.navbar.days_left', $remainingDays, ['count' => $remainingDays]) }}
                     </span>
 
                 </span>
@@ -106,11 +100,11 @@
                 <span class="admin-subscription-info">
 
                     <span class="admin-subscription-plan">
-                        Free Plan
+                        {{ __('admin.navbar.free_plan') }}
                     </span>
 
                     <span class="admin-subscription-days">
-                        Upgrade
+                        {{ __('admin.navbar.upgrade') }}
                     </span>
 
                 </span>
@@ -129,7 +123,7 @@
                     class="admin-navbar-icon dropdown-toggle"
                     data-bs-toggle="dropdown"
                     aria-expanded="false"
-                    title="Language">
+                    title="{{ __('admin.navbar.language') }}">
 
                 <i class="bx bx-globe"></i>
 
@@ -138,7 +132,7 @@
             <ul class="dropdown-menu dropdown-menu-end admin-language-dropdown">
 
                 <li>
-                    <a href="#"
+                    <a href="{{ LaravelLocalization::getLocalizedURL('en') }}"
                        class="dropdown-item admin-language-item">
 
                         <span class="admin-language-flag">
@@ -157,7 +151,7 @@
                 </li>
 
                 <li>
-                    <a href="#"
+                    <a href="{{ LaravelLocalization::getLocalizedURL('ar') }}"
                        class="dropdown-item admin-language-item">
 
                         <span class="admin-language-flag">
@@ -209,7 +203,7 @@
                 <div class="admin-user-avatar">
 
                     <img src="{{ asset('assets/img/avatars/1.png') }}"
-                         alt="User Avatar">
+                         alt="{{ __('admin.navbar.user_avatar_alt') }}">
 
                     <span class="admin-user-online"></span>
 
@@ -218,11 +212,11 @@
                 <div class="admin-user-info d-none d-sm-flex">
 
                     <span class="admin-user-name">
-                        {{ auth()->user()->name ?? 'Guest User' }}
+                        {{ auth()->user()->name ?? __('admin.navbar.guest_user') }}
                     </span>
 
                     <span class="admin-user-role">
-                        {{ auth()->user()->role ?? 'Administrator' }}
+                        {{ auth()->user()->role ?? __('admin.navbar.administrator') }}
                     </span>
 
                 </div>
@@ -243,7 +237,7 @@
                         <div class="admin-user-avatar admin-user-avatar-lg">
 
                             <img src="{{ asset('assets/img/avatars/1.png') }}"
-                                 alt="User Avatar">
+                                 alt="{{ __('admin.navbar.user_avatar_alt') }}">
 
                             <span class="admin-user-online"></span>
 
@@ -252,11 +246,11 @@
                         <div>
 
                             <div class="admin-dropdown-name">
-                                {{ auth()->user()->name ?? 'Guest User' }}
+                                {{ auth()->user()->name ?? __('admin.navbar.guest_user') }}
                             </div>
 
                             <div class="admin-dropdown-role">
-                                {{ auth()->user()->role ?? 'Administrator' }}
+                                {{ auth()->user()->role ?? __('admin.navbar.administrator') }}
                             </div>
 
                         </div>

@@ -222,4 +222,127 @@ return [
     'dashboard' => 'Dashboard',
     'logout' => 'Logout',
 
+    'navbar' => [
+        'search_placeholder' => 'Search...',
+        'toggle_sidebar' => 'Toggle sidebar',
+        'open_menu' => 'Open menu',
+        'language' => 'Language',
+        'free_plan' => 'Free Plan',
+        'premium' => 'Premium',
+        // trans_choice: {0} no days left, {1} exactly one, [2,*] two or more.
+        'days_left' => '{0} Expired|{1} :count day left|[2,*] :count days left',
+        'upgrade' => 'Upgrade',
+        'guest_user' => 'Guest User',
+        'administrator' => 'Administrator',
+        'user_avatar_alt' => 'User Avatar',
+    ],
+
+    'sidebar' => [
+        'collapse_sidebar' => 'Collapse sidebar',
+        'management' => 'Management',
+        'applications' => 'Applications',
+        'email' => 'Email',
+        'chat' => 'Chat',
+        'calendar' => 'Calendar',
+        'kanban' => 'Kanban',
+        'account' => 'Account',
+        'account_settings' => 'Account Settings',
+        'notifications' => 'Notifications',
+        'connections' => 'Connections',
+        'authentications' => 'Authentications',
+        'login' => 'Login',
+        'register' => 'Register',
+        'forgot_password' => 'Forgot Password',
+        'data' => 'Data',
+        'tables' => 'Tables',
+        'support' => 'Support',
+        'documentation' => 'Documentation',
+        'subscription' => 'Subscription',
+        'manage_your_plan' => 'Manage your plan',
+    ],
+
+    // admin/posts/dashboard.blade.php - kept separate from
+    // marketing_tools.posts.* above since that namespace is for the
+    // Create/Edit Post page, a different screen with its own (sometimes
+    // same-looking but independently-worded) labels.
+    'dashboard_page' => [
+        'welcome_back' => 'Welcome back, :name!',
+        'welcome_subtitle' => 'Here\'s what\'s happening with your social media presence today.',
+        'select_date_range' => 'Select date range',
+        'create_post' => 'Create Post',
+
+        'connected_accounts' => 'Connected Accounts',
+        'manage_accounts' => 'Manage Accounts',
+        'add_account' => 'Add Account',
+        'no_accounts_connected' => 'No accounts connected yet.',
+        'connected' => 'Connected',
+        'followers' => 'Followers',
+        'subs' => 'Subs',
+        'likes' => 'Likes',
+        'views' => 'Views',
+
+        'total_followers' => 'Total Followers',
+        'across_all_platforms' => 'Across all platforms',
+        // trans_choice: {1} singular, [2,*] plural.
+        'across_platforms' => '{1} Across :count platform|[2,*] Across :count platforms',
+        'this_week' => 'this week',
+
+        'engagement_rate' => 'Engagement Rate',
+        'not_enough_reach_data' => 'Not enough reach data yet',
+        'engagement_formula' => '(likes + comments + shares) / reach',
+        'vs_last_7_days' => 'vs last 7 days',
+
+        'total_reach' => 'Total Reach',
+        'vs_previous_period' => 'vs previous period',
+
+        'performance_overview' => 'Performance Overview',
+        'last_7_days' => 'Last 7 Days',
+        'performance_summary' => 'Performance Summary',
+        'total_posts' => 'Total Posts',
+        'total_engagements' => 'Total Engagements',
+        'total_clicks' => 'Total Clicks',
+        'view_detailed_report' => 'View detailed report',
+
+        'content_calendar' => 'Content Calendar',
+        'posts' => 'Posts',
+        'comments' => 'Comments',
+        'messages' => 'Messages',
+
+        'recent_posts' => 'Recent Posts',
+        'view_all_posts' => 'View All Posts',
+        'view_all' => 'View All',
+        'post' => 'Post',
+        'platform' => 'Platform',
+        'reach' => 'Reach',
+        'engagement' => 'Engagement',
+        'date' => 'Date',
+        'status' => 'Status',
+        'no_caption' => '(no caption)',
+        'no_posts_yet' => 'No posts yet.',
+
+        'upcoming_posts' => 'Upcoming Posts',
+        'nothing_scheduled' => 'Nothing scheduled yet.',
+
+        'top_performing_posts' => 'Top Performing Posts',
+        'best_reach' => 'Best Reach',
+        'reach_likes' => ':reach reach · :likes likes',
+
+        'inbox_overview' => 'Inbox Overview',
+        'mentions' => 'Mentions',
+        'mention_tracking_not_wired' => 'Mention tracking isn\'t wired up yet',
+
+        'create_post_modal_title' => 'Create post',
+        'friends' => 'Friends',
+        'whats_on_your_mind' => 'What\'s on your mind, :name?',
+        'post_to' => 'Post to',
+        'no_connected_posting_accounts' => 'No connected posting accounts yet.',
+        'connect_one' => 'Connect one',
+        'first' => 'first',
+        'schedule_for_later' => 'Schedule for later',
+        'add_to_your_post' => 'Add to your post',
+        'post_button' => 'Post',
+        'close' => 'Close',
+        'open_full_post' => 'Open full post',
+    ],
+
 ];

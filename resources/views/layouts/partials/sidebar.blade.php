@@ -20,8 +20,8 @@
 
         <button type="button"
                 class="admin-sidebar-collapse layout-menu-toggle"
-                aria-label="Toggle sidebar"
-                title="Collapse sidebar">
+                aria-label="{{ __('admin.navbar.toggle_sidebar') }}"
+                title="{{ __('admin.sidebar.collapse_sidebar') }}">
 
             <i class="bx bx-chevron-left"></i>
 
@@ -45,7 +45,7 @@
 
                     <i class="menu-icon tf-icons bx bx-grid-alt"></i>
 
-                    <span>Dashboard</span>
+                    <span>{{ __('admin.dashboard') }}</span>
 
                 </a>
 
@@ -56,7 +56,7 @@
                  MANAGEMENT
             ================================================== --}}
             <li class="admin-sidebar-section">
-                <span>Management</span>
+                <span>{{ __('admin.sidebar.management') }}</span>
             </li>
 
 
@@ -146,14 +146,14 @@
                  APPLICATIONS
             ================================================== --}}
             <li class="admin-sidebar-section">
-                <span>Applications</span>
+                <span>{{ __('admin.sidebar.applications') }}</span>
             </li>
 
 
             <li class="menu-item">
                 <a href="#" class="menu-link">
                     <i class="menu-icon tf-icons bx bx-envelope"></i>
-                    <span>Email</span>
+                    <span>{{ __('admin.sidebar.email') }}</span>
                 </a>
             </li>
 
@@ -161,7 +161,7 @@
             <li class="menu-item">
                 <a href="#" class="menu-link">
                     <i class="menu-icon tf-icons bx bx-message-rounded"></i>
-                    <span>Chat</span>
+                    <span>{{ __('admin.sidebar.chat') }}</span>
                 </a>
             </li>
 
@@ -169,7 +169,7 @@
             <li class="menu-item">
                 <a href="#" class="menu-link">
                     <i class="menu-icon tf-icons bx bx-calendar"></i>
-                    <span>Calendar</span>
+                    <span>{{ __('admin.sidebar.calendar') }}</span>
                 </a>
             </li>
 
@@ -177,7 +177,7 @@
             <li class="menu-item">
                 <a href="#" class="menu-link">
                     <i class="menu-icon tf-icons bx bx-task"></i>
-                    <span>Kanban</span>
+                    <span>{{ __('admin.sidebar.kanban') }}</span>
                 </a>
             </li>
 
@@ -186,7 +186,7 @@
                  ACCOUNT
             ================================================== --}}
             <li class="admin-sidebar-section">
-                <span>Account</span>
+                <span>{{ __('admin.sidebar.account') }}</span>
             </li>
 
 
@@ -197,7 +197,7 @@
 
                     <i class="menu-icon tf-icons bx bx-user-circle"></i>
 
-                    <span>Account Settings</span>
+                    <span>{{ __('admin.sidebar.account_settings') }}</span>
 
                 </a>
 
@@ -205,19 +205,19 @@
 
                     <li class="menu-item">
                         <a href="#" class="menu-link">
-                            Account
+                            {{ __('admin.sidebar.account') }}
                         </a>
                     </li>
 
                     <li class="menu-item">
                         <a href="#" class="menu-link">
-                            Notifications
+                            {{ __('admin.sidebar.notifications') }}
                         </a>
                     </li>
 
                     <li class="menu-item">
                         <a href="#" class="menu-link">
-                            Connections
+                            {{ __('admin.sidebar.connections') }}
                         </a>
                     </li>
 
@@ -233,7 +233,7 @@
 
                     <i class="menu-icon tf-icons bx bx-lock-alt"></i>
 
-                    <span>Authentications</span>
+                    <span>{{ __('admin.sidebar.authentications') }}</span>
 
                 </a>
 
@@ -241,19 +241,19 @@
 
                     <li class="menu-item">
                         <a href="#" class="menu-link">
-                            Login
+                            {{ __('admin.sidebar.login') }}
                         </a>
                     </li>
 
                     <li class="menu-item">
                         <a href="#" class="menu-link">
-                            Register
+                            {{ __('admin.sidebar.register') }}
                         </a>
                     </li>
 
                     <li class="menu-item">
                         <a href="#" class="menu-link">
-                            Forgot Password
+                            {{ __('admin.sidebar.forgot_password') }}
                         </a>
                     </li>
 
@@ -266,14 +266,14 @@
                  DATA
             ================================================== --}}
             <li class="admin-sidebar-section">
-                <span>Data</span>
+                <span>{{ __('admin.sidebar.data') }}</span>
             </li>
 
 
             <li class="menu-item">
                 <a href="#" class="menu-link">
                     <i class="menu-icon tf-icons bx bx-table"></i>
-                    <span>Tables</span>
+                    <span>{{ __('admin.sidebar.tables') }}</span>
                 </a>
             </li>
 
@@ -282,7 +282,7 @@
                  SUPPORT
             ================================================== --}}
             <li class="admin-sidebar-section">
-                <span>Support</span>
+                <span>{{ __('admin.sidebar.support') }}</span>
             </li>
 
 
@@ -294,7 +294,7 @@
 
                     <i class="menu-icon tf-icons bx bx-support"></i>
 
-                    <span>Support</span>
+                    <span>{{ __('admin.sidebar.support') }}</span>
 
                     <i class="bx bx-link-external admin-sidebar-external"></i>
 
@@ -311,7 +311,7 @@
 
                     <i class="menu-icon tf-icons bx bx-file"></i>
 
-                    <span>Documentation</span>
+                    <span>{{ __('admin.sidebar.documentation') }}</span>
 
                     <i class="bx bx-link-external admin-sidebar-external"></i>
 
@@ -335,8 +335,8 @@
             <i class="bx bx-crown"></i>
 
             <div>
-                <strong>Subscription</strong>
-                <small>Manage your plan</small>
+                <strong>{{ __('admin.sidebar.subscription') }}</strong>
+                <small>{{ __('admin.sidebar.manage_your_plan') }}</small>
             </div>
 
             <i class="bx bx-chevron-right"></i>
