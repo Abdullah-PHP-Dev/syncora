@@ -51,22 +51,20 @@ class TiktokMessagingService
     }
 
     /**
-     * TikTok's account-holder redirect URL docs require an absolute
-     * https:// URL ending in "/" - unlike TiktokAdService's Ads callback,
-     * which doesn't end in "/" (that's the Ads product's own registered
-     * URL, already working; this is a separate URL that needs its own
-     * entry in the TikTok Developer Portal's redirect URL allowlist
-     * regardless, so it follows the documented format exactly rather
-     * than copying Ads' URL shape).
+     * TikTok's account-holder redirect URL docs read as requiring a
+     * trailing "/" - the real registered "Advertiser redirect URLs" in
+     * the Developer Portal (confirmed against a live screenshot of this
+     * app's own app config) do NOT have one, and TikTok rejects the
+     * request ("redirect URI does not match") when this doesn't match
+     * one of those entries character-for-character. The portal, not the
+     * docs prose, is the source of truth here.
      */
     private function callbackUrl(): string
     {
         // oauthCallbackUrl() reverse-resolves the path from routes/web.php
         // and strips the locale prefix a bare route() call would add (see
-        // app/Helpers/Helper.php); the trailing "/" still has to be
-        // appended by hand since the registered route's own URI doesn't
-        // end in one (TikTok's requirement, not Laravel's).
-        return oauthCallbackUrl('admin.messaging.auth.tiktok.callback') . '/';
+        // app/Helpers/Helper.php).
+        return oauthCallbackUrl('admin.messaging.auth.tiktok.callback');
     }
 
     public function redirect($state)
