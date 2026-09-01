@@ -96,9 +96,31 @@ class TiktokMessagingService
         ], 'json');
 
         if (!$tokenResponse['success'] || (int) ($tokenResponse['data']['code'] ?? -1) !== 0) {
+            // ApiService::sendRequest() returns two different shapes on
+            // failure: a real HTTP response (has 'data'/'body'/'status')
+            // for anything TikTok itself answered, even a 4xx, OR - only
+            // on a genuine connection-level exception (timeout, DNS, TLS)
+            // - just ['success' => false, 'error' => $e->getMessage()],
+            // no 'data' key at all. The original version of this method
+            // only ever read $tokenResponse['data']['message'], so any
+            // exception-path failure (or a TikTok error body without a
+            // 'message' field) silently fell through to the generic
+            // fallback below - hiding the real reason from both the user
+            // and this log. Logged in full either way so a real failure
+            // is diagnosable from storage/logs without needing to
+            // reproduce it live (auth codes are single-use, 10-minute
+            // validity - the exact request that failed can't be replayed).
+            $reason = $tokenResponse['data']['message'] ?? $tokenResponse['error'] ?? null;
+
+            Log::warning('TikTok Business Messaging token exchange failed.', [
+                'status' => $tokenResponse['status'] ?? null,
+                'body'   => $tokenResponse['body'] ?? ($tokenResponse['data'] ?? null),
+                'error'  => $tokenResponse['error'] ?? null,
+            ]);
+
             return [
                 'success' => false,
-                'error' => $tokenResponse['data']['message'] ?? 'Failed to exchange code for a TikTok access token.',
+                'error' => $reason ?? 'Failed to exchange code for a TikTok access token.',
             ];
         }
 
