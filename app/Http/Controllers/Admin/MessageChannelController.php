@@ -140,6 +140,29 @@ class MessageChannelController extends Controller
 
     public function callbackTiktok(Request $request, TiktokMessagingService $service)
     {
+        // Route::get() also matches HEAD (confirmed: route:list shows
+        // "GET|HEAD" for this URI) - Laravel runs the FULL controller for
+        // a HEAD request and only strips the response body afterward, so
+        // without this guard a HEAD probe against this URL (a browser/
+        // security-scanner link preview, a corporate proxy's "safe
+        // browsing" pre-check, etc.) would silently burn the single-use
+        // auth_code before the real GET from the actual redirect ever
+        // arrives - which reads as "Authorization code is expired" on
+        // literally every attempt, since the real request always loses
+        // that race. HEAD must be side-effect-free by definition; this
+        // makes it actually be that instead of accidentally running
+        // handleCallback().
+        if ($request->isMethod('head')) {
+            return response('', 200);
+        }
+
+        Log::info('TikTok messaging callback hit.', [
+            'method' => $request->method(),
+            'has_code' => $request->filled('code') || $request->filled('auth_code'),
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
         if (!$request->filled('code') && !$request->filled('auth_code')) {
             return redirect()->route($this->returnRoute())->with('error', 'TikTok connection failed or was cancelled.');
         }
