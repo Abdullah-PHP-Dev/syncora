@@ -164,6 +164,7 @@
     .channel-platform-icon.teams { background: linear-gradient(135deg,#5B5FC7,#4452a6); }
     .channel-platform-icon.google_chat { background: linear-gradient(135deg,#4285F4,#34A853); }
     .channel-platform-icon.matrix { background: linear-gradient(135deg,#0DBD8B,#0a8f68); }
+    .channel-platform-icon.tiktok { background: linear-gradient(135deg,#000,#69C9D0 50%,#EE1D52); }
 
     .status-dot {
         width: 8px;
@@ -326,7 +327,7 @@
                     <div class="stat-label">Active Now</div>
                 </div>
                 <div class="stat-pill">
-                    <div class="stat-value">{{ $channelsByPlatform->count() }}/11</div>
+                    <div class="stat-value">{{ $channelsByPlatform->count() }}/12</div>
                     <div class="stat-label">Platforms In Use</div>
                 </div>
             </div>
@@ -388,7 +389,7 @@
         </div>
 
         <div class="section-title"><i class="bx bx-grid-alt text-primary"></i> Add a Platform</div>
-        <div class="section-subtitle">Connect as many accounts as you need across any of these six platforms.</div>
+        <div class="section-subtitle">Connect as many accounts as you need across any of these platforms.</div>
 
         <div class="row g-4 mb-4">
             <div class="col-md-6 col-lg-4">
@@ -538,6 +539,18 @@
                     <button type="button" class="btn btn-sm text-white" style="background:#0DBD8B" data-bs-toggle="modal" data-bs-target="#matrixModal">Connect Matrix Account</button>
                 </div>
             </div>
+
+            <div class="col-md-6 col-lg-4">
+                <div class="platform-card">
+                    @if ($channelsByPlatform->has('tiktok'))
+                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('tiktok')->count() }} connected</span>
+                    @endif
+                    <div class="channel-platform-icon tiktok mx-auto"><i class="bx bxl-tiktok"></i></div>
+                    <h6>TikTok Messenger</h6>
+                    <p class="text-muted">Connects a TikTok Business Account for the Business Messaging API. Requires TikTok to have granted this app the Business Messaging permission - a manual approval step separate from Ads API access.</p>
+                    <a href="{{ route('admin.messaging.auth.tiktok.redirect') }}" class="btn btn-sm text-white" style="background:#000">Connect TikTok</a>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -572,39 +585,7 @@
     </div>
 
     <!-- WhatsApp Modal -->
-    <div class="modal fade" id="whatsappModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <form action="{{ route('admin.messaging.channels.whatsapp.store') }}" method="POST">
-                    @csrf
-                    <div class="modal-header">
-                        <h5 class="modal-title d-flex align-items-center"><span class="modal-icon-badge" style="background:#25D366"><i class="bx bxl-whatsapp"></i></span> Connect WhatsApp Number</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">Display Name *</label>
-                            <input type="text" name="name" class="form-control" required>
-                            @error('name')<p class="text-danger small">{{ $message }}</p>@enderror
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Phone Number ID *</label>
-                            <input type="text" name="phone_number_id" class="form-control" required>
-                            @error('phone_number_id')<p class="text-danger small">{{ $message }}</p>@enderror
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Permanent Access Token *</label>
-                            <input type="text" name="access_token" class="form-control" required>
-                            @error('access_token')<p class="text-danger small">{{ $message }}</p>@enderror
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="submit" class="btn btn-primary w-100">Connect</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+    <x-whatsapp-connect-modal id="whatsappModal" />
 
     <!-- LINE Modal -->
     <div class="modal fade" id="lineModal" tabindex="-1">
@@ -746,41 +727,7 @@
     </div>
 
     <!-- Google Chat Modal -->
-    <div class="modal fade" id="googleChatModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <form action="{{ route('admin.messaging.channels.google_chat.store') }}" method="POST">
-                    @csrf
-                    <div class="modal-header">
-                        <h5 class="modal-title d-flex align-items-center"><span class="modal-icon-badge" style="background:#4285F4"><i class="bx bx-message-rounded-dots"></i></span> Connect Google Chat</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <p class="text-muted small">In <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a>, enable the Google Chat API, create a service account, and download its JSON key - paste the whole file below. After connecting, you'll be shown an App URL - paste it into the Chat API's Configuration tab.</p>
-                        <div class="mb-3">
-                            <label class="form-label">Display Name *</label>
-                            <input type="text" name="name" class="form-control" required>
-                            @error('name')<p class="text-danger small">{{ $message }}</p>@enderror
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Service Account JSON Key *</label>
-                            <textarea name="service_account_json" class="form-control" rows="5" placeholder='{"type": "service_account", "client_email": "...", "private_key": "...", ...}' required></textarea>
-                            @error('service_account_json')<p class="text-danger small">{{ $message }}</p>@enderror
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Google Cloud Project Number</label>
-                            <input type="text" name="project_number" class="form-control" placeholder="Usually auto-detected - only needed if we can't detect it">
-                            <small class="text-muted">We'll try to detect this automatically from your service account. If we can't, find it under "Project info" on your project's Google Cloud dashboard (not the project ID) and enter it here.</small>
-                            @error('project_number')<p class="text-danger small">{{ $message }}</p>@enderror
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="submit" class="btn btn-sm text-white w-100" style="background:#4285F4">Connect</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+    <x-google-chat-connect-modal id="googleChatModal" />
 
     <!-- Matrix Modal -->
     <div class="modal fade" id="matrixModal" tabindex="-1">

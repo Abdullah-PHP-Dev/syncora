@@ -95,6 +95,18 @@ class SocialAuthService
         return url("/admin/social-accounts/{$platform}/callback");
     }
 
+    /**
+     * Only callbackFacebook() uses this so far - it's the one platform in
+     * this class the chats-dashboard Manage Channels modal (Meta
+     * Messenger tile) also connects through. Google/LinkedIn/TikTok's own
+     * callbacks keep their unconditional admin.posts.create redirects
+     * unchanged, since nothing sets social_oauth_return_to before those.
+     */
+    private function returnRoute(): string
+    {
+        return session()->pull('social_oauth_return_to') === 'dashboard' ? 'admin.chats.dashboard' : 'admin.posts.create';
+    }
+
     // =====================================================================
     // Facebook / Instagram - posting + messaging + ads all genuinely share
     // one Graph API OAuth app.
@@ -135,7 +147,7 @@ class SocialAuthService
         ]);
 
         if (!$tokenResponse['success']) {
-            return redirect()->route('admin.posts.create')->with('error', $tokenResponse['data']['error']['message'] ?? 'Failed to exchange code for a Facebook access token.');
+            return redirect()->route($this->returnRoute())->with('error', $tokenResponse['data']['error']['message'] ?? 'Failed to exchange code for a Facebook access token.');
         }
 
         $shortLivedToken = $tokenResponse['data']['access_token'];
@@ -310,7 +322,7 @@ class SocialAuthService
             $adAccountsConnected++;
         }
 
-        return redirect()->route('admin.posts.create')->with(
+        return redirect()->route($this->returnRoute())->with(
             'success',
             "Connected {$pagesConnected} Facebook Page(s), {$instagramConnected} Instagram account(s), and {$adAccountsConnected} ad account(s)."
         );

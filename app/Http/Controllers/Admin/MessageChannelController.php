@@ -13,6 +13,7 @@ use App\Services\MessagingServices\MatrixMessagingService;
 use App\Services\MessagingServices\SlackMessagingService;
 use App\Services\MessagingServices\TeamsMessagingService;
 use App\Services\MessagingServices\TelegramMessagingService;
+use App\Services\MessagingServices\TiktokMessagingService;
 use App\Services\MessagingServices\XMessagingService;
 use App\Services\MessagingServices\ZaloMessagingService;
 use Illuminate\Http\Request;
@@ -42,6 +43,27 @@ class MessageChannelController extends Controller
     }
 
     /**
+     * The Manage Channels quick-modal on admin/chats/dashboard.blade.php
+     * appends ?return_to=dashboard to every OAuth link it renders; the
+     * full admin/chats/channels.blade.php page's identical links don't,
+     * so this stays null there and every callback below keeps its
+     * original admin.chats.channels destination unchanged. Stashed in
+     * session (not carried through the OAuth round-trip as a query param)
+     * since Instagram/Facebook/X/TikTok all control their own
+     * redirect_uri construction and none of them promise to echo back an
+     * arbitrary extra query param.
+     */
+    private function rememberReturnTo(Request $request): void
+    {
+        session(['messaging_return_to' => $request->query('return_to') === 'dashboard' ? 'dashboard' : null]);
+    }
+
+    private function returnRoute(): string
+    {
+        return session()->pull('messaging_return_to') === 'dashboard' ? 'admin.chats.dashboard' : 'admin.chats.channels';
+    }
+
+    /**
      * Native Instagram Login (instagram.com/oauth/authorize) - the
      * Instagram professional account signs in directly, no Facebook Page
      * or Business Manager involved. Separate session state key from
@@ -49,10 +71,11 @@ class MessageChannelController extends Controller
      * two tabs at once doesn't clobber each other's pending state.
      * See InstagramMessagingTrait::redirect()/handleInstagramCallback().
      */
-    public function redirectInstagram(InstagramMessengerService $service)
+    public function redirectInstagram(Request $request, InstagramMessengerService $service)
     {
         $state = Str::uuid()->toString();
         session(['messaging_oauth_state_instagram' => $state]);
+        $this->rememberReturnTo($request);
 
         return $service->redirect($state);
     }
@@ -62,14 +85,14 @@ class MessageChannelController extends Controller
         if (!$request->filled('code') || $request->query('state') !== session('messaging_oauth_state_instagram')) {
             Log::info('Instagram messaging OAuth callback failed or was cancelled.', $request->only(['error', 'error_reason', 'error_description']));
 
-            return redirect()->route('admin.chats.channels')->with('error', 'Instagram connection failed or was cancelled.');
+            return redirect()->route($this->returnRoute())->with('error', 'Instagram connection failed or was cancelled.');
         }
 
         session()->forget('messaging_oauth_state_instagram');
 
         $result = $service->handleInstagramCallback($request->query('code'));
 
-        return redirect()->route('admin.chats.channels')->with(
+        return redirect()->route($this->returnRoute())->with(
             $result['success'] ? 'success' : 'error',
             $result['success']
                 ? "Connected {$result['data']['instagram']} Instagram account(s)."
@@ -77,10 +100,11 @@ class MessageChannelController extends Controller
         );
     }
 
-    public function redirectX(XMessagingService $service)
+    public function redirectX(Request $request, XMessagingService $service)
     {
         $state = Str::uuid()->toString();
         session(['messaging_oauth_state' => $state]);
+        $this->rememberReturnTo($request);
 
         return $service->redirect($state);
     }
@@ -88,14 +112,49 @@ class MessageChannelController extends Controller
     public function callbackX(Request $request, XMessagingService $service)
     {
         if (!$request->filled('code') || $request->query('state') !== session('messaging_oauth_state')) {
-            return redirect()->route('admin.chats.channels')->with('error', 'X connection failed or was cancelled.');
+            return redirect()->route($this->returnRoute())->with('error', 'X connection failed or was cancelled.');
         }
 
         $result = $service->handleCallback($request->query('code'));
 
-        return redirect()->route('admin.chats.channels')->with(
+        return redirect()->route($this->returnRoute())->with(
             $result['success'] ? 'success' : 'error',
             $result['success'] ? 'X account connected.' : ($result['error'] ?? 'X connection failed.')
+        );
+    }
+
+    /**
+     * Own session state key (rather than the shared 'messaging_oauth_state'
+     * X/Discord reuse) so connecting TikTok doesn't clobber a concurrently
+     * in-progress connect of one of those - same reasoning as Instagram's
+     * dedicated key above.
+     */
+    public function redirectTiktok(Request $request, TiktokMessagingService $service)
+    {
+        $state = Str::uuid()->toString();
+        session(['messaging_oauth_state_tiktok' => $state]);
+        $this->rememberReturnTo($request);
+
+        return $service->redirect($state);
+    }
+
+    public function callbackTiktok(Request $request, TiktokMessagingService $service)
+    {
+        if (!$request->filled('code') && !$request->filled('auth_code')) {
+            return redirect()->route($this->returnRoute())->with('error', 'TikTok connection failed or was cancelled.');
+        }
+
+        if ($request->query('state') !== session('messaging_oauth_state_tiktok')) {
+            return redirect()->route($this->returnRoute())->with('error', 'TikTok connection failed - state mismatch.');
+        }
+
+        session()->forget('messaging_oauth_state_tiktok');
+
+        $result = $service->handleCallback($request->query('code') ?: $request->query('auth_code'));
+
+        return redirect()->route($this->returnRoute())->with(
+            $result['success'] ? 'success' : 'error',
+            $result['success'] ? 'TikTok Business Account connected.' : ($result['error'] ?? 'TikTok connection failed.')
         );
     }
 

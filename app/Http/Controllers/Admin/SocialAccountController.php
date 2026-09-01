@@ -20,11 +20,19 @@ class SocialAccountController extends Controller
     {
     }
 
-    public function redirect(string $platform)
+    public function redirect(string $platform, Request $request)
     {
         if (!$this->service->isSupported($platform)) {
             abort(404);
         }
+
+        // Only the chats-dashboard Manage Channels modal's Meta Messenger
+        // tile appends ?return_to=dashboard - every other caller of this
+        // shared route (Posts dashboard's Add Account modal, the full
+        // admin.chats.channels page) gets the unchanged default landing
+        // page, same as before this existed. See SocialAuthService's
+        // returnRoute().
+        session(['social_oauth_return_to' => $request->query('return_to') === 'dashboard' ? 'dashboard' : null]);
 
         return $this->service->redirect($platform);
     }

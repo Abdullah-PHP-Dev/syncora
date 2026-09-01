@@ -1072,6 +1072,17 @@
 
 @section('content')
     <div class="col-xxl-12 mb-0">
+        {{-- Only reachable now via a channel connect started from this page
+             (see ?return_to=dashboard on the Manage Channels modal's OAuth
+             links) - admin.chats.channels has its own identical block for
+             everything else. --}}
+        @if (session('success'))
+            <div class="alert alert-success d-flex align-items-center gap-2 mb-3"><i class="bx bx-check-circle fs-5"></i> {{ session('success') }}</div>
+        @endif
+        @if (session('error'))
+            <div class="alert alert-danger d-flex align-items-center gap-2 mb-3"><i class="bx bx-error-circle fs-5"></i> {{ session('error') }}</div>
+        @endif
+
         <div class="inbox-topbar">
             <div>
                 <h4 class="inbox-title"><i class="bx bx-message-dots"></i> Unified Inbox</h4>
@@ -1081,9 +1092,17 @@
                 <button type="button" class="btn-ai-feature" id="exploreAiFeaturesBtn">
                     <i class="bx bx-sparkles"></i> Explore AI Features
                 </button>
-                <a href="{{ route('admin.chats.channels') }}" class="btn btn-outline-primary btn-sm">
+                {{--
+                    Opens a quick-connect modal instead of navigating to the
+                    full admin.chats.channels page (see #manageChannelsModal
+                    below) - that page still exists for the platforms that
+                    need a full credential form (Telegram, LINE, Zalo,
+                    Discord bot token, Teams, Matrix) and stays linked from
+                    inside the modal itself.
+                --}}
+                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#manageChannelsModal">
                     <i class="bx bx-plug"></i> Manage Channels
-                </a>
+                </button>
             </div>
         </div>
 
@@ -1214,6 +1233,55 @@
             </div>
         </div>
     </div>
+
+    {{--
+        MANAGE CHANNELS MODAL - opened from the topbar button above instead
+        of navigating to admin.chats.channels. Renders the same shared
+        social-connect-modal component the Posts dashboard's Add Account
+        modal and the Ads dashboard use - see
+        resources/views/components/social-connect-modal.blade.php.
+
+        Only the platforms with a genuinely one-click connect belong here;
+        Telegram/LINE/Zalo/Discord/Teams/Matrix all need a multi-field
+        credential form first, which is exactly what the full
+        admin.chats.channels page is still for (linked from the modal
+        footer below).
+
+        WhatsApp and Google Chat aren't OAuth links (see each tile's
+        'note' below) - clicking them switches to the same form-modal
+        components admin/chats/channels.blade.php uses (x-whatsapp-
+        connect-modal / x-google-chat-connect-modal), via the click
+        handler further down this file, rather than a second copy of
+        those forms.
+    --}}
+    @php
+        // ?return_to=dashboard is read by SocialAccountController::redirect()
+        // / MessageChannelController's redirect* methods (stashed in
+        // session, since the OAuth round-trip won't echo an arbitrary
+        // query param back) so the corresponding callback sends the user
+        // back here instead of admin.chats.channels/admin.posts.create -
+        // the full channels page's own identical-looking links omit this,
+        // so their behavior is unchanged.
+        $manageChannelsPlatforms = [
+            ['key' => 'facebook',    'class' => 'facebook',    'icon' => 'bxl-facebook',  'label' => 'Meta Messenger',    'url' => route('admin.social-accounts.redirect', ['platform' => 'facebook']) . '?return_to=dashboard'],
+            ['key' => 'instagram',   'class' => 'instagram',   'icon' => 'bxl-instagram', 'label' => 'Instagram Messenger', 'url' => route('admin.messaging.auth.instagram.redirect') . '?return_to=dashboard'],
+            ['key' => 'x',           'class' => 'twitter',     'icon' => 'bxl-twitter',   'label' => 'X Messenger',       'url' => route('admin.messaging.auth.x.redirect') . '?return_to=dashboard'],
+            // No posting-permission gate here (unlike the Posts dashboard's
+            // Add Account tiles) - has_messaging_permission is what actually
+            // matters for the inbox.
+            ['key' => 'tiktok',      'class' => 'tiktok',      'icon' => 'bxl-tiktok',    'label' => 'TikTok Messenger',  'url' => route('admin.messaging.auth.tiktok.redirect') . '?return_to=dashboard'],
+            ['key' => 'whatsapp',    'class' => 'whatsapp',    'icon' => 'bxl-whatsapp',  'label' => 'WhatsApp',          'url' => '#', 'note' => 'Paste your number\'s token'],
+            ['key' => 'google_chat', 'class' => 'google_chat', 'icon' => 'bx-message-rounded-dots', 'label' => 'Google Chat', 'url' => '#', 'note' => 'Paste a service account key'],
+        ];
+    @endphp
+    <x-social-connect-modal
+        id="manageChannelsModal"
+        title="Manage Channels"
+        subtitle="Connect an account and it's ready in your inbox above - no page reload."
+        :platforms="$manageChannelsPlatforms"
+    />
+    <x-whatsapp-connect-modal id="whatsappQuickModal" />
+    <x-google-chat-connect-modal id="googleChatQuickModal" />
 @endsection
 
 @push('scripts')
@@ -1888,6 +1956,42 @@
                         }
                     });
             }
+        });
+    </script>
+
+    <script>
+        // WhatsApp/Google Chat's tiles in #manageChannelsModal are '#'
+        // placeholders, not OAuth links (see the platforms array building
+        // that modal, further up this file) - clicking one closes this
+        // modal and opens the real credential-form modal instead, matching
+        // the exact forms admin/chats/channels.blade.php uses.
+        document.addEventListener('DOMContentLoaded', function () {
+            var manageChannelsModalEl = document.getElementById('manageChannelsModal');
+            if (!manageChannelsModalEl) return;
+
+            var formModalTargets = {
+                whatsapp: 'whatsappQuickModal',
+                google_chat: 'googleChatQuickModal',
+            };
+
+            Object.keys(formModalTargets).forEach(function (platformKey) {
+                var tile = document.querySelector('.social-card-link-' + platformKey);
+                if (!tile) return;
+
+                tile.addEventListener('click', function (e) {
+                    e.preventDefault();
+
+                    var targetModalEl = document.getElementById(formModalTargets[platformKey]);
+                    if (!targetModalEl) return;
+
+                    manageChannelsModalEl.addEventListener('hidden.bs.modal', function openTarget() {
+                        manageChannelsModalEl.removeEventListener('hidden.bs.modal', openTarget);
+                        bootstrap.Modal.getOrCreateInstance(targetModalEl).show();
+                    }, { once: true });
+
+                    bootstrap.Modal.getOrCreateInstance(manageChannelsModalEl).hide();
+                });
+            });
         });
     </script>
 @endpush
