@@ -520,7 +520,6 @@ class SocialAuthService
 
     private function callbackLinkedin(string $code)
     {
-        dd('ok');
         $tokenResponse = $this->api->post('https://www.linkedin.com/oauth/v2/accessToken', [], [
             'grant_type' => 'authorization_code',
             'code' => $code,
