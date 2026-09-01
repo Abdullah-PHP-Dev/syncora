@@ -74,7 +74,7 @@ class SlackMessagingService
 
     private function callbackUrl(): string
     {
-        return config('services.app_url') . '/admin/messaging/auth/slack/callback';
+        return oauthCallbackUrl('admin.messaging.auth.slack.callback');
     }
 
     /**

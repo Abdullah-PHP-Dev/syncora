@@ -98,9 +98,20 @@ class XAdService
         return Redirect::away(adminSetting('ads.x.authorize_url') . '?oauth_token=' . $tokens['oauth_token']);
     }
 
+    /**
+     * Was config('services.app_url') . '/admin/social/auth/x/callback',
+     * which matches no registered route at all (config('services.app_url')
+     * is misconfigured to a different domain, and /admin/social/auth/x/
+     * callback was never a real path either) - X's OAuth callback would
+     * have hit a 404 the first time anyone actually completed the X Ads
+     * consent screen. The real path is admin/ads/{platform}/callback
+     * (admin.ads.platform.callback), same as every other working Ads
+     * connect flow (TikTok/Snapchat/LinkedIn/Facebook/Google all already
+     * used it).
+     */
     private function getCallbackUrl()
     {
-        return config('services.app_url') . '/admin/social/auth/x/callback';
+        return oauthCallbackUrl('admin.ads.platform.callback', 'x');
     }
 
     // ------------------------------------------------------------------

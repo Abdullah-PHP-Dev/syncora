@@ -38,6 +38,17 @@ class XMessagingService
         $this->base = adminSetting('messaging.x.base_url');
     }
 
+    // oauthCallbackUrl() reverse-resolves from routes/web.php and strips
+    // the locale prefix a bare route() call would add (see
+    // app/Helpers/Helper.php). Was previously two separately hand-typed
+    // config('services.app_url') . '...' strings (redirect() and
+    // handleCallback() each had their own copy), which is exactly the
+    // kind of drift risk this replaces.
+    private function callbackUrl(): string
+    {
+        return oauthCallbackUrl('admin.messaging.auth.x.callback');
+    }
+
     /**
      * OAuth 2.0 Authorization Code + PKCE - kicks off the connect flow for
      * a new channel.
@@ -52,7 +63,7 @@ class XMessagingService
         $url = adminSetting('messaging.x.authorize_url') . '?' . http_build_query([
             'response_type'         => 'code',
             'client_id'             => adminSetting('messaging.x.client_id'),
-            'redirect_uri'          => config('services.app_url') . '/admin/messaging/auth/x/callback',
+            'redirect_uri'          => $this->callbackUrl(),
             'scope'                 => 'dm.read dm.write tweet.read users.read offline.access',
             'state'                 => $state,
             'code_challenge'        => $codeChallenge,
@@ -81,7 +92,7 @@ class XMessagingService
             'grant_type'    => 'authorization_code',
             'code'          => $code,
             'client_id'     => adminSetting('messaging.x.client_id'),
-            'redirect_uri'  => config('services.app_url') . '/admin/messaging/auth/x/callback',
+            'redirect_uri'  => $this->callbackUrl(),
             'code_verifier' => $codeVerifier,
         ], 'form');
 

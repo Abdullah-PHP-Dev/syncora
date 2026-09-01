@@ -231,13 +231,16 @@ class PostAccountController extends Controller
 
     private function threadsCallbackUrl(): string
     {
-        // url() resolves from this environment's real APP_URL -
-        // config('services.app_url') is a separate, currently misconfigured
-        // value (pointed at an unrelated domain) that would build a
-        // redirect_uri Threads/Meta would reject as not matching what's
-        // registered, the same issue already found and worked around for
-        // the Messaging module's OAuth flows and for Meta below.
-        return url('/admin/post-accounts/threads/callback');
+        // oauthCallbackUrl() (see app/Helpers/Helper.php) reverse-resolves
+        // from routes/web.php itself rather than a hand-typed path string -
+        // config('services.app_url') is a separate, misconfigured value
+        // (pointed at an unrelated domain) that would build a redirect_uri
+        // Threads/Meta would reject as not matching what's registered, and
+        // strips the locale prefix a bare route() call would otherwise add
+        // (this route lives inside the LaravelLocalization group). Same
+        // reasoning applied across every callback URL in Ads/Posting/
+        // Messaging.
+        return oauthCallbackUrl('admin.post-accounts.threads.callback');
     }
 
     /**
@@ -343,7 +346,7 @@ class PostAccountController extends Controller
 
     private function pinterestCallbackUrl(): string
     {
-        return url('/admin/post-accounts/pinterest/callback');
+        return oauthCallbackUrl('admin.post-accounts.pinterest.callback');
     }
 
     /**
@@ -442,7 +445,7 @@ class PostAccountController extends Controller
 
     private function xCallbackUrl(): string
     {
-        return url('/admin/post-accounts/x/callback');
+        return oauthCallbackUrl('admin.post-accounts.x.callback');
     }
 
     public function redirectInstagram()
@@ -583,7 +586,7 @@ class PostAccountController extends Controller
 
     private function instagramCallbackUrl(): string
     {
-        return url('/admin/post-accounts/instagram/callback');
+        return oauthCallbackUrl('admin.post-accounts.instagram.callback');
     }
 
     public function destroy(SocialAccount $account)

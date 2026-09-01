@@ -61,7 +61,12 @@ class TiktokMessagingService
      */
     private function callbackUrl(): string
     {
-        return rtrim(config('services.app_url'), '/') . '/admin/messaging/auth/tiktok/callback/';
+        // oauthCallbackUrl() reverse-resolves the path from routes/web.php
+        // and strips the locale prefix a bare route() call would add (see
+        // app/Helpers/Helper.php); the trailing "/" still has to be
+        // appended by hand since the registered route's own URI doesn't
+        // end in one (TikTok's requirement, not Laravel's).
+        return oauthCallbackUrl('admin.messaging.auth.tiktok.callback') . '/';
     }
 
     public function redirect($state)
@@ -158,11 +163,7 @@ class TiktokMessagingService
             'app_id'       => (string) adminSetting('ads.tiktok.client_id'),
             'secret'       => (string) adminSetting('ads.tiktok.client_secret'),
             'event_type'   => 'DIRECT_MESSAGE',
-            // routes/api.php's top-level messaging.webhook.tiktok route -
-            // this file lives outside any 'webhooks' path segment (the
-            // whole prefix group is just 'messaging', auto-prefixed with
-            // /api by Laravel), matching every other platform's URL here.
-            'callback_url' => rtrim(config('services.app_url'), '/') . '/api/messaging/tiktok',
+            'callback_url' => route('messaging.webhook.tiktok.receive'),
         ], 'json');
     }
 

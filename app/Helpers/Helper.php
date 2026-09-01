@@ -25,6 +25,33 @@ if (! function_exists('adminSetting')) {
     }
 }
 
+if (! function_exists('oauthCallbackUrl')) {
+
+    /**
+     * Reverse-resolves a named route for use as an OAuth redirect_uri /
+     * webhook callback_url - route() alone isn't enough here because this
+     * app's admin.* routes sit inside the LaravelLocalization group, so a
+     * plain route() call bakes in the current request's locale prefix
+     * (e.g. /en/admin/...) - confirmed live, not theoretical: the Ads
+     * flows that already called route() directly for their callback URL
+     * were already doing this before this helper existed. A callback URL
+     * is a pure machine-to-machine redirect with no user-facing content,
+     * so there's no reason for a provider (Meta, X, TikTok, etc.) to see
+     * a different URL depending on which locale the admin who initiated
+     * the connect happened to be browsing in - and every provider
+     * requires the redirect_uri to match what's registered in their
+     * developer console character-for-character, so an inconsistent
+     * prefix would silently break the connect flow.
+     *
+     * Use this (not a bare route() call) for every OAuth redirect_uri /
+     * webhook callback_url in Ads, Content Posting, and Messaging.
+     */
+    function oauthCallbackUrl(string $name, $parameters = []): string
+    {
+        return LaravelLocalization::getNonLocalizedURL(route($name, $parameters));
+    }
+}
+
 if (! function_exists('set_adminSetting')) {
 
     /**

@@ -70,16 +70,16 @@ class DiscordMessagingService
 
     /**
      * Must exactly match the URL registered in the Developer Portal's
-     * OAuth2 > General > Redirects list, character for character - built
-     * from the app's own current URL (not config('services.app_url'),
-     * which every other platform's redirect()/handleCallback() in this
-     * module relies on but is presently misconfigured to a different
-     * domain) so this keeps working correctly across environments without
-     * inheriting that problem.
+     * OAuth2 > General > Redirects list, character for character -
+     * oauthCallbackUrl() reverse-resolves it from routes/web.php itself
+     * (same as every other platform's callback URL in this module now,
+     * rather than a hand-typed path string that can drift out of sync
+     * with the real route) and strips the locale prefix a bare route()
+     * call would otherwise bake in - see app/Helpers/Helper.php.
      */
     private function redirectUri(): string
     {
-        return url('/admin/messaging/channels/discord');
+        return oauthCallbackUrl('admin.messaging.channels.discord.callback');
     }
 
     /**

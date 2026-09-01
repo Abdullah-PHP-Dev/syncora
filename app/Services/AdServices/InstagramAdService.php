@@ -13,9 +13,14 @@ class InstagramAdService
         return redirect("https://www.facebook.com/v25.0/dialog/AdService?client_id={$clientId}&redirect_uri={$this->getCallbackUrl()}&state={$state}&code_verifier={$codeVerifier}&scope=ads_management,ads_read");
     }
 
+    /**
+     * Dead code - this class is never instantiated anywhere
+     * (SocialAdManagerService's platformMap routes 'instagram' Ads to
+     * FacebookAdService instead). Fixed for consistency with every other
+     * platform's callback URL anyway, in case this is ever wired up.
+     */
     private function getCallbackUrl()
     {
-        return config('services.app_url') . '/admin/social/auth/facebook/callback';
-     //   return config('app.url') . '/admin/ads/facebook/callback';
+        return oauthCallbackUrl('admin.ads.platform.callback', 'facebook');
     }
 }

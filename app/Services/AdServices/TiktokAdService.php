@@ -69,7 +69,7 @@ class TiktokAdService
 
     private function getCallbackUrl()
     {
-        return route('admin.ads.platform.callback', 'tiktok');
+        return oauthCallbackUrl('admin.ads.platform.callback', 'tiktok');
     }
 
     /**

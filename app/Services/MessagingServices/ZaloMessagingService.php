@@ -69,7 +69,7 @@ class ZaloMessagingService
 
     private function callbackUrl(): string
     {
-        return config('services.app_url') . '/admin/messaging/auth/zalo/callback';
+        return oauthCallbackUrl('admin.messaging.auth.zalo.callback');
     }
 
     /**

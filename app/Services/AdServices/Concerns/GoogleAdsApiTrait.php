@@ -66,7 +66,7 @@ trait GoogleAdsApiTrait
      */
     private function getCallbackUrl(string $platform = 'google'): string
     {
-        return route('admin.ads.platform.callback', $platform);
+        return oauthCallbackUrl('admin.ads.platform.callback', $platform);
     }
 
     /**

@@ -78,7 +78,10 @@ class SnapchatAdService
         // which matches no registered route - the real path is
         // admin/ads/{platform}/callback (named admin.ads.platform.callback),
         // same as TikTok/LinkedIn's already-working ad connect flows.
-        return route('admin.ads.platform.callback', 'snapchat');
+        // oauthCallbackUrl() (not a bare route() call) strips the locale
+        // prefix the route would otherwise carry - see
+        // app/Helpers/Helper.php.
+        return oauthCallbackUrl('admin.ads.platform.callback', 'snapchat');
     }
 
     /**

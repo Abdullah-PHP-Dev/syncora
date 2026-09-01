@@ -120,7 +120,7 @@ class LinkedinAdService
 
     private function getCallbackUrl()
     {
-        return route('admin.ads.platform.callback', 'linkedin');
+        return oauthCallbackUrl('admin.ads.platform.callback', 'linkedin');
     }
 
     /**

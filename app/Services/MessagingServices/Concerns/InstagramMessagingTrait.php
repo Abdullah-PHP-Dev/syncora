@@ -69,7 +69,7 @@ trait InstagramMessagingTrait
 
     protected function instagramRedirectUri(): string
     {
-        return config('services.app_url') . '/admin/messaging/auth/instagram/callback';
+        return oauthCallbackUrl('admin.messaging.auth.instagram.callback');
     }
 
     /**
