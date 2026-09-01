@@ -31,6 +31,10 @@ class SocialAccountController extends Controller
 
     public function callback(string $platform, Request $request)
     {
+        dd('ok',$platform,
+            (string) $request->query('code'),
+            $request->query('state'),
+            $request->query('code_verifier'));
         if (!$this->service->isSupported($platform)) {
             abort(404);
         }
