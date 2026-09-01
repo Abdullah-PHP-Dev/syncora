@@ -520,6 +520,7 @@ class SocialAuthService
 
     private function callbackLinkedin(string $code)
     {
+        dd('ok');
         $tokenResponse = $this->api->post('https://www.linkedin.com/oauth/v2/accessToken', [], [
             'grant_type' => 'authorization_code',
             'code' => $code,
@@ -527,7 +528,7 @@ class SocialAuthService
             'client_secret' => adminSetting('posts.linkedin.client_secret'),
             'redirect_uri' => $this->callbackUrl('linkedin'),
         ], 'form');
-        dd($tokenResponse);
+        
         if (!$tokenResponse['success']) {
             return redirect()->route('admin.posts.create')->with('error', $tokenResponse['data']['error_description'] ?? 'Failed to exchange code for a LinkedIn access token.');
         }
