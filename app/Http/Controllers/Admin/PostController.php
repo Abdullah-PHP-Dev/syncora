@@ -599,6 +599,29 @@ class PostController extends Controller
     }
 
     /**
+     * Public, unauthenticated share-preview page for a single post -
+     * routes/web.php registers this OUTSIDE the auth middleware
+     * deliberately. Snap's Creative Kit "Share to Snapchat" button (see
+     * resources/js/components/posts/PostsDashboard.vue and
+     * dashboard.blade.php's quick-post modal) points its data-share-url
+     * here so Snap's servers can fetch og:image/og:title without a
+     * session - the same reason any social share button needs a public
+     * URL rather than the real admin.posts.show page. Deliberately
+     * exposes only this one post's own public-facing content (caption +
+     * first media item) - no owner/account data.
+     */
+    public function sharePreview(int $postId)
+    {
+        $post = Post::with('media')->find($postId);
+
+        return view('share.post', [
+            'title' => $post ? Str::limit($post->content ?: 'SocialEaz post', 90) : 'SocialEaz post',
+            'description' => $post ? Str::limit($post->content ?: '', 200) : null,
+            'media' => $post?->media->first(),
+        ]);
+    }
+
+    /**
      * The relation set every preview() query needs, factored out so the
      * "requested post" lookup and the "rest of its group" lookup can't
      * silently drift apart.

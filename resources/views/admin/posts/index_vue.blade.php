@@ -54,6 +54,7 @@
             api-url="{{ route('admin.posts.data') }}"
             quick-create-url="{{ route('admin.posts.quick') }}"
             preview-url-base="{{ url('admin/posts') }}"
+            share-url-base="{{ url('share/posts') }}"
             user-name="{{ auth()->user()->name ?? 'Admin' }}"
             :posting-accounts='@json($postingAccounts)'
     ></posts-dashboard>

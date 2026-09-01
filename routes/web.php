@@ -134,6 +134,20 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	})->name('terms');
 
 
+	/*
+	|--------------------------------------------------------------------------
+	| Public post share preview - deliberately OUTSIDE the auth group below.
+	| Snap's Creative Kit share flow (and any other social share button)
+	| fetches this URL's og and snapchat meta tags server-side, with no
+	| session cookie - if this required login it would just see a redirect
+	| to /login and the share would show no image/caption at all. Only
+	| exposes a post's own public-facing content (caption + first media
+	| item), nothing account/owner-identifying.
+	|--------------------------------------------------------------------------
+	*/
+	Route::get('share/posts/{post}', [PostController::class, 'sharePreview'])->name('posts.share');
+
+
 	/*Route::view('/about', 'front.pages.about');
 	Route::view('/services', 'front.pages.services');
 	Route::view('/product', 'front.pages.product');

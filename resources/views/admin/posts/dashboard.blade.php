@@ -659,6 +659,15 @@
         ['key' => 'tiktok',    'class' => 'tiktok',    'icon' => 'bxl-tiktok',    'label' => 'TikTok',    'url' => route('admin.social-accounts.redirect', ['platform' => 'tiktok'])],
         ['key' => 'google',    'class' => 'google',    'icon' => 'bxl-google',    'label' => 'Google / YouTube', 'url' => route('admin.social-accounts.redirect', ['platform' => 'google'])],
         ['key' => 'whatsapp',  'class' => 'whatsapp',  'icon' => 'bxl-whatsapp',  'label' => 'WhatsApp',  'url' => route('admin.posts.create')],
+        // Snapchat is deliberately NOT a real connect link - there's no
+        // posting API to authorize (the OAuth flow on the Ads dashboard
+        // only grants Marketing/Ads scopes, which can't publish organic
+        // posts either). Creative Kit's "Share to Snapchat" button (see
+        // the quick-post success handler below) needs no connected
+        // account at all, so this tile just explains that instead of
+        // starting an OAuth redirect that wouldn't actually enable
+        // anything - the click handler lives further down this file.
+        ['key' => 'snapchat',  'class' => 'snapchat',  'icon' => 'bxl-snapchat',  'label' => 'Snapchat',  'url' => '#', 'note' => 'No connection needed'],
     ];
 @endphp
 <x-social-connect-modal id="addAccountModal" :platforms="$postingConnectPlatforms" />
@@ -1254,6 +1263,43 @@
         var platformMeta = @json($platformMeta);
         var statusMeta = @json($statusMeta);
         var platformBrandColors = @json($platformBrandColors);
+        var shareUrlBase = @json(url('share/posts'));
+
+        // quickStore()'s response is keyed by platform, each an array of
+        // that platform's own Post row - any one of them points at the
+        // same content/media for the public share-preview page (see
+        // PostController::sharePreview()).
+        function quickPostSnapchatShareUrl(results) {
+            if (!results) return null;
+            for (var platform in results) {
+                var rows = results[platform];
+                if (Array.isArray(rows) && rows.length && rows[0].id) {
+                    return shareUrlBase + '/' + rows[0].id;
+                }
+            }
+            return null;
+        }
+
+        // The Snapchat tile in the Add Account modal (#addAccountModal,
+        // see the $postingConnectPlatforms array below) is a 'url' => '#'
+        // placeholder, not a real OAuth link - there's no posting API to
+        // connect to. Explain that instead of letting the '#' click do
+        // nothing silently.
+        var snapchatInfoTile = document.querySelector('.social-card-link-snapchat');
+        if (snapchatInfoTile) {
+            snapchatInfoTile.addEventListener('click', function (e) {
+                e.preventDefault();
+                if (window.Swal) {
+                    window.Swal.fire({
+                        icon: 'info',
+                        title: 'Snapchat',
+                        html: 'Snapchat has no API for connecting an account to auto-publish posts.' +
+                            '<br><br>Publish a post here as usual, then use the <strong>Share to Snapchat</strong> ' +
+                            'button that appears afterward to send it manually - no connection needed.'
+                    });
+                }
+            });
+        }
 
         var quickPostModalEl = document.getElementById('calendarQuickPostModal');
         var viewPostModalEl = document.getElementById('calendarViewPostModal');
@@ -1432,8 +1478,43 @@
                             updateQuickPostSubmitLabel();
                             return;
                         }
-                        quickPostModal.hide();
-                        window.location.reload();
+
+                        var shareUrl = quickPostSnapchatShareUrl(data.results);
+
+                        // Snapchat has no auto-publish API (Ads only, plus a
+                        // read-only Public Profile API - see
+                        // developers.snap.com/marketing-api/Public-Profile-API) -
+                        // Creative Kit's client-side share button is the
+                        // legitimate way to get this post onto Snapchat, but it
+                        // needs the user to actually click it, so the reload
+                        // that used to happen immediately here now waits for
+                        // the modal to close instead of racing it away.
+                        if (shareUrl) {
+                            document.querySelector('#calendarQuickPostModal .modal-body').innerHTML =
+                                '<div class="text-center py-4">' +
+                                    '<i class="bx bx-check-circle text-success" style="font-size:40px;"></i>' +
+                                    '<p class="mt-2 mb-3">Post published successfully!</p>' +
+                                    '<p class="text-muted small mb-3">Snapchat has no auto-publish API - share this post manually instead:</p>' +
+                                    '<a href="#" class="btn btn-outline-dark btn-sm snapchat-share-button" data-share-url="' + shareUrl + '">' +
+                                        '<i class="bx bxl-snapchat"></i> Share to Snapchat' +
+                                    '</a>' +
+                                    '<button type="button" class="btn btn-primary btn-sm ms-2" data-bs-dismiss="modal">Done</button>' +
+                                '</div>';
+                            document.querySelector('#calendarQuickPostModal .modal-footer')?.classList.add('d-none');
+
+                            if (window.snap && window.snap.creativekit) {
+                                window.snap.creativekit.initalizeShareButtons(
+                                    document.getElementsByClassName('snapchat-share-button')
+                                );
+                            }
+
+                            quickPostModalEl.addEventListener('hidden.bs.modal', function () {
+                                window.location.reload();
+                            }, { once: true });
+                        } else {
+                            quickPostModal.hide();
+                            window.location.reload();
+                        }
                     })
                     .catch(function () {
                         submitBtn.disabled = false;

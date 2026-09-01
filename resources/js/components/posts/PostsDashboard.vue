@@ -623,6 +623,17 @@ export default {
       default: '/admin/posts'
     },
 
+    // Base for the PUBLIC (unauthenticated) share-preview page - see
+    // routes/web.php's posts.share route and PostController::sharePreview().
+    // Different from previewUrlBase above: that one requires login and is
+    // for viewing your own post inside the app; this one is what Snap's
+    // Creative Kit share button points at, since Snap's servers fetch its
+    // og:image/og:title with no session cookie.
+    shareUrlBase: {
+      type: String,
+      default: '/share/posts'
+    },
+
     userName: {
       type: String,
       default: 'Admin'
@@ -969,6 +980,41 @@ export default {
 
     },
 
+    // quickStore()'s response is keyed by platform (facebook/instagram/...),
+    // each an array of that platform's own Post row - one quick-post
+    // submission fans out to several identical rows, so any one of them
+    // points at the same content/media for the public share-preview page.
+    snapchatShareUrl(results) {
+
+      if (!results) return null;
+
+      for (const platform in results) {
+        const rows = results[platform];
+        if (Array.isArray(rows) && rows.length && rows[0].id) {
+          return `${this.shareUrlBase}/${rows[0].id}`;
+        }
+      }
+
+      return null;
+
+    },
+
+    // Snap Creative Kit only exposes a declarative, class-based init - no
+    // imperative "trigger a share now" call (confirmed against
+    // developers.snap.com/snap-kit/creative-kit/web) - so the button has to
+    // already be in the DOM with the right data-share-url before this
+    // fires. SweetAlert2's didOpen callback is exactly that moment for the
+    // button injected via the html: option above.
+    initSnapchatShareButtons() {
+
+      if (window.snap && window.snap.creativekit) {
+        window.snap.creativekit.initalizeShareButtons(
+          document.getElementsByClassName('snapchat-share-button')
+        );
+      }
+
+    },
+
     playPreview(e) {
 
       const video = e.currentTarget.querySelector('video');
@@ -1098,9 +1144,25 @@ export default {
         this.fetchPosts();
 
         const message = data.message || 'Post published successfully!';
+        const shareUrl = this.snapchatShareUrl(data.results);
 
         if (window.Swal) {
-          window.Swal.fire('Success!', message, 'success');
+          if (shareUrl) {
+            window.Swal.fire({
+              title: 'Success!',
+              icon: 'success',
+              html: message +
+                '<div class="mt-3 pt-2 border-top">' +
+                  '<p class="text-muted small mb-2">Snapchat has no auto-publish API - share this post manually instead:</p>' +
+                  '<a href="#" class="btn btn-sm btn-outline-dark snapchat-share-button" data-share-url="' + shareUrl + '">' +
+                    '<i class="fab fa-snapchat-ghost"></i> Share to Snapchat' +
+                  '</a>' +
+                '</div>',
+              didOpen: this.initSnapchatShareButtons
+            });
+          } else {
+            window.Swal.fire('Success!', message, 'success');
+          }
         } else {
           window.alert(message);
         }

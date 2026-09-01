@@ -29,6 +29,13 @@
                                    connected-state text (falls back to
                                    the shared "See All running campaigns"
                                    copy)
+                     note          string, optional override for the
+                                   disconnected-state text (falls back to
+                                   the shared "Connect" copy) - for a
+                                   platform tile that isn't a real OAuth
+                                   link (see the Snapchat tile on the
+                                   posts dashboard, which has no posting
+                                   API to connect to)
 --}}
 @props([
     'id',
@@ -52,7 +59,7 @@
                     @foreach($platforms as $platform)
                     <div class="col-6 col-md-2 mb-3">
                         <div class="social-card-mini">
-                            <a href="{{ $platform['url'] }}">
+                            <a href="{{ $platform['url'] }}" class="social-card-link social-card-link-{{ $platform['key'] }}">
                                 <div class="social-icon-mini {{ $platform['class'] }}">
                                     <i class="bx {{ $platform['icon'] }}"></i>
                                 </div>
@@ -62,7 +69,7 @@
                                         {{ $platform['connectedText'] ?? __('admin.marketing_tools.ads.accounts.see_all_running_campaigns') }}
                                     </small>
                                 @else
-                                    <small class="disconnected-text">{{ __('admin.marketing_tools.ads.accounts.connect') }}</small>
+                                    <small class="disconnected-text">{{ $platform['note'] ?? __('admin.marketing_tools.ads.accounts.connect') }}</small>
                                 @endif
                             </a>
                         </div>

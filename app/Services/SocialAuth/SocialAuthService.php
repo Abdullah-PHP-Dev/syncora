@@ -511,7 +511,8 @@ class SocialAuthService
             'client_id' => adminSetting('posts.linkedin.client_id'),
             'redirect_uri' => $this->callbackUrl('linkedin'),
             'state' => $state,
-            'scope' => 'openid profile w_member_social r_organization_admin r_organization_social w_organization_social rw_organization_admin r_ads rw_ads r_ads_reporting',
+            'scope' => 'w_member_social r_organization_admin r_organization_social w_organization_social',
+         //   'scope' => 'openid profile w_member_social r_organization_admin r_organization_social w_organization_social rw_organization_admin r_ads rw_ads r_ads_reporting',
         ]);
 
         return Redirect::away($url);

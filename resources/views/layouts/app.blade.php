@@ -138,6 +138,26 @@
 <script src="{{ asset('assets/js/main.js') }}"></script>
 @vite(['resources/css/app.css', 'resources/js/app.js'])
 
+{{-- Snap Creative Kit Web - "Share to Snapchat" button used by the Quick
+     Post composer (see PostsDashboard.vue / dashboard.blade.php's calendar
+     quick-post modal). Snapchat has no public API for automated organic
+     posting (only Ads, and a read-only Public Profile API - verified
+     against developers.snap.com), so this is the legitimate mechanism:
+     a user-triggered client-side share, not a server-side auto-publish
+     like the other platforms. Loaded globally, async, so it's a no-op on
+     every page that doesn't use it. Official integration doc:
+     https://developers.snap.com/snap-kit/creative-kit/web --}}
+<script>
+    (function (d, s, id) {
+        var js, sjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) return;
+        js = d.createElement(s);
+        js.id = id;
+        js.src = 'https://sdk.snapkit.com/js/v1/create.js';
+        sjs.parentNode.insertBefore(js, sjs);
+    })(document, 'script', 'snapkit-creative-kit-sdk');
+</script>
+
 @stack('scripts')
 
 </body>
