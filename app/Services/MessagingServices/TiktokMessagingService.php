@@ -72,6 +72,7 @@ class TiktokMessagingService
         $url = 'https://business-api.tiktok.com/portal/auth?' . http_build_query([
             'app_id'       => adminSetting('ads.tiktok.client_id'),
             'state'        => $state,
+            'response_type'         => 'code',
             'redirect_uri' => $this->callbackUrl(),
         ]);
 
