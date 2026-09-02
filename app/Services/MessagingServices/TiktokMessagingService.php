@@ -129,6 +129,21 @@ class TiktokMessagingService
         $businessId = $data['open_id'] ?? null;
 
         if (!$accessToken || !$businessId) {
+            // This branch previously returned without logging anything -
+            // a real observability gap: the token exchange itself
+            // reported success (code: 0), so the failure warning above
+            // never fires, and a caller only sees the generic message
+            // below with zero way to tell WHY access_token/open_id came
+            // back empty. Logging the full envelope here closes that -
+            // this is also the first time this app has actually seen
+            // what a genuinely successful (code: 0) response looks like
+            // in production, so the field names assumed from TikTok's
+            // docs (data.access_token / data.open_id) can be confirmed
+            // or corrected against it.
+            Log::warning('TikTok token exchange reported success but access_token/open_id were missing.', [
+                'response_data' => $tokenResponse['data'] ?? null,
+            ]);
+
             return ['success' => false, 'error' => 'TikTok did not return an access token or business account id.'];
         }
 
