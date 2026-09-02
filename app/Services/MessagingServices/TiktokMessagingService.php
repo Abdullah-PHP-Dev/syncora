@@ -69,8 +69,8 @@ class TiktokMessagingService
 
     public function redirect($state)
     {
-        $url = 'https://business-api.tiktok.com/portal/auth?' . http_build_query([
-            'app_id'       => adminSetting('ads.tiktok.client_id'),
+        $url = 'https://www.tiktok.com/v2/auth/authorize/?' . http_build_query([
+            'client_key'       => adminSetting('ads.tiktok.client_id'),
             'state'        => $state,
             'response_type'         => 'code',
             'redirect_uri' => $this->callbackUrl(),
