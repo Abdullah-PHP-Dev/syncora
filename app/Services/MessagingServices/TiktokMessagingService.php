@@ -87,7 +87,7 @@ class TiktokMessagingService
      */
     public function handleCallback(string $code): array
     {
-        $tokenResponse = $this->apiService->post($this->base() . 'tt_user/oauth2/token/', ['Content-Type' => 'application/json'], [
+        $tokenResponse = $this->apiService->post('https://open.tiktokapis.com/v2/oauth/token/', ['Content-Type' => 'application/json'], [
             'client_id'     => (string) adminSetting('ads.tiktok.client_id'),
             'client_secret' => (string) adminSetting('ads.tiktok.client_secret'),
             'grant_type'    => 'authorization_code',
