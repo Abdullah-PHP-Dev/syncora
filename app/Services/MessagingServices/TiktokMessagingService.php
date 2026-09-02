@@ -72,6 +72,8 @@ class TiktokMessagingService
         $url = 'https://www.tiktok.com/v2/auth/authorize/?' . http_build_query([
             'client_key'       => adminSetting('ads.tiktok.client_id'),
             'state'        => $state,
+                        'scope'                 => 'user.info.basic',
+
             'response_type'         => 'code',
             'redirect_uri' => $this->callbackUrl(),
         ]);
