@@ -36,22 +36,33 @@ use Carbon\Carbon;
  * that has the Ads redirect URLs registered also has the Messaging
  * callback URLs registered alongside them).
  *
- * IMPORTANT, and the reason this class exists in its current form: the
- * AUTHORIZE step is NOT business-api.tiktok.com/portal/auth (the
- * Advertiser-authorization flow TiktokAdService uses) - it's TikTok's
- * consumer-facing Login Kit endpoint, www.tiktok.com/v2/auth/authorize/
- * (client_key + PKCE), the exact same domain/shape already proven working
- * in this codebase for TikTok content posting (see SocialAuthService::
- * redirectTiktok()). Sending users through the Advertiser flow instead
- * produced a code that business/tt_user/oauth2/token/ (correctly, this
- * endpoint IS right - verified via real request/response dumps) always
- * rejected as "expired", regardless of how quickly it was redeemed -
- * because it was never the right kind of code to begin with. "tt_user"
- * (TikTok User / Account Holder) vs. "advertiser" is the actual
- * distinction TikTok draws between these two authorize flows; Business
- * Messaging needs the Account Holder one, which is Login Kit's, even
- * though the token it's redeemed for is minted by the Business API
- * domain.
+ * IMPORTANT, and the reason this class exists in its current form: TikTok
+ * has THREE distinct OAuth authorize flows sharing overlapping domains,
+ * and getting the wrong one silently produces a code that looks fine but
+ * always fails token exchange:
+ *   1. Advertiser authorization (business-api.tiktok.com/portal/auth,
+ *      app_id param) - TiktokAdService's flow, for the Marketing/Ads API.
+ *      Code valid 1 hour.
+ *   2. Login Kit (www.tiktok.com/v2/auth/authorize/, client_key + PKCE
+ *      code_challenge) - SocialAuthService::redirectTiktok()'s flow, for
+ *      consumer-facing content posting (video.publish etc.).
+ *   3. TikTok account holder authorization (www.tiktok.com/v2/auth/
+ *      authorize - note: no trailing slash, no PKCE - client_key only) -
+ *      what THIS class uses. Confirmed via TikTok's own "Comparing
+ *      authorization for different APIs" doc table: the Accounts API/
+ *      Mentions API family (which is what tt_user/oauth2/token/ - this
+ *      class's token endpoint - belongs to) authorizes "via TikTok
+ *      organic account" through this specific flow, with a 10-minute,
+ *      single-use code - exactly matching the "Authorization code is
+ *      expired" failures every earlier attempt (first using flow #1,
+ *      then incorrectly assuming flow #2) hit, regardless of how fast
+ *      the code was redeemed, because neither was ever the right kind of
+ *      code for tt_user/oauth2/token/ to accept.
+ * redirect()'s exact URL shape (no trailing slash, no PKCE, and the scope
+ * list) is copied from this app's own real, portal-generated "TikTok
+ * account holder authorization URL" (My Apps > Basic Information, right
+ * below "Advertiser authorization URL") - not assembled from docs
+ * examples, which is exactly how the first two wrong attempts happened.
  */
 class TiktokMessagingService
 {
@@ -82,32 +93,36 @@ class TiktokMessagingService
     }
 
     /**
-     * Login Kit's authorize endpoint - client_key + PKCE, matching
-     * SocialAuthService::redirectTiktok() exactly (same working shape,
-     * different scope). code_verifier is stashed in session (own key, so
-     * connecting TikTok Messaging in one tab doesn't clobber a
-     * concurrently in-progress TikTok posting connect using the same
-     * PKCE mechanism in another) and read back in handleCallback().
+     * The "TikTok account holder authorization URL" - a THIRD, distinct
+     * authorize flow from both the Advertiser one (business-api.tiktok.
+     * com/portal/auth, used by TiktokAdService) and Login Kit (same
+     * www.tiktok.com/v2/auth/authorize domain SocialAuthService::
+     * redirectTiktok() uses for posting, but NOT the same flow) -
+     * confirmed via TikTok's own "Comparing authorization for different
+     * APIs" doc table: Accounts API/Mentions API (the "tt_user" family
+     * tt_user/oauth2/token/ belongs to) authorizes "via TikTok organic
+     * account" through this specific URL, shown pre-built on My Apps >
+     * Basic Information (right below "Advertiser authorization URL"),
+     * with a 10-minute/single-use code - exactly matching the "expired"
+     * failures every earlier attempt hit, because every earlier attempt
+     * used the wrong authorize flow.
      *
-     * Scope: message.list.manage/send/read are the Business Messaging
-     * scopes visible in TikTok's own docs (the tt_user/oauth2/token/
-     * example response's scope list); user.info.basic is included for
-     * basic identity, matching every other Login Kit scope request in
-     * this app.
+     * scope and the exact URL shape (no trailing "/" after "authorize",
+     * no PKCE code_challenge - unlike Login Kit's posting flow) are taken
+     * directly from this app's own real, portal-generated authorization
+     * URL rather than guessed: only client_key, redirect_uri, and state
+     * are substituted with this app's real values; the scope list is
+     * used verbatim since it's TikTok's own account of what's actually
+     * granted to this specific app, not assembled from a docs example.
      */
     public function redirect($state)
     {
-        $codeVerifier = bin2hex(random_bytes(32));
-        session(['messaging_tiktok_code_verifier' => $codeVerifier]);
-
-        $url = 'https://www.tiktok.com/v2/auth/authorize/?' . http_build_query([
-            'client_key'            => adminSetting('ads.tiktok.client_id'),
-            'response_type'         => 'code',
-            'scope'                 => 'user.info.basic',
-            'redirect_uri'          => $this->callbackUrl(),
-            'state'                 => $state,
-            'code_challenge'        => hash('sha256', $codeVerifier),
-            'code_challenge_method' => 'S256',
+        $url = 'https://www.tiktok.com/v2/auth/authorize?' . http_build_query([
+            'client_key'    => adminSetting('ads.tiktok.client_id'),
+            'scope'         => 'biz.brand.insights,comment.list,video.list,video.insights,biz.ads.recommend,user.info.basic,biz.creator.info,biz.creator.insights,tto.campaign.link',
+            'response_type' => 'code',
+            'redirect_uri'  => $this->callbackUrl(),
+            'state'         => $state,
         ]);
 
         return Redirect::away($url);
@@ -122,22 +137,19 @@ class TiktokMessagingService
      */
     public function handleCallback(string $code): array
     {
-        $codeVerifier = session('messaging_tiktok_code_verifier');
-        session()->forget('messaging_tiktok_code_verifier');
-
         $tokenResponse = $this->apiService->post($this->base() . 'tt_user/oauth2/token/', ['Content-Type' => 'application/json'], [
             'client_id'     => (string) adminSetting('ads.tiktok.client_id'),
             'client_secret' => (string) adminSetting('ads.tiktok.client_secret'),
             'grant_type'    => 'authorization_code',
             'auth_code'     => $code,
             'redirect_uri'  => $this->callbackUrl(),
-            // Not documented as a required field on this specific endpoint
-            // (client_secret alone is normally enough to authenticate a
-            // confidential client), but harmless to include since
-            // redirect() now generates a real PKCE pair - and if TikTok
-            // does check it for a Login-Kit-issued code, omitting it
-            // would be the difference between working and not.
-            'code_verifier' => $codeVerifier,
+            // No code_verifier - redirect() no longer generates a PKCE
+            // pair, since this flow's own portal-generated authorize URL
+            // has no code_challenge either (confirmed: this is a
+            // different flow from the PKCE-based Login Kit one
+            // SocialAuthService::redirectTiktok() uses for posting), and
+            // this endpoint's own documented required fields never
+            // included it.
         ], 'json');
         if (!$tokenResponse['success'] || (int) ($tokenResponse['data']['code'] ?? -1) !== 0) {
             // ApiService::sendRequest() returns two different shapes on
@@ -417,7 +429,14 @@ class TiktokMessagingService
      */
     public function handleWebhook(array $payload): void
     {
+        // Both early returns below used to be silent - exactly the kind
+        // of gap this class kept turning out to have (token exchange,
+        // webhook registration, both already fixed the same way). If
+        // real DM events are arriving but never showing up as Messages,
+        // these two log lines are what tell us which stage is actually
+        // failing, rather than guessing again.
         if (($payload['event'] ?? null) !== 'im_receive_msg' && ($payload['event'] ?? null) !== 'im_receive_msg_eu') {
+            Log::info('TikTok webhook received a non-message event (or unrecognized event field) - ignored.', ['event' => $payload['event'] ?? null, 'payload_keys' => array_keys($payload)]);
             return;
         }
 
@@ -432,6 +451,10 @@ class TiktokMessagingService
         $channel = $businessId ? MessageChannel::where('platform', 'tiktok')->where('external_id', $businessId)->first() : null;
 
         if (!$channel) {
+            Log::warning('TikTok webhook message arrived for a business_id with no matching connected channel - dropped.', [
+                'business_id' => $businessId,
+                'known_tiktok_external_ids' => MessageChannel::where('platform', 'tiktok')->pluck('external_id'),
+            ]);
             return;
         }
 
