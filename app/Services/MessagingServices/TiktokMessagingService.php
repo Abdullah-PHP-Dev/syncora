@@ -132,8 +132,7 @@ class TiktokMessagingService
             // "correct the following: scope" rejection was almost
             // certainly about being on the wrong flow, not these names
             // being invalid - untested until now on the right endpoint.
-            'scope'         => 'biz.brand.insights,comment.list,video.list,video.insights,biz.ads.recommend,user.info.basic,biz.creator.info,biz.creator.insights,tto.campaign.link,message.list.manage,message.list.send,message.list.read',
-            'response_type' => 'code',
+            'scope'         => 'biz.brand.insights,comment.list,video.list,video.insights,biz.ads.recommend,user.info.basic,biz.creator.info,biz.creator.insights,tto.campaign.link',            'response_type' => 'code',
             'redirect_uri'  => $this->callbackUrl(),
             'state'         => $state,
         ]);
