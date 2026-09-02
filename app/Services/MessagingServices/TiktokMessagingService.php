@@ -119,7 +119,20 @@ class TiktokMessagingService
     {
         $url = 'https://www.tiktok.com/v2/auth/authorize?' . http_build_query([
             'client_key'    => adminSetting('ads.tiktok.client_id'),
-            'scope'         => 'biz.brand.insights,comment.list,video.list,video.insights,biz.ads.recommend,user.info.basic,biz.creator.info,biz.creator.insights,tto.campaign.link',
+            // The base list is copied verbatim from this app's portal-
+            // generated "TikTok account holder authorization URL" (see
+            // the class docblock) - confirmed via a real connect's stored
+            // SocialAccount.metadata.scope to grant EXACTLY that list and
+            // nothing more, no messaging scope included by default even
+            // though Business Messaging is approved at the app level
+            // (webhook registration succeeds independently of this).
+            // message.list.manage/send/read appended explicitly - the
+            // same three names tried once before, but that attempt used
+            // the wrong authorize endpoint entirely (Login Kit) and its
+            // "correct the following: scope" rejection was almost
+            // certainly about being on the wrong flow, not these names
+            // being invalid - untested until now on the right endpoint.
+            'scope'         => 'biz.brand.insights,comment.list,video.list,video.insights,biz.ads.recommend,user.info.basic,biz.creator.info,biz.creator.insights,tto.campaign.link,message.list.manage,message.list.send,message.list.read',
             'response_type' => 'code',
             'redirect_uri'  => $this->callbackUrl(),
             'state'         => $state,
