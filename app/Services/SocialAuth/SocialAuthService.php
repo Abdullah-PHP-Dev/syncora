@@ -94,6 +94,7 @@ class SocialAuthService
     {
         // oauthCallbackUrl() reverse-resolves from routes/web.php and
         // strips the locale prefix - see app/Helpers/Helper.php.
+        dd(oauthCallbackUrl('admin.social-accounts.callback', ['platform' => $platform]));
         return oauthCallbackUrl('admin.social-accounts.callback', ['platform' => $platform]);
     }
 
