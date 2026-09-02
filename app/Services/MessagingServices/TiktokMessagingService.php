@@ -69,12 +69,9 @@ class TiktokMessagingService
 
     public function redirect($state)
     {
-        $url = 'https://www.tiktok.com/v2/auth/authorize/?' . http_build_query([
-            'client_key'       => adminSetting('ads.tiktok.client_id'),
+        $url = 'https://business-api.tiktok.com/portal/auth?' . http_build_query([
+            'app_id'       => adminSetting('ads.tiktok.client_id'),
             'state'        => $state,
-                        'scope'                 => 'user.info.basic',
-
-            'response_type'         => 'code',
             'redirect_uri' => $this->callbackUrl(),
         ]);
 
@@ -90,14 +87,13 @@ class TiktokMessagingService
      */
     public function handleCallback(string $code): array
     {
-        $tokenResponse = $this->apiService->post('https://open.tiktokapis.com/v2/oauth/token/', ['Content-Type' => 'application/json'], [
+        $tokenResponse = $this->apiService->post($this->base() . 'tt_user/oauth2/token/', ['Content-Type' => 'application/json'], [
             'client_id'     => (string) adminSetting('ads.tiktok.client_id'),
             'client_secret' => (string) adminSetting('ads.tiktok.client_secret'),
             'grant_type'    => 'authorization_code',
             'auth_code'     => $code,
             'redirect_uri'  => $this->callbackUrl(),
         ], 'json');
-
         if (!$tokenResponse['success'] || (int) ($tokenResponse['data']['code'] ?? -1) !== 0) {
             // ApiService::sendRequest() returns two different shapes on
             // failure: a real HTTP response (has 'data'/'body'/'status')
@@ -132,21 +128,6 @@ class TiktokMessagingService
         $businessId = $data['open_id'] ?? null;
 
         if (!$accessToken || !$businessId) {
-            // This branch previously returned without logging anything -
-            // a real observability gap: the token exchange itself
-            // reported success (code: 0), so the failure warning above
-            // never fires, and a caller only sees the generic message
-            // below with zero way to tell WHY access_token/open_id came
-            // back empty. Logging the full envelope here closes that -
-            // this is also the first time this app has actually seen
-            // what a genuinely successful (code: 0) response looks like
-            // in production, so the field names assumed from TikTok's
-            // docs (data.access_token / data.open_id) can be confirmed
-            // or corrected against it.
-            Log::warning('TikTok token exchange reported success but access_token/open_id were missing.', [
-                'response_data' => $tokenResponse['data'] ?? null,
-            ]);
-
             return ['success' => false, 'error' => 'TikTok did not return an access token or business account id.'];
         }
 
