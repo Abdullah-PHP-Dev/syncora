@@ -219,16 +219,52 @@ class TiktokMessagingService
      * involved) - one call covers every TikTok Business Account connected
      * through this app, so it's safe (and cheap) to call again on every
      * new connect rather than trying to track "already subscribed"
-     * per-app state.
+     * per-app state. event_type: 'DIRECT_MESSAGE' is the only value this
+     * endpoint accepts (confirmed against TikTok's own doc page) - it's
+     * what actually turns on delivery of im_receive_msg/im_receive_msg_eu
+     * events (real user messages) to callback_url; without a successful
+     * call here, TiktokWebhookController::receive() never gets hit at
+     * all, no matter how correct its own handling is.
+     *
+     * This previously had zero response validation - a fire-and-forget
+     * call whose failure (wrong scope, wrong domain, TikTok-side error)
+     * would be completely invisible, the same blind spot handleCallback()
+     * had before it got the same treatment. The outer try/catch in
+     * handleCallback() only catches connection-level exceptions; a 200
+     * response carrying an error code needs its own check, same pattern
+     * as every other TikTok call in this class.
+     *
+     * DANGER - do not call this ad-hoc (eg. via tinker) from any
+     * environment other than the one that should own the live webhook
+     * right now: this is a single, app-wide TikTok-side setting keyed on
+     * app_id/event_type, not scoped per environment in any way TikTok
+     * can tell. route('messaging.webhook.tiktok.receive') resolves from
+     * whichever APP_URL the calling environment has - running this
+     * locally silently overwrites production's real webhook to point at
+     * an unreachable dev URL, breaking live inbound message delivery
+     * until someone notices and re-registers the right callback_url (this
+     * happened once already testing this method - see git history).
      */
     public function subscribeToWebhooks(): void
     {
-        $this->apiService->post($this->base() . 'business/webhook/update/', ['Content-Type' => 'application/json'], [
+        $response = $this->apiService->post($this->base() . 'business/webhook/update/', ['Content-Type' => 'application/json'], [
             'app_id'       => (string) adminSetting('ads.tiktok.client_id'),
             'secret'       => (string) adminSetting('ads.tiktok.client_secret'),
             'event_type'   => 'DIRECT_MESSAGE',
             'callback_url' => route('messaging.webhook.tiktok.receive'),
         ], 'json');
+
+        if (!$response['success'] || (int) ($response['data']['code'] ?? -1) !== 0) {
+            Log::warning('TikTok Business Messaging webhook registration failed - inbound messages will not be delivered.', [
+                'status' => $response['status'] ?? null,
+                'body'   => $response['body'] ?? ($response['data'] ?? null),
+                'error'  => $response['error'] ?? null,
+            ]);
+
+            return;
+        }
+
+        Log::info('TikTok Business Messaging webhook registered.', ['callback_url' => route('messaging.webhook.tiktok.receive')]);
     }
 
     /**
