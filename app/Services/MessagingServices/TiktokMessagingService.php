@@ -31,13 +31,27 @@ use Carbon\Carbon;
  *
  * Reuses the ads.tiktok.client_id/client_secret admin settings, same
  * developer app as TikTok Ads - Business Messaging is a permission
- * granted to an existing app, not a separate app registration.
+ * granted to an existing app, not a separate app registration (confirmed
+ * against this app's own TikTok Developer Portal screen: the same App ID
+ * that has the Ads redirect URLs registered also has the Messaging
+ * callback URLs registered alongside them).
  *
- * Important: this uses a DIFFERENT token-exchange endpoint than
- * TiktokAdService (tt_user/oauth2/token/ with client_id/client_secret,
- * not oauth2/access_token/ with app_id/secret) - confirmed from TikTok's
- * own Business Messaging docs. The authorize step (business-api.tiktok.
- * com/portal/auth) is the same for both products.
+ * IMPORTANT, and the reason this class exists in its current form: the
+ * AUTHORIZE step is NOT business-api.tiktok.com/portal/auth (the
+ * Advertiser-authorization flow TiktokAdService uses) - it's TikTok's
+ * consumer-facing Login Kit endpoint, www.tiktok.com/v2/auth/authorize/
+ * (client_key + PKCE), the exact same domain/shape already proven working
+ * in this codebase for TikTok content posting (see SocialAuthService::
+ * redirectTiktok()). Sending users through the Advertiser flow instead
+ * produced a code that business/tt_user/oauth2/token/ (correctly, this
+ * endpoint IS right - verified via real request/response dumps) always
+ * rejected as "expired", regardless of how quickly it was redeemed -
+ * because it was never the right kind of code to begin with. "tt_user"
+ * (TikTok User / Account Holder) vs. "advertiser" is the actual
+ * distinction TikTok draws between these two authorize flows; Business
+ * Messaging needs the Account Holder one, which is Login Kit's, even
+ * though the token it's redeemed for is minted by the Business API
+ * domain.
  */
 class TiktokMessagingService
 {
@@ -67,12 +81,33 @@ class TiktokMessagingService
         return oauthCallbackUrl('admin.messaging.auth.tiktok.callback');
     }
 
+    /**
+     * Login Kit's authorize endpoint - client_key + PKCE, matching
+     * SocialAuthService::redirectTiktok() exactly (same working shape,
+     * different scope). code_verifier is stashed in session (own key, so
+     * connecting TikTok Messaging in one tab doesn't clobber a
+     * concurrently in-progress TikTok posting connect using the same
+     * PKCE mechanism in another) and read back in handleCallback().
+     *
+     * Scope: message.list.manage/send/read are the Business Messaging
+     * scopes visible in TikTok's own docs (the tt_user/oauth2/token/
+     * example response's scope list); user.info.basic is included for
+     * basic identity, matching every other Login Kit scope request in
+     * this app.
+     */
     public function redirect($state)
     {
-        $url = 'https://business-api.tiktok.com/portal/auth?' . http_build_query([
-            'app_id'       => adminSetting('ads.tiktok.client_id'),
-            'state'        => $state,
-            'redirect_uri' => $this->callbackUrl(),
+        $codeVerifier = bin2hex(random_bytes(32));
+        session(['messaging_tiktok_code_verifier' => $codeVerifier]);
+
+        $url = 'https://www.tiktok.com/v2/auth/authorize/?' . http_build_query([
+            'client_key'            => adminSetting('ads.tiktok.client_id'),
+            'response_type'         => 'code',
+            'scope'                 => 'user.info.basic,message.list.manage,message.list.send,message.list.read',
+            'redirect_uri'          => $this->callbackUrl(),
+            'state'                 => $state,
+            'code_challenge'        => hash('sha256', $codeVerifier),
+            'code_challenge_method' => 'S256',
         ]);
 
         return Redirect::away($url);
@@ -87,12 +122,22 @@ class TiktokMessagingService
      */
     public function handleCallback(string $code): array
     {
+        $codeVerifier = session('messaging_tiktok_code_verifier');
+        session()->forget('messaging_tiktok_code_verifier');
+
         $tokenResponse = $this->apiService->post($this->base() . 'tt_user/oauth2/token/', ['Content-Type' => 'application/json'], [
             'client_id'     => (string) adminSetting('ads.tiktok.client_id'),
             'client_secret' => (string) adminSetting('ads.tiktok.client_secret'),
             'grant_type'    => 'authorization_code',
             'auth_code'     => $code,
             'redirect_uri'  => $this->callbackUrl(),
+            // Not documented as a required field on this specific endpoint
+            // (client_secret alone is normally enough to authenticate a
+            // confidential client), but harmless to include since
+            // redirect() now generates a real PKCE pair - and if TikTok
+            // does check it for a Login-Kit-issued code, omitting it
+            // would be the difference between working and not.
+            'code_verifier' => $codeVerifier,
         ], 'json');
         if (!$tokenResponse['success'] || (int) ($tokenResponse['data']['code'] ?? -1) !== 0) {
             // ApiService::sendRequest() returns two different shapes on
