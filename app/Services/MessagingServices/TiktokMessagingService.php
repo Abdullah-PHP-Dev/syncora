@@ -94,13 +94,7 @@ class TiktokMessagingService
             'auth_code'     => $code,
             'redirect_uri'  => $this->callbackUrl(),
         ], 'json');
-        dd($this->base() . 'tt_user/oauth2/token/', $tokenResponse, ['Content-Type' => 'application/json'], [
-            'client_id'     => (string) adminSetting('ads.tiktok.client_id'),
-            'client_secret' => (string) adminSetting('ads.tiktok.client_secret'),
-            'grant_type'    => 'authorization_code',
-            'auth_code'     => $code,
-            'redirect_uri'  => $this->callbackUrl(),
-        ], 'json');
+
         if (!$tokenResponse['success'] || (int) ($tokenResponse['data']['code'] ?? -1) !== 0) {
             // ApiService::sendRequest() returns two different shapes on
             // failure: a real HTTP response (has 'data'/'body'/'status')
