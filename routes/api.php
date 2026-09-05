@@ -112,7 +112,7 @@ Route::get('/user', function (Request $request) {
         // platforms above - one call to business/webhook/update/
         // (TiktokMessagingService::subscribeToWebhooks()) covers every
         // TikTok Business Account connected through this app.
-        Route::post('/tiktok', [\App\Http\Controllers\Api\Messaging\TiktokWebhookController::class, 'receive'])->name('tiktok.receive');
+        Route::match(['get', 'post'], '/tiktok', \App\Http\Controllers\Api\Messaging\TiktokWebhookController::class, 'receive')->name('tiktok.receive');
         // Deliberately no Discord route here - Discord has no webhook
         // delivery for bot DMs at all, so there is no URL to register in
         // the Developer Portal for this. Inbound Discord messages are

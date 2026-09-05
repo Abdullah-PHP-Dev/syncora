@@ -278,12 +278,7 @@ class TiktokMessagingService
             'callback_url' => route('messaging.webhook.tiktok.receive'),
         ], 'json');
 
-        dd($this->base() . 'business/webhook/update/',  ['Content-Type' => 'application/json'], [
-            'app_id'       => (string) adminSetting('ads.tiktok.client_id'),
-            'secret'       => (string) adminSetting('ads.tiktok.client_secret'),
-            'event_type'   => 'DIRECT_MESSAGE',
-            'callback_url' => route('messaging.webhook.tiktok.receive'),
-        ], 'json', $response);
+       
         if (!$response['success'] || (int) ($response['data']['code'] ?? -1) !== 0) {
             Log::warning('TikTok Business Messaging webhook registration failed - inbound messages will not be delivered.', [
                 'status' => $response['status'] ?? null,
