@@ -24,7 +24,10 @@ use App\Models\PostComment;
 use App\Models\Messaging\Message;
 use Illuminate\Support\Facades\DB;
 use App\Models\Messaging\Conversation;
+use App\Support\Gemini\RetryPolicy;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class PostController extends Controller
@@ -880,6 +883,255 @@ class PostController extends Controller
         ];
 
         return $summary;
+    }
+
+    /**
+     * The redesigned Vue Create Post page (PostComposer.vue) - reuses
+     * exactly the account/category queries create() already runs, minus
+     * the scheduled-posts/user-media data that page's own calendar/
+     * media-library sidebar needs and this one doesn't. Submits to the
+     * same store() below.
+     */
+    public function composer()
+    {
+        $userId = Auth::id();
+
+        $categories = PostCategory::where('user_id', $userId)
+            ->orderBy('id', 'desc')
+            ->get();
+
+        $accounts = SocialAccount::whereUserId($userId)->where('has_posting_permission', true)->get();
+
+        return view('admin.posts.composer', compact('categories', 'accounts'));
+    }
+
+    /**
+     * AI Content Assistant (PostComposer.vue / AiAssistantPanel.vue) -
+     * proxies to Google Gemini so the API key only ever lives server-side.
+     * The previous attempt at this (askOpenAI() above, despite the name)
+     * depended on a $nanoBananaAI service that's never actually
+     * constructed (see the commented-out assignment in __construct()) and
+     * was never routed - this is a fresh, working implementation, not a
+     * fix to that one.
+     *
+     * response_schema forces Gemini to return exactly {title, description,
+     * hashtags[]} as real JSON (response_mime_type: application/json) -
+     * no regex/parseGeminiResponse()-style scraping of free-form text
+     * needed, unlike the old attempt.
+     *
+     * Model: gemini-3.6-flash, not gemini-1.5-flash - verified live against
+     * this app's real API key that 1.5-flash 404s ("no longer available to
+     * new users"), and 2.5-flash 404s the same way; Google's own error
+     * response for 1.5-flash names 3.6-flash as the replacement, and it's
+     * been confirmed working (including with this exact response_schema)
+     * over several real calls. Worth re-checking against
+     * generativelanguage.googleapis.com/v1beta/models?key=... (list
+     * models) if this starts 404ing again in the future - Google has
+     * retired every "flash" version tried before this one.
+     */
+    public function generateAiContent(Request $request)
+    {
+        $validated = $request->validate([
+            'prompt' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $apiKey = adminSetting('gemini_api_key_free');
+
+        if (empty($apiKey)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gemini API key is missing in admin settings.',
+            ], 422);
+        }
+
+        // PHP's own max_execution_time (30s in this environment) is a
+        // wall-clock budget for the WHOLE request, separate from and not
+        // reset by Http::timeout() below - it does not pause for HTTP I/O
+        // or for the Sleep::for() calls retry() makes between attempts.
+        // Confirmed live: 3 retry attempts against a real 429, using
+        // Gemini's own retryDelay values (1s, then 10s) plus the HTTP
+        // calls themselves, totalled just over 30s and PHP force-killed
+        // the script mid-request (storage/logs/laravel.log: "Maximum
+        // execution time of 30 seconds exceeded", a FatalError thrown
+        // from vendor Sleep.php - not catchable by this method's own
+        // try/catch-free error handling below, so it rendered as a raw
+        // branded 500 page instead of the intended graceful 422 JSON).
+        // Raising the budget for THIS request only (not php.ini/global)
+        // gives the retry loop room to actually finish. Paired with the
+        // capped per-attempt timeout and capped retry delay below, the
+        // realistic worst case (3 attempts x 15s + 2 delays x 12s) is
+        // ~69s, comfortably inside this 120s budget.
+        set_time_limit(120);
+
+        $response = Http::timeout(15)
+            ->retry(3, fn ($attempt, $exception) => RetryPolicy::delayMs($attempt, $exception), fn ($exception) => RetryPolicy::isRetryable($exception), throw: false)
+            ->post(
+                'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' . $apiKey,
+                [
+                    'contents' => [
+                        [
+                            'role' => 'user',
+                            'parts' => [
+                                ['text' => 'Write a social media post based on this request: "' . $validated['prompt'] . '". '
+                                    . 'Keep the description punchy and platform-neutral (no more than a couple of short '
+                                    . 'paragraphs), and give 5-10 relevant hashtags with no spaces and no leading text.'],
+                            ],
+                        ],
+                    ],
+                    'generationConfig' => [
+                        'response_mime_type' => 'application/json',
+                        'response_schema' => [
+                            'type' => 'OBJECT',
+                            'properties' => [
+                                'title' => ['type' => 'STRING', 'description' => 'A short, engaging post headline, under 100 characters.'],
+                                'description' => ['type' => 'STRING', 'description' => 'The main post body, adapted for social media.'],
+                                'hashtags' => [
+                                    'type' => 'ARRAY',
+                                    'items' => ['type' => 'STRING'],
+                                    'description' => '5 to 10 relevant hashtags, each starting with # and containing no spaces.',
+                                ],
+                            ],
+                            'required' => ['title', 'description', 'hashtags'],
+                        ],
+                    ],
+                ]
+            );
+
+        if (!$response->successful()) {
+            Log::warning('Gemini AI content generation failed.', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $response->json('error.message') ?? 'Failed to generate content - please try again.',
+            ], 422);
+        }
+
+        // candidates[0].content.parts[0].text is a JSON *string* (that's
+        // what response_mime_type: application/json actually guarantees -
+        // the response TEXT is valid JSON, not that Gemini's own envelope
+        // around it changes shape), so it needs a second json_decode().
+        $rawText = $response->json('candidates.0.content.parts.0.text');
+        $data = $rawText ? json_decode($rawText, true) : null;
+
+        if (!is_array($data) || !isset($data['title'], $data['description'], $data['hashtags'])) {
+            Log::warning('Gemini AI content generation returned an unexpected shape.', ['raw' => $rawText]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gemini returned an unexpected response - please try again.',
+            ], 422);
+        }
+
+        // Confirmed live over several real calls: Gemini follows the
+        // "no spaces" instruction in the schema description most of the
+        // time, but not always (one real response came back with a
+        // hashtag like "#Entrepreneurship 创业" - stray text appended with
+        // a space) - the schema constrains the JSON *shape*, not the
+        // content of each string, so this can't be relied on alone.
+        // Whitespace is stripped (not the whole item dropped) so a mostly-
+        // good hashtag isn't thrown away over one stray trailing word.
+        $hashtags = collect((array) $data['hashtags'])
+            ->map(fn ($tag) => preg_replace('/\s+/u', '', (string) $tag))
+            ->filter()
+            ->map(fn ($tag) => str_starts_with($tag, '#') ? $tag : '#' . $tag)
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'title' => $data['title'],
+                'description' => $data['description'],
+                'hashtags' => $hashtags,
+            ],
+        ]);
+    }
+
+    /**
+     * AI Image generation (AiAssistantPanel.vue's "Generate Image" card) -
+     * Cloudflare Workers AI, same "credentials never leave the server"
+     * shape as generateAiContent() above.
+     *
+     * Response envelope verified live against this app's real account:
+     * {success, errors[], result: {image: "<base64>"}} - success is a
+     * real field to check, not just the HTTP status. Confirmed live that
+     * this model's own NSFW filter can false-positive on a completely
+     * benign prompt ("a simple red circle on white background" got flagged
+     * once, then succeeded immediately after on retry with no prompt
+     * change) - errors[0].message is surfaced as-is rather than a generic
+     * "failed" message, since for this specific failure mode the real
+     * Cloudflare message ("Input prompt contains NSFW content") is
+     * actionable in a way a generic one wouldn't be (try rephrasing,
+     * rather than assume something is broken).
+     *
+     * result.image has no MIME type in the envelope - every response
+     * checked live decoded to a JPEG (the /9j/ base64 signature is
+     * flux-1-schnell's actual default output format), so it's uploaded
+     * as .jpg rather than sniffed.
+     */
+    public function generateAiImage(Request $request)
+    {
+        $validated = $request->validate([
+            'prompt' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $accountId = adminSetting('cloudflare_account_key');
+        $apiToken = adminSetting('cloudflare_api_key');
+
+        if (empty($accountId) || empty($apiToken)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cloudflare API credentials are not configured in admin settings.',
+            ], 422);
+        }
+
+        $response = Http::timeout(60)->withToken($apiToken)->post(
+            "https://api.cloudflare.com/client/v4/accounts/{$accountId}/ai/run/@cf/black-forest-labs/flux-1-schnell",
+            [
+                'prompt' => $validated['prompt'],
+                'steps' => 4,
+            ]
+        );
+
+        $json = $response->json();
+
+        if (!$response->successful() || !($json['success'] ?? false) || empty($json['result']['image'])) {
+            Log::warning('Cloudflare AI image generation failed.', [
+                'status' => $response->status(),
+                'errors' => $json['errors'] ?? null,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $json['errors'][0]['message'] ?? 'Failed to generate an image - please try again.',
+            ], 422);
+        }
+
+        $imageBinary = base64_decode($json['result']['image']);
+        $filename = 'ai-image/' . uniqid() . '.jpg';
+
+        Storage::disk('r2')->put($filename, $imageBinary, 'public');
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                // image_url is kept for anything that wants a permanent,
+                // shareable link, but the frontend doesn't fetch() it -
+                // cdn.socialeaz.com (the R2 custom domain) sends no
+                // Access-Control-Allow-Origin header, so a cross-origin
+                // fetch from syncora.test (or any admin domain) is blocked
+                // by the browser's CORS policy - confirmed live, not
+                // theoretical. image_data_uri carries the same bytes
+                // already decoded server-side, so PostComposer.vue can
+                // build a File from it with zero extra network request -
+                // no CORS surface at all, rather than depending on an R2
+                // bucket CORS config change outside this codebase.
+                'image_url' => Storage::disk('r2')->url($filename),
+                'image_data_uri' => 'data:image/jpeg;base64,' . $json['result']['image'],
+            ],
+        ]);
     }
 
     public function create(Request $request)

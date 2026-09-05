@@ -1297,6 +1297,8 @@
             const readUrlTemplate = "{{ route('admin.chats.read', ['conversation' => ':ID']) }}";
             const messageUpdateUrlTemplate = "{{ route('admin.chats.messages.update', ['message' => ':ID']) }}";
             const messageDeleteUrlTemplate = "{{ route('admin.chats.messages.destroy', ['message' => ':ID']) }}";
+            const copilotFindAnswerUrlTemplate = "{{ route('admin.chats.copilot.find-answer', ['conversation' => ':ID']) }}";
+            const copilotFeedbackUrlTemplate = "{{ route('admin.chats.copilot.feedback', ['copilotMessage' => 'COPILOT_MESSAGE_ID']) }}";
 
             // renderThread() (the AJAX conversation-switch path) is the
             // only place that normally sets these - on a fresh page load
@@ -1399,6 +1401,7 @@
                             <span class="ai-copilot-title"><i class="bx bx-bulb"></i> AI Copilot</span>
                             <button type="button" class="ai-copilot-close" id="aiCopilotCloseBtn" title="Hide"><i class="bx bx-x"></i></button>
                         </div>
+                        <div id="copilotWidgetMount"></div>
                         <div class="ai-copilot-actions">
                             <button type="button" class="ai-copilot-btn" data-ai-action="draft"><i class="bx bx-edit-alt"></i> Draft a Professional Reply</button>
                             <button type="button" class="ai-copilot-btn" data-ai-action="summarize"><i class="bx bx-list-ul"></i> Summarize this conversation</button>
@@ -1425,6 +1428,40 @@
                 window.currentConversationId = conversation.id;
                 window.currentConversationPlatform = conversation.platform;
                 window.currentConversationAvatar = conversation.customer_avatar_url || '{{ asset('assets/img/avatars/1.png') }}';
+                mountCopilotWidget(conversation.id);
+            }
+
+            // #inboxThread's whole subtree (including any previously
+            // mounted copilot widget) is torn down and rebuilt by the
+            // .html(html) call above on every conversation switch - a
+            // Vue instance mounted into a node jQuery just replaced would
+            // be silently orphaned, not reused, so this destroys the old
+            // instance and mounts a fresh one against the fresh
+            // #copilotWidgetMount node the new HTML just introduced.
+            // copilot-find-answer is registered globally via
+            // Vue.component() in app.js, so any new Vue() instance here
+            // can reference it by tag name without needing to be a child
+            // of the page's main #app root.
+            let copilotWidgetInstance = null;
+            function mountCopilotWidget(conversationId) {
+                if (copilotWidgetInstance) {
+                    copilotWidgetInstance.$destroy();
+                    copilotWidgetInstance = null;
+                }
+
+                const mountEl = document.getElementById('copilotWidgetMount');
+                if (!mountEl || typeof Vue === 'undefined') {
+                    return;
+                }
+
+                copilotWidgetInstance = new Vue({
+                    render: h => h('copilot-find-answer', {
+                        props: {
+                            findAnswerUrl: copilotFindAnswerUrlTemplate.replace(':ID', conversationId),
+                            feedbackUrlTemplate: copilotFeedbackUrlTemplate,
+                        },
+                    }),
+                }).$mount(mountEl);
             }
 
             function renderDetailsPanel(conversation, platformHistory, messageCount) {

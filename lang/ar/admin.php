@@ -187,6 +187,14 @@ return [
         'email' => [
             'header' => 'التسويق عبر البريد الإلكتروني'
         ],
+        'knowledge_base' => [
+            'header' => 'قاعدة المعرفة'
+        ],
+    ],
+    'support' => [
+        'help_center' => 'مركز المساعدة',
+        'tickets' => 'تذاكر الدعم',
+        'faq_management' => 'الأسئلة الشائعة للنظام',
     ],
     'profile' => [
         'my_profile' => 'ملفي الشخصي',

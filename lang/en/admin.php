@@ -187,6 +187,14 @@ return [
         'email' => [
             'header' => 'Email Marketing'
         ],
+        'knowledge_base' => [
+            'header' => 'Knowledge Base'
+        ],
+    ],
+    'support' => [
+        'help_center' => 'Help Center',
+        'tickets' => 'Support Tickets',
+        'faq_management' => 'System FAQ',
     ],
     'profile' => [
         'my_profile' => 'My Profile',
