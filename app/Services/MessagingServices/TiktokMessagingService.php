@@ -120,7 +120,7 @@ class TiktokMessagingService
         $url = 'https://www.tiktok.com/v2/auth/authorize?' . http_build_query([
             'client_key'    => adminSetting('ads.tiktok.client_id'),
             // Standard approved scope list without unapproved or invalid biz.dm.* strings
-            'scope'         => 'biz.brand.insights,comment.list,video.list,video.insights,biz.ads.recommend,user.info.basic,biz.creator.info,biz.creator.insights,tto.campaign.link,biz.dm.read',
+            'scope'         => 'user.info.basic',
             'response_type' => 'code',
             'redirect_uri'  => $this->callbackUrl(),
             'state'         => $state,
