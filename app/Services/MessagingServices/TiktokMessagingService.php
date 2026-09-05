@@ -132,7 +132,22 @@ class TiktokMessagingService
             // "correct the following: scope" rejection was almost
             // certainly about being on the wrong flow, not these names
             // being invalid - untested until now on the right endpoint.
-            'scope' => 'biz.brand.insights,comment.list,video.list,video.insights,biz.ads.recommend,user.info.basic,biz.creator.info,biz.creator.insights,tto.campaign.link,biz.dm.send,biz.dm.receive,biz.dm.read',           
+            // biz.dm.send/receive/read added on top of the original
+            // portal-copied list - the original list (see the class/
+            // comment history) had NO messaging scope at all, which is
+            // almost certainly why webhook registration could succeed
+            // (it's an app-level setting - see subscribeToWebhooks()'s
+            // own docblock) while no actual DM events were ever
+            // delivered: TikTok won't forward a connected account's
+            // messages to the webhook unless that account's OWN OAuth
+            // grant includes DM permission, independent of the app-level
+            // webhook subscription. An already-connected account's
+            // existing token was issued under the OLD scope list and
+            // will NOT retroactively gain these - the account needs to
+            // go through redirect() again (disconnect + reconnect) for
+            // this to actually take effect.
+            'scope'         => 'biz.brand.insights,comment.list,video.list,video.insights,biz.ads.recommend,user.info.basic,biz.creator.info,biz.creator.insights,tto.campaign.link,biz.dm.send,biz.dm.receive,biz.dm.read',
+            'response_type' => 'code',
             'redirect_uri'  => $this->callbackUrl(),
             'state'         => $state,
         ]);
