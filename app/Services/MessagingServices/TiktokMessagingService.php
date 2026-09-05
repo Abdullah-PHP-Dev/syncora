@@ -437,8 +437,16 @@ class TiktokMessagingService
      * reduced data per TikTok's privacy rules for that region and isn't
      * handled differently here - whatever fields it omits just come
      * through as null, same as any other platform's optional fields.
+     *
+     * Returns bool (was void) - true only when a message was actually
+     * dispatched, false on every early-return path - purely so
+     * TiktokWebhookController::receive() can record an accurate
+     * WebhookLog.processed flag without duplicating this method's own
+     * decision logic. Only caller is that controller (confirmed via a
+     * full grep before this change), so widening the return type is
+     * safe - nothing else depends on this staying void.
      */
-    public function handleWebhook(array $payload): void
+    public function handleWebhook(array $payload): bool
     {
         // Both early returns below used to be silent - exactly the kind
         // of gap this class kept turning out to have (token exchange,
@@ -448,14 +456,14 @@ class TiktokMessagingService
         // failing, rather than guessing again.
         if (($payload['event'] ?? null) !== 'im_receive_msg' && ($payload['event'] ?? null) !== 'im_receive_msg_eu') {
             Log::info('TikTok webhook received a non-message event (or unrecognized event field) - ignored.', ['event' => $payload['event'] ?? null, 'payload_keys' => array_keys($payload)]);
-            return;
+            return false;
         }
 
         $content = json_decode($payload['content'] ?? '', true);
 
         if (!is_array($content)) {
             Log::warning('TikTok webhook im_receive_msg had an unparsable content field.', ['raw' => $payload['content'] ?? null]);
-            return;
+            return false;
         }
 
         $businessId = $content['to_user']['id'] ?? $payload['user_openid'] ?? null;
@@ -466,7 +474,7 @@ class TiktokMessagingService
                 'business_id' => $businessId,
                 'known_tiktok_external_ids' => MessageChannel::where('platform', 'tiktok')->pluck('external_id'),
             ]);
-            return;
+            return false;
         }
 
         ProcessInboundMessage::dispatch(
@@ -477,5 +485,7 @@ class TiktokMessagingService
             externalMessageId: $content['message_id'] ?? null,
             body: $content['text']['body'] ?? null,
         );
+
+        return true;
     }
 }
