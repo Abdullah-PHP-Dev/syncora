@@ -115,38 +115,12 @@ class TiktokMessagingService
      * used verbatim since it's TikTok's own account of what's actually
      * granted to this specific app, not assembled from a docs example.
      */
-    public function redirect($state)
+   public function redirect($state)
     {
         $url = 'https://www.tiktok.com/v2/auth/authorize?' . http_build_query([
             'client_key'    => adminSetting('ads.tiktok.client_id'),
-            // The base list is copied verbatim from this app's portal-
-            // generated "TikTok account holder authorization URL" (see
-            // the class docblock) - confirmed via a real connect's stored
-            // SocialAccount.metadata.scope to grant EXACTLY that list and
-            // nothing more, no messaging scope included by default even
-            // though Business Messaging is approved at the app level
-            // (webhook registration succeeds independently of this).
-            // message.list.manage/send/read appended explicitly - the
-            // same three names tried once before, but that attempt used
-            // the wrong authorize endpoint entirely (Login Kit) and its
-            // "correct the following: scope" rejection was almost
-            // certainly about being on the wrong flow, not these names
-            // being invalid - untested until now on the right endpoint.
-            // biz.dm.send/receive/read added on top of the original
-            // portal-copied list - the original list (see the class/
-            // comment history) had NO messaging scope at all, which is
-            // almost certainly why webhook registration could succeed
-            // (it's an app-level setting - see subscribeToWebhooks()'s
-            // own docblock) while no actual DM events were ever
-            // delivered: TikTok won't forward a connected account's
-            // messages to the webhook unless that account's OWN OAuth
-            // grant includes DM permission, independent of the app-level
-            // webhook subscription. An already-connected account's
-            // existing token was issued under the OLD scope list and
-            // will NOT retroactively gain these - the account needs to
-            // go through redirect() again (disconnect + reconnect) for
-            // this to actually take effect.
-            'scope'         => 'biz.brand.insights,comment.list,video.list,video.insights,biz.ads.recommend,user.info.basic,biz.creator.info,biz.creator.insights,tto.campaign.link,biz.dm.send,biz.dm.receive,biz.dm.read',
+            // Standard approved scope list without unapproved or invalid biz.dm.* strings
+            'scope'         => 'biz.brand.insights,comment.list,video.list,video.insights,biz.ads.recommend,user.info.basic,biz.creator.info,biz.creator.insights,tto.campaign.link',
             'response_type' => 'code',
             'redirect_uri'  => $this->callbackUrl(),
             'state'         => $state,
