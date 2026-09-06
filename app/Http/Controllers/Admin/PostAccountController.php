@@ -395,7 +395,21 @@ class PostAccountController extends Controller
             return redirect()->route('admin.posts.create')->with('error', 'Missing PKCE code verifier - please restart the connection flow.');
         }
 
-        $tokenResponse = $api->request('post', 'https://api.x.com/2/oauth2/token', [], [
+        // HTTP Basic Auth (client_secret_basic) - the X Developer Console
+        // shows this app registered as "Web App, Automated App or Bot"
+        // (Confidential client), not "Native App" (Public client). A
+        // confidential client's token endpoint calls must authenticate
+        // with client_secret - PKCE's code_verifier alone doesn't
+        // substitute for that. This call never sent client_secret
+        // anywhere, which would fail token exchange the moment a user
+        // actually got past X's consent screen (same gap found and fixed
+        // in XMessagingService for the DM flow, which registers under the
+        // same X app).
+        $tokenResponse = $api->request('post', 'https://api.x.com/2/oauth2/token', [
+            'Authorization' => 'Basic ' . base64_encode(
+                adminSetting('posts.x.client_id') . ':' . adminSetting('posts.x.client_secret')
+            ),
+        ], [
             'grant_type'    => 'authorization_code',
             'code'          => $request->query('code'),
             'client_id'     => adminSetting('posts.x.client_id'),

@@ -35,21 +35,17 @@ class XMessagingService
 
     public function __construct(protected ApiService $apiService)
     {
-        // Falls back to the real, hardcoded X API v2 base/authorize/token
-        // URLs wherever the matching admin_settings row is empty or
-        // missing - confirmed live that an empty messaging.x.authorize_url
-        // produces a URL starting with a bare "?" (adminSetting(...) . '?'
-        // . http_build_query(...)), which Redirect::away() sends as a
-        // *relative* Location header; the browser then resolves that
-        // against the CURRENT page instead of leaving it, landing right
-        // back on this app's own /admin/messaging/auth/x/redirect with
-        // every OAuth param still attached as a query string - exactly
-        // the bug reported live on labs.socialeaz.com. These fallbacks
-        // don't change intended behavior on an environment where the
-        // settings ARE populated (adminSetting(...) ?: still prefers the
-        // real setting first) - they only prevent this exact failure mode
-        // when one isn't.
-        $this->base = adminSetting('messaging.x.base_url') ?: 'https://api.x.com/2/';
+        // Falls back to the real, hardcoded X API v2 URLs wherever the
+        // matching admin_settings row is empty/missing - confirmed live
+        // on labs.socialeaz.com that an empty messaging.x.authorize_url
+        // produced a URL starting with a bare "?", which Redirect::away()
+        // sends as a *relative* Location header the browser resolves
+        // against the current page instead of leaving it, landing back on
+        // this app's own /admin/messaging/auth/x/redirect with every
+        // OAuth param still attached. (This fallback was present once
+        // already and appears to have been lost in a later deploy -
+        // re-adding it here.)
+        $this->base = adminSetting('posts.x.base_url') ?: 'https://api.x.com/2/';
     }
 
     // oauthCallbackUrl() reverse-resolves from routes/web.php and strips
@@ -64,6 +60,30 @@ class XMessagingService
     }
 
     /**
+     * HTTP Basic Auth (client_secret_basic) - the X Developer Console
+     * screenshot confirms this app is registered as "Web App, Automated
+     * App or Bot" (Confidential client), not "Native App" (Public
+     * client). A confidential client's token endpoint calls MUST
+     * authenticate with client_secret - PKCE's code_verifier alone
+     * (which this class already sends) only proves possession of the
+     * authorization request, it doesn't substitute for client
+     * authentication on a confidential client. Neither token-exchange
+     * call in this class sent client_secret anywhere until now, which
+     * would fail token exchange with an invalid_client-style error the
+     * moment a user actually got past X's consent screen. Basic Auth
+     * (RFC 6749 2.3.1) is X's documented method for this, same as every
+     * other confidential-client OAuth 2.0 provider.
+     */
+    private function basicAuthHeader(): array
+    {
+        return [
+            'Authorization' => 'Basic ' . base64_encode(
+                adminSetting('posts.x.client_id') . ':' . adminSetting('posts.x.client_secret')
+            ),
+        ];
+    }
+
+    /**
      * OAuth 2.0 Authorization Code + PKCE - kicks off the connect flow for
      * a new channel.
      */
@@ -74,9 +94,9 @@ class XMessagingService
 
         $codeChallenge = rtrim(strtr(base64_encode(hash('sha256', $codeVerifier, true)), '+/', '-_'), '=');
 
-        $url = (adminSetting('messaging.x.authorize_url') ?: 'https://x.com/i/oauth2/authorize') . '?' . http_build_query([
+        $url = (adminSetting('posts.x.authorize_url') ?: 'https://x.com/i/oauth2/authorize') . '?' . http_build_query([
             'response_type'         => 'code',
-            'client_id'             => adminSetting('messaging.x.client_id'),
+            'client_id'             => adminSetting('posts.x.client_id'),
             'redirect_uri'          => $this->callbackUrl(),
             'scope'                 => 'dm.read dm.write tweet.read users.read offline.access',
             'state'                 => $state,
@@ -102,10 +122,10 @@ class XMessagingService
             return ['success' => false, 'error' => 'Missing PKCE code verifier - please restart the connection flow.'];
         }
 
-        $tokenResponse = $this->apiService->post(adminSetting('messaging.x.token_url') ?: 'https://api.x.com/2/oauth2/token', [], [
+        $tokenResponse = $this->apiService->post(adminSetting('posts.x.token_url') ?: 'https://api.x.com/2/oauth2/token', $this->basicAuthHeader(), [
             'grant_type'    => 'authorization_code',
             'code'          => $code,
-            'client_id'     => adminSetting('messaging.x.client_id'),
+            'client_id'     => adminSetting('posts.x.client_id'),
             'redirect_uri'  => $this->callbackUrl(),
             'code_verifier' => $codeVerifier,
         ], 'form');
@@ -162,10 +182,10 @@ class XMessagingService
             return $channel->socialAccount->access_token;
         }
 
-        $response = $this->apiService->post(adminSetting('messaging.x.token_url') ?: 'https://api.x.com/2/oauth2/token', [], [
+        $response = $this->apiService->post(adminSetting('messaging.x.token_url') ?: 'https://api.x.com/2/oauth2/token', $this->basicAuthHeader(), [
             'grant_type'    => 'refresh_token',
             'refresh_token' => $channel->socialAccount->refresh_token,
-            'client_id'     => adminSetting('messaging.x.client_id'),
+            'client_id'     => adminSetting('posts.x.client_id'),
         ], 'form');
 
         if ($response['success']) {
