@@ -100,7 +100,7 @@ class GooglePostService
             $mediaType = $isImage ? 'image' : 'video';
             $mediaUrl = $data['ai_image_url'];
         } else {
-            $uploadResult = $this->uploadMediaToS3($data['media']);
+            $uploadResult = $this->uploadMediaToS3($data['media'] ?? []);
             if (!$uploadResult['success']) {
                 return [
                     'success' => false,
@@ -121,6 +121,7 @@ class GooglePostService
                     'user_id' => Auth::user()->id,
                     'social_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
+                    'group_id' => $data['group_id'] ?? null,
                     'page_id' => $page->platform_account_id,
                     'content' => $data['content'] ?? null,
                     'schedule_mode' => $data['schedule_mode'] ?? 0,

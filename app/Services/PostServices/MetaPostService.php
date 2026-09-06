@@ -87,7 +87,17 @@ class MetaPostService
         } elseif (isset($data['ai_image_url'])) {
             $mediaUrl = $data['ai_image_url'];
         } else {
-            $uploadResult = $this->uploadMediaToS3($data['media']);
+            // 'media' is a nullable field (PostRequest: 'media' =>
+            // ['nullable', 'array']) - a text-only post with no attached
+            // file omits the key entirely rather than sending an empty
+            // array, and PHP's "Undefined array key" warning gets
+            // promoted to a thrown ErrorException in a real HTTP request
+            // (confirmed live: this crashed every text-only Facebook post
+            // submission, silently, since PostController::store()'s
+            // catch block didn't log anything either - see its own fix).
+            // uploadMediaToS3() already handles an empty array cleanly
+            // (foreach over [] is a no-op).
+            $uploadResult = $this->uploadMediaToS3($data['media'] ?? []);
             if (!$uploadResult['success']) {
                 return [
                     'success' => false,
@@ -312,21 +322,24 @@ class MetaPostService
                 return ['success' => false];
             }
 
+            // publishPostOnMeta() already persists the post's final state
+            // itself on every single exit path (success at its own
+            // $post->update(post_id/status='completed'), every failure
+            // branch via errorResponse()/its own inline updates) - it
+            // returns just ['success' => true] on success, with no
+            // 'post_id' key. This redundant second update used to re-read
+            // $result['post_id'], which never existed, crashing with
+            // "Undefined array key" on EVERY successful publish - the
+            // post had already been correctly saved as 'completed' with
+            // its real post_id by publishPostOnMeta() one line earlier,
+            // but the crash here made every successful publish look like
+            // a failure in this command's own log/console output.
+            // Confirmed live: a real Facebook post published successfully
+            // (real post_id saved, status='completed') while this exact
+            // line threw and made the command report "Post N failed."
             $result = $this->publishPostOnMeta($post, $account);
 
-            if ($result['success']) {
-                $post->update([
-                    'post_id' => $result['post_id'],
-                    'status' => 'completed'
-                ]);
-                return ['success' => true];
-            } else {
-                $post->update([
-                    'status' => 'failed',
-                    'error_message' => $result['message'] ?? $result['error'] ?? 'Unknown error'
-                ]);
-                return ['success' => false];
-            }
+            return ['success' => (bool) ($result['success'] ?? false)];
         } catch (DecryptException $e) {
             // Catches decrypt failures from BOTH ensureValidToken() (reads
             // access_token to refresh it) and publishPostOnMeta() (reads it
@@ -420,14 +433,17 @@ protected function publishPostOnMeta($post, $account)
         return ['success' => true];
 
     } catch (DecryptException $e) {
-            dd($e->getMessage(), $account);
         // Not caught here - re-thrown to publishPost()'s single
         // handleTokenDecryptFailure() handler, which also covers the
         // ensureValidToken() decrypt site, so this failure mode only has
         // one place that marks the account invalid.
+        //
+        // (Two dd() calls used to sit in this and the next catch block -
+        // either would halt PublishPosts.php's entire chunked loop stone
+        // dead the moment one post hit this path, silently blocking every
+        // post queued after it until someone noticed. Removed.)
         throw $e;
     } catch (\Throwable $e) {
-              dd($e->getMessage(), $account);
         // Catches all other runtime errors / network exceptions
         $post->update([
             'status' => 'failed',

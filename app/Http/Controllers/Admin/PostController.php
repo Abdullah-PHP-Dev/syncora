@@ -1171,9 +1171,51 @@ class PostController extends Controller
         $userId = Auth::id();
         $validated = $request->validated();
 
+        // Ties every Post row this single submission creates - across
+        // platforms (facebook+instagram+tiktok in one go) AND across
+        // multiple pages/accounts within the same platform (2 connected
+        // Facebook Pages) - into one logical post, the same way
+        // quickStore() already does for its own submissions. Generated
+        // once here, before the platform loop, so every *PostService::
+        // store() call below (each of which already reads
+        // $data['group_id'] ?? null) receives the identical value.
+        // buildPostsQuery()'s existing COALESCE(group_id, id) grouping is
+        // what actually collapses them into one card on the dashboard -
+        // no changes needed there, it already treats group_id as the
+        // source of truth wherever it's set.
+        $validated['group_id'] = (string) Str::uuid();
+
+        // Same "upload once, every platform reuses it" fix already built
+        // for quickStore() (see uploadQuickPostMedia()'s docblock) - until
+        // now store() left $data['uploaded_media'] unset, so every
+        // *PostService::store() below fell through to its own
+        // uploadMediaToS3($data['media']) call and re-uploaded the exact
+        // same file(s) to R2 once per selected platform (three platforms
+        // selected together = three duplicate copies in storage, one per
+        // platform-namespaced path). uploadQuickPostMedia() already
+        // accepts an array of files, matching PostRequest's own
+        // 'media' => ['nullable','array'] shape directly - no wrapping
+        // needed here, unlike quickStore()'s single-file field. Each
+        // platform still creates its own PostMedia row per Post further
+        // down (one row per post_id, as before) - only the actual file
+        // upload is shared, exactly what was asked: create the file once,
+        // attach it to each post's own post_media row.
+        if (!empty($validated['media'])) {
+            $uploadResult = $this->uploadQuickPostMedia($validated['media']);
+
+            if (!$uploadResult['success']) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => [['message' => $uploadResult['message'] ?? 'Failed to upload media.']],
+                ], 422);
+            }
+
+            $validated['uploaded_media'] = $uploadResult['media'];
+        }
+
         $results = [];
         $errors = [];
-    
+
         if (!empty($validated['platforms'])) {
     
             try {
@@ -1283,14 +1325,30 @@ class PostController extends Controller
                 DB::commit();
     
             } catch (\Throwable $e) {
-    
+
+                // Was previously silent - a failed post-create returned
+                // {"success":false,"errors":[]} with zero trace anywhere
+                // (this catch neither logged nor rethrew, so Laravel's own
+                // exception handler/log never saw it either). Found this
+                // gap while testing the composer's real submit path: a
+                // genuine failure had no way to be diagnosed except by
+                // manually reproducing the call in tinker outside the
+                // transaction/catch wrapper.
+                Log::error('PostController::store() failed.', [
+                    'user_id'   => $userId,
+                    'platforms' => $validated['platforms'] ?? null,
+                    'exception' => $e->getMessage(),
+                    'file'      => $e->getFile() . ':' . $e->getLine(),
+                    'trace'     => $e->getTraceAsString(),
+                ]);
+
                 return response()->json([
                     'success' => false,
                     'errors' => $errors
                 ], 422);
             }
         }
-    
+
         return response()->json([
             'success' => true,
             'message' => 'Posts published successfully!',

@@ -294,7 +294,15 @@ function buildFormData(mode) {
 
   Object.keys(grouped).forEach(platform => {
     formData.append('platforms[]', platform);
-    grouped[platform].forEach(id => formData.append(`selected_pages[${platform}][]`, id));
+    // PostRequest's validation rule reads {platform}.pages (raw field
+    // {platform}[pages][]), then builds its own 'selected_pages'
+    // structure internally for PostController::store() to read -
+    // sending 'selected_pages[...]' directly here skips that rule
+    // entirely, so the backend sees platforms[] with no matching
+    // {platform}.pages data at all and fails every selected platform
+    // with "field is required" (confirmed live: exactly the error
+    // reported after submitting this form for real).
+    grouped[platform].forEach(id => formData.append(`${platform}[pages][]`, id));
   });
 
   mediaItems.value.forEach(item => formData.append('media[]', item.file));
