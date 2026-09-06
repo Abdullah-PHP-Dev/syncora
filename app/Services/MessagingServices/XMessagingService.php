@@ -35,7 +35,21 @@ class XMessagingService
 
     public function __construct(protected ApiService $apiService)
     {
-        $this->base = adminSetting('messaging.x.base_url');
+        // Falls back to the real, hardcoded X API v2 base/authorize/token
+        // URLs wherever the matching admin_settings row is empty or
+        // missing - confirmed live that an empty messaging.x.authorize_url
+        // produces a URL starting with a bare "?" (adminSetting(...) . '?'
+        // . http_build_query(...)), which Redirect::away() sends as a
+        // *relative* Location header; the browser then resolves that
+        // against the CURRENT page instead of leaving it, landing right
+        // back on this app's own /admin/messaging/auth/x/redirect with
+        // every OAuth param still attached as a query string - exactly
+        // the bug reported live on labs.socialeaz.com. These fallbacks
+        // don't change intended behavior on an environment where the
+        // settings ARE populated (adminSetting(...) ?: still prefers the
+        // real setting first) - they only prevent this exact failure mode
+        // when one isn't.
+        $this->base = adminSetting('messaging.x.base_url') ?: 'https://api.x.com/2/';
     }
 
     // oauthCallbackUrl() reverse-resolves from routes/web.php and strips
@@ -60,7 +74,7 @@ class XMessagingService
 
         $codeChallenge = rtrim(strtr(base64_encode(hash('sha256', $codeVerifier, true)), '+/', '-_'), '=');
 
-        $url = adminSetting('messaging.x.authorize_url') . '?' . http_build_query([
+        $url = (adminSetting('messaging.x.authorize_url') ?: 'https://x.com/i/oauth2/authorize') . '?' . http_build_query([
             'response_type'         => 'code',
             'client_id'             => adminSetting('messaging.x.client_id'),
             'redirect_uri'          => $this->callbackUrl(),
@@ -88,7 +102,7 @@ class XMessagingService
             return ['success' => false, 'error' => 'Missing PKCE code verifier - please restart the connection flow.'];
         }
 
-        $tokenResponse = $this->apiService->post(adminSetting('messaging.x.token_url'), [], [
+        $tokenResponse = $this->apiService->post(adminSetting('messaging.x.token_url') ?: 'https://api.x.com/2/oauth2/token', [], [
             'grant_type'    => 'authorization_code',
             'code'          => $code,
             'client_id'     => adminSetting('messaging.x.client_id'),
@@ -148,7 +162,7 @@ class XMessagingService
             return $channel->socialAccount->access_token;
         }
 
-        $response = $this->apiService->post(adminSetting('messaging.x.token_url'), [], [
+        $response = $this->apiService->post(adminSetting('messaging.x.token_url') ?: 'https://api.x.com/2/oauth2/token', [], [
             'grant_type'    => 'refresh_token',
             'refresh_token' => $channel->socialAccount->refresh_token,
             'client_id'     => adminSetting('messaging.x.client_id'),
