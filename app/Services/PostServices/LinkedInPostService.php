@@ -99,7 +99,7 @@ class LinkedInPostService
                 PATHINFO_EXTENSION
             ));
         } else {
-            $uploadResult = $this->uploadMediaToS3($data['media']);
+            $uploadResult = $this->uploadMediaToS3($data['media'] ?? []);
             if (!$uploadResult['success']) {
                 return [
                     'success' => false,

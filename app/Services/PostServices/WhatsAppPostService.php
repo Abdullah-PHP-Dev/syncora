@@ -92,6 +92,7 @@ class WhatsAppPostService
                     'user_id'          => Auth::id(),
                     'social_account_id'  => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
+                    'group_id'         => $data['group_id'] ?? null,
                     'content'          => $data['content'] ?? null,
                     'media_url'        => $mediaUrl,
                     'schedule_mode'    => $data['schedule_mode'] ?? 0,

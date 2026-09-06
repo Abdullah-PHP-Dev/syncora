@@ -86,7 +86,7 @@ class ThreadsPostService
         $uploadResult = ['media' => []];
 
         if (!empty($data['media'])) {
-            $uploadResult = $this->uploadMediaToS3($data['media']);
+            $uploadResult = $this->uploadMediaToS3($data['media'] ?? []);
 
             if (!$uploadResult['success']) {
                 return ['success' => false, 'message' => $uploadResult['message']];
@@ -103,6 +103,7 @@ class ThreadsPostService
                     'user_id'          => Auth::id(),
                     'social_account_id'  => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
+                    'group_id'         => $data['group_id'] ?? null,
                     'content'          => $data['content'] ?? null,
                     'schedule_mode'    => $data['schedule_mode'] ?? 0,
                     'schedule_at'      => $data['schedule_at'] ?? null,

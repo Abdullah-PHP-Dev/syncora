@@ -68,7 +68,8 @@
                         request()->routeIs('admin.posts.*') ||
                         request()->routeIs('admin.chats.*') ||
                         request()->routeIs('admin.comments.*') ||
-                        request()->routeIs('admin.email.*')
+                        request()->routeIs('admin.email.*') ||
+                        request()->routeIs('admin.knowledge-base.*')
                     ) ? 'active open' : ''
                 }}">
 
@@ -119,6 +120,68 @@
                             {{ __('admin.marketing_tools.email.header') }}
                         </a>
                     </li>
+
+                    {{-- Seller's own business FAQ - feeds the AI Copilot's
+                         customer-facing answers (Phase 3), distinct from
+                         the read-only System Help Center below. --}}
+                    <li class="menu-item {{ request()->routeIs('admin.knowledge-base.*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.knowledge-base.index') }}"
+                           class="menu-link">
+                            {{ __('admin.marketing_tools.knowledge_base.header') }}
+                        </a>
+                    </li>
+
+                </ul>
+
+            </li>
+
+
+            {{-- SUPPORT: Help Center + Tickets for every seller, plus
+                 System FAQ management for admin-role users only. Outside
+                 the subscription-required tier server-side (see
+                 routes/web.php) - the link still only needs to render,
+                 not re-enforce that. --}}
+            <li class="menu-item
+                {{
+                    (
+                        request()->routeIs('admin.help-center.*') ||
+                        request()->routeIs('admin.tickets.*') ||
+                        request()->routeIs('admin.faqs.*')
+                    ) ? 'active open' : ''
+                }}">
+
+                <a href="javascript:void(0)"
+                   class="menu-link menu-toggle">
+
+                    <i class="menu-icon tf-icons bx bx-support"></i>
+
+                    <span>
+                        {{ __('admin.support.tickets') }}
+                    </span>
+
+                </a>
+
+                <ul class="menu-sub">
+
+                    <li class="menu-item {{ request()->routeIs('admin.help-center.*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.help-center.index') }}" class="menu-link">
+                            {{ __('admin.support.help_center') }}
+                        </a>
+                    </li>
+
+                    <li class="menu-item {{ request()->routeIs('admin.tickets.*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.tickets.index') }}" class="menu-link">
+                            {{ __('admin.support.tickets') }}
+                        </a>
+                    </li>
+
+                    @if (Auth::user()?->hasRole('admin'))
+                        <li class="menu-item {{ request()->routeIs('admin.faqs.*') ? 'active' : '' }}">
+                            <a href="{{ route('admin.faqs.index') }}" class="menu-link">
+                                {{ __('admin.support.faq_management') }}
+                            </a>
+                        </li>
+                    @endif
 
                 </ul>
 

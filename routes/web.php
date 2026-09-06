@@ -27,6 +27,11 @@ use App\Http\Controllers\Admin\EmailTemplateController;
 use App\Http\Controllers\Admin\EmailCampaignController;
 use App\Http\Controllers\EmailUnsubscribeController;
 use App\Http\Controllers\Admin\IntegrationController;
+use App\Http\Controllers\Admin\FaqController;
+use App\Http\Controllers\Admin\HelpCenterController;
+use App\Http\Controllers\Admin\TicketController;
+use App\Http\Controllers\Admin\KnowledgeBaseController;
+use App\Http\Controllers\Admin\CopilotController;
 
 
 Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
@@ -189,6 +194,31 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 				Route::view('/dashboard/crm', 'admin.crm-dashboard')
 					->name('crm-dashboard');
+
+				/*
+				|--------------------------------------------------------------------------
+				| SUPPORT: SYSTEM FAQ (admin-role only), HELP CENTER + TICKETS (every seller)
+				|--------------------------------------------------------------------------
+				| Deliberately outside the ->middleware(['subscription']) group below -
+				| EnsureActiveSubscription aborts(403) any non-'seller' user outright,
+				| which would make the admin-only FAQ screens unreachable, and a
+				| seller whose subscription lapsed should still be able to reach
+				| support. See FaqController/TicketController docblocks.
+				*/
+				Route::get('faqs', [FaqController::class, 'index'])->name('faqs.index');
+				Route::post('faqs', [FaqController::class, 'store'])->name('faqs.store');
+				Route::put('faqs/{faq}', [FaqController::class, 'update'])->name('faqs.update');
+				Route::delete('faqs/{faq}', [FaqController::class, 'destroy'])->name('faqs.destroy');
+				Route::post('faqs/categories', [FaqController::class, 'storeCategory'])->name('faqs.categories.store');
+
+				Route::get('help-center', [HelpCenterController::class, 'index'])->name('help-center.index');
+
+				Route::get('tickets', [TicketController::class, 'index'])->name('tickets.index');
+				Route::get('tickets/create', [TicketController::class, 'create'])->name('tickets.create');
+				Route::post('tickets', [TicketController::class, 'store'])->name('tickets.store');
+				Route::get('tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
+				Route::post('tickets/{ticket}/messages', [TicketController::class, 'storeMessage'])->name('tickets.messages.store');
+				Route::patch('tickets/{ticket}/status', [TicketController::class, 'updateStatus'])->name('tickets.status');
 			});
 
 
@@ -248,6 +278,19 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::get('posts/data', [PostController::class, 'index'])->name('posts.data');
 				Route::get('posts/{post}/preview/{platform}', [PostController::class, 'preview'])->name('posts.preview');
 				Route::post('posts/quick', [PostController::class, 'quickStore'])->name('posts.quick');
+				// New Vue-based Create Post page (PostComposer.vue) -
+				// deliberately a separate route from admin.posts.create
+				// (still fully intact below via Route::resource) rather
+				// than replacing that page's Blade view outright - that
+				// page is 2000+ lines with real, working pieces (the
+				// WhatsApp Embedded Signup flow, for one) this redesign
+				// doesn't attempt to carry over, and silently dropping
+				// them wasn't part of what was asked. Submits to the same
+				// admin.posts.store PostController::store() the legacy
+				// page already uses.
+				Route::get('posts/composer', [PostController::class, 'composer'])->name('posts.composer');
+				Route::post('posts/generate-ai-content', [PostController::class, 'generateAiContent'])->name('posts.generate-ai-content');
+				Route::post('posts/generate-ai-image', [PostController::class, 'generateAiImage'])->name('posts.generate-ai-image');
 					Route::get('posts/{post}/quick-view', [PostController::class, 'quickView'])->name('posts.quick-view');
 				Route::post('posts/listing/comments/{comment}/replies', [PostController::class, 'storeReply'])->name('posts.comments.reply');
 				Route::post('posts/listing/{post}/comments', [PostController::class, 'storeComment'])->name('posts.comments.store');
@@ -315,6 +358,16 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::delete('platform/chats/messages/{message}', [ChatController::class, 'destroyMessage'])
 					->name('chats.messages.destroy');
 
+				// AI COPILOT - Phase 3 of the AI Copilot + FAQ + Ticket
+				// System BRD. Scores a conversation's latest customer
+				// message against the seller's own Knowledge Base - see
+				// AiCopilotService/CopilotController docblocks for the
+				// "suggests, never auto-sends" scope boundary.
+				Route::post('platform/chats/{conversation}/copilot/find-answer', [CopilotController::class, 'findAnswer'])
+					->name('chats.copilot.find-answer');
+				Route::post('platform/copilot-messages/{copilotMessage}/feedback', [CopilotController::class, 'feedback'])
+					->name('chats.copilot.feedback');
+
 				// NOTIFICATION CENTER - combined unread Comments + Messages
 				// badge/dropdown in the navbar. Conversation-type items reuse
 				// chats.read above; comments needed their own mark-read route
@@ -380,6 +433,16 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::resource('/platform/comments', PostCommentController::class);
 				Route::get('comments/dashboard', [PostCommentController::class, 'dashboard'])
 					->name('comments.dashboard');
+
+
+				// KNOWLEDGE BASE - seller's own business FAQ (Phase 2 of the
+				// AI Copilot + FAQ + Ticket System BRD). Scoped to Auth::id()
+				// throughout - see KnowledgeBaseController's docblock.
+				Route::get('knowledge-base', [KnowledgeBaseController::class, 'index'])->name('knowledge-base.index');
+				Route::post('knowledge-base', [KnowledgeBaseController::class, 'store'])->name('knowledge-base.store');
+				Route::put('knowledge-base/{faq}', [KnowledgeBaseController::class, 'update'])->name('knowledge-base.update');
+				Route::delete('knowledge-base/{faq}', [KnowledgeBaseController::class, 'destroy'])->name('knowledge-base.destroy');
+				Route::post('knowledge-base/categories', [KnowledgeBaseController::class, 'storeCategory'])->name('knowledge-base.categories.store');
 
 
 				// EMAIL MARKETING
