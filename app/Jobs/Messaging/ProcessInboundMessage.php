@@ -44,7 +44,7 @@ class ProcessInboundMessage implements ShouldQueue
     public function handle(): void
     {
         $account = SocialAccount::find($this->socialAccountId);
-        dd($account);
+      
         if (!$account) {
             return;
         }
