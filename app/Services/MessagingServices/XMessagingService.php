@@ -19,17 +19,34 @@ use Carbon\Carbon;
  * with different (simpler) auth: OAuth 2.0 user-context with PKCE and a
  * plain Bearer token, not OAuth 1.0a HMAC request signing.
  *
- * No webhook path exists here - the Account Activity API's real-time DM
- * webhooks require X's Enterprise/Premium tier, which isn't realistically
- * obtainable, so inbound messages are instead picked up by scheduled
- * polling (see PollXDirectMessagesCommand) against GET /2/dm_events,
- * using each channel's stored pagination cursor (message_channels.meta.
- * since_id) to fetch only what's new since the last run.
+ * Real-time delivery IS available, via the Account Activity API's
+ * webhook mechanism - contrary to what this docblock previously said
+ * (Enterprise/Premium-only, "not realistically obtainable"). It's
+ * available on the "Pay Per Use" tier too, capped at 3 total
+ * subscriptions app-wide (Enterprise removes that cap) - see
+ * subscribeAccountActivity()'s docblock. handleCallback() registers the
+ * shared app-level webhook once (registerWebhookIfNeeded()) and
+ * subscribes each newly-connected account to it (subscribeAccountActivity())
+ * on a best-effort basis; XActivityWebhookController receives the actual
+ * events. Scheduled polling (see PollXDirectMessagesCommand, GET
+ * /2/dm_events, each channel's stored pagination cursor in
+ * message_channels.meta.pagination_token) still runs unconditionally
+ * alongside this for every connected account regardless of
+ * webhook_subscribed - real-time for whichever accounts fit under the
+ * subscription cap, ~1-minute-latency polling for every account
+ * (including those, as a safety net that costs nothing to leave running).
  *
- * Endpoints verified this session via developer.x.com: POST
- * /2/dm_conversations/with/:participant_id/messages (new 1:1 conversation),
- * POST /2/dm_conversations/:id/messages (existing conversation), GET
- * /2/dm_events (polling, paginated, events up to 30 days old).
+ * Endpoints verified live this session via developer.x.com AND a working
+ * reference implementation of this exact feature in another project:
+ * POST /2/dm_conversations/with/:participant_id/messages (new 1:1
+ * conversation), POST /2/dm_conversations/:id/messages (existing
+ * conversation), GET /2/dm_events (polling, paginated, events up to 30
+ * days old), POST /2/webhooks + GET /2/webhooks (app-level webhook
+ * register/list), POST /2/activity/subscriptions (the actual DM-specific
+ * subscription call - NOT /2/account_activity/webhooks/{id}/
+ * subscriptions/all, which does not enable DM delivery despite being
+ * what docs.x.com/x-api/account-activity/create-subscription describes -
+ * see subscribeAccountActivity()'s docblock for how that was found).
  */
 class XMessagingService
 {
@@ -303,10 +320,18 @@ class XMessagingService
      * Subscribes ONE connected account's activity (including DM events)
      * to the registered webhook. Confirmed via docs.x.com/x-api/account-
      * activity/create-subscription: POST /2/account_activity/webhooks/
-     * {webhook_id}/subscriptions/all, authenticated with THIS account's
-     * own OAuth 2.0 user access_token (scopes dm.read/dm.write/
-     * tweet.read/users.read - already what redirect() requests) - not
-     * app-only auth, unlike webhook registration above.
+     * {webhook_id}/subscriptions/all - THIS DOES NOT ACTUALLY ENABLE DM
+     * DELIVERY. Found by reading a working reference implementation of
+     * this exact feature in another project (tawasa): "/subscriptions/
+     * all" only covers Posts/mentions/likes/follows-type activity: DMs
+     * specifically require the separate POST /2/activity/subscriptions
+     * endpoint below, with an explicit event_type per DM direction and a
+     * required (not optional - X's own error is literally "$.filter: is
+     * missing but it is required") filter.user_id scoping the
+     * subscription to this one connected account's own numeric X id.
+     * Both calls use this account's OAuth 2.0 user access_token (scopes
+     * dm.read/dm.write/tweet.read/users.read - already what redirect()
+     * requests), not app-only auth, unlike webhook registration above.
      *
      * The "Pay Per Use" tier this feature requires allows only 3 total
      * subscriptions app-wide (confirmed via docs.x.com/x-api/account-
@@ -326,14 +351,37 @@ class XMessagingService
             return;
         }
 
-        $response = $this->apiService->post(
-            "https://api.x.com/2/account_activity/webhooks/{$webhookId}/subscriptions/all",
-            ['Authorization' => "Bearer {$accessToken}"],
-            [],
-            'json'
-        );
+        $userId = $channel->socialAccount->platform_account_id;
+        $ok = true;
+        $lastBody = null;
 
-        if ($response['success'] && ($response['data']['data']['subscribed'] ?? false)) {
+        foreach (['dm.received', 'dm.sent'] as $eventType) {
+            $response = $this->apiService->post(
+                'https://api.x.com/2/activity/subscriptions',
+                ['Authorization' => "Bearer {$accessToken}"],
+                [
+                    'event_type' => $eventType,
+                    'webhook_id' => $webhookId,
+                    'filter'     => ['user_id' => $userId],
+                ],
+                'json'
+            );
+
+            // X's success response for this endpoint is an empty 204 - no
+            // JSON body to check, only status. A 400 body containing
+            // "Duplicate" means this event type is already subscribed for
+            // this user, which is the end state actually wanted, not a
+            // failure (confirmed via the reference implementation's own
+            // identical handling).
+            $isDuplicate = ($response['status'] ?? null) === 400 && str_contains((string) ($response['body'] ?? ''), 'Duplicate');
+
+            if (!$response['success'] && !$isDuplicate) {
+                $ok = false;
+                $lastBody = $response['data'] ?? $response['body'] ?? null;
+            }
+        }
+
+        if ($ok) {
             $channel->update(['webhook_subscribed' => true]);
             Log::info('X Account Activity subscription created.', ['channel_id' => $channel->id]);
 
@@ -342,7 +390,7 @@ class XMessagingService
 
         Log::warning('X Account Activity subscription failed - this account will rely on scheduled polling instead of real-time delivery (likely the Pay Per Use tier\'s 3-subscription cap).', [
             'channel_id' => $channel->id,
-            'body'       => $response['data'] ?? null,
+            'body'       => $lastBody,
         ]);
     }
 
