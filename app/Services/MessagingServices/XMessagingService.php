@@ -479,13 +479,12 @@ class XMessagingService
             // Only inbound (customer-authored) messages need processing -
             // our own outbound sends already got a local Message row at
             // send time, and appear again here as an echo.
-            dd($event['event_type'] !== 'MessageCreate' || $event['sender_id'] === $channel->external_id);
             if ($event['event_type'] !== 'MessageCreate' || $event['sender_id'] === $channel->external_id) {
                 continue;
             }
 
             $sender = $users->get($event['sender_id']);
-
+            dd($sender);
             ProcessInboundMessage::dispatch(
                 socialAccountId: $channel->social_account_id,
                 customerExternalId: $event['sender_id'],
