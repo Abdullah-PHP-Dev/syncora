@@ -484,7 +484,7 @@ class XMessagingService
             }
 
             $sender = $users->get($event['sender_id']);
-            dd($sender);
+            
             ProcessInboundMessage::dispatch(
                 socialAccountId: $channel->social_account_id,
                 customerExternalId: $event['sender_id'],
