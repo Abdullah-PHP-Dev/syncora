@@ -448,7 +448,7 @@ class XMessagingService
         }
 
         $response = $this->apiService->post($endpoint, ['Authorization' => "Bearer {$accessToken}"], $payload);
-        dd($response);
+       
         if (!$response['success']) {
             return ['success' => false, 'error' => $response['data']['detail'] ?? $response['data']['title'] ?? 'X DM API request failed.'];
         }
@@ -482,7 +482,7 @@ class XMessagingService
         }
 
         $response = $this->apiService->get($this->base . 'dm_events', ['Authorization' => "Bearer {$accessToken}"], $params);
-
+ dd($response);
         if (!$response['success']) {
             return;
         }
