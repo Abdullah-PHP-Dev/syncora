@@ -33,6 +33,15 @@ class XActivityWebhookController extends Controller
      */
     public function crc(Request $request)
     {
+         WebhookLog::create([
+                'platform'        => 'x',
+                'event_type'      => 'direct_message_events',
+                'signature_valid' => false,
+                'processed'       => false,
+                'note'            => 'Signature verification failed - request rejected before handling.',
+                'payload'         => $request->all(),
+                'ip'              => $request->ip(),
+            ]);
         $crcToken = $request->query('crc_token');
 
         if (!$crcToken) {

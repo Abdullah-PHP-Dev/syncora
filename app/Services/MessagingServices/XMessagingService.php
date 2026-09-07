@@ -286,7 +286,7 @@ class XMessagingService
             ['url' => $webhookUrl],
             'json'
         );
-        dd($createResponse);
+       
         if (!$createResponse['success']) {
             Log::warning('X Account Activity webhook registration failed.', ['body' => $createResponse['data'] ?? null]);
 
