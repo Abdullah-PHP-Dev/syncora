@@ -468,7 +468,7 @@ class XMessagingService
         }
 
         $response = $this->apiService->get($this->base . 'dm_events', ['Authorization' => "Bearer {$accessToken}"], $params);
- dd($response);
+
         if (!$response['success']) {
             return;
         }
