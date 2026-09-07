@@ -468,13 +468,13 @@ class XMessagingService
         }
 
         $response = $this->apiService->get($this->base . 'dm_events', ['Authorization' => "Bearer {$accessToken}"], $params);
-        dd($response);
+     
         if (!$response['success']) {
             return;
         }
 
         $users = collect($response['data']['includes']['users'] ?? [])->keyBy('id');
-
+        dd($users);
         foreach ($response['data']['data'] ?? [] as $event) {
             // Only inbound (customer-authored) messages need processing -
             // our own outbound sends already got a local Message row at
