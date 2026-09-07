@@ -207,46 +207,32 @@ class XMessagingService
     /**
      * App-only OAuth 2.0 Bearer Token - needed to manage webhooks
      * (GET/POST /2/webhooks), which are app-level, not per-user.
-     * Confirmed via docs.x.com/x-api/webhooks/introduction: "All
-     * endpoints require OAuth2 App Only Bearer Token authentication."
      *
-     * The real, working request - found live, one missing/invalid
-     * parameter at a time via X's own validation errors, against
-     * POST https://api.x.com/2/oauth2/token (NOT the legacy
-     * api.x.com/oauth2/token the general docs.x.com bearer-token guide
-     * describes, and NOT ads.x.client_id/secret - that legacy
-     * endpoint+credential combination only ever returned "Unable to
-     * verify your credentials", code 99, regardless of encoding):
-     *   - HTTP Basic Auth header (posts.x.client_id:posts.x.client_secret)
-     *   - AND client_id/client_secret repeated in the form body
-     *   - client_type=third_party_app (the only other documented value,
-     *     service_client, is for X's own first-party/internal use -
-     *     bare "third_party" is rejected outright)
-     *   - a non-empty scope string
-     * This combination previously returned a genuine 503 from X's own
-     * servers with every parameter correctly satisfied (a real,
-     * transient backend-side failure, not a request-shape problem) -
-     * confirmed resolved by retesting the identical request later and
-     * getting a real 200 + access_token back. 15-day expiry
-     * (expires_in ~1296000s) - not cached beyond this call since
-     * registerWebhookIfNeeded() already only reaches this when no
-     * webhook_id is cached yet (effectively once ever), not a hot path.
+     * The genuinely correct credential pair for this was
+     * posts.x.consumer_key/posts.x.consumer_secret all along - a
+     * DIFFERENT, valid value from both posts.x.client_id/client_secret
+     * (the OAuth 2.0 pair, correct for the user-context PKCE flow above,
+     * wrong here) and ads.x.client_id/client_secret (coincidentally the
+     * same length as posts.x.consumer_key/secret, which is what led to
+     * wrongly assuming they were the same credential - they are not).
+     *
+     * Confirmed live, twice: (1) POST https://api.twitter.com/oauth2/token
+     * (note: "api.twitter.com", NOT "api.x.com" - the "/2/oauth2/token"
+     * endpoint used by the PKCE flow does NOT work for this; it returns a
+     * 200 + a real-looking access_token that every resource endpoint then
+     * rejects as "Unsupported Authentication... Unknown", confirmed
+     * against both GET and POST /2/webhooks) with HTTP Basic Auth
+     * (consumer_key:consumer_secret) and grant_type=client_credentials
+     * alone returns a genuine token; (2) that exact token IS accepted by
+     * GET /2/webhooks (real 200, real {"meta":{"result_count":0}}
+     * response body), unlike every previously-tried alternative.
      */
     private function appOnlyBearerToken(): ?string
     {
-        $clientId = adminSetting('posts.x.client_id');
-        $clientSecret = adminSetting('posts.x.client_secret');
-
         $response = $this->apiService->post(
-            'https://api.x.com/2/oauth2/token',
-            ['Authorization' => 'Basic ' . base64_encode($clientId . ':' . $clientSecret)],
-            [
-                'grant_type'    => 'client_credentials',
-                'client_id'     => $clientId,
-                'client_secret' => $clientSecret,
-                'client_type'   => 'third_party_app',
-                'scope'         => 'tweet.read users.read offline.access',
-            ],
+            'https://api.twitter.com/oauth2/token',
+            ['Authorization' => 'Basic ' . base64_encode(adminSetting('posts.x.consumer_key') . ':' . adminSetting('posts.x.consumer_secret'))],
+            ['grant_type' => 'client_credentials'],
             'form'
         );
 
