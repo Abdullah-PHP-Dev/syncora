@@ -507,17 +507,25 @@ class XMessagingService
      * registered webhook by GETting it with a crc_token query param and
      * expects {"response_token": "sha256=" + base64(hmac_sha256(consumer
      * _secret, crc_token))} back (confirmed via docs.x.com/x-api/
-     * webhooks/quickstart). Uses ads.x.client_secret - confirmed via
-     * XAdService's own oauth_consumer_key usage that ads.x.client_id/
-     * client_secret are genuinely this app's OAuth 1.0a "API Secret Key"
-     * (Consumer Secret), a completely different credential pair from the
-     * OAuth 2.0 messaging.x.client_id/client_secret used for the PKCE
-     * connect flow above - X's docs are explicit CRC/signature
-     * verification use the consumer secret, never a bearer/access token.
+     * webhooks/quickstart).
+     *
+     * Uses posts.x.consumer_secret - previously used ads.x.client_secret,
+     * which was a real, confirmed bug: ads.x.client_id/client_secret
+     * happen to be the same LENGTH as posts.x.consumer_key/consumer_secret
+     * (which led to wrongly treating them as the same credential), but
+     * are actually different values. Confirmed live: registerWebhookIfNeeded()
+     * reached X's CRC check for the first time once appOnlyBearerToken()
+     * was fixed to use posts.x.consumer_key/secret, and X rejected the
+     * response this method computed ("CrcValidationFailed:... Invalid
+     * response_token") because it was still signing with the wrong
+     * secret. The Consumer Key/Secret pair is one single, real credential
+     * for this app - it should be signed with the same one
+     * appOnlyBearerToken() now uses to authenticate, not a different one
+     * that merely happened to look plausible.
      */
     public function crcResponseToken(string $crcToken): string
     {
-        return 'sha256=' . base64_encode(hash_hmac('sha256', $crcToken, (string) adminSetting('ads.x.client_secret'), true));
+        return 'sha256=' . base64_encode(hash_hmac('sha256', $crcToken, (string) adminSetting('posts.x.consumer_secret'), true));
     }
 
     /**
@@ -528,7 +536,7 @@ class XMessagingService
     public function verifySignature(Request $request): bool
     {
         $header = $request->header('x-twitter-webhooks-signature', '');
-        $expected = 'sha256=' . base64_encode(hash_hmac('sha256', $request->getContent(), (string) adminSetting('ads.x.client_secret'), true));
+        $expected = 'sha256=' . base64_encode(hash_hmac('sha256', $request->getContent(), (string) adminSetting('posts.x.consumer_secret'), true));
 
         return $header !== '' && hash_equals($expected, $header);
     }
