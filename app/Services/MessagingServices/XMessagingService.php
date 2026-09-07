@@ -474,11 +474,12 @@ class XMessagingService
         }
 
         $users = collect($response['data']['includes']['users'] ?? [])->keyBy('id');
-        dd($users);
+       
         foreach ($response['data']['data'] ?? [] as $event) {
             // Only inbound (customer-authored) messages need processing -
             // our own outbound sends already got a local Message row at
             // send time, and appear again here as an echo.
+            dd($event['event_type'] !== 'MessageCreate' || $event['sender_id'] === $channel->external_id);
             if ($event['event_type'] !== 'MessageCreate' || $event['sender_id'] === $channel->external_id) {
                 continue;
             }
