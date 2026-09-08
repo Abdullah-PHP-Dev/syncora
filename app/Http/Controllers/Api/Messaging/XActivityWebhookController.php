@@ -33,20 +33,31 @@ class XActivityWebhookController extends Controller
      */
     public function crc(Request $request)
     {
-         WebhookLog::create([
-                'platform'        => 'x',
-                'event_type'      => 'direct_message_events',
-                'signature_valid' => false,
-                'processed'       => false,
-                'note'            => 'Signature verification failed - request rejected before handling.',
-                'payload'         => $request->all(),
-                'ip'              => $request->ip(),
-            ]);
         $crcToken = $request->query('crc_token');
 
         if (!$crcToken) {
+            WebhookLog::create([
+                'platform'        => 'x',
+                'event_type'      => 'crc',
+                'signature_valid' => false,
+                'processed'       => false,
+                'note'            => 'CRC check rejected - missing crc_token query param.',
+                'payload'         => $request->all(),
+                'ip'              => $request->ip(),
+            ]);
+
             return response()->json(['error' => 'Missing crc_token'], 400);
         }
+
+        WebhookLog::create([
+            'platform'        => 'x',
+            'event_type'      => 'crc',
+            'signature_valid' => true,
+            'processed'       => true,
+            'note'            => 'CRC check answered.',
+            'payload'         => $request->all(),
+            'ip'              => $request->ip(),
+        ]);
 
         return response()->json([
             'response_token' => $this->service->crcResponseToken($crcToken),
