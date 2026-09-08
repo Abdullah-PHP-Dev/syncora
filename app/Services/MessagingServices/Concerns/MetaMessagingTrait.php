@@ -60,11 +60,28 @@ trait MetaMessagingTrait
         return "https://graph.facebook.com/{$version}/" . ltrim($path, '/');
     }
 
+    /**
+     * Required on every server-side Graph call authenticated via an access
+     * token whenever the Meta App has "Require App Secret" enabled
+     * (App Dashboard > Settings > Advanced) - without it Graph rejects the
+     * call with "API calls from the server require an appsecret_proof
+     * argument" regardless of how valid the access token itself is. Same
+     * App Secret already used for X-Hub-Signature-256 verification above
+     * (posts.facebook.client_secret) - Messenger/Instagram/WhatsApp
+     * genuinely share one Meta App, confirmed by their own signature checks
+     * already all reading this same setting.
+     */
+    protected function metaAppSecretProof(string $accessToken): string
+    {
+        return hash_hmac('sha256', $accessToken, (string) adminSetting('posts.facebook.client_secret'));
+    }
+
     protected function graphApiCall(string $method, string $path, array $params, string $accessToken)
     {
         $headers = ['Authorization' => "Bearer {$accessToken}"];
         $url = $this->graphApiUrl($path);
-        
+        $params['appsecret_proof'] = $this->metaAppSecretProof($accessToken);
+
         $response = match (strtoupper($method)) {
             'GET'  => $this->apiService->get($url, $headers, $params),
             'POST' => $this->apiService->post($url, $headers, $params),

@@ -98,6 +98,22 @@ class SocialAuthService
     }
 
     /**
+     * Required on every Graph API call authenticated via a user/page access
+     * token when the Meta App has "Require App Secret" enabled (App
+     * Dashboard > Settings > Advanced) - without it Graph rejects the call
+     * with "API calls from the server require an appsecret_proof argument"
+     * regardless of how valid the access token itself is. This was the real
+     * cause of me/accounts and me/adaccounts both silently returning
+     * nothing (their failed response's ['data']['data'] ?? [] just resolves
+     * to an empty array, so the Facebook/Instagram/ad-account counters all
+     * stayed 0 with no visible error in this flow itself).
+     */
+    private function metaAppSecretProof(string $accessToken, string $appSecret): string
+    {
+        return hash_hmac('sha256', $accessToken, $appSecret);
+    }
+
+    /**
      * Only callbackFacebook() uses this so far - it's the one platform in
      * this class the chats-dashboard Manage Channels modal (Meta
      * Messenger tile) also connects through. Google/LinkedIn/TikTok's own
@@ -171,6 +187,7 @@ class SocialAuthService
 
         $pagesResponse = $this->api->get($baseUrl . 'me/accounts', [], [
             'access_token' => $userToken,
+            'appsecret_proof' => $this->metaAppSecretProof($userToken, $clientSecret),
             'fields' => 'id,name,access_token,picture,category,fan_count,followers_count,instagram_business_account{id,username,profile_picture_url,followers_count}',
         ]);
 
@@ -293,6 +310,7 @@ class SocialAuthService
 
         $adAccountsResponse = $this->api->get($baseUrl . 'me/adaccounts', [], [
             'access_token' => $userToken,
+            'appsecret_proof' => $this->metaAppSecretProof($userToken, $clientSecret),
             'fields' => 'id,name,account_id,account_status,currency,business',
         ]);
 
