@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+use App\Models\WebhookLog;
 
 /**
  * X (Twitter) Direct Messages - X API v2 (api.x.com/2/), a different
@@ -572,7 +573,15 @@ class XMessagingService
                 'for_user_id'      => $externalId,
                 'known_x_external_ids' => MessageChannel::where('platform', 'x')->pluck('external_id'),
             ]);
-
+            WebhookLog::create([
+                'platform'        => 'x',
+                'event_type'      => 'direct_message_events',
+                'signature_valid' => true,
+                'processed'       => 'processed',
+                'note'            => 'Signature OK, but no channel.',
+                'payload'         => request()->all(),
+                'ip'              => request()->ip(),
+            ]);
             return false;
         }
 
