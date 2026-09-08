@@ -21,18 +21,27 @@ class InstagramMessengerService
 
     public function sendMessage(Conversation $conversation, array $data)
     {
-        $channel = $conversation->channel;
+        // Conversation::channel() resolves straight to a SocialAccount (not
+        // a MessageChannel - that indirection was removed in the
+        // social_accounts consolidation, see FacebookMessengerService's
+        // identical note), which already carries the access token directly.
+        // The previous $channel->socialAccount->access_token here was a
+        // leftover double-hop that never got updated for Instagram after
+        // that refactor - socialAccount doesn't exist on a SocialAccount
+        // itself, so it silently resolved to null and threw a TypeError
+        // deep inside graphApiCall(), surfacing as an uncaught 500 and a
+        // generic "Failed to send message." in the chat UI.
+        $account = $conversation->channel;
 
         $message = !empty($data['media_url'])
             ? ['attachment' => ['type' => $data['media_type'] ?? 'image', 'payload' => ['url' => $data['media_url']]]]
             : ['text' => $data['body']];
 
-        // FIX: Send via 'me/messages' using the Page/Channel Access Token
         $result = $this->graphApiCall('POST', 'me/messages', [
             'recipient'    => ['id' => $conversation->customer_external_id],
             'message'      => $message,
-            'access_token' => $channel->socialAccount->access_token,
-        ], $channel->socialAccount->access_token);
+            'access_token' => $account->access_token,
+        ], $account->access_token);
 
         if (!$result['success']) {
             Log::error('Instagram message reply failed.', [
