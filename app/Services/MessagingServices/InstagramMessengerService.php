@@ -102,7 +102,8 @@ class InstagramMessengerService
             "https://graph.facebook.com/{$version}/{$igsid}",
             ['Authorization' => 'Bearer ' . $accessToken],
             [
-                'fields'       => 'name,username,profile_pic'
+                'fields'          => 'name,username,profile_pic',
+                'appsecret_proof' => $this->metaAppSecretProof($accessToken),
             ]
         );
 

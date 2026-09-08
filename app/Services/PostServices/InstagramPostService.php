@@ -56,6 +56,27 @@ class InstagramPostService
             : 'https://graph.facebook.com/v25.0/';
     }
 
+    /**
+     * Required on graph.facebook.com calls authenticated via an access
+     * token whenever the Meta App has "Require App Secret" enabled (App
+     * Dashboard > Settings > Advanced) - without it Graph rejects the call
+     * with "API calls from the server require an appsecret_proof
+     * argument" regardless of how valid the token itself is. Only applies
+     * to the Facebook-Login-for-Business path - standalone Instagram Login
+     * tokens (graph.instagram.com) belong to a different app registration
+     * from posts.facebook.client_secret, see resolveBaseUrl()'s docblock,
+     * so this returns nothing for those rather than signing with the
+     * wrong app's secret.
+     */
+    protected function metaAuthExtra($account, string $accessToken): array
+    {
+        if ($this->isInstagramLoginAccount($account)) {
+            return [];
+        }
+
+        return ['appsecret_proof' => hash_hmac('sha256', $accessToken, (string) adminSetting('posts.facebook.client_secret'))];
+    }
+
     protected function ensureValidToken($post)
     {
         // Resolve socialAccount correctly whether $post is Post model or SocialAccount model
@@ -688,6 +709,7 @@ class InstagramPostService
             $baseUrl . $account->platform_account_id,
             [],
             ['fields' => 'followers_count,follows_count,media_count', 'access_token' => $account->access_token]
+                + $this->metaAuthExtra($account, $account->access_token)
         );
 
         if ($fieldsResponse->successful()) {
@@ -710,6 +732,7 @@ class InstagramPostService
                 $baseUrl . $account->platform_account_id . '/insights',
                 [],
                 ['metric' => 'reach,profile_views', 'period' => 'day', 'access_token' => $account->access_token]
+                    + $this->metaAuthExtra($account, $account->access_token)
             );
 
             if ($insightsResponse->successful()) {
@@ -744,6 +767,7 @@ class InstagramPostService
                 $this->resolveBaseUrl($account) . $account->platform_account_id . '/subscribed_apps',
                 [],
                 ['subscribed_fields' => 'comments,mentions', 'access_token' => $account->access_token]
+                    + $this->metaAuthExtra($account, $account->access_token)
             );
 
             if ($response->successful() && ($response->json()['success'] ?? false)) {
@@ -776,6 +800,7 @@ class InstagramPostService
             $baseUrl . $account->platform_account_id . '/media',
             [],
             ['fields' => 'id,caption,media_type,media_url,timestamp,like_count,comments_count', 'limit' => $limit, 'access_token' => $account->access_token]
+                + $this->metaAuthExtra($account, $account->access_token)
         );
 
         if (!$mediaResponse->successful()) {
@@ -850,6 +875,7 @@ class InstagramPostService
                 $baseUrl . $post->post_id . '/insights',
                 [],
                 ['metric' => 'reach,saved', 'access_token' => $account->access_token]
+                    + $this->metaAuthExtra($account, $account->access_token)
             );
 
             $payload = [];
@@ -866,6 +892,7 @@ class InstagramPostService
                     $baseUrl . $post->post_id . '/insights',
                     [],
                     ['metric' => 'impressions', 'access_token' => $account->access_token]
+                        + $this->metaAuthExtra($account, $account->access_token)
                 );
 
                 if ($impressionsResponse->successful()) {
@@ -907,7 +934,7 @@ class InstagramPostService
         $response = $this->api->request('get', $endpoint, [], [
             'fields' => 'id,text,username,timestamp,like_count',
             'access_token' => $post->socialAccount->access_token,
-        ]);
+        ] + $this->metaAuthExtra($post->socialAccount, $post->socialAccount->access_token));
 
         if (!$response->successful()) {
             return;

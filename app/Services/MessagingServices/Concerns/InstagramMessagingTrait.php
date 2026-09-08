@@ -44,6 +44,20 @@ trait InstagramMessagingTrait
         return "https://graph.facebook.com/{$version}/" . ltrim($path, '/');
     }
 
+    /**
+     * Required on every server-side Graph call authenticated via an access
+     * token whenever the Meta App has "Require App Secret" enabled (App
+     * Dashboard > Settings > Advanced) - without it Graph rejects the call
+     * with "API calls from the server require an appsecret_proof
+     * argument" regardless of how valid the access token itself is. Same
+     * App Secret this trait already uses for the token exchange calls
+     * below and for X-Hub-Signature-256 verification (posts.facebook.client_secret).
+     */
+    protected function metaAppSecretProof(string $accessToken): string
+    {
+        return hash_hmac('sha256', $accessToken, (string) adminSetting('posts.facebook.client_secret'));
+    }
+
     protected function graphApiCall(string $method, string $path, array $params, string $accessToken)
     {
         $headers = ['Authorization' => "Bearer {$accessToken}"];
@@ -53,6 +67,7 @@ trait InstagramMessagingTrait
         if (!isset($params['access_token'])) {
             $params['access_token'] = $accessToken;
         }
+        $params['appsecret_proof'] = $this->metaAppSecretProof($accessToken);
 
         $response = match (strtoupper($method)) {
             'GET'   => $this->apiService->get($url, $headers, $params),
@@ -125,8 +140,9 @@ trait InstagramMessagingTrait
 
         // 3. Resolve Connected Instagram Business Accounts & Page Tokens
         $pagesResponse = $this->apiService->get($this->graphApiUrl('me/accounts'), [], [
-            'access_token' => $userToken,
-            'fields'       => 'id,name,access_token,instagram_business_account{id,username,profile_picture_url,name}',
+            'access_token'    => $userToken,
+            'appsecret_proof' => $this->metaAppSecretProof($userToken),
+            'fields'          => 'id,name,access_token,instagram_business_account{id,username,profile_picture_url,name}',
         ]);
 
         if (!$pagesResponse['success'] || empty($pagesResponse['data']['data'])) {
