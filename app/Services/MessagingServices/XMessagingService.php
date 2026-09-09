@@ -245,6 +245,31 @@ class XMessagingService
     }
 
     /**
+     * Best-effort only, for enriching the XChat placeholder message in
+     * handleWebhook() with a real name/avatar instead of "Unknown" - the
+     * sender_id itself is real cleartext even though the message body
+     * isn't, so this is a normal app-only GET /2/users/{id} lookup, same
+     * auth as appOnlyBearerToken() already uses elsewhere in this class.
+     * Any failure here must not block the placeholder message itself.
+     */
+    private function fetchXChatSenderProfile(string $senderId): array
+    {
+        $token = $this->appOnlyBearerToken();
+
+        if (!$token) {
+            return [];
+        }
+
+        $response = $this->apiService->get(
+            "https://api.x.com/2/users/{$senderId}",
+            ['Authorization' => "Bearer {$token}"],
+            ['user.fields' => 'name,username,profile_image_url']
+        );
+
+        return $response['success'] ? ($response['data']['data'] ?? []) : [];
+    }
+
+    /**
      * Registers this app's Account Activity webhook URL with X exactly
      * once - checks GET /2/webhooks for an already-registered one
      * matching our URL first (idempotent) rather than blindly re-POSTing
@@ -583,20 +608,55 @@ class XMessagingService
         if (isset($payload['data']['event_type'])) {
             $externalId = $payload['data']['filter']['user_id'] ?? null;
             $channel = $externalId ? MessageChannel::where('platform', 'x')->where('external_id', $externalId)->first() : null;
+            $eventType = $payload['data']['event_type'];
+            $processedPlaceholder = false;
+
+            // encoded_event itself is genuinely unrecoverable ciphertext,
+            // but everything around it in this envelope is real cleartext
+            // (sender_id, conversation_id, timestamp) - confirmed against
+            // this exact production payload shape. Surfacing a placeholder
+            // inbound message means a real customer message doesn't just
+            // vanish into webhook_logs with nothing visible in the inbox -
+            // it shows up with the right sender/conversation/time, prompting
+            // whoever's watching to go read/reply on X directly. chat.sent
+            // is skipped - that's the echo of our own outbound send.
+            if ($channel && $eventType === 'chat.received') {
+                $senderId = $payload['data']['payload']['sender_id'] ?? null;
+                $conversationId = $payload['data']['payload']['conversation_id'] ?? null;
+                $eventId = $payload['data']['payload']['id'] ?? null;
+
+                if ($senderId && $senderId !== $channel->external_id) {
+                    $sender = $this->fetchXChatSenderProfile($senderId);
+
+                    ProcessInboundMessage::dispatch(
+                        socialAccountId: $channel->social_account_id,
+                        customerExternalId: $senderId,
+                        customerName: $sender['name'] ?? null,
+                        customerAvatarUrl: $sender['profile_image_url'] ?? null,
+                        externalConversationId: $conversationId,
+                        externalMessageId: $eventId,
+                        body: 'New encrypted message - open X to read (content not readable server-side, see handleWebhook() docblock).',
+                    );
+
+                    $processedPlaceholder = true;
+                }
+            }
 
             WebhookLog::create([
                 'platform'        => 'x',
-                'event_type'      => $payload['data']['event_type'],
+                'event_type'      => $eventType,
                 'signature_valid' => true,
-                'processed'       => false,
-                'note'            => $channel
-                    ? 'XChat (encrypted) event received - message content unavailable server-side, see handleWebhook() docblock.'
-                    : 'XChat (encrypted) event received for an unrecognized user_id - dropped.',
+                'processed'       => $processedPlaceholder,
+                'note'            => !$channel
+                    ? 'XChat (encrypted) event received for an unrecognized user_id - dropped.'
+                    : ($processedPlaceholder
+                        ? 'XChat (encrypted) event - placeholder message dispatched (real text unavailable server-side, see handleWebhook() docblock).'
+                        : 'XChat (encrypted) event received - not a new inbound message (an echo of our own send, or missing sender_id).'),
                 'payload'         => $payload,
                 'ip'              => request()->ip(),
             ]);
 
-            return false;
+            return $processedPlaceholder;
         }
 
         $externalId = $payload['for_user_id'] ?? null;
