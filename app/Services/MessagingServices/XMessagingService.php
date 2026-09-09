@@ -270,6 +270,17 @@ class XMessagingService
     }
 
     /**
+     * X's profile_image_url fields come back as the tiny 48px "_normal"
+     * rendition by default - swap it for the full-size "_400x400" version
+     * so avatars in the inbox aren't blurry. No-op (returns as-is) for any
+     * URL that doesn't match this exact X naming convention.
+     */
+    private function upsizeXAvatar(?string $url): ?string
+    {
+        return $url ? str_replace('_normal.', '_400x400.', $url) : $url;
+    }
+
+    /**
      * Registers this app's Account Activity webhook URL with X exactly
      * once - checks GET /2/webhooks for an already-registered one
      * matching our URL first (idempotent) rather than blindly re-POSTing
@@ -514,7 +525,7 @@ class XMessagingService
                 socialAccountId: $channel->social_account_id,
                 customerExternalId: $event['sender_id'],
                 customerName: $sender['name'] ?? $sender['username'] ?? null,
-                customerAvatarUrl: $sender['profile_image_url'] ?? null,
+                customerAvatarUrl: $this->upsizeXAvatar($sender['profile_image_url'] ?? null),
                 externalConversationId: $event['dm_conversation_id'] ?? null,
                 externalMessageId: $event['id'] ?? null,
                 body: $event['text'] ?? null,
@@ -632,7 +643,7 @@ class XMessagingService
                         socialAccountId: $channel->social_account_id,
                         customerExternalId: $senderId,
                         customerName: $sender['name'] ?? null,
-                        customerAvatarUrl: $sender['profile_image_url'] ?? null,
+                        customerAvatarUrl: $this->upsizeXAvatar($sender['profile_image_url'] ?? null),
                         externalConversationId: $conversationId,
                         externalMessageId: $eventId,
                         body: 'New encrypted message - open X to read (content not readable server-side, see handleWebhook() docblock).',
@@ -701,7 +712,7 @@ class XMessagingService
                 socialAccountId: $channel->social_account_id,
                 customerExternalId: $senderId,
                 customerName: $sender['name'] ?? $sender['username'] ?? $sender['screen_name'] ?? null,
-                customerAvatarUrl: $sender['profile_image_url'] ?? null,
+                customerAvatarUrl: $this->upsizeXAvatar($sender['profile_image_url'] ?? null),
                 externalConversationId: $conversationId,
                 externalMessageId: $event['id'] ?? null,
                 body: $text,
