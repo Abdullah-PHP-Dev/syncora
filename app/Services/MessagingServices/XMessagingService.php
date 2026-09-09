@@ -601,134 +601,109 @@ class XMessagingService
      */
     public function handleWebhook(array $payload): bool
     {
-        // Two genuinely different delivery shapes land on this same
-        // endpoint, confirmed against real production webhook_logs rows:
-        //  - Classic Account Activity DM events: top-level for_user_id +
-        //    direct_message_events[] - plaintext, still handled below.
-        //  - XChat (X's end-to-end encrypted DM product, confirmed via
-        //    docs.x.com/xchat/introduction: "Message bodies are encrypted
-        //    on the client; X routes ciphertext and cannot read plaintext
-        //    content"): data.filter.user_id + data.event_type
-        //    (chat.received/chat.sent) + data.payload.encoded_event - a
-        //    signed ciphertext blob. No server-side code here can recover
-        //    real text from it - decrypting requires X's official Chat XDK
-        //    (Python/JS/Rust/Go/C#/Java only, no PHP) plus per-account key
-        //    material this app never provisions. Logged accurately rather
-        //    than silently dropped so this is visible in webhook_logs
-        //    instead of masquerading as "no channel found".
-        if (isset($payload['data']['event_type'])) {
-            $externalId = $payload['data']['filter']['user_id'] ?? null;
-            $channel = $externalId ? MessageChannel::where('platform', 'x')->where('external_id', $externalId)->first() : null;
-            $eventType = $payload['data']['event_type'];
-            $processedPlaceholder = false;
+        // --------------------------------------------------------------------------
+        // 1. Normalize Payload & Identify Channel
+        // --------------------------------------------------------------------------
+        // Legacy Account Activity API: {"for_user_id": "...", "direct_message_events": [...]}
+        // Activity API v2: {"data": {"filter": {"user_id": "..."}, "payload": {"direct_message_events": [...]}}}
+        $effectivePayload = $payload['data']['payload'] ?? $payload;
+        $externalId = $payload['for_user_id'] ?? $payload['data']['filter']['user_id'] ?? null;
 
-            // encoded_event itself is genuinely unrecoverable ciphertext,
-            // but everything around it in this envelope is real cleartext
-            // (sender_id, conversation_id, timestamp) - confirmed against
-            // this exact production payload shape. Surfacing a placeholder
-            // inbound message means a real customer message doesn't just
-            // vanish into webhook_logs with nothing visible in the inbox -
-            // it shows up with the right sender/conversation/time, prompting
-            // whoever's watching to go read/reply on X directly. chat.sent
-            // is skipped - that's the echo of our own outbound send.
-            if ($channel && $eventType === 'chat.received') {
-                $senderId = $payload['data']['payload']['sender_id'] ?? null;
-                $conversationId = $payload['data']['payload']['conversation_id'] ?? null;
-                $eventId = $payload['data']['payload']['id'] ?? null;
-
-                if ($senderId && $senderId !== $channel->external_id) {
-                    $sender = $this->fetchXChatSenderProfile($senderId);
-
-                    ProcessInboundMessage::dispatch(
-                        socialAccountId: $channel->social_account_id,
-                        customerExternalId: $senderId,
-                        customerName: $sender['name'] ?? null,
-                        customerAvatarUrl: $this->upsizeXAvatar($sender['profile_image_url'] ?? null),
-                        externalConversationId: $conversationId,
-                        externalMessageId: $eventId,
-                        body: json_encode($payload) ?? 'New encrypted message - open X to read (content not readable server-side, see handleWebhook() docblock).',
-                    );
-
-                    $processedPlaceholder = true;
-                }
-            }
-
-            WebhookLog::create([
-                'platform'        => 'x',
-                'event_type'      => $eventType,
-                'signature_valid' => true,
-                'processed'       => $processedPlaceholder,
-                'note'            => !$channel
-                    ? 'XChat (encrypted) event received for an unrecognized user_id - dropped.'
-                    : ($processedPlaceholder
-                        ? 'XChat (encrypted) event - placeholder message dispatched (real text unavailable server-side, see handleWebhook() docblock).'
-                        : 'XChat (encrypted) event received - not a new inbound message (an echo of our own send, or missing sender_id).'),
-                'payload'         => $payload,
-                'ip'              => request()->ip(),
-            ]);
-
-            return $processedPlaceholder;
-        }
-
-        $externalId = $payload['for_user_id'] ?? null;
-        $channel = $externalId ? MessageChannel::where('platform', 'x')->where('external_id', $externalId)->first() : null;
+        $channel = $externalId 
+            ? MessageChannel::where('platform', 'x')->where('external_id', $externalId)->first() 
+            : null;
 
         if (!$channel) {
-            Log::warning('X Account Activity webhook event arrived for an unrecognized for_user_id - dropped.', [
-                'for_user_id'      => $externalId,
+            Log::warning('X Webhook event arrived for an unrecognized for_user_id - dropped.', [
+                'for_user_id' => $externalId,
                 'known_x_external_ids' => MessageChannel::where('platform', 'x')->pluck('external_id'),
             ]);
+
             WebhookLog::create([
                 'platform'        => 'x',
-                'event_type'      => 'direct_message_events',
+                'event_type'      => $payload['data']['event_type'] ?? 'direct_message_events',
                 'signature_valid' => true,
                 'processed'       => false,
-                'note'            => 'Signature OK, but no channel matched this for_user_id.',
+                'note'            => 'Signature OK, but no MessageChannel matched this for_user_id.',
                 'payload'         => $payload,
                 'ip'              => request()->ip(),
             ]);
+
             return false;
         }
 
-        $events = $payload['direct_message_events'] ?? [];
-        $users = collect($payload['users'] ?? []);
+        // --------------------------------------------------------------------------
+        // 2. Process Direct Message Events
+        // --------------------------------------------------------------------------
+        $events = $effectivePayload['direct_message_events'] ?? [];
+        $users = $effectivePayload['users'] ?? [];
         $processed = false;
 
         foreach ($events as $event) {
-            $senderId = $event['message_create']['sender_id'] ?? $event['sender_id'] ?? null;
-            $text = $event['message_create']['message_data']['text'] ?? $event['text'] ?? null;
-            $conversationId = $event['message_create']['target']['recipient_id'] ?? $event['dm_conversation_id'] ?? null;
+            if (($event['type'] ?? null) !== 'message_create') {
+                continue;
+            }
 
-            // No sender, or this is an echo of our own outbound send -
-            // that already got a local Message row at send time (same
-            // skip logic as pollMessages()).
+            $senderId = $event['message_create']['sender_id'] ?? null;
+            $recipientId = $event['message_create']['target']['recipient_id'] ?? null;
+
+            // Skip invalid events or outbound replies sent by ourselves
             if (!$senderId || $senderId === $channel->external_id) {
                 continue;
             }
 
-            $sender = $users->get($senderId) ?? $users->firstWhere('id', $senderId) ?? [];
+            $messageId = $event['id'] ?? null;
+            $messageData = $event['message_create']['message_data'] ?? [];
+            $text = $messageData['text'] ?? '';
 
+            // Extract profile metadata from users payload array
+            $profileName = $users[$senderId]['name']
+                ?? $users[$senderId]['screen_name']
+                ?? $users[$senderId]['data']['name']
+                ?? $users[$senderId]['data']['username']
+                ?? 'X User';
+
+            $profileImage = $users[$senderId]['profile_image_url_https']
+                ?? $users[$senderId]['profile_image_url']
+                ?? $users[$senderId]['data']['profile_image_url']
+                ?? null;
+
+            // Extract media attachments
+            $attachments = [];
+            if (!empty($messageData['attachment']['media']['media_url_https'])) {
+                $attachments[] = [
+                    'type' => $messageData['attachment']['media']['type'] ?? 'image',
+                    'url'  => $messageData['attachment']['media']['media_url_https'],
+                ];
+            }
+
+            // Dispatch job with generic payload expected by ProcessInboundMessage
             ProcessInboundMessage::dispatch(
                 socialAccountId: $channel->social_account_id,
                 customerExternalId: $senderId,
-                customerName: $sender['name'] ?? $sender['username'] ?? $sender['screen_name'] ?? null,
-                customerAvatarUrl: $this->upsizeXAvatar($sender['profile_image_url'] ?? null),
-                externalConversationId: $conversationId,
-                externalMessageId: $event['id'] ?? null,
+                customerName: $profileName,
+                customerAvatarUrl: $this->upsizeXAvatar($profileImage),
+                externalConversationId: $recipientId,
+                externalMessageId: $messageId,
+                type: !empty($attachments) && empty($text) ? $attachments[0]['type'] : 'text',
                 body: $text,
+                attachments: $attachments
             );
 
             $processed = true;
         }
 
+        // --------------------------------------------------------------------------
+        // 3. Log Result
+        // --------------------------------------------------------------------------
         WebhookLog::create([
             'platform'        => 'x',
-            'event_type'      => 'direct_message_events',
+            'event_type'      => $payload['data']['event_type'] ?? 'direct_message_events',
             'signature_valid' => true,
             'processed'       => $processed,
             'note'            => $processed
                 ? 'Message dispatched to ProcessInboundMessage.'
-                : 'Signature OK, but not handled as a new message (no direct_message_events in payload, or an echo of our own send).',
+                : 'Signature OK, but not handled as a new message (no valid message_create events or echo of our own send).',
             'payload'         => $payload,
             'ip'              => request()->ip(),
         ]);
