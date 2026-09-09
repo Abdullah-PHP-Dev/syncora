@@ -565,6 +565,40 @@ class XMessagingService
      */
     public function handleWebhook(array $payload): bool
     {
+        // Two genuinely different delivery shapes land on this same
+        // endpoint, confirmed against real production webhook_logs rows:
+        //  - Classic Account Activity DM events: top-level for_user_id +
+        //    direct_message_events[] - plaintext, still handled below.
+        //  - XChat (X's end-to-end encrypted DM product, confirmed via
+        //    docs.x.com/xchat/introduction: "Message bodies are encrypted
+        //    on the client; X routes ciphertext and cannot read plaintext
+        //    content"): data.filter.user_id + data.event_type
+        //    (chat.received/chat.sent) + data.payload.encoded_event - a
+        //    signed ciphertext blob. No server-side code here can recover
+        //    real text from it - decrypting requires X's official Chat XDK
+        //    (Python/JS/Rust/Go/C#/Java only, no PHP) plus per-account key
+        //    material this app never provisions. Logged accurately rather
+        //    than silently dropped so this is visible in webhook_logs
+        //    instead of masquerading as "no channel found".
+        if (isset($payload['data']['event_type'])) {
+            $externalId = $payload['data']['filter']['user_id'] ?? null;
+            $channel = $externalId ? MessageChannel::where('platform', 'x')->where('external_id', $externalId)->first() : null;
+
+            WebhookLog::create([
+                'platform'        => 'x',
+                'event_type'      => $payload['data']['event_type'],
+                'signature_valid' => true,
+                'processed'       => false,
+                'note'            => $channel
+                    ? 'XChat (encrypted) event received - message content unavailable server-side, see handleWebhook() docblock.'
+                    : 'XChat (encrypted) event received for an unrecognized user_id - dropped.',
+                'payload'         => $payload,
+                'ip'              => request()->ip(),
+            ]);
+
+            return false;
+        }
+
         $externalId = $payload['for_user_id'] ?? null;
         $channel = $externalId ? MessageChannel::where('platform', 'x')->where('external_id', $externalId)->first() : null;
 
@@ -577,9 +611,9 @@ class XMessagingService
                 'platform'        => 'x',
                 'event_type'      => 'direct_message_events',
                 'signature_valid' => true,
-                'processed'       => 'processed',
-                'note'            => 'Signature OK, but no channel.',
-                'payload'         => request()->all(),
+                'processed'       => false,
+                'note'            => 'Signature OK, but no channel matched this for_user_id.',
+                'payload'         => $payload,
                 'ip'              => request()->ip(),
             ]);
             return false;
@@ -615,6 +649,18 @@ class XMessagingService
 
             $processed = true;
         }
+
+        WebhookLog::create([
+            'platform'        => 'x',
+            'event_type'      => 'direct_message_events',
+            'signature_valid' => true,
+            'processed'       => $processed,
+            'note'            => $processed
+                ? 'Message dispatched to ProcessInboundMessage.'
+                : 'Signature OK, but not handled as a new message (no direct_message_events in payload, or an echo of our own send).',
+            'payload'         => $payload,
+            'ip'              => request()->ip(),
+        ]);
 
         return $processed;
     }

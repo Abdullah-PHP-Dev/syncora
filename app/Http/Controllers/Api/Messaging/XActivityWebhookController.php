@@ -91,19 +91,11 @@ class XActivityWebhookController extends Controller
             return response('Forbidden', 403);
         }
 
-        $processed = $this->service->handleWebhook($request->all());
-
-        WebhookLog::create([
-            'platform'        => 'x',
-            'event_type'      => 'direct_message_events',
-            'signature_valid' => true,
-            'processed'       => $processed,
-            'note'            => $processed
-                ? 'Message dispatched to ProcessInboundMessage.'
-                : 'Signature OK, but not handled as a new message (no direct_message_events in payload, an echo of our own send, or an unrecognized for_user_id - see laravel.log for which).',
-            'payload'         => $request->all(),
-            'ip'              => $request->ip(),
-        ]);
+        // handleWebhook() owns all logging for every branch past this point
+        // (XChat/encrypted, unrecognized channel, or a real classic DM) -
+        // see its docblock - so there's exactly one WebhookLog row per
+        // real request, not two.
+        $this->service->handleWebhook($request->all());
 
         return response('OK', 200);
     }
