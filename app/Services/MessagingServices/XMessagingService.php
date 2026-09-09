@@ -633,6 +633,54 @@ class XMessagingService
         }
 
         // --------------------------------------------------------------------------
+        // 1b. XChat (encrypted) events - a genuinely different shape from
+        // classic direct_message_events, identified by encoded_event's
+        // presence rather than absence of a key normalize() can't produce
+        // here. encoded_event itself is real, unrecoverable ciphertext -
+        // confirmed via docs.x.com/xchat: X itself "cannot read plaintext
+        // content". sender_id/conversation_id/timestamp around it are real
+        // cleartext though, so this still surfaces a real inbox entry
+        // (sender, conversation, time) with a placeholder body instead of
+        // the event silently producing nothing in `messages` - see
+        // fetchXChatSenderProfile()'s docblock.
+        // --------------------------------------------------------------------------
+        if (isset($effectivePayload['encoded_event'])) {
+            $eventType = $payload['data']['event_type'] ?? 'chat.received';
+            $senderId = $effectivePayload['sender_id'] ?? null;
+            $dispatched = false;
+
+            if ($eventType === 'chat.received' && $senderId && $senderId !== $channel->external_id) {
+                $sender = $this->fetchXChatSenderProfile($senderId);
+
+                ProcessInboundMessage::dispatch(
+                    socialAccountId: $channel->social_account_id,
+                    customerExternalId: $senderId,
+                    customerName: $sender['name'] ?? null,
+                    customerAvatarUrl: $this->upsizeXAvatar($sender['profile_image_url'] ?? null),
+                    externalConversationId: $effectivePayload['conversation_id'] ?? null,
+                    externalMessageId: $effectivePayload['id'] ?? null,
+                    body: 'New encrypted message - open X to read (content not readable server-side, see handleWebhook() docblock).',
+                );
+
+                $dispatched = true;
+            }
+
+            WebhookLog::create([
+                'platform'        => 'x',
+                'event_type'      => $eventType,
+                'signature_valid' => true,
+                'processed'       => $dispatched,
+                'note'            => $dispatched
+                    ? 'XChat (encrypted) event - placeholder message dispatched (real text unavailable server-side, see handleWebhook() docblock).'
+                    : 'XChat (encrypted) event received - not a new inbound message (an echo of our own send, or missing sender_id).',
+                'payload'         => $payload,
+                'ip'              => request()->ip(),
+            ]);
+
+            return $dispatched;
+        }
+
+        // --------------------------------------------------------------------------
         // 2. Process Direct Message Events
         // --------------------------------------------------------------------------
         $events = $effectivePayload['direct_message_events'] ?? [];
