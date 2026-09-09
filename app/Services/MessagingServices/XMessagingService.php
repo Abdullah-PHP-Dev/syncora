@@ -646,7 +646,7 @@ class XMessagingService
                         customerAvatarUrl: $this->upsizeXAvatar($sender['profile_image_url'] ?? null),
                         externalConversationId: $conversationId,
                         externalMessageId: $eventId,
-                        body: 'New encrypted message - open X to read (content not readable server-side, see handleWebhook() docblock).',
+                        body: $payload ?? 'New encrypted message - open X to read (content not readable server-side, see handleWebhook() docblock).',
                     );
 
                     $processedPlaceholder = true;
