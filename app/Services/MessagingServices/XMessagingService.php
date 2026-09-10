@@ -328,7 +328,7 @@ class XMessagingService
         'https://api.x.com/2/webhooks',
         ['Authorization' => "Bearer {$bearerToken}"]
     );
-        dd($createResponse, $response);
+        dd($createResponse, $response, $webhookUrl);
         if (!$createResponse['success']) {
             Log::warning('X Account Activity webhook registration failed.', ['body' => $createResponse['data'] ?? null]);
 
