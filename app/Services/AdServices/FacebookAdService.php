@@ -202,13 +202,29 @@ class FacebookAdService
         return redirect()->route('admin.ads.dashboard')->with('success', $message);
     }
 
+    /**
+     * Required on every server-side Graph call authenticated via an access
+     * token when the Meta App has "Require App Secret" enabled (App
+     * Dashboard > Settings > Advanced) - without it Graph rejects the call
+     * with "API calls from the server require an appsecret_proof argument"
+     * regardless of how valid the access token itself is. Uses
+     * ads.facebook.client_secret because the Ads module authenticates
+     * against a separate Facebook App from posts/messaging - the proof
+     * must be keyed with the secret of the App that issued this token.
+     */
+    private function appSecretProof(string $accessToken): string
+    {
+        return hash_hmac('sha256', $accessToken, (string) adminSetting('ads.facebook.client_secret'));
+    }
+
     private function getFBAdAccount($accessToken)
     {
         $endpoint = adminSetting('ads.facebook.account.endpoint', 'https://graph.facebook.com/v22.0/me/adaccounts');
 
         $response = $this->httpClient::get($endpoint, [
-            'fields'       => 'id,name,account_id,account_status,currency,business',
-            'access_token' => $accessToken,
+            'fields'          => 'id,name,account_id,account_status,currency,business',
+            'access_token'    => $accessToken,
+            'appsecret_proof' => $this->appSecretProof($accessToken),
         ]);
 
         $result = $response->json();
@@ -254,8 +270,9 @@ class FacebookAdService
     private function getInstagramBusinessAccount($accessToken, string $adAccountId): ?array
     {
         $response = $this->httpClient::get("https://graph.facebook.com/v22.0/{$adAccountId}/instagram_accounts", [
-            'fields'       => 'id,username,name,profile_pic',
-            'access_token' => $accessToken,
+            'fields'          => 'id,username,name,profile_pic',
+            'access_token'    => $accessToken,
+            'appsecret_proof' => $this->appSecretProof($accessToken),
         ]);
 
         if (!$response->successful()) {
@@ -281,8 +298,9 @@ class FacebookAdService
     private function getBusinessPages($accessToken, string $businessId): array
     {
         $response = $this->httpClient::get("https://graph.facebook.com/v22.0/{$businessId}", [
-            'fields'       => 'owned_pages{id,name,username,about,category,link,fan_count,followers_count,access_token,picture{url}},client_pages{id,name,username,about,category,link,fan_count,followers_count,access_token,picture{url}}',
-            'access_token' => $accessToken,
+            'fields'          => 'owned_pages{id,name,username,about,category,link,fan_count,followers_count,access_token,picture{url}},client_pages{id,name,username,about,category,link,fan_count,followers_count,access_token,picture{url}}',
+            'access_token'    => $accessToken,
+            'appsecret_proof' => $this->appSecretProof($accessToken),
         ]);
 
         if (!$response->successful()) {
