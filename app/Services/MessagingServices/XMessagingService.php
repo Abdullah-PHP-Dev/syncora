@@ -292,7 +292,7 @@ class XMessagingService
     private function registerWebhookIfNeeded(): ?string
     {
         $existingId = adminSetting('messaging.x.webhook_id');
-     
+        dd($existingId);
         if ($existingId) {
             return $existingId;
         }
