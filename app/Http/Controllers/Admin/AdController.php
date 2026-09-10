@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use App\Models\SocialAccount;
 use Carbon\Carbon;
 
+use App\Services\AdServices\AdsDashboardService;
 use App\Services\AdServices\SocialAdManagerService;
 
 class AdController extends Controller
@@ -20,21 +22,27 @@ class AdController extends Controller
 
     public function dashboard()
     {
-        $accounts = $this->adAccountModel->where('has_ads_permission', true)
-            ->whereNotNull('access_token')
-            ->where('expires_at', '>', now())
-            ->get()
-            ->groupBy('platform');
+        $data = (new AdsDashboardService(Auth::id()))->build();
 
-        $platforms = ['facebook','instagram','google','youtube','tiktok','snapchat','x','linkedin'];
+        // Per-platform connect URLs - route() can't be called inside the
+        // service without pulling the container in, and the connect target
+        // differs by whether the platform is already connected.
+        $data['platforms'] = collect($data['platforms'])->map(function (array $p) {
+            $p['connect_url'] = $p['connected']
+                ? route('admin.ads.campaigns.index', ['platform' => $p['platform']])
+                : route('admin.ads.redirect', $p['platform']);
 
-        $connected = [];
+            return $p;
+        })->all();
 
-        foreach ($platforms as $platform) {
-            $connected[$platform] = $accounts->get($platform, collect())->count();
-        }
+        // $connected kept for the shared <x-social-connect-modal> the view
+        // still renders (1 = connected, 0 = not) - same shape dashboard()
+        // passed before this became a Vue page.
+        $connected = collect($data['platforms'])
+            ->mapWithKeys(fn ($p) => [$p['platform'] => $p['connected'] ? 1 : 0])
+            ->all();
 
-        return view('admin.ads.dashboard', compact('accounts', 'connected' ));
+        return view('admin.ads.dashboard', compact('data', 'connected'));
     }
     
     /**

@@ -15,6 +15,7 @@ import TicketsList from './components/support/TicketsList.vue';
 import TicketCreateForm from './components/support/TicketCreateForm.vue';
 import TicketThread from './components/support/TicketThread.vue';
 import CopilotFindAnswer from './components/support/CopilotFindAnswer.vue';
+import AdsDashboard from './components/ads/AdsDashboard.vue';
 
 window.Alpine = Alpine;
 // Needed so admin/chats/dashboard.blade.php's plain inline <script> (a
@@ -38,6 +39,7 @@ Vue.component('tickets-list', TicketsList);
 Vue.component('ticket-create-form', TicketCreateForm);
 Vue.component('ticket-thread', TicketThread);
 Vue.component('copilot-find-answer', CopilotFindAnswer);
+Vue.component('ads-dashboard', AdsDashboard);
 
 new Vue({
     el: '#app',
