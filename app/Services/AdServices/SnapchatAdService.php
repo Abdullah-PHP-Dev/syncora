@@ -50,7 +50,12 @@ class SnapchatAdService
     {
         $this->apiService = $apiService;
         $this->account = $account->wherePlatform('snapchat')->whereUserId(Auth::user()->id)->first();
-        $this->config = adminSetting('ads.snapchat.base_url');
+        // Fixed, documented Marketing API base - fallback rather than
+        // depending on this admin_settings row always being filled in,
+        // same fix already applied to X Ads for the identical crash shape
+        // (a null base URL/endpoint hitting a strictly-typed string
+        // parameter deep in ApiService).
+        $this->config = adminSetting('ads.snapchat.base_url') ?: 'https://adsapi.snapchat.com/v1/';
 
         if ($this->account) {
             $this->header = $this->getHeaders();
@@ -115,7 +120,15 @@ class SnapchatAdService
             return redirect()->route('admin.ads.dashboard')->with('error', 'Snapchat did not return an authorization code.');
         }
 
-        $tokenResponse = $this->apiService->post(adminSetting('ads.snapchat.access_token'), [
+        // Reproduced live: this admin_setting row is missing on production,
+        // so adminSetting() returned null here and hit apiService->post()'s
+        // strict string $endpoint parameter before any request was made -
+        // a raw TypeError on every single Snapchat ads connect attempt.
+        // Fixed, documented OAuth 2.0 token endpoint - same fallback
+        // pattern already applied to X Ads for the identical crash.
+        $tokenEndpoint = adminSetting('ads.snapchat.access_token') ?: 'https://accounts.snapchat.com/login/oauth2/access_token';
+
+        $tokenResponse = $this->apiService->post($tokenEndpoint, [
             'Content-Type' => 'application/x-www-form-urlencoded',
         ], [
             'client_id'     => adminSetting('ads.snapchat.client_id'),
@@ -911,7 +924,7 @@ class SnapchatAdService
 
     public function refreshToken($account)
     {
-        $endpoint = adminSetting('ads.snapchat.access_token');
+        $endpoint = adminSetting('ads.snapchat.access_token') ?: 'https://accounts.snapchat.com/login/oauth2/access_token';
 
         $response = $this->apiService->post($endpoint, ["Content-Type" => "application/x-www-form-urlencoded"], [
             'client_id'     => adminSetting('ads.snapchat.client_id'),
