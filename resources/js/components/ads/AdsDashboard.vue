@@ -182,7 +182,7 @@
                          genuinely have no photo of their own) + name. -->
                     <ul v-if="p.connected && p.accounts.length" class="ad-conn-accounts">
                       <li v-for="a in p.accounts.slice(0, 3)" :key="a.id">
-                        <AccountAvatarBadge :avatar-url="a.avatar_url" :icon="p.icon" :color="p.color" :size="26" />
+                        <AccountAvatarBadge :avatar-url="a.avatar_url" :icon="'bx ' + p.icon" :color="p.color" :size="26" />
                         <span class="an">{{ a.name }}</span>
                         <i v-if="!a.healthy" class="bx bx-error-circle warn-ic" title="Needs re-auth"></i>
                       </li>
@@ -320,7 +320,7 @@
                 <ul class="ad-acc-list">
                   <li v-for="a in activePlatform.accounts" :key="a.id">
                     <div class="a-top">
-                      <AccountAvatarBadge :avatar-url="a.avatar_url" :icon="activePlatform.icon" :color="activePlatform.color" :size="30" />
+                      <AccountAvatarBadge :avatar-url="a.avatar_url" :icon="'bx ' + activePlatform.icon" :color="activePlatform.color" :size="30" />
                       <span class="a-nm">{{ a.name }}</span>
                       <span class="ad-pill" :class="a.healthy ? 'ok' : 'warn'">
                         <span class="d"></span>{{ a.healthy ? 'Active' : 'Needs re-auth' }}

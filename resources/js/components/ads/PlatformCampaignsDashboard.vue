@@ -162,7 +162,7 @@
               <ul class="pc-acc">
                 <li v-for="a in data.accounts" :key="a.id">
                   <div class="a-top">
-                    <AccountAvatarBadge :avatar-url="a.avatar_url" :icon="data.icon" :color="data.color" :size="30" />
+                    <AccountAvatarBadge :avatar-url="a.avatar_url" :icon="'bx ' + data.icon" :color="data.color" :size="30" />
                     <span class="a-nm">{{ a.name }}</span>
                     <span class="pc-pill" :class="a.healthy ? 'ok' : 'warn'"><span class="d"></span>{{ a.healthy ? 'Active' : 'Needs re-auth' }}</span>
                   </div>
