@@ -58,15 +58,48 @@ class XAdService
     {
         $this->apiService = $apiService;
         $this->account = $account->wherePlatform('x')->whereUserId(Auth::user()->id)->first();
-        $this->config = adminSetting('ads.x.base_url');
-        $this->uploadUrl = adminSetting('ads.x.upload_url');
+        // ads-api.x.com/12/ confirmed still the current, non-deprecated Ads
+        // API version this session (docs.x.com/x-ads-api/fundamentals/
+        // versioning) - a fixed fallback rather than depending on this
+        // admin_settings row always being filled in.
+        $this->config = adminSetting('ads.x.base_url') ?: 'https://ads-api.x.com/12/';
+        $this->uploadUrl = adminSetting('ads.x.upload_url') ?: 'https://upload.twitter.com/1.1/media/upload.json';
+    }
+
+    /**
+     * Missing consumer key/secret would otherwise reach signature()'s
+     * strict string-typed $consumerSecret parameter as null and throw a
+     * raw TypeError before any HTTP call - reproduced live on production
+     * for the equally-missing request_token_url setting (see redirect()'s
+     * own comment). One clean, actionable check instead of the same crash
+     * shape resurfacing for every differently-missing X ads credential.
+     */
+    private function ensureCredentialsConfigured(): ?string
+    {
+        if (!adminSetting('ads.x.client_id') || !adminSetting('ads.x.client_secret')) {
+            return 'X Ads is not configured yet - ads.x.client_id and ads.x.client_secret are missing from Admin Settings.';
+        }
+
+        return null;
     }
 
     public function redirect($platform, $state)
     {
+        if ($error = $this->ensureCredentialsConfigured()) {
+            return redirect()->route('admin.ads.dashboard')->with('error', $error);
+        }
+
         $clientId = adminSetting('ads.x.client_id');
         $clientSecret = adminSetting('ads.x.client_secret');
-        $requestTokenUrl = adminSetting('ads.x.request_token_url');
+        // Reproduced live: this admin_setting row doesn't exist on
+        // production, so adminSetting() returned null here and hit
+        // signature()'s strict string $url type-hint before ever making a
+        // request - a raw TypeError on every single X ads connect attempt.
+        // These are fixed, documented OAuth 1.0a endpoints (confirmed
+        // against docs.x.com this session) - falling back to them directly
+        // rather than depending on an admin_settings row always being
+        // filled in, same as access_token_url already does in callback().
+        $requestTokenUrl = adminSetting('ads.x.request_token_url') ?: 'https://api.x.com/oauth/request_token';
 
         $params = [
             'oauth_callback'         => $this->getCallbackUrl(),
@@ -95,7 +128,9 @@ class XAdService
 
         session(['x_oauth_token_secret' => $tokens['oauth_token_secret'] ?? '', 'x_state' => $state]);
 
-        return Redirect::away(adminSetting('ads.x.authorize_url') . '?oauth_token=' . $tokens['oauth_token']);
+        $authorizeUrl = adminSetting('ads.x.authorize_url') ?: 'https://api.x.com/oauth/authorize';
+
+        return Redirect::away($authorizeUrl . '?oauth_token=' . $tokens['oauth_token']);
     }
 
     /**
@@ -120,6 +155,10 @@ class XAdService
 
         if (request()->filled('denied') || !$oauthToken || !$oauthVerifier) {
             return redirect()->route('admin.ads.dashboard')->with('error', 'X authorization was cancelled or did not return a verifier.');
+        }
+
+        if ($error = $this->ensureCredentialsConfigured()) {
+            return redirect()->route('admin.ads.dashboard')->with('error', $error);
         }
 
         $consumerKey    = adminSetting('ads.x.client_id');
