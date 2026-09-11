@@ -94,6 +94,7 @@ class FacebookAdService
         $pagesSaved = 0;
         $instagramSaved = '';
         $currency = '';
+        dd($accountResponse['accounts']);
         foreach ($accountResponse['accounts'] as $item) {
             // 1. Extract Facebook Ad Account Data
             $fbData = $item['facebook'] ?? null;
@@ -130,7 +131,7 @@ class FacebookAdService
                 $localAccountId = $fbAccountRecord['data']['id'] ?? null;
                 $connected++;
             }
-            dd($item['pages']);
+
             // 2. Extract and Loop Through Connected Facebook Pages - stored in
             // a platform-agnostic table so other services (Instagram, TikTok,
             // X, LinkedIn) can reuse the same "pick a page" UI later.
