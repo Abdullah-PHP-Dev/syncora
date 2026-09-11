@@ -163,9 +163,14 @@
                   <li v-for="p in platforms" :key="p.platform">
                     <i class="bx" :class="p.icon" :style="{ color: p.color }"></i>
                     <span class="nm">{{ p.label }}</span>
-                    <span v-if="p.connected" class="ad-pill" :class="p.healthy ? 'ok' : 'warn'">
-                      <span class="d"></span>{{ p.healthy ? 'Connected' : 'Needs re-auth' }}
-                    </span>
+                    <template v-if="p.connected">
+                      <span class="ad-pill" :class="p.healthy ? 'ok' : 'warn'">
+                        <span class="d"></span>{{ p.healthy ? 'Connected' : 'Needs re-auth' }}
+                      </span>
+                      <a :href="p.reconnect_url" class="ad-reconnect" title="Reconnect / refresh token">
+                        <i class="bx bx-refresh"></i>
+                      </a>
+                    </template>
                     <a v-else :href="p.connect_url" class="ad-pill mut">Connect</a>
                   </li>
                 </ul>
@@ -211,6 +216,20 @@
       </div>
 
       <template v-else>
+        <div class="ad-subbar">
+          <span class="ad-pill" :class="activePlatform.healthy ? 'ok' : 'warn'">
+            <span class="d"></span>{{ activePlatform.healthy ? 'Account connected' : 'Token needs re-auth' }}
+          </span>
+          <div class="ms-auto d-flex gap-2 flex-wrap">
+            <a :href="activePlatform.reconnect_url" class="btn btn-outline-secondary btn-sm">
+              <i class="bx bx-refresh me-1"></i> Reconnect account
+            </a>
+            <a :href="activePlatform.connect_url" class="btn btn-primary btn-sm">
+              <i class="bx bx-list-ul me-1"></i> Manage campaigns
+            </a>
+          </div>
+        </div>
+
         <div class="ad-tiles">
           <div class="ad-tile" v-for="t in platformTiles" :key="t.label">
             <div class="r1">
@@ -293,6 +312,9 @@
                       <span v-if="a.account_status">· {{ a.account_status }}</span>
                       <span class="a-ext">{{ a.external_id }}</span>
                     </div>
+                    <a :href="activePlatform.reconnect_url" class="a-reconnect">
+                      <i class="bx bx-refresh"></i> Reconnect
+                    </a>
                   </li>
                 </ul>
               </div>
@@ -459,6 +481,14 @@ const platformTiles = computed(() => {
 .ad-pill.bad { background: #fde8e7; color: #c0322c; }
 .ad-pill.mut { background: #eef1f5; color: #5b6675; }
 .ad-pill .d { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+.ad-subbar { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+
+.ad-reconnect { color: var(--muted); font-size: 1rem; line-height: 1; display: inline-flex; text-decoration: none; padding: .15rem; border-radius: 6px; }
+.ad-reconnect:hover { color: var(--brand); background: var(--ln-soft); }
+
+.a-reconnect { display: inline-flex; align-items: center; gap: .25rem; font-size: .74rem; font-weight: 600; color: var(--ink2); text-decoration: none; margin-top: .4rem; }
+.a-reconnect:hover { color: var(--brand); }
 
 .ad-conn { list-style: none; margin: 0; padding: 0; }
 .ad-conn li { display: flex; align-items: center; gap: .6rem; padding: .5rem 0; border-bottom: 1px solid var(--ln-soft); }

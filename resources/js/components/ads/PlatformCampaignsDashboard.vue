@@ -40,6 +40,9 @@
           <i v-else class="bx bx-sync me-1"></i>
           {{ syncing ? 'Syncing…' : 'Sync Now' }}
         </button>
+        <a v-if="data.connected" :href="data.urls.connect" class="btn btn-outline-secondary btn-sm">
+          <i class="bx bx-refresh me-1"></i> Reconnect account
+        </a>
         <a v-if="data.connected" :href="data.urls.create" class="btn btn-primary btn-sm">
           <i class="bx bx-plus me-1"></i> Create campaign
         </a>
@@ -167,6 +170,7 @@
                     <span v-if="a.account_status">· {{ a.account_status }}</span>
                     <span class="a-ext">{{ a.external_id }}</span>
                   </div>
+                  <a :href="data.urls.connect" class="a-reconnect"><i class="bx bx-refresh"></i> Reconnect</a>
                 </li>
               </ul>
             </div>
@@ -342,6 +346,8 @@ function destroy(c) {
 .pc-acc .a-nm { font-weight: 700; color: var(--ink); font-size: .84rem; }
 .pc-acc .a-meta { font-size: .73rem; color: var(--muted); margin-top: .2rem; display: flex; flex-wrap: wrap; gap: .3rem; }
 .pc-acc .a-ext { opacity: .7; }
+.pc-acc .a-reconnect { display: inline-flex; align-items: center; gap: .25rem; font-size: .74rem; font-weight: 600; color: var(--ink2); text-decoration: none; margin-top: .4rem; }
+.pc-acc .a-reconnect:hover { color: var(--brand); }
 
 .pc-actions { display: flex; flex-direction: column; gap: .5rem; }
 .pc-actions .btn { text-align: left; font-size: .84rem; font-weight: 600; border-radius: 10px; padding: .55rem .8rem; display: flex; align-items: center; gap: .55rem; }

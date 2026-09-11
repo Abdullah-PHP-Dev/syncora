@@ -32,6 +32,11 @@ class AdController extends Controller
                 ? route('admin.ads.campaigns.index', ['platform' => $p['platform']])
                 : route('admin.ads.redirect', $p['platform']);
 
+            // Same OAuth entry point as a first connect - the callback
+            // upserts the existing social_accounts row, so re-running it
+            // just refreshes the token / re-grants scopes.
+            $p['reconnect_url'] = route('admin.ads.redirect', $p['platform']);
+
             return $p;
         })->all();
 
