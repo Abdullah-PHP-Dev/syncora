@@ -305,6 +305,8 @@ class FacebookAdService
 
         $accounts = array_map(function ($account) use ($accessToken) {
             $instagramAccounts = $this->getInstagramBusinessAccount($accessToken, $account['id']);
+
+            dd($instagramAccounts, $account['id']);
             $pages = $this->getBusinessPages($accessToken, $account['business']['id']);
 
             return [

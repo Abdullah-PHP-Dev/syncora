@@ -184,7 +184,7 @@ class SnapchatAdService
             $adAccounts = collect($adAccountsResponse['data']['adaccounts'] ?? [])
                 ->pluck('adaccount')
                 ->filter();
-            dd( $adAccounts);
+     
             foreach ($adAccounts as $adAccount) {
                 $adAccountId = $adAccount['id'] ?? null;
 
