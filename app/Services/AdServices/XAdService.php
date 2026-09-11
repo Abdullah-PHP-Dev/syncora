@@ -159,25 +159,54 @@ class XAdService
         $accessTokenSecret = $access['oauth_token_secret'];
 
         // --- resolve the Ads accounts this user can manage ---
+        // Confirmed against docs.x.com/x-ads-api/fundamentals/pagination:
+        // GET endpoints here paginate via cursor/next_cursor (default page
+        // size 200) - a user managing more than one page of accounts would
+        // otherwise silently lose the rest. Each API param (cursor
+        // included, once present) must be part of the OAuth signature base
+        // string per RFC 5849, not just appended to the URL - rebuilt every
+        // page since oauth_nonce/oauth_timestamp must be fresh per request.
         $accountsUrl = rtrim($this->config, '/') . '/accounts';
-        $acctParams  = [
-            'oauth_consumer_key'     => $consumerKey,
-            'oauth_nonce'            => Str::random(32),
-            'oauth_signature_method' => 'HMAC-SHA1',
-            'oauth_timestamp'        => (string) time(),
-            'oauth_token'            => $accessToken,
-            'oauth_version'          => '1.0',
-        ];
-        $acctParams['oauth_signature'] = $this->signature('GET', $accountsUrl, $acctParams, $consumerSecret, $accessTokenSecret);
-        $acctHeader = 'OAuth ' . collect($acctParams)->map(fn ($v, $k) => rawurlencode($k) . '="' . rawurlencode($v) . '"')->implode(', ');
+        $accounts = [];
+        $cursor = null;
+        $pages = 0;
 
-        $accountsResponse = $this->apiService->get($accountsUrl, ['Authorization' => $acctHeader]);
+        do {
+            $apiParams = array_filter(['cursor' => $cursor]);
+            $acctParams = array_merge($apiParams, [
+                'oauth_consumer_key'     => $consumerKey,
+                'oauth_nonce'            => Str::random(32),
+                'oauth_signature_method' => 'HMAC-SHA1',
+                'oauth_timestamp'        => (string) time(),
+                'oauth_token'            => $accessToken,
+                'oauth_version'          => '1.0',
+            ]);
+            $acctParams['oauth_signature'] = $this->signature('GET', $accountsUrl, $acctParams, $consumerSecret, $accessTokenSecret);
 
-        if (!$accountsResponse['success']) {
-            return redirect()->route('admin.ads.dashboard')->with('error', $accountsResponse['data']['errors'][0]['message'] ?? 'Connected to X, but could not fetch your Ads accounts (the app likely needs X Ads API access).');
-        }
+            $oauthOnly = array_filter($acctParams, fn ($k) => str_starts_with($k, 'oauth_'), ARRAY_FILTER_USE_KEY);
+            $acctHeader = 'OAuth ' . collect($oauthOnly)->map(fn ($v, $k) => rawurlencode($k) . '="' . rawurlencode($v) . '"')->implode(', ');
 
-        $accounts = $accountsResponse['data']['data'] ?? [];
+            // Reproduced live (via Http::fake()) before fixing: embedding
+            // ?cursor=... directly in the URL string here and passing an
+            // empty $payload to apiService->get() silently loses it -
+            // Guzzle's query request option, which ApiService::get() always
+            // sets from $payload (even []), REPLACES any query string
+            // already in the URL rather than merging with it. That made
+            // every "next page" request actually re-request page 1
+            // forever, caught only by this method's own 20-page safety
+            // cap - it would have looked like pagination worked (no
+            // error), just silently never advanced. $cursor must go
+            // through the real $payload parameter instead.
+            $accountsResponse = $this->apiService->get($accountsUrl, ['Authorization' => $acctHeader], $apiParams);
+
+            if (!$accountsResponse['success']) {
+                return redirect()->route('admin.ads.dashboard')->with('error', $accountsResponse['data']['errors'][0]['message'] ?? 'Connected to X, but could not fetch your Ads accounts (the app likely needs X Ads API access).');
+            }
+
+            $accounts = array_merge($accounts, $accountsResponse['data']['data'] ?? []);
+            $cursor = $accountsResponse['data']['next_cursor'] ?? null;
+        } while ($cursor && ++$pages < 20);
+
         $connected = 0;
 
         foreach ($accounts as $acct) {
@@ -209,9 +238,14 @@ class XAdService
                 new SocialAccount
             );
 
+            // approval_status is the real field the Accounts endpoint
+            // returns (ACCEPTED/PENDING/REJECTED, confirmed against
+            // docs.x.com's own example response) - a previous version of
+            // this derived a fake 'active'/'deleted' status from the
+            // 'deleted' boolean alone, losing the real, more useful value.
             $record['data']->syncAdDetails(array_filter([
                 'timezone'       => $acct['timezone'] ?? null,
-                'account_status' => $acct['deleted'] ?? false ? 'deleted' : 'active',
+                'account_status' => $acct['deleted'] ?? false ? 'deleted' : ($acct['approval_status'] ?? null),
             ]));
 
             $connected++;
