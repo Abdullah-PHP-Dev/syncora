@@ -84,18 +84,144 @@ class XAdService
         $response = $this->apiService->post($requestTokenUrl, ['Authorization' => $authHeader]);
 
         if (!$response['success']) {
-            return $this->errorResponse($response['body'] ?? 'Failed to get X request token.');
+            return redirect()->route('admin.ads.dashboard')->with('error', 'X did not return a request token. The app may not have Ads API access, or ads.x.client_id/client_secret are wrong.');
         }
 
         parse_str($response['body'], $tokens);
 
         if (!isset($tokens['oauth_token'])) {
-            return $this->errorResponse('Missing oauth_token in X request_token response.');
+            return redirect()->route('admin.ads.dashboard')->with('error', 'X request-token response was missing oauth_token.');
         }
 
-        session(['x_oauth_token_secret' => $tokens['oauth_token_secret'], 'x_state' => $state]);
+        session(['x_oauth_token_secret' => $tokens['oauth_token_secret'] ?? '', 'x_state' => $state]);
 
         return Redirect::away(adminSetting('ads.x.authorize_url') . '?oauth_token=' . $tokens['oauth_token']);
+    }
+
+    /**
+     * OAuth 1.0a step 3 - exchange the verifier for a long-lived access
+     * token pair, then resolve the Ads accounts this user can manage.
+     * X Ads has no Bearer token: the (token, token_secret) pair is stored
+     * per account - the token on access_token, the secret in
+     * metadata.legacy_token_secret, which is exactly what oauthHeader()
+     * reads back to sign every subsequent Ads API call.
+     *
+     * Note: this only succeeds if the developer app actually has X Ads API
+     * access AND ads.x.client_id/client_secret are the consumer key/secret
+     * of that same app. Neither can be verified from code - a failure here
+     * returns to the dashboard with the API's own error rather than a 500
+     * (before this method existed at all, completing the X consent screen
+     * hit "Call to undefined method XAdService::callback()").
+     */
+    public function callback($platform = 'x', $state = null)
+    {
+        $oauthToken    = request()->input('oauth_token');
+        $oauthVerifier = request()->input('oauth_verifier');
+
+        if (request()->filled('denied') || !$oauthToken || !$oauthVerifier) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'X authorization was cancelled or did not return a verifier.');
+        }
+
+        $consumerKey    = adminSetting('ads.x.client_id');
+        $consumerSecret = adminSetting('ads.x.client_secret');
+        $accessTokenUrl = adminSetting('ads.x.access_token_url') ?: 'https://api.x.com/oauth/access_token';
+        $requestSecret  = (string) session('x_oauth_token_secret', '');
+
+        // --- exchange verifier -> access token ---
+        $params = [
+            'oauth_consumer_key'     => $consumerKey,
+            'oauth_nonce'            => Str::random(32),
+            'oauth_signature_method' => 'HMAC-SHA1',
+            'oauth_timestamp'        => (string) time(),
+            'oauth_token'            => $oauthToken,
+            'oauth_verifier'         => $oauthVerifier,
+            'oauth_version'          => '1.0',
+        ];
+        $params['oauth_signature'] = $this->signature('POST', $accessTokenUrl, $params, $consumerSecret, $requestSecret);
+
+        $authHeader = 'OAuth ' . collect($params)->map(fn ($v, $k) => rawurlencode($k) . '="' . rawurlencode($v) . '"')->implode(', ');
+
+        $tokenResponse = $this->apiService->post($accessTokenUrl, ['Authorization' => $authHeader]);
+
+        session()->forget(['x_oauth_token_secret', 'x_state']);
+
+        if (!$tokenResponse['success']) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'X access-token exchange failed: ' . ($tokenResponse['body'] ?? 'unknown error'));
+        }
+
+        parse_str((string) $tokenResponse['body'], $access);
+
+        if (empty($access['oauth_token']) || empty($access['oauth_token_secret'])) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'X did not return an access token pair.');
+        }
+
+        $accessToken       = $access['oauth_token'];
+        $accessTokenSecret = $access['oauth_token_secret'];
+
+        // --- resolve the Ads accounts this user can manage ---
+        $accountsUrl = rtrim($this->config, '/') . '/accounts';
+        $acctParams  = [
+            'oauth_consumer_key'     => $consumerKey,
+            'oauth_nonce'            => Str::random(32),
+            'oauth_signature_method' => 'HMAC-SHA1',
+            'oauth_timestamp'        => (string) time(),
+            'oauth_token'            => $accessToken,
+            'oauth_version'          => '1.0',
+        ];
+        $acctParams['oauth_signature'] = $this->signature('GET', $accountsUrl, $acctParams, $consumerSecret, $accessTokenSecret);
+        $acctHeader = 'OAuth ' . collect($acctParams)->map(fn ($v, $k) => rawurlencode($k) . '="' . rawurlencode($v) . '"')->implode(', ');
+
+        $accountsResponse = $this->apiService->get($accountsUrl, ['Authorization' => $acctHeader]);
+
+        if (!$accountsResponse['success']) {
+            return redirect()->route('admin.ads.dashboard')->with('error', $accountsResponse['data']['errors'][0]['message'] ?? 'Connected to X, but could not fetch your Ads accounts (the app likely needs X Ads API access).');
+        }
+
+        $accounts = $accountsResponse['data']['data'] ?? [];
+        $connected = 0;
+
+        foreach ($accounts as $acct) {
+            if (empty($acct['id'])) {
+                continue;
+            }
+
+            $record = $this->apiService->success(
+                [
+                    'platform'            => 'x',
+                    'user_id'             => Auth::id(),
+                    'name'                => $acct['name'] ?? "X Ads Account {$acct['id']}",
+                    'platform_account_id' => $acct['id'],
+                    'access_token'        => $accessToken,
+                    'is_token_valid'      => true,
+                    'has_ads_permission'  => true,
+                    'metadata'            => array_filter([
+                        'legacy_token_secret' => $accessTokenSecret,
+                        'x_user_id'           => $access['user_id'] ?? null,
+                        'screen_name'         => $access['screen_name'] ?? null,
+                        'timezone'            => $acct['timezone'] ?? null,
+                    ]),
+                ],
+                [
+                    'platform'            => 'x',
+                    'platform_account_id' => $acct['id'],
+                    'user_id'             => Auth::id(),
+                ],
+                new SocialAccount
+            );
+
+            $record['data']->syncAdDetails(array_filter([
+                'timezone'       => $acct['timezone'] ?? null,
+                'account_status' => $acct['deleted'] ?? false ? 'deleted' : 'active',
+            ]));
+
+            $connected++;
+        }
+
+        if ($connected === 0) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'Connected to X, but no Ads account was returned for this user.');
+        }
+
+        return redirect()->route('admin.ads.dashboard')->with('success', "Connected {$connected} X Ads account(s).");
     }
 
     /**

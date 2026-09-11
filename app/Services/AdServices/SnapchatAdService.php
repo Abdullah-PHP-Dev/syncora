@@ -61,11 +61,21 @@ class SnapchatAdService
     {
         $clientId = adminSetting('ads.snapchat.client_id');
 
-        $url = 'https://accounts.snapchat.com/login/AdService2/authorize?' . http_build_query([
+        // The authorize endpoint is .../login/oauth2/authorize - it was
+        // hardcoded as ".../login/AdService2/authorize" (a bad rename;
+        // "oauth2" got replaced with "AdService2" in this one spot),
+        // which is not a real Snapchat URL, so the connect flow 404'd at
+        // Snapchat before the consent screen ever loaded. The token
+        // endpoint (ads.snapchat.access_token) always had "oauth2"
+        // correct. Falls back to the real URL when the admin setting is
+        // empty, matching how the other ad services resolve their URLs.
+        $authorizeUrl = adminSetting('ads.snapchat.authorize_url') ?: 'https://accounts.snapchat.com/login/oauth2/authorize';
+
+        $url = $authorizeUrl . '?' . http_build_query([
             'client_id'     => $clientId,
             'redirect_uri'  => $this->getCallbackUrl(),
             'response_type' => 'code',
-            'scope'         => 'snapchat-marketing-api snapchat-profile-api',
+            'scope'         => 'snapchat-marketing-api',
             'state'         => $state,
         ]);
 
