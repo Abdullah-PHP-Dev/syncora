@@ -249,7 +249,7 @@ class XAdService
         $connected = 0;
 
         foreach ($accounts as $acct) {
-            if (empty($acct['id'])) {
+            if (empty($acct['id']) || $acct['approval_status'] == 'REJECTED') {
                 continue;
             }
             dd($acct);
