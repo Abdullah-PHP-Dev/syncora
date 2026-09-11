@@ -94,7 +94,6 @@ class FacebookAdService
         $pagesSaved = 0;
         $instagramSaved = '';
         $currency = '';
-        dd($accountResponse['accounts']);
         foreach ($accountResponse['accounts'] as $item) {
             // 1. Extract Facebook Ad Account Data
             $fbData = $item['facebook'] ?? null;
@@ -103,11 +102,23 @@ class FacebookAdService
             if ($fbData) {
                 $rawAccountId = $fbData['account_id'];
                 $currency = $fbData['currency'];
+
+                // Meta's Ad Account entity (act_X) has no photo field of
+                // its own (confirmed against a real Graph response -
+                // 'facebook' here only ever carries id/name/account_id/
+                // account_status/currency/business) - borrowing the first
+                // Page under the same Business (already fetched in this
+                // same getFBAdAccount() call, no extra API cost) is a
+                // real, recognizable identity for the account rather than
+                // leaving avatar_url null for every Facebook ad account.
+                $avatarUrl = $item['pages'][0]['picture']['data']['url'] ?? null;
+
                 $fbAccountRecord = $this->apiService->success(
                     [
                         'platform'      => 'facebook',
                         'user_id'       => Auth::id(),
                         'name'          => $fbData['name'] ?? "Facebook Ad Account {$rawAccountId}",
+                        'avatar_url'    => $avatarUrl,
                         'platform_account_id' => $rawAccountId,
                         'access_token'  => $accessToken,
                         'refresh_token' => data_get($data, 'refresh_token'),
