@@ -94,6 +94,11 @@ class FacebookAdService
         $pagesSaved = 0;
         $instagramSaved = '';
         $currency = '';
+        // Multiple ad accounts commonly share one Business Manager - cached
+        // per business_id so a connect with several accounts doesn't repeat
+        // the same profile_picture_uri lookup.
+        $businessAvatarCache = [];
+
         foreach ($accountResponse['accounts'] as $item) {
             // 1. Extract Facebook Ad Account Data
             $fbData = $item['facebook'] ?? null;
@@ -102,16 +107,26 @@ class FacebookAdService
             if ($fbData) {
                 $rawAccountId = $fbData['account_id'];
                 $currency = $fbData['currency'];
+                $businessId = $fbData['business']['id'] ?? null;
 
-                // Meta's Ad Account entity (act_X) has no photo field of
-                // its own (confirmed against a real Graph response -
-                // 'facebook' here only ever carries id/name/account_id/
-                // account_status/currency/business) - borrowing the first
-                // Page under the same Business (already fetched in this
-                // same getFBAdAccount() call, no extra API cost) is a
-                // real, recognizable identity for the account rather than
-                // leaving avatar_url null for every Facebook ad account.
-                $avatarUrl = $item['pages'][0]['picture']['data']['url'] ?? null;
+                // The Ad Account node itself has no picture field
+                // (confirmed against Meta's own Marketing API reference) -
+                // Business.profile_picture_uri is the real, correct source.
+                // Falls back to the first linked Page's picture (already
+                // fetched in this same getFBAdAccount() call, no extra API
+                // cost) only if the business has none set or there's no
+                // business at all.
+                $avatarUrl = null;
+
+                if ($businessId) {
+                    if (!array_key_exists($businessId, $businessAvatarCache)) {
+                        $businessAvatarCache[$businessId] = $this->fetchBusinessProfilePicture($businessId, $accessToken);
+                    }
+
+                    $avatarUrl = $businessAvatarCache[$businessId];
+                }
+
+                $avatarUrl = $avatarUrl ?: ($item['pages'][0]['picture']['data']['url'] ?? null);
 
                 $fbAccountRecord = $this->apiService->success(
                     [
@@ -233,6 +248,34 @@ class FacebookAdService
     private function appSecretProof(string $accessToken): string
     {
         return hash_hmac('sha256', $accessToken, (string) adminSetting('ads.facebook.client_secret'));
+    }
+
+    /**
+     * The Ad Account (act_X) node has no photo field of its own - confirmed
+     * against Meta's own Marketing API reference, not assumed. The Business
+     * that owns it does: Business.profile_picture_uri ("The profile picture
+     * URI of the business"). This is the real, correct source for an ad
+     * account's avatar - callback() falls back to a linked Page's picture
+     * only when the business has none.
+     */
+    private function fetchBusinessProfilePicture(string $businessId, string $accessToken): ?string
+    {
+        $response = $this->httpClient::get("https://graph.facebook.com/v22.0/{$businessId}", [
+            'fields'          => 'profile_picture_uri',
+            'access_token'    => $accessToken,
+            'appsecret_proof' => $this->appSecretProof($accessToken),
+        ]);
+
+        if (!$response->successful()) {
+            Log::warning('Facebook Business profile_picture_uri lookup failed.', [
+                'business_id' => $businessId,
+                'response'    => $response->json(),
+            ]);
+
+            return null;
+        }
+
+        return $response->json()['profile_picture_uri'] ?? null;
     }
 
     private function getFBAdAccount($accessToken)
