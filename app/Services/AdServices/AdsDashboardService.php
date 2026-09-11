@@ -106,7 +106,16 @@ class AdsDashboardService
             ->groupBy('platform')->pluck('c', 'platform');
 
         $platforms = collect(self::PLATFORMS)->map(function (array $meta, string $key) use ($accounts, $campaigns, $adGroupCounts, $adCounts, $creativeCounts) {
-            $platformAccounts  = $accounts->get($key, collect());
+            // YouTube ads run through the same Google Ads customer as
+            // Search/Display - there is no separate "YouTube Ads account"
+            // anywhere in this app (YoutubeAdService's own constructor
+            // resolves its account via wherePlatform('google'), and
+            // AdCampaignController/forPlatform() already alias this the
+            // same way) - only the accounts lookup needs it, campaigns
+            // genuinely are stamped platform='youtube' (see
+            // YoutubeAdService::storeCampaign()), same as forPlatform().
+            $accountsKey = $key === 'youtube' ? 'google' : $key;
+            $platformAccounts  = $accounts->get($accountsKey, collect());
             $platformCampaigns = $campaigns->get($key, collect());
 
             return array_merge($meta, [

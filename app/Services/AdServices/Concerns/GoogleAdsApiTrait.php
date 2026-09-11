@@ -173,6 +173,14 @@ trait GoogleAdsApiTrait
         $connected = 0;
         $skippedManagers = 0;
 
+        // Google Ads' Customer resource has no logo/photo field at all
+        // (confirmed against Google's own API reference - it exposes
+        // descriptive_name/currency_code/time_zone/manager/etc, nothing
+        // image-related). The connecting Google account's own profile
+        // photo is the closest real, non-fabricated identity available -
+        // one lightweight extra call, not per customer.
+        $avatarUrl = $this->fetchGoogleProfilePicture($accessToken);
+
         foreach ($listResponse['data']['resourceNames'] ?? [] as $resourceName) {
             if (!preg_match('#customers/(\d+)#', $resourceName, $matches)) {
                 continue;
@@ -210,9 +218,20 @@ trait GoogleAdsApiTrait
 
             $this->apiService->success(
                 [
-                    'platform'      => $platform,
+                    // Always 'google', regardless of which tile (Google
+                    // Ads or YouTube) triggered this connect - YouTube ads
+                    // run on this exact same Google Ads customer, and
+                    // YoutubeAdService's own constructor only ever looks
+                    // up platform='google' (see its docblock). Saving
+                    // under $platform used to create a second, orphaned
+                    // 'youtube'-platform row for the identical customer
+                    // whenever someone connected via that tile - never
+                    // read by anything, but shown on the dashboard as if
+                    // it were a distinct connection.
+                    'platform'      => 'google',
                     'user_id'       => Auth::id(),
                     'name'          => $detail['descriptiveName'] ?? ('Google Ads ' . $customerId),
+                    'avatar_url'    => $avatarUrl,
                     'platform_account_id' => $customerId,
                     'access_token'  => $accessToken,
                     'refresh_token' => $token['refresh_token'] ?? null,
@@ -221,7 +240,7 @@ trait GoogleAdsApiTrait
                     'metadata'      => array_filter(['currency' => $detail['currencyCode'] ?? null]),
                 ],
                 [
-                    'platform'      => $platform,
+                    'platform'      => 'google',
                     'platform_account_id' => $customerId,
                     'user_id'       => Auth::id(),
                 ],
@@ -240,6 +259,28 @@ trait GoogleAdsApiTrait
         }
 
         return redirect()->route('admin.ads.dashboard')->with('success', "Connected {$connected} Google Ads account(s).");
+    }
+
+    /**
+     * The Google Ads Customer resource has no photo/logo field, confirmed
+     * against Google's own API reference. This is the connecting user's own
+     * Google account photo - a real photo, not a fabricated one, but a
+     * person's face rather than a business asset; best-effort only, a
+     * failure here must not block the connect.
+     */
+    protected function fetchGoogleProfilePicture(string $accessToken): ?string
+    {
+        try {
+            $response = $this->apiService->get('https://www.googleapis.com/oauth2/v2/userinfo', [
+                'Authorization' => "Bearer {$accessToken}",
+            ]);
+
+            return $response['success'] ? ($response['data']['picture'] ?? null) : null;
+        } catch (\Throwable $e) {
+            Log::warning('Google userinfo picture lookup failed.', ['error' => $e->getMessage()]);
+
+            return null;
+        }
     }
 
     /**

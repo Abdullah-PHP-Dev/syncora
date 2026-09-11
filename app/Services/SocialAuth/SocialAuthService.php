@@ -463,6 +463,17 @@ class SocialAuthService
             return 0;
         }
 
+        $avatarUrl = null;
+
+        try {
+            $userinfo = $this->api->get('https://www.googleapis.com/oauth2/v2/userinfo', [
+                'Authorization' => "Bearer {$accessToken}",
+            ]);
+            $avatarUrl = $userinfo['success'] ? ($userinfo['data']['picture'] ?? null) : null;
+        } catch (\Throwable $e) {
+            Log::warning('Google userinfo picture lookup failed during unified connect.', ['error' => $e->getMessage()]);
+        }
+
         $base = adminSetting('ads.google.base_url') ?: 'https://googleads.googleapis.com/v24/';
         $headers = [
             'Authorization' => 'Bearer ' . $accessToken,
@@ -512,6 +523,13 @@ class SocialAuthService
                 ['platform' => 'google', 'platform_account_id' => $customerId, 'user_id' => $userId],
                 [
                     'name' => $detail['descriptiveName'] ?? "Google Ads Customer {$customerId}",
+                    // Google Ads' Customer resource has no photo/logo field
+                    // at all (confirmed against Google's own API reference)
+                    // - the connecting Google account's own profile photo
+                    // is the closest real identity available, same choice
+                    // GoogleAdsApiTrait::callback() makes for the dedicated
+                    // Ads-dashboard connect flow.
+                    'avatar_url' => $avatarUrl,
                     'account_type' => 'ad_account',
                     'access_token' => $accessToken,
                     'refresh_token' => $refreshToken,
