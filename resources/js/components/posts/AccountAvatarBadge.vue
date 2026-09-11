@@ -14,7 +14,7 @@
       <i :class="icon"></i>
     </span>
 
-    <span class="account-avatar-badge__badge" :style="{ background: color }">
+    <span class="account-avatar-badge__badge" :style="{ color: color }">
       <i :class="icon"></i>
     </span>
 
@@ -103,7 +103,9 @@ defineProps({
   display: flex;
   align-items: center;
   justify-content: center;
+  background: #fff;
   border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, .08);
 }
 
 .account-avatar-badge__badge i {
@@ -112,8 +114,7 @@ defineProps({
   justify-content: center;
   width: 100%;
   height: 100%;
-  font-size: 9px;
-  color: #fff;
+  font-size: 10px;
   line-height: 1;
   margin: 0;
 }
