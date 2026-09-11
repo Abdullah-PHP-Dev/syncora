@@ -247,7 +247,7 @@ class XAdService
         } while ($cursor && ++$pages < 20);
 
         $connected = 0;
-
+        dd($accounts);
         foreach ($accounts as $acct) {
             if (empty($acct['id']) || $acct['approval_status'] == 'REJECTED') {
                 continue;
