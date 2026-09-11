@@ -237,7 +237,7 @@ class XAdService
             // error), just silently never advanced. $cursor must go
             // through the real $payload parameter instead.
             $accountsResponse = $this->apiService->get($accountsUrl, ['Authorization' => $acctHeader], $apiParams);
-            dd($accountsResponse);
+          
             if (!$accountsResponse['success']) {
                 return redirect()->route('admin.ads.dashboard')->with('error', $accountsResponse['data']['errors'][0]['message'] ?? 'Connected to X, but could not fetch your Ads accounts (the app likely needs X Ads API access).');
             }
@@ -252,7 +252,7 @@ class XAdService
             if (empty($acct['id'])) {
                 continue;
             }
-
+            dd($acct);
             $record = $this->apiService->success(
                 [
                     'platform'            => 'x',
