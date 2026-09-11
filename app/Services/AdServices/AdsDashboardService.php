@@ -42,6 +42,49 @@ class AdsDashboardService
     {
     }
 
+    /**
+     * The read model for one platform's campaigns dashboard
+     * (admin.ads.campaigns.index). Same real-data-only contract as
+     * build() - accounts, campaigns, entity counts and configured
+     * budgets, no spend/impressions/clicks.
+     */
+    public function forPlatform(string $platform): array
+    {
+        $meta = self::PLATFORMS[$platform] ?? ['label' => ucfirst($platform), 'icon' => 'bx-globe', 'color' => '#6b7280'];
+
+        $accounts  = SocialAccount::query()
+            ->where('user_id', $this->userId)
+            ->where('has_ads_permission', true)
+            ->where('platform', $platform === 'youtube' ? 'google' : $platform)
+            ->with('adDetails')
+            ->get();
+
+        $campaigns = AdCampaign::query()
+            ->where('user_id', $this->userId)
+            ->where('platform', $platform)
+            ->orderByDesc('created_at')
+            ->get();
+
+        $adGroups  = AdAdGroup::whereIn('ad_campaign_id', $campaigns->pluck('id'))->count();
+        $ads       = Ad::whereIn('ad_campaign_id', $campaigns->pluck('id'))->count();
+        $creatives = AdCreative::whereIn('ad_campaign_id', $campaigns->pluck('id'))->count();
+
+        $healthyAccount = $accounts->first(fn ($a) => $this->isHealthy($a));
+
+        return array_merge($meta, [
+            'platform'       => $platform,
+            'connected'      => $accounts->isNotEmpty(),
+            'healthy'        => (bool) $healthyAccount,
+            'currency'       => $accounts->map(fn ($a) => $a->adDetails->currency ?? null)->filter()->first(),
+            'accounts'       => $accounts->map(fn ($a) => $this->accountRow($a))->values()->all(),
+            'account_names'  => $accounts->map(fn ($a) => $a->name ?: $a->username)->filter()->values()->all(),
+            'last_synced_at' => $accounts->map(fn ($a) => $a->adDetails->last_synced_at ?? null)
+                ->filter()->sort()->last()?->toIso8601String(),
+            'summary'        => $this->summaryFor($campaigns, $adGroups, $ads, $creatives, $accounts->count()),
+            'campaigns'      => $campaigns->map(fn ($c) => $this->campaignRow($c))->values()->all(),
+        ]);
+    }
+
     public function build(): array
     {
         $accounts  = $this->accounts();

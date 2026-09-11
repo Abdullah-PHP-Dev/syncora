@@ -132,4 +132,26 @@ class SocialAdManagerService
 
         return $this->service($platform)->updateStatus($id, $status);
     }
+
+    /**
+     * "Sync Now" on the platform campaigns dashboard - pulls the latest
+     * campaigns from the connected platform into ad_campaigns. Only the
+     * platforms whose service implements syncCampaigns() (Facebook today)
+     * can do this; the rest return a clear "not available yet" rather
+     * than a 500, since the per-platform read integration doesn't exist
+     * for them.
+     */
+    public function syncCampaigns(string $platform): array
+    {
+        $platform = $this->resolvePlatform($platform);
+        $this->validatePlatform($platform);
+
+        $service = $this->service($platform);
+
+        if (!method_exists($service, 'syncCampaigns')) {
+            return ['success' => false, 'error' => "Campaign sync isn't available for " . ucfirst($platform) . ' yet.'];
+        }
+
+        return $service->syncCampaigns();
+    }
 }

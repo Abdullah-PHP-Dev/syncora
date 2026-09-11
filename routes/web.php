@@ -248,6 +248,12 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::get('ads/{platform}/campaigns/create-new', [AdCampaignController::class, 'createNew'])
 					->name('ads.campaigns.create_new');
 
+				// Registered before the resource route so "sync" isn't
+				// matched as GET/POST campaigns/{campaign}. "Sync Now" on
+				// the platform campaigns dashboard.
+				Route::post('ads/{platform}/campaigns/sync', [AdCampaignController::class, 'sync'])
+					->name('ads.campaigns.sync');
+
 				Route::resource('ads/{platform}/campaigns', AdCampaignController::class)
 					->names('ads.campaigns');
 

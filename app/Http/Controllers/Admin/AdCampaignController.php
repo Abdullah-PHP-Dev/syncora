@@ -9,6 +9,7 @@ use App\Models\Admin\AdCampaign;
 use App\Models\SocialAccount;
 use App\Models\Admin\PlatformPage;
 use App\Models\Country;
+use App\Services\AdServices\AdsDashboardService;
 use App\Services\AdServices\SocialAdManagerService;
 use Illuminate\Support\Facades\Auth;
 
@@ -63,20 +64,34 @@ class AdCampaignController extends Controller
      */
     public function index($platform)
     {
-        // An open-ended campaign (no end date) stores a NULL end_time, and
-        // `end_time >= now()` is never true for NULL - so LinkedIn campaigns
-        // created without an end date (end_time is nullable in
-        // AdCampaignRequest::getLinkedinRules(), and LinkedIn campaign groups
-        // genuinely can run indefinitely) saved fine but never appeared in
-        // this listing. Treat NULL as "still running".
-        $campaigns = $this->adCampaignModel->where('platform', $platform)
-            ->where(function ($query) {
-                $query->whereNull('end_time')->orWhere('end_time', '>=', now());
-            })
-            ->orderBy('id', 'desc')
-            ->paginate(50);
+        $data = (new AdsDashboardService(Auth::id()))->forPlatform($platform);
 
-        return view('admin.ads.' . $this->viewPlatform($platform) . '.campaigns.index', compact('campaigns', 'platform'));
+        // URLs the Vue dashboard needs - resolved here so the service
+        // stays free of route()/request context.
+        $data['urls'] = [
+            'create'    => route('admin.ads.campaigns.create', ['platform' => $platform]),
+            'sync'      => route('admin.ads.campaigns.sync', ['platform' => $platform]),
+            'connect'   => route('admin.ads.redirect', $platform),
+            'dashboard' => route('admin.ads.dashboard'),
+            'edit'      => route('admin.ads.campaigns.edit', ['platform' => $platform, 'campaign' => 'CAMPAIGN_ID']),
+            'destroy'   => route('admin.ads.campaigns.destroy', ['platform' => $platform, 'campaign' => 'CAMPAIGN_ID']),
+        ];
+        $data['can_sync'] = $platform === 'facebook';
+
+        return view('admin.ads.campaigns.dashboard', compact('data', 'platform'));
+    }
+
+    /**
+     * "Sync Now" - pulls fresh campaigns from the connected platform via
+     * the existing per-platform ad service (see
+     * SocialAdManagerService::syncCampaigns). JSON, called by the
+     * dashboard's Sync Now button.
+     */
+    public function sync($platform)
+    {
+        $result = $this->socialAdManager->syncCampaigns($platform);
+
+        return response()->json($result, ($result['success'] ?? false) ? 200 : 422);
     }
 
     /**

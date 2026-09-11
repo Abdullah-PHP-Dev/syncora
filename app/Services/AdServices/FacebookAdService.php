@@ -320,6 +320,89 @@ class FacebookAdService
         );
     }
 
+    /**
+     * "Sync Now" - pulls the connected ad account's campaigns straight
+     * from the Graph API and upserts them into ad_campaigns (matched on
+     * ad_campaign_id). Reuses this service's existing integration - the
+     * connected account resolved in __construct(), getHeaders()' token
+     * refresh, ApiService, the same appsecret_proof/base URL every other
+     * call here uses - rather than a second Facebook client. Read-only:
+     * it never creates/edits/deletes anything on Meta's side, and locally
+     * it only writes campaign rows for THIS user + THIS account.
+     */
+    public function syncCampaigns(): array
+    {
+        if (!$this->account) {
+            return $this->errorResponse('No connected Facebook ad account for this user.');
+        }
+
+        if (!($this->header['success'] ?? false)) {
+            return $this->errorResponse($this->header['error'] ?? 'Facebook access token is invalid - reconnect the account.');
+        }
+
+        $accessToken = $this->account->access_token; // getHeaders() refreshed this if it was stale
+        $endpoint    = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/campaigns';
+
+        $created = 0;
+        $updated = 0;
+        $after   = null;
+        $pages   = 0;
+
+        do {
+            $params = [
+                'fields'          => 'id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time,created_time',
+                'limit'           => 100,
+                'access_token'    => $accessToken,
+                'appsecret_proof' => $this->appSecretProof($accessToken),
+            ];
+
+            if ($after) {
+                $params['after'] = $after;
+            }
+
+            $response = $this->apiService->get($endpoint, [], $params);
+
+            if (!($response['success'] ?? false)) {
+                $data = $response['data'] ?? [];
+
+                return $this->errorResponse($data['error']['error_user_msg'] ?? $data['error']['message'] ?? 'Failed to fetch campaigns from Facebook.');
+            }
+
+            foreach ($response['data']['data'] ?? [] as $remote) {
+                $record = AdCampaign::updateOrCreate(
+                    ['ad_campaign_id' => $remote['id']],
+                    [
+                        'user_id'           => $this->account->user_id,
+                        'social_account_id' => $this->account->id,
+                        'platform'          => 'facebook',
+                        'name'              => $remote['name'] ?? null,
+                        'objective'         => $remote['objective'] ?? null,
+                        'status'            => strtolower($remote['status'] ?? ''),
+                        // Meta returns budgets in the account currency's
+                        // minor unit (cents) as strings.
+                        'daily_budget'      => isset($remote['daily_budget']) ? round(((int) $remote['daily_budget']) / 100, 2) : null,
+                        'budget'            => isset($remote['lifetime_budget']) ? round(((int) $remote['lifetime_budget']) / 100, 2) : null,
+                        'start_time'        => !empty($remote['start_time']) ? Carbon::parse($remote['start_time']) : null,
+                        'end_time'          => !empty($remote['stop_time']) ? Carbon::parse($remote['stop_time']) : null,
+                    ]
+                );
+
+                $record->wasRecentlyCreated ? $created++ : $updated++;
+            }
+
+            $after = $response['data']['paging']['cursors']['after'] ?? null;
+            $hasNext = !empty($response['data']['paging']['next']) && $after;
+        } while ($hasNext && ++$pages < 20);
+
+        $this->account->adDetails()->updateOrCreate([], ['last_synced_at' => now()]);
+
+        return $this->successResponse([
+            'created' => $created,
+            'updated' => $updated,
+            'synced'  => $created + $updated,
+        ]);
+    }
+
     public function store($platform, $request)
     {
 
