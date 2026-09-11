@@ -175,7 +175,13 @@ class FacebookAdService
                         'platform'      => 'instagram',
                         'user_id'       => Auth::id(),
                         'name'          => $igAccount['name'] ?? $igAccount['username'] ?? "Instagram Account {$igId}",
+                        'username'      => $igAccount['username'] ?? null,
                         'platform_account_id' => $igId, // Store IG Actor / Profile ID in platform_account_id
+                        // getInstagramBusinessAccount() already fetches this
+                        // (fields=id,username,name,profile_pic) - it just
+                        // wasn't being saved, so every Instagram ad account
+                        // showed with no photo anywhere this table is read.
+                        'avatar_url'    => $igAccount['profile_pic'] ?? null,
                         'access_token'  => $accessToken,
                         'refresh_token' => data_get($data, 'refresh_token'),
                         'expires_at'    => $expiresAt,

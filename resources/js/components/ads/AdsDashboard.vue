@@ -161,17 +161,35 @@
               <div class="ad-card-b">
                 <ul class="ad-conn">
                   <li v-for="p in platforms" :key="p.platform">
-                    <i class="bx" :class="p.icon" :style="{ color: p.color }"></i>
-                    <span class="nm">{{ p.label }}</span>
-                    <template v-if="p.connected">
-                      <span class="ad-pill" :class="p.healthy ? 'ok' : 'warn'">
-                        <span class="d"></span>{{ p.healthy ? 'Connected' : 'Needs re-auth' }}
-                      </span>
-                      <a :href="p.reconnect_url" class="ad-reconnect" title="Reconnect / refresh token">
-                        <i class="bx bx-refresh"></i>
-                      </a>
-                    </template>
-                    <a v-else :href="p.connect_url" class="ad-pill mut">Connect</a>
+                    <div class="ad-conn-head">
+                      <i class="bx" :class="p.icon" :style="{ color: p.color }"></i>
+                      <span class="nm">{{ p.label }}</span>
+                      <template v-if="p.connected">
+                        <span class="ad-pill" :class="p.healthy ? 'ok' : 'warn'">
+                          <span class="d"></span>{{ p.healthy ? 'Connected' : 'Needs re-auth' }}
+                        </span>
+                        <a :href="p.reconnect_url" class="ad-reconnect" title="Reconnect / refresh token">
+                          <i class="bx bx-refresh"></i>
+                        </a>
+                      </template>
+                      <a v-else :href="p.connect_url" class="ad-pill mut">Connect</a>
+                    </div>
+
+                    <!-- The actual connected accounts, not just the
+                         platform - avatar (real photo when the platform
+                         has one, eg. Instagram; a tinted platform-icon
+                         fallback otherwise, since most ad-account entities
+                         genuinely have no photo of their own) + name. -->
+                    <ul v-if="p.connected && p.accounts.length" class="ad-conn-accounts">
+                      <li v-for="a in p.accounts.slice(0, 3)" :key="a.id">
+                        <AccountAvatarBadge :avatar-url="a.avatar_url" :icon="p.icon" :color="p.color" :size="26" />
+                        <span class="an">{{ a.name }}</span>
+                        <i v-if="!a.healthy" class="bx bx-error-circle warn-ic" title="Needs re-auth"></i>
+                      </li>
+                      <li v-if="p.accounts.length > 3" class="ad-conn-more">
+                        +{{ p.accounts.length - 3 }} more account{{ p.accounts.length - 3 === 1 ? '' : 's' }}
+                      </li>
+                    </ul>
                   </li>
                 </ul>
               </div>
@@ -302,6 +320,7 @@
                 <ul class="ad-acc-list">
                   <li v-for="a in activePlatform.accounts" :key="a.id">
                     <div class="a-top">
+                      <AccountAvatarBadge :avatar-url="a.avatar_url" :icon="activePlatform.icon" :color="activePlatform.color" :size="30" />
                       <span class="a-nm">{{ a.name }}</span>
                       <span class="ad-pill" :class="a.healthy ? 'ok' : 'warn'">
                         <span class="d"></span>{{ a.healthy ? 'Active' : 'Needs re-auth' }}
@@ -329,6 +348,7 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import AccountAvatarBadge from '../posts/AccountAvatarBadge.vue';
 
 const props = defineProps({
   data: { type: Object, required: true },
@@ -491,10 +511,17 @@ const platformTiles = computed(() => {
 .a-reconnect:hover { color: var(--brand); }
 
 .ad-conn { list-style: none; margin: 0; padding: 0; }
-.ad-conn li { display: flex; align-items: center; gap: .6rem; padding: .5rem 0; border-bottom: 1px solid var(--ln-soft); }
-.ad-conn li:last-child { border-bottom: 0; }
-.ad-conn li i { font-size: 1.15rem; }
-.ad-conn .nm { flex: 1; font-size: .84rem; font-weight: 600; color: var(--ink); }
+.ad-conn > li { padding: .5rem 0; border-bottom: 1px solid var(--ln-soft); }
+.ad-conn > li:last-child { border-bottom: 0; }
+.ad-conn-head { display: flex; align-items: center; gap: .6rem; }
+.ad-conn-head > i { font-size: 1.15rem; }
+.ad-conn-head .nm { flex: 1; font-size: .84rem; font-weight: 600; color: var(--ink); }
+
+.ad-conn-accounts { list-style: none; margin: .5rem 0 0; padding: 0 0 0 1.75rem; display: flex; flex-direction: column; gap: .4rem; }
+.ad-conn-accounts li { display: flex; align-items: center; gap: .5rem; }
+.ad-conn-accounts .an { font-size: .78rem; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-conn-accounts .warn-ic { color: #d97706; font-size: .85rem; flex-shrink: 0; }
+.ad-conn-more { font-size: .72rem; color: var(--muted); padding-left: 2px; }
 
 .ad-actions { display: flex; flex-direction: column; gap: .5rem; }
 .ad-actions .btn { text-align: left; font-size: .84rem; font-weight: 600; border-radius: 10px; padding: .55rem .8rem; display: flex; align-items: center; gap: .55rem; }
@@ -503,8 +530,8 @@ const platformTiles = computed(() => {
 .ad-acc-list li { padding: .6rem 0; border-bottom: 1px solid var(--ln-soft); }
 .ad-acc-list li:last-child { border-bottom: 0; }
 .ad-acc-list .a-top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
-.ad-acc-list .a-nm { font-weight: 700; color: var(--ink); font-size: .85rem; }
-.ad-acc-list .a-meta { font-size: .74rem; color: var(--muted); margin-top: .2rem; display: flex; flex-wrap: wrap; gap: .3rem; }
+.ad-acc-list .a-nm { font-weight: 700; color: var(--ink); font-size: .85rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-acc-list .a-meta { font-size: .74rem; color: var(--muted); margin-top: .2rem; padding-left: 38px; display: flex; flex-wrap: wrap; gap: .3rem; }
 .ad-acc-list .a-ext { opacity: .7; }
 
 .ad-empty { text-align: center; padding: 2.75rem 2rem; }

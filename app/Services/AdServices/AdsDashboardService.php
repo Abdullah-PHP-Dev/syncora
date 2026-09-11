@@ -235,6 +235,15 @@ class AdsDashboardService
             'id'             => $account->id,
             'name'           => $account->name ?: $account->username ?: "Account {$account->platform_account_id}",
             'external_id'    => $account->platform_account_id,
+            // Most ad platforms' "ad account" is a billing/advertising
+            // entity with no photo of its own (Meta ad accounts, Google
+            // Ads customers, TikTok advertisers, etc.) - avatar_url is
+            // genuinely null for those, and the UI falls back to a
+            // tinted platform-icon avatar rather than a broken <img>.
+            // Instagram ad accounts are the one case with a real photo
+            // (Meta's own profile_pic), populated in
+            // FacebookAdService::callback().
+            'avatar_url'     => $account->avatar_url,
             'currency'       => $account->adDetails->currency ?? null,
             'account_status' => $account->adDetails->account_status ?? null,
             'healthy'        => $this->isHealthy($account),

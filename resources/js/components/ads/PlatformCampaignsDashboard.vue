@@ -162,6 +162,7 @@
               <ul class="pc-acc">
                 <li v-for="a in data.accounts" :key="a.id">
                   <div class="a-top">
+                    <AccountAvatarBadge :avatar-url="a.avatar_url" :icon="data.icon" :color="data.color" :size="30" />
                     <span class="a-nm">{{ a.name }}</span>
                     <span class="pc-pill" :class="a.healthy ? 'ok' : 'warn'"><span class="d"></span>{{ a.healthy ? 'Active' : 'Needs re-auth' }}</span>
                   </div>
@@ -197,6 +198,7 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import AccountAvatarBadge from '../posts/AccountAvatarBadge.vue';
 
 const props = defineProps({
   data: { type: Object, required: true },
@@ -343,8 +345,8 @@ function destroy(c) {
 .pc-acc li { padding: .6rem 0; border-bottom: 1px solid var(--ln-soft); }
 .pc-acc li:last-child { border-bottom: 0; }
 .pc-acc .a-top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
-.pc-acc .a-nm { font-weight: 700; color: var(--ink); font-size: .84rem; }
-.pc-acc .a-meta { font-size: .73rem; color: var(--muted); margin-top: .2rem; display: flex; flex-wrap: wrap; gap: .3rem; }
+.pc-acc .a-nm { font-weight: 700; color: var(--ink); font-size: .84rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-acc .a-meta { font-size: .73rem; color: var(--muted); margin-top: .2rem; padding-left: 38px; display: flex; flex-wrap: wrap; gap: .3rem; }
 .pc-acc .a-ext { opacity: .7; }
 .pc-acc .a-reconnect { display: inline-flex; align-items: center; gap: .25rem; font-size: .74rem; font-weight: 600; color: var(--ink2); text-decoration: none; margin-top: .4rem; }
 .pc-acc .a-reconnect:hover { color: var(--brand); }
