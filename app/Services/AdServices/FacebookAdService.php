@@ -55,7 +55,7 @@ class FacebookAdService
         return redirect("https://www.facebook.com/v25.0/dialog/oauth?client_id={$clientId}&redirect_uri={$this->getCallbackUrl()}&state={$this->state}&code_verifier={$this->codeVerifier}&scope={$scopes}");
     }
 
-    private function getCallbackUrl()
+    protected function getCallbackUrl()
     {
         return oauthCallbackUrl('admin.ads.platform.callback', 'facebook');
     }
@@ -245,7 +245,7 @@ class FacebookAdService
      * against a separate Facebook App from posts/messaging - the proof
      * must be keyed with the secret of the App that issued this token.
      */
-    private function appSecretProof(string $accessToken): string
+    protected function appSecretProof(string $accessToken): string
     {
         return hash_hmac('sha256', $accessToken, (string) adminSetting('ads.facebook.client_secret'));
     }
@@ -258,7 +258,7 @@ class FacebookAdService
      * account's avatar - callback() falls back to a linked Page's picture
      * only when the business has none.
      */
-    private function fetchBusinessProfilePicture(string $businessId, string $accessToken): ?string
+    protected function fetchBusinessProfilePicture(string $businessId, string $accessToken): ?string
     {
         $response = $this->httpClient::get("https://graph.facebook.com/v22.0/{$businessId}", [
             'fields'          => 'profile_picture_uri',
@@ -278,7 +278,7 @@ class FacebookAdService
         return $response->json()['profile_picture_uri'] ?? null;
     }
 
-    private function getFBAdAccount($accessToken)
+    protected function getFBAdAccount($accessToken)
     {
         $endpoint = adminSetting('ads.facebook.account.endpoint', 'https://graph.facebook.com/v22.0/me/adaccounts');
 
@@ -306,7 +306,7 @@ class FacebookAdService
         $accounts = array_map(function ($account) use ($accessToken) {
             $instagramAccounts = $this->getInstagramBusinessAccount($accessToken, $account['id']);
 
-            dd($instagramAccounts, $account['id']);
+           
             $pages = $this->getBusinessPages($accessToken, $account['business']['id']);
 
             return [
@@ -330,7 +330,7 @@ class FacebookAdService
      * Settings > Ad Account > Instagram Accounts, and only assigned accounts
      * are valid here). $adAccountId must include the "act_" prefix.
      */
-    private function getInstagramBusinessAccount($accessToken, string $adAccountId): ?array
+    protected function getInstagramBusinessAccount($accessToken, string $adAccountId): ?array
     {
         $response = $this->httpClient::get("https://graph.facebook.com/v22.0/{$adAccountId}/instagram_accounts", [
             'fields'          => 'id,username,name,profile_pic',
@@ -358,10 +358,18 @@ class FacebookAdService
      * instagram_accounts, rather than /me/accounts (which only lists Pages
      * the token's user personally administers, not the business as a whole).
      */
-    private function getBusinessPages($accessToken, string $businessId): array
+    protected function getBusinessPages($accessToken, string $businessId): array
     {
+        // instagram_business_account{...} added on this same call (zero
+        // extra API cost) - InstagramAdService uses it as a second,
+        // proven-reliable source of Instagram accounts (same mechanism
+        // SocialAuthService::callbackFacebook() already uses successfully)
+        // alongside getInstagramBusinessAccount()'s ad-account-scoped
+        // /instagram_accounts edge, confirmed on a real account to
+        // sometimes return empty even when Business Settings shows the
+        // Instagram account as a connected asset of that ad account.
         $response = $this->httpClient::get("https://graph.facebook.com/v22.0/{$businessId}", [
-            'fields'          => 'owned_pages{id,name,username,about,category,link,fan_count,followers_count,access_token,picture{url}},client_pages{id,name,username,about,category,link,fan_count,followers_count,access_token,picture{url}}',
+            'fields'          => 'owned_pages{id,name,username,about,category,link,fan_count,followers_count,access_token,picture{url},instagram_business_account{id,username,name,profile_picture_url}},client_pages{id,name,username,about,category,link,fan_count,followers_count,access_token,picture{url},instagram_business_account{id,username,name,profile_picture_url}}',
             'access_token'    => $accessToken,
             'appsecret_proof' => $this->appSecretProof($accessToken),
         ]);
@@ -1028,7 +1036,7 @@ class FacebookAdService
         );
     }
 
-    private function getHeaders()
+    protected function getHeaders()
     {
         if ($this->tokenIsValid($this->account->expires_at)) {
             $accessToken = $this->account->access_token;
@@ -1088,12 +1096,12 @@ class FacebookAdService
         }
     }
 
-    private function errorResponse($error)
+    protected function errorResponse($error)
     {
         return ['success' => false, 'error' => $error];
     }
 
-    private function successResponse($data)
+    protected function successResponse($data)
     {
         return ['success' => true, 'data' => $data];
     }

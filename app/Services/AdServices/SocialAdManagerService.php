@@ -13,7 +13,13 @@ class SocialAdManagerService
      */
     private array $platformMap = [
         'facebook'  => FacebookAdService::class,
-        'instagram' => FacebookAdService::class,
+        // Own class now, not an alias to FacebookAdService - see
+        // InstagramAdService's docblock for why: its own OAuth callback
+        // URL (was silently reusing Facebook's), and a second, more
+        // reliable source for Instagram account discovery. Campaign
+        // CRUD is inherited unchanged - it genuinely runs through the
+        // same Facebook ad account either way.
+        'instagram' => InstagramAdService::class,
         'google'    => GoogleAdService::class,
         'youtube'   => YoutubeAdService::class,
         'tiktok'    => TiktokAdService::class,
