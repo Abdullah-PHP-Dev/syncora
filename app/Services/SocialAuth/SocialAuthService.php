@@ -744,6 +744,7 @@ class SocialAuthService
             'response_type' => 'code',
             'scope' => 'user.info.basic,video.upload,user.info.profile,user.info.stats',
             'redirect_uri' => $this->callbackUrl('tiktok'),
+            'disable_auto_auth' => 1,
             'state' => $state,
             'code_challenge' => hash('sha256', $codeVerifier),
             'code_challenge_method' => 'S256',
