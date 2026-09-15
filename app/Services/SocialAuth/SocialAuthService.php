@@ -361,12 +361,36 @@ class SocialAuthService
             'response_type' => 'code',
             'access_type' => 'offline',
             'prompt' => 'consent',
+            // Matched to exactly what's configured/submitted in Google
+            // Cloud Console for verification (per Google's Data Safety
+            // team feedback) - this app must request only these four,
+            // nothing else, for an exact scope match. Two real,
+            // confirmed-against-docs consequences of this exact list
+            // (not previously in Console, so not verified/approved):
+            //  - youtube.force-ssl removed: comments.insert/update/delete
+            //    (YoutubePostService::publishComment()/destroyComment())
+            //    accept ONLY youtube.force-ssl per Google's own API
+            //    reference - bare 'youtube' is not a substitute for these
+            //    specific methods, so comment reply/delete will start
+            //    failing with an insufficient-scope error until force-ssl
+            //    is re-added to both Console and here together.
+            //  - business.manage removed: Google Business Profile
+            //    posting/review-replies (GooglePostService.php,
+            //    mybusiness.googleapis.com calls) have no scope in this
+            //    list at all and will stop working entirely until
+            //    business.manage is re-added to both Console and here.
+            // youtube.upload + bare youtube (not youtube.readonly) still
+            // cover video upload, and video read/update/delete
+            // (confirmed: videos.update/delete accept the bare scope).
+            // analytics.readonly is requested here to match Console even
+            // though nothing in this app calls the Analytics API - the
+            // "Google Analytics" integration (Integration.php) is a
+            // pasted GA4 Measurement ID, not an OAuth/API integration.
             'scope' => implode(' ', [
                 'https://www.googleapis.com/auth/youtube.upload',
-                'https://www.googleapis.com/auth/youtube.readonly',
-                'https://www.googleapis.com/auth/youtube.force-ssl',
-                'https://www.googleapis.com/auth/business.manage',
+                'https://www.googleapis.com/auth/youtube',
                 'https://www.googleapis.com/auth/adwords',
+                'https://www.googleapis.com/auth/analytics.readonly',
             ]),
             'state' => $state,
         ]);
