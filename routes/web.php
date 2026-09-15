@@ -334,10 +334,28 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('post-accounts.x.callback');
 				Route::delete('post-accounts/{account}', [PostAccountController::class, 'destroy'])
 					->name('post-accounts.destroy');
-				Route::get('post-accounts/tiktok/redirect', [PostAccountController::class, 'redirectTiktok'])
-					->name('post-accounts.tiktok.redirect');
-				Route::get('post-accounts/tiktok/callback', [PostAccountController::class, 'callbackTiktok'])
-					->name('post-accounts.tiktok.callback');
+				// TikTok's real connect logic lives in SocialAuthService,
+				// reached through SocialAccountController::redirect()/
+				// callback() (see the "Unified combined-consent connect
+				// flow" block below) - PostAccountController has never had
+				// redirectTiktok()/callbackTiktok() methods. These two
+				// routes were left pointing at those non-existent methods,
+				// so hitting either 500'd with "Call to undefined method
+				// PostAccountController::callbackTiktok()" - a real
+				// production crash, since this callback URI
+				// (SocialAuthService::callbackUrl()) is the exact
+				// redirect_uri already registered with TikTok's Developer
+				// Portal app, so every real TikTok connect attempt landed
+				// here. The UI's "Connect TikTok" link already points at
+				// admin.social-accounts.redirect directly, so
+				// post-accounts.tiktok.redirect is effectively dead, but
+				// it's routed correctly too rather than left as a second
+				// landmine. Platform is bound via ->defaults() since
+				// neither URI has a {platform} wildcard of its own.
+				Route::get('post-accounts/tiktok/redirect', [SocialAccountController::class, 'redirect'])
+					->name('post-accounts.tiktok.redirect')->defaults('platform', 'tiktok');
+				Route::get('post-accounts/tiktok/callback', [SocialAccountController::class, 'callback'])
+					->name('post-accounts.tiktok.callback')->defaults('platform', 'tiktok');
 				// Unified combined-consent connect flow (posting + messaging +
 				// ads scopes in one redirect) for Facebook, Google, LinkedIn,
 				// and TikTok - the platforms whose OAuth model supports
