@@ -315,7 +315,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('post-accounts.threads.redirect');
 				Route::get('post-accounts/threads/callback', [PostAccountController::class, 'callbackThreads'])
 					->name('post-accounts.threads.callback');
-				Route::get('post-accounts/pinterest/redirect', [PostAccountController::class, 'redirectPinterest'])
+				Route::get('post-accounts/tiktok/redirect', [PostAccountController::class, 'redirectPinterest'])
 					->name('post-accounts.pinterest.redirect');
 				Route::get('post-accounts/pinterest/callback', [PostAccountController::class, 'callbackPinterest'])
 					->name('post-accounts.pinterest.callback');
@@ -325,7 +325,10 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('post-accounts.x.callback');
 				Route::delete('post-accounts/{account}', [PostAccountController::class, 'destroy'])
 					->name('post-accounts.destroy');
-
+				Route::get('post-accounts/tiktok/redirect', [PostAccountController::class, 'redirectTiktok'])
+					->name('post-accounts.tiktok.redirect');
+				Route::get('post-accounts/tiktok/callback', [PostAccountController::class, 'callbackTiktok'])
+					->name('post-accounts.tiktok.callback');
 				// Unified combined-consent connect flow (posting + messaging +
 				// ads scopes in one redirect) for Facebook, Google, LinkedIn,
 				// and TikTok - the platforms whose OAuth model supports
