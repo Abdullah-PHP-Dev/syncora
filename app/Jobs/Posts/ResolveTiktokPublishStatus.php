@@ -53,9 +53,11 @@ class ResolveTiktokPublishStatus implements ShouldQueue
         $result = $service->checkPublishStatus($account->access_token, $this->publishId);
 
         if (!empty($result['video_id'])) {
+            $permalinkType = $service->isVideoPost($post) ? 'video' : 'photo';
+
             $post->update([
                 'post_id'       => $result['video_id'],
-                'post_url'      => 'https://www.tiktok.com/@' . $account->username . '/video/' . $result['video_id'],
+                'post_url'      => 'https://www.tiktok.com/@' . $account->username . '/' . $permalinkType . '/' . $result['video_id'],
                 'error_message' => null,
             ]);
 

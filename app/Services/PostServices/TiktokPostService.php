@@ -354,12 +354,13 @@ class TiktokPostService
             // once it's actually ready, rather than leaving the unresolved
             // publish_id in place indefinitely.
             $resolved = $this->resolvePublishedVideo($account->access_token, $result['publish_id']);
+            $permalinkType = $this->isVideoPost($post) ? 'video' : 'photo';
 
             $post->update([
                 'status'        => 'completed',
                 'post_id'       => $resolved['video_id'] ?? $result['publish_id'],
                 'post_url'      => $resolved['video_id']
-                    ? 'https://www.tiktok.com/@' . $account->username . '/video/' . $resolved['video_id']
+                    ? 'https://www.tiktok.com/@' . $account->username . '/' . $permalinkType . '/' . $resolved['video_id']
                     : null,
                 'error_message' => $resolved['video_id']
                     ? null
@@ -387,15 +388,9 @@ class TiktokPostService
             return ['success' => false, 'message' => 'No media files attached to this post.'];
         }
 
-        // Detect if the post contains any video items
-        $hasVideo = $post->media->contains(function ($media) {
-            $extension = strtolower(pathinfo(parse_url($media->media_url, PHP_URL_PATH), PATHINFO_EXTENSION));
-            return in_array($extension, ['mp4', 'mov', 'webm']);
-        });
-       
         // Guardrails for TikTok API restrictions
-        if ($hasVideo) {
-           
+        if ($this->isVideoPost($post)) {
+
             if ($mediaCount > 1) {
                 return ['success' => false, 'message' => 'TikTok does not allow multiple videos or mixing photos and videos in a single post.'];
             }
@@ -412,6 +407,23 @@ class TiktokPostService
         }
 
         return $this->publishPhoto($account->access_token, $post, $photoUrls, $creatorResponseData);
+    }
+
+    /**
+     * TikTok gives video and photo posts different permalink paths
+     * (tiktok.com/@user/video/{id} vs /photo/{id}) - a link built with
+     * the wrong one 404s even with the correct id. Same video-extension
+     * detection this class already uses to route between publishVideo()/
+     * publishPhoto(), exposed here so publishPost() and
+     * ResolveTiktokPublishStatus can build a matching URL once TikTok
+     * resolves the real id.
+     */
+    public function isVideoPost($post): bool
+    {
+        return $post->media->contains(function ($media) {
+            $extension = strtolower(pathinfo(parse_url($media->media_url, PHP_URL_PATH), PATHINFO_EXTENSION));
+            return in_array($extension, ['mp4', 'mov', 'webm']);
+        });
     }
 
     /**
