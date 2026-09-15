@@ -431,9 +431,9 @@ class TiktokPostService
 
             $payload = [
                 'post_info' => [
-                    'title' => $title ?: 'Post Image',
+                    'title' => $post->title,
                     'description' => $post->content ?? '',
-                    'privacy_level' => $creatorResponseData['privacy_level_options'][0] ?? 'PUBLIC',
+                    'privacy_level' => 'SELF_ONLY',//$creatorResponseData['privacy_level_options'][0] ?? 'PUBLIC',
                     'disable_comment' => false,
                     'auto_add_music' => false,
                 ],
@@ -474,7 +474,7 @@ class TiktokPostService
         try {
             $payload = [
                 'post_info' => [
-                    'title' => mb_substr($post->content ?? '', 0, 150), // Title string field setup
+                    'title' => $post->title, // Title string field setup
                     'privacy_level' => 'SELF_ONLY',
                     'disable_duet' => false,
                     'disable_comment' => false,
