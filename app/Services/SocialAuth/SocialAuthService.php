@@ -742,7 +742,7 @@ class SocialAuthService
         $url = 'https://www.tiktok.com/v2/auth/authorize/?' . http_build_query([
             'client_key' => adminSetting('posts.tiktok.client_id'),
             'response_type' => 'code',
-            'scope' => 'user.info.basic,video.upload,user.info.profile,user.info.stats',
+            'scope' => 'user.info.basic,video.upload,video.publish,user.info.profile,user.info.stats',
             'redirect_uri' => $this->callbackUrl('tiktok'),
             'disable_auto_auth' => 1,
             'state' => $state,
