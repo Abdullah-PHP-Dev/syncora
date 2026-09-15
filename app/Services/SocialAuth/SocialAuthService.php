@@ -92,9 +92,15 @@ class SocialAuthService
 
     private function callbackUrl(string $platform): string
     {
-        // oauthCallbackUrl() reverse-resolves from routes/web.php and
-        // strips the locale prefix - see app/Helpers/Helper.php.
-        return oauthCallbackUrl('admin.social-accounts.callback', ['platform' => $platform]);
+        $routeName = 'admin.social-accounts.callback';
+
+        if ($platform === 'tiktok') {
+            $routeName = 'admin.post-accounts.callback';
+        }
+
+        return oauthCallbackUrl($routeName, [
+            'platform' => $platform,
+        ]);
     }
 
     /**
