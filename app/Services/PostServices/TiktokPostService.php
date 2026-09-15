@@ -511,7 +511,7 @@ class TiktokPostService
                     // already does this correctly below - matching that
                     // here so video posts behave the same as photo posts,
                     // which do get a real public URL on this same account.
-                    'privacy_level' => $creatorResponseData['privacy_level_options'][0] ?? 'SELF_ONLY',
+                    'privacy_level' => 'SELF_ONLY',
                     'disable_duet' => false,
                     'disable_comment' => false,
                     'disable_stitch' => false,
