@@ -325,7 +325,7 @@ class TiktokPostService
                 ->post("{$this->baseUrl}/post/publish/creator_info/query/");
 
             if (!$creatorResponse->successful()) {
-                return $this->errorResponse($creatorResponse, $account->platform);
+                return $this->errorResponse($post, $creatorResponse);
             }
 
             $creatorResponseData = $creatorResponse->json()['data'] ?? [];

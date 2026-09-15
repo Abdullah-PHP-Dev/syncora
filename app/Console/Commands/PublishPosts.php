@@ -78,8 +78,8 @@ class PublishPosts extends Command
                         $response = $this->services[$post->platform]->publishPost($post);
 
                         if (!($response['success'] ?? false)) {
-
                             Log::error("Post {$post->id} failed", $response);
+                            $this->error("Post #{$post->id} failed: " . ($response['message'] ?? 'unknown error'));
 
                             continue;
                         }
@@ -87,15 +87,14 @@ class PublishPosts extends Command
                         $this->info("Published Post #{$post->id}");
 
                     } catch (\Throwable $e) {
-                       
+
                         Log::error(
                             "Post {$post->id} Exception: {$e->getMessage()}",
                             [
                                 'trace' => $e->getTraceAsString()
                             ]
                         );
-
-                        $this->error("Post {$post->id} failed.");
+                        $this->error("Post {$post->id} failed: {$e->getMessage()}");
                     }
                 }
             });
