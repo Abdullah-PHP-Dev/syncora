@@ -37,7 +37,7 @@ class ResolveTiktokPublishStatus implements ShouldQueue
         if (!$post || $post->platform !== 'tiktok') {
             return;
         }
-
+        
         // Something else already resolved this (eg. a retried/duplicated
         // dispatch) - nothing left to do.
         if ($post->post_id !== $this->publishId) {
@@ -66,6 +66,19 @@ class ResolveTiktokPublishStatus implements ShouldQueue
 
         if (($result['status'] ?? null) === 'FAILED') {
             $post->update(['error_message' => 'TikTok reported the upload failed after publishing.']);
+
+            return;
+        }
+
+        // Terminal, not pending: TikTok finished processing but the post
+        // has no public page to link to (see TiktokPostService::
+        // publishVideo()'s privacy_level comment) - retrying the
+        // remaining attempts would just wait out the full 15s*20 budget
+        // for a status that will never gain a video_id.
+        if (($result['status'] ?? null) === 'PUBLISH_COMPLETE') {
+            $post->update([
+                'error_message' => "Published to TikTok, but it's private - the account's current allowed visibility level has no public page. Only the connected account can view this post on TikTok.",
+            ]);
 
             return;
         }

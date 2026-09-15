@@ -356,18 +356,28 @@ class TiktokPostService
             $resolved = $this->resolvePublishedVideo($account->access_token, $result['publish_id']);
             $permalinkType = $this->isVideoPost($post) ? 'video' : 'photo';
 
+            // PUBLISH_COMPLETE with no video_id is terminal, not pending -
+            // TikTok finished processing but the post has no public page
+            // to link to (see the privacy_level comment in publishVideo()).
+            // Waiting on ResolveTiktokPublishStatus would just burn its
+            // full 5-minute retry budget for a status that will never
+            // change.
+            $isPrivateComplete = ($resolved['status'] ?? null) === 'PUBLISH_COMPLETE' && !$resolved['video_id'];
+
             $post->update([
                 'status'        => 'completed',
                 'post_id'       => $resolved['video_id'] ?? $result['publish_id'],
                 'post_url'      => $resolved['video_id']
                     ? 'https://www.tiktok.com/@' . $account->username . '/' . $permalinkType . '/' . $resolved['video_id']
                     : null,
-                'error_message' => $resolved['video_id']
-                    ? null
-                    : 'Published - TikTok is still processing the video, its public URL will be filled in automatically once ready.',
+                'error_message' => match (true) {
+                    (bool) $resolved['video_id'] => null,
+                    $isPrivateComplete => "Published to TikTok, but it's private - the account's current allowed visibility level has no public page. Only the connected account can view this post on TikTok.",
+                    default => 'Published - TikTok is still processing the video, its public URL will be filled in automatically once ready.',
+                },
             ]);
 
-            if (!$resolved['video_id']) {
+            if (!$resolved['video_id'] && !$isPrivateComplete) {
                 ResolveTiktokPublishStatus::dispatch($post->id, $result['publish_id'])
                     ->delay(now()->addSeconds(15));
             }
@@ -487,7 +497,21 @@ class TiktokPostService
             $payload = [
                 'post_info' => [
                     'title' => $post->title, // Title string field setup
-                    'privacy_level' => 'SELF_ONLY',
+                    // Was hardcoded to SELF_ONLY (private, visible only to
+                    // the poster) regardless of what the account is
+                    // actually allowed to post as - TikTok never returns a
+                    // publicaly_available_post_id for a SELF_ONLY post
+                    // (there's no public page for a private post), so
+                    // every video published through here was structurally
+                    // incapable of ever getting a working post_url,
+                    // confirmed live: post/publish/status/fetch/ correctly
+                    // reported PUBLISH_COMPLETE but never included that
+                    // field, so ResolveTiktokPublishStatus retried for its
+                    // full 5-minute budget for nothing. publishPhoto()
+                    // already does this correctly below - matching that
+                    // here so video posts behave the same as photo posts,
+                    // which do get a real public URL on this same account.
+                    'privacy_level' => $creatorResponseData['privacy_level_options'][0] ?? 'SELF_ONLY',
                     'disable_duet' => false,
                     'disable_comment' => false,
                     'disable_stitch' => false,
@@ -559,7 +583,7 @@ class TiktokPostService
     protected function resolvePublishedVideo(string $accessToken, ?string $publishId): array
     {
         if (!$publishId) {
-            return ['video_id' => null];
+            return ['video_id' => null, 'status' => null];
         }
 
         for ($attempt = 0; $attempt < 5; $attempt++) {
@@ -569,14 +593,19 @@ class TiktokPostService
                 return $result;
             }
 
-            if ($result['status'] === 'FAILED') {
-                return ['video_id' => null];
+            // Both are terminal - TikTok isn't going to change its answer
+            // on a later poll. PUBLISH_COMPLETE with no video_id means the
+            // post finished but at a privacy level with no public page
+            // (SELF_ONLY) - not "still processing", so retrying wastes the
+            // whole budget for a status that will never include one.
+            if (in_array($result['status'], ['FAILED', 'PUBLISH_COMPLETE'], true)) {
+                return $result;
             }
 
             sleep(2);
         }
 
-        return ['video_id' => null];
+        return ['video_id' => null, 'status' => null];
     }
 
     /**
