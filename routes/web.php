@@ -315,7 +315,16 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('post-accounts.threads.redirect');
 				Route::get('post-accounts/threads/callback', [PostAccountController::class, 'callbackThreads'])
 					->name('post-accounts.threads.callback');
-				Route::get('post-accounts/tiktok/redirect', [PostAccountController::class, 'redirectPinterest'])
+				// Was registered as 'post-accounts/tiktok/redirect' pointing
+				// at redirectPinterest() - a copy/paste error. Since Laravel
+				// dispatches to the first route matching a given method+URI,
+				// and this was registered before the real TikTok redirect
+				// route below, actually visiting /post-accounts/tiktok/redirect
+				// in a browser silently ran Pinterest's redirect logic
+				// instead - route('post-accounts.tiktok.redirect') (used to
+				// build links/redirect_uri strings) still resolved correctly
+				// by name, which is why this hid rather than erroring.
+				Route::get('post-accounts/pinterest/redirect', [PostAccountController::class, 'redirectPinterest'])
 					->name('post-accounts.pinterest.redirect');
 				Route::get('post-accounts/pinterest/callback', [PostAccountController::class, 'callbackPinterest'])
 					->name('post-accounts.pinterest.callback');
