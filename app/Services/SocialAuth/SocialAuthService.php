@@ -92,13 +92,19 @@ class SocialAuthService
 
     private function callbackUrl(string $platform): string
     {
-        $routeName = 'admin.social-accounts.callback';
-
+        // TikTok's real registered route has no {platform} wildcard at all
+        // (routes/web.php: 'post-accounts/tiktok/callback', named
+        // 'post-accounts.tiktok.callback') - it's a literal, TikTok-only
+        // path, unlike Facebook/Google/LinkedIn which share the generic
+        // {platform} route below. The previous 'admin.post-accounts.callback'
+        // name (with a 'platform' parameter) doesn't exist at all - reached
+        // this branch, RouteNotFoundException, every single time someone
+        // hit /admin/social-accounts/tiktok/redirect.
         if ($platform === 'tiktok') {
-            $routeName = 'admin.post-accounts.callback';
+            return oauthCallbackUrl('admin.post-accounts.tiktok.callback');
         }
 
-        return oauthCallbackUrl($routeName, [
+        return oauthCallbackUrl('admin.social-accounts.callback', [
             'platform' => $platform,
         ]);
     }
