@@ -387,6 +387,10 @@ class SocialAuthService
             // "Google Analytics" integration (Integration.php) is a
             // pasted GA4 Measurement ID, not an OAuth/API integration.
             'scope' => implode(' ', [
+
+                // 'https://www.googleapis.com/auth/youtube.readonly',
+                // 'https://www.googleapis.com/auth/youtube.force-ssl',
+                // 'https://www.googleapis.com/auth/business.manage',
                 'https://www.googleapis.com/auth/youtube.upload',
                 'https://www.googleapis.com/auth/youtube',
                 'https://www.googleapis.com/auth/adwords',
