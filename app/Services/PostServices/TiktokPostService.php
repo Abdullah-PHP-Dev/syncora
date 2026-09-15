@@ -449,7 +449,7 @@ class TiktokPostService
             $response = Http::withToken($token)
                 ->acceptJson()
                 ->post("{$this->baseUrl}/post/publish/content/init/", $payload);
-            dd($response->json());
+            
             if (!$response->successful()) {
                 return ['success' => false, 'message' => $response->json()['error']['message'] ?? 'Failed initialization for photo upload.'];
             }
