@@ -17,7 +17,17 @@ class SetLocale
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $locale = Session::get('locale', config('app.locale'));
+        $supported = config('laravellocalization.supportedLocales');
+        $requested = $request->segment(1);
+        $locale = isset($supported[$requested])
+            ? $requested
+            : Session::get('locale', app()->getLocale());
+
+        if (!isset($supported[$locale])) {
+            $locale = config('app.locale');
+        }
+
+        Session::put('locale', $locale);
 
         App::setLocale($locale);
 

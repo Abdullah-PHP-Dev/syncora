@@ -15,7 +15,7 @@ class InstagramAdService
 
     private function getCallbackUrl()
     {
-        return config('services.app_url') . '/admin/social/auth/facebook/callback';
-     //   return config('app.url') . '/admin/ads/facebook/callback';
+        return config('services.app_url') . '/ads/facebook/callback';
+     //   return config('app.url') . '/ads/facebook/callback';
     }
 }

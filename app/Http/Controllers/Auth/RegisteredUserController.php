@@ -43,11 +43,13 @@ class RegisteredUserController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
-	    event(new UserRegistered($user));
+	    $user->assignRole('seller');
+
+        event(new UserRegistered($user));
        /* event(new Registered($user));*/
 
         Auth::login($user);
 
-        return redirect(route('admin.dashboard', absolute: false));
+        return redirect(app(\App\Services\DashboardService::class)->url($request->user()));
     }
 }

@@ -47,7 +47,7 @@
                 <span class="admin-footer-status-dot"></span>
 
                 <span>
-                    All systems operational
+                    {{ __('All systems operational') }}
                 </span>
 
             </div>

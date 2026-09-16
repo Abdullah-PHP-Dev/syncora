@@ -73,7 +73,7 @@ class SlackMessagingService
 
     private function callbackUrl(): string
     {
-        return config('services.app_url') . '/admin/messaging/auth/slack/callback';
+        return config('services.app_url') . '/messaging/auth/slack/callback';
     }
 
     /**

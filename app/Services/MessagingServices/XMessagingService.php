@@ -51,7 +51,7 @@ class XMessagingService
         $url = adminSetting('messaging.x.authorize_url') . '?' . http_build_query([
             'response_type'         => 'code',
             'client_id'             => adminSetting('messaging.x.client_id'),
-            'redirect_uri'          => config('services.app_url') . '/admin/messaging/auth/x/callback',
+            'redirect_uri'          => config('services.app_url') . '/messaging/auth/x/callback',
             'scope'                 => 'dm.read dm.write tweet.read users.read offline.access',
             'state'                 => $state,
             'code_challenge'        => $codeChallenge,
@@ -80,7 +80,7 @@ class XMessagingService
             'grant_type'    => 'authorization_code',
             'code'          => $code,
             'client_id'     => adminSetting('messaging.x.client_id'),
-            'redirect_uri'  => config('services.app_url') . '/admin/messaging/auth/x/callback',
+            'redirect_uri'  => config('services.app_url') . '/messaging/auth/x/callback',
             'code_verifier' => $codeVerifier,
         ], 'form');
 

@@ -17,12 +17,17 @@ return tap(
         )
         ->withMiddleware(function (Middleware $middleware) {
 
+            $middleware->redirectUsersTo(fn ($request) => app(\App\Services\DashboardService::class)->url($request->user()));
+
             $middleware->web(append: [
                 \App\Http\Middleware\SetLocale::class,
             ]);
 
 	        $middleware->alias([
-		                           'subscription' => \App\Http\Middleware\EnsureActiveSubscription::class,
+		                           'active.user' => \App\Http\Middleware\EnsureActiveUser::class,
+                               'seller' => \App\Http\Middleware\EnsureSeller::class,
+                               'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
+                               'subscription' => \App\Http\Middleware\EnsureActiveSubscription::class,
 	                           ]);
 
             // RFC 8058 one-click unsubscribe requests are POSTed directly

@@ -337,7 +337,7 @@ class PostAccountController extends Controller
 
     private function metaCallbackUrl(): string
     {
-        return url('/admin/post-accounts/meta/callback');
+        return url('/post-accounts/meta/callback');
     }
 
     /**
@@ -430,7 +430,7 @@ class PostAccountController extends Controller
         // redirect_uri Threads/Meta would reject as not matching what's
         // registered, the same issue already found and worked around for
         // the Messaging module's OAuth flows and for Meta below.
-        return url('/admin/post-accounts/threads/callback');
+        return url('/post-accounts/threads/callback');
     }
 
     /**
@@ -532,7 +532,7 @@ class PostAccountController extends Controller
 
     private function pinterestCallbackUrl(): string
     {
-        return url('/admin/post-accounts/pinterest/callback');
+        return url('/post-accounts/pinterest/callback');
     }
 
     /**
@@ -627,7 +627,7 @@ class PostAccountController extends Controller
 
     private function xCallbackUrl(): string
     {
-        return url('/admin/post-accounts/x/callback');
+        return url('/post-accounts/x/callback');
     }
 
     /**
@@ -778,7 +778,7 @@ class PostAccountController extends Controller
 
     private function linkedinCallbackUrl(): string
     {
-        return url('/admin/post-accounts/linkedin/callback');
+        return url('/post-accounts/linkedin/callback');
     }
 
     public function redirectInstagram()
@@ -913,7 +913,7 @@ class PostAccountController extends Controller
 
     private function instagramCallbackUrl(): string
     {
-        return url('/admin/post-accounts/instagram/callback');
+        return url('/post-accounts/instagram/callback');
     }
 
     /**
@@ -1014,7 +1014,7 @@ class PostAccountController extends Controller
 
     private function tiktokCallbackUrl(): string
     {
-        return url('/admin/post-accounts/tiktok/callback');
+        return url('/post-accounts/tiktok/callback');
     }
 
     /**
@@ -1214,7 +1214,7 @@ class PostAccountController extends Controller
 
     private function googleCallbackUrl(): string
     {
-        return url('/admin/post-accounts/google/callback');
+        return url('/post-accounts/google/callback');
     }
 
     public function destroy(PostAccount $account)

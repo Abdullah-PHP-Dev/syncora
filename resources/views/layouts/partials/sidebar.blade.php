@@ -37,14 +37,14 @@
         <ul class="menu-inner admin-sidebar-menu">
 
             {{-- DASHBOARD --}}
-            <li class="menu-item {{ request()->routeIs('admin.dashboard') || request()->routeIs('crm-dashboard') ? 'active' : '' }}">
+            <li class="menu-item {{ request()->routeIs('dashboard') || request()->routeIs('crm-dashboard') ? 'active' : '' }}">
 
-                <a href="{{ url('/admin/dashboard') }}"
+                <a href="{{ route('dashboard') }}"
                    class="menu-link">
 
                     <i class="menu-icon tf-icons bx bx-grid-alt"></i>
 
-                    <span>Dashboard</span>
+                    <span>{{ __('Dashboard') }}</span>
 
                 </a>
 
@@ -55,7 +55,7 @@
                  MANAGEMENT
             ================================================== --}}
             <li class="admin-sidebar-section">
-                <span>Management</span>
+                <span>{{ __('Management') }}</span>
             </li>
 
 
@@ -119,7 +119,10 @@
                         </a>
                     </li>
 
-                </ul>
+                    <li class="menu-item {{ request()->routeIs('tickets.*') ? 'active' : '' }}">
+                <a href="{{ route('tickets.index') }}" class="menu-link"><i class="menu-icon tf-icons bx bx-support"></i><span>{{ __('Support tickets') }}</span></a>
+            </li>
+        </ul>
 
             </li>
 
@@ -145,14 +148,14 @@
                  APPLICATIONS
             ================================================== --}}
             <li class="admin-sidebar-section">
-                <span>Applications</span>
+                <span>{{ __('Applications') }}</span>
             </li>
 
 
             <li class="menu-item">
                 <a href="#" class="menu-link">
                     <i class="menu-icon tf-icons bx bx-envelope"></i>
-                    <span>Email</span>
+                    <span>{{ __('Email') }}</span>
                 </a>
             </li>
 
@@ -160,7 +163,7 @@
             <li class="menu-item">
                 <a href="#" class="menu-link">
                     <i class="menu-icon tf-icons bx bx-message-rounded"></i>
-                    <span>Chat</span>
+                    <span>{{ __('Chat') }}</span>
                 </a>
             </li>
 
@@ -168,7 +171,7 @@
             <li class="menu-item">
                 <a href="#" class="menu-link">
                     <i class="menu-icon tf-icons bx bx-calendar"></i>
-                    <span>Calendar</span>
+                    <span>{{ __('Calendar') }}</span>
                 </a>
             </li>
 
@@ -176,7 +179,7 @@
             <li class="menu-item">
                 <a href="#" class="menu-link">
                     <i class="menu-icon tf-icons bx bx-task"></i>
-                    <span>Kanban</span>
+                    <span>{{ __('Kanban') }}</span>
                 </a>
             </li>
 
@@ -185,7 +188,7 @@
                  ACCOUNT
             ================================================== --}}
             <li class="admin-sidebar-section">
-                <span>Account</span>
+                <span>{{ __('Account') }}</span>
             </li>
 
 
@@ -196,31 +199,28 @@
 
                     <i class="menu-icon tf-icons bx bx-user-circle"></i>
 
-                    <span>Account Settings</span>
+                    <span>{{ __('Account Settings') }}</span>
 
                 </a>
 
                 <ul class="menu-sub">
 
                     <li class="menu-item">
-                        <a href="#" class="menu-link">
-                            Account
-                        </a>
+                        <a href="#" class="menu-link">{{ __('Account') }}</a>
                     </li>
 
                     <li class="menu-item">
-                        <a href="#" class="menu-link">
-                            Notifications
-                        </a>
+                        <a href="#" class="menu-link">{{ __('Notifications') }}</a>
                     </li>
 
                     <li class="menu-item">
-                        <a href="#" class="menu-link">
-                            Connections
-                        </a>
+                        <a href="#" class="menu-link">{{ __('Connections') }}</a>
                     </li>
 
-                </ul>
+                    <li class="menu-item {{ request()->routeIs('tickets.*') ? 'active' : '' }}">
+                <a href="{{ route('tickets.index') }}" class="menu-link"><i class="menu-icon tf-icons bx bx-support"></i><span>{{ __('Support tickets') }}</span></a>
+            </li>
+        </ul>
 
             </li>
 
@@ -232,31 +232,28 @@
 
                     <i class="menu-icon tf-icons bx bx-lock-alt"></i>
 
-                    <span>Authentications</span>
+                    <span>{{ __('Authentications') }}</span>
 
                 </a>
 
                 <ul class="menu-sub">
 
                     <li class="menu-item">
-                        <a href="#" class="menu-link">
-                            Login
-                        </a>
+                        <a href="#" class="menu-link">{{ __('Login') }}</a>
                     </li>
 
                     <li class="menu-item">
-                        <a href="#" class="menu-link">
-                            Register
-                        </a>
+                        <a href="#" class="menu-link">{{ __('Register') }}</a>
                     </li>
 
                     <li class="menu-item">
-                        <a href="#" class="menu-link">
-                            Forgot Password
-                        </a>
+                        <a href="#" class="menu-link">{{ __('Forgot Password') }}</a>
                     </li>
 
-                </ul>
+                    <li class="menu-item {{ request()->routeIs('tickets.*') ? 'active' : '' }}">
+                <a href="{{ route('tickets.index') }}" class="menu-link"><i class="menu-icon tf-icons bx bx-support"></i><span>{{ __('Support tickets') }}</span></a>
+            </li>
+        </ul>
 
             </li>
 
@@ -265,14 +262,14 @@
                  DATA
             ================================================== --}}
             <li class="admin-sidebar-section">
-                <span>Data</span>
+                <span>{{ __('Data') }}</span>
             </li>
 
 
             <li class="menu-item">
                 <a href="#" class="menu-link">
                     <i class="menu-icon tf-icons bx bx-table"></i>
-                    <span>Tables</span>
+                    <span>{{ __('Tables') }}</span>
                 </a>
             </li>
 
@@ -281,7 +278,7 @@
                  SUPPORT
             ================================================== --}}
             <li class="admin-sidebar-section">
-                <span>Support</span>
+                <span>{{ __('Support') }}</span>
             </li>
 
 
@@ -293,7 +290,7 @@
 
                     <i class="menu-icon tf-icons bx bx-support"></i>
 
-                    <span>Support</span>
+                    <span>{{ __('Support') }}</span>
 
                     <i class="bx bx-link-external admin-sidebar-external"></i>
 
@@ -310,7 +307,7 @@
 
                     <i class="menu-icon tf-icons bx bx-file"></i>
 
-                    <span>Documentation</span>
+                    <span>{{ __('Documentation') }}</span>
 
                     <i class="bx bx-link-external admin-sidebar-external"></i>
 
@@ -318,6 +315,9 @@
 
             </li>
 
+            <li class="menu-item {{ request()->routeIs('tickets.*') ? 'active' : '' }}">
+                <a href="{{ route('tickets.index') }}" class="menu-link"><i class="menu-icon tf-icons bx bx-support"></i><span>{{ __('Support tickets') }}</span></a>
+            </li>
         </ul>
 
     </div>
@@ -328,14 +328,14 @@
     ========================================================== --}}
     <div class="admin-sidebar-footer">
 
-        <a href="{{ url('admin/subscription/select') }}"
+        <a href="{{ url('subscription/select') }}"
            class="admin-sidebar-subscription">
 
             <i class="bx bx-crown"></i>
 
             <div>
-                <strong>Subscription</strong>
-                <small>Manage your plan</small>
+                <strong>{{ __('Subscription') }}</strong>
+                <small>{{ __('Manage your plan') }}</small>
             </div>
 
             <i class="bx bx-chevron-right"></i>

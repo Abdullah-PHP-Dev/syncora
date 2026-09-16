@@ -209,7 +209,7 @@
         // Blade's, so everything inside #app has to be off-limits to the
         // compiler (including in comments - Blade parses those too).
         window.__ROUTES__ = {
-            dashboard: @json(route('admin.dashboard')),
+            dashboard: @json(route('dashboard')),
             createNew: @json(route('admin.ads.campaigns.create_new', ['platform' => 'facebook'])),
             adsDashboard: @json(route('admin.ads.dashboard')),
             campaignsIndex: @json(route('admin.ads.campaigns.index', ['platform' => 'facebook'])),

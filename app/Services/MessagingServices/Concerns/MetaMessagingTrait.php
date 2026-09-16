@@ -70,7 +70,7 @@ trait MetaMessagingTrait
      */
     protected function metaRedirectUri(): string
     {
-        return config('services.app_url') . '/admin/messaging/auth/meta/callback';
+        return config('services.app_url') . '/messaging/auth/meta/callback';
     }
 
     protected function graphApiCall(string $method, string $path, array $params, string $accessToken)

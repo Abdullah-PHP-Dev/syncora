@@ -78,7 +78,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	*/
 
 	Route::get('/pricing', function () {
-		return view('front.pages.pricing');
+		return view('front.pages.pricing', ['plans' => \App\Models\Bundle::where('is_active', true)->where('is_free', false)->orderBy('sort_order')->get()]);
 	})->name('pricing');
 
 
@@ -136,13 +136,27 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	Route::post('/r2-upload', [\App\Http\Controllers\R2Controller::class, 'upload'])->name('r2.upload');*/
 
 
-	Route::middleware(['auth'])->group(function () {
+	Route::middleware(['auth', 'active.user'])->group(function () {
+        Route::get('/dashboard', [\App\Http\Controllers\Admin\DashboardController::class, 'dashboard'])->name('dashboard');
+
+        Route::middleware('role:admin')->group(function () {
+            Route::resource('employees', \App\Http\Controllers\Team\EmployeeController::class)->except(['show', 'destroy']);
+            Route::resource('plans', \App\Http\Controllers\Team\PlanController::class)->except(['show', 'destroy']);
+        });
+        Route::get('/subscribers', [\App\Http\Controllers\Team\SubscriberController::class, 'index'])
+            ->middleware('role:admin|customer_support')->name('subscribers.index');
+        Route::middleware('role:admin|customer_support|seller')->group(function () {
+            Route::resource('tickets', \App\Http\Controllers\Team\TicketController::class)->only(['index', 'create', 'store', 'show', 'update']);
+            Route::post('/tickets/{ticket}/replies', [\App\Http\Controllers\Team\TicketController::class, 'reply'])->name('tickets.reply');
+        });
+
+
 		/*
 		|--------------------------------------------------------------------------
 		| DASHBOARD (NO SUBSCRIPTION REQUIRED)
 		|--------------------------------------------------------------------------
 		*/
-		Route::prefix('admin')
+		Route::middleware('seller')
 			->name('admin.')
 			->group(function () {
 				/*
@@ -150,8 +164,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 		| SUBSCRIPTION FLOW (ALWAYS ACCESSIBLE)
 		|--------------------------------------------------------------------------
 		*/
-				// subscription flow (NO middleware restriction)
-				Route::get('/subscription/select', [SubscriptionController::class, 'select']);
+				// Sellers can manage plans without an active subscription.
+				Route::get('/subscription/select', [SubscriptionController::class, 'select'])->name('subscription.select');
 				Route::get('/subscription/plans', [SubscriptionController::class, 'plans']);
 				Route::get('/subscription/checkout', [SubscriptionController::class, 'showCheckout'])->name('subscription.checkout');
 				Route::post('/subscription/checkout', [SubscriptionController::class, 'checkoutProcess'])->name('subscription.checkout.process');
@@ -161,9 +175,6 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('subscription.checkout.process');*/
 				Route::post('/subscription/activate', [SubscriptionController::class, 'activate']);
 				Route::post('/subscription/cancel', [SubscriptionController::class, 'cancel']);
-
-				Route::get('/dashboard', [\App\Http\Controllers\Admin\DashboardController::class, 'dashboard'])
-					->name('dashboard');
 
 				Route::view('/dashboard/crm', 'admin.crm-dashboard')
 					->name('crm-dashboard');
@@ -175,8 +186,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 		| PROTECTED SAAS MODULES (SUBSCRIPTION REQUIRED)
 		|--------------------------------------------------------------------------
 		*/
-		Route::middleware(['subscription'])
-			->prefix('admin')
+		Route::middleware(['seller', 'subscription'])
 			->name('admin.')
 			->group(function () {
 				// ADS

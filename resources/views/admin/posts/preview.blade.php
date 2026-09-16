@@ -15,7 +15,7 @@
     :initial-post='@json($post)'
     :group-posts='@json($groupPosts)'
     platform="{{ $platform }}"
-    back-url="{{ url('admin/posts/listing') }}"
+    back-url="{{ url('posts/listing') }}"
     user-name="{{ auth()->user()->name ?? 'Admin' }}"></post-preview>
 
 @stop

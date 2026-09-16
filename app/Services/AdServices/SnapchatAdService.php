@@ -74,7 +74,7 @@ class SnapchatAdService
 
     private function getCallbackUrl()
     {
-        return config('services.app_url') . '/admin/social/auth/snapchat/callback';
+        return config('services.app_url') . '/ads/snapchat/callback';
     }
 
     public function store($platform, $request)

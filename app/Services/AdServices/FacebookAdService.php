@@ -58,7 +58,7 @@ class FacebookAdService
     private function getCallbackUrl()
     {
         return route('admin.ads.platform.callback', 'facebook');
-        //   return config('app.url') . '/admin/ads/facebook/callback';
+        //   return config('app.url') . '/ads/facebook/callback';
     }
 
     public function callback($state)

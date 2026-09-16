@@ -79,7 +79,7 @@ class DiscordMessagingService
      */
     private function redirectUri(): string
     {
-        return url('/admin/messaging/channels/discord');
+        return url('/messaging/channels/discord');
     }
 
     /**

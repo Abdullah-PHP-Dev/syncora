@@ -97,7 +97,7 @@ class XAdService
 
     private function getCallbackUrl()
     {
-        return config('services.app_url') . '/admin/social/auth/x/callback';
+        return config('services.app_url') . '/ads/x/callback';
     }
 
     // ------------------------------------------------------------------

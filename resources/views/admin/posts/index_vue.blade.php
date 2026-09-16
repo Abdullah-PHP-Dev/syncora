@@ -53,7 +53,7 @@
             create-url="{{ route('admin.posts.create', ['platform' => $platform]) }}"
             api-url="{{ route('admin.posts.data') }}"
             quick-create-url="{{ route('admin.posts.quick') }}"
-            preview-url-base="{{ url('admin/posts') }}"
+            preview-url-base="{{ url('posts') }}"
             user-name="{{ auth()->user()->name ?? 'Admin' }}"
     ></posts-dashboard>
 

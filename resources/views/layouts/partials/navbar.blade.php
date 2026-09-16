@@ -24,6 +24,12 @@
         </button>
 
         <!-- Search -->
+        @if(auth()->user()->isTeamMember())
+        <form class="admin-search" method="GET" action="{{ route('tickets.index') }}">
+            <i class="bx bx-search"></i>
+            <input type="search" name="search" placeholder="{{ __('Search tickets') }}" aria-label="{{ __('Search tickets') }}">
+        </form>
+        @else
         <div class="admin-search">
             <i class="bx bx-search"></i>
 
@@ -35,6 +41,7 @@
                 ⌘ K
             </span>
         </div>
+        @endif
 
     </div>
 
@@ -47,6 +54,7 @@
         <!-- =================================================
              SUBSCRIPTION STATUS
         ================================================== -->
+        @if(!auth()->user()->isTeamMember())
         @php
             $hasActiveSubscription = isset($subscription)
                 && $subscription
@@ -66,7 +74,7 @@
                 : 'Free Plan';
         @endphp
 
-        <a href="{{ url('admin/subscription/select') }}"
+        <a href="{{ url('subscription/select') }}"
            class="admin-subscription-status {{ !$hasActiveSubscription ? 'is-free' : '' }}">
 
             @if($hasActiveSubscription)
@@ -105,13 +113,9 @@
 
                 <span class="admin-subscription-info">
 
-                    <span class="admin-subscription-plan">
-                        Free Plan
-                    </span>
+                    <span class="admin-subscription-plan">{{ __('Free Plan') }}</span>
 
-                    <span class="admin-subscription-days">
-                        Upgrade
-                    </span>
+                    <span class="admin-subscription-days">{{ __('Upgrade') }}</span>
 
                 </span>
 
@@ -119,6 +123,8 @@
 
         </a>
 
+
+        @endif
 
         <!-- =================================================
              LANGUAGE
@@ -138,7 +144,7 @@
             <ul class="dropdown-menu dropdown-menu-end admin-language-dropdown">
 
                 <li>
-                    <a href="#"
+                    <a href="{{ LaravelLocalization::getLocalizedURL('en', request()->fullUrl(), [], true) }}"
                        class="dropdown-item admin-language-item">
 
                         <span class="admin-language-flag">
@@ -157,7 +163,7 @@
                 </li>
 
                 <li>
-                    <a href="#"
+                    <a href="{{ LaravelLocalization::getLocalizedURL('ar', request()->fullUrl(), [], true) }}"
                        class="dropdown-item admin-language-item">
 
                         <span class="admin-language-flag">
@@ -220,7 +226,7 @@
                     </span>
 
                     <span class="admin-user-role">
-                        {{ auth()->user()->role ?? 'Administrator' }}
+                        {{ auth()->user()->hasRole('admin') ? __('Team administrator') : (auth()->user()->hasRole('customer_support') ? __('Customer support') : __('Seller')) }}
                     </span>
 
                 </div>
@@ -254,7 +260,7 @@
                             </div>
 
                             <div class="admin-dropdown-role">
-                                {{ auth()->user()->role ?? 'Administrator' }}
+                                {{ auth()->user()->hasRole('admin') ? __('Team administrator') : (auth()->user()->hasRole('customer_support') ? __('Customer support') : __('Seller')) }}
                             </div>
 
                         </div>
@@ -270,6 +276,7 @@
 
 
                 <!-- Profile -->
+                @if(!auth()->user()->isTeamMember())
                 <li>
 
                     <a class="dropdown-item admin-dropdown-item"
@@ -311,7 +318,7 @@
                 <li>
 
                     <a class="dropdown-item admin-dropdown-item"
-                       href="{{ url('admin/subscription/select') }}">
+                       href="{{ url('subscription/select') }}">
 
                         <span class="admin-dropdown-icon">
                             <i class="bx bx-credit-card"></i>
@@ -330,6 +337,8 @@
                     <hr class="dropdown-divider">
                 </li>
 
+
+                @endif
 
                 <!-- Logout -->
                 <li>

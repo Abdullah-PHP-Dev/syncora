@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"
+<html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}"
       class="layout-menu-fixed layout-compact">
 
 <head>
@@ -56,7 +56,7 @@
     <div class="layout-container">
 
         <!-- SIDEBAR -->
-        @include('layouts.partials.sidebar')
+        @include(auth()->user()->isTeamMember() ? 'layouts.partials.team-sidebar' : 'layouts.partials.sidebar')
 
         <!-- MAIN CONTENT -->
         <div class="layout-page">
@@ -68,6 +68,7 @@
             <div class="content-wrapper">
                 <div id="app"class="container-xxl flex-grow-1 container-p-y">
 
+                    @include('team.feedback')
                     @yield('content')
 
                 </div>

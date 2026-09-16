@@ -239,7 +239,7 @@ class GoogleChatMessagingService
 
     private function userAuthCallbackUrl(): string
     {
-        return url('/admin/messaging/auth/google-chat/callback');
+        return url('/messaging/auth/google-chat/callback');
     }
 
     /**

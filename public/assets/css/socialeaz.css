@@ -3303,3 +3303,16 @@ button,
     }
 
 }
+/* Keep authentication controls aligned with the selected reading direction. */
+[dir="rtl"] .auth-input-wrap > i:first-child {
+    left: auto;
+    right: 16px;
+}
+[dir="rtl"] .auth-password-toggle {
+    right: auto;
+    left: 12px;
+}
+[dir="rtl"] .auth-input-wrap input[type="email"] {
+    direction: ltr;
+    text-align: right;
+}

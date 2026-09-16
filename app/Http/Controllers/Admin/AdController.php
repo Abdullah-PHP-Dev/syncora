@@ -128,7 +128,7 @@ class AdController extends Controller
         if (!isset($domain)) {
             $domain = 'socialeaz.com';
         }
-        $redirectUri = 'https://'.$domain.'/admin/social/auth/' . $platform . '/callback';
+        $redirectUri = 'https://'.$domain.'/ads/' . $platform . '/callback';
         $previousUrl = URL::previous();
         Session::put('previous_url', $previousUrl);
         $state = Str::random(32);
@@ -162,7 +162,7 @@ class AdController extends Controller
             if ($platform == 'instagram') {
                 Session::put('platform', $platform);
             }
-            $redirectUri = 'https://'.$domain.'/admin/social/auth/facebook/callback'; //'https://'.env('APP_DOMAIN').'/admin/social/auth/facebook/callback';
+            $redirectUri = 'https://'.$domain.'/ads/facebook/callback'; //'https://'.env('APP_DOMAIN').'/ads/facebook/callback';
             return redirect("https://www.facebook.com/v25.0/dialog/oauth?client_id={$clientId}&redirect_uri={$redirectUri}&state={$state}&code_verifier={$codeVerifier}&scope=ads_management,ads_read");
         } else if ($platform === 'google' || $platform === 'youtube') { 
             $response = 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query([

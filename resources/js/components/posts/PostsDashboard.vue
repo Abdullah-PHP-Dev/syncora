@@ -604,7 +604,7 @@ export default {
 
     previewUrlBase: {
       type: String,
-      default: '/admin/posts'
+      default: '/posts'
     },
 
     userName: {

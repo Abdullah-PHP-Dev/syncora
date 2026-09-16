@@ -8,7 +8,8 @@ class Bundle extends Model
 {
 	protected $appends = ['name'];
 	protected $fillable = [
-		'name_en',
+		'slug',
+        'name_en',
 		'name_ar',
 		'price',
 		'discount_price',
@@ -53,9 +54,25 @@ class Bundle extends Model
 	public function getNameAttribute()
 	{
 		return lang()  === 'ar'
-			? $this->name_ar
+			? ($this->name_ar ?: $this->name_en)
 			: $this->name_en;
 	}
+
+    public function getDescriptionAttribute(): string
+    {
+        return (string) (data_get($this->meta, 'description_'.app()->getLocale()) ?: data_get($this->meta, 'description_en', ''));
+    }
+
+    public function getDisplayFeaturesAttribute(): array
+    {
+        $features = data_get($this->meta, 'display_features_'.app()->getLocale());
+        return $features ?: data_get($this->meta, 'display_features_en', []);
+    }
+
+    public function getYearlyPriceAttribute(): float
+    {
+        return (float) data_get($this->meta, 'yearly_price', (float) $this->price * 12);
+    }
 
 	public function getCallbackAttribute(): ?string
 	{
