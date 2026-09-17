@@ -103,19 +103,26 @@ class LinkedinAdService
     {
         $clientId = adminSetting('ads.linkedin.client_id');
 
-        $url = 'https://www.linkedin.com/oauth/v2/authorization?' . http_build_query([
+        // Define authorized scopes as an array
+        $scopes = [
+            'openid',
+            'profile',
+            'email',
+            'r_ads',
+            'rw_ads',
+            'r_ads_reporting',
+        ];
+
+        $query = http_build_query([
             'response_type' => 'code',
             'client_id'     => $clientId,
             'redirect_uri'  => $this->getCallbackUrl(),
             'state'         => $state,
-            // r_ads: read ad accounts/campaigns/creatives. rw_ads: create/
-            // manage them. r_ads_reporting: the adAnalytics finder - the
-            // pull-only substitute for the webhook LinkedIn doesn't offer,
-            // see class docblock.
-            'scope'         => 'r_ads rw_ads r_ads_reporting',
+            // Join with space, which http_build_query encodes as + or %20
+            'scope'         => implode(' ', $scopes),
         ]);
 
-        return Redirect::to($url);
+        return Redirect::to('https://www.linkedin.com/oauth/v2/authorization?' . $query);
     }
 
     private function getCallbackUrl()
