@@ -49,7 +49,7 @@ class SubscriptionController extends Controller
 		$planId = $request->get('plan_id');
 		$cycle = $request->get('cycle', 'monthly');
 
-		$package = Bundle::findOrFail($planId);
+		$package = Bundle::where('is_active', true)->findOrFail($planId);
 
 		return view('admin.subscriptions.checkout', compact('package',
 			'planId',
@@ -85,7 +85,7 @@ class SubscriptionController extends Controller
 			]
 		);
 
-		return redirect('/admin/dashboard')
+		return redirect()->route('dashboard')
 			->with('success', 'Subscription activated successfully!');
 	}
 
@@ -123,14 +123,14 @@ class SubscriptionController extends Controller
 			$features      = is_array($package->features) ? $package->features : json_decode($package->features ?? '{}', true);
 			$features      = is_array($features) ? $features : [];
 			$isCurrent     = $currentBundleId == $package->id;
-			$isRecommended = $index === 1;
+			$isRecommended = $package->is_popular;
 
 
 			return [
 
 				'id'          => $package->id,
-				'name'        => $package->name_en,
-				'description' => $package->description_en ?? 'Everything you need to grow your business.',
+				'name'        => $package->name,
+				'description' => $package->description ?? 'Everything you need to grow your business.',
 				'currency'    => $package->currency ?? 'SAR',
 				'monthly'     => [
 					'price'   => $monthlyPrice,
@@ -142,7 +142,9 @@ class SubscriptionController extends Controller
 					'plan_id' => $yearlyPlanId,
 				],
 
-				'features'       => $features,
+				'display_features' => $package->display_features,
+                'is_popular' => $package->is_popular,
+                'features'       => $features,
 				'is_current'     => $isCurrent,
 				'is_recommended' => $isRecommended,
 				'checkout_url'   => route('admin.subscription.checkout'),
@@ -183,11 +185,7 @@ class SubscriptionController extends Controller
 
 		$package = Bundle::where('is_active', true)
 			->where('is_free', false)
-			->where(function ($query) use ($planId) {
-				$query->where('id', $planId)
-					->orWhere('monthly_plan_id', $planId)
-					->orWhere('yearly_plan_id', $planId);
-			})
+			->whereKey($planId)
 			->first();
 
 		if (!$package) {
@@ -221,8 +219,8 @@ class SubscriptionController extends Controller
 			                        'success' => true,
 			                        'data' => [
 				                        'id' => $package->id,
-				                        'name' => $package->name_en,
-				                        'description' => $package->description_en
+				                        'name' => $package->name,
+				                        'description' => $package->description
 					                        ?? 'Everything you need to grow your business.',
 				                        'currency' => $package->currency ?? 'SAR',
 				                        'monthly' => [
@@ -240,7 +238,8 @@ class SubscriptionController extends Controller
 						                        ? $yearlyPrice
 						                        : $monthlyPrice,
 				                        ],
-				                        'features' => $features,
+				                        'display_features' => $package->display_features,
+                                        'features' => $features,
 				                        'checkout_url' => route('admin.subscription.checkout.process'),
 			                        ]
 		                        ]);
@@ -250,14 +249,18 @@ class SubscriptionController extends Controller
 
 	public function checkoutProcess(Request $request)
 	{
-		$bundleId = $request->bundle_id;
-		$planId = $request->plan_id;
-		$cycle = $request->cycle;
-		$paymentMethod = $request->payment_method;
+        $data = $request->validate([
+            'bundle_id' => ['required', 'integer'],
+            'cycle' => ['required', \Illuminate\Validation\Rule::in(['monthly', 'yearly'])],
+            'payment_method' => ['required', \Illuminate\Validation\Rule::in(['card', 'wallet', 'cashback', 'tamara'])],
+        ]);
+        $bundleId = $data['bundle_id'];
+        $cycle = $data['cycle'];
+        $paymentMethod = $data['payment_method'];
 		$couponCode = $request->coupon_code;
 		$discount = 0;
 		$action = 0;
-		$bundle = Bundle::findOrFail($bundleId);
+		$bundle = Bundle::where('is_active', true)->where('is_free', false)->findOrFail($bundleId);
 
 		$paymentResponse = $this->subscriptionService->checkout(
 			auth()->user(),
@@ -273,7 +276,11 @@ class SubscriptionController extends Controller
 
 
 
-		$checkoutUrl = $paymentResponse['redirect_url'];
+        if (!($paymentResponse['success'] ?? false)) {
+            return response()->json(['success' => false, 'message' => $paymentResponse['message'] ?? __('Payment failed.')], 422);
+        }
+
+		$checkoutUrl = $paymentResponse['redirect_url'] ?? route('dashboard');
 
 		return response()->json([
 			                        'success' => true,

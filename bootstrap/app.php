@@ -17,28 +17,27 @@ return tap(
         )
         ->withMiddleware(function (Middleware $middleware) {
 
-            // App\Http\Middleware\SetLocale used to run here, appended to
-            // the web group. It read the locale from Session::get('locale',
-            // config('app.locale')) - but nothing anywhere in the app ever
-            // wrote that session key, so it always fell back to the
-            // default locale and called App::setLocale() with it on every
-            // request. LaravelLocalization's own route middleware (wired
-            // up per-route via the {locale} prefix, see routes/web.php)
-            // already correctly calls App::setLocale() from the URL
-            // segment - but since SetLocale actually won the two out, the
-            // real Laravel locale (app()->getLocale(), which every __()/
-            // @lang() call and Blade's lang="{{ app()->getLocale() }}"
-            // depend on) was silently stuck on the default locale
-            // regardless of whether the URL was /en/... or /ar/... -
-            // LaravelLocalization::getCurrentLocale() (its own internal
-            // bookkeeping, used by things like getCurrentLocaleDirection()
-            // and getLocalizedURL()) still tracked the URL correctly, so
-            // this bug was easy to miss - the language switcher's links
-            // and RTL direction both looked right, only actual
-            // translation output was silently wrong.
+            $middleware->redirectUsersTo(fn ($request) => app(\App\Services\DashboardService::class)->url($request->user()));
 
+            // App\Http\Middleware\SetLocale used to run here, appended to
+            // the global 'web' middleware group. Deliberately deleted in
+            // the "Translation" commit (702d893) - it manually replicated
+            // exactly what mcamara/laravel-localization's own middleware
+            // stack already does (LaravelLocalizationRoutes/
+            // LocaleSessionRedirect/LocaleCookieRedirect/
+            // LaravelLocalizationRedirectFilter/LaravelLocalizationViewPath,
+            // all applied in routes/web.php's outer route group). Since
+            // that group's own middleware array includes the literal
+            // string 'web', appending SetLocale here would run it first,
+            // deciding the locale from the request segment/session before
+            // the package's own middleware got a chance to - two
+            // independent implementations of the same decision, racing
+            // each other on every request. Left removed.
 	        $middleware->alias([
-		                           'subscription' => \App\Http\Middleware\EnsureActiveSubscription::class,
+		                           'active.user' => \App\Http\Middleware\EnsureActiveUser::class,
+                               'seller' => \App\Http\Middleware\EnsureSeller::class,
+                               'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
+                               'subscription' => \App\Http\Middleware\EnsureActiveSubscription::class,
 	                           ]);
 
             // RFC 8058 one-click unsubscribe requests are POSTed directly

@@ -6,11 +6,11 @@
 
     <ul class="p-4 space-y-2">
 
-        <li><a href="/admin/dashboard">Dashboard</a></li>
-        <li><a href="/admin/users">Users</a></li>
-        <li><a href="/admin/ads">Ads</a></li>
-        <li><a href="/admin/categories">Categories</a></li>
-        <li><a href="/admin/leads">CRM</a></li>
+        <li><a href="{{ route('dashboard') }}">Dashboard</a></li>
+        <li><a href="/users">Users</a></li>
+        <li><a href="/ads">Ads</a></li>
+        <li><a href="/categories">Categories</a></li>
+        <li><a href="/leads">CRM</a></li>
 
     </ul>
 

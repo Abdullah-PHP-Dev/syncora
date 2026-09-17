@@ -525,7 +525,7 @@ export default {
 
     backUrl: {
       type: String,
-      default: '/admin/posts'
+      default: '/posts'
     },
 
     userName: {

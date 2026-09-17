@@ -25,12 +25,12 @@ class TapGateway extends  BaseGateway
 
         /*$transaction = $data['transaction'];
         $payLoad = $this->prepareData($data);*/
-        $des       = 'des';
+        $des = $data['bundle']->name . ' / ' . $data['cycle'];
         // $returnUrl = $data['transaction']->subject->callback;
         $returnUrl = url('callback/payment');//$this->callbackUrl();
         $body = [
-            'amount'       => 123, //$payLoad['transaction']['total'],
-            'currency'     => 'SAR',
+            'amount'       => round((float) $data['amount'], 2),
+            'currency'     => $data['bundle']->currency,
             "threeDSecure" => true,
             "save_card"    => 0, //$payLoad['customerInfo']['save_card'],
             'description'  => $des,
@@ -47,15 +47,9 @@ class TapGateway extends  BaseGateway
                 "email" => true,
                 "sms"   => true
             ],
-            'customer'     => [
-                'first_name'  => 'Zahid Madni', //$payLoad['customerInfo']['name'],
-                'middle_name'  => 'Zahid Madni', //$payLoad['customerInfo']['name'],
-                'last_name'  => 'Zahid Madni', //$payLoad['customerInfo']['name'],
-                'email'       => 'muhammadzahidmadni@gmail.com', //$payLoad['customerInfo']['email'],
-                "phone"       => [
-                    "country_code" => 'SA',
-                    "number"       => '00966598166133', //$payLoad['customerInfo']['mobile'] ?? ''
-                ]
+            'customer' => [
+                'first_name' => $data['user']->name,
+                'email' => $data['user']->email,
             ],
 
             "source"   => [

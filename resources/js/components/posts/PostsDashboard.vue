@@ -620,7 +620,7 @@ export default {
 
     previewUrlBase: {
       type: String,
-      default: '/admin/posts'
+      default: '/posts'
     },
 
     // Base for the PUBLIC (unauthenticated) share-preview page - see

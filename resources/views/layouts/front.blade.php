@@ -6,10 +6,13 @@
     <title>{{ config('app.name') }}</title>
     <link rel="icon" type="image/x-icon" href="{{ asset('assets/img/favicon/favicon.ico') }}">
     <link rel="shortcut icon" type="image/x-icon" href="{{ asset('assets/img/favicon/favicon.ico') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/img/logo/socialeaz-logo-32.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('assets/img/logo/socialeaz-logo-128.png') }}">
     <meta name="description" content="Socialeaz is an all-in-one SaaS marketplace platform for managing ads, CRM, services, and marketplace operations in one powerful system.">
     <meta property="og:title" content="{{ config('app.name') }}">
     <meta property="og:description" content="Socialeaz is an all-in-one SaaS marketplace platform for managing ads, CRM, services, and marketplace operations in one powerful system.">
     <meta property="og:type" content="website">
+    <meta property="og:image" content="{{ asset('assets/img/logo/socialeaz-logo-512.png') }}">
 
     <!-- Bootstrap 5.3 CDN -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">

@@ -22,6 +22,10 @@ class AssignFreeSubscriptionListener
      */
     public function handle(UserRegistered $event): void
     {
+        if (!$event->user->hasRole('seller') || $event->user->isTeamMember()) {
+            return;
+        }
+
         app(SubscriptionService::class)
             ->assignFreeTrial($event->user);
     }

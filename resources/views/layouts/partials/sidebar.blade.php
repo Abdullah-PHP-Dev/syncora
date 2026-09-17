@@ -8,8 +8,7 @@
         <a href="{{ url('/') }}" class="admin-sidebar-brand">
 
             <span class="admin-sidebar-brand-icon">
-                {{-- Keep your existing SVG/logo here --}}
-                <span class="text-primary"></span>
+                <img src="{{ asset('assets/img/logo/socialeaz-logo-64.png') }}" alt="{{ config('app.name') }}">
             </span>
 
             <span class="admin-sidebar-brand-name">
@@ -38,9 +37,9 @@
         <ul class="menu-inner admin-sidebar-menu">
 
             {{-- DASHBOARD --}}
-            <li class="menu-item {{ request()->routeIs('admin.dashboard') || request()->routeIs('crm-dashboard') ? 'active' : '' }}">
+            <li class="menu-item {{ request()->routeIs('dashboard') || request()->routeIs('crm-dashboard') ? 'active' : '' }}">
 
-                <a href="{{ url('/admin/dashboard') }}"
+                <a href="{{ route('dashboard') }}"
                    class="menu-link">
 
                     <i class="menu-icon tf-icons bx bx-grid-alt"></i>
@@ -284,7 +283,10 @@
                         </a>
                     </li>
 
-                </ul>
+                    <li class="menu-item {{ request()->routeIs('tickets.*') ? 'active' : '' }}">
+                <a href="{{ route('tickets.index') }}" class="menu-link"><i class="menu-icon tf-icons bx bx-support"></i><span>{{ __('Support tickets') }}</span></a>
+            </li>
+        </ul>
 
             </li>
 
@@ -320,7 +322,10 @@
                         </a>
                     </li>
 
-                </ul>
+                    <li class="menu-item {{ request()->routeIs('tickets.*') ? 'active' : '' }}">
+                <a href="{{ route('tickets.index') }}" class="menu-link"><i class="menu-icon tf-icons bx bx-support"></i><span>{{ __('Support tickets') }}</span></a>
+            </li>
+        </ul>
 
             </li>
 
@@ -382,6 +387,9 @@
 
             </li>
 
+            <li class="menu-item {{ request()->routeIs('tickets.*') ? 'active' : '' }}">
+                <a href="{{ route('tickets.index') }}" class="menu-link"><i class="menu-icon tf-icons bx bx-support"></i><span>{{ __('Support tickets') }}</span></a>
+            </li>
         </ul>
 
     </div>
@@ -392,7 +400,7 @@
     ========================================================== --}}
     <div class="admin-sidebar-footer">
 
-        <a href="{{ url('admin/subscription/select') }}"
+        <a href="{{ url('subscription/select') }}"
            class="admin-sidebar-subscription">
 
             <i class="bx bx-crown"></i>

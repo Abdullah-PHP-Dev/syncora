@@ -21,6 +21,8 @@ class SubscriptionService
 	{
 
 
+		$this->ensureSeller($user);
+
 		$bundle = Bundle::query()->where('is_free', true)->where('is_active', true)->first();
 
 		if (! $bundle) {
@@ -50,6 +52,8 @@ class SubscriptionService
 
 	public function renew(Subscription $subscription, string $cycle): Subscription
 	{
+		$this->ensureSeller($subscription->user);
+
 		$bundle = Bundle::findOrFail($subscription->bundle_id);
 
 		$months = $this->resolveCycleToMonths($cycle);
@@ -83,6 +87,8 @@ class SubscriptionService
 		string $cycle
 	): Subscription
 	{
+		$this->ensureSeller($subscription->user);
+
 		$months = $this->resolveCycleToMonths($cycle);
 
 		[$start, $end] = $this->resolveDates($months);
@@ -109,6 +115,11 @@ class SubscriptionService
 			return $subscription->fresh();
 		});
 	}
+
+    private function ensureSeller(User $user): void
+    {
+        abort_unless($user->hasRole('seller') && !$user->isTeamMember(), 403);
+    }
 
 	private function createCycle(
 		Subscription $subscription,
@@ -147,8 +158,9 @@ class SubscriptionService
 		string $callback
 	) {
 
-		$user = $user;
-		$amount = $bundle['price'] * $this->resolveCycleToMonths($cycle);
+		$this->ensureSeller($user);
+		$months = $this->resolveCycleToMonths($cycle);
+        $amount = $months === 12 ? $bundle->yearly_price : (float) $bundle->price;
 		$plan = $bundle;
 		$cycle = $cycle;
 		//$this->validatePaymentAttempts($user);
@@ -276,6 +288,7 @@ class SubscriptionService
 		/*return DB::transaction(function () use ($transaction) {*/
 
 		$user = $transaction->seller;
+        $this->ensureSeller($user);
 		$subscription = $user->subscription;
 
 

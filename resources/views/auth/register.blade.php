@@ -1,17 +1,17 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>Create Account — Socialeaz</title>
+    <title>{{ __('Create Account — Socialeaz') }}</title>
 
-    <meta name="description" content="Create your Socialeaz account and start managing your social media workspace.">
+    <meta name="description" content="{{ __('Create your Socialeaz account and start managing your social media workspace.') }}">
 
 
     {{-- Bootstrap 5 --}}
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap{{ app()->getLocale() === 'ar' ? '.rtl' : '' }}.min.css" rel="stylesheet">
 
     {{-- Bootstrap Icons --}}
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -32,26 +32,18 @@
         <div class="auth-visual-content">
 
             <a href="{{ route('home') }}" class="auth-brand">
-                <span class="auth-brand-logo">S</span>
+                <span class="auth-brand-logo"><img src="{{ asset('assets/img/logo/socialeaz-logo-64.png') }}" alt="Socialeaz"></span>
                 <span>Socialeaz</span>
             </a>
 
             <div class="auth-hero-copy">
                 <div class="auth-eyebrow">
-                    <span class="auth-eyebrow-dot"></span>
-                    START YOUR FREE WORKSPACE
-                </div>
+                    <span class="auth-eyebrow-dot"></span>{{ __('START YOUR FREE WORKSPACE') }}</div>
 
-                <h1>
-                    Turn your ideas
-                    <span>into momentum.</span>
+                <h1>{{ __('Turn your ideas') }}<span>{{ __('into momentum.') }}</span>
                 </h1>
 
-                <p>
-                    Build campaigns, create content, manage channels
-                    and understand your audience from one intelligent
-                    workspace.
-                </p>
+                <p>{{ __('Build campaigns, create content, manage channels and understand your audience from one intelligent workspace.') }}</p>
             </div>
 
             {{-- Benefits --}}
@@ -62,8 +54,8 @@
                     </div>
 
                     <div>
-                        <strong>AI-powered content</strong>
-                        <span>Generate ideas, captions and campaigns faster.</span>
+                        <strong>{{ __('AI-powered content') }}</strong>
+                        <span>{{ __('Generate ideas, captions and campaigns faster.') }}</span>
                     </div>
                 </div>
 
@@ -73,8 +65,8 @@
                     </div>
 
                     <div>
-                        <strong>Plan everything</strong>
-                        <span>Organize your entire social calendar in one place.</span>
+                        <strong>{{ __('Plan everything') }}</strong>
+                        <span>{{ __('Organize your entire social calendar in one place.') }}</span>
                     </div>
                 </div>
 
@@ -84,8 +76,8 @@
                     </div>
 
                     <div>
-                        <strong>Measure what matters</strong>
-                        <span>Understand performance across every channel.</span>
+                        <strong>{{ __('Measure what matters') }}</strong>
+                        <span>{{ __('Understand performance across every channel.') }}</span>
                     </div>
                 </div>
             </div>
@@ -93,18 +85,14 @@
             <div class="auth-testimonial">
                 <div class="auth-stars">★★★★★</div>
 
-                <p>
-                    “Socialeaz gives our team one place to plan,
-                    create and collaborate. We finally spend less
-                    time managing tools and more time creating.”
-                </p>
+                <p>{{ __('“Socialeaz gives our team one place to plan, create and collaborate. We finally spend less time managing tools and more time creating.”') }}</p>
 
                 <div class="auth-testimonial-user">
                     <div class="auth-avatar">SL</div>
 
                     <div>
-                        <strong>Sarah Lane</strong>
-                        <span>Social Lead · Growthify</span>
+                        <strong>{{ __('Sarah Lane') }}</strong>
+                        <span>{{ __('Social Lead · Growthify') }}</span>
                     </div>
                 </div>
             </div>
@@ -116,7 +104,7 @@
         <div class="auth-form-container auth-register-form-container">
 
             <a href="{{ route('home') }}" class="auth-mobile-brand">
-                <span class="auth-brand-logo">S</span>
+                <span class="auth-brand-logo"><img src="{{ asset('assets/img/logo/socialeaz-logo-64.png') }}" alt="Socialeaz"></span>
                 Socialeaz
             </a>
 
@@ -125,11 +113,9 @@
                     <i class="bi bi-stars"></i>
                 </div>
 
-                <h2>Create your workspace</h2>
+                <h2>{{ __('Create your workspace') }}</h2>
 
-                <p>
-                    Start your 14-day free trial. No credit card required.
-                </p>
+                <p>{{ __('Start your 14-day free trial. No credit card required.') }}</p>
             </div>
 
             @if ($errors->any())
@@ -137,7 +123,7 @@
                     <i class="bi bi-exclamation-circle"></i>
 
                     <div>
-                        <strong>Please check your details.</strong>
+                        <strong>{{ __('Please check your details.') }}</strong>
 
                         <ul class="mb-0 mt-1 ps-3">
                             @foreach ($errors->all() as $error)
@@ -151,19 +137,15 @@
             {{-- Social registration --}}
             <div class="auth-social-buttons">
                 <a href="#" class="auth-social-btn">
-                    <span class="auth-google-icon">G</span>
-                    Sign up with Google
-                </a>
+                    <span class="auth-google-icon">G</span>{{ __('Sign up with Google') }}</a>
 
                 <a href="#" class="auth-social-btn">
-                    <i class="bi bi-apple"></i>
-                    Sign up with Apple
-                </a>
+                    <i class="bi bi-apple"></i>{{ __('Sign up with Apple') }}</a>
             </div>
 
             <div class="auth-divider">
                 <span></span>
-                <small>OR CREATE WITH EMAIL</small>
+                <small>{{ __('OR CREATE WITH EMAIL') }}</small>
                 <span></span>
             </div>
 
@@ -172,7 +154,7 @@
 
                 {{-- Name --}}
                 <div class="auth-field">
-                    <label for="name">Full name</label>
+                    <label for="name">{{ __('Full name') }}</label>
 
                     <div class="auth-input-wrap">
                         <i class="bi bi-person"></i>
@@ -182,7 +164,7 @@
                                 id="name"
                                 name="name"
                                 value="{{ old('name') }}"
-                                placeholder="Your name"
+                                placeholder="{{ __('Your name') }}"
                                 autocomplete="name"
                                 required
                                 autofocus
@@ -192,7 +174,7 @@
 
                 {{-- Email --}}
                 <div class="auth-field">
-                    <label for="email">Work email</label>
+                    <label for="email">{{ __('Work email') }}</label>
 
                     <div class="auth-input-wrap">
                         <i class="bi bi-envelope"></i>
@@ -211,7 +193,7 @@
 
                 {{-- Password --}}
                 <div class="auth-field">
-                    <label for="password">Password</label>
+                    <label for="password">{{ __('Password') }}</label>
 
                     <div class="auth-input-wrap">
                         <i class="bi bi-lock"></i>
@@ -220,7 +202,7 @@
                                 type="password"
                                 id="password"
                                 name="password"
-                                placeholder="Create a strong password"
+                                placeholder="{{ __('Create a strong password') }}"
                                 autocomplete="new-password"
                                 required
                         >
@@ -229,21 +211,19 @@
                                 type="button"
                                 class="auth-password-toggle"
                                 data-password-toggle="password"
-                                aria-label="Show password"
+                                aria-label="{{ __('Show password') }}"
                         >
                             <i class="bi bi-eye"></i>
                         </button>
                     </div>
 
                     <div class="auth-password-hint">
-                        <span></span>
-                        Use at least 8 characters
-                    </div>
+                        <span></span>{{ __('Use at least 8 characters') }}</div>
                 </div>
 
                 {{-- Confirm Password --}}
                 <div class="auth-field">
-                    <label for="password_confirmation">Confirm password</label>
+                    <label for="password_confirmation">{{ __('Confirm password') }}</label>
 
                     <div class="auth-input-wrap">
                         <i class="bi bi-shield-check"></i>
@@ -252,7 +232,7 @@
                                 type="password"
                                 id="password_confirmation"
                                 name="password_confirmation"
-                                placeholder="Repeat your password"
+                                placeholder="{{ __('Repeat your password') }}"
                                 autocomplete="new-password"
                                 required
                         >
@@ -261,7 +241,7 @@
                                 type="button"
                                 class="auth-password-toggle"
                                 data-password-toggle="password_confirmation"
-                                aria-label="Show password"
+                                aria-label="{{ __('Show password') }}"
                         >
                             <i class="bi bi-eye"></i>
                         </button>
@@ -280,33 +260,21 @@
                         <span></span>
                     </label>
 
-                    <div>
-                        I agree to the
-                        <a href="#">Terms of Service</a>
-                        and
-                        <a href="#">Privacy Policy</a>.
+                    <div>{{ __('I agree to the') }}<a href="#">{{ __('Terms of Service') }}</a>{{ __('and') }}<a href="#">{{ __('Privacy Policy') }}</a>.
                     </div>
                 </div>
 
                 {{-- Submit --}}
                 <button type="submit" class="auth-submit">
-                    <span>Create free workspace</span>
+                    <span>{{ __('Create free workspace') }}</span>
                     <i class="bi bi-arrow-right"></i>
                 </button>
             </form>
 
-            <div class="auth-bottom-text">
-                Already have an account?
-
-                <a href="{{ route('login') }}">
-                    Sign in
-                </a>
+            <div class="auth-bottom-text">{{ __('Already have an account?') }}<a href="{{ route('login') }}">{{ __('Sign in') }}</a>
             </div>
 
-            <div class="auth-legal">
-                Your account starts with a 14-day free trial.
-                You can cancel anytime.
-            </div>
+            <div class="auth-legal">{{ __('Your account starts with a 14-day free trial. You can cancel anytime.') }}</div>
         </div>
     </section>
 </div>
@@ -327,12 +295,12 @@
                     input.type = 'text';
                     icon.classList.remove('bi-eye');
                     icon.classList.add('bi-eye-slash');
-                    this.setAttribute('aria-label', 'Hide password');
+                    this.setAttribute('aria-label', @json(__('Hide password')));
                 } else {
                     input.type = 'password';
                     icon.classList.remove('bi-eye-slash');
                     icon.classList.add('bi-eye');
-                    this.setAttribute('aria-label', 'Show password');
+                    this.setAttribute('aria-label', @json(__('Show password')));
                 }
             });
         });
