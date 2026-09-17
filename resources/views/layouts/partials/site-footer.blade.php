@@ -78,8 +78,20 @@
 
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
 
-            <span style="color:rgba(255,255,255,.4);font-size:12px;">
+            <span style="color:rgba(255,255,255,.4);font-size:12px;" class="text-center text-md-start">
                 &copy; {{ date('Y') }} {{ config('app.name') }}. All rights reserved.
+                <br>
+                {{-- Meta's Business Verification requires the registered
+                     legal business name to appear on the business's own
+                     website - without it, verification is rejected with
+                     "We can't verify your business website is associated
+                     with the business ... because your legal business
+                     name must be present on the website." Plain, crawlable
+                     text (not an image) so Meta's automated check can find
+                     it. dir="rtl" keeps the Arabic name's own punctuation/
+                     spacing correct regardless of the surrounding page's
+                     (English, LTR) direction. --}}
+                Legal Business Name: <span dir="rtl" lang="ar">شركة همايون اي تي سوليوشنز العربية لتقنية المعلومات</span>
             </span>
 
             <span
