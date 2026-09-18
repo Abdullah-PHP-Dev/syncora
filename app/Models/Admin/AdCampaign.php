@@ -5,16 +5,17 @@ namespace App\Models\Admin;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\SocialAccount;
 use App\Models\User;
 
 class AdCampaign extends Model
 {
     protected $table = 'ad_campaigns';
-    protected $fillable = ['ad_account_id', 'user_id', 'name', 'status', 'ad_campaign_id', 'objective', 'special_ad_category', 'app_promotion_type', 'bidding_amount', 'budget_mode', 'budget', 'daily_budget', 'budget_resource_id', 'start_time', 'end_time', 'bidding_strategy', 'bidding_resource_id', 'advertising_channel_type', 'advertising_channel_sub_type', 'hotel_center_id', 'app_store', 'app_id', 'merchant_id', 'cpc_bid_ceiling_micros', 'funding_instrument_id', 'platform'];
+    protected $fillable = ['social_account_id', 'user_id', 'name', 'status', 'ad_campaign_id', 'objective', 'special_ad_category', 'app_promotion_type', 'bidding_amount', 'budget_mode', 'budget', 'daily_budget', 'budget_resource_id', 'start_time', 'end_time', 'bidding_strategy', 'bidding_resource_id', 'advertising_channel_type', 'advertising_channel_sub_type', 'hotel_center_id', 'app_store', 'app_id', 'merchant_id', 'cpc_bid_ceiling_micros', 'funding_instrument_id', 'platform'];
 
-    public function adAccount(): BelongsTo
+    public function socialAccount(): BelongsTo
     {
-        return $this->belongsTo(AdAccount::class);
+        return $this->belongsTo(SocialAccount::class);
     }
 
     public function user(): BelongsTo

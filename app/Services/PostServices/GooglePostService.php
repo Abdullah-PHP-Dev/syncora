@@ -5,7 +5,7 @@ namespace App\Services\PostServices;
 use App\Services\PostServices\ApiPostService;
 use Carbon\Carbon;
 use App\Models\Post;
-use App\Models\PostAccount;
+use App\Models\SocialAccount;
 use App\Models\PostMedia;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Http;
@@ -32,11 +32,11 @@ class GooglePostService
      */
     protected function ensureValidToken($post)
     {
-        $account = $post->postAccount;
+        $account = $post->socialAccount;
         // Token still valid
         if (
-            !empty($account->expires_in)
-            && Carbon::parse($account->expires_in)->gt(now()->addMinutes(5))
+            !empty($account->expires_at)
+            && Carbon::parse($account->expires_at)->gt(now()->addMinutes(5))
         ) {
             return true;
         }
@@ -62,7 +62,7 @@ class GooglePostService
         $account->update([
             'access_token'     => $tokenData['access_token'],
             'refresh_token' => $tokenData['refresh_token'] ?? $account->refresh_token,
-            'expires_in'  => now()->addSeconds($tokenData['expires_in']),
+            'expires_at'  => now()->addSeconds($tokenData['expires_in']),
         ]);
 
         $account->refresh();
@@ -100,7 +100,7 @@ class GooglePostService
             $mediaType = $isImage ? 'image' : 'video';
             $mediaUrl = $data['ai_image_url'];
         } else {
-            $uploadResult = $this->uploadMediaToS3($data['media']);
+            $uploadResult = $this->uploadMediaToS3($data['media'] ?? []);
             if (!$uploadResult['success']) {
                 return [
                     'success' => false,
@@ -119,9 +119,10 @@ class GooglePostService
                     'platform' => 'google',
                     'visibility' => 'public',
                     'user_id' => Auth::user()->id,
-                    'post_account_id' => $page->id,
+                    'social_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
-                    'page_id' => $page->account_id,
+                    'group_id' => $data['group_id'] ?? null,
+                    'page_id' => $page->platform_account_id,
                     'content' => $data['content'] ?? null,
                     'schedule_mode' => $data['schedule_mode'] ?? 0,
                     'schedule_at' => $data['schedule_at'] ?? null,
@@ -138,7 +139,7 @@ class GooglePostService
                             'platform' => 'google',
                             'visibility' => 'public',
                             'user_id' => Auth::user()->id,
-                            'post_account_id' => $page->id,
+                            'social_account_id' => $page->id,
                             'post_category_id' => $data['category_id'],
                             'media_url' => $media['url'],
                             'media_type' => $media['media_type'],
@@ -158,7 +159,7 @@ class GooglePostService
                 $results[] = $post;
             } catch (\Exception $e) {
                 $errors[] = [
-                    'page_id' => $page->account_id,
+                    'page_id' => $page->platform_account_id,
                     'page_name' => $page->page_name ?? $page->name,
                     'message' => $e->getMessage()
                 ];
@@ -315,7 +316,7 @@ class GooglePostService
     public function publishPost($post)
     {
         try {
-            $account = $post->postAccount;
+            $account = $post->socialAccount;
             // Ensure valid token
             if (!$this->ensureValidToken($post)) {
                 $post->update([
@@ -361,7 +362,7 @@ class GooglePostService
     {
         try {
   
-            $account = $post->postAccount;
+            $account = $post->socialAccount;
             $payload = [
                 'languageCode' => 'en-US',
                 "topic_type" => "STANDARD",
@@ -405,9 +406,11 @@ class GooglePostService
                 }
             }
 
+            $gbpAccountId = $account->metadata['parent_account_id'] ?? '';
+
             $response = $this->api->request(
                 'post',
-                "{$this->baseUrl}accounts/{$account->parent_account_id}/locations/{$account->account_id}/localPosts",
+                "{$this->baseUrl}accounts/{$gbpAccountId}/locations/{$account->platform_account_id}/localPosts",
                 [
                     'Content-Type' => 'application/json',
                     'Authorization' => 'Bearer ' . $account->access_token
@@ -448,9 +451,11 @@ class GooglePostService
     protected function getLocations($account)
     {
         try {
+            $gbpAccountId = $account->metadata['parent_account_id'] ?? '';
+
             $response = $this->api->request(
                 'get',
-                "{$this->accountBaseUrl}accounts/{$account->parent_account_id}/locations?read_mask=name,title,metadata,state",
+                "{$this->accountBaseUrl}accounts/{$gbpAccountId}/locations?read_mask=name,title,metadata,state",
                 [
                     'Content-Type' => 'application/json',
                     'Authorization' => 'Bearer ' . $account->access_token
@@ -483,7 +488,7 @@ class GooglePostService
     public function getPosts($locationId, $page)
     {
         $this->ensureValidToken($page);
-        $endpoint = "{$this->baseUrl}accounts/{$page->account_id}/locations/{$locationId}/localPosts";
+        $endpoint = "{$this->baseUrl}accounts/{$page->platform_account_id}/locations/{$locationId}/localPosts";
 
         $response = $this->api->request(
             'get',
@@ -514,7 +519,8 @@ class GooglePostService
     public function getPost($post, $page)
     {
         $this->ensureValidToken($page);
-        $endpoint = "{$this->baseUrl}accounts/{$page->parent_account_id}/locations/{$page->account_id}/localPosts/{$post->post_id}";
+        $gbpAccountId = $page->metadata['parent_account_id'] ?? '';
+        $endpoint = "{$this->baseUrl}accounts/{$gbpAccountId}/locations/{$page->platform_account_id}/localPosts/{$post->post_id}";
 
         $response = $this->api->request(
             'get',
@@ -556,8 +562,9 @@ class GooglePostService
     {
         try {
             $this->ensureValidToken($comment->post);
-            $account = $comment->postAccount;
-            $endpoint = "https://mybusiness.googleapis.com/v4/accounts/{$account->parent_account_id}/locations/{$account->account_id}/reviews/{$comment->comment_id}/reply";
+            $account = $comment->socialAccount;
+            $gbpAccountId = $account->metadata['parent_account_id'] ?? '';
+            $endpoint = "https://mybusiness.googleapis.com/v4/accounts/{$gbpAccountId}/locations/{$account->platform_account_id}/reviews/{$comment->comment_id}/reply";
 
             $payload = [
                 'comment' => $data['body'],
@@ -601,7 +608,7 @@ class GooglePostService
             'is_reply' => true,
             'user_name'            => 'support',
             'comment_id' => $commentId,
-            'post_account_id'  => $comment->postAccount?->id
+            'social_account_id'  => $comment->socialAccount?->id
         ]);
 
         return [
@@ -616,13 +623,14 @@ class GooglePostService
     public function destroy($post)
     {
         $this->ensureValidToken($post);
-        $endpoint = "{$this->baseUrl}accounts/{$post->postAccount->parent_account_id}/locations/{$post->postAccount->account_id}/localPosts/{$post->post_id}";
+        $gbpAccountId = $post->socialAccount->metadata['parent_account_id'] ?? '';
+        $endpoint = "{$this->baseUrl}accounts/{$gbpAccountId}/locations/{$post->socialAccount->platform_account_id}/localPosts/{$post->post_id}";
 
         $response = $this->api->request(
             'delete',
             $endpoint,
             [
-                'Authorization' => 'Bearer ' . $post->postAccount->access_token
+                'Authorization' => 'Bearer ' . $post->socialAccount->access_token
             ],
             []
         );

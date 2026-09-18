@@ -95,7 +95,17 @@ class PostRequest extends FormRequest
             
             $rules[$platform . '.pages.*'] = [
                 'integer',
-                'exists:post_accounts,id',
+                // post_accounts was dropped in favor of social_accounts
+                // back in 2026_08_26_100005_drop_legacy_account_columns_
+                // and_tables.php - this rule was never updated to match,
+                // so it had silently referenced a nonexistent table ever
+                // since (found while testing the composer form's real
+                // submit path). PostController::store() already resolves
+                // these same ids against SocialAccount (with a
+                // has_posting_permission check on top) - this just makes
+                // the validation layer agree with what store() actually
+                // does.
+                'exists:social_accounts,id',
             ];
         }
 

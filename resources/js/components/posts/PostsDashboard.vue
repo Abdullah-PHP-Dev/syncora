@@ -71,13 +71,20 @@
           :class="{ active: activePlatform === platform.name }"
           @click="activePlatform = platform.name">
 
-        <i
-            :class="platform.icon"
-            :style="{ color: activePlatform === platform.name ? '#fff' : platform.color }">
-        </i>
+        <span v-if="platform.key === 'all'" class="platform-tab-icon" :style="{ background: activePlatform === platform.name ? 'rgba(255,255,255,.2)' : platform.color + '1a', color: activePlatform === platform.name ? '#fff' : platform.color }">
+          <i :class="platform.icon"></i>
+        </span>
+
+        <account-avatar-badge
+            v-else
+            style="margin-right: 15px;"
+            :avatar-url="platform.avatarUrl"
+            :icon="platform.icon"
+            :color="platform.color"
+            :size="44" />
 
         <div class="platform-info">
-          <strong>{{ platform.name }}</strong>
+          <strong>{{ platform.accountName || platform.name }}</strong>
           <small>{{ platform.count }} Posts</small>
         </div>
 
@@ -282,14 +289,17 @@
               <a
                   v-for="platform in post.platforms"
                   :key="platform.name"
-                  class="platform-avatar"
+                  class="platform-account-pill"
                   :href="previewUrl(post, platform)"
-                  :title="'View on ' + platform.name">
+                  :title="platform.page + ' · ' + platform.name">
 
-                <i
-                    :class="platform.icon"
-                    :style="{color:platform.color}">
-                </i>
+                <account-avatar-badge
+                    :avatar-url="platform.avatar"
+                    :icon="platform.icon"
+                    :color="platform.color"
+                    :size="32" />
+
+                <span class="platform-account-name">{{ platform.page }}</span>
 
               </a>
 
@@ -503,18 +513,19 @@
             <div class="quick-platform-select">
 
               <div
-                  v-for="platform in platformOptions"
+                  v-for="platform in accountOptions"
                   :key="platform.key"
-                  class="quick-platform-chip"
+                  class="quick-account-chip"
                   :class="{active: quickPost.platforms.includes(platform.key)}"
                   @click="toggleQuickPlatform(platform.key)">
 
-                <i
-                    :class="platform.icon"
-                    :style="{color: quickPost.platforms.includes(platform.key) ? '#fff' : platform.color}">
-                </i>
+                <account-avatar-badge
+                    :avatar-url="platform.avatarUrl"
+                    :icon="platform.icon"
+                    :color="platform.color"
+                    :size="32" />
 
-                {{ platform.name }}
+                <span class="quick-account-name">{{ platform.accountName }}</span>
 
               </div>
 
@@ -587,8 +598,13 @@
 
 <script>
 import { platformMeta, platformOrder } from '../../data/mockPosts';
+import AccountAvatarBadge from './AccountAvatarBadge.vue';
 
 export default {
+
+  components: {
+    AccountAvatarBadge
+  },
 
   props: {
 
@@ -605,6 +621,17 @@ export default {
     previewUrlBase: {
       type: String,
       default: '/posts'
+    },
+
+    // Base for the PUBLIC (unauthenticated) share-preview page - see
+    // routes/web.php's posts.share route and PostController::sharePreview().
+    // Different from previewUrlBase above: that one requires login and is
+    // for viewing your own post inside the app; this one is what Snap's
+    // Creative Kit share button points at, since Snap's servers fetch its
+    // og:image/og:title with no session cookie.
+    shareUrlBase: {
+      type: String,
+      default: '/share/posts'
     },
 
     userName: {
@@ -625,6 +652,16 @@ export default {
     quickCreateUrl: {
       type: String,
       default: ''
+    },
+
+    // Real connected accounts ({id, platform, name, username, avatar_url}) -
+    // the "Create post" modal shows these instead of bare platform logos,
+    // same reasoning as the calendar's picker (resources/views/admin/posts/
+    // dashboard.blade.php): picking "Facebook" should look like picking the
+    // actual connected Page, not an abstract network icon.
+    postingAccounts: {
+      type: Array,
+      default: () => []
     },
 
     initialTotal: {
@@ -727,6 +764,44 @@ export default {
 
     },
 
+    // One chip per connected platform (deduped - quickCreateUrl posts to
+    // every posting-permitted account on a platform at once, so a second
+    // Facebook Page can't be targeted separately), carrying the real
+    // account's name/avatar alongside that platform's icon/color. Falls
+    // back to platformOptions when no real accounts were passed in, so
+    // this still renders something sensible if the prop is ever omitted.
+    accountOptions() {
+
+      if (!this.postingAccounts || !this.postingAccounts.length) {
+        return this.platformOptions.map(p => ({ ...p, accountName: p.name, avatarUrl: null }));
+      }
+
+      const seen = new Set();
+      const options = [];
+
+      this.postingAccounts.forEach(account => {
+        if (seen.has(account.platform)) return;
+        seen.add(account.platform);
+
+        const meta = platformMeta[account.platform] || {
+          key: account.platform,
+          name: account.platform,
+          icon: 'fas fa-share-alt',
+          color: '#5D87FF'
+        };
+
+        options.push({
+          ...meta,
+          accountName: account.name || account.username || meta.name,
+          avatarUrl: account.avatar_url || null
+        });
+
+      });
+
+      return options;
+
+    },
+
     canSubmitQuickPost() {
 
       return (this.quickPost.content.trim().length > 0 || this.quickPost.mediaPreview)
@@ -786,13 +861,18 @@ export default {
 
     platformTabs() {
 
-      return this.platforms.map(platform => ({
+      return this.platforms.map(platform => {
 
-        ...platform,
+        const account = this.accountOptions.find(a => a.key === platform.key);
 
-        count: this.platformCountsData[platform.key] || 0
+        return {
+          ...platform,
+          accountName: account ? account.accountName : null,
+          avatarUrl: account ? account.avatarUrl : null,
+          count: this.platformCountsData[platform.key] || 0
+        };
 
-      }));
+      });
 
     }
 
@@ -824,8 +904,13 @@ export default {
           key,
           post_id: entry.post_id,
           status: entry.status,
-          page: raw.account_name || meta.page,
-          handle: raw.account_handle || meta.handle
+          // Each platform in the group carries its OWN connected account -
+          // falling back to raw.account_name here would show the same one
+          // account's name under every platform badge in a multi-platform
+          // post, which is wrong the moment two different Pages are involved.
+          page: entry.account_name || raw.account_name || meta.page,
+          handle: entry.account_username ? ('@' + entry.account_username) : (raw.account_handle || meta.handle),
+          avatar: entry.account_avatar || null
         };
       });
 
@@ -892,6 +977,41 @@ export default {
       // grouped card would link to the same (wrong) post regardless of
       // which platform was clicked.
       return `${this.previewUrlBase}/${platform.post_id || post.id}/preview/${platform.key}`;
+
+    },
+
+    // quickStore()'s response is keyed by platform (facebook/instagram/...),
+    // each an array of that platform's own Post row - one quick-post
+    // submission fans out to several identical rows, so any one of them
+    // points at the same content/media for the public share-preview page.
+    snapchatShareUrl(results) {
+
+      if (!results) return null;
+
+      for (const platform in results) {
+        const rows = results[platform];
+        if (Array.isArray(rows) && rows.length && rows[0].id) {
+          return `${this.shareUrlBase}/${rows[0].id}`;
+        }
+      }
+
+      return null;
+
+    },
+
+    // Snap Creative Kit only exposes a declarative, class-based init - no
+    // imperative "trigger a share now" call (confirmed against
+    // developers.snap.com/snap-kit/creative-kit/web) - so the button has to
+    // already be in the DOM with the right data-share-url before this
+    // fires. SweetAlert2's didOpen callback is exactly that moment for the
+    // button injected via the html: option above.
+    initSnapchatShareButtons() {
+
+      if (window.snap && window.snap.creativekit) {
+        window.snap.creativekit.initalizeShareButtons(
+          document.getElementsByClassName('snapchat-share-button')
+        );
+      }
 
     },
 
@@ -1024,9 +1144,25 @@ export default {
         this.fetchPosts();
 
         const message = data.message || 'Post published successfully!';
+        const shareUrl = this.snapchatShareUrl(data.results);
 
         if (window.Swal) {
-          window.Swal.fire('Success!', message, 'success');
+          if (shareUrl) {
+            window.Swal.fire({
+              title: 'Success!',
+              icon: 'success',
+              html: message +
+                '<div class="mt-3 pt-2 border-top">' +
+                  '<p class="text-muted small mb-2">Snapchat has no auto-publish API - share this post manually instead:</p>' +
+                  '<a href="#" class="btn btn-sm btn-outline-dark snapchat-share-button" data-share-url="' + shareUrl + '">' +
+                    '<i class="fab fa-snapchat-ghost"></i> Share to Snapchat' +
+                  '</a>' +
+                '</div>',
+              didOpen: this.initSnapchatShareButtons
+            });
+          } else {
+            window.Swal.fire('Success!', message, 'success');
+          }
         } else {
           window.alert(message);
         }
@@ -1734,12 +1870,6 @@ export default {
 
 }
 
-.post-platform i:first-child{
-
-  margin-right:8px;
-
-}
-
 .post-body h4{
 
   font-size:22px;
@@ -1819,10 +1949,19 @@ export default {
   color: #fff;
 }
 
-.platform-tab i {
-  font-size: 26px;
+.platform-tab-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
   margin-right: 15px;
+  flex-shrink: 0;
+  transition: .25s;
 }
+
 
 .platform-info {
   display: flex;
@@ -2023,29 +2162,36 @@ export default {
 .platform-icons{
   display:flex;
   align-items:center;
-  gap:8px;
+  flex-wrap:wrap;
+  gap:6px;
 }
 
-.platform-avatar{
-  width:34px;
-  height:34px;
-  border-radius:50%;
-  background:#F5F7FA;
-  display:flex;
+.platform-account-pill{
+  display:inline-flex;
   align-items:center;
-  justify-content:center;
+  gap:8px;
+  padding:6px 14px 6px 6px;
+  border-radius:30px;
   border:1px solid #E5E7EB;
-  transition:.25s;
+  text-decoration:none;
+  transition:.2s;
+  max-width:190px;
 }
 
-.platform-avatar:hover{
-  transform:translateY(-2px);
-  background:#fff;
-  box-shadow:0 5px 12px rgba(0,0,0,.08);
+.platform-account-pill:hover{
+  border-color:#5D87FF;
+  box-shadow:0 2px 8px rgba(93,135,255,.15);
+  text-decoration:none;
 }
 
-.platform-avatar i{
-  font-size:15px;
+.platform-account-name{
+  font-size:13px;
+  font-weight:600;
+  color:#2A3547;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  max-width:140px;
 }
 
 /* ==========================
@@ -2186,11 +2332,11 @@ export default {
   gap:10px;
 }
 
-.quick-platform-chip{
+.quick-account-chip{
   display:flex;
   align-items:center;
   gap:8px;
-  padding:8px 14px;
+  padding:6px 14px 6px 6px;
   border-radius:30px;
   border:1px solid #E5E7EB;
   cursor:pointer;
@@ -2200,10 +2346,17 @@ export default {
   transition:.2s;
 }
 
-.quick-platform-chip.active{
+.quick-account-chip.active{
   background:#5D87FF;
   border-color:#5D87FF;
   color:#fff;
+}
+
+.quick-account-name{
+  max-width:140px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
 
 .quick-schedule-row{

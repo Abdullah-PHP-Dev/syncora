@@ -25,17 +25,21 @@ class FacebookMessengerService
 
     public function sendMessage(Conversation $conversation, array $data)
     {
-        $channel = $conversation->channel;
+        // Conversation::channel() resolves straight to a SocialAccount
+        // (not a MessageChannel - that indirection was removed in the
+        // social_accounts consolidation), which already carries both the
+        // Page id and the access token directly.
+        $account = $conversation->channel;
 
         $message = !empty($data['media_url'])
             ? ['attachment' => ['type' => $data['media_type'] ?? 'image', 'payload' => ['url' => $data['media_url'], 'is_reusable' => true]]]
             : ['text' => $data['body']];
 
-        $result = $this->graphApiCall('POST', $channel->external_id . '/messages', [
+        $result = $this->graphApiCall('POST', $account->platform_account_id . '/messages', [
             'messaging_type' => 'RESPONSE',
             'recipient'      => ['id' => $conversation->customer_external_id],
             'message'        => $message,
-        ], $channel->access_token);
+        ], $account->access_token);
 
         if (!$result['success']) {
             return $result;
@@ -93,10 +97,10 @@ class FacebookMessengerService
                     'url'  => $a['payload']['url'] ?? null,
                 ])->filter(fn($a) => $a['url'])->values()->all();
 
-                $profile = $this->fetchUserProfile($event['sender']['id'], $channel->access_token);
+                $profile = $this->fetchUserProfile($event['sender']['id'], $channel->socialAccount->access_token);
 
                 ProcessInboundMessage::dispatch(
-                    messageChannelId: $channel->id,
+                    socialAccountId: $channel->social_account_id,
                     customerExternalId: $event['sender']['id'],
                     customerName: $profile['name'] ?? null,
                     customerAvatarUrl: $profile['profile_pic'] ?? null,
@@ -143,7 +147,7 @@ class FacebookMessengerService
      */
     public function syncChannelDetails(MessageChannel $channel): void
     {
-        $result = $this->graphApiCall('GET', $channel->external_id, ['fields' => 'about,category,phone,website,fan_count'], $channel->access_token);
+        $result = $this->graphApiCall('GET', $channel->external_id, ['fields' => 'about,category,phone,website,fan_count'], $channel->socialAccount->access_token);
 
         if (!$result['success']) {
             Log::warning('Facebook channel details sync failed.', ['channel_id' => $channel->id, 'error' => $result['error'] ?? null]);
@@ -151,6 +155,10 @@ class FacebookMessengerService
         }
 
         $channel->update(['meta' => array_merge($channel->meta ?? [], ['profile' => $result['data']])]);
+
+        if (isset($result['data']['fan_count'])) {
+            $channel->socialAccount->update(['likes_count' => $result['data']['fan_count']]);
+        }
     }
 
     /**
@@ -161,7 +169,7 @@ class FacebookMessengerService
      */
     public function subscribeToWebhooks(MessageChannel $channel): void
     {
-        $result = $this->graphApiCall('POST', $channel->external_id . '/subscribed_apps', ['subscribed_fields' => 'messages,messaging_postbacks,message_deliveries'], $channel->access_token);
+        $result = $this->graphApiCall('POST', $channel->external_id . '/subscribed_apps', ['subscribed_fields' => 'messages,messaging_postbacks,message_deliveries'], $channel->socialAccount->access_token);
 
         if ($result['success'] && ($result['data']['success'] ?? false)) {
             $channel->update(['webhook_subscribed' => true]);
@@ -187,7 +195,7 @@ class FacebookMessengerService
         $result = $this->graphApiCall('GET', $channel->external_id . '/conversations', [
             'fields' => "participants,updated_time,messages.limit({$messageLimit}){id,message,from,created_time}",
             'limit'  => $conversationLimit,
-        ], $channel->access_token);
+        ], $channel->socialAccount->access_token);
 
         if (!$result['success']) {
             Log::warning('Facebook conversation backfill failed.', ['channel_id' => $channel->id, 'error' => $result['error'] ?? null]);
@@ -212,10 +220,10 @@ class FacebookMessengerService
                     continue;
                 }
 
-                $profile = $this->fetchUserProfile($customer['id'], $channel->access_token);
+                $profile = $this->fetchUserProfile($customer['id'], $channel->socialAccount->access_token);
 
                 $conversation = Conversation::updateOrCreate(
-                    ['message_channel_id' => $channel->id, 'customer_external_id' => $customer['id']],
+                    ['social_account_id' => $channel->social_account_id, 'customer_external_id' => $customer['id']],
                     [
                         'platform'            => 'facebook',
                         'customer_name'       => $profile['name'] ?? null,

@@ -25,7 +25,7 @@ class Post extends Model
         'post_id',
         'user_id',
         'group_id',
-        'post_account_id',
+        'social_account_id',
         'post_category_id',
         'title',
         'post_url',
@@ -207,9 +207,9 @@ class Post extends Model
     /**
      * Get the social account this post belongs to.
      */
-    public function postAccount(): BelongsTo
+    public function socialAccount(): BelongsTo
     {
-        return $this->belongsTo(PostAccount::class, 'post_account_id');
+        return $this->belongsTo(SocialAccount::class);
     }
 
     /**
@@ -516,7 +516,7 @@ class Post extends Model
         // Handle Google / Google Business Profile (GBP) posts
         if (in_array($platform, ['google', 'gmb', 'google_my_business', 'google_business_profile'])) {
             // If your model stores the location ID separately or inside post_account metadata:
-            $locationId = $this->postAccount->account_id ?? null;
+            $locationId = $this->socialAccount->platform_account_id ?? null;
     
             if ($locationId) {
                 // Business Profile Manager direct post URL
@@ -534,7 +534,16 @@ class Post extends Model
             'twitter'   => "https://x.com/i/status/{$this->post_id}",
             'x'         => "https://x.com/i/status/{$this->post_id}",
             'linkedin'  => "https://linkedin.com/feed/update/urn:li:share:{$this->post_id}",
-            'tiktok'    => "https://tiktok.com/video/{$this->post_id}",
+            // No 'tiktok' entry here deliberately: TiktokPostService/
+            // ResolveTiktokPublishStatus always write the real, correct
+            // link (https://www.tiktok.com/@{username}/{video|photo}/{id})
+            // straight into post_url once TikTok resolves it. Before
+            // that, post_id holds TikTok's own raw publish_id (eg.
+            // "p_pub_url~v2...") as an internal placeholder, not a usable
+            // id - guessing a link from it here previously built
+            // "https://tiktok.com/video/{publish_id}", which 404s (wrong
+            // domain, wrong path for photo posts, and not a real id at
+            // all). No link is correct until post_url is actually set.
             'youtube'   => "https://youtube.com/watch?v={$this->post_id}",
             'pinterest' => "https://pinterest.com/pin/{$this->post_id}",
             'threads'   => "https://threads.net/post/{$this->post_id}",

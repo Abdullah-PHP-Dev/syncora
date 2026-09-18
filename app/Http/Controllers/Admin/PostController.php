@@ -18,13 +18,16 @@ use App\Services\PostServices\WhatsAppPostService;
 use App\Services\PostServices\ThreadsPostService;
 use App\Services\PostServices\PinterestPostService;
 use App\Models\PostCategory;
-use App\Models\PostAccount;
+use App\Models\SocialAccount;
 use App\Models\PostMedia;
 use App\Models\PostComment;
 use App\Models\Messaging\Message;
 use Illuminate\Support\Facades\DB;
 use App\Models\Messaging\Conversation;
+use App\Support\Gemini\RetryPolicy;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class PostController extends Controller
@@ -67,12 +70,12 @@ class PostController extends Controller
         $dateTo   = $request->filled('to') ? \Carbon\Carbon::parse($request->query('to'))->endOfDay() : null;
 
         // ---- Accounts ----
-        $accounts = PostAccount::whereUserId($userId)->get();
+        $accounts = SocialAccount::whereUserId($userId)->with('postDetails')->get();
         $totalAccounts = $accounts->count();
         $accountsByPlatform = $accounts->groupBy('platform')->map->count();
-        $totalFollowers = (int) $accounts->sum('follower_count');
+        $totalFollowers = (int) $accounts->sum('followers_count');
         $totalAccountLikes = (int) $accounts->sum('likes_count');
-        $totalMedia = (int) $accounts->sum('media_count');
+        $totalMedia = (int) $accounts->sum(fn ($account) => (int) $account->media_count);
 
         // ---- Posts Query ----
         $postQuery = Post::where('user_id', $userId);
@@ -167,8 +170,8 @@ class PostController extends Controller
                 'platform'       => $account->platform,
                 'name'           => $account->name ?: $account->username,
                 'username'       => $account->username,
-                'image'          => $account->image,
-                'follower_count' => (int) $account->follower_count,
+                'image'          => $account->avatar_url,
+                'follower_count' => (int) $account->followers_count,
                 'likes_count'    => (int) $account->likes_count,
                 'media_count'    => (int) $account->media_count,
                 'views_count'    => (int) $account->views_count,
@@ -184,11 +187,16 @@ class PostController extends Controller
             : null;
 
         // ---- Upcoming scheduled posts ----
+        // Every post is written with status 'pending' when queued (see
+        // MetaPostService::store() etc.) and only flips to 'completed'/
+        // 'failed' once social:publish-posts runs it - there is no
+        // 'scheduled' status literal anywhere in the write path, so a
+        // pending post with a future schedule_at IS the "scheduled" one.
         $upcomingPosts = Post::where('user_id', $userId)
-            ->where('status', 'scheduled')
+            ->where('status', 'pending')
             ->whereNotNull('schedule_at')
             ->where('schedule_at', '>=', now())
-            ->with(['postAccount', 'media'])
+            ->with(['socialAccount', 'media'])
             ->orderBy('schedule_at')
             ->limit(4)
             ->get();
@@ -208,8 +216,8 @@ class PostController extends Controller
         }
 
         // ---- Recent + top performing posts (for the two-column feed) ----
-        $recentPosts = (clone $postQuery)->with(['postAccount', 'media'])->latest()->limit(4)->get();
-        $topPosts = (clone $postQuery)->with(['postAccount', 'media'])
+        $recentPosts = (clone $postQuery)->with(['socialAccount', 'media'])->latest()->limit(4)->get();
+        $topPosts = (clone $postQuery)->with(['socialAccount', 'media'])
             ->orderByRaw('(likes + shares + comments + reach) DESC')
             ->limit(4)
             ->get();
@@ -218,13 +226,59 @@ class PostController extends Controller
         $calendarMonth = $request->filled('cal')
             ? \Carbon\Carbon::createFromFormat('Y-m', $request->query('cal'))->startOfMonth()
             : now();
+        // A content calendar has to key posts by the day they're actually
+        // scheduled for, not the day the DB row was created - scheduling
+        // something today for next Friday must show up on Friday's cell,
+        // not today's. (published_at is listed in Post::$fillable but
+        // isn't a real column on this table - not something to build on
+        // here - so "already published/no schedule" falls back to
+        // created_at, same as before.) schedule_at and created_at can
+        // each fall in a different month, so the query nets anything
+        // touching this month via either, then groups in PHP by whichever
+        // date is actually the right one to display for that post.
+        $calendarEffectiveDate = fn ($p) => $p->schedule_mode && $p->schedule_at
+            ? $p->schedule_at
+            : $p->created_at;
+
         $calendarMonthPosts = Post::where('user_id', $userId)
-            ->whereMonth('created_at', $calendarMonth->month)
-            ->whereYear('created_at', $calendarMonth->year)
-            ->with('media')
-            ->orderBy('created_at')
+            ->where(function ($q) use ($calendarMonth) {
+                $q->whereMonth('schedule_at', $calendarMonth->month)->whereYear('schedule_at', $calendarMonth->year)
+                    ->orWhere(function ($q2) use ($calendarMonth) {
+                        $q2->whereNull('schedule_at')
+                            ->whereMonth('created_at', $calendarMonth->month)->whereYear('created_at', $calendarMonth->year);
+                    });
+            })
+            ->with('media', 'socialAccount')
             ->get()
-            ->groupBy(fn ($p) => $p->created_at->day);
+            ->filter(fn ($p) => $calendarEffectiveDate($p)?->isSameMonth($calendarMonth))
+            ->sortBy($calendarEffectiveDate)
+            ->groupBy(fn ($p) => $calendarEffectiveDate($p)->day)
+            ->map(function ($dayPosts) {
+                // Collapse posts sharing a group_id (one quickStore()
+                // submission fanned out across several platforms) into a
+                // single representative entry - the same COALESCE(group_id,
+                // id) grouping buildPostsQuery() uses for the main posts
+                // listing, so a post sent to both Facebook and Instagram at
+                // once shows up as one calendar entry, not two.
+                return $dayPosts->groupBy(fn ($p) => $p->group_id ?? $p->id)
+                    ->map(function ($groupMembers) {
+                        $representative = $groupMembers->first();
+                        $representative->setAttribute('group_platforms', $groupMembers->map(fn ($m) => [
+                            'platform' => $m->platform,
+                            'status' => $m->status,
+                            'post_id' => $m->id,
+                        ])->values());
+                        return $representative;
+                    })
+                    ->values();
+            });
+
+        // Posting-permitted accounts, for the calendar's "quick post" modal
+        // platform picker - same has_posting_permission gate as the main
+        // create page, so an ad-only account can't be selected here either.
+        $postingAccounts = SocialAccount::where('user_id', $userId)
+            ->where('has_posting_permission', true)
+            ->get();
         $calendarPostDays = $calendarMonthPosts->map->count();
         $calendarPostsThisMonth = (int) $calendarPostDays->sum();
         $calendarCommentsThisMonth = PostComment::where('user_id', $userId)
@@ -262,7 +316,7 @@ class PostController extends Controller
 
         // ---- New accounts connected in the last 7 days, for the Connected
         // Accounts card (real signal, since follower history isn't tracked) ----
-        $newAccountsThisWeek = PostAccount::where('user_id', $userId)
+        $newAccountsThisWeek = SocialAccount::where('user_id', $userId)
             ->where('created_at', '>=', now()->subDays(7))
             ->count();
 
@@ -317,7 +371,8 @@ class PostController extends Controller
             'totalUnreadMessages',
             'reachChangePercent',
             'engagementChangePercent',
-            'newAccountsThisWeek'
+            'newAccountsThisWeek',
+            'postingAccounts'
         ));
     }
     /**
@@ -363,7 +418,15 @@ class PostController extends Controller
 
         $platformCounts = $this->platformCounts($userId);
 
-        return view('admin.posts.index_vue', compact('posts', 'platform', 'platformCounts'));
+        // Real connected accounts (name, username, avatar_url, platform)
+        // for the "Create post" modal's picker, so it shows the actual
+        // Page/Profile you're posting as instead of a bare platform logo.
+        $postingAccounts = SocialAccount::where('user_id', $userId)
+            ->where('has_posting_permission', true)
+            ->get(['id', 'platform', 'name', 'username', 'avatar_url'])
+            ->values();
+
+        return view('admin.posts.index_vue', compact('posts', 'platform', 'platformCounts', 'postingAccounts'));
     }
 
     /**
@@ -379,7 +442,7 @@ class PostController extends Controller
      */
     private function buildPostsQuery(Request $request, int $userId)
     {
-        $query = Post::with(['postAccount', 'media', 'user'])
+        $query = Post::with(['socialAccount', 'media', 'user'])
             ->where('user_id', $userId)
             ->whereIn('id', function ($sub) use ($userId) {
                 $sub->selectRaw('MIN(id)')
@@ -438,12 +501,13 @@ class PostController extends Controller
             return [];
         }
 
-        $siblings = Post::where('user_id', $userId)
+        $siblings = Post::with('socialAccount')
+            ->where('user_id', $userId)
             ->where(function ($q) use ($groupKeys) {
                 $q->whereIn('group_id', $groupKeys)
                     ->orWhereIn('id', $groupKeys);
             })
-            ->get(['id', 'group_id', 'platform', 'status', 'post_url']);
+            ->get(['id', 'group_id', 'platform', 'status', 'post_url', 'social_account_id']);
 
         $map = [];
 
@@ -453,10 +517,17 @@ class PostController extends Controller
             $map[$post->id] = $siblings
                 ->filter(fn ($sibling) => ($sibling->group_id ?? $sibling->id) === $key)
                 ->map(fn ($sibling) => [
-                    'platform_key' => $sibling->platform,
-                    'status' => ucfirst($sibling->status ?? 'draft'),
-                    'post_id' => $sibling->id,
-                    'post_url' => $sibling->post_url,
+                    'platform_key'     => $sibling->platform,
+                    'status'           => ucfirst($sibling->status ?? 'draft'),
+                    'post_id'          => $sibling->id,
+                    'post_url'         => $sibling->post_url,
+                    // The actual connected Page/Profile this platform entry
+                    // was published as - shown instead of a bare platform
+                    // logo, same identity data the calendar's account
+                    // picker uses.
+                    'account_name'     => $sibling->socialAccount->name ?? $sibling->socialAccount->username ?? null,
+                    'account_username' => $sibling->socialAccount->username ?? null,
+                    'account_avatar'   => $sibling->socialAccount->avatar_url ?? null,
                 ])
                 ->values()
                 ->all();
@@ -531,6 +602,29 @@ class PostController extends Controller
     }
 
     /**
+     * Public, unauthenticated share-preview page for a single post -
+     * routes/web.php registers this OUTSIDE the auth middleware
+     * deliberately. Snap's Creative Kit "Share to Snapchat" button (see
+     * resources/js/components/posts/PostsDashboard.vue and
+     * dashboard.blade.php's quick-post modal) points its data-share-url
+     * here so Snap's servers can fetch og:image/og:title without a
+     * session - the same reason any social share button needs a public
+     * URL rather than the real admin.posts.show page. Deliberately
+     * exposes only this one post's own public-facing content (caption +
+     * first media item) - no owner/account data.
+     */
+    public function sharePreview(int $postId)
+    {
+        $post = Post::with('media')->find($postId);
+
+        return view('share.post', [
+            'title' => $post ? Str::limit($post->content ?: 'SocialEaz post', 90) : 'SocialEaz post',
+            'description' => $post ? Str::limit($post->content ?: '', 200) : null,
+            'media' => $post?->media->first(),
+        ]);
+    }
+
+    /**
      * The relation set every preview() query needs, factored out so the
      * "requested post" lookup and the "rest of its group" lookup can't
      * silently drift apart.
@@ -539,7 +633,7 @@ class PostController extends Controller
     {
         return Post::with([
             'user',
-            'postAccount',
+            'socialAccount',
             'media',
             'postComments' => function ($query) {
                 $query->topLevel()->with('replies');
@@ -588,7 +682,7 @@ class PostController extends Controller
                 'platform' => $comment->platform,
                 'comment_id' => 'seed_' . Str::random(12),
                 'parent_comment_id' => $comment->id,
-                'post_account_id' => $comment->post_account_id,
+                'social_account_id' => $comment->social_account_id,
                 'post_id' => $comment->post_id,
                 'user_id' => Auth::id(),
                 'user_name' => Auth::user()->name ?? 'Support',
@@ -648,7 +742,7 @@ class PostController extends Controller
             'platform' => $post->platform,
             'comment_id' => 'seed_' . Str::random(12),
             'parent_comment_id' => null,
-            'post_account_id' => $post->post_account_id,
+            'social_account_id' => $post->social_account_id,
             'post_id' => $post->id,
             'user_id' => Auth::id(),
             'user_name' => Auth::user()->name ?? 'Support',
@@ -716,10 +810,13 @@ class PostController extends Controller
         $primaryMedia = $post->media->first();
 
         $platforms ??= [[
-            'platform_key' => $post->platform,
-            'status' => ucfirst($post->status ?? 'draft'),
-            'post_id' => $post->id,
-            'post_url' => $post->post_url,
+            'platform_key'     => $post->platform,
+            'status'           => ucfirst($post->status ?? 'draft'),
+            'post_id'          => $post->id,
+            'post_url'         => $post->post_url,
+            'account_name'     => $post->socialAccount->name ?? $post->socialAccount->username ?? null,
+            'account_username' => $post->socialAccount->username ?? null,
+            'account_avatar'   => $post->socialAccount->avatar_url ?? null,
         ]];
 
         return [
@@ -739,8 +836,8 @@ class PostController extends Controller
             'views' => (int) ($post->views ?? 0),
             'author' => $post->user->name ?? 'You',
             'created_at' => optional($post->created_at)->format('Y-m-d'),
-            'account_name' => $post->postAccount->name ?? $post->postAccount->username ?? null,
-            'account_handle' => $post->postAccount->username ? '@' . $post->postAccount->username : null,
+            'account_name' => $post->socialAccount->name ?? $post->socialAccount->username ?? null,
+            'account_handle' => $post->socialAccount->username ? '@' . $post->socialAccount->username : null,
         ];
     }
 
@@ -788,6 +885,255 @@ class PostController extends Controller
         return $summary;
     }
 
+    /**
+     * The redesigned Vue Create Post page (PostComposer.vue) - reuses
+     * exactly the account/category queries create() already runs, minus
+     * the scheduled-posts/user-media data that page's own calendar/
+     * media-library sidebar needs and this one doesn't. Submits to the
+     * same store() below.
+     */
+    public function composer()
+    {
+        $userId = Auth::id();
+
+        $categories = PostCategory::where('user_id', $userId)
+            ->orderBy('id', 'desc')
+            ->get();
+
+        $accounts = SocialAccount::whereUserId($userId)->where('has_posting_permission', true)->get();
+
+        return view('admin.posts.composer', compact('categories', 'accounts'));
+    }
+
+    /**
+     * AI Content Assistant (PostComposer.vue / AiAssistantPanel.vue) -
+     * proxies to Google Gemini so the API key only ever lives server-side.
+     * The previous attempt at this (askOpenAI() above, despite the name)
+     * depended on a $nanoBananaAI service that's never actually
+     * constructed (see the commented-out assignment in __construct()) and
+     * was never routed - this is a fresh, working implementation, not a
+     * fix to that one.
+     *
+     * response_schema forces Gemini to return exactly {title, description,
+     * hashtags[]} as real JSON (response_mime_type: application/json) -
+     * no regex/parseGeminiResponse()-style scraping of free-form text
+     * needed, unlike the old attempt.
+     *
+     * Model: gemini-3.6-flash, not gemini-1.5-flash - verified live against
+     * this app's real API key that 1.5-flash 404s ("no longer available to
+     * new users"), and 2.5-flash 404s the same way; Google's own error
+     * response for 1.5-flash names 3.6-flash as the replacement, and it's
+     * been confirmed working (including with this exact response_schema)
+     * over several real calls. Worth re-checking against
+     * generativelanguage.googleapis.com/v1beta/models?key=... (list
+     * models) if this starts 404ing again in the future - Google has
+     * retired every "flash" version tried before this one.
+     */
+    public function generateAiContent(Request $request)
+    {
+        $validated = $request->validate([
+            'prompt' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $apiKey = adminSetting('gemini_api_key_free');
+
+        if (empty($apiKey)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gemini API key is missing in admin settings.',
+            ], 422);
+        }
+
+        // PHP's own max_execution_time (30s in this environment) is a
+        // wall-clock budget for the WHOLE request, separate from and not
+        // reset by Http::timeout() below - it does not pause for HTTP I/O
+        // or for the Sleep::for() calls retry() makes between attempts.
+        // Confirmed live: 3 retry attempts against a real 429, using
+        // Gemini's own retryDelay values (1s, then 10s) plus the HTTP
+        // calls themselves, totalled just over 30s and PHP force-killed
+        // the script mid-request (storage/logs/laravel.log: "Maximum
+        // execution time of 30 seconds exceeded", a FatalError thrown
+        // from vendor Sleep.php - not catchable by this method's own
+        // try/catch-free error handling below, so it rendered as a raw
+        // branded 500 page instead of the intended graceful 422 JSON).
+        // Raising the budget for THIS request only (not php.ini/global)
+        // gives the retry loop room to actually finish. Paired with the
+        // capped per-attempt timeout and capped retry delay below, the
+        // realistic worst case (3 attempts x 15s + 2 delays x 12s) is
+        // ~69s, comfortably inside this 120s budget.
+        set_time_limit(120);
+
+        $response = Http::timeout(15)
+            ->retry(3, fn ($attempt, $exception) => RetryPolicy::delayMs($attempt, $exception), fn ($exception) => RetryPolicy::isRetryable($exception), throw: false)
+            ->post(
+                'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' . $apiKey,
+                [
+                    'contents' => [
+                        [
+                            'role' => 'user',
+                            'parts' => [
+                                ['text' => 'Write a social media post based on this request: "' . $validated['prompt'] . '". '
+                                    . 'Keep the description punchy and platform-neutral (no more than a couple of short '
+                                    . 'paragraphs), and give 5-10 relevant hashtags with no spaces and no leading text.'],
+                            ],
+                        ],
+                    ],
+                    'generationConfig' => [
+                        'response_mime_type' => 'application/json',
+                        'response_schema' => [
+                            'type' => 'OBJECT',
+                            'properties' => [
+                                'title' => ['type' => 'STRING', 'description' => 'A short, engaging post headline, under 100 characters.'],
+                                'description' => ['type' => 'STRING', 'description' => 'The main post body, adapted for social media.'],
+                                'hashtags' => [
+                                    'type' => 'ARRAY',
+                                    'items' => ['type' => 'STRING'],
+                                    'description' => '5 to 10 relevant hashtags, each starting with # and containing no spaces.',
+                                ],
+                            ],
+                            'required' => ['title', 'description', 'hashtags'],
+                        ],
+                    ],
+                ]
+            );
+
+        if (!$response->successful()) {
+            Log::warning('Gemini AI content generation failed.', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $response->json('error.message') ?? 'Failed to generate content - please try again.',
+            ], 422);
+        }
+
+        // candidates[0].content.parts[0].text is a JSON *string* (that's
+        // what response_mime_type: application/json actually guarantees -
+        // the response TEXT is valid JSON, not that Gemini's own envelope
+        // around it changes shape), so it needs a second json_decode().
+        $rawText = $response->json('candidates.0.content.parts.0.text');
+        $data = $rawText ? json_decode($rawText, true) : null;
+
+        if (!is_array($data) || !isset($data['title'], $data['description'], $data['hashtags'])) {
+            Log::warning('Gemini AI content generation returned an unexpected shape.', ['raw' => $rawText]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gemini returned an unexpected response - please try again.',
+            ], 422);
+        }
+
+        // Confirmed live over several real calls: Gemini follows the
+        // "no spaces" instruction in the schema description most of the
+        // time, but not always (one real response came back with a
+        // hashtag like "#Entrepreneurship 创业" - stray text appended with
+        // a space) - the schema constrains the JSON *shape*, not the
+        // content of each string, so this can't be relied on alone.
+        // Whitespace is stripped (not the whole item dropped) so a mostly-
+        // good hashtag isn't thrown away over one stray trailing word.
+        $hashtags = collect((array) $data['hashtags'])
+            ->map(fn ($tag) => preg_replace('/\s+/u', '', (string) $tag))
+            ->filter()
+            ->map(fn ($tag) => str_starts_with($tag, '#') ? $tag : '#' . $tag)
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'title' => $data['title'],
+                'description' => $data['description'],
+                'hashtags' => $hashtags,
+            ],
+        ]);
+    }
+
+    /**
+     * AI Image generation (AiAssistantPanel.vue's "Generate Image" card) -
+     * Cloudflare Workers AI, same "credentials never leave the server"
+     * shape as generateAiContent() above.
+     *
+     * Response envelope verified live against this app's real account:
+     * {success, errors[], result: {image: "<base64>"}} - success is a
+     * real field to check, not just the HTTP status. Confirmed live that
+     * this model's own NSFW filter can false-positive on a completely
+     * benign prompt ("a simple red circle on white background" got flagged
+     * once, then succeeded immediately after on retry with no prompt
+     * change) - errors[0].message is surfaced as-is rather than a generic
+     * "failed" message, since for this specific failure mode the real
+     * Cloudflare message ("Input prompt contains NSFW content") is
+     * actionable in a way a generic one wouldn't be (try rephrasing,
+     * rather than assume something is broken).
+     *
+     * result.image has no MIME type in the envelope - every response
+     * checked live decoded to a JPEG (the /9j/ base64 signature is
+     * flux-1-schnell's actual default output format), so it's uploaded
+     * as .jpg rather than sniffed.
+     */
+    public function generateAiImage(Request $request)
+    {
+        $validated = $request->validate([
+            'prompt' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $accountId = adminSetting('cloudflare_account_key');
+        $apiToken = adminSetting('cloudflare_api_key');
+
+        if (empty($accountId) || empty($apiToken)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cloudflare API credentials are not configured in admin settings.',
+            ], 422);
+        }
+
+        $response = Http::timeout(60)->withToken($apiToken)->post(
+            "https://api.cloudflare.com/client/v4/accounts/{$accountId}/ai/run/@cf/black-forest-labs/flux-1-schnell",
+            [
+                'prompt' => $validated['prompt'],
+                'steps' => 4,
+            ]
+        );
+
+        $json = $response->json();
+
+        if (!$response->successful() || !($json['success'] ?? false) || empty($json['result']['image'])) {
+            Log::warning('Cloudflare AI image generation failed.', [
+                'status' => $response->status(),
+                'errors' => $json['errors'] ?? null,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $json['errors'][0]['message'] ?? 'Failed to generate an image - please try again.',
+            ], 422);
+        }
+
+        $imageBinary = base64_decode($json['result']['image']);
+        $filename = 'ai-image/' . uniqid() . '.jpg';
+
+        Storage::disk('r2')->put($filename, $imageBinary, 'public');
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                // image_url is kept for anything that wants a permanent,
+                // shareable link, but the frontend doesn't fetch() it -
+                // cdn.socialeaz.com (the R2 custom domain) sends no
+                // Access-Control-Allow-Origin header, so a cross-origin
+                // fetch from syncora.test (or any admin domain) is blocked
+                // by the browser's CORS policy - confirmed live, not
+                // theoretical. image_data_uri carries the same bytes
+                // already decoded server-side, so PostComposer.vue can
+                // build a File from it with zero extra network request -
+                // no CORS surface at all, rather than depending on an R2
+                // bucket CORS config change outside this codebase.
+                'image_url' => Storage::disk('r2')->url($filename),
+                'image_data_uri' => 'data:image/jpeg;base64,' . $json['result']['image'],
+            ],
+        ]);
+    }
+
     public function create(Request $request)
     {
         $userId = Auth::id();
@@ -800,8 +1146,11 @@ class PostController extends Controller
             ->orderBy('id', 'desc')
             ->get();
     
-        $accounts = PostAccount::whereUserId($userId)->get();
-     
+        // has_posting_permission excludes ad-account-only rows (eg. a
+        // Facebook act_... Ad Account) - this list feeds the "select a
+        // page to post to" picker below, which an ad account can never be.
+        $accounts = SocialAccount::whereUserId($userId)->where('has_posting_permission', true)->get();
+
         // Fetch scheduled posts (past and future) for this platform
         $scheduledPosts = Post::where('user_id', $userId)
             // ->where('platform', $platform)
@@ -822,9 +1171,51 @@ class PostController extends Controller
         $userId = Auth::id();
         $validated = $request->validated();
 
+        // Ties every Post row this single submission creates - across
+        // platforms (facebook+instagram+tiktok in one go) AND across
+        // multiple pages/accounts within the same platform (2 connected
+        // Facebook Pages) - into one logical post, the same way
+        // quickStore() already does for its own submissions. Generated
+        // once here, before the platform loop, so every *PostService::
+        // store() call below (each of which already reads
+        // $data['group_id'] ?? null) receives the identical value.
+        // buildPostsQuery()'s existing COALESCE(group_id, id) grouping is
+        // what actually collapses them into one card on the dashboard -
+        // no changes needed there, it already treats group_id as the
+        // source of truth wherever it's set.
+        $validated['group_id'] = (string) Str::uuid();
+
+        // Same "upload once, every platform reuses it" fix already built
+        // for quickStore() (see uploadQuickPostMedia()'s docblock) - until
+        // now store() left $data['uploaded_media'] unset, so every
+        // *PostService::store() below fell through to its own
+        // uploadMediaToS3($data['media']) call and re-uploaded the exact
+        // same file(s) to R2 once per selected platform (three platforms
+        // selected together = three duplicate copies in storage, one per
+        // platform-namespaced path). uploadQuickPostMedia() already
+        // accepts an array of files, matching PostRequest's own
+        // 'media' => ['nullable','array'] shape directly - no wrapping
+        // needed here, unlike quickStore()'s single-file field. Each
+        // platform still creates its own PostMedia row per Post further
+        // down (one row per post_id, as before) - only the actual file
+        // upload is shared, exactly what was asked: create the file once,
+        // attach it to each post's own post_media row.
+        if (!empty($validated['media'])) {
+            $uploadResult = $this->uploadQuickPostMedia($validated['media']);
+
+            if (!$uploadResult['success']) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => [['message' => $uploadResult['message'] ?? 'Failed to upload media.']],
+                ], 422);
+            }
+
+            $validated['uploaded_media'] = $uploadResult['media'];
+        }
+
         $results = [];
         $errors = [];
-    
+
         if (!empty($validated['platforms'])) {
     
             try {
@@ -837,9 +1228,15 @@ class PostController extends Controller
     
                     foreach ($validated['platforms'] as $platform) {
     
-                        $pages = PostAccount::where([
+                        // has_posting_permission is a second safety net here
+                        // (the create page already only offers posting-
+                        // permitted accounts as checkboxes) so a tampered
+                        // request can't slip an ad-account id through
+                        // selected_pages and have it treated as postable.
+                        $pages = SocialAccount::where([
                             'user_id' => $userId,
-                            'platform' => $platform
+                            'platform' => $platform,
+                            'has_posting_permission' => true,
                         ])->whereIn(
                             'id',
                             $validated['selected_pages'][$platform] ?? []
@@ -928,14 +1325,30 @@ class PostController extends Controller
                 DB::commit();
     
             } catch (\Throwable $e) {
-    
+
+                // Was previously silent - a failed post-create returned
+                // {"success":false,"errors":[]} with zero trace anywhere
+                // (this catch neither logged nor rethrew, so Laravel's own
+                // exception handler/log never saw it either). Found this
+                // gap while testing the composer's real submit path: a
+                // genuine failure had no way to be diagnosed except by
+                // manually reproducing the call in tinker outside the
+                // transaction/catch wrapper.
+                Log::error('PostController::store() failed.', [
+                    'user_id'   => $userId,
+                    'platforms' => $validated['platforms'] ?? null,
+                    'exception' => $e->getMessage(),
+                    'file'      => $e->getFile() . ':' . $e->getLine(),
+                    'trace'     => $e->getTraceAsString(),
+                ]);
+
                 return response()->json([
                     'success' => false,
                     'errors' => $errors
                 ], 422);
             }
         }
-    
+
         return response()->json([
             'success' => true,
             'message' => 'Posts published successfully!',
@@ -1120,7 +1533,14 @@ class PostController extends Controller
 
         foreach ($validated['platforms'] as $platform) {
 
-            $pages = PostAccount::where(['user_id' => $userId, 'platform' => $platform])->get();
+            // has_posting_permission excludes ad-account-only rows (eg. a
+            // Facebook act_... Ad Account, a Google Ads customer) - those
+            // share this same platform+user but can't receive a content
+            // post, so without this filter quickStore() would try to
+            // publish to them too.
+            $pages = SocialAccount::where(['user_id' => $userId, 'platform' => $platform])
+                ->where('has_posting_permission', true)
+                ->get();
 
             if ($pages->isEmpty()) {
                 $errors[] = ['message' => "No connected {$platform} account found. Connect one first."];
@@ -1179,7 +1599,7 @@ class PostController extends Controller
 
     public function destroy($postId)
     {
-        $post = Post::with('postAccount', 'postComments' ,'media')->find($postId);
+        $post = Post::with('socialAccount', 'postComments' ,'media')->find($postId);
         $error = [];
         if (!$post) {
             return response()->json([
@@ -1284,7 +1704,7 @@ class PostController extends Controller
     {
         $post = Post::with([
             'user',
-            'postAccount',
+            'socialAccount',
            // 'category',
             'category',
             'media',
@@ -1295,9 +1715,9 @@ class PostController extends Controller
         ])->findOrFail($postId);
 
         return view('admin.posts.show', compact('post'));
-        // $post = Post::with('postAccount')->findOrFail($postId);
-        // $socialPlatform = $post->postAccount->platform;
-    
+        // $post = Post::with('socialAccount')->findOrFail($postId);
+        // $socialPlatform = $post->socialAccount->platform;
+
         // $post->load([
         //     'postComments',
         //     'category',
@@ -1309,8 +1729,73 @@ class PostController extends Controller
         // ));
     }
 
+    /**
+     * JSON summary for the "view post" popup the calendar opens when a day
+     * with an existing post is clicked - a lighter version of show() (no
+     * nested comment replies, no category) since this only needs to
+     * render a quick preview, not the full posts.show page. The popup's
+     * own "Open full post" link goes to the real show() page for anything
+     * beyond that.
+     *
+     * Resolves the whole group_id family (same COALESCE(group_id, id)
+     * grouping buildPostsQuery()/preview() use), not just the one post id
+     * given - a quickStore() submission fanned out across Facebook and
+     * Instagram is one logical post, and the popup should show both
+     * platforms' accounts, stats, and status, not just whichever platform
+     * happened to be clicked in the calendar.
+     */
+    public function quickView($postId)
+    {
+        $anchor = Post::where('user_id', Auth::id())->findOrFail($postId);
+        $groupKey = $anchor->group_id ?? $anchor->id;
+
+        $members = Post::with(['media', 'socialAccount'])
+            ->where('user_id', Auth::id())
+            ->where(function ($q) use ($groupKey) {
+                $q->where('group_id', $groupKey)->orWhere('id', $groupKey);
+            })
+            ->get();
+
+        $primary = $members->firstWhere('id', $anchor->id) ?? $members->first();
+
+        return response()->json([
+            'success' => true,
+            'post' => [
+                'id'            => $primary->id,
+                'content'       => $primary->content,
+                'schedule_mode' => (bool) $primary->schedule_mode,
+                'schedule_at'   => $primary->schedule_at?->toIso8601String(),
+                'published_at'  => $primary->published_at?->toIso8601String(),
+                'created_at'    => $primary->created_at?->toIso8601String(),
+                'media'         => $primary->media->map(fn ($m) => [
+                    'type' => $m->media_type,
+                    'url'  => $m->media_url,
+                ]),
+                'platforms'     => $members->map(fn ($m) => [
+                    'post_id'         => $m->id,
+                    'platform'        => $m->platform,
+                    'status'          => $m->status,
+                    'error_message'   => $m->error_message,
+                    'post_url'        => $m->post_url,
+                    'account_name'    => $m->socialAccount->name ?? $m->socialAccount->username ?? ucfirst($m->platform),
+                    'account_username'=> $m->socialAccount->username ?? null,
+                    'account_avatar'  => $m->socialAccount->avatar_url ?? null,
+                    'stats' => [
+                        'likes'       => (int) $m->likes,
+                        'comments'    => (int) $m->comments,
+                        'shares'      => (int) $m->shares,
+                        'views'       => (int) $m->views,
+                        'impressions' => (int) $m->impressions,
+                        'reach'       => (int) $m->reach,
+                    ],
+                ])->values(),
+                'edit_url'      => route('admin.posts.show', $primary->id),
+            ],
+        ]);
+    }
+
     public function getTypePost(Request $request) {
-        $query = Post::with(['media', 'postAccount']) ->where('user_id', Auth::user()->id);
+        $query = Post::with(['media', 'socialAccount']) ->where('user_id', Auth::user()->id);
         $type = $request->type;
 
         switch ($type) {
@@ -1334,7 +1819,7 @@ class PostController extends Controller
         
         $posts = $query->paginate(10);
 
-        $categories = PostCategory::with(['postAccount', 'posts'])->where([
+        $categories = PostCategory::with(['socialAccount', 'posts'])->where([
             'user_id' => Auth::user()->id
         ])->orderBy('id', 'desc')->paginate(50);
 

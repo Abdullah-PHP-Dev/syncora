@@ -28,11 +28,11 @@ class TiktokPostService
      */
     protected function ensureValidToken($post)
     {
-        $account = $post->postAccount;
+        $account = $post->socialAccount;
         // Token still valid
         if (
-            !empty($account->expires_in)
-            && Carbon::parse($account->expires_in)->gt(now()->addMinutes(5))
+            !empty($account->expires_at)
+            && Carbon::parse($account->expires_at)->gt(now()->addMinutes(5))
         ) {
             return true;
         }
@@ -56,7 +56,7 @@ class TiktokPostService
         $account->update([
             'access_token'      => $tokenData['access_token'],
             'refresh_token'     => $tokenData['refresh_token'] ?? $account->refresh_token,
-            'expires_in'   => now()->addSeconds($tokenData['expires_in']),
+            'expires_at'   => now()->addSeconds($tokenData['expires_in']),
         ]);
 
         $account->refresh();
@@ -84,7 +84,7 @@ class TiktokPostService
                 PATHINFO_EXTENSION
             ));
         } else {
-            $uploadResult = $this->uploadMediaToS3($data['media']);
+            $uploadResult = $this->uploadMediaToS3($data['media'] ?? []);
 
             if (!$uploadResult['success']) {
                 return [
@@ -109,9 +109,9 @@ class TiktokPostService
                     'visibility' => 'public',
                     'user_id' => Auth::user()->id,
                     'group_id' => $data['group_id'] ?? null,
-                    'post_account_id' => $page->id,
+                    'social_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
-                    'page_id' => $page->account_id,
+                    'page_id' => $page->platform_account_id,
                     'content' => $data['content'] ?? null,
                     'schedule_mode' => $data['schedule_mode'] ?? 0,
                     'schedule_at' => $data['schedule_at'] ?? null,
@@ -127,7 +127,7 @@ class TiktokPostService
                             'post_id' => $post->id,
                             'visibility' => 'public',
                             'user_id' => Auth::user()->id,
-                            'post_account_id' => $page->id,
+                            'social_account_id' => $page->id,
                             'post_category_id' => $data['category_id'],
                             'media_url' => $media['url'],
                             'media_type' => $media['media_type'],
@@ -150,7 +150,7 @@ class TiktokPostService
                 $results[] = $post;
             } catch (\Exception $e) {
                 $errors[] = [
-                    'page_id' => $page->account_id,
+                    'page_id' => $page->platform_account_id,
                     'page_name' => $page->page_name ?? $page->name,
                     'message' => $e->getMessage()
                 ];
@@ -308,7 +308,7 @@ class TiktokPostService
     public function publishPost($post)
     {
         try {
-            $account = $post->postAccount;
+            $account = $post->socialAccount;
             if (!$this->ensureValidToken($post)) {
                 $post->update([
                     'status' => 'failed',
@@ -325,7 +325,7 @@ class TiktokPostService
                 ->post("{$this->baseUrl}/post/publish/creator_info/query/");
 
             if (!$creatorResponse->successful()) {
-                return $this->errorResponse($creatorResponse, $account->platform);
+                return $this->errorResponse($post, $creatorResponse);
             }
 
             $creatorResponseData = $creatorResponse->json()['data'] ?? [];
@@ -354,19 +354,30 @@ class TiktokPostService
             // once it's actually ready, rather than leaving the unresolved
             // publish_id in place indefinitely.
             $resolved = $this->resolvePublishedVideo($account->access_token, $result['publish_id']);
+            $permalinkType = $this->isVideoPost($post) ? 'video' : 'photo';
+
+            // PUBLISH_COMPLETE with no video_id is terminal, not pending -
+            // TikTok finished processing but the post has no public page
+            // to link to (see the privacy_level comment in publishVideo()).
+            // Waiting on ResolveTiktokPublishStatus would just burn its
+            // full 5-minute retry budget for a status that will never
+            // change.
+            $isPrivateComplete = ($resolved['status'] ?? null) === 'PUBLISH_COMPLETE' && !$resolved['video_id'];
 
             $post->update([
                 'status'        => 'completed',
                 'post_id'       => $resolved['video_id'] ?? $result['publish_id'],
                 'post_url'      => $resolved['video_id']
-                    ? 'https://www.tiktok.com/@' . $account->username . '/video/' . $resolved['video_id']
+                    ? 'https://www.tiktok.com/@' . $account->username . '/' . $permalinkType . '/' . $resolved['video_id']
                     : null,
-                'error_message' => $resolved['video_id']
-                    ? null
-                    : 'Published - TikTok is still processing the video, its public URL will be filled in automatically once ready.',
+                'error_message' => match (true) {
+                    (bool) $resolved['video_id'] => null,
+                    $isPrivateComplete => "Published to TikTok, but it's private - the account's current allowed visibility level has no public page. Only the connected account can view this post on TikTok.",
+                    default => 'Published - TikTok is still processing the video, its public URL will be filled in automatically once ready.',
+                },
             ]);
 
-            if (!$resolved['video_id']) {
+            if (!$resolved['video_id'] && !$isPrivateComplete) {
                 ResolveTiktokPublishStatus::dispatch($post->id, $result['publish_id'])
                     ->delay(now()->addSeconds(15));
             }
@@ -387,15 +398,9 @@ class TiktokPostService
             return ['success' => false, 'message' => 'No media files attached to this post.'];
         }
 
-        // Detect if the post contains any video items
-        $hasVideo = $post->media->contains(function ($media) {
-            $extension = strtolower(pathinfo(parse_url($media->media_url, PHP_URL_PATH), PATHINFO_EXTENSION));
-            return in_array($extension, ['mp4', 'mov', 'webm']);
-        });
-       
         // Guardrails for TikTok API restrictions
-        if ($hasVideo) {
-           
+        if ($this->isVideoPost($post)) {
+
             if ($mediaCount > 1) {
                 return ['success' => false, 'message' => 'TikTok does not allow multiple videos or mixing photos and videos in a single post.'];
             }
@@ -415,6 +420,23 @@ class TiktokPostService
     }
 
     /**
+     * TikTok gives video and photo posts different permalink paths
+     * (tiktok.com/@user/video/{id} vs /photo/{id}) - a link built with
+     * the wrong one 404s even with the correct id. Same video-extension
+     * detection this class already uses to route between publishVideo()/
+     * publishPhoto(), exposed here so publishPost() and
+     * ResolveTiktokPublishStatus can build a matching URL once TikTok
+     * resolves the real id.
+     */
+    public function isVideoPost($post): bool
+    {
+        return $post->media->contains(function ($media) {
+            $extension = strtolower(pathinfo(parse_url($media->media_url, PHP_URL_PATH), PATHINFO_EXTENSION));
+            return in_array($extension, ['mp4', 'mov', 'webm']);
+        });
+    }
+
+    /**
      * Publish Photo Post (Single or Multiple)
      */
     protected function publishPhoto($token, $post, array $photoUrls, $creatorResponseData): array
@@ -431,9 +453,9 @@ class TiktokPostService
 
             $payload = [
                 'post_info' => [
-                    'title' => $title ?: 'Post Image',
+                    'title' => $post->title,
                     'description' => $post->content ?? '',
-                    'privacy_level' => $creatorResponseData['privacy_level_options'][0] ?? 'PUBLIC',
+                    'privacy_level' => 'SELF_ONLY',//$creatorResponseData['privacy_level_options'][0] ?? 'PUBLIC',
                     'disable_comment' => false,
                     'auto_add_music' => false,
                 ],
@@ -449,7 +471,7 @@ class TiktokPostService
             $response = Http::withToken($token)
                 ->acceptJson()
                 ->post("{$this->baseUrl}/post/publish/content/init/", $payload);
-
+            
             if (!$response->successful()) {
                 return ['success' => false, 'message' => $response->json()['error']['message'] ?? 'Failed initialization for photo upload.'];
             }
@@ -474,7 +496,21 @@ class TiktokPostService
         try {
             $payload = [
                 'post_info' => [
-                    'title' => mb_substr($post->content ?? '', 0, 150), // Title string field setup
+                    'title' => $post->title, // Title string field setup
+                    // Was hardcoded to SELF_ONLY (private, visible only to
+                    // the poster) regardless of what the account is
+                    // actually allowed to post as - TikTok never returns a
+                    // publicaly_available_post_id for a SELF_ONLY post
+                    // (there's no public page for a private post), so
+                    // every video published through here was structurally
+                    // incapable of ever getting a working post_url,
+                    // confirmed live: post/publish/status/fetch/ correctly
+                    // reported PUBLISH_COMPLETE but never included that
+                    // field, so ResolveTiktokPublishStatus retried for its
+                    // full 5-minute budget for nothing. publishPhoto()
+                    // already does this correctly below - matching that
+                    // here so video posts behave the same as photo posts,
+                    // which do get a real public URL on this same account.
                     'privacy_level' => 'SELF_ONLY',
                     'disable_duet' => false,
                     'disable_comment' => false,
@@ -547,7 +583,7 @@ class TiktokPostService
     protected function resolvePublishedVideo(string $accessToken, ?string $publishId): array
     {
         if (!$publishId) {
-            return ['video_id' => null];
+            return ['video_id' => null, 'status' => null];
         }
 
         for ($attempt = 0; $attempt < 5; $attempt++) {
@@ -557,14 +593,19 @@ class TiktokPostService
                 return $result;
             }
 
-            if ($result['status'] === 'FAILED') {
-                return ['video_id' => null];
+            // Both are terminal - TikTok isn't going to change its answer
+            // on a later poll. PUBLISH_COMPLETE with no video_id means the
+            // post finished but at a privacy level with no public page
+            // (SELF_ONLY) - not "still processing", so retrying wastes the
+            // whole budget for a status that will never include one.
+            if (in_array($result['status'], ['FAILED', 'PUBLISH_COMPLETE'], true)) {
+                return $result;
             }
 
             sleep(2);
         }
 
-        return ['video_id' => null];
+        return ['video_id' => null, 'status' => null];
     }
 
     /**
@@ -594,7 +635,7 @@ class TiktokPostService
      */
     public function publishComment($data, $comment)
     {
-        $account = $comment->postAccount;
+        $account = $comment->socialAccount;
 
         $this->ensureValidToken($comment->post);
 
@@ -602,7 +643,7 @@ class TiktokPostService
         $endpoint = 'https://business-api.tiktok.com/open_api/v1.3/business/comment/reply/create/';
 
         $payload = [
-            "business_id" => $account->account_id,
+            "business_id" => $account->platform_account_id,
             "video_id"    => $comment->post?->post_id ?? $data['video_id'], // TikTok item_id / video_id
             "comment_id"  => $comment->comment_id,                          // Parent comment ID to reply to
             "text"        => $data['body'] ?? ''                             // Reply content
@@ -647,7 +688,7 @@ class TiktokPostService
             'is_reply'          => true,
             'user_name'         => Auth::user()?->name ?? 'Support',
             'comment_id'        => $commentId,
-            'post_account_id'   => $comment->postAccount?->id
+            'social_account_id'   => $comment->socialAccount?->id
         ]);
 
         return [
@@ -682,7 +723,7 @@ class TiktokPostService
             ->get(
                 'https://business-api.tiktok.com/open_api/v1.3/business/comment/list/',
                 [
-                    "business_id" => $account->account_id,
+                    "business_id" => $account->platform_account_id,
                     "video_id" => $videoId,
                     "status" => "PUBLIC"
                 ]

@@ -64,7 +64,7 @@ class PostCommentController extends Controller
         if (!empty($validated['platforms'])) {
     
             try {
-                $comment = PostComment::with(['postAccount', 'post'])->where(
+                $comment = PostComment::with(['socialAccount', 'post'])->where(
                     'comment_id',
                     $validated['comment_id']
                 )->first();
@@ -117,8 +117,8 @@ class PostCommentController extends Controller
                         }
                     } else {
                         $errors[] = [
-                            'page_id'   => $pages->first()->external_id ?? null,
-                            'page_name' => $pages->first()->page_name ?? $pages->first()->name ?? null,
+                            'page_id'   => $comment->socialAccount->platform_account_id ?? null,
+                            'page_name' => $comment->socialAccount->name ?? null,
                             'message'   => $response['message'] ?? 'Unknown error occurred'
                         ];
                     }

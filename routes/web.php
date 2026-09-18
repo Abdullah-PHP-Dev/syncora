@@ -10,7 +10,9 @@ use Mcamara\LaravelLocalization\Facades\LaravelLocalization;
 use App\Http\Controllers\Admin\AdController;
 use App\Http\Controllers\Admin\PostController;
 use App\Http\Controllers\Admin\PostAccountController;
+use App\Http\Controllers\Admin\SocialAccountController;
 use App\Http\Controllers\Admin\ChatController;
+use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\MessageChannelController;
 use App\Http\Controllers\Admin\PostCommentController;
 use App\Http\Controllers\Admin\ProfileController;
@@ -27,6 +29,11 @@ use App\Http\Controllers\Admin\EmailTemplateController;
 use App\Http\Controllers\Admin\EmailCampaignController;
 use App\Http\Controllers\EmailUnsubscribeController;
 use App\Http\Controllers\Admin\IntegrationController;
+use App\Http\Controllers\Admin\FaqController;
+use App\Http\Controllers\Admin\HelpCenterController;
+use App\Http\Controllers\Admin\TicketController;
+use App\Http\Controllers\Admin\KnowledgeBaseController;
+use App\Http\Controllers\Admin\CopilotController;
 
 
 Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
@@ -132,6 +139,20 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	Route::view('/terms', 'front.pages.terms')->name('terms');
 
 
+	/*
+	|--------------------------------------------------------------------------
+	| Public post share preview - deliberately OUTSIDE the auth group below.
+	| Snap's Creative Kit share flow (and any other social share button)
+	| fetches this URL's og and snapchat meta tags server-side, with no
+	| session cookie - if this required login it would just see a redirect
+	| to /login and the share would show no image/caption at all. Only
+	| exposes a post's own public-facing content (caption + first media
+	| item), nothing account/owner-identifying.
+	|--------------------------------------------------------------------------
+	*/
+	Route::get('share/posts/{post}', [PostController::class, 'sharePreview'])->name('posts.share');
+
+
 	/*Route::view('/about', 'front.pages.about');
 	Route::view('/services', 'front.pages.services');
 	Route::get('/r2-upload', [\App\Http\Controllers\R2Controller::class, 'index']);
@@ -180,6 +201,31 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 				Route::view('/dashboard/crm', 'admin.crm-dashboard')
 					->name('crm-dashboard');
+
+				/*
+				|--------------------------------------------------------------------------
+				| SUPPORT: SYSTEM FAQ (admin-role only), HELP CENTER + TICKETS (every seller)
+				|--------------------------------------------------------------------------
+				| Deliberately outside the ->middleware(['subscription']) group below -
+				| EnsureActiveSubscription aborts(403) any non-'seller' user outright,
+				| which would make the admin-only FAQ screens unreachable, and a
+				| seller whose subscription lapsed should still be able to reach
+				| support. See FaqController/TicketController docblocks.
+				*/
+				Route::get('faqs', [FaqController::class, 'index'])->name('faqs.index');
+				Route::post('faqs', [FaqController::class, 'store'])->name('faqs.store');
+				Route::put('faqs/{faq}', [FaqController::class, 'update'])->name('faqs.update');
+				Route::delete('faqs/{faq}', [FaqController::class, 'destroy'])->name('faqs.destroy');
+				Route::post('faqs/categories', [FaqController::class, 'storeCategory'])->name('faqs.categories.store');
+
+				Route::get('help-center', [HelpCenterController::class, 'index'])->name('help-center.index');
+
+				Route::get('tickets', [TicketController::class, 'index'])->name('tickets.index');
+				Route::get('tickets/create', [TicketController::class, 'create'])->name('tickets.create');
+				Route::post('tickets', [TicketController::class, 'store'])->name('tickets.store');
+				Route::get('tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
+				Route::post('tickets/{ticket}/messages', [TicketController::class, 'storeMessage'])->name('tickets.messages.store');
+				Route::patch('tickets/{ticket}/status', [TicketController::class, 'updateStatus'])->name('tickets.status');
 			});
 
 
@@ -207,6 +253,12 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				// which would otherwise treat "create-new" as a campaign ID.
 				Route::get('ads/{platform}/campaigns/create-new', [AdCampaignController::class, 'createNew'])
 					->name('ads.campaigns.create_new');
+
+				// Registered before the resource route so "sync" isn't
+				// matched as GET/POST campaigns/{campaign}. "Sync Now" on
+				// the platform campaigns dashboard.
+				Route::post('ads/{platform}/campaigns/sync', [AdCampaignController::class, 'sync'])
+					->name('ads.campaigns.sync');
 
 				Route::resource('ads/{platform}/campaigns', AdCampaignController::class)
 					->names('ads.campaigns');
@@ -238,6 +290,20 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::get('posts/data', [PostController::class, 'index'])->name('posts.data');
 				Route::get('posts/{post}/preview/{platform}', [PostController::class, 'preview'])->name('posts.preview');
 				Route::post('posts/quick', [PostController::class, 'quickStore'])->name('posts.quick');
+				// New Vue-based Create Post page (PostComposer.vue) -
+				// deliberately a separate route from admin.posts.create
+				// (still fully intact below via Route::resource) rather
+				// than replacing that page's Blade view outright - that
+				// page is 2000+ lines with real, working pieces (the
+				// WhatsApp Embedded Signup flow, for one) this redesign
+				// doesn't attempt to carry over, and silently dropping
+				// them wasn't part of what was asked. Submits to the same
+				// admin.posts.store PostController::store() the legacy
+				// page already uses.
+				Route::get('posts/composer', [PostController::class, 'composer'])->name('posts.composer');
+				Route::post('posts/generate-ai-content', [PostController::class, 'generateAiContent'])->name('posts.generate-ai-content');
+				Route::post('posts/generate-ai-image', [PostController::class, 'generateAiImage'])->name('posts.generate-ai-image');
+					Route::get('posts/{post}/quick-view', [PostController::class, 'quickView'])->name('posts.quick-view');
 				Route::post('posts/listing/comments/{comment}/replies', [PostController::class, 'storeReply'])->name('posts.comments.reply');
 				Route::post('posts/listing/{post}/comments', [PostController::class, 'storeComment'])->name('posts.comments.store');
 				Route::get('posts', [PostController::class, 'dashboard']);
@@ -246,10 +312,6 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('post-accounts.whatsapp.store');
 				Route::post('post-accounts/whatsapp/embedded', [PostAccountController::class, 'storeWhatsappEmbedded'])
 					->name('post-accounts.whatsapp.embedded');
-				Route::get('post-accounts/meta/redirect', [PostAccountController::class, 'redirectMeta'])
-					->name('post-accounts.meta.redirect');
-				Route::get('post-accounts/meta/callback', [PostAccountController::class, 'callbackMeta'])
-					->name('post-accounts.meta.callback');
 
 				Route::get('post-accounts/instagram/redirect', [PostAccountController::class, 'redirectInstagram'])
 					->name('post-accounts.instagram.redirect');
@@ -259,6 +321,15 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('post-accounts.threads.redirect');
 				Route::get('post-accounts/threads/callback', [PostAccountController::class, 'callbackThreads'])
 					->name('post-accounts.threads.callback');
+				// Was registered as 'post-accounts/tiktok/redirect' pointing
+				// at redirectPinterest() - a copy/paste error. Since Laravel
+				// dispatches to the first route matching a given method+URI,
+				// and this was registered before the real TikTok redirect
+				// route below, actually visiting /post-accounts/tiktok/redirect
+				// in a browser silently ran Pinterest's redirect logic
+				// instead - route('post-accounts.tiktok.redirect') (used to
+				// build links/redirect_uri strings) still resolved correctly
+				// by name, which is why this hid rather than erroring.
 				Route::get('post-accounts/pinterest/redirect', [PostAccountController::class, 'redirectPinterest'])
 					->name('post-accounts.pinterest.redirect');
 				Route::get('post-accounts/pinterest/callback', [PostAccountController::class, 'callbackPinterest'])
@@ -267,20 +338,48 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('post-accounts.x.redirect');
 				Route::get('post-accounts/x/callback', [PostAccountController::class, 'callbackX'])
 					->name('post-accounts.x.callback');
-				Route::get('post-accounts/linkedin/redirect', [PostAccountController::class, 'redirectLinkedin'])
-					->name('post-accounts.linkedin.redirect');
-				Route::get('post-accounts/linkedin/callback', [PostAccountController::class, 'callbackLinkedin'])
-					->name('post-accounts.linkedin.callback');
-				Route::get('post-accounts/tiktok/redirect', [PostAccountController::class, 'redirectTiktok'])
-					->name('post-accounts.tiktok.redirect');
-				Route::get('post-accounts/tiktok/callback', [PostAccountController::class, 'callbackTiktok'])
-					->name('post-accounts.tiktok.callback');
-				Route::get('post-accounts/google/redirect', [PostAccountController::class, 'redirectGoogle'])
-					->name('post-accounts.google.redirect');
-				Route::get('post-accounts/google/callback', [PostAccountController::class, 'callbackGoogle'])
-					->name('post-accounts.google.callback');
 				Route::delete('post-accounts/{account}', [PostAccountController::class, 'destroy'])
 					->name('post-accounts.destroy');
+				// TikTok's real connect logic lives in SocialAuthService,
+				// reached through SocialAccountController::redirect()/
+				// callback() (see the "Unified combined-consent connect
+				// flow" block below) - PostAccountController has never had
+				// redirectTiktok()/callbackTiktok() methods. These two
+				// routes were left pointing at those non-existent methods,
+				// so hitting either 500'd with "Call to undefined method
+				// PostAccountController::callbackTiktok()" - a real
+				// production crash, since this callback URI
+				// (SocialAuthService::callbackUrl()) is the exact
+				// redirect_uri already registered with TikTok's Developer
+				// Portal app, so every real TikTok connect attempt landed
+				// here. The UI's "Connect TikTok" link already points at
+				// admin.social-accounts.redirect directly, so
+				// post-accounts.tiktok.redirect is effectively dead, but
+				// it's routed correctly too rather than left as a second
+				// landmine. Platform is bound via ->defaults() since
+				// neither URI has a {platform} wildcard of its own.
+				Route::get('post-accounts/tiktok/redirect', [SocialAccountController::class, 'redirect'])
+					->name('post-accounts.tiktok.redirect')->defaults('platform', 'tiktok');
+				Route::get('post-accounts/tiktok/callback', [SocialAccountController::class, 'callback'])
+					->name('post-accounts.tiktok.callback')->defaults('platform', 'tiktok');
+				// Unified combined-consent connect flow (posting + messaging +
+				// ads scopes in one redirect) for Facebook, Google, LinkedIn,
+				// and TikTok - the platforms whose OAuth model supports
+				// requesting all three at once - see SocialAuthService. This
+				// is now the ONLY connect route for these four platforms:
+				// it replaced their separate post-accounts.*/messaging.auth.*
+				// entries (removed below), since every account connected
+				// through either used to upsert into the same social_accounts
+				// row anyway. Every other platform keeps its existing
+				// dedicated route, either because it has no combined-scope
+				// option (TikTok Ads has its own separate OAuth app - see
+				// ads.redirect) or because it's a genuinely different
+				// product (Google Chat vs. YouTube/Business Profile).
+				Route::get('social-accounts/{platform}/redirect', [SocialAccountController::class, 'redirect'])
+					->name('social-accounts.redirect');
+				Route::get('social-accounts/{platform}/callback', [SocialAccountController::class, 'callback'])
+					->name('social-accounts.callback');
+
 				Route::resource('categories', PostCategoryController::class);
 
 
@@ -301,14 +400,31 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::delete('platform/chats/messages/{message}', [ChatController::class, 'destroyMessage'])
 					->name('chats.messages.destroy');
 
+				// AI COPILOT - Phase 3 of the AI Copilot + FAQ + Ticket
+				// System BRD. Scores a conversation's latest customer
+				// message against the seller's own Knowledge Base - see
+				// AiCopilotService/CopilotController docblocks for the
+				// "suggests, never auto-sends" scope boundary.
+				Route::post('platform/chats/{conversation}/copilot/find-answer', [CopilotController::class, 'findAnswer'])
+					->name('chats.copilot.find-answer');
+				Route::post('platform/copilot-messages/{copilotMessage}/feedback', [CopilotController::class, 'feedback'])
+					->name('chats.copilot.feedback');
+
+				// NOTIFICATION CENTER - combined unread Comments + Messages
+				// badge/dropdown in the navbar. Conversation-type items reuse
+				// chats.read above; comments needed their own mark-read route
+				// since PostComment had no read-tracking before this.
+				Route::get('notifications', [NotificationController::class, 'index'])
+					->name('notifications.index');
+				Route::patch('platform/comments/{comment}/read', [NotificationController::class, 'markCommentRead'])
+					->name('comments.read');
+
 				// CHATS - connected channel management (separate from the
 				// conversations themselves)
 				Route::get('chats/channels', [MessageChannelController::class, 'index'])
 					->name('chats.channels');
-				Route::get('messaging/auth/meta/redirect', [MessageChannelController::class, 'redirectMeta'])
-					->name('messaging.auth.meta.redirect');
-				Route::get('messaging/auth/meta/callback', [MessageChannelController::class, 'callbackMeta'])
-					->name('messaging.auth.meta.callback');
+				// Facebook Messenger connects through social-accounts.redirect
+				// now (platform=facebook) - see the comment above that route.
 				Route::get('messaging/auth/instagram/redirect', [MessageChannelController::class, 'redirectInstagram'])
 					->name('messaging.auth.instagram.redirect');
 				Route::get('messaging/auth/instagram/callback', [MessageChannelController::class, 'callbackInstagram'])
@@ -317,6 +433,10 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('messaging.auth.x.redirect');
 				Route::get('messaging/auth/x/callback', [MessageChannelController::class, 'callbackX'])
 					->name('messaging.auth.x.callback');
+				Route::get('messaging/auth/tiktok/redirect', [MessageChannelController::class, 'redirectTiktok'])
+					->name('messaging.auth.tiktok.redirect');
+				Route::get('messaging/auth/tiktok/callback', [MessageChannelController::class, 'callbackTiktok'])
+					->name('messaging.auth.tiktok.callback');
 				Route::post('messaging/channels/telegram', [MessageChannelController::class, 'storeTelegram'])
 					->name('messaging.channels.telegram.store');
 				Route::post('messaging/channels/whatsapp', [MessageChannelController::class, 'storeWhatsApp'])
@@ -355,6 +475,16 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::resource('/platform/comments', PostCommentController::class);
 				Route::get('comments/dashboard', [PostCommentController::class, 'dashboard'])
 					->name('comments.dashboard');
+
+
+				// KNOWLEDGE BASE - seller's own business FAQ (Phase 2 of the
+				// AI Copilot + FAQ + Ticket System BRD). Scoped to Auth::id()
+				// throughout - see KnowledgeBaseController's docblock.
+				Route::get('knowledge-base', [KnowledgeBaseController::class, 'index'])->name('knowledge-base.index');
+				Route::post('knowledge-base', [KnowledgeBaseController::class, 'store'])->name('knowledge-base.store');
+				Route::put('knowledge-base/{faq}', [KnowledgeBaseController::class, 'update'])->name('knowledge-base.update');
+				Route::delete('knowledge-base/{faq}', [KnowledgeBaseController::class, 'destroy'])->name('knowledge-base.destroy');
+				Route::post('knowledge-base/categories', [KnowledgeBaseController::class, 'storeCategory'])->name('knowledge-base.categories.store');
 
 
 				// EMAIL MARKETING

@@ -11,7 +11,7 @@ class PostMedia extends Model
         'post_id',
         'user_id',
         'platform',
-        'post_account_id',
+        'social_account_id',
         'post_category_id',
         'media_url',
         'media_type',
@@ -46,9 +46,9 @@ class PostMedia extends Model
         return $this->belongsTo(Post::class);
     }
 
-    public function postAccount(): BelongsTo
+    public function socialAccount(): BelongsTo
     {
-        return $this->belongsTo(PostAccount::class);
+        return $this->belongsTo(SocialAccount::class);
     }
 
     public function user(): BelongsTo

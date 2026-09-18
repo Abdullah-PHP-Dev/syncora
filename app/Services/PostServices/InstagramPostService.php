@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use getID3;
-use App\Models\PostAccount;
+use App\Models\SocialAccount;
 use App\Models\PostComment;
 
 class InstagramPostService
@@ -46,7 +46,7 @@ class InstagramPostService
      */
     protected function isInstagramLoginAccount($account): bool
     {
-        return ($account->settings['auth_type'] ?? null) === 'instagram_login';
+        return ($account->metadata['settings']['auth_type'] ?? null) === 'instagram_login';
     }
 
     protected function resolveBaseUrl($account): string
@@ -56,17 +56,38 @@ class InstagramPostService
             : 'https://graph.facebook.com/v25.0/';
     }
 
+    /**
+     * Required on graph.facebook.com calls authenticated via an access
+     * token whenever the Meta App has "Require App Secret" enabled (App
+     * Dashboard > Settings > Advanced) - without it Graph rejects the call
+     * with "API calls from the server require an appsecret_proof
+     * argument" regardless of how valid the token itself is. Only applies
+     * to the Facebook-Login-for-Business path - standalone Instagram Login
+     * tokens (graph.instagram.com) belong to a different app registration
+     * from posts.facebook.client_secret, see resolveBaseUrl()'s docblock,
+     * so this returns nothing for those rather than signing with the
+     * wrong app's secret.
+     */
+    protected function metaAuthExtra($account, string $accessToken): array
+    {
+        if ($this->isInstagramLoginAccount($account)) {
+            return [];
+        }
+
+        return ['appsecret_proof' => hash_hmac('sha256', $accessToken, (string) adminSetting('posts.facebook.client_secret'))];
+    }
+
     protected function ensureValidToken($post)
     {
-        // Resolve postAccount correctly whether $post is Post model or PostAccount model
-        $account = $post instanceof \App\Models\Post ? $post->postAccount : $post;
+        // Resolve socialAccount correctly whether $post is Post model or SocialAccount model
+        $account = $post instanceof \App\Models\Post ? $post->socialAccount : $post;
 
         if (!$account) {
             return false;
         }
 
         // Return true if token is valid for more than 5 minutes
-        if (!empty($account->expires_in) && Carbon::parse($account->expires_in)->gt(now()->addMinutes(5))) {
+        if (!empty($account->expires_at) && Carbon::parse($account->expires_at)->gt(now()->addMinutes(5))) {
             return true;
         }
 
@@ -98,7 +119,7 @@ class InstagramPostService
 
         $account->update([
             'access_token' => $tokenData['access_token'],
-            'expires_in'   => now()->addSeconds($tokenData['expires_in'] ?? 5184000),
+            'expires_at'   => now()->addSeconds($tokenData['expires_in'] ?? 5184000),
         ]);
 
         $account->refresh();
@@ -141,7 +162,7 @@ class InstagramPostService
             $mediaType = $isImage ? 'image' : 'video';
             $mediaUrl = $data['ai_image_url'];
         } else {
-            $uploadResult = $this->uploadMediaToS3($data['media']);
+            $uploadResult = $this->uploadMediaToS3($data['media'] ?? []);
             if (!$uploadResult['success']) {
                 return [
                     'success' => false,
@@ -161,9 +182,9 @@ class InstagramPostService
                     'visibility' => 'public',
                     'user_id' => Auth::user()->id,
                     'group_id' => $data['group_id'] ?? null,
-                    'post_account_id' => $page->id,
+                    'social_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
-                    'page_id' => $page->account_id,
+                    'page_id' => $page->platform_account_id,
                     'content' => $data['content'] ?? null,
                     'schedule_mode' => $data['schedule_mode'] ?? 0,
                     'schedule_at' => $data['schedule_at'] ?? null,
@@ -180,7 +201,7 @@ class InstagramPostService
                             'visibility' => 'public',
                             'user_id' => Auth::user()->id,
                             'post_category_id' => $data['category_id'],
-                            'post_account_id' => $page->id,
+                            'social_account_id' => $page->id,
                             'media_url' => $media['url'],
                             'media_type' => $media['media_type'],
                             'file_name' => $media['file_name'],
@@ -202,7 +223,7 @@ class InstagramPostService
                 $results[] = $post;
             } catch (\Exception $e) {
                 $errors[] = [
-                    'page_id' => $page->account_id,
+                    'page_id' => $page->platform_account_id,
                     'page_name' => $page->page_name ?? $page->name,
                     'message' => $e->getMessage()
                 ];
@@ -360,7 +381,7 @@ class InstagramPostService
 
     public function publishPost($post)
     {
-        $account = $post->postAccount;
+        $account = $post->socialAccount;
    
         if (!$this->ensureValidToken($post)) {
             $post->update([
@@ -403,7 +424,7 @@ class InstagramPostService
             return ['success' => false];
         }
 
-        $endpoint = "{$this->resolveBaseUrl($account)}{$account->account_id}/media_publish?access_token={$account->access_token}";
+        $endpoint = "{$this->resolveBaseUrl($account)}{$account->platform_account_id}/media_publish?access_token={$account->access_token}";
 
         $response = $this->api->request(
             'post',
@@ -435,9 +456,9 @@ class InstagramPostService
     public function createMediaContainer($post)
     {
         try {
-            $account = $post->postAccount;
+            $account = $post->socialAccount;
 
-            $endpoint = "{$this->resolveBaseUrl($account)}{$account->account_id}/media?access_token={$account->access_token}";
+            $endpoint = "{$this->resolveBaseUrl($account)}{$account->platform_account_id}/media?access_token={$account->access_token}";
 
             $mediaCount = count($post->media);
 
@@ -587,7 +608,7 @@ class InstagramPostService
     public function checkContainerStatus($containerId, $post)
     {
         try {
-            $account = $post->postAccount;
+            $account = $post->socialAccount;
             $response = $this->api->request(
                 'get',
                 $this->resolveBaseUrl($account) . $containerId,
@@ -620,7 +641,7 @@ class InstagramPostService
     public function publishComment($data, $comment)
     {
         $this->ensureValidToken($comment->post);
-        $endpoint = $this->resolveBaseUrl($comment->postAccount) . $comment->comment_id . "/replies";
+        $endpoint = $this->resolveBaseUrl($comment->socialAccount) . $comment->comment_id . "/replies";
 
         $payload = [
             "message" => $data['body'] . ' --. '
@@ -628,7 +649,7 @@ class InstagramPostService
 
         $response = $this->api->request(
             'post',
-            $endpoint . "?access_token={$comment->postAccount->access_token}",
+            $endpoint . "?access_token={$comment->socialAccount->access_token}",
             [],
             $payload,
             'form'
@@ -658,7 +679,7 @@ class InstagramPostService
             'is_reply' => true,
             'user_name'            => 'support',
             'comment_id' => $commentId,
-            'post_account_id'  => $comment->postAccount?->id
+            'social_account_id'  => $comment->socialAccount?->id
         ]);
 
         return [
@@ -679,21 +700,22 @@ class InstagramPostService
      * must not prevent the plain followers_count/media_count fields,
      * which have no such gating, from saving.
      */
-    public function syncAccountStats(PostAccount $account): void
+    public function syncAccountStats(SocialAccount $account): void
     {
         $baseUrl = $this->resolveBaseUrl($account);
 
         $fieldsResponse = $this->api->request(
             'get',
-            $baseUrl . $account->account_id,
+            $baseUrl . $account->platform_account_id,
             [],
             ['fields' => 'followers_count,follows_count,media_count', 'access_token' => $account->access_token]
+                + $this->metaAuthExtra($account, $account->access_token)
         );
 
         if ($fieldsResponse->successful()) {
             $data = $fieldsResponse->json();
             $account->update([
-                'follower_count'  => $data['followers_count'] ?? $account->follower_count,
+                'followers_count' => $data['followers_count'] ?? $account->followers_count,
                 'following_count' => $data['follows_count'] ?? $account->following_count,
                 'media_count'     => $data['media_count'] ?? $account->media_count,
             ]);
@@ -707,13 +729,16 @@ class InstagramPostService
         try {
             $insightsResponse = $this->api->request(
                 'get',
-                $baseUrl . $account->account_id . '/insights',
+                $baseUrl . $account->platform_account_id . '/insights',
                 [],
                 ['metric' => 'reach,profile_views', 'period' => 'day', 'access_token' => $account->access_token]
+                    + $this->metaAuthExtra($account, $account->access_token)
             );
 
             if ($insightsResponse->successful()) {
-                $account->update(['insights' => array_merge($account->insights ?? [], ['account' => $insightsResponse->json()['data'] ?? []])]);
+                $account->update(['metadata' => array_merge($account->metadata ?? [], [
+                    'insights' => array_merge($account->metadata['insights'] ?? [], ['account' => $insightsResponse->json()['data'] ?? []]),
+                ])]);
             } else {
                 // Expected for accounts too new/small for Insights data - not a bug.
                 Log::warning('Instagram account insights fetch failed (likely too new/small for this metric).', [
@@ -734,18 +759,19 @@ class InstagramPostService
      * .../subscribed_apps). 'comments' matches exactly what
      * processCommentChange() expects for Instagram.
      */
-    public function subscribeToWebhooks(PostAccount $account): void
+    public function subscribeToWebhooks(SocialAccount $account): void
     {
         try {
             $response = $this->api->request(
                 'post',
-                $this->resolveBaseUrl($account) . $account->account_id . '/subscribed_apps',
+                $this->resolveBaseUrl($account) . $account->platform_account_id . '/subscribed_apps',
                 [],
                 ['subscribed_fields' => 'comments,mentions', 'access_token' => $account->access_token]
+                    + $this->metaAuthExtra($account, $account->access_token)
             );
 
             if ($response->successful() && ($response->json()['success'] ?? false)) {
-                $account->update(['webhook_subscriptions' => true]);
+                $account->update(['metadata' => array_merge($account->metadata ?? [], ['webhook_subscriptions' => true])]);
             } else {
                 Log::warning('Failed to subscribe Instagram account to webhooks.', [
                     'account_id' => $account->id,
@@ -765,15 +791,16 @@ class InstagramPostService
      * independently failure-tolerant - one bad item must not abort the
      * rest of the batch.
      */
-    public function backfillRecentPosts(PostAccount $account, int $limit = 4): void
+    public function backfillRecentPosts(SocialAccount $account, int $limit = 4): void
     {
         $baseUrl = $this->resolveBaseUrl($account);
 
         $mediaResponse = $this->api->request(
             'get',
-            $baseUrl . $account->account_id . '/media',
+            $baseUrl . $account->platform_account_id . '/media',
             [],
             ['fields' => 'id,caption,media_type,media_url,timestamp,like_count,comments_count', 'limit' => $limit, 'access_token' => $account->access_token]
+                + $this->metaAuthExtra($account, $account->access_token)
         );
 
         if (!$mediaResponse->successful()) {
@@ -791,13 +818,13 @@ class InstagramPostService
                 // (eg. from a previous connect of this same account) is
                 // left untouched rather than re-fetching its media/
                 // insights/comments on every reconnect.
-                if (Post::where('post_account_id', $account->id)->where('post_id', $item['id'])->exists()) {
+                if (Post::where('social_account_id', $account->id)->where('post_id', $item['id'])->exists()) {
                     continue;
                 }
 
                 $post = Post::create(
                     [
-                        'post_account_id' => $account->id,
+                        'social_account_id' => $account->id,
                         'post_id'  => $item['id'],
                         'platform' => 'instagram',
                         'user_id'  => $account->user_id,
@@ -814,7 +841,7 @@ class InstagramPostService
                         [
                             'platform'         => 'instagram',
                             'user_id'          => $account->user_id,
-                            'post_account_id'  => $account->id,
+                            'social_account_id'  => $account->id,
                             'media_id'         => $item['id'],
                             'media_url'        => $item['media_url'],
                             'media_type'       => strtolower($item['media_type'] ?? 'image'),
@@ -840,7 +867,7 @@ class InstagramPostService
      * attempt 'impressions' separately so a deprecation-shaped 400
      * doesn't take down the whole insights fetch.
      */
-    private function backfillMediaInsights(Post $post, PostAccount $account, string $baseUrl): void
+    private function backfillMediaInsights(Post $post, SocialAccount $account, string $baseUrl): void
     {
         try {
             $response = $this->api->request(
@@ -848,6 +875,7 @@ class InstagramPostService
                 $baseUrl . $post->post_id . '/insights',
                 [],
                 ['metric' => 'reach,saved', 'access_token' => $account->access_token]
+                    + $this->metaAuthExtra($account, $account->access_token)
             );
 
             $payload = [];
@@ -864,6 +892,7 @@ class InstagramPostService
                     $baseUrl . $post->post_id . '/insights',
                     [],
                     ['metric' => 'impressions', 'access_token' => $account->access_token]
+                        + $this->metaAuthExtra($account, $account->access_token)
                 );
 
                 if ($impressionsResponse->successful()) {
@@ -900,12 +929,12 @@ class InstagramPostService
     {
         $this->ensureValidToken($post);
 
-        $endpoint = $this->resolveBaseUrl($post->postAccount) . $post->post_id . '/comments';
+        $endpoint = $this->resolveBaseUrl($post->socialAccount) . $post->post_id . '/comments';
 
         $response = $this->api->request('get', $endpoint, [], [
             'fields' => 'id,text,username,timestamp,like_count',
-            'access_token' => $post->postAccount->access_token,
-        ]);
+            'access_token' => $post->socialAccount->access_token,
+        ] + $this->metaAuthExtra($post->socialAccount, $post->socialAccount->access_token));
 
         if (!$response->successful()) {
             return;
@@ -925,7 +954,7 @@ class InstagramPostService
                     'posted_at' => $comment['timestamp'] ?? now(),
                     'sender_type' => 'customer',
                     'is_reply' => false,
-                    'post_account_id' => $post->postAccount?->id,
+                    'social_account_id' => $post->socialAccount?->id,
                 ]
             );
         }
@@ -965,11 +994,11 @@ class InstagramPostService
     public function destroy($post)
     {
         $this->ensureValidToken($post);
-        $endpoint = $this->resolveBaseUrl($post->postAccount) . $post->post_id;
+        $endpoint = $this->resolveBaseUrl($post->socialAccount) . $post->post_id;
 
         $response = $this->api->request(
             'delete',
-            $endpoint . "?access_token={$post->postAccount->access_token}",
+            $endpoint . "?access_token={$post->socialAccount->access_token}",
             []
         );
 
@@ -993,8 +1022,8 @@ class InstagramPostService
      */
     public function destroyComment($chat)
     {
-        $this->ensureValidToken($chat->postAccount);
-        $endpoint = $this->resolveBaseUrl($chat->postAccount) . $chat->comment_id;
+        $this->ensureValidToken($chat->socialAccount);
+        $endpoint = $this->resolveBaseUrl($chat->socialAccount) . $chat->comment_id;
 
         $response = $this->api->request(
             'delete',
@@ -1024,8 +1053,8 @@ class InstagramPostService
      */
     public function updatePost($postId, $data, $token)
     {
-        $account = SocialPost::with('postAccount')->where('post_id', $postId)->first();
-        $this->ensureValidToken($account->postAccount);
+        $account = Post::with('socialAccount')->where('post_id', $postId)->first();
+        $this->ensureValidToken($account->socialAccount);
 
         $payload = [
             'message' => $data['content'],

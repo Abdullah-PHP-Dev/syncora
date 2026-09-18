@@ -29,10 +29,10 @@ class XPostService
      */
     protected function ensureValidToken($post)
     {
-        $account = $post->postAccount;
+        $account = $post->socialAccount;
         if (
-            $account->expires_in &&
-            now()->lt(Carbon::parse($account->expires_in)->subMinutes(5))
+            $account->expires_at &&
+            now()->lt(Carbon::parse($account->expires_at)->subMinutes(5))
         ) {
             return true;
         }
@@ -62,7 +62,7 @@ class XPostService
         $account->update([
             'access_token'   => $token['access_token'],
             'refresh_token'  => $token['refresh_token'] ?? $account->refresh_token,
-            'expires_in'     => now()->addSeconds($token['expires_in']),
+            'expires_at'     => now()->addSeconds($token['expires_in']),
         ]);
 
         $account->refresh();
@@ -101,7 +101,7 @@ class XPostService
                 PATHINFO_EXTENSION
             ));
         } else {
-            $uploadResult = $this->uploadMediaToS3($data['media']);
+            $uploadResult = $this->uploadMediaToS3($data['media'] ?? []);
             if (!$uploadResult['success']) {
                 return [
                     'success' => false,
@@ -121,9 +121,9 @@ class XPostService
                     'visibility' => 'public',
                     'user_id' => Auth::user()->id,
                     'group_id' => $data['group_id'] ?? null,
-                    'post_account_id' => $page->id,
+                    'social_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
-                    'page_id' => $page->account_id,
+                    'page_id' => $page->platform_account_id,
                     'content' => $data['content'] ?? null,
                     'schedule_mode' => $data['schedule_mode'] ?? 0,
                     'schedule_at' => $data['schedule_at'] ?? null,
@@ -139,7 +139,7 @@ class XPostService
                             'post_id' => $post->id,
                             'visibility' => 'public',
                             'user_id' => Auth::user()->id,
-                            'post_account_id' => $page->id,
+                            'social_account_id' => $page->id,
                             'post_category_id' => $data['category_id'],
                             'media_url' => $media['url'],
                             'media_type' => $media['media_type'],
@@ -162,7 +162,7 @@ class XPostService
                 $results[] = $post;
             } catch (\Exception $e) {
                 $errors[] = [
-                    'page_id' => $page->account_id,
+                    'page_id' => $page->platform_account_id,
                     'page_name' => $page->page_name ?? $page->name,
                     'message' => $e->getMessage()
                 ];
@@ -315,7 +315,7 @@ class XPostService
 
     public function publishPost($post)
     {    
-        $account = $post->postAccount;
+        $account = $post->socialAccount;
         if (!$this->ensureValidToken($post)) {
             $post->update([
                 'status' => 'failed',
@@ -325,7 +325,7 @@ class XPostService
             return false;
         }
         $endpoint = $this->baseUrl . 'tweets';
-        $account = $post->postAccount;
+        $account = $post->socialAccount;
         $payload = [
             'text' => $post->content ?? '',
             "share_with_followers" => true,
@@ -624,7 +624,7 @@ class XPostService
             'delete',
             $endpoint,
             [
-                'Authorization' => 'Bearer ' . $post->postAccount->access_token,
+                'Authorization' => 'Bearer ' . $post->socialAccount->access_token,
                 'Content-Type' => 'application/json'
             ],
             []
@@ -661,7 +661,7 @@ class XPostService
             'post',
             $endpoint,
             [
-                'Authorization' => 'Bearer ' . $comment->postAccount->access_token,
+                'Authorization' => 'Bearer ' . $comment->socialAccount->access_token,
                 'Content-Type' => 'application/json'
             ],
             $payload,
@@ -695,7 +695,7 @@ class XPostService
             'is_reply'          => true,
             'user_name'         => Auth::user()?->name ?? 'Support',
             'comment_id'        => $commentId,
-            'post_account_id'   => $comment->postAccount?->id
+            'social_account_id'   => $comment->socialAccount?->id
         ]);
 
         return [
@@ -710,14 +710,14 @@ class XPostService
      */
     public function destroyComment($chat)
     {
-        $this->ensureValidToken($chat->postAccount);
+        $this->ensureValidToken($chat->socialAccount);
         $endpoint = 'https://api.x.com/2/tweets/' . $chat->comment_id;
 
         $response = $this->api->request(
             'delete',
             $endpoint,
             [
-                'Authorization' => 'Bearer ' . $chat->postAccount->access_token,
+                'Authorization' => 'Bearer ' . $chat->socialAccount->access_token,
                 'Content-Type' => 'application/json'
             ],
             []

@@ -243,7 +243,7 @@
                                                     <div class="col-md-6">
                                                         <label>Budget *</label>
                                                         <div class="input-group">
-                                                            <span class="input-group-text">{{ $account->currency ?? 'USD' }}</span>
+                                                            <span class="input-group-text">{{ $account->metadata['currency'] ?? 'USD' }}</span>
                                                             <input class="form-control" name="budget" id="budget" type="number" step="0.01" min="1" required>
                                                         </div>
                                                         <p class="error-message error-budget"></p>
@@ -264,7 +264,7 @@
                                                     <div class="col-md-6 bid_amount_group" style="display:none">
                                                         <label>Bid Amount / Target</label>
                                                         <div class="input-group">
-                                                            <span class="input-group-text">{{ $account->currency ?? 'USD' }}</span>
+                                                            <span class="input-group-text">{{ $account->metadata['currency'] ?? 'USD' }}</span>
                                                             <input class="form-control" name="bid_amount" id="bid_amount" type="number" step="0.01" min="0.01">
                                                         </div>
                                                         <p class="error-message error-bid_amount"></p>

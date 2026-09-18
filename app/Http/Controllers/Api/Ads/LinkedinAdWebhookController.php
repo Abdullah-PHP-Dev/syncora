@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\Log;
  * The one Marketing-side webhook that does exist is Lead Sync: POST
  * /rest/leadNotifications creates a subscription against an owner, and the
  * owner may be a urn:li:sponsoredAccount - the exact entity this module
- * already stores as AdAccount.ad_account_id. It needs the separate
+ * already stores as SocialAccount.platform_account_id. It needs the separate
  * r_marketing_leadgen_automation scope and the Lead Sync API product, and
  * it pushes Lead Gen Form responses only, not delivery metrics.
  *

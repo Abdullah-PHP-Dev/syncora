@@ -126,7 +126,7 @@ class TeamsMessagingService
             return $cached;
         }
 
-        $token = $this->fetchAccessToken($channel->external_id, $channel->access_token);
+        $token = $this->fetchAccessToken($channel->external_id, $channel->socialAccount->access_token);
         $accessToken = $token['access_token'] ?? null;
 
         if ($accessToken) {
@@ -341,7 +341,7 @@ class TeamsMessagingService
         }
 
         ProcessInboundMessage::dispatch(
-            messageChannelId: $channel->id,
+            socialAccountId: $channel->social_account_id,
             customerExternalId: $from['id'],
             customerName: $from['name'] ?? null,
             externalConversationId: $conversationId,

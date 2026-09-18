@@ -59,7 +59,7 @@ class TelegramMessagingService
             $payload = ['chat_id' => $chatId, 'text' => $data['body']];
         }
 
-        $response = $this->apiService->post($this->apiUrl($channel->access_token, $method), [], $payload);
+        $response = $this->apiService->post($this->apiUrl($channel->socialAccount->access_token, $method), [], $payload);
 
         if (!$response['success']) {
             return ['success' => false, 'error' => $response['data']['description'] ?? 'Telegram API request failed.'];
@@ -82,7 +82,7 @@ class TelegramMessagingService
         $method = $message->type === 'text' ? 'editMessageText' : 'editMessageCaption';
         $field = $message->type === 'text' ? 'text' : 'caption';
 
-        $response = $this->apiService->post($this->apiUrl($channel->access_token, $method), [], [
+        $response = $this->apiService->post($this->apiUrl($channel->socialAccount->access_token, $method), [], [
             'chat_id'    => $message->conversation->customer_external_id,
             'message_id' => $message->external_message_id,
             $field       => $newBody,
@@ -104,7 +104,7 @@ class TelegramMessagingService
     {
         $channel = $message->conversation->channel;
 
-        $response = $this->apiService->post($this->apiUrl($channel->access_token, 'deleteMessage'), [], [
+        $response = $this->apiService->post($this->apiUrl($channel->socialAccount->access_token, 'deleteMessage'), [], [
             'chat_id'    => $message->conversation->customer_external_id,
             'message_id' => $message->external_message_id,
         ]);
@@ -131,7 +131,7 @@ class TelegramMessagingService
 
     public function registerWebhook(MessageChannel $channel, string $webhookUrl): array
     {
-        $response = $this->apiService->post($this->apiUrl($channel->access_token, 'setWebhook'), [], [
+        $response = $this->apiService->post($this->apiUrl($channel->socialAccount->access_token, 'setWebhook'), [], [
             'url'          => $webhookUrl,
             'secret_token' => $channel->verify_token,
         ]);
@@ -173,7 +173,7 @@ class TelegramMessagingService
         $attachments = array_filter($attachments);
 
         ProcessInboundMessage::dispatch(
-            messageChannelId: $channel->id,
+            socialAccountId: $channel->social_account_id,
             customerExternalId: (string) $message['chat']['id'],
             customerName: $customerName,
             externalMessageId: (string) ($message['message_id'] ?? ''),
@@ -193,7 +193,7 @@ class TelegramMessagingService
      */
     private function resolveFile(MessageChannel $channel, string $fileId, string $type, ?string $fileName = null): ?array
     {
-        $response = $this->apiService->get($this->apiUrl($channel->access_token, 'getFile'), [], ['file_id' => $fileId]);
+        $response = $this->apiService->get($this->apiUrl($channel->socialAccount->access_token, 'getFile'), [], ['file_id' => $fileId]);
 
         if (!$response['success'] || empty($response['data']['result']['file_path'])) {
             return null;
@@ -204,7 +204,7 @@ class TelegramMessagingService
 
         return [
             'type'      => $type,
-            'url'       => "{$base}/file/bot{$channel->access_token}/{$filePath}",
+            'url'       => "{$base}/file/bot{$channel->socialAccount->access_token}/{$filePath}",
             'file_name' => $fileName ?? basename($filePath),
         ];
     }

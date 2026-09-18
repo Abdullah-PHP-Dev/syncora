@@ -2,6 +2,14 @@
 
 @section('title', 'Unified Inbox')
 
+{{-- Was a bare <style> tag outside any @section/@push - with @extends,
+     that renders before layouts.app's own <head> content, so this loaded
+     BEFORE admin.css/socialeaz-admin.css instead of after. Harmless today
+     (nothing in those files currently targets these classes), but any
+     future rule with equal specificity there would have silently won the
+     cascade over this page's own styling. @push puts it in the right
+     place: inside <head>, after those stylesheets. --}}
+@push('styles')
 <style>
     .inbox-topbar {
         display: flex;
@@ -257,26 +265,131 @@
         padding: 24px;
         display: flex;
         flex-direction: column;
-        gap: 14px;
         background: #fdfdff;
+    }
+
+    /* Centered pill divider between messages sent on different days -
+       "Today" / "Yesterday" / "Aug 25, 2026" - lets a long thread be
+       scanned without re-reading every bubble's own timestamp. */
+    .date-separator {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 18px 0 10px;
+    }
+
+    .date-separator:first-child {
+        margin-top: 0;
+    }
+
+    .date-separator span {
+        background: #fff;
+        border: 1px solid #eef1f5;
+        color: #8a90a3;
+        font-size: .66rem;
+        font-weight: 700;
+        letter-spacing: .03em;
+        text-transform: uppercase;
+        padding: 4px 14px;
+        border-radius: 20px;
+        box-shadow: 0 1px 4px rgba(20, 20, 43, .05);
     }
 
     .message-row {
         display: flex;
+        margin-top: 14px;
+    }
+
+    .date-separator + .message-row {
+        margin-top: 0;
+    }
+
+    /* Consecutive messages from the same side within a few minutes sit
+       close together, like WhatsApp/Messenger/Slack - only a genuine
+       gap (new sender, or time has passed) gets full spacing. */
+    .message-row.is-grouped {
+        margin-top: 3px;
     }
 
     .message-row.outbound {
         justify-content: flex-end;
     }
 
+    .message-row-inner {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        max-width: 72%;
+        min-width: 0;
+    }
+
+    .message-row.outbound .message-row-inner {
+        flex-direction: row-reverse;
+    }
+
+    .message-avatar {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        object-fit: cover;
+        flex-shrink: 0;
+        margin-bottom: 2px;
+    }
+
+    /* Reserve the avatar's width even when hidden, so grouped bubbles
+       stay aligned with the one at the end of the group that shows it. */
+    .message-row.is-grouped .message-avatar {
+        visibility: hidden;
+    }
+
+    /* Root cause of bubbles ballooning to full container width instead
+       of hugging their text: a column flexbox defaults align-items to
+       "stretch", so .message-bubble (a flex item here) was stretching to
+       fill .message-col's cross-axis width on every render, worse for
+       whichever message ended up in the widest column. flex-start (and
+       flex-end for outbound, so bubbles hug the correct edge under the
+       right-aligned row) makes every bubble shrink-wrap to its own
+       content again, like a real chat bubble. */
+    .message-col {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        min-width: 0;
+    }
+
+    .message-row.outbound .message-col {
+        align-items: flex-end;
+    }
+
     .message-bubble {
-        max-width: 60%;
+        /* Belt-and-suspenders on top of .message-col's align-items: an
+           explicit width keeps the bubble content-sized even if a
+           parent's flex alignment gets overridden by something else -
+           width:auto is what "stretch" actually stretches, so giving it
+           a real width value opts it out of that regardless. */
+        width: fit-content;
+        max-width: 100%;
+        align-self: flex-start;
         padding: 11px 15px;
-        border-radius: 16px;
-        white-space: pre-wrap;
-        word-break: break-word;
+        border-radius: 18px;
         line-height: 1.45;
         font-size: .92rem;
+    }
+
+    /* white-space:pre-wrap belongs on the text itself, not the bubble -
+       it used to sit on .message-bubble directly, which meant it also
+       preserved every bit of the Blade/JS template's own source
+       indentation surrounding the message body as real, visible
+       spaces (invisible in a terminal/editor, very visible in a browser)
+       - a 5-character message like "Hello" was rendering as dozens of
+       leading/trailing spaces plus "Hello", and width:fit-content was
+       correctly sizing around all of that, not just the word. Scoping
+       pre-wrap to this inner span means only the customer's own
+       intentional line breaks are preserved; everything around it uses
+       normal whitespace collapsing again. */
+    .message-bubble-text {
+        white-space: pre-wrap;
+        word-break: break-word;
     }
 
     .message-row.inbound .message-bubble {
@@ -287,6 +400,7 @@
     }
 
     .message-row.outbound .message-bubble {
+        align-self: flex-end;
         background: linear-gradient(135deg, #4338ca 0%, #6d28d9 55%, #9333ea 100%);
         color: #fff;
         border-bottom-right-radius: 4px;
@@ -307,11 +421,25 @@
         margin-top: 5px;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
     }
 
     .message-row.outbound .message-meta {
         justify-content: flex-end;
+    }
+
+    .message-status-icon {
+        font-size: .82rem;
+        line-height: 1;
+        display: inline-flex;
+    }
+
+    .message-status-icon.sent {
+        color: #9ea5b5;
+    }
+
+    .message-status-icon.failed {
+        color: #dc3545;
     }
 
     .message-actions {
@@ -549,18 +677,433 @@
         color: #a7adba;
         font-size: .85rem;
     }
+
+    /* =========================================================
+       TOPBAR - "Explore AI Features" CTA
+    ========================================================= */
+    .btn-ai-feature {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        border: none;
+        border-radius: 10px;
+        padding: 8px 16px;
+        font-size: .82rem;
+        font-weight: 700;
+        color: #fff;
+        background: linear-gradient(135deg, #4338ca 0%, #6d28d9 55%, #9333ea 100%);
+        box-shadow: 0 4px 12px rgba(109, 40, 217, .28);
+        transition: transform .15s ease;
+    }
+
+    .btn-ai-feature:hover {
+        color: #fff;
+        transform: translateY(-1px);
+    }
+
+    /* =========================================================
+       FILTER BAR - channel/status/agent, above the conversation list
+    ========================================================= */
+    .inbox-filter-bar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 14px;
+        flex-wrap: wrap;
+        background: #fff;
+        border-bottom: 1px solid #eef1f5;
+    }
+
+    .filter-pill-all {
+        border: none;
+        border-radius: 20px;
+        padding: 5px 15px;
+        font-size: .74rem;
+        font-weight: 700;
+        color: #fff;
+        background: linear-gradient(135deg, #4338ca 0%, #6d28d9 45%, #9333ea 100%);
+        flex-shrink: 0;
+    }
+
+    .filter-select {
+        border: 1px solid #eef1f5;
+        background: #f8f9fc;
+        color: #5b6373;
+        border-radius: 20px;
+        padding: 5px 26px 5px 13px;
+        font-size: .74rem;
+        font-weight: 600;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a93a6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        min-width: 0;
+    }
+
+    .filter-select:focus {
+        outline: none;
+        border-color: #c7bbf0;
+    }
+
+    /* =========================================================
+       THREAD HEADER - status pill + action buttons
+    ========================================================= */
+    .thread-header {
+        justify-content: space-between;
+    }
+
+    .thread-header-identity {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .thread-header-badges {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 2px;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: .7rem;
+        font-weight: 700;
+        color: #5b6373;
+    }
+
+    .status-pill-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #a7adba;
+    }
+
+    .status-pill.open .status-pill-dot {
+        background: #2fb344;
+    }
+
+    .thread-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .btn-thread-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid #e5e7f0;
+        background: #fff;
+        color: #4b3fb0;
+        border-radius: 9px;
+        padding: 7px 13px;
+        font-size: .78rem;
+        font-weight: 600;
+        transition: all .15s ease;
+    }
+
+    .btn-thread-action:hover {
+        background: #f5f3ff;
+        border-color: #d9defa;
+        color: #4b3fb0;
+    }
+
+    .btn-details-toggle {
+        border: 1px solid #e5e7f0;
+        background: #fff;
+        color: #8a93a6;
+        border-radius: 9px;
+        width: 32px;
+        height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* =========================================================
+       MESSAGE PLATFORM BADGE - which channel this specific
+       message came in on, next to its timestamp.
+    ========================================================= */
+    .message-platform-badge {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 8px;
+        flex-shrink: 0;
+    }
+
+    /* =========================================================
+       AI COPILOT PANEL - sits above the composer. Every action
+       here is presentational only for now (no AI backend wired
+       up yet) - clicking shows a "coming soon" toast rather than
+       pretending to do something it can't.
+    ========================================================= */
+    .ai-copilot-panel {
+        margin: 0 20px 12px;
+        border: 1px solid #e5ddfb;
+        border-radius: 14px;
+        background: linear-gradient(180deg, #faf9ff 0%, #f5f3ff 100%);
+        overflow: hidden;
+    }
+
+    .ai-copilot-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 14px;
+        border-bottom: 1px solid #eee7fd;
+    }
+
+    .ai-copilot-title {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: .82rem;
+        font-weight: 700;
+        color: #4b3fb0;
+    }
+
+    .ai-copilot-title i {
+        font-size: 15px;
+    }
+
+    .ai-copilot-close {
+        border: none;
+        background: transparent;
+        color: #a7adba;
+        width: 22px;
+        height: 22px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+    }
+
+    .ai-copilot-close:hover {
+        background: #ece7fb;
+        color: #5b6373;
+    }
+
+    .ai-copilot-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        padding: 12px 14px;
+    }
+
+    .ai-copilot-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid #eef1f5;
+        background: #fff;
+        color: #3a3f52;
+        border-radius: 10px;
+        padding: 9px 11px;
+        font-size: .78rem;
+        font-weight: 600;
+        text-align: left;
+        transition: all .15s ease;
+    }
+
+    .ai-copilot-btn:hover {
+        border-color: #d9defa;
+        background: #faf9ff;
+    }
+
+    .ai-copilot-btn i {
+        font-size: 15px;
+        color: #6d28d9;
+        flex-shrink: 0;
+    }
+
+    .btn-ai-compose {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid #e5ddfb;
+        background: #f5f3ff;
+        color: #4b3fb0;
+        border-radius: 20px;
+        padding: 8px 16px;
+        font-size: .8rem;
+        font-weight: 700;
+        flex-shrink: 0;
+        transition: all .15s ease;
+    }
+
+    .btn-ai-compose:hover {
+        background: #eee7fd;
+        color: #4b3fb0;
+    }
+
+    /* =========================================================
+       CHAT DETAILS PANEL - right-hand column. Every figure in
+       here is real data pulled for the active conversation
+       (message count, assigned agent, other platforms this same
+       customer name appears under) except AI Sentiment and Open
+       Cases, which have no backing feature yet and say so rather
+       than showing a fabricated number.
+    ========================================================= */
+    .chat-details-panel {
+        width: 280px;
+        flex-shrink: 0;
+        border-left: 1px solid #eef1f5;
+        background: #fff;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .chat-details-panel.is-hidden {
+        display: none;
+    }
+
+    .details-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 18px;
+        border-bottom: 1px solid #eef1f5;
+        font-weight: 700;
+    }
+
+    .details-close {
+        border: none;
+        background: transparent;
+        color: #a7adba;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .details-close:hover {
+        background: #f3f4fb;
+        color: #5b6373;
+    }
+
+    .details-section {
+        padding: 16px 18px;
+        border-bottom: 1px solid #f3f5f9;
+    }
+
+    .details-section-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: .72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #a7adba;
+        margin-bottom: 10px;
+    }
+
+    .details-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: .84rem;
+        margin-bottom: 7px;
+    }
+
+    .details-row-label {
+        color: #8a93a6;
+    }
+
+    .details-row-value {
+        color: #2b2f3a;
+        font-weight: 600;
+        text-align: right;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .details-platform-icons {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .details-platform-icon {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 13px;
+    }
+
+    .details-empty {
+        color: #a7adba;
+        font-size: .82rem;
+        font-style: italic;
+    }
+
+    .details-placeholder {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #a7adba;
+        font-size: .8rem;
+        background: #f8f9fc;
+        border: 1px dashed #e5e7f0;
+        border-radius: 10px;
+        padding: 10px 12px;
+    }
 </style>
+@endpush
 
 @section('content')
     <div class="col-xxl-12 mb-0">
+        {{-- Only reachable now via a channel connect started from this page
+             (see ?return_to=dashboard on the Manage Channels modal's OAuth
+             links) - admin.chats.channels has its own identical block for
+             everything else. --}}
+        @if (session('success'))
+            <div class="alert alert-success d-flex align-items-center gap-2 mb-3"><i class="bx bx-check-circle fs-5"></i> {{ session('success') }}</div>
+        @endif
+        @if (session('error'))
+            <div class="alert alert-danger d-flex align-items-center gap-2 mb-3"><i class="bx bx-error-circle fs-5"></i> {{ session('error') }}</div>
+        @endif
+
         <div class="inbox-topbar">
             <div>
                 <h4 class="inbox-title"><i class="bx bx-message-dots"></i> Unified Inbox</h4>
                 <p class="inbox-subtitle">{{ $conversations->count() }} conversation{{ $conversations->count() === 1 ? '' : 's' }} across every connected channel</p>
             </div>
-            <a href="{{ route('admin.chats.channels') }}" class="btn btn-outline-primary btn-sm">
-                <i class="bx bx-plug"></i> Manage Channels
-            </a>
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn-ai-feature" id="exploreAiFeaturesBtn">
+                    <i class="bx bx-sparkles"></i> Explore AI Features
+                </button>
+                {{--
+                    Opens a quick-connect modal instead of navigating to the
+                    full admin.chats.channels page (see #manageChannelsModal
+                    below) - that page still exists for the platforms that
+                    need a full credential form (Telegram, LINE, Zalo,
+                    Discord bot token, Teams, Matrix) and stays linked from
+                    inside the modal itself.
+                --}}
+                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#manageChannelsModal">
+                    <i class="bx bx-plug"></i> Manage Channels
+                </button>
+            </div>
         </div>
 
         @php
@@ -616,17 +1159,35 @@
                     Conversations
                     <span class="inbox-sidebar-count">{{ $conversations->count() }}</span>
                 </div>
-                <div class="platform-filter">
-                    <button type="button" class="platform-filter-btn active" data-platform="">All</button>
-                    @foreach ($activePlatforms as $platform)
-                        <button type="button" class="platform-filter-btn" data-platform="{{ $platform }}">{{ $platformLabel($platform) }}</button>
-                    @endforeach
+                <div class="inbox-filter-bar">
+                    <button type="button" class="filter-pill-all" id="clearFiltersBtn">All</button>
+                    <select class="filter-select" id="channelFilter" title="Filter by channel">
+                        <option value="">Channel</option>
+                        @foreach ($activePlatforms as $platform)
+                            <option value="{{ $platform }}">{{ $platformLabel($platform) }}</option>
+                        @endforeach
+                    </select>
+                    <select class="filter-select" id="statusFilter" title="Filter by status">
+                        <option value="">Status</option>
+                        <option value="open">Active</option>
+                        <option value="closed">Closed</option>
+                        <option value="archived">Archived</option>
+                    </select>
+                    <select class="filter-select" id="agentFilter" title="Filter by agent">
+                        <option value="">Agent</option>
+                        <option value="unassigned">Unassigned</option>
+                        @foreach ($assignableUsers as $user)
+                            <option value="{{ $user->id }}">{{ $user->name }}</option>
+                        @endforeach
+                    </select>
                 </div>
                 <div class="conversation-list" id="conversationList">
                     @forelse ($conversations as $conversation)
                         <div class="conversation-item {{ $activeConversation && $activeConversation->id === $conversation->id ? 'active' : '' }}"
                              data-id="{{ $conversation->id }}"
-                             data-platform="{{ $conversation->platform }}">
+                             data-platform="{{ $conversation->platform }}"
+                             data-status="{{ $conversation->status }}"
+                             data-agent="{{ $conversation->assigned_user_id ?: 'unassigned' }}">
                             <div style="position:relative">
                                 <img class="conversation-avatar" src="{{ $conversation->customer_avatar_url ?: asset('assets/img/avatars/1.png') }}" onerror="this.src='{{ asset('assets/img/avatars/1.png') }}'">
                                 <span class="platform-dot {{ $conversation->platform }}"><i class="bx {{ $platformIcons[$conversation->platform] ?? 'bx-message-rounded-dots' }}"></i></span>
@@ -660,8 +1221,67 @@
                     </div>
                 @endif
             </div>
+
+            <div class="chat-details-panel {{ $activeConversation ? '' : 'is-hidden' }}" id="chatDetailsPanel">
+                @if ($activeConversation)
+                    @include('admin.chats.partials.details-panel', [
+                        'conversation' => $activeConversation,
+                        'platformHistory' => $platformHistory,
+                        'messageCount' => $messageCount,
+                    ])
+                @endif
+            </div>
         </div>
     </div>
+
+    {{--
+        MANAGE CHANNELS MODAL - opened from the topbar button above instead
+        of navigating to admin.chats.channels. Renders the same shared
+        social-connect-modal component the Posts dashboard's Add Account
+        modal and the Ads dashboard use - see
+        resources/views/components/social-connect-modal.blade.php.
+
+        Only the platforms with a genuinely one-click connect belong here;
+        Telegram/LINE/Zalo/Discord/Teams/Matrix all need a multi-field
+        credential form first, which is exactly what the full
+        admin.chats.channels page is still for (linked from the modal
+        footer below).
+
+        WhatsApp and Google Chat aren't OAuth links (see each tile's
+        'note' below) - clicking them switches to the same form-modal
+        components admin/chats/channels.blade.php uses (x-whatsapp-
+        connect-modal / x-google-chat-connect-modal), via the click
+        handler further down this file, rather than a second copy of
+        those forms.
+    --}}
+    @php
+        // ?return_to=dashboard is read by SocialAccountController::redirect()
+        // / MessageChannelController's redirect* methods (stashed in
+        // session, since the OAuth round-trip won't echo an arbitrary
+        // query param back) so the corresponding callback sends the user
+        // back here instead of admin.chats.channels/admin.posts.create -
+        // the full channels page's own identical-looking links omit this,
+        // so their behavior is unchanged.
+        $manageChannelsPlatforms = [
+            ['key' => 'facebook',    'class' => 'facebook',    'icon' => 'bxl-facebook',  'label' => 'Meta Messenger',    'url' => route('admin.social-accounts.redirect', ['platform' => 'facebook']) . '?return_to=dashboard'],
+            ['key' => 'instagram',   'class' => 'instagram',   'icon' => 'bxl-instagram', 'label' => 'Instagram Messenger', 'url' => route('admin.messaging.auth.instagram.redirect') . '?return_to=dashboard'],
+            ['key' => 'x',           'class' => 'twitter',     'icon' => 'bxl-twitter',   'label' => 'X Messenger',       'url' => route('admin.messaging.auth.x.redirect') . '?return_to=dashboard'],
+            // No posting-permission gate here (unlike the Posts dashboard's
+            // Add Account tiles) - has_messaging_permission is what actually
+            // matters for the inbox.
+            ['key' => 'tiktok',      'class' => 'tiktok',      'icon' => 'bxl-tiktok',    'label' => 'TikTok Messenger',  'url' => route('admin.messaging.auth.tiktok.redirect') . '?return_to=dashboard'],
+            ['key' => 'whatsapp',    'class' => 'whatsapp',    'icon' => 'bxl-whatsapp',  'label' => 'WhatsApp',          'url' => '#', 'note' => 'Paste your number\'s token'],
+            ['key' => 'google_chat', 'class' => 'google_chat', 'icon' => 'bx-message-rounded-dots', 'label' => 'Google Chat', 'url' => '#', 'note' => 'Paste a service account key'],
+        ];
+    @endphp
+    <x-social-connect-modal
+        id="manageChannelsModal"
+        title="Manage Channels"
+        subtitle="Connect an account and it's ready in your inbox above - no page reload."
+        :platforms="$manageChannelsPlatforms"
+    />
+    <x-whatsapp-connect-modal id="whatsappQuickModal" />
+    <x-google-chat-connect-modal id="googleChatQuickModal" />
 @endsection
 
 @push('scripts')
@@ -677,6 +1297,8 @@
             const readUrlTemplate = "{{ route('admin.chats.read', ['conversation' => ':ID']) }}";
             const messageUpdateUrlTemplate = "{{ route('admin.chats.messages.update', ['message' => ':ID']) }}";
             const messageDeleteUrlTemplate = "{{ route('admin.chats.messages.destroy', ['message' => ':ID']) }}";
+            const copilotFindAnswerUrlTemplate = "{{ route('admin.chats.copilot.find-answer', ['conversation' => ':ID']) }}";
+            const copilotFeedbackUrlTemplate = "{{ route('admin.chats.copilot.feedback', ['copilotMessage' => 'COPILOT_MESSAGE_ID']) }}";
 
             // renderThread() (the AJAX conversation-switch path) is the
             // only place that normally sets these - on a fresh page load
@@ -696,6 +1318,7 @@
             // AJAX) - used only by renderThread()'s platform badge.
             const platformLabels = @json($platformLabels);
             const platformColors = @json($platformColors);
+            const platformIcons = @json($platformIcons);
 
             // Straight from MessagingManagerService, not a second
             // hand-maintained list - see that class's editCapablePlatforms()/
@@ -731,6 +1354,7 @@
                 $.get(showUrlTemplate.replace(':ID', id), function(res) {
                     if (!res.success) return;
                     renderThread(res.conversation, res.messages);
+                    renderDetailsPanel(res.conversation, res.platformHistory || [], res.messageCount || res.messages.length);
                 });
             }
 
@@ -740,20 +1364,51 @@
 
             function renderThread(conversation, messages) {
                 const badgeColor = platformColors[conversation.platform] || '#6d28d9';
+                const isActive = conversation.status === 'open';
+                const statusLabel = isActive ? 'Active' : (conversation.status ? conversation.status.charAt(0).toUpperCase() + conversation.status.slice(1) : 'Open');
 
                 let html = `
                     <div class="thread-header">
-                        <img class="conversation-avatar" src="${conversation.customer_avatar_url || '{{ asset('assets/img/avatars/1.png') }}'}" onerror="this.src='{{ asset('assets/img/avatars/1.png') }}'">
-                        <div>
-                            <div class="fw-semibold">${escapeHtml(conversation.customer_name || 'Unknown')}</div>
-                            <span class="platform-badge" style="background:${badgeColor}">${platformLabel(conversation.platform)}</span>
+                        <div class="thread-header-identity">
+                            <img class="conversation-avatar" src="${conversation.customer_avatar_url || '{{ asset('assets/img/avatars/1.png') }}'}" onerror="this.src='{{ asset('assets/img/avatars/1.png') }}'">
+                            <div>
+                                <div class="fw-semibold">${escapeHtml(conversation.customer_name || 'Unknown')}</div>
+                                <div class="thread-header-badges">
+                                    <span class="platform-badge" style="background:${badgeColor}">${platformLabel(conversation.platform)}</span>
+                                    <span class="status-pill ${isActive ? 'open' : ''}">
+                                        <span class="status-pill-dot"></span>
+                                        ${statusLabel}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="thread-header-actions">
+                            <button type="button" class="btn-thread-action" id="summarizeBtn" title="AI conversation summary - coming soon"><i class="bx bx-list-check"></i> Summarize</button>
+                            <button type="button" class="btn-details-toggle" id="toggleDetailsBtn" title="Chat details"><i class="bx bx-info-circle"></i></button>
                         </div>
                     </div>
                     <div class="thread-messages" id="threadMessages">`;
 
-                messages.forEach(m => html += renderMessage(m, conversation.platform));
+                let previousMessage = null;
+                messages.forEach(m => {
+                    html += renderMessage(m, conversation.platform, previousMessage);
+                    previousMessage = m;
+                });
 
                 html += `</div>
+                    <div class="ai-copilot-panel" id="aiCopilotPanel">
+                        <div class="ai-copilot-header">
+                            <span class="ai-copilot-title"><i class="bx bx-bulb"></i> AI Copilot</span>
+                            <button type="button" class="ai-copilot-close" id="aiCopilotCloseBtn" title="Hide"><i class="bx bx-x"></i></button>
+                        </div>
+                        <div id="copilotWidgetMount"></div>
+                        <div class="ai-copilot-actions">
+                            <button type="button" class="ai-copilot-btn" data-ai-action="draft"><i class="bx bx-edit-alt"></i> Draft a Professional Reply</button>
+                            <button type="button" class="ai-copilot-btn" data-ai-action="summarize"><i class="bx bx-list-ul"></i> Summarize this conversation</button>
+                            <button type="button" class="ai-copilot-btn" data-ai-action="tone"><i class="bx bx-happy-alt"></i> Adjust Tone (Friendly/Helpful)</button>
+                            <button type="button" class="ai-copilot-btn" data-ai-action="translate"><i class="bx bx-globe"></i> Translate</button>
+                        </div>
+                    </div>
                     <div class="thread-composer">
                         <form id="replyForm" enctype="multipart/form-data" class="w-100">
                             <input type="hidden" name="conversation_id" value="${conversation.id}">
@@ -762,6 +1417,7 @@
                                 <textarea name="body" class="form-control" rows="1" placeholder="Type a reply..."></textarea>
                                 <input type="file" name="media" id="replyMedia" hidden accept="image/*,video/*">
                                 <button type="button" class="btn-composer-attach" onclick="document.getElementById('replyMedia').click()"><i class="bx bx-paperclip"></i></button>
+                                <button type="button" class="btn-ai-compose" id="aiComposeToggleBtn" title="Open AI Copilot"><i class="bx bx-magic-wand"></i> AI Compose</button>
                                 <button type="submit" class="btn-composer-send">Send</button>
                             </div>
                         </form>
@@ -771,6 +1427,88 @@
                 scrollThreadToBottom();
                 window.currentConversationId = conversation.id;
                 window.currentConversationPlatform = conversation.platform;
+                window.currentConversationAvatar = conversation.customer_avatar_url || '{{ asset('assets/img/avatars/1.png') }}';
+                mountCopilotWidget(conversation.id);
+            }
+
+            // #inboxThread's whole subtree (including any previously
+            // mounted copilot widget) is torn down and rebuilt by the
+            // .html(html) call above on every conversation switch - a
+            // Vue instance mounted into a node jQuery just replaced would
+            // be silently orphaned, not reused, so this destroys the old
+            // instance and mounts a fresh one against the fresh
+            // #copilotWidgetMount node the new HTML just introduced.
+            // copilot-find-answer is registered globally via
+            // Vue.component() in app.js, so any new Vue() instance here
+            // can reference it by tag name without needing to be a child
+            // of the page's main #app root.
+            let copilotWidgetInstance = null;
+            function mountCopilotWidget(conversationId) {
+                if (copilotWidgetInstance) {
+                    copilotWidgetInstance.$destroy();
+                    copilotWidgetInstance = null;
+                }
+
+                const mountEl = document.getElementById('copilotWidgetMount');
+                if (!mountEl || typeof Vue === 'undefined') {
+                    return;
+                }
+
+                copilotWidgetInstance = new Vue({
+                    render: h => h('copilot-find-answer', {
+                        props: {
+                            findAnswerUrl: copilotFindAnswerUrlTemplate.replace(':ID', conversationId),
+                            feedbackUrlTemplate: copilotFeedbackUrlTemplate,
+                        },
+                    }),
+                }).$mount(mountEl);
+            }
+
+            function renderDetailsPanel(conversation, platformHistory, messageCount) {
+                const $panel = $('#chatDetailsPanel');
+                const name = escapeHtml(conversation.customer_name || 'Unknown');
+                const agentName = escapeHtml((conversation.assigned_user && conversation.assigned_user.name) || 'Unassigned');
+                const meta = conversation.meta || {};
+
+                let icons = '';
+                (platformHistory || []).forEach(p => {
+                    const color = platformColors[p] || '#6d28d9';
+                    const icon = platformIcons[p] || 'bx-message-rounded-dots';
+                    icons += `<span class="details-platform-icon" style="background:${color}" title="${platformLabel(p)}"><i class="bx ${icon}"></i></span>`;
+                });
+
+                const lastActivity = conversation.last_message_at ? timeAgo(conversation.last_message_at) + ' ago' : '—';
+
+                $panel.removeClass('is-hidden').html(`
+                    <div class="details-header">
+                        Chat Details
+                        <button type="button" class="details-close" id="closeDetailsBtn" title="Hide panel"><i class="bx bx-x"></i></button>
+                    </div>
+                    <div class="details-section">
+                        <div class="details-section-title">${name}'s Contact Details</div>
+                        <div class="details-row"><span class="details-row-label">Name</span><span class="details-row-value">${name}</span></div>
+                        <div class="details-row"><span class="details-row-label">Agent</span><span class="details-row-value">${agentName}</span></div>
+                        ${meta.phone ? `<div class="details-row"><span class="details-row-label">Phone</span><span class="details-row-value">${escapeHtml(meta.phone)}</span></div>` : ''}
+                        ${meta.email ? `<div class="details-row"><span class="details-row-label">E-mail</span><span class="details-row-value">${escapeHtml(meta.email)}</span></div>` : ''}
+                    </div>
+                    <div class="details-section">
+                        <div class="details-section-title">Platform History</div>
+                        <div class="details-platform-icons">${icons}</div>
+                    </div>
+                    <div class="details-section">
+                        <div class="details-section-title">Recent Activity</div>
+                        <div class="details-row"><span class="details-row-label">Messages</span><span class="details-row-value">${messageCount}</span></div>
+                        <div class="details-row"><span class="details-row-label">Last activity</span><span class="details-row-value">${lastActivity}</span></div>
+                    </div>
+                    <div class="details-section">
+                        <div class="details-section-title">Open Cases</div>
+                        <div class="details-empty">No open cases.</div>
+                    </div>
+                    <div class="details-section">
+                        <div class="details-section-title">AI Sentiment Analysis</div>
+                        <div class="details-placeholder"><i class="bx bx-time-five"></i> Not available yet</div>
+                    </div>
+                `);
             }
 
             function escapeAttr(str) {
@@ -782,9 +1520,59 @@
                     .replace(/>/g, '&gt;');
             }
 
-            function renderMessage(m, platform) {
+            // Two messages sit close together (no divider gap) when
+            // they're the same side of the conversation and land within
+            // a few minutes of each other, same day - the same clustering
+            // rule WhatsApp/Messenger/Slack use.
+            function shouldGroupWithPrevious(current, previous) {
+                if (!previous || !previous.direction || !previous.created_at) return false;
+                if (current.direction !== previous.direction) return false;
+                if (!isSameDay(previous.created_at, current.created_at)) return false;
+                const curTime = new Date(current.created_at).getTime();
+                const prevTime = new Date(previous.created_at).getTime();
+                if (isNaN(curTime) || isNaN(prevTime)) return false;
+                return Math.abs(curTime - prevTime) < 3 * 60 * 1000;
+            }
+
+            function isSameDay(aIso, bIso) {
+                const a = new Date(aIso), b = new Date(bIso);
+                return a.toDateString() === b.toDateString();
+            }
+
+            function dateSeparatorLabel(iso) {
+                const d = new Date(iso);
+                const today = new Date();
+                const yesterday = new Date();
+                yesterday.setDate(today.getDate() - 1);
+                if (d.toDateString() === today.toDateString()) return 'Today';
+                if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+                const opts = { month: 'short', day: 'numeric' };
+                if (d.getFullYear() !== today.getFullYear()) opts.year = 'numeric';
+                return d.toLocaleDateString(undefined, opts);
+            }
+
+            function formatMessageTime(iso) {
+                const d = new Date(iso);
+                if (isNaN(d.getTime())) return '';
+                return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+            }
+
+            function renderAvatarHtml(direction) {
+                if (direction !== 'inbound') return '';
+                const src = window.currentConversationAvatar || '{{ asset('assets/img/avatars/1.png') }}';
+                return `<img class="message-avatar" src="${src}" onerror="this.src='{{ asset('assets/img/avatars/1.png') }}'">`;
+            }
+
+            function renderMessage(m, platform, previous) {
+                let separatorHtml = '';
+                if (!previous || !isSameDay(previous.created_at, m.created_at)) {
+                    separatorHtml = `<div class="date-separator"><span>${dateSeparatorLabel(m.created_at)}</span></div>`;
+                }
+
+                const isGrouped = shouldGroupWithPrevious(m, previous);
+
                 if (m.deleted_at) {
-                    return renderDeletedMessageRow(m);
+                    return separatorHtml + renderDeletedMessageRow(m, isGrouped);
                 }
 
                 let attachmentHtml = '';
@@ -806,30 +1594,45 @@
                     actionsHtml += '</span>';
                 }
 
-                return `
-                    <div class="message-row ${m.direction}" data-message-id="${m.id}">
-                        <div>
-                            <div class="message-bubble ${failedClass}" data-message-body="${escapeAttr(m.body)}">
-                                ${attachmentHtml}
-                                ${m.body ? escapeHtml(m.body) : ''}
-                            </div>
-                            <div class="message-meta text-${m.direction === 'outbound' ? 'end' : 'start'}">
-                                <span class="message-meta-text">${timeAgo(m.created_at)}${m.status === 'failed' ? ' · failed to send' : ''}${m.edited_at ? ' · edited' : ''}</span>
-                                ${actionsHtml}
+                let statusIconHtml = '';
+                if (m.direction === 'outbound') {
+                    if (m.status === 'failed') statusIconHtml = '<i class="bx bx-error-circle message-status-icon failed" title="Failed to send"></i>';
+                    else if (m.status === 'sent') statusIconHtml = '<i class="bx bx-check message-status-icon sent" title="Sent"></i>';
+                }
+
+                const badgeColor = platformColors[platform] || '#6d28d9';
+                const badgeIcon = platformIcons[platform] || 'bx-message-rounded-dots';
+                const platformBadgeHtml = `<span class="message-platform-badge" style="background:${badgeColor}" title="${platformLabel(platform)}"><i class="bx ${badgeIcon}"></i></span>`;
+
+                return separatorHtml + `
+                    <div class="message-row ${m.direction} ${isGrouped ? 'is-grouped' : ''}" data-message-id="${m.id}" data-direction="${m.direction}" data-created-at="${m.created_at}">
+                        <div class="message-row-inner">
+                            ${renderAvatarHtml(m.direction)}
+                            <div class="message-col">
+                                <div class="message-bubble ${failedClass}" data-message-body="${escapeAttr(m.body)}">${attachmentHtml}${m.body ? `<span class="message-bubble-text">${escapeHtml(m.body.trim())}</span>` : ''}</div>
+                                <div class="message-meta text-${m.direction === 'outbound' ? 'end' : 'start'}">
+                                    ${platformBadgeHtml}
+                                    <span class="message-meta-text">${formatMessageTime(m.created_at)}${m.edited_at ? ' · edited' : ''}</span>
+                                    ${statusIconHtml}
+                                    ${actionsHtml}
+                                </div>
                             </div>
                         </div>
                     </div>`;
             }
 
-            function renderDeletedMessageRow(m) {
+            function renderDeletedMessageRow(m, isGrouped) {
                 return `
-                    <div class="message-row ${m.direction}" data-message-id="${m.id}">
-                        <div>
-                            <div class="message-bubble is-deleted">
-                                <i class="bx bx-block"></i> This message was deleted
-                            </div>
-                            <div class="message-meta text-${m.direction === 'outbound' ? 'end' : 'start'}">
-                                <span class="message-meta-text">${timeAgo(m.created_at)}</span>
+                    <div class="message-row ${m.direction} ${isGrouped ? 'is-grouped' : ''}" data-message-id="${m.id}" data-direction="${m.direction}" data-created-at="${m.created_at}">
+                        <div class="message-row-inner">
+                            ${renderAvatarHtml(m.direction)}
+                            <div class="message-col">
+                                <div class="message-bubble is-deleted">
+                                    <i class="bx bx-block"></i> This message was deleted
+                                </div>
+                                <div class="message-meta text-${m.direction === 'outbound' ? 'end' : 'start'}">
+                                    <span class="message-meta-text">${formatMessageTime(m.created_at)}</span>
+                                </div>
                             </div>
                         </div>
                     </div>`;
@@ -850,7 +1653,12 @@
                 if ($(`#threadMessages .message-row[data-message-id="${message.id}"]`).length) {
                     return;
                 }
-                $('#threadMessages').append(renderMessage(message, platform));
+                const $lastRow = $('#threadMessages .message-row').last();
+                const previous = $lastRow.length ? {
+                    direction: $lastRow.data('direction'),
+                    created_at: $lastRow.data('created-at'),
+                } : null;
+                $('#threadMessages').append(renderMessage(message, platform, previous));
                 scrollThreadToBottom();
             }
 
@@ -1057,17 +1865,70 @@
             });
 
             // ------------------------------------------------------------------
-            // PLATFORM FILTER
+            // CHANNEL / STATUS / AGENT FILTERS - all client-side over the
+            // already-loaded conversation list (it's already fully in the
+            // DOM), so no extra request per filter change. "All" clears
+            // every select back to its default option.
             // ------------------------------------------------------------------
-            $('.platform-filter-btn').on('click', function() {
-                $('.platform-filter-btn').removeClass('active');
-                $(this).addClass('active');
-                const platform = $(this).data('platform');
+            function applyConversationFilters() {
+                const channel = $('#channelFilter').val();
+                const status = $('#statusFilter').val();
+                const agent = $('#agentFilter').val();
 
                 $('.conversation-item').each(function() {
-                    const show = !platform || $(this).data('platform') === platform;
-                    $(this).toggle(show);
+                    const $item = $(this);
+                    const matches = (!channel || $item.data('platform') === channel)
+                        && (!status || $item.data('status') === status)
+                        && (!agent || String($item.data('agent')) === agent);
+                    $item.toggle(matches);
                 });
+            }
+
+            $('#channelFilter, #statusFilter, #agentFilter').on('change', applyConversationFilters);
+
+            $('#clearFiltersBtn').on('click', function() {
+                $('#channelFilter, #statusFilter, #agentFilter').val('');
+                applyConversationFilters();
+            });
+
+            // ------------------------------------------------------------------
+            // AI FEATURES - Summarize / Copilot actions / Explore AI Features
+            // are presentational for now (no AI backend wired up yet). A
+            // toast rather than silent no-ops so it's honest about not being
+            // implemented instead of looking broken.
+            // ------------------------------------------------------------------
+            function aiComingSoonToast() {
+                if (window.Swal) {
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Coming soon',
+                        text: 'AI-powered replies are on the roadmap and not wired up yet.',
+                        confirmButtonColor: '#6d28d9',
+                    });
+                } else {
+                    alert('Coming soon - AI-powered replies are on the roadmap and not wired up yet.');
+                }
+            }
+
+            $(document).on('click', '#exploreAiFeaturesBtn, #summarizeBtn, .ai-copilot-btn', aiComingSoonToast);
+
+            $(document).on('click', '#aiComposeToggleBtn', function() {
+                $('#aiCopilotPanel').toggle();
+            });
+
+            $(document).on('click', '#aiCopilotCloseBtn', function() {
+                $('#aiCopilotPanel').hide();
+            });
+
+            // ------------------------------------------------------------------
+            // CHAT DETAILS PANEL toggle
+            // ------------------------------------------------------------------
+            $(document).on('click', '#toggleDetailsBtn', function() {
+                $('#chatDetailsPanel').toggleClass('is-hidden');
+            });
+
+            $(document).on('click', '#closeDetailsBtn', function() {
+                $('#chatDetailsPanel').addClass('is-hidden');
             });
 
             // ------------------------------------------------------------------
@@ -1132,6 +1993,42 @@
                         }
                     });
             }
+        });
+    </script>
+
+    <script>
+        // WhatsApp/Google Chat's tiles in #manageChannelsModal are '#'
+        // placeholders, not OAuth links (see the platforms array building
+        // that modal, further up this file) - clicking one closes this
+        // modal and opens the real credential-form modal instead, matching
+        // the exact forms admin/chats/channels.blade.php uses.
+        document.addEventListener('DOMContentLoaded', function () {
+            var manageChannelsModalEl = document.getElementById('manageChannelsModal');
+            if (!manageChannelsModalEl) return;
+
+            var formModalTargets = {
+                whatsapp: 'whatsappQuickModal',
+                google_chat: 'googleChatQuickModal',
+            };
+
+            Object.keys(formModalTargets).forEach(function (platformKey) {
+                var tile = document.querySelector('.social-card-link-' + platformKey);
+                if (!tile) return;
+
+                tile.addEventListener('click', function (e) {
+                    e.preventDefault();
+
+                    var targetModalEl = document.getElementById(formModalTargets[platformKey]);
+                    if (!targetModalEl) return;
+
+                    manageChannelsModalEl.addEventListener('hidden.bs.modal', function openTarget() {
+                        manageChannelsModalEl.removeEventListener('hidden.bs.modal', openTarget);
+                        bootstrap.Modal.getOrCreateInstance(targetModalEl).show();
+                    }, { once: true });
+
+                    bootstrap.Modal.getOrCreateInstance(manageChannelsModalEl).hide();
+                });
+            });
         });
     </script>
 @endpush

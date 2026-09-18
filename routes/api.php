@@ -107,11 +107,45 @@ Route::get('/user', function (Request $request) {
         ])->name('google_chat.receive');
         Route::get('/discord', [\App\Http\Controllers\Api\Messaging\DiscordWebhookController::class, 'verify'])->name('discord.verify');
         Route::post('/discord', [\App\Http\Controllers\Api\Messaging\DiscordWebhookController::class, 'receive'])->name('discord.receive');
+
+        // Single app-level URL, same shared-URL model as the Meta
+        // platforms above - one call to business/webhook/update/
+        // (TiktokMessagingService::subscribeToWebhooks()) covers every
+        // TikTok Business Account connected through this app.
+        Route::match(
+            ['get', 'post'],
+            '/tiktok',
+            [\App\Http\Controllers\Api\Messaging\TiktokWebhookController::class, 'receive']
+        )->name('tiktok.receive');
+
+        // X Account Activity API - GET is X's CRC (Challenge-Response
+        // Check) re-validation, POST is real event delivery; same URI,
+        // split by HTTP method rather than one handler branching on
+        // $request->isMethod() (unlike Tiktok's combined route above)
+        // since CRC and event handling are genuinely different response
+        // shapes, not one "real vs test-ping" distinction. Registered
+        // once per app via XMessagingService::registerWebhookIfNeeded()
+        // - not per connected account (see that method's docblock).
+        Route::get('/x-activity', [\App\Http\Controllers\Api\Messaging\XActivityWebhookController::class, 'crc'])->name('x_activity.crc');
+        Route::post('/x-activity', [\App\Http\Controllers\Api\Messaging\XActivityWebhookController::class, 'receive'])->name('x_activity.receive');
+
         // Deliberately no Discord route here - Discord has no webhook
         // delivery for bot DMs at all, so there is no URL to register in
         // the Developer Portal for this. Inbound Discord messages are
         // received exclusively through the Gateway WebSocket daemon (see
         // RunDiscordGatewayListener / `php artisan messaging:discord-listen`).
+    });
+
+    // Posts - TikTok's single app-level Webhook URL for the Content
+    // Posting / Login Kit app (posts.tiktok.client_id/secret) - a
+    // separate TikTok app registration from messaging.webhook.tiktok
+    // above, which belongs to the Business API app. Pasted by hand into
+    // Developer Portal > this app > Webhooks (TikTok has no API call to
+    // register it, unlike the Business Messaging webhook). See
+    // TiktokContentWebhookController's docblock for exactly which of
+    // TikTok's four possible event types this handles.
+    Route::prefix('posts')->name('posts.webhook.')->group(function () {
+        Route::match(['get', 'post'], '/tiktok', [\App\Http\Controllers\Api\TiktokContentWebhookController::class, 'receive'])->name('tiktok.receive');
     });
 
     // Ads - LinkedIn only for now. LinkedIn's webhook product validates

@@ -13,7 +13,13 @@ class SocialAdManagerService
      */
     private array $platformMap = [
         'facebook'  => FacebookAdService::class,
-        'instagram' => FacebookAdService::class,
+        // Own class now, not an alias to FacebookAdService - see
+        // InstagramAdService's docblock for why: its own OAuth callback
+        // URL (was silently reusing Facebook's), and a second, more
+        // reliable source for Instagram account discovery. Campaign
+        // CRUD is inherited unchanged - it genuinely runs through the
+        // same Facebook ad account either way.
+        'instagram' => InstagramAdService::class,
         'google'    => GoogleAdService::class,
         'youtube'   => YoutubeAdService::class,
         'tiktok'    => TiktokAdService::class,
@@ -131,5 +137,27 @@ class SocialAdManagerService
         $this->validatePlatform($platform);
 
         return $this->service($platform)->updateStatus($id, $status);
+    }
+
+    /**
+     * "Sync Now" on the platform campaigns dashboard - pulls the latest
+     * campaigns from the connected platform into ad_campaigns. Only the
+     * platforms whose service implements syncCampaigns() (Facebook today)
+     * can do this; the rest return a clear "not available yet" rather
+     * than a 500, since the per-platform read integration doesn't exist
+     * for them.
+     */
+    public function syncCampaigns(string $platform): array
+    {
+        $platform = $this->resolvePlatform($platform);
+        $this->validatePlatform($platform);
+
+        $service = $this->service($platform);
+
+        if (!method_exists($service, 'syncCampaigns')) {
+            return ['success' => false, 'error' => "Campaign sync isn't available for " . ucfirst($platform) . ' yet.'];
+        }
+
+        return $service->syncCampaigns();
     }
 }

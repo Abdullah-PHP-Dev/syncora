@@ -32,6 +32,7 @@ class MessagingManagerService
         'teams'       => TeamsMessagingService::class,
         'google_chat' => GoogleChatMessagingService::class,
         'matrix'      => MatrixMessagingService::class,
+        'tiktok'      => TiktokMessagingService::class,
     ];
 
     /**

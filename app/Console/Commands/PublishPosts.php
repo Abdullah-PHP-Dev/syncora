@@ -57,11 +57,11 @@ class PublishPosts extends Command
     {
         $this->info('Publishing scheduled posts...');
 
-        Post::with(['postAccount', 'media'])
+        Post::with(['socialAccount', 'media'])
             ->where('status', '!=', 'completed')
             ->orderBy('id')
             ->chunkById(50, function ($posts) {
-
+           
                 foreach ($posts as $post) {
 
                     try {
@@ -74,12 +74,12 @@ class PublishPosts extends Command
                         if ($post->schedule_mode && Carbon::parse($post->schedule_at)->isFuture()) {
                             continue;
                         }   
-                      
+                       
                         $response = $this->services[$post->platform]->publishPost($post);
 
                         if (!($response['success'] ?? false)) {
-
                             Log::error("Post {$post->id} failed", $response);
+                            $this->error("Post #{$post->id} failed: " . ($response['message'] ?? 'unknown error'));
 
                             continue;
                         }
@@ -87,15 +87,14 @@ class PublishPosts extends Command
                         $this->info("Published Post #{$post->id}");
 
                     } catch (\Throwable $e) {
-                       
+
                         Log::error(
                             "Post {$post->id} Exception: {$e->getMessage()}",
                             [
                                 'trace' => $e->getTraceAsString()
                             ]
                         );
-
-                        $this->error("Post {$post->id} failed.");
+                        $this->error("Post {$post->id} failed: {$e->getMessage()}");
                     }
                 }
             });

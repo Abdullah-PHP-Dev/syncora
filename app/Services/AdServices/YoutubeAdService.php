@@ -2,7 +2,7 @@
 
 namespace App\Services\AdServices;
 
-use App\Models\Admin\AdAccount;
+use App\Models\SocialAccount;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdCreative;
@@ -28,7 +28,7 @@ use Carbon\Carbon;
  *
  * There's no separate "YouTube Ads account" in Google's model - Demand Gen
  * campaigns run on the same Google Ads customer as Search - so this reuses
- * the AdAccount row connected under the 'google' platform rather than
+ * the SocialAccount row connected under the 'google' platform rather than
  * expecting its own OAuth-linked account.
  *
  * IMPORTANT: like GoogleAdService, this has no developer_token/test account
@@ -42,7 +42,7 @@ class YoutubeAdService
 {
     use GoogleAdsApiTrait;
 
-    public function __construct(AdAccount $account, ApiService $apiService)
+    public function __construct(SocialAccount $account, ApiService $apiService)
     {
         $this->apiService = $apiService;
         $this->account = $account->wherePlatform('google')->whereUserId(Auth::user()->id)->first();
@@ -169,7 +169,7 @@ class YoutubeAdService
         $dataToInsert = [
             'ad_campaign_id'           => $resourceName,
             'user_id'                  => Auth::id(),
-            'ad_account_id'            => $this->account->id,
+            'social_account_id'            => $this->account->id,
             'name'                     => $request['name'],
             'platform'                 => $platform,
             'advertising_channel_type' => 'DEMAND_GEN',
@@ -303,7 +303,7 @@ class YoutubeAdService
             [
                 'user_id'        => Auth::id(),
                 'platform'       => $platform,
-                'ad_account_id'  => $this->account->id,
+                'social_account_id'  => $this->account->id,
                 'ad_campaign_id' => $request['ad_campaign_id'],
                 'name'           => $fileName,
                 'file_name'      => $fileName,
@@ -358,7 +358,7 @@ class YoutubeAdService
             'ad_campaign_id' => $request['ad_campaign_id'],
             'user_id'        => Auth::id(),
             'ad_adgroup_id'  => $adGroupId,
-            'ad_account_id'  => $this->account->id,
+            'social_account_id'  => $this->account->id,
             'platform'       => $platform,
             'name'           => $adGroup['name'],
             'status'         => false,
@@ -440,7 +440,7 @@ class YoutubeAdService
                 'ad_adgroup_id'   => $request['ad_adgroup_id'],
                 'ad_creative_id'  => $resourceName,
                 'platform'        => $platform,
-                'ad_account_id'   => $this->account->id,
+                'social_account_id'   => $this->account->id,
                 'ad_campaign_id'  => $request['ad_campaign_id'],
                 'name'            => $request['name'],
                 'type'            => 'DEMAND_GEN_VIDEO_RESPONSIVE_AD',
@@ -465,7 +465,7 @@ class YoutubeAdService
                 'ad_id'          => $resourceName,
                 'status'         => false,
                 'platform'       => $platform,
-                'ad_account_id'  => $this->account->id,
+                'social_account_id'  => $this->account->id,
                 'ad_campaign_id' => $request['ad_campaign_id'],
                 'name'           => $request['name'],
                 'type'           => 'DEMAND_GEN_VIDEO_RESPONSIVE_AD',

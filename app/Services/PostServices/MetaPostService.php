@@ -7,12 +7,13 @@ use Carbon\Carbon;
 use App\Models\Post;
 use App\Models\PostMedia;
 use App\Models\PostComment;
-use App\Models\PostAccount;
+use App\Models\SocialAccount;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use getID3;
+use Illuminate\Contracts\Encryption\DecryptException;
 use App\Models\Messaging\Conversation;
 
 class MetaPostService
@@ -29,10 +30,10 @@ class MetaPostService
 
     protected function ensureValidToken($post)
     {
-        $account = $post->postAccount;
+        $account = $post->socialAccount;
         if (
-            !empty($account->expires_in)
-            && Carbon::parse($account->expires_in)->gt(now()->addMinutes(5))
+            !empty($account->expires_at)
+            && Carbon::parse($account->expires_at)->gt(now()->addMinutes(5))
         ) {
             return true;
         }
@@ -59,7 +60,7 @@ class MetaPostService
         $account->update([
             'access_token'       => $tokenData['access_token'],
             'refresh_token'      => $tokenData['refresh_token'] ?? $account->refresh_token,
-            'expires_in'    => now()->addSeconds($tokenData['expires_in'] ?? 3600),
+            'expires_at'    => now()->addSeconds($tokenData['expires_in'] ?? 3600),
         ]);
 
         $account->refresh();
@@ -86,7 +87,17 @@ class MetaPostService
         } elseif (isset($data['ai_image_url'])) {
             $mediaUrl = $data['ai_image_url'];
         } else {
-            $uploadResult = $this->uploadMediaToS3($data['media']);
+            // 'media' is a nullable field (PostRequest: 'media' =>
+            // ['nullable', 'array']) - a text-only post with no attached
+            // file omits the key entirely rather than sending an empty
+            // array, and PHP's "Undefined array key" warning gets
+            // promoted to a thrown ErrorException in a real HTTP request
+            // (confirmed live: this crashed every text-only Facebook post
+            // submission, silently, since PostController::store()'s
+            // catch block didn't log anything either - see its own fix).
+            // uploadMediaToS3() already handles an empty array cleanly
+            // (foreach over [] is a no-op).
+            $uploadResult = $this->uploadMediaToS3($data['media'] ?? []);
             if (!$uploadResult['success']) {
                 return [
                     'success' => false,
@@ -106,9 +117,9 @@ class MetaPostService
                     'visibility' => 'public',
                     'user_id' => Auth::user()->id,
                     'group_id' => $data['group_id'] ?? null,
-                    'post_account_id' => $page->id,
+                    'social_account_id' => $page->id,
                     'post_category_id' => $data['category_id'] ?? 1,
-                    'page_id' => $page->account_id,
+                    'page_id' => $page->platform_account_id,
                     'content' => $data['content'] ?? null,
                     'schedule_mode' => $data['schedule_mode'] ?? 0,
                     'schedule_at' => $data['schedule_at'] ?? null,
@@ -124,7 +135,7 @@ class MetaPostService
                             'post_id' => $post->id,
                             'visibility' => 'public',
                             'user_id' => Auth::user()->id,
-                            'post_account_id' => $page->id,
+                            'social_account_id' => $page->id,
                             'post_category_id' => $data['category_id'],
                             'media_url' => $media['url'],
                             'media_type' => $media['media_type'],
@@ -144,7 +155,7 @@ class MetaPostService
                 $results[] = $post;
             } catch (\Exception $e) {
                 $errors[] = [
-                    'page_id' => $page->account_id,
+                    'page_id' => $page->platform_account_id,
                     'page_name' => $page->page_name ?? $page->name,
                     'message' => $e->getMessage()
                 ];
@@ -286,7 +297,6 @@ class MetaPostService
                 'media' => $media
             ];
         } catch (\Exception $e) {
-            dd($e->getMessage());
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -300,47 +310,92 @@ class MetaPostService
 
      public function publishPost($post)
      {
-        $account = $post->postAccount;
-        if (!$this->ensureValidToken($post)) {
-            $post->update([
-                'status' => 'failed',
-                'error_message' => 'Failed to refresh access token'
-            ]);
+        $account = $post->socialAccount;
 
-            return ['success' => false];
-        }
+        try {
+            if (!$this->ensureValidToken($post)) {
+                $post->update([
+                    'status' => 'failed',
+                    'error_message' => 'Failed to refresh access token'
+                ]);
 
-        $result = $this->publishPostOnMeta($post, $account);
+                return ['success' => false];
+            }
 
-        if ($result['success']) {
-            $post->update([
-                'post_id' => $result['post_id'],
-                'status' => 'completed'
-            ]);
-            return ['success' => true];
-        } else {
-            $post->update([
-                'status' => 'failed',
-                'error_message' => $result['message']
-            ]);
-            return ['success' => false];
+            // publishPostOnMeta() already persists the post's final state
+            // itself on every single exit path (success at its own
+            // $post->update(post_id/status='completed'), every failure
+            // branch via errorResponse()/its own inline updates) - it
+            // returns just ['success' => true] on success, with no
+            // 'post_id' key. This redundant second update used to re-read
+            // $result['post_id'], which never existed, crashing with
+            // "Undefined array key" on EVERY successful publish - the
+            // post had already been correctly saved as 'completed' with
+            // its real post_id by publishPostOnMeta() one line earlier,
+            // but the crash here made every successful publish look like
+            // a failure in this command's own log/console output.
+            // Confirmed live: a real Facebook post published successfully
+            // (real post_id saved, status='completed') while this exact
+            // line threw and made the command report "Post N failed."
+            $result = $this->publishPostOnMeta($post, $account);
+
+            return ['success' => (bool) ($result['success'] ?? false)];
+        } catch (DecryptException $e) {
+            // Catches decrypt failures from BOTH ensureValidToken() (reads
+            // access_token to refresh it) and publishPostOnMeta() (reads it
+            // to actually post) - one handler instead of duplicating this
+            // in both places. Always means APP_KEY changed since this
+            // account's token was encrypted, or the row is corrupted -
+            // there is no way to recover the token, only reconnecting the
+            // account fixes it, so mark it invalid rather than let every
+            // future run silently retry a token that can never decrypt.
+            return $this->handleTokenDecryptFailure($post, $account, $e);
         }
      }
+
+    private function handleTokenDecryptFailure($post, $account, DecryptException $e): array
+    {
+        Log::warning('Facebook access token failed to decrypt - marking account invalid.', [
+            'account_id' => $account?->id,
+            'post_id'    => $post->id,
+            'error'      => $e->getMessage(),
+        ]);
+
+        $account?->update(['is_token_valid' => false]);
+
+        $message = "This account's access token could not be decrypted (the encryption key may have changed since it was connected). Please reconnect this account.";
+
+        $post->update([
+            'status' => 'failed',
+            'error_message' => $message,
+        ]);
+
+        return ['success' => false, 'error' => $message];
+    }
 
     /**
      * Publish to a single Facebook page
      */
-    protected function publishPostOnMeta($post, $account)
-    {
-        $accountId = $account->account_id;
+protected function publishPostOnMeta($post, $account)
+{
+    try {
+        // 1. Safely retrieve the decrypted access token
         $accessToken = $account->access_token;
-        $endpoint = $this->baseUrl . $account->account_id . "/feed?access_token={$accessToken}";
+    
+        $accountId = $account->platform_account_id;
+
+        if (empty($accessToken)) {
+            throw new \Exception("Access token is missing or empty for account ID {$account->id}.");
+        }
+
+        $endpoint = $this->baseUrl . $accountId . "/feed?access_token={$accessToken}";
         $payload = ['message' => $post->content];
 
+        // 2. Handle Media Uploads if present
         if (!empty($post->media)) {
             $media = $this->uploadMediaToMeta($post, $accessToken);
            
-            if (!$media['success']) {
+            if (!($media['success'] ?? false)) {
                 $post->status = 'failed';
                 $post->error_message = $media['message'] ?? $media['error'] ?? 'Facebook media publish faced an error.';  
                 $post->save();
@@ -348,7 +403,7 @@ class MetaPostService
                 return $media;
             }
 
-            // If it was a video that published directly, complete the process here
+            // If video published directly during upload step
             if (isset($media['direct_published']) && $media['direct_published']) {
                 $post->update([
                     'post_id' => $media['id'],
@@ -362,6 +417,7 @@ class MetaPostService
             $payload['attached_media'] = $media['media'];
         }
         
+        // 3. Send API Request
         $response = $this->api->request('post', $endpoint, ['Content-Type' => 'application/json'], $payload, 'json');
        
         if (!$response->successful()) {
@@ -370,12 +426,36 @@ class MetaPostService
         
         $post->update([
             'post_id' => $response['id'],
+            'error_message' => '',
             'status' => 'completed'
         ]);
 
         return ['success' => true];
 
+    } catch (DecryptException $e) {
+        // Not caught here - re-thrown to publishPost()'s single
+        // handleTokenDecryptFailure() handler, which also covers the
+        // ensureValidToken() decrypt site, so this failure mode only has
+        // one place that marks the account invalid.
+        //
+        // (Two dd() calls used to sit in this and the next catch block -
+        // either would halt PublishPosts.php's entire chunked loop stone
+        // dead the moment one post hit this path, silently blocking every
+        // post queued after it until someone noticed. Removed.)
+        throw $e;
+    } catch (\Throwable $e) {
+        // Catches all other runtime errors / network exceptions
+        $post->update([
+            'status' => 'failed',
+            'error_message' => $e->getMessage()
+        ]);
+
+        return [
+            'success' => false,
+            'error' => $e->getMessage()
+        ];
     }
+}
 
     private function uploadMediaToMeta($post, $accessToken) {
         $attachedMedia = [];
@@ -385,7 +465,7 @@ class MetaPostService
             // If it's an image, we upload it as unpublished to attach later
             if ($each->media_type == 'image') {
                 $payload['published'] = false;
-                $endpoint = $this->baseUrl . $post->postAccount->account_id . "/photos";
+                $endpoint = $this->baseUrl . $post->socialAccount->platform_account_id . "/photos";
                 $payload['url'] = $each->media_url;
                 
                 $response = $this->api->request('post', $endpoint . "?access_token={$accessToken}", ['Content-Type' => 'application/json'], $payload, 'json');
@@ -400,7 +480,7 @@ class MetaPostService
             } else {
                 // CRITICAL: For videos, you typically must publish them directly to the /videos endpoint
                 // rather than attaching them via `attached_media` to the /feed endpoint.
-                $endpoint = $this->baseUrl . $post->postAccount->account_id . "/videos";
+                $endpoint = $this->baseUrl . $post->socialAccount->platform_account_id . "/videos";
                 $payload['file_url'] = $each->media_url;
                 $payload['description'] = $post->content; // The video description becomes the post body
                 
@@ -435,11 +515,11 @@ class MetaPostService
      * plain fan_count/followers_count fields, which have no such gating,
      * from saving.
      */
-    public function syncAccountStats(PostAccount $account): void
+    public function syncAccountStats(SocialAccount $account): void
     {
         $fieldsResponse = $this->api->request(
             'get',
-            $this->baseUrl . $account->account_id,
+            $this->baseUrl . $account->platform_account_id,
             [],
             ['fields' => 'fan_count,followers_count,talking_about_count', 'access_token' => $account->access_token]
         );
@@ -447,8 +527,8 @@ class MetaPostService
         if ($fieldsResponse->successful()) {
             $data = $fieldsResponse->json();
             $account->update([
-                'likes_count'    => $data['fan_count'] ?? $account->likes_count,
-                'follower_count' => $data['followers_count'] ?? $account->follower_count,
+                'likes_count'     => $data['fan_count'] ?? $account->likes_count,
+                'followers_count' => $data['followers_count'] ?? $account->followers_count,
             ]);
         } else {
             Log::warning('Failed to fetch Facebook Page fields.', [
@@ -460,13 +540,15 @@ class MetaPostService
         try {
             $insightsResponse = $this->api->request(
                 'get',
-                $this->baseUrl . $account->account_id . '/insights',
+                $this->baseUrl . $account->platform_account_id . '/insights',
                 [],
                 ['metric' => 'page_impressions,page_engaged_users', 'period' => 'day', 'access_token' => $account->access_token]
             );
 
             if ($insightsResponse->successful()) {
-                $account->update(['insights' => array_merge($account->insights ?? [], ['page' => $insightsResponse->json()['data'] ?? []])]);
+                $account->update(['metadata' => array_merge($account->metadata ?? [], [
+                    'insights' => array_merge($account->metadata['insights'] ?? [], ['page' => $insightsResponse->json()['data'] ?? []]),
+                ])]);
             } else {
                 // Expected for small/new Pages - not a bug.
                 Log::warning('Facebook Page insights fetch failed (likely too new/small for this metric).', [
@@ -487,18 +569,18 @@ class MetaPostService
      * 'feed' matches exactly what processCommentChange() expects for
      * Facebook comment events.
      */
-    public function subscribeToWebhooks(PostAccount $account): void
+    public function subscribeToWebhooks(SocialAccount $account): void
     {
         try {
             $response = $this->api->request(
                 'post',
-                $this->baseUrl . $account->account_id . '/subscribed_apps',
+                $this->baseUrl . $account->platform_account_id . '/subscribed_apps',
                 [],
                 ['subscribed_fields' => 'feed', 'access_token' => $account->access_token]
             );
 
             if ($response->successful() && ($response->json()['success'] ?? false)) {
-                $account->update(['webhook_subscriptions' => true]);
+                $account->update(['metadata' => array_merge($account->metadata ?? [], ['webhook_subscriptions' => true])]);
             } else {
                 Log::warning('Failed to subscribe Facebook Page to webhooks.', [
                     'account_id' => $account->id,
@@ -518,11 +600,11 @@ class MetaPostService
      * independently failure-tolerant - one bad post must not abort the
      * rest of the batch.
      */
-    public function backfillRecentPosts(PostAccount $account, int $limit = 4): void
+    public function backfillRecentPosts(SocialAccount $account, int $limit = 4): void
     {
         $postsResponse = $this->api->request(
             'get',
-            $this->baseUrl . $account->account_id . '/posts',
+            $this->baseUrl . $account->platform_account_id . '/posts',
             [],
             ['fields' => 'id,message,created_time,full_picture,shares,likes.summary(true)', 'limit' => $limit, 'access_token' => $account->access_token]
         );
@@ -542,13 +624,13 @@ class MetaPostService
                 // (eg. from a previous connect of this same account) is
                 // left untouched rather than re-fetching its media/
                 // insights/comments on every reconnect.
-                if (Post::where('post_account_id', $account->id)->where('post_id', $item['id'])->exists()) {
+                if (Post::where('social_account_id', $account->id)->where('post_id', $item['id'])->exists()) {
                     continue;
                 }
 
                 $post = Post::create(
                     [
-                        'post_account_id' => $account->id,
+                        'social_account_id' => $account->id,
                         'post_id'  => $item['id'],
                         'platform' => 'facebook',
                         'user_id'  => $account->user_id,
@@ -565,7 +647,7 @@ class MetaPostService
                         [
                             'platform'         => 'facebook',
                             'user_id'          => $account->user_id,
-                            'post_account_id'  => $account->id,
+                            'social_account_id'  => $account->id,
                             'media_url'        => $item['full_picture'],
                             'media_type'       => 'image',
                         ]
@@ -580,7 +662,7 @@ class MetaPostService
         }
     }
 
-    private function backfillPostInsights(Post $post, PostAccount $account): void
+    private function backfillPostInsights(Post $post, SocialAccount $account): void
     {
         try {
             $response = $this->api->request(
@@ -607,7 +689,7 @@ class MetaPostService
         }
     }
 
-    private function backfillPostComments(Post $post, PostAccount $account): void
+    private function backfillPostComments(Post $post, SocialAccount $account): void
     {
         try {
             $response = $this->api->request(
@@ -635,7 +717,7 @@ class MetaPostService
                         'posted_at'       => $comment['created_time'] ?? now(),
                         'sender_type'     => 'customer',
                         'is_reply'        => false,
-                        'post_account_id' => $account->id,
+                        'social_account_id' => $account->id,
                     ]
                 );
             }
@@ -678,7 +760,7 @@ class MetaPostService
 
         $response = $this->api->request(
             'delete',
-            $endpoint . "?access_token={$post->postAccount->access_token}",
+            $endpoint . "?access_token={$post->socialAccount->access_token}",
             []
         );
 
@@ -766,7 +848,7 @@ class MetaPostService
 
         $response = $this->api->request(
             'post',
-            $endpoint . "?access_token={$comment->postAccount->access_token}",
+            $endpoint . "?access_token={$comment->socialAccount->access_token}",
             [],
             $payload,
             'form'
@@ -793,7 +875,7 @@ class MetaPostService
             'is_reply' => true,
             'user_name'            => 'support',
             'comment_id' => $commentId,
-            'post_account_id'  => $comment->postAccount?->id
+            'social_account_id'  => $comment->socialAccount?->id
         ]);
 
         return [
@@ -855,16 +937,16 @@ class MetaPostService
                 continue;
             }
 
-            $postAccount = PostAccount::where('platform', $platform)
-                ->where('account_id', $externalAccountId)
+            $socialAccount = SocialAccount::where('platform', $platform)
+                ->where('platform_account_id', $externalAccountId)
                 ->first();
 
-            if (!$postAccount) {
+            if (!$socialAccount) {
                 continue;
             }
 
             foreach ($entry['changes'] ?? [] as $change) {
-                $this->processCommentChange($change, $platform, $postAccount);
+                $this->processCommentChange($change, $platform, $socialAccount);
             }
         }
     }
@@ -875,7 +957,7 @@ class MetaPostService
      * Instagram has no such wrapper: every 'comments' field delivery IS a
      * new comment, so item/verb simply don't apply there.
      */
-    private function processCommentChange(array $change, string $platform, PostAccount $postAccount): void
+    private function processCommentChange(array $change, string $platform, SocialAccount $socialAccount): void
     {
         $value = $change['value'] ?? [];
         $isInstagram = $platform === 'instagram';
@@ -906,7 +988,7 @@ class MetaPostService
         $nativePostId = $isInstagram ? ($value['media']['id'] ?? null) : ($value['post_id'] ?? null);
 
         $post = $nativePostId
-            ? Post::where('post_account_id', $postAccount->id)->where('post_id', $nativePostId)->first()
+            ? Post::where('social_account_id', $socialAccount->id)->where('post_id', $nativePostId)->first()
             : null;
 
         $parentId = $value['parent_id'] ?? null;
@@ -916,10 +998,8 @@ class MetaPostService
 
         // Only columns that actually exist on post_comments - the model's
         // $fillable lists several (user_platform_id, is_read, ...) that
-        // were never added as real columns (same drift documented on
-        // PostAccount's token_expires_at/expires_in), so writing them
-        // throws a "Column not found" SQL error rather than being silently
-        // dropped.
+        // were never added as real columns, so writing them throws a
+        // "Column not found" SQL error rather than being silently dropped.
         PostComment::updateOrCreate(
             ['platform' => $platform, 'comment_id' => $commentId],
             [
@@ -928,7 +1008,7 @@ class MetaPostService
                 'user_id'           => $post?->user_id,
                 'user_name'         => $value['from']['username'] ?? $value['from']['name'] ?? 'Anonymous',
                 'post_id'           => $post?->id,
-                'post_account_id'   => $postAccount->id,
+                'social_account_id' => $socialAccount->id,
                 'parent_comment_id' => $parentComment?->id,
                 'is_reply'          => (bool) $parentComment,
             ]

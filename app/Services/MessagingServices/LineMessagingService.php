@@ -48,7 +48,7 @@ class LineMessagingService
             : ['type' => 'text', 'text' => $data['body']];
 
         $response = $this->apiService->post($this->baseUrl . 'message/push', [
-            'Authorization' => 'Bearer ' . $channel->access_token,
+            'Authorization' => 'Bearer ' . $channel->socialAccount->access_token,
         ], [
             'to'       => $conversation->customer_external_id,
             'messages' => [$message],
@@ -108,7 +108,7 @@ class LineMessagingService
             $profile = $this->fetchProfile($channel, $userId);
 
             ProcessInboundMessage::dispatch(
-                messageChannelId: $channel->id,
+                socialAccountId: $channel->social_account_id,
                 customerExternalId: $userId,
                 customerName: $profile['displayName'] ?? null,
                 customerAvatarUrl: $profile['pictureUrl'] ?? null,
@@ -123,7 +123,7 @@ class LineMessagingService
     private function fetchProfile(MessageChannel $channel, string $userId): array
     {
         $response = $this->apiService->get($this->baseUrl . "profile/{$userId}", [
-            'Authorization' => 'Bearer ' . $channel->access_token,
+            'Authorization' => 'Bearer ' . $channel->socialAccount->access_token,
         ]);
 
         return $response['success'] ? $response['data'] : [];
@@ -144,7 +144,7 @@ class LineMessagingService
         // dead/unreachable content host must not crash the whole webhook
         // request.
         try {
-            $response = Http::withToken($channel->access_token)->get($this->dataBaseUrl . "message/{$messageId}/content");
+            $response = Http::withToken($channel->socialAccount->access_token)->get($this->dataBaseUrl . "message/{$messageId}/content");
         } catch (\Throwable) {
             return null;
         }

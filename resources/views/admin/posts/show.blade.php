@@ -287,7 +287,7 @@
                         </div>
                         <div>
                             <h5 class="fw-bold mb-0 text-dark">
-                                {{ $post->postAccount->name ?? ucfirst($post->platform) }}
+                                {{ $post->socialAccount->name ?? ucfirst($post->platform) }}
                             </h5>
                             <div class="d-flex align-items-center gap-2 text-muted small mt-1">
                                 <span><i class="far fa-user me-1"></i> Author: <strong>{{ $post->user->name ?? 'System' }}</strong></span>
@@ -535,7 +535,7 @@
                                         @csrf
                                         <input type="hidden" name="parent_comment_id" value="{{ $comment->id }}">
                                         <input type="hidden" name="post_id" value="{{ $post->id }}">
-                                        <input type="hidden" name="post_account_id" value="{{ $comment->post_account_id }}">
+                                        <input type="hidden" name="social_account_id" value="{{ $comment->social_account_id }}">
                                         <input type="hidden" name="platform" value="{{ $comment->platform }}">
 
                                         <div class="input-group">

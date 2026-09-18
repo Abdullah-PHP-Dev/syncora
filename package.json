@@ -3,7 +3,8 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "vite build"
+        "build": "vite build",
+        "build:rtl": "rtlcss public/assets/vendor/css/core.css public/assets/vendor/css/core-rtl.css && rtlcss public/assets/css/socialeaz-admin.css public/assets/css/socialeaz-admin-rtl.css && rtlcss public/assets/css/admin.css public/assets/css/admin-rtl.css"
     },
     "devDependencies": {
         "@tailwindcss/forms": "^0.5.2",
@@ -15,6 +16,7 @@
         "laravel-vite-plugin": "^2.0.0",
         "postcss": "^8.4.31",
         "resolve-url-loader": "^5.0.0",
+        "rtlcss": "^4.3.0",
         "sass": "^1.99.0",
         "sass-loader": "^12.6.0",
         "tailwindcss": "^3.1.0",

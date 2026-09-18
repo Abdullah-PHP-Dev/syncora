@@ -22,12 +22,14 @@ class PollXDirectMessages extends Command
 
     public function handle(XMessagingService $service): int
     {
-        $channels = MessageChannel::where('platform', 'x')->where('status', true)->get();
+        $channels = MessageChannel::where('platform', 'x')
+            ->whereHas('socialAccount', fn ($query) => $query->where('is_token_valid', true))
+            ->get();
 
         foreach ($channels as $channel) {
             try {
                 $service->pollMessages($channel);
-                $this->info("Polled X channel #{$channel->id} ({$channel->name})");
+                $this->info("Polled X channel #{$channel->id} ({$channel->socialAccount->name})");
             } catch (\Throwable $e) {
                 Log::error("X DM poll failed for channel #{$channel->id}: {$e->getMessage()}", ['trace' => $e->getTraceAsString()]);
                 $this->error("Channel #{$channel->id} failed.");

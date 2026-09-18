@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api\Comments;
 
 use App\Http\Controllers\Controller;
-use App\Models\PostAccount;
+use App\Models\SocialAccount;
 use App\Services\PostServices\YoutubePostService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -51,7 +51,7 @@ class YoutubeWebhookController extends Controller
 
         $channelId = $this->extractChannelId($topic);
 
-        if (!$channelId || !PostAccount::where('platform', 'youtube')->where('account_id', $channelId)->exists()) {
+        if (!$channelId || !SocialAccount::where('platform', 'youtube')->where('platform_account_id', $channelId)->exists()) {
             Log::warning('YouTube WebSub verify for unrecognized topic.', ['topic' => $topic]);
             return response('Forbidden', 403);
         }
@@ -91,7 +91,7 @@ class YoutubeWebhookController extends Controller
                 continue;
             }
 
-            $account = PostAccount::where('platform', 'youtube')->where('account_id', $channelId)->first();
+            $account = SocialAccount::where('platform', 'youtube')->where('platform_account_id', $channelId)->first();
 
             if (!$account) {
                 continue;
