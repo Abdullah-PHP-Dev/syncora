@@ -674,92 +674,16 @@
 @endsection
 
 @push('styles')
+@include('layouts.partials.dash-styles')
 <style>
-/* Status colors, declared once at :root rather than only inside
-   .socialeaz-dash - .dash-badge-* (Blade-rendered, inside the wrapper)
-   and .cal-status-badge.* (built by vanilla JS for the calendar modals,
-   which deliberately render outside .socialeaz-dash - see the big
-   comment further down) used to each hardcode their own copy of these
-   same five rgba/hex pairs. :root custom properties are visible
-   regardless of DOM nesting, so both can reference the same values now. */
-:root {
-    --status-success-bg: rgba(22,163,74,.1);
-    --status-success-color: #16a34a;
-    --status-info-bg: rgba(8,145,178,.1);
-    --status-info-color: #0891b2;
-    --status-warning-bg: rgba(217,119,6,.1);
-    --status-warning-color: #d97706;
-    --status-danger-bg: rgba(225,29,72,.1);
-    --status-danger-color: #e11d48;
-    --status-muted-bg: rgba(139,141,156,.12);
-    --status-muted-color: #8b8d9c;
-}
-
-.socialeaz-dash {
-    --dash-bg: #f5f5fa;
-    --dash-card: #ffffff;
-    --dash-card-hover: #f7f7fc;
-    --dash-border: rgba(20,20,40,.08);
-    --dash-text: #4b4d5c;
-    --dash-heading: #1e1e2d;
-    --dash-muted: #8b8d9c;
-    --dash-primary: #7c5cff;
-    --dash-primary-2: #a855f7;
-    --dash-success: #16a34a;
-    --dash-danger: #e11d48;
-    --dash-warning: #d97706;
-    --dash-info: #0891b2;
-
-    background: var(--dash-bg);
-    color: var(--dash-text);
-    border-radius: 1rem;
-    padding: 1.5rem;
-    margin: -1.5rem;
-    min-height: calc(100vh - 8rem);
-}
-.socialeaz-dash .dash-title { color: var(--dash-heading); font-weight: 700; }
-.socialeaz-dash .dash-subtitle { color: var(--dash-muted); }
-.socialeaz-dash .dash-input {
-    background: var(--dash-card); border: 1px solid var(--dash-border); color: var(--dash-text);
-    border-radius: .5rem; padding: .4rem .75rem; font-size: .8125rem;
-}
-.socialeaz-dash .dash-input::placeholder { color: var(--dash-muted); }
-.socialeaz-dash .dash-btn {
-    display: inline-flex; align-items: center; gap: .375rem;
-    border-radius: .5rem; padding: .5rem .9rem; font-size: .8125rem; font-weight: 600;
-    border: 1px solid var(--dash-border); text-decoration: none; position: relative;
-}
-.socialeaz-dash .dash-btn-ghost { background: var(--dash-card); color: var(--dash-text); }
-.socialeaz-dash .dash-btn-ghost:hover { background: var(--dash-card-hover); color: var(--dash-primary); border-color: var(--dash-primary); }
-.socialeaz-dash .dash-btn-primary { background: linear-gradient(135deg, var(--dash-primary), var(--dash-primary-2)); color: #fff; box-shadow: 0 4px 12px rgba(124,92,255,.28); }
-.socialeaz-dash .dash-btn-primary:hover { opacity: .92; color: #fff; }
 .socialeaz-dash .dash-bell-badge {
     position: absolute; top: -5px; right: -5px; background: var(--dash-danger); color: #fff;
     font-size: .6rem; font-weight: 700; min-width: 16px; height: 16px; border-radius: 8px;
     display: flex; align-items: center; justify-content: center; padding: 0 3px;
 }
 
-.socialeaz-dash .dash-card {
-    background: var(--dash-card); border: 1px solid var(--dash-border);
-    border-radius: .85rem; padding: 1.25rem;
-    box-shadow: 0 1px 3px rgba(20,20,50,.04);
-}
-.socialeaz-dash .dash-card-header {
-    display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: .5rem;
-}
-.socialeaz-dash .dash-card-header h6 { color: var(--dash-heading); font-weight: 600; }
-.socialeaz-dash .dash-link { color: var(--dash-primary); font-size: .8125rem; text-decoration: none; font-weight: 500; white-space: nowrap; }
-.socialeaz-dash .dash-link:hover { text-decoration: underline; }
-
-.socialeaz-dash .dash-stat-label { color: var(--dash-muted); font-size: .8125rem; margin-bottom: .5rem; }
-.socialeaz-dash .dash-stat-value { color: var(--dash-heading); font-size: 1.6rem; font-weight: 700; line-height: 1; }
-.socialeaz-dash .dash-stat-foot { color: var(--dash-muted); font-size: .75rem; margin-top: .6rem; }
 .socialeaz-dash .dash-mini-icons { display: flex; gap: .25rem; }
 .socialeaz-dash .dash-mini-icons .social-icon-mini { width: 22px; height: 22px; font-size: 11px; border-radius: 6px; }
-.socialeaz-dash .dash-trend { display: inline-flex; align-items: center; gap: .1rem; font-weight: 700; }
-.socialeaz-dash .dash-trend-up { color: var(--dash-success); }
-.socialeaz-dash .dash-trend-down { color: var(--dash-danger); }
-.socialeaz-dash .dash-sparkline { margin-top: .5rem; height: 32px; }
 
 /* Brand colors used to be duplicated here as one .social-icon-mini.{platform}
    rule per platform, scoped under .socialeaz-dash - and had quietly drifted
@@ -795,8 +719,6 @@
 .socialeaz-dash .dash-account-stats > div { display: flex; flex-direction: column; }
 .socialeaz-dash .dash-account-stats strong { color: var(--dash-heading); font-size: .85rem; font-weight: 700; }
 .socialeaz-dash .dash-account-stats span { color: var(--dash-muted); font-size: .65rem; }
-.socialeaz-dash .dash-status-pill { display: inline-flex; align-items: center; gap: .35rem; color: var(--dash-success); font-size: .7rem; font-weight: 600; }
-.socialeaz-dash .dash-status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dash-success); display: inline-block; }
 .socialeaz-dash .dash-add-account-card {
     width: 100%; height: 100%; min-height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center;
     border: 1.5px dashed var(--dash-border); border-radius: .7rem; background: transparent;
@@ -849,24 +771,13 @@
 .socialeaz-dash .dash-list-body small { color: var(--dash-muted); font-size: .7rem; }
 .socialeaz-dash .dash-list-when { text-align: right; display: flex; flex-direction: column; gap: 2px; }
 .socialeaz-dash .dash-list-when small { color: var(--dash-muted); font-size: .68rem; white-space: nowrap; }
-.socialeaz-dash .dash-empty-row { color: var(--dash-muted); text-align: center; padding: 1.5rem 0 !important; border-bottom: none !important; display: block; }
 
 .socialeaz-dash .dash-top-post { background: var(--dash-card-hover); border: 1px solid var(--dash-border); border-radius: .7rem; padding: .75rem; height: 100%; position: relative; }
 .socialeaz-dash .dash-top-post p { font-size: .78rem; color: var(--dash-text); }
 .socialeaz-dash .dash-top-post small { color: var(--dash-muted); font-size: .7rem; }
 .socialeaz-dash .dash-badge-best { position: absolute; right: .6rem; top: .6rem; z-index: 1; background: rgba(22,163,74,.9); color: #fff; padding: .15rem .5rem; border-radius: .3rem; font-size: .62rem; font-weight: 600; }
 
-.socialeaz-dash .dash-table { width: 100%; border-collapse: collapse; font-size: .8125rem; }
-.socialeaz-dash .dash-table th { text-align: left; color: var(--dash-muted); font-weight: 600; font-size: .7rem; text-transform: uppercase; letter-spacing: .03em; padding: 0 .5rem .6rem; border-bottom: 1px solid var(--dash-border); }
-.socialeaz-dash .dash-table td { padding: .6rem .5rem; border-bottom: 1px solid var(--dash-border); vertical-align: middle; color: var(--dash-text); }
-.socialeaz-dash .dash-table tr:last-child td { border-bottom: none; }
 .socialeaz-dash .dash-table-title { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.socialeaz-dash .dash-badge { display: inline-block; padding: .2rem .55rem; border-radius: .4rem; font-size: .68rem; font-weight: 600; }
-.socialeaz-dash .dash-badge-success { background: var(--status-success-bg); color: var(--status-success-color); }
-.socialeaz-dash .dash-badge-info { background: var(--status-info-bg); color: var(--status-info-color); }
-.socialeaz-dash .dash-badge-warning { background: var(--status-warning-bg); color: var(--status-warning-color); }
-.socialeaz-dash .dash-badge-danger { background: var(--status-danger-bg); color: var(--status-danger-color); }
-.socialeaz-dash .dash-badge-muted { background: var(--status-muted-bg); color: var(--status-muted-color); }
 
 .socialeaz-dash .dash-calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; }
 .socialeaz-dash .dash-calendar-head { color: var(--dash-muted); font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; padding-bottom: .5rem; }
@@ -948,9 +859,6 @@
 .socialeaz-dash .dash-action-icon.warning { background: var(--dash-warning); }
 .socialeaz-dash .dash-action-icon.success { background: var(--dash-success); }
 .socialeaz-dash .dash-action-label { font-weight: 600; font-size: .875rem; color: var(--dash-heading); }
-
-.socialeaz-dash .apexcharts-text { fill: var(--dash-muted); }
-.socialeaz-dash .apexcharts-legend-text { color: var(--dash-muted) !important; }
 
 /* =========================================================
    CALENDAR MODALS - deliberately NOT scoped under .socialeaz-dash.

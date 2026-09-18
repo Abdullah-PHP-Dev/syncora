@@ -32,11 +32,22 @@ class EmailSubscriberController extends Controller
                 $q->where('email', 'like', '%' . $request->query('search') . '%')
                   ->orWhere('name', 'like', '%' . $request->query('search') . '%');
             }))
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->query('status')))
             ->orderByDesc('email_list_subscriber.created_at')
             ->paginate(50)
             ->withQueryString();
 
-        return view('admin.email.lists.subscribers', compact('list', 'subscribers'));
+        // Real per-status counts for the stat-card row - queried
+        // unfiltered (ignores the search/status query params) so the
+        // cards always reflect the whole list, not just the current
+        // filtered page.
+        $statusCounts = $list->subscribers()
+            ->selectRaw('email_subscribers.status, COUNT(*) as c')
+            ->groupBy('email_subscribers.status')
+            ->pluck('c', 'status');
+        $totalContacts = $statusCounts->sum();
+
+        return view('admin.email.lists.subscribers', compact('list', 'subscribers', 'statusCounts', 'totalContacts'));
     }
 
     public function store(Request $request, EmailList $list, SendGridContactService $contacts)
