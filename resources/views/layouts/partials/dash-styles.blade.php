@@ -159,4 +159,43 @@
 .socialeaz-dash .preflight-check .bx { font-size: 1.1rem; }
 .socialeaz-dash .preflight-check.is-pass .bx-check-circle { color: var(--dash-success); }
 .socialeaz-dash .preflight-check.is-fail .bx-x-circle { color: var(--dash-danger); }
+
+/* =========================================================
+   GRADIENT HERO BANNER - used by the Email Marketing dashboard and
+   setup wizard headers. Not scoped under .socialeaz-dash since it sits
+   as the first child of it either way, but written defensively with its
+   own class so it still works if ever used outside that wrapper.
+========================================================= */
+.email-hero {
+    background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 55%, #8b5cf6 100%);
+    border-radius: 20px;
+    padding: 28px 32px;
+    color: #fff;
+    margin-bottom: 24px;
+}
+.email-hero h4 { color: #fff; font-weight: 700; margin-bottom: 6px; }
+.email-hero p { color: rgba(255,255,255,.85); margin-bottom: 0; max-width: 480px; }
+.email-hero .dash-btn-ghost { background: rgba(255,255,255,.14); color: #fff; border-color: rgba(255,255,255,.3); }
+.email-hero .dash-btn-ghost:hover { background: rgba(255,255,255,.24); color: #fff; border-color: rgba(255,255,255,.5); }
+.email-hero .dash-btn-primary { background: #fff; color: #4338ca; box-shadow: none; }
+.email-hero .dash-btn-primary:hover { opacity: .92; color: #4338ca; }
+.email-hero .dropdown-menu { min-width: 12rem; }
+.email-hero .hero-progress-card { background: #fff; border-radius: .85rem; padding: .85rem 1.1rem; color: #1e1e2d; min-width: 220px; }
+.email-hero .hero-progress-card .progress { height: 6px; background: rgba(99,102,241,.12); }
+.email-hero .hero-progress-card .progress-bar { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+
+/* Detailed (two-line) stepper variant - the setup wizard's header shows
+   a title + short description per step rather than just one label, so
+   this is additive alongside .dash-stepper-label rather than replacing
+   it (the campaign builder wizard still uses the single-line version). */
+.socialeaz-dash .dash-stepper-text { display: flex; flex-direction: column; margin: 0 1.25rem 0 .65rem; }
+.socialeaz-dash .dash-stepper-title { font-size: .8125rem; font-weight: 700; color: var(--dash-muted); white-space: nowrap; }
+.socialeaz-dash .dash-stepper-desc { font-size: .7rem; color: var(--dash-muted); white-space: nowrap; }
+.socialeaz-dash .dash-stepper-item.is-current .dash-stepper-title { color: var(--dash-heading); }
+.socialeaz-dash .dash-stepper-item.is-done .dash-stepper-title { color: var(--dash-heading); }
+.socialeaz-dash .dash-stepper-item.is-current .dash-stepper-circle { box-shadow: 0 0 0 4px rgba(124,92,255,.15); }
+
+@media (max-width: 768px) {
+    .socialeaz-dash .dash-stepper-text { display: none; }
+}
 </style>

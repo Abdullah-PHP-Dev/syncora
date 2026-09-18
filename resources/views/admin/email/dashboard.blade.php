@@ -5,20 +5,6 @@
 @push('styles')
 @include('layouts.partials.dash-styles')
 <style>
-    .email-hero {
-        background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 55%, #8b5cf6 100%);
-        border-radius: 20px;
-        padding: 28px 32px;
-        color: #fff;
-        margin-bottom: 24px;
-    }
-    .email-hero h4 { color: #fff; font-weight: 700; margin-bottom: 6px; }
-    .email-hero p { color: rgba(255,255,255,.85); margin-bottom: 0; max-width: 480px; }
-    .email-hero .dash-btn-ghost { background: rgba(255,255,255,.14); color: #fff; border-color: rgba(255,255,255,.3); }
-    .email-hero .dash-btn-ghost:hover { background: rgba(255,255,255,.24); color: #fff; border-color: rgba(255,255,255,.5); }
-    .email-hero .dash-btn-primary { background: #fff; color: #4338ca; box-shadow: none; }
-    .email-hero .dash-btn-primary:hover { opacity: .92; color: #4338ca; }
-    .email-hero .dropdown-menu { min-width: 12rem; }
     .socialeaz-dash .email-quick-links a {
         display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px;
         border: 1px solid var(--dash-border); color: var(--dash-text); text-decoration: none;

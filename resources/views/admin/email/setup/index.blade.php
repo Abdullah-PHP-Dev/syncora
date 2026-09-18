@@ -8,6 +8,18 @@
     .socialeaz-dash .setup-step.is-locked { opacity: .55; pointer-events: none; }
     .socialeaz-dash .dns-table td, .socialeaz-dash .dns-table th { vertical-align: middle; font-size: .85rem; }
     .dns-copy-btn { cursor: pointer; }
+    .email-hero .hero-icon-badge {
+        width: 52px; height: 52px; border-radius: .9rem; background: rgba(255,255,255,.18);
+        display: flex; align-items: center; justify-content: center; font-size: 1.4rem; color: #fff; flex-shrink: 0;
+    }
+    .socialeaz-dash .step-badge {
+        width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        background: var(--dash-primary); color: #fff; font-weight: 700; flex-shrink: 0;
+    }
+    .socialeaz-dash .help-icon-badge {
+        width: 30px; height: 30px; border-radius: 50%; background: rgba(124,92,255,.12); color: var(--dash-primary);
+        display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
 </style>
 @endpush
 
@@ -22,19 +34,37 @@
         'sender'     => $senders->contains(fn ($s) => $s->isVerified()) ? 'done' : (!$domain?->isVerified() ? 'locked' : 'current'),
         'ready'      => $ready ? 'done' : 'locked',
     ];
+    $completedCount = collect($stepStates)->filter(fn ($s) => $s === 'done')->count();
+    $progressPct = ($completedCount / 4) * 100;
 @endphp
 
 @section('content')
 <div class="socialeaz-dash">
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h4 class="dash-title mb-0"><i class="bx bx-cog"></i> Email Marketing Setup</h4>
-            <p class="dash-subtitle mb-0">Complete the following steps to start sending emails.</p>
+    <div class="email-hero">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="hero-icon-badge"><i class="bx bx-envelope"></i></div>
+                <div>
+                    <h4 class="mb-1">Email Marketing Setup</h4>
+                    <p>Connect your email service and configure the settings to start sending campaigns from your Socialeaz account.</p>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <div class="hero-progress-card">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        @if ($completedCount === 4)
+                            <i class="bx bx-check-circle" style="color:#22c55e;font-size:1.1rem;"></i>
+                        @else
+                            <i class="bx bx-loader-circle" style="color:#6366f1;font-size:1.1rem;"></i>
+                        @endif
+                        <strong style="font-size:.85rem;">{{ $completedCount }} of 4 steps completed</strong>
+                    </div>
+                    <div class="progress"><div class="progress-bar" style="width: {{ $progressPct }}%"></div></div>
+                </div>
+                <a href="{{ route('admin.email.dashboard') }}" class="dash-btn dash-btn-ghost">Save &amp; Exit</a>
+            </div>
         </div>
-        @if ($ready)
-            <a href="{{ route('admin.email.campaigns.create') }}" class="dash-btn dash-btn-primary">Create Campaign</a>
-        @endif
     </div>
 
     @if (session('success'))
@@ -46,7 +76,12 @@
 
     <div class="dash-card mb-3">
         <div class="dash-stepper">
-            @foreach (['subaccount' => ['1', 'Connect SendGrid'], 'domain' => ['2', 'Authenticate Domain'], 'sender' => ['3', 'Verify Sender'], 'ready' => ['4', 'Ready']] as $key => [$number, $label])
+            @foreach ([
+                'subaccount' => ['1', 'Connect SendGrid', 'Link your SendGrid account'],
+                'domain'     => ['2', 'Authenticate Domain', 'Verify your domain'],
+                'sender'     => ['3', 'Verify Sender', 'Confirm sender identity'],
+                'ready'      => ['4', 'Ready', 'Start sending campaigns'],
+            ] as $key => [$number, $title, $desc])
                 <div class="dash-stepper-item {{ $stepStates[$key] === 'done' ? 'is-done' : ($stepStates[$key] === 'current' ? 'is-current' : '') }}">
                     <div class="dash-stepper-circle">
                         @if ($stepStates[$key] === 'done')
@@ -55,7 +90,10 @@
                             {{ $number }}
                         @endif
                     </div>
-                    <span class="dash-stepper-label">{{ $label }}</span>
+                    <div class="dash-stepper-text">
+                        <span class="dash-stepper-title">{{ $title }}</span>
+                        <span class="dash-stepper-desc">{{ $desc }}</span>
+                    </div>
                     <span class="dash-stepper-line"></span>
                 </div>
             @endforeach
@@ -63,32 +101,57 @@
     </div>
 
     {{-- STEP 1: SUBACCOUNT --}}
-    <div class="dash-card mb-3 setup-step">
-        <h6 style="color:var(--dash-heading);"><span class="dash-stepper-circle" style="width:28px;height:28px;font-size:.75rem;display:inline-flex;{{ $subaccount?->isActive() ? 'background:var(--dash-success);border-color:var(--dash-success);color:#fff;' : '' }}">1</span> SendGrid Subaccount</h6>
-        <p class="dash-subtitle">A dedicated, isolated SendGrid sending account created just for you - separate from every other Socialeaz seller's own email sending.</p>
+    <div class="row g-3 mb-3">
+        <div class="col-lg-8">
+            <div class="dash-card h-100 setup-step">
+                <div class="d-flex align-items-start gap-3 mb-3">
+                    <div class="step-badge">1</div>
+                    <div>
+                        <h6 style="color:var(--dash-heading);margin-bottom:.2rem;">Connect SendGrid</h6>
+                        <p class="dash-subtitle small mb-0">Connect your SendGrid account to send emails through your domain. You'll need your SendGrid API key to proceed.</p>
+                    </div>
+                </div>
 
-        @if (!$subaccount)
-            <form method="POST" action="{{ route('admin.email.setup.subaccount') }}">
-                @csrf
-                <button class="dash-btn dash-btn-primary">Create My SendGrid Subaccount</button>
-            </form>
-        @elseif ($subaccount->status === 'provisioning')
-            <span class="dash-badge dash-badge-info">Provisioning...</span>
-        @elseif ($subaccount->status === 'failed')
-            <div class="alert alert-danger">{{ $subaccount->error_message }}</div>
-            <form method="POST" action="{{ route('admin.email.setup.subaccount') }}">
-                @csrf
-                <button class="dash-btn dash-btn-primary">Retry</button>
-            </form>
-        @else
-            <div class="dash-status-pill"><span class="dot"></span> Connected</div>
-            <span class="dash-subtitle small">({{ $subaccount->sendgrid_username }})</span>
-        @endif
+                @if (!$subaccount)
+                    <form method="POST" action="{{ route('admin.email.setup.subaccount') }}">
+                        @csrf
+                        <button class="dash-btn dash-btn-primary"><i class="bx bx-link"></i> Connect SendGrid</button>
+                    </form>
+                @elseif ($subaccount->status === 'provisioning')
+                    <span class="dash-badge dash-badge-info">Provisioning...</span>
+                @elseif ($subaccount->status === 'failed')
+                    <div class="alert alert-danger">Your SendGrid account could not be connected. {{ $subaccount->error_message }}</div>
+                    <form method="POST" action="{{ route('admin.email.setup.subaccount') }}">
+                        @csrf
+                        <button class="dash-btn dash-btn-primary">Retry</button>
+                    </form>
+                @else
+                    <div class="dash-status-pill"><span class="dot"></span> SendGrid Connected</div>
+                    <span class="dash-subtitle small">({{ $subaccount->sendgrid_username }})</span>
+                @endif
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="dash-card h-100" style="background:var(--dash-card-hover);box-shadow:none;">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <div class="help-icon-badge"><i class="bx bx-info-circle"></i></div>
+                    <strong style="color:var(--dash-heading);font-size:.85rem;">Need help?</strong>
+                </div>
+                <p class="dash-subtitle small">You can find your SendGrid API key in your SendGrid account under Settings &gt; API Keys.</p>
+                <a href="https://docs.sendgrid.com/ui/account-and-settings/api-keys" target="_blank" rel="noopener" class="dash-link">View SendGrid Documentation <i class="bx bx-link-external"></i></a>
+            </div>
+        </div>
     </div>
 
     {{-- STEP 2 + 3: DOMAIN + DNS --}}
     <div class="dash-card mb-3 setup-step {{ !$subaccount?->isActive() ? 'is-locked' : '' }}">
-        <h6 style="color:var(--dash-heading);"><span class="dash-stepper-circle" style="width:28px;height:28px;font-size:.75rem;display:inline-flex;{{ $domain?->isVerified() ? 'background:var(--dash-success);border-color:var(--dash-success);color:#fff;' : '' }}">2</span> Sending Domain &amp; DNS</h6>
+        <div class="d-flex align-items-start gap-3 mb-3">
+            <div class="step-badge">2</div>
+            <div>
+                <h6 style="color:var(--dash-heading);margin-bottom:.2rem;">Sending Domain &amp; DNS</h6>
+                <p class="dash-subtitle small mb-0">Add your domain and verify it with SendGrid. This helps improve deliverability and avoid spam issues.</p>
+            </div>
+        </div>
 
         @if (!$domain)
             <form method="POST" action="{{ route('admin.email.setup.domain') }}" class="row g-2 align-items-end">
@@ -98,7 +161,7 @@
                     <input type="text" name="domain" class="form-control" placeholder="yourdomain.com" required>
                 </div>
                 <div class="col-auto">
-                    <button class="dash-btn dash-btn-primary">Authenticate Domain</button>
+                    <button class="dash-btn dash-btn-primary"><i class="bx bx-shield-quarter"></i> Authenticate Domain</button>
                 </div>
             </form>
         @else
@@ -151,25 +214,31 @@
     {{-- STEP 4: SENDER MANAGEMENT --}}
     <div class="dash-card mb-3 setup-step {{ !$subaccount?->isActive() ? 'is-locked' : '' }}">
         <div class="dash-card-header">
-            <h6 style="color:var(--dash-heading);margin:0;"><span class="dash-stepper-circle" style="width:28px;height:28px;font-size:.75rem;display:inline-flex;{{ $senders->contains(fn($s) => $s->isVerified()) ? 'background:var(--dash-success);border-color:var(--dash-success);color:#fff;' : '' }}">3</span> Sender Identities</h6>
+            <div class="d-flex align-items-start gap-3">
+                <div class="step-badge">3</div>
+                <div>
+                    <h6 style="color:var(--dash-heading);margin-bottom:.2rem;">Sender Identities</h6>
+                    <p class="dash-subtitle small mb-0">Add and verify your sender identity (email address) to send emails from your domain.</p>
+                </div>
+            </div>
             @if ($senders->isNotEmpty())
                 <button type="button" class="dash-btn dash-btn-ghost" data-bs-toggle="modal" data-bs-target="#addSenderModal"><i class="bx bx-plus"></i> Add Sender</button>
             @endif
         </div>
 
         @if ($senders->isEmpty())
-            <form method="POST" action="{{ route('admin.email.setup.sender') }}" class="row g-2">
-                @csrf
-                <div class="col-md-4"><label class="form-label small">Nickname</label><input type="text" name="nickname" class="form-control" required></div>
-                <div class="col-md-4"><label class="form-label small">From Name</label><input type="text" name="from_name" class="form-control" required></div>
-                <div class="col-md-4"><label class="form-label small">From Email</label><input type="email" name="from_email" class="form-control" required></div>
-                <div class="col-md-4"><label class="form-label small">Reply-To (optional)</label><input type="email" name="reply_to" class="form-control"></div>
-                <div class="col-md-8"><label class="form-label small">Address</label><input type="text" name="address" class="form-control" required></div>
-                <div class="col-md-4"><label class="form-label small">City</label><input type="text" name="city" class="form-control" required></div>
+            <form method="POST" action="{{ route('admin.email.setup.sender') }}" class="row g-3">
+                <div class="col-md-4"><label class="form-label small">Nickname *</label><input type="text" name="nickname" class="form-control" placeholder="e.g. Marketing Team" required></div>
+                <div class="col-md-4"><label class="form-label small">From Name *</label><input type="text" name="from_name" class="form-control" placeholder="Your Company Name" required></div>
+                <div class="col-md-4"><label class="form-label small">From Email *</label><input type="email" name="from_email" class="form-control" placeholder="noreply@yourdomain.com" required></div>
+                <div class="col-md-4"><label class="form-label small">Reply-To (optional)</label><input type="email" name="reply_to" class="form-control" placeholder="support@yourdomain.com"></div>
+                <div class="col-md-4"><label class="form-label small">Address *</label><input type="text" name="address" class="form-control" placeholder="Street Address" required></div>
+                <div class="col-md-4"><label class="form-label small">City *</label><input type="text" name="city" class="form-control" required></div>
                 <div class="col-md-4"><label class="form-label small">State</label><input type="text" name="state" class="form-control"></div>
                 <div class="col-md-4"><label class="form-label small">ZIP</label><input type="text" name="zip" class="form-control"></div>
-                <div class="col-md-4"><label class="form-label small">Country</label><input type="text" name="country" class="form-control" required></div>
-                <div class="col-12"><button class="dash-btn dash-btn-primary mt-2">Create Sender Identity</button></div>
+                <div class="col-md-4"><label class="form-label small">Country *</label><input type="text" name="country" class="form-control" required></div>
+                @csrf
+                <div class="col-12"><button class="dash-btn dash-btn-primary mt-2"><i class="bx bx-plus"></i> Create Sender Identity</button></div>
             </form>
         @else
             <div class="table-responsive">
@@ -186,7 +255,7 @@
                                     @elseif ($s->status === 'failed')
                                         <span class="dash-badge dash-badge-danger">Failed</span>
                                     @else
-                                        <span class="dash-badge dash-badge-warning">Pending</span>
+                                        <span class="dash-badge dash-badge-warning">Pending Verification</span>
                                     @endif
                                 </td>
                                 <td>{{ $s->created_at->format('M j, Y') }}</td>
@@ -212,14 +281,19 @@
 
     {{-- STEP 5: READY --}}
     <div class="dash-card setup-step {{ !$ready ? 'is-locked' : '' }}">
-        <h6 style="color:var(--dash-heading);"><span class="dash-stepper-circle" style="width:28px;height:28px;font-size:.75rem;display:inline-flex;{{ $ready ? 'background:var(--dash-success);border-color:var(--dash-success);color:#fff;' : '' }}">4</span> Ready</h6>
-        @if ($ready)
-            <p class="mb-3" style="color:var(--dash-success);"><i class="bx bx-check-circle"></i> Email Marketing is fully set up.</p>
-            <a href="{{ route('admin.email.campaigns.create') }}" class="dash-btn dash-btn-primary me-2">Create Campaign</a>
-            <a href="{{ route('admin.email.dashboard') }}" class="dash-btn dash-btn-ghost">Go to Email Dashboard</a>
-        @else
-            <p class="dash-subtitle mb-0">Complete the steps above to unlock campaign sending.</p>
-        @endif
+        <div class="d-flex align-items-start gap-3">
+            <div class="step-badge">4</div>
+            <div class="flex-grow-1">
+                <h6 style="color:var(--dash-heading);margin-bottom:.2rem;">Ready</h6>
+                @if ($ready)
+                    <p class="mb-3" style="color:var(--dash-success);"><i class="bx bx-check-circle"></i> Email Marketing is Ready - your account is configured and ready to send campaigns.</p>
+                    <a href="{{ route('admin.email.campaigns.create') }}" class="dash-btn dash-btn-primary me-2">Create Campaign</a>
+                    <a href="{{ route('admin.email.dashboard') }}" class="dash-btn dash-btn-ghost">Go to Email Marketing</a>
+                @else
+                    <p class="dash-subtitle small mb-0">Complete the steps above to unlock campaign sending.</p>
+                @endif
+            </div>
+        </div>
     </div>
 
 </div>
