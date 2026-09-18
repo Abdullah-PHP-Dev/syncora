@@ -14,7 +14,7 @@ class EmailSubscriber extends Model
     protected $table = 'email_subscribers';
 
     protected $fillable = [
-        'user_id', 'email', 'name', 'status', 'unsubscribe_token',
+        'user_id', 'email', 'name', 'status', 'source', 'unsubscribe_token',
         'subscribed_at', 'unsubscribed_at', 'sendgrid_contact_id',
     ];
 

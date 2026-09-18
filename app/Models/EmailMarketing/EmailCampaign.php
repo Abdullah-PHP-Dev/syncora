@@ -92,4 +92,16 @@ class EmailCampaign extends Model
             ? round(($this->clicked_count / $this->delivered_count) * 100, 1)
             : 0.0;
     }
+
+    /**
+     * SendGrid's "blocked" event has no dedicated counter column (unlike
+     * delivered/opened/clicked/bounced/complained/unsubscribed, which are
+     * incremented on arrival by SendGridWebhookService) - counted live
+     * from the real EmailEvent rows instead of adding a column purely to
+     * display it, since every blocked event is already stored regardless.
+     */
+    public function blockedCount(): int
+    {
+        return $this->events()->where('event_type', 'blocked')->count();
+    }
 }

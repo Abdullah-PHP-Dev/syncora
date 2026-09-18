@@ -560,6 +560,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::get('email/campaigns/{campaign}', [EmailCampaignController::class, 'show'])->name('email.campaigns.show');
 				Route::post('email/campaigns/{campaign}/send', [EmailCampaignController::class, 'sendNow'])->name('email.campaigns.send');
 				Route::get('email/campaigns/{campaign}/preflight', [EmailCampaignController::class, 'preflight'])->name('email.campaigns.preflight');
+				Route::get('email/campaigns/{campaign}/export', [EmailCampaignController::class, 'exportReport'])->name('email.campaigns.export');
 
 
 				// SYSTEM

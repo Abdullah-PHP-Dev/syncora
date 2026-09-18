@@ -120,6 +120,38 @@ class EmailCampaignController extends Controller
         return view('admin.email.campaigns.show', compact('campaign', 'events'));
     }
 
+    /**
+     * Real CSV export of every recorded event for this campaign - not a
+     * decorative button. Streamed rather than built as one big string, so
+     * a campaign with a large recipient list doesn't have to hold the
+     * whole export in memory at once.
+     */
+    public function exportReport(EmailCampaign $campaign): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        abort_unless($campaign->user_id === Auth::id(), 403);
+
+        $filename = 'campaign-' . $campaign->id . '-report-' . now()->format('Y-m-d') . '.csv';
+
+        return response()->streamDownload(function () use ($campaign) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, ['Event', 'Email', 'Timestamp', 'URL', 'Reason']);
+
+            $campaign->events()->orderBy('event_at')->chunk(500, function ($chunk) use ($handle) {
+                foreach ($chunk as $event) {
+                    fputcsv($handle, [
+                        $event->event_type,
+                        $event->recipient_email,
+                        $event->event_at?->toDateTimeString(),
+                        $event->url,
+                        $event->reason,
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
     public function destroy(EmailCampaign $campaign)
     {
         abort_unless($campaign->user_id === Auth::id(), 403);

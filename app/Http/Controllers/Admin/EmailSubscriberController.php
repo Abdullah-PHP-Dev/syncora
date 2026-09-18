@@ -61,7 +61,7 @@ class EmailSubscriberController extends Controller
 
         $subscriber = EmailSubscriber::firstOrCreate(
             ['user_id' => Auth::id(), 'email' => $validated['email']],
-            ['name' => $validated['name'] ?? null, 'status' => 'subscribed']
+            ['name' => $validated['name'] ?? null, 'status' => 'subscribed', 'source' => 'manual']
         );
 
         $list->subscribers()->syncWithoutDetaching([$subscriber->id]);
@@ -115,7 +115,7 @@ class EmailSubscriberController extends Controller
 
             $subscriber = EmailSubscriber::firstOrCreate(
                 ['user_id' => Auth::id(), 'email' => $email],
-                ['name' => $name ?: null, 'status' => 'subscribed']
+                ['name' => $name ?: null, 'status' => 'subscribed', 'source' => 'import']
             );
 
             $list->subscribers()->syncWithoutDetaching([$subscriber->id]);
