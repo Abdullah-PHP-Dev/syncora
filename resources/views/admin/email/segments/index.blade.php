@@ -2,41 +2,49 @@
 
 @section('title', 'Email Segments')
 
+@push('styles')
+@include('layouts.partials.dash-styles')
+@endpush
+
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h4 class="mb-0"><i class="bx bx-filter-alt"></i> Segments</h4>
-    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createSegmentModal"><i class="bx bx-plus"></i> New Segment</button>
-</div>
+<div class="socialeaz-dash">
 
-@if (session('success'))
-    <div class="alert alert-success d-flex align-items-center gap-2"><i class="bx bx-check-circle fs-5"></i> {{ session('success') }}</div>
-@endif
-@if (session('error'))
-    <div class="alert alert-danger d-flex align-items-center gap-2"><i class="bx bx-error-circle fs-5"></i> {{ session('error') }}</div>
-@endif
-
-<div class="card">
-    <div class="table-responsive">
-        <table class="table mb-0">
-            <thead><tr><th>Name</th><th>Query</th><th></th></tr></thead>
-            <tbody>
-                @forelse ($segments as $segment)
-                    <tr>
-                        <td>{{ $segment->name }}</td>
-                        <td><code class="small">{{ $segment->query_json }}</code></td>
-                        <td class="text-end">
-                            <form action="{{ route('admin.email.segments.destroy', $segment) }}" method="POST" onsubmit="return confirm('Delete this segment?');">
-                                @csrf @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-                            </form>
-                        </td>
-                    </tr>
-                @empty
-                    <tr><td colspan="3" class="text-center text-muted py-5">No segments yet. Segments let a campaign target contacts matching a rule (eg. "opened an email in the last 30 days") instead of a static list.</td></tr>
-                @endforelse
-            </tbody>
-        </table>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="dash-title mb-0"><i class="bx bx-filter-alt"></i> Segments</h4>
+        <button class="dash-btn dash-btn-primary" data-bs-toggle="modal" data-bs-target="#createSegmentModal"><i class="bx bx-plus"></i> New Segment</button>
     </div>
+
+    @if (session('success'))
+        <div class="alert alert-success d-flex align-items-center gap-2"><i class="bx bx-check-circle fs-5"></i> {{ session('success') }}</div>
+    @endif
+    @if (session('error'))
+        <div class="alert alert-danger d-flex align-items-center gap-2"><i class="bx bx-error-circle fs-5"></i> {{ session('error') }}</div>
+    @endif
+
+    <div class="dash-card">
+        <div class="table-responsive">
+            <table class="dash-table mb-0">
+                <thead><tr><th>Name</th><th>Query</th><th></th></tr></thead>
+                <tbody>
+                    @forelse ($segments as $segment)
+                        <tr>
+                            <td>{{ $segment->name }}</td>
+                            <td><code class="small">{{ $segment->query_json }}</code></td>
+                            <td class="text-end">
+                                <form action="{{ route('admin.email.segments.destroy', $segment) }}" method="POST" onsubmit="return confirm('Delete this segment?');">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="3" class="dash-empty-row">No segments yet. Segments let a campaign target contacts matching a rule (eg. "opened an email in the last 30 days") instead of a static list.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 </div>
 
 <div class="modal fade" id="createSegmentModal" tabindex="-1">
