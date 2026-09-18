@@ -160,6 +160,15 @@
 .socialeaz-dash .preflight-check.is-pass .bx-check-circle { color: var(--dash-success); }
 .socialeaz-dash .preflight-check.is-fail .bx-x-circle { color: var(--dash-danger); }
 
+/* Small inline stat tile - used by the dashboard's Campaign Performance/
+   Audience Overview sub-cards, the campaign builder's recipient
+   estimate, and the template editor's Settings tab. */
+.socialeaz-dash .mini-stat { background: var(--dash-card-hover); border-radius: .7rem; padding: .9rem 1rem; }
+.socialeaz-dash .mini-stat-label { display: flex; align-items: center; gap: .4rem; color: var(--dash-muted); font-size: .78rem; font-weight: 600; margin-bottom: .35rem; }
+.socialeaz-dash .mini-stat-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.socialeaz-dash .mini-stat-value { font-size: 1.35rem; font-weight: 700; color: var(--dash-heading); }
+.socialeaz-dash .mini-stat-foot { font-size: .72rem; color: var(--dash-muted); margin-top: .2rem; }
+
 /* =========================================================
    GRADIENT HERO BANNER - used by the Email Marketing dashboard and
    setup wizard headers. Not scoped under .socialeaz-dash since it sits

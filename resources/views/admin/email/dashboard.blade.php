@@ -14,11 +14,6 @@
     .socialeaz-dash .range-pill { display: inline-flex; align-items: center; padding: .4rem .85rem; border-radius: .5rem; font-size: .78rem; font-weight: 600; text-decoration: none; border: 1px solid var(--dash-border); color: var(--dash-muted); }
     .socialeaz-dash .range-pill.is-active { background: var(--dash-primary); border-color: var(--dash-primary); color: #fff; }
     .socialeaz-dash .range-pill:not(.is-active):hover { color: var(--dash-primary); border-color: var(--dash-primary); }
-    .socialeaz-dash .mini-stat { background: var(--dash-card-hover); border-radius: .7rem; padding: .9rem 1rem; }
-    .socialeaz-dash .mini-stat-label { display: flex; align-items: center; gap: .4rem; color: var(--dash-muted); font-size: .78rem; font-weight: 600; margin-bottom: .35rem; }
-    .socialeaz-dash .mini-stat-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-    .socialeaz-dash .mini-stat-value { font-size: 1.35rem; font-weight: 700; color: var(--dash-heading); }
-    .socialeaz-dash .mini-stat-foot { font-size: .72rem; color: var(--dash-muted); margin-top: .2rem; }
     .socialeaz-dash .activity-item { display: flex; align-items: center; gap: .7rem; padding: .65rem 0; border-bottom: 1px solid var(--dash-border); }
     .socialeaz-dash .activity-item:last-child { border-bottom: none; }
     .socialeaz-dash .activity-icon { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 1rem; }
