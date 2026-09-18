@@ -29,11 +29,16 @@ class EmailSetupController extends Controller
 
         $subaccount = EmailSubaccount::where('user_id', $userId)->first();
         $domain = $subaccount ? VerifiedDomain::where('user_id', $userId)->with('dnsRecords')->latest()->first() : null;
-        $sender = $subaccount ? SenderIdentity::where('user_id', $userId)->latest()->first() : null;
+        // All senders, not just one - screenshot 6's Sender Management
+        // table lists every identity a seller has created, not only the
+        // most recent. $sender (singular, the latest) is kept for the
+        // "add the first one" empty-state form.
+        $senders = $subaccount ? SenderIdentity::where('user_id', $userId)->latest()->get() : collect();
+        $sender = $senders->first();
 
-        $ready = $subaccount?->isActive() && $domain?->isVerified() && $sender?->isVerified();
+        $ready = $subaccount?->isActive() && $domain?->isVerified() && $senders->contains(fn ($s) => $s->isVerified());
 
-        return view('admin.email.setup.index', compact('subaccount', 'domain', 'sender', 'ready'));
+        return view('admin.email.setup.index', compact('subaccount', 'domain', 'sender', 'senders', 'ready'));
     }
 
     public function provisionSubaccount(SendGridSubaccountService $service)
