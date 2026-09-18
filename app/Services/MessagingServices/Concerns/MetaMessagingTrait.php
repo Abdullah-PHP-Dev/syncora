@@ -2,12 +2,9 @@
 
 namespace App\Services\MessagingServices\Concerns;
 
-use App\Models\Messaging\MessageChannel;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Redirect;
-use App\Models\Messaging\Conversation;
+
 /**
  * Shared plumbing for Facebook Messenger, Instagram Direct, and WhatsApp -
  * all three are Graph API products under the same Meta App, so webhook
@@ -64,20 +61,27 @@ trait MetaMessagingTrait
     }
 
     /**
-     * Must be byte-for-byte identical between the authorize request
-     * (redirect()) and the token exchange (handleMetaCallback()) - Meta
-     * rejects the exchange with redirect_uri_mismatch otherwise.
+     * Required on every server-side Graph call authenticated via an access
+     * token whenever the Meta App has "Require App Secret" enabled
+     * (App Dashboard > Settings > Advanced) - without it Graph rejects the
+     * call with "API calls from the server require an appsecret_proof
+     * argument" regardless of how valid the access token itself is. Same
+     * App Secret already used for X-Hub-Signature-256 verification above
+     * (posts.facebook.client_secret) - Messenger/Instagram/WhatsApp
+     * genuinely share one Meta App, confirmed by their own signature checks
+     * already all reading this same setting.
      */
-    protected function metaRedirectUri(): string
+    protected function metaAppSecretProof(string $accessToken): string
     {
-        return config('services.app_url') . '/messaging/auth/meta/callback';
+        return hash_hmac('sha256', $accessToken, (string) adminSetting('posts.facebook.client_secret'));
     }
 
     protected function graphApiCall(string $method, string $path, array $params, string $accessToken)
     {
         $headers = ['Authorization' => "Bearer {$accessToken}"];
         $url = $this->graphApiUrl($path);
-        
+        $params['appsecret_proof'] = $this->metaAppSecretProof($accessToken);
+
         $response = match (strtoupper($method)) {
             'GET'  => $this->apiService->get($url, $headers, $params),
             'POST' => $this->apiService->post($url, $headers, $params),
@@ -91,114 +95,4 @@ trait MetaMessagingTrait
         return ['success' => true, 'data' => $response['data']];
     }
 
-    /**
-     * Facebook Page connections only - Instagram Direct now has its own
-     * native login flow (InstagramMessagingTrait::redirect()), not this
-     * one, since Instagram-scoped tokens issued through Instagram Login
-     * aren't interchangeable with Facebook Page tokens issued here (they
-     * authenticate against different Graph API domains entirely). WhatsApp
-     * is deliberately not included either: Cloud API numbers are set up
-     * through Meta's Embedded Signup JS SDK (not a plain OAuth redirect)
-     * or a permanent System User token from Business Settings, so that
-     * channel type is connected via manual entry instead (see
-     * MessageChannelController).
-     */
-    public function redirect($state)
-    {
-        $url = 'https://www.facebook.com/' . (adminSetting('messaging.meta.graph_version') ?: 'v21.0') . '/dialog/oauth?' . http_build_query([
-            'client_id'     => adminSetting('posts.facebook.client_id'),
-            'redirect_uri'  => $this->metaRedirectUri(),
-            'state'         => $state,
-            'response_type' => 'code',
-            'scope'         => 'read_insights,pages_show_list,pages_read_engagement,pages_read_user_content,pages_messaging,pages_manage_metadata,business_management',
-        ]);
-
-        return Redirect::away($url);
-    }
-
-    /**
-     * Exchanges the OAuth code for a long-lived user token, then walks
-     * /me/accounts (every Page the user administers) to create a
-     * Messenger MessageChannel per Page.
-     */
-    public function handleMetaCallback(string $code): array
-    {
-        $tokenResponse = $this->apiService->get($this->graphApiUrl('oauth/access_token'), [], [
-            'client_id'     => adminSetting('posts.facebook.client_id'),
-            'client_secret' => adminSetting('posts.facebook.client_secret'),
-            'redirect_uri'  => $this->metaRedirectUri(),
-            'code'          => $code,
-        ]);
-
-        if (!$tokenResponse['success']) {
-            return ['success' => false, 'error' => $tokenResponse['data']['error']['message'] ?? 'Failed to exchange code for a Meta access token.'];
-        }
-
-        $shortLivedToken = $tokenResponse['data']['access_token'];
-
-        $longLivedResponse = $this->apiService->get($this->graphApiUrl('oauth/access_token'), [], [
-            'grant_type'        => 'fb_exchange_token',
-            'client_id'         => adminSetting('posts.facebook.client_id'),
-            'client_secret'     => adminSetting('posts.facebook.client_secret'),
-            'fb_exchange_token' => $shortLivedToken,
-        ]);
-
-        if (!$longLivedResponse['success']) {
-            Log::warning('Meta long-lived token exchange failed, falling back to short-lived user token.', [
-                'error' => $longLivedResponse['data']['error']['message'] ?? null,
-            ]);
-        }
-
-        $userToken = $longLivedResponse['success'] ? $longLivedResponse['data']['access_token'] : $shortLivedToken;
-
-        $pagesResponse = $this->apiService->get($this->graphApiUrl('me/accounts'), [], [
-            'access_token' => $userToken,
-            'fields'       => 'id,name,access_token,picture',
-        ]);
-
-        if (!$pagesResponse['success']) {
-            return ['success' => false, 'error' => $pagesResponse['data']['error']['message'] ?? 'Failed to fetch Pages.'];
-        }
-
-        $created = 0;
-
-        foreach ($pagesResponse['data']['data'] ?? [] as $page) {
-            $channel = MessageChannel::updateOrCreate(
-                ['platform' => 'facebook', 'external_id' => $page['id']],
-                [
-                    'user_id'       => Auth::id(),
-                    'name'          => $page['name'],
-                    'username'      => null,
-                    'avatar_url'    => $page['picture']['data']['url'] ?? null,
-                    'access_token'  => $page['access_token'],
-                    'refresh_token' => $page['access_token'],
-                    'status'        => true,
-                ]
-            );
-            $created++;
-
-            // Each of these three is independently failure-tolerant
-            // (internally try/caught, logs and returns rather than
-            // throwing) - this outer try/catch is a deliberate second
-            // safety net so the channel above stays saved even if a
-            // sync/subscribe/backfill call fails.
-            try {
-                $this->syncChannelDetails($channel);
-            } catch (\Throwable $e) {
-                Log::warning('Facebook channel details sync failed after connect.', ['channel_id' => $channel->id, 'error' => $e->getMessage()]);
-            }
-            try {
-                $this->subscribeToWebhooks($channel);
-            } catch (\Throwable $e) {
-                Log::warning('Facebook channel webhook subscribe failed after connect.', ['channel_id' => $channel->id, 'error' => $e->getMessage()]);
-            }
-            try {
-                $this->backfillRecentConversations($channel);
-            } catch (\Throwable $e) {
-                Log::warning('Facebook conversation backfill failed after connect.', ['channel_id' => $channel->id, 'error' => $e->getMessage()]);
-            }
-        }
-
-        return ['success' => true, 'data' => ['facebook' => $created]];
-    }
 }

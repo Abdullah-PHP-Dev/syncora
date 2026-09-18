@@ -3,7 +3,7 @@
 namespace App\Services\AdServices;
 
 use Illuminate\Support\Facades\Redirect;
-use App\Models\Admin\AdAccount;
+use App\Models\SocialAccount;
 use App\Models\Admin\PlatformPage;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
@@ -24,7 +24,7 @@ class FacebookAdService
 {
     protected $platform, $account, $mediaAccountModel, $config, $httpClient, $apiService, $header, $state, $codeVerifier;
 
-    public function __construct(AdAccount $account, ApiService $apiService)
+    public function __construct(SocialAccount $account, ApiService $apiService)
     {
         $this->apiService = $apiService;
         $this->account = $account->wherePlatform('facebook')->whereUserId(Auth::user()->id)->first();
@@ -55,10 +55,9 @@ class FacebookAdService
         return redirect("https://www.facebook.com/v25.0/dialog/oauth?client_id={$clientId}&redirect_uri={$this->getCallbackUrl()}&state={$this->state}&code_verifier={$this->codeVerifier}&scope={$scopes}");
     }
 
-    private function getCallbackUrl()
+    protected function getCallbackUrl()
     {
-        return route('admin.ads.platform.callback', 'facebook');
-        //   return config('app.url') . '/ads/facebook/callback';
+        return oauthCallbackUrl('admin.ads.platform.callback', 'facebook');
     }
 
     public function callback($state)
@@ -95,6 +94,11 @@ class FacebookAdService
         $pagesSaved = 0;
         $instagramSaved = '';
         $currency = '';
+        // Multiple ad accounts commonly share one Business Manager - cached
+        // per business_id so a connect with several accounts doesn't repeat
+        // the same profile_picture_uri lookup.
+        $businessAvatarCache = [];
+
         foreach ($accountResponse['accounts'] as $item) {
             // 1. Extract Facebook Ad Account Data
             $fbData = $item['facebook'] ?? null;
@@ -103,25 +107,52 @@ class FacebookAdService
             if ($fbData) {
                 $rawAccountId = $fbData['account_id'];
                 $currency = $fbData['currency'];
+                $businessId = $fbData['business']['id'] ?? null;
+
+                // The Ad Account node itself has no picture field
+                // (confirmed against Meta's own Marketing API reference) -
+                // Business.profile_picture_uri is the real, correct source.
+                // Falls back to the first linked Page's picture (already
+                // fetched in this same getFBAdAccount() call, no extra API
+                // cost) only if the business has none set or there's no
+                // business at all.
+                $avatarUrl = null;
+
+                if ($businessId) {
+                    if (!array_key_exists($businessId, $businessAvatarCache)) {
+                        $businessAvatarCache[$businessId] = $this->fetchBusinessProfilePicture($businessId, $accessToken);
+                    }
+
+                    $avatarUrl = $businessAvatarCache[$businessId];
+                }
+
+                $avatarUrl = $avatarUrl ?: ($item['pages'][0]['picture']['data']['url'] ?? null);
+
                 $fbAccountRecord = $this->apiService->success(
                     [
                         'platform'      => 'facebook',
                         'user_id'       => Auth::id(),
                         'name'          => $fbData['name'] ?? "Facebook Ad Account {$rawAccountId}",
-                        'currency'      => $currency ?? null,
-                        'ad_account_id' => $rawAccountId,
+                        'avatar_url'    => $avatarUrl,
+                        'platform_account_id' => $rawAccountId,
                         'access_token'  => $accessToken,
                         'refresh_token' => data_get($data, 'refresh_token'),
                         'expires_at'    => $expiresAt,
-                        'status'        => 'active',
+                        'has_ads_permission' => true,
+                        'metadata'      => array_filter(['currency' => $currency ?? null]),
                     ],
                     [
                         'platform'      => 'facebook',
-                        'ad_account_id' => $rawAccountId,
+                        'platform_account_id' => $rawAccountId,
                         'user_id'       => Auth::id()
                     ],
-                    new AdAccount
+                    new SocialAccount
                 );
+
+                $fbAccountRecord['data']->syncAdDetails([
+                    'currency' => $currency ?? null,
+                    'business_id' => $fbData['business']['id'] ?? null,
+                ]);
 
                 $localAccountId = $fbAccountRecord['data']['id'] ?? null;
                 $connected++;
@@ -135,7 +166,7 @@ class FacebookAdService
                     [
                         'platform'         => 'facebook',
                         'user_id'          => Auth::id(),
-                        'ad_account_id'    => $localAccountId,
+                        'social_account_id' => $localAccountId,
                         'page_id'          => $page['id'],
                         'name'             => $page['name'] ?? null,
                         'username'         => $page['username'] ?? null,
@@ -166,25 +197,36 @@ class FacebookAdService
             foreach ($instagrams as $igAccount) {
                 $igId = $igAccount['id'];
                 $instagramSaved = $igAccount['name'];
-                $this->apiService->success(
+                $igAccountRecord = $this->apiService->success(
                     [
                         'platform'      => 'instagram',
                         'user_id'       => Auth::id(),
                         'name'          => $igAccount['name'] ?? $igAccount['username'] ?? "Instagram Account {$igId}",
-                        'ad_account_id' => $igId, // Store IG Actor / Profile ID in ad_account_id or profile_id
+                        'username'      => $igAccount['username'] ?? null,
+                        'platform_account_id' => $igId, // Store IG Actor / Profile ID in platform_account_id
+                        // getInstagramBusinessAccount() already fetches this
+                        // (fields=id,username,name,profile_pic) - it just
+                        // wasn't being saved, so every Instagram ad account
+                        // showed with no photo anywhere this table is read.
+                        'avatar_url'    => $igAccount['profile_pic'] ?? null,
                         'access_token'  => $accessToken,
                         'refresh_token' => data_get($data, 'refresh_token'),
                         'expires_at'    => $expiresAt,
-                        'status'        => 'active',
-                        'currency'      => $currency ?? null,
+                        'has_ads_permission' => true,
+                        'metadata'      => array_filter(['currency' => $currency ?? null]),
                     ],
                     [
-                        'platform'      => 'instagram', 
-                        'ad_account_id' => $igId, 
+                        'platform'      => 'instagram',
+                        'platform_account_id' => $igId,
                         'user_id'       => Auth::id()
                     ],
-                    new AdAccount
+                    new SocialAccount
                 );
+
+                $igAccountRecord['data']->syncAdDetails([
+                    'currency' => $currency ?? null,
+                    'business_id' => $fbData['business']['id'] ?? null,
+                ]);
             }
         }
 
@@ -193,13 +235,57 @@ class FacebookAdService
         return redirect()->route('admin.ads.dashboard')->with('success', $message);
     }
 
-    private function getFBAdAccount($accessToken)
+    /**
+     * Required on every server-side Graph call authenticated via an access
+     * token when the Meta App has "Require App Secret" enabled (App
+     * Dashboard > Settings > Advanced) - without it Graph rejects the call
+     * with "API calls from the server require an appsecret_proof argument"
+     * regardless of how valid the access token itself is. Uses
+     * ads.facebook.client_secret because the Ads module authenticates
+     * against a separate Facebook App from posts/messaging - the proof
+     * must be keyed with the secret of the App that issued this token.
+     */
+    protected function appSecretProof(string $accessToken): string
+    {
+        return hash_hmac('sha256', $accessToken, (string) adminSetting('ads.facebook.client_secret'));
+    }
+
+    /**
+     * The Ad Account (act_X) node has no photo field of its own - confirmed
+     * against Meta's own Marketing API reference, not assumed. The Business
+     * that owns it does: Business.profile_picture_uri ("The profile picture
+     * URI of the business"). This is the real, correct source for an ad
+     * account's avatar - callback() falls back to a linked Page's picture
+     * only when the business has none.
+     */
+    protected function fetchBusinessProfilePicture(string $businessId, string $accessToken): ?string
+    {
+        $response = $this->httpClient::get("https://graph.facebook.com/v22.0/{$businessId}", [
+            'fields'          => 'profile_picture_uri',
+            'access_token'    => $accessToken,
+            'appsecret_proof' => $this->appSecretProof($accessToken),
+        ]);
+
+        if (!$response->successful()) {
+            Log::warning('Facebook Business profile_picture_uri lookup failed.', [
+                'business_id' => $businessId,
+                'response'    => $response->json(),
+            ]);
+
+            return null;
+        }
+
+        return $response->json()['profile_picture_uri'] ?? null;
+    }
+
+    protected function getFBAdAccount($accessToken)
     {
         $endpoint = adminSetting('ads.facebook.account.endpoint', 'https://graph.facebook.com/v22.0/me/adaccounts');
 
         $response = $this->httpClient::get($endpoint, [
-            'fields'       => 'id,name,account_id,account_status,currency,business',
-            'access_token' => $accessToken,
+            'fields'          => 'id,name,account_id,account_status,currency,business',
+            'access_token'    => $accessToken,
+            'appsecret_proof' => $this->appSecretProof($accessToken),
         ]);
 
         $result = $response->json();
@@ -219,6 +305,8 @@ class FacebookAdService
 
         $accounts = array_map(function ($account) use ($accessToken) {
             $instagramAccounts = $this->getInstagramBusinessAccount($accessToken, $account['id']);
+
+           
             $pages = $this->getBusinessPages($accessToken, $account['business']['id']);
 
             return [
@@ -242,16 +330,17 @@ class FacebookAdService
      * Settings > Ad Account > Instagram Accounts, and only assigned accounts
      * are valid here). $adAccountId must include the "act_" prefix.
      */
-    private function getInstagramBusinessAccount($accessToken, string $adAccountId): ?array
+    protected function getInstagramBusinessAccount($accessToken, string $adAccountId): ?array
     {
         $response = $this->httpClient::get("https://graph.facebook.com/v22.0/{$adAccountId}/instagram_accounts", [
-            'fields'       => 'id,username,name,profile_pic',
-            'access_token' => $accessToken,
+            'fields'          => 'id,username,name,profile_pic',
+            'access_token'    => $accessToken,
+            'appsecret_proof' => $this->appSecretProof($accessToken),
         ]);
 
         if (!$response->successful()) {
             Log::warning('Facebook Instagram lookup: ad account instagram_accounts request failed', [
-                'ad_account_id' => $adAccountId,
+                'platform_account_id' => $adAccountId,
                 'response'      => $response->json(),
             ]);
 
@@ -269,11 +358,20 @@ class FacebookAdService
      * instagram_accounts, rather than /me/accounts (which only lists Pages
      * the token's user personally administers, not the business as a whole).
      */
-    private function getBusinessPages($accessToken, string $businessId): array
+    protected function getBusinessPages($accessToken, string $businessId): array
     {
+        // instagram_business_account{...} added on this same call (zero
+        // extra API cost) - InstagramAdService uses it as a second,
+        // proven-reliable source of Instagram accounts (same mechanism
+        // SocialAuthService::callbackFacebook() already uses successfully)
+        // alongside getInstagramBusinessAccount()'s ad-account-scoped
+        // /instagram_accounts edge, confirmed on a real account to
+        // sometimes return empty even when Business Settings shows the
+        // Instagram account as a connected asset of that ad account.
         $response = $this->httpClient::get("https://graph.facebook.com/v22.0/{$businessId}", [
-            'fields'       => 'owned_pages{id,name,username,about,category,link,fan_count,followers_count,access_token,picture{url}},client_pages{id,name,username,about,category,link,fan_count,followers_count,access_token,picture{url}}',
-            'access_token' => $accessToken,
+            'fields'          => 'owned_pages{id,name,username,about,category,link,fan_count,followers_count,access_token,picture{url},instagram_business_account{id,username,name,profile_picture_url}},client_pages{id,name,username,about,category,link,fan_count,followers_count,access_token,picture{url},instagram_business_account{id,username,name,profile_picture_url}}',
+            'access_token'    => $accessToken,
+            'appsecret_proof' => $this->appSecretProof($accessToken),
         ]);
 
         if (!$response->successful()) {
@@ -291,6 +389,89 @@ class FacebookAdService
             $result['owned_pages']['data'] ?? [],
             $result['client_pages']['data'] ?? []
         );
+    }
+
+    /**
+     * "Sync Now" - pulls the connected ad account's campaigns straight
+     * from the Graph API and upserts them into ad_campaigns (matched on
+     * ad_campaign_id). Reuses this service's existing integration - the
+     * connected account resolved in __construct(), getHeaders()' token
+     * refresh, ApiService, the same appsecret_proof/base URL every other
+     * call here uses - rather than a second Facebook client. Read-only:
+     * it never creates/edits/deletes anything on Meta's side, and locally
+     * it only writes campaign rows for THIS user + THIS account.
+     */
+    public function syncCampaigns(): array
+    {
+        if (!$this->account) {
+            return $this->errorResponse('No connected Facebook ad account for this user.');
+        }
+
+        if (!($this->header['success'] ?? false)) {
+            return $this->errorResponse($this->header['error'] ?? 'Facebook access token is invalid - reconnect the account.');
+        }
+
+        $accessToken = $this->account->access_token; // getHeaders() refreshed this if it was stale
+        $endpoint    = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/campaigns';
+
+        $created = 0;
+        $updated = 0;
+        $after   = null;
+        $pages   = 0;
+
+        do {
+            $params = [
+                'fields'          => 'id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time,created_time',
+                'limit'           => 100,
+                'access_token'    => $accessToken,
+                'appsecret_proof' => $this->appSecretProof($accessToken),
+            ];
+
+            if ($after) {
+                $params['after'] = $after;
+            }
+
+            $response = $this->apiService->get($endpoint, [], $params);
+
+            if (!($response['success'] ?? false)) {
+                $data = $response['data'] ?? [];
+
+                return $this->errorResponse($data['error']['error_user_msg'] ?? $data['error']['message'] ?? 'Failed to fetch campaigns from Facebook.');
+            }
+
+            foreach ($response['data']['data'] ?? [] as $remote) {
+                $record = AdCampaign::updateOrCreate(
+                    ['ad_campaign_id' => $remote['id']],
+                    [
+                        'user_id'           => $this->account->user_id,
+                        'social_account_id' => $this->account->id,
+                        'platform'          => 'facebook',
+                        'name'              => $remote['name'] ?? null,
+                        'objective'         => $remote['objective'] ?? null,
+                        'status'            => strtolower($remote['status'] ?? ''),
+                        // Meta returns budgets in the account currency's
+                        // minor unit (cents) as strings.
+                        'daily_budget'      => isset($remote['daily_budget']) ? round(((int) $remote['daily_budget']) / 100, 2) : null,
+                        'budget'            => isset($remote['lifetime_budget']) ? round(((int) $remote['lifetime_budget']) / 100, 2) : null,
+                        'start_time'        => !empty($remote['start_time']) ? Carbon::parse($remote['start_time']) : null,
+                        'end_time'          => !empty($remote['stop_time']) ? Carbon::parse($remote['stop_time']) : null,
+                    ]
+                );
+
+                $record->wasRecentlyCreated ? $created++ : $updated++;
+            }
+
+            $after = $response['data']['paging']['cursors']['after'] ?? null;
+            $hasNext = !empty($response['data']['paging']['next']) && $after;
+        } while ($hasNext && ++$pages < 20);
+
+        $this->account->adDetails()->updateOrCreate([], ['last_synced_at' => now()]);
+
+        return $this->successResponse([
+            'created' => $created,
+            'updated' => $updated,
+            'synced'  => $created + $updated,
+        ]);
     }
 
     public function store($platform, $request)
@@ -350,7 +531,7 @@ class FacebookAdService
 
     private function storeCampaign($platform, $request)
     {
-        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/campaigns';
+        $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/campaigns';
 
         // Special Ad Category is set once here and is immutable for the
         // life of the campaign (Meta rejects changing it later) - see
@@ -380,7 +561,7 @@ class FacebookAdService
         $dataToInsert = [
             'ad_campaign_id'     => $id,
             'user_id'         => Auth::user()->id,
-            'ad_account_id'   => $this->account->id,
+            'social_account_id'   => $this->account->id,
             'name' => $request['name'],
             'objective' => $request['objective'],
             'special_ad_category' => $specialAdCategory,
@@ -399,7 +580,7 @@ class FacebookAdService
 
     private function storeAdGroup($platform, $request)
     {
-        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adsets';
+        $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/adsets';
         $adSetObjects = $this->getPromotedObject($request);
         $publisherPlatforms = [];
 
@@ -506,7 +687,7 @@ class FacebookAdService
             'ad_campaign_id'     => $request['ad_campaign_id'],
             'user_id'         => Auth::user()->id,
             'ad_adgroup_id'         => $id,
-            'ad_account_id'   => $this->account->id,
+            'social_account_id'   => $this->account->id,
             'name' => $request['name'],
             'location_ids' => json_encode($countries),
             'promotion_target_type' => json_encode($adSetObjects['promoted_objects']),
@@ -582,7 +763,7 @@ class FacebookAdService
 
             $dataToInsert = [
                 'ad_media_id'       => $mediaHash,
-                'ad_account_id'     => $this->account->id,
+                'social_account_id'     => $this->account->id,
                 'ad_campaign_id'    => $request['ad_campaign_id'],
                 'platform'          => 'facebook',
                 'name'              => $fileName,
@@ -623,7 +804,7 @@ class FacebookAdService
      */
     private function uploadImage($media, $fileName)
     {
-        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adimages';
+        $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/adimages';
 
         $payload = [
             'file_name' => $fileName,
@@ -649,7 +830,7 @@ class FacebookAdService
      */
     private function uploadVideo($media, $fileName)
     {
-        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/advideos';
+        $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/advideos';
 
         // Multipart upload must not carry a JSON content-type header.
         $authHeader = ['Authorization' => $this->header['data']['Authorization']];
@@ -688,7 +869,7 @@ class FacebookAdService
 
     private function storeCreative($platform, $request)
     {
-        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adcreatives';
+        $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/adcreatives';
         $payload = [
             'name' => $request['name'],
             'object_story_spec' => [
@@ -697,9 +878,9 @@ class FacebookAdService
         ];
 
         if (isset($request['instagram'])) {
-            $loginUser = AdAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
+            $loginUser = SocialAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
             if ($loginUser) {
-                $payload['object_story_spec']['instagram_actor_id'] = $loginUser->ad_account_id;
+                $payload['object_story_spec']['instagram_actor_id'] = $loginUser->platform_account_id;
             }
         }
 
@@ -782,7 +963,7 @@ class FacebookAdService
             'ad_adgroup_id'            => $request['ad_adgroup_id'],
             'ad_creative_id'              => $id,
             'platform'                 => 'facebook',
-            'ad_account_id'            => $this->account->id,
+            'social_account_id'            => $this->account->id,
             'ad_campaign_id'           => $request['ad_campaign_id'],
             'name'                     => $request['name'],
             'ad_format'                => $request['ad_format'] ?? null,
@@ -815,7 +996,7 @@ class FacebookAdService
 
     private function storeAd($platform, $request)
     {
-        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/ads';
+        $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/ads';
 
 
         $payload = [
@@ -842,7 +1023,7 @@ class FacebookAdService
             'ad_id'                    => $id,
             'status'                   => false,
             'platform'                 => 'facebook',
-            'ad_account_id'            => $this->account->id,
+            'social_account_id'            => $this->account->id,
             'ad_campaign_id'           => $request['ad_campaign_id'],
             'name'                     => $request['name'],
             'call_to_action'           => $request['call_to_action'],
@@ -855,7 +1036,7 @@ class FacebookAdService
         );
     }
 
-    private function getHeaders()
+    protected function getHeaders()
     {
         if ($this->tokenIsValid($this->account->expires_at)) {
             $accessToken = $this->account->access_token;
@@ -915,12 +1096,12 @@ class FacebookAdService
         }
     }
 
-    private function errorResponse($error)
+    protected function errorResponse($error)
     {
         return ['success' => false, 'error' => $error];
     }
 
-    private function successResponse($data)
+    protected function successResponse($data)
     {
         return ['success' => true, 'data' => $data];
     }
@@ -1037,7 +1218,7 @@ class FacebookAdService
      */
     private function resolveDetailedTargeting(string $limitType, array $queries): array
     {
-        $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/targetingsearch';
+        $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/targetingsearch';
         $results = [];
 
         foreach ($queries as $query) {
@@ -1588,7 +1769,7 @@ class FacebookAdService
             'ad_campaign_id'     => $campaignId,
             'user_id'         => Auth::user()->id,
             'ad_adgroup_id'         => $adGroup->ad_adgroup_id,
-            'ad_account_id'   => $this->account->id,
+            'social_account_id'   => $this->account->id,
             'name' => $request['name'],
             'location_ids' => json_encode($countries),
             'promotion_target_type' => json_encode($adSetObjects['promoted_objects']),
@@ -1637,9 +1818,9 @@ class FacebookAdService
         ];
 
         if (isset($request['instagram'])) {
-            $loginUser = AdAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
+            $loginUser = SocialAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
             if ($loginUser) {
-                $payload['object_story_spec']['instagram_actor_id'] = $loginUser->ad_account_id;
+                $payload['object_story_spec']['instagram_actor_id'] = $loginUser->platform_account_id;
             }
         }
 
@@ -1690,7 +1871,7 @@ class FacebookAdService
             'ad_adgroup_id'            => $request['ad_adgroup_id'],
             'ad_creative_id'              => $creativeId,
             'platform'                 => 'facebook',
-            'ad_account_id'            => $this->account->id,
+            'social_account_id'            => $this->account->id,
             'ad_campaign_id'           => $request['ad_campaign_id'],
             'name'                     => $request['name'],
             'ad_format'                => $request['ad_format'] ?? null,
@@ -1749,7 +1930,7 @@ class FacebookAdService
             'ad_id'                    => $ad->ad_id,
             'status'                   => false,
             'platform'                 => 'facebook',
-            'ad_account_id'            => $this->account->id,
+            'social_account_id'            => $this->account->id,
             'ad_campaign_id'           => $request['ad_campaign_id'],
             'name'                     => $request['name'],
             'call_to_action'           => $request['call_to_action'],
@@ -1816,9 +1997,9 @@ class FacebookAdService
         if (count($media)) {
             foreach ($media as $each) {
                 if ($creative->type === 'IMAGE') {
-                    $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/adimages';
+                    $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/adimages';
                 } else if ($creative->type === 'VIDEO') {
-                    $endpoint = str_replace('{accountId}', $this->account->ad_account_id, $this->config) . '/advideos';
+                    $endpoint = str_replace('{accountId}', $this->account->platform_account_id, $this->config) . '/advideos';
                 } else if ($creative->type === 'CAROUSEL') {
                 }
 

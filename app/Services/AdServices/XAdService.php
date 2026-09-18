@@ -2,7 +2,7 @@
 
 namespace App\Services\AdServices;
 
-use App\Models\Admin\AdAccount;
+use App\Models\SocialAccount;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdCreative;
@@ -27,7 +27,10 @@ use Carbon\Carbon;
  * Ads API writes. That's why `ad_accounts.token_secret` already existed as
  * a column before this module was written - it's the OAuth 1.0a access
  * token secret, alongside `access_token` for the token itself and
- * `client_id`/`client_secret` for the consumer key/secret.
+ * `client_id`/`client_secret` for the consumer key/secret. Now that this
+ * module reads from the unified `social_accounts` table, the OAuth 1.0a
+ * token secret lives at `metadata['legacy_token_secret']` and the numeric
+ * X user ID at `metadata['profile_id']` (see storeTweet()/oauthHeader()).
  *
  * Hierarchy: Campaign (budget, funding_instrument_id) -> Line Item (the
  * ad-group equivalent: objective, placements, bid) -> a nullcast
@@ -51,19 +54,52 @@ class XAdService
 {
     protected $account, $config, $uploadUrl, $apiService;
 
-    public function __construct(AdAccount $account, ApiService $apiService)
+    public function __construct(SocialAccount $account, ApiService $apiService)
     {
         $this->apiService = $apiService;
         $this->account = $account->wherePlatform('x')->whereUserId(Auth::user()->id)->first();
-        $this->config = adminSetting('ads.x.base_url');
-        $this->uploadUrl = adminSetting('ads.x.upload_url');
+        // ads-api.x.com/12/ confirmed still the current, non-deprecated Ads
+        // API version this session (docs.x.com/x-ads-api/fundamentals/
+        // versioning) - a fixed fallback rather than depending on this
+        // admin_settings row always being filled in.
+        $this->config = adminSetting('ads.x.base_url') ?: 'https://ads-api.x.com/12/';
+        $this->uploadUrl = adminSetting('ads.x.upload_url') ?: 'https://upload.twitter.com/1.1/media/upload.json';
+    }
+
+    /**
+     * Missing consumer key/secret would otherwise reach signature()'s
+     * strict string-typed $consumerSecret parameter as null and throw a
+     * raw TypeError before any HTTP call - reproduced live on production
+     * for the equally-missing request_token_url setting (see redirect()'s
+     * own comment). One clean, actionable check instead of the same crash
+     * shape resurfacing for every differently-missing X ads credential.
+     */
+    private function ensureCredentialsConfigured(): ?string
+    {
+        if (!adminSetting('ads.x.client_id') || !adminSetting('ads.x.client_secret')) {
+            return 'X Ads is not configured yet - ads.x.client_id and ads.x.client_secret are missing from Admin Settings.';
+        }
+
+        return null;
     }
 
     public function redirect($platform, $state)
     {
+        if ($error = $this->ensureCredentialsConfigured()) {
+            return redirect()->route('admin.ads.dashboard')->with('error', $error);
+        }
+
         $clientId = adminSetting('ads.x.client_id');
         $clientSecret = adminSetting('ads.x.client_secret');
-        $requestTokenUrl = adminSetting('ads.x.request_token_url');
+        // Reproduced live: this admin_setting row doesn't exist on
+        // production, so adminSetting() returned null here and hit
+        // signature()'s strict string $url type-hint before ever making a
+        // request - a raw TypeError on every single X ads connect attempt.
+        // These are fixed, documented OAuth 1.0a endpoints (confirmed
+        // against docs.x.com this session) - falling back to them directly
+        // rather than depending on an admin_settings row always being
+        // filled in, same as access_token_url already does in callback().
+        $requestTokenUrl = adminSetting('ads.x.request_token_url') ?: 'https://api.x.com/oauth/request_token';
 
         $params = [
             'oauth_callback'         => $this->getCallbackUrl(),
@@ -81,23 +117,200 @@ class XAdService
         $response = $this->apiService->post($requestTokenUrl, ['Authorization' => $authHeader]);
 
         if (!$response['success']) {
-            return $this->errorResponse($response['body'] ?? 'Failed to get X request token.');
+            return redirect()->route('admin.ads.dashboard')->with('error', 'X did not return a request token. The app may not have Ads API access, or ads.x.client_id/client_secret are wrong.');
         }
 
         parse_str($response['body'], $tokens);
 
         if (!isset($tokens['oauth_token'])) {
-            return $this->errorResponse('Missing oauth_token in X request_token response.');
+            return redirect()->route('admin.ads.dashboard')->with('error', 'X request-token response was missing oauth_token.');
         }
 
-        session(['x_oauth_token_secret' => $tokens['oauth_token_secret'], 'x_state' => $state]);
+        session(['x_oauth_token_secret' => $tokens['oauth_token_secret'] ?? '', 'x_state' => $state]);
 
-        return Redirect::away(adminSetting('ads.x.authorize_url') . '?oauth_token=' . $tokens['oauth_token']);
+        $authorizeUrl = adminSetting('ads.x.authorize_url') ?: 'https://api.x.com/oauth/authorize';
+
+        return Redirect::away($authorizeUrl . '?oauth_token=' . $tokens['oauth_token']);
     }
 
+    /**
+     * OAuth 1.0a step 3 - exchange the verifier for a long-lived access
+     * token pair, then resolve the Ads accounts this user can manage.
+     * X Ads has no Bearer token: the (token, token_secret) pair is stored
+     * per account - the token on access_token, the secret in
+     * metadata.legacy_token_secret, which is exactly what oauthHeader()
+     * reads back to sign every subsequent Ads API call.
+     *
+     * Note: this only succeeds if the developer app actually has X Ads API
+     * access AND ads.x.client_id/client_secret are the consumer key/secret
+     * of that same app. Neither can be verified from code - a failure here
+     * returns to the dashboard with the API's own error rather than a 500
+     * (before this method existed at all, completing the X consent screen
+     * hit "Call to undefined method XAdService::callback()").
+     */
+    public function callback($platform = 'x', $state = null)
+    {
+        $oauthToken    = request()->input('oauth_token');
+        $oauthVerifier = request()->input('oauth_verifier');
+
+        if (request()->filled('denied') || !$oauthToken || !$oauthVerifier) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'X authorization was cancelled or did not return a verifier.');
+        }
+
+        if ($error = $this->ensureCredentialsConfigured()) {
+            return redirect()->route('admin.ads.dashboard')->with('error', $error);
+        }
+
+        $consumerKey    = adminSetting('ads.x.client_id');
+        $consumerSecret = adminSetting('ads.x.client_secret');
+        $accessTokenUrl = adminSetting('ads.x.access_token_url') ?: 'https://api.x.com/oauth/access_token';
+        $requestSecret  = (string) session('x_oauth_token_secret', '');
+
+        // --- exchange verifier -> access token ---
+        $params = [
+            'oauth_consumer_key'     => $consumerKey,
+            'oauth_nonce'            => Str::random(32),
+            'oauth_signature_method' => 'HMAC-SHA1',
+            'oauth_timestamp'        => (string) time(),
+            'oauth_token'            => $oauthToken,
+            'oauth_verifier'         => $oauthVerifier,
+            'oauth_version'          => '1.0',
+        ];
+        $params['oauth_signature'] = $this->signature('POST', $accessTokenUrl, $params, $consumerSecret, $requestSecret);
+
+        $authHeader = 'OAuth ' . collect($params)->map(fn ($v, $k) => rawurlencode($k) . '="' . rawurlencode($v) . '"')->implode(', ');
+
+        $tokenResponse = $this->apiService->post($accessTokenUrl, ['Authorization' => $authHeader]);
+
+        session()->forget(['x_oauth_token_secret', 'x_state']);
+
+        if (!$tokenResponse['success']) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'X access-token exchange failed: ' . ($tokenResponse['body'] ?? 'unknown error'));
+        }
+
+        parse_str((string) $tokenResponse['body'], $access);
+
+        if (empty($access['oauth_token']) || empty($access['oauth_token_secret'])) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'X did not return an access token pair.');
+        }
+
+        $accessToken       = $access['oauth_token'];
+        $accessTokenSecret = $access['oauth_token_secret'];
+
+        // --- resolve the Ads accounts this user can manage ---
+        // Confirmed against docs.x.com/x-ads-api/fundamentals/pagination:
+        // GET endpoints here paginate via cursor/next_cursor (default page
+        // size 200) - a user managing more than one page of accounts would
+        // otherwise silently lose the rest. Each API param (cursor
+        // included, once present) must be part of the OAuth signature base
+        // string per RFC 5849, not just appended to the URL - rebuilt every
+        // page since oauth_nonce/oauth_timestamp must be fresh per request.
+        $accountsUrl = rtrim($this->config, '/') . '/accounts';
+        $accounts = [];
+        $cursor = null;
+        $pages = 0;
+
+        do {
+            $apiParams = array_filter(['cursor' => $cursor]);
+            $acctParams = array_merge($apiParams, [
+                'oauth_consumer_key'     => $consumerKey,
+                'oauth_nonce'            => Str::random(32),
+                'oauth_signature_method' => 'HMAC-SHA1',
+                'oauth_timestamp'        => (string) time(),
+                'oauth_token'            => $accessToken,
+                'oauth_version'          => '1.0',
+            ]);
+            $acctParams['oauth_signature'] = $this->signature('GET', $accountsUrl, $acctParams, $consumerSecret, $accessTokenSecret);
+
+            $oauthOnly = array_filter($acctParams, fn ($k) => str_starts_with($k, 'oauth_'), ARRAY_FILTER_USE_KEY);
+            $acctHeader = 'OAuth ' . collect($oauthOnly)->map(fn ($v, $k) => rawurlencode($k) . '="' . rawurlencode($v) . '"')->implode(', ');
+
+            // Reproduced live (via Http::fake()) before fixing: embedding
+            // ?cursor=... directly in the URL string here and passing an
+            // empty $payload to apiService->get() silently loses it -
+            // Guzzle's query request option, which ApiService::get() always
+            // sets from $payload (even []), REPLACES any query string
+            // already in the URL rather than merging with it. That made
+            // every "next page" request actually re-request page 1
+            // forever, caught only by this method's own 20-page safety
+            // cap - it would have looked like pagination worked (no
+            // error), just silently never advanced. $cursor must go
+            // through the real $payload parameter instead.
+            $accountsResponse = $this->apiService->get($accountsUrl, ['Authorization' => $acctHeader], $apiParams);
+            dd($accountsUrl, ['Authorization' => $acctHeader], $apiParams, $accountsResponse);
+            if (!$accountsResponse['success']) {
+                return redirect()->route('admin.ads.dashboard')->with('error', $accountsResponse['data']['errors'][0]['message'] ?? 'Connected to X, but could not fetch your Ads accounts (the app likely needs X Ads API access).');
+            }
+
+            $accounts = array_merge($accounts, $accountsResponse['data']['data'] ?? []);
+            $cursor = $accountsResponse['data']['next_cursor'] ?? null;
+        } while ($cursor && ++$pages < 20);
+
+        $connected = 0;
+     
+        foreach ($accounts as $acct) {
+            if (empty($acct['id']) || $acct['approval_status'] == 'REJECTED') {
+                continue;
+            }
+            dd($acct);
+            $record = $this->apiService->success(
+                [
+                    'platform'            => 'x',
+                    'user_id'             => Auth::id(),
+                    'name'                => $acct['name'] ?? "X Ads Account {$acct['id']}",
+                    'platform_account_id' => $acct['id'],
+                    'access_token'        => $accessToken,
+                    'is_token_valid'      => true,
+                    'has_ads_permission'  => true,
+                    'metadata'            => array_filter([
+                        'legacy_token_secret' => $accessTokenSecret,
+                        'x_user_id'           => $access['user_id'] ?? null,
+                        'screen_name'         => $access['screen_name'] ?? null,
+                        'timezone'            => $acct['timezone'] ?? null,
+                    ]),
+                ],
+                [
+                    'platform'            => 'x',
+                    'platform_account_id' => $acct['id'],
+                    'user_id'             => Auth::id(),
+                ],
+                new SocialAccount
+            );
+
+            // approval_status is the real field the Accounts endpoint
+            // returns (ACCEPTED/PENDING/REJECTED, confirmed against
+            // docs.x.com's own example response) - a previous version of
+            // this derived a fake 'active'/'deleted' status from the
+            // 'deleted' boolean alone, losing the real, more useful value.
+            $record['data']->syncAdDetails(array_filter([
+                'timezone'       => $acct['timezone'] ?? null,
+                'account_status' => $acct['deleted'] ?? false ? 'deleted' : ($acct['approval_status'] ?? null),
+            ]));
+
+            $connected++;
+        }
+
+        if ($connected === 0) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'Connected to X, but no Ads account was returned for this user.');
+        }
+
+        return redirect()->route('admin.ads.dashboard')->with('success', "Connected {$connected} X Ads account(s).");
+    }
+
+    /**
+     * Was config('services.app_url') . '/admin/social/auth/x/callback',
+     * which matches no registered route at all (config('services.app_url')
+     * is misconfigured to a different domain, and /admin/social/auth/x/
+     * callback was never a real path either) - X's OAuth callback would
+     * have hit a 404 the first time anyone actually completed the X Ads
+     * consent screen. The real path is admin/ads/{platform}/callback
+     * (admin.ads.platform.callback), same as every other working Ads
+     * connect flow (TikTok/Snapchat/LinkedIn/Facebook/Google all already
+     * used it).
+     */
     private function getCallbackUrl()
     {
-        return config('services.app_url') . '/ads/x/callback';
+        return oauthCallbackUrl('admin.ads.platform.callback', 'x');
     }
 
     // ------------------------------------------------------------------
@@ -140,7 +353,7 @@ class XAdService
             $url,
             $allParams,
             adminSetting('ads.x.client_secret'),
-            $this->account->token_secret ?? ''
+            $this->account->metadata['legacy_token_secret'] ?? ''
         );
 
         return 'OAuth ' . collect($oauthParams)->map(fn($v, $k) => rawurlencode($k) . '="' . rawurlencode($v) . '"')->implode(', ');
@@ -176,7 +389,7 @@ class XAdService
 
     private function accountId(): string
     {
-        return $this->account->ad_account_id;
+        return $this->account->platform_account_id;
     }
 
     // ------------------------------------------------------------------
@@ -261,7 +474,7 @@ class XAdService
         $dataToInsert = [
             'ad_campaign_id'        => $campaignId,
             'user_id'               => Auth::id(),
-            'ad_account_id'         => $this->account->id,
+            'social_account_id'         => $this->account->id,
             'name'                  => $request['name'],
             'platform'              => $platform,
             'funding_instrument_id' => $request['funding_instrument_id'],
@@ -310,7 +523,7 @@ class XAdService
             'ad_campaign_id' => $request['ad_campaign_id'],
             'user_id'        => Auth::id(),
             'ad_adgroup_id'  => $lineItemId,
-            'ad_account_id'  => $this->account->id,
+            'social_account_id'  => $this->account->id,
             'platform'       => $platform,
             'name'           => $params['name'],
             'objective'      => $request['objective'],
@@ -481,7 +694,7 @@ class XAdService
             [
                 'user_id'        => Auth::id(),
                 'platform'       => $platform,
-                'ad_account_id'  => $this->account->id,
+                'social_account_id'  => $this->account->id,
                 'ad_campaign_id' => $request['ad_campaign_id'],
                 'name'           => $fileName,
                 'file_name'      => $fileName,
@@ -506,7 +719,7 @@ class XAdService
      */
     private function storeTweet($platform, $request, $mediaKey = null)
     {
-        if (empty($this->account->profile_id)) {
+        if (empty($this->account->metadata['profile_id'] ?? null)) {
             return $this->errorResponse('This X account is missing its numeric user ID (profile_id) - required to create a promoted Tweet. Reconnect the account.');
         }
 
@@ -519,7 +732,7 @@ class XAdService
         $params = [
             'text'       => $text,
             'nullcast'   => 'true',
-            'as_user_id' => $this->account->profile_id,
+            'as_user_id' => $this->account->metadata['profile_id'] ?? null,
         ];
 
         if ($mediaKey) {
@@ -540,7 +753,7 @@ class XAdService
                 'ad_adgroup_id'  => $request['ad_adgroup_id'],
                 'ad_creative_id' => $tweetId,
                 'platform'       => $platform,
-                'ad_account_id'  => $this->account->id,
+                'social_account_id'  => $this->account->id,
                 'ad_campaign_id' => $request['ad_campaign_id'],
                 'name'           => $request['name'],
                 'type'           => 'PROMOTED_TWEET',
@@ -575,7 +788,7 @@ class XAdService
                 'ad_id'          => $promotedTweetId,
                 'status'         => false,
                 'platform'       => $platform,
-                'ad_account_id'  => $this->account->id,
+                'social_account_id'  => $this->account->id,
                 'ad_campaign_id' => $request['ad_campaign_id'],
                 'name'           => $request['name'],
                 'type'           => 'PROMOTED_TWEET',

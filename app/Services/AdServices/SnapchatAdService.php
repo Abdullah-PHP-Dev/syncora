@@ -4,7 +4,7 @@ namespace App\Services\AdServices;
 
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Auth;
-use App\Models\Admin\AdAccount;
+use App\Models\SocialAccount;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdMedia;
@@ -46,11 +46,16 @@ class SnapchatAdService
 {
     protected $account, $config, $apiService, $header;
 
-    public function __construct(AdAccount $account, ApiService $apiService)
+    public function __construct(SocialAccount $account, ApiService $apiService)
     {
         $this->apiService = $apiService;
         $this->account = $account->wherePlatform('snapchat')->whereUserId(Auth::user()->id)->first();
-        $this->config = adminSetting('ads.snapchat.base_url');
+        // Fixed, documented Marketing API base - fallback rather than
+        // depending on this admin_settings row always being filled in,
+        // same fix already applied to X Ads for the identical crash shape
+        // (a null base URL/endpoint hitting a strictly-typed string
+        // parameter deep in ApiService).
+        $this->config = adminSetting('ads.snapchat.base_url') ?: 'https://adsapi.snapchat.com/v1/';
 
         if ($this->account) {
             $this->header = $this->getHeaders();
@@ -61,11 +66,21 @@ class SnapchatAdService
     {
         $clientId = adminSetting('ads.snapchat.client_id');
 
-        $url = 'https://accounts.snapchat.com/login/AdService2/authorize?' . http_build_query([
+        // The authorize endpoint is .../login/oauth2/authorize - it was
+        // hardcoded as ".../login/AdService2/authorize" (a bad rename;
+        // "oauth2" got replaced with "AdService2" in this one spot),
+        // which is not a real Snapchat URL, so the connect flow 404'd at
+        // Snapchat before the consent screen ever loaded. The token
+        // endpoint (ads.snapchat.access_token) always had "oauth2"
+        // correct. Falls back to the real URL when the admin setting is
+        // empty, matching how the other ad services resolve their URLs.
+        $authorizeUrl = adminSetting('ads.snapchat.authorize_url') ?: 'https://accounts.snapchat.com/login/oauth2/authorize';
+
+        $url = $authorizeUrl . '?' . http_build_query([
             'client_id'     => $clientId,
             'redirect_uri'  => $this->getCallbackUrl(),
             'response_type' => 'code',
-            'scope'         => 'snapchat-marketing-api snapchat-profile-api',
+            'scope'         => 'snapchat-marketing-api',
             'state'         => $state,
         ]);
 
@@ -74,7 +89,148 @@ class SnapchatAdService
 
     private function getCallbackUrl()
     {
-        return config('services.app_url') . '/ads/snapchat/callback';
+        // Was config('services.app_url') . '/admin/social/auth/snapchat/callback',
+        // which matches no registered route - the real path is
+        // admin/ads/{platform}/callback (named admin.ads.platform.callback),
+        // same as TikTok/LinkedIn's already-working ad connect flows.
+        // oauthCallbackUrl() (not a bare route() call) strips the locale
+        // prefix the route would otherwise carry - see
+        // app/Helpers/Helper.php.
+        return oauthCallbackUrl('admin.ads.platform.callback', 'snapchat');
+    }
+
+    /**
+     * Was previously missing entirely - SocialAdManagerService::callback()
+     * would fatal with "Call to undefined method" the moment anyone tried
+     * to actually finish connecting a Snapchat account, so there was no
+     * working path to get a Snapchat SocialAccount row at all.
+     *
+     * A Snapchat Ad Account always sits under exactly one Organization
+     * (developers.snap.com/api/marketing-api/#organizations), so this is
+     * a two-hop fetch: list the organizations the authenticated user
+     * belongs to, then list each organization's ad accounts. One
+     * SocialAccount row is created per ad account, same as every other
+     * platform's ads connect flow.
+     */
+    public function callback($platform, $state)
+    {
+        $code = request()->input('code');
+
+        if (!$code) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'Snapchat did not return an authorization code.');
+        }
+
+        // Reproduced live: this admin_setting row is missing on production,
+        // so adminSetting() returned null here and hit apiService->post()'s
+        // strict string $endpoint parameter before any request was made -
+        // a raw TypeError on every single Snapchat ads connect attempt.
+        // Fixed, documented OAuth 2.0 token endpoint - same fallback
+        // pattern already applied to X Ads for the identical crash.
+        $tokenEndpoint = adminSetting('ads.snapchat.access_token') ?: 'https://accounts.snapchat.com/login/oauth2/access_token';
+
+        $tokenResponse = $this->apiService->post($tokenEndpoint, [
+            'Content-Type' => 'application/x-www-form-urlencoded',
+        ], [
+            'client_id'     => adminSetting('ads.snapchat.client_id'),
+            'client_secret' => adminSetting('ads.snapchat.client_secret'),
+            'code'          => $code,
+            'grant_type'    => 'authorization_code',
+            'redirect_uri'  => $this->getCallbackUrl(),
+        ], 'form');
+
+        if (!$tokenResponse['success']) {
+            return redirect()->route('admin.ads.dashboard')->with('error', $tokenResponse['data']['error_description'] ?? 'Failed to exchange code for a Snapchat access token.');
+        }
+
+        $token = $tokenResponse['data'];
+        $accessToken = $token['access_token'] ?? null;
+        $refreshToken = $token['refresh_token'] ?? null;
+        $expiresAt = now()->addSeconds($token['expires_in'] ?? 1800);
+
+        if (!$accessToken) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'Snapchat did not return an access token.');
+        }
+
+        $headers = [
+            'Authorization' => "Bearer {$accessToken}",
+            'Content-Type'  => 'application/json',
+        ];
+
+        $orgsResponse = $this->apiService->get($this->config . 'me/organizations', $headers);
+
+        if (!$orgsResponse['success']) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'Connected to Snapchat, but failed to fetch your organizations.');
+        }
+
+        $organizations = collect($orgsResponse['data']['organizations'] ?? [])
+            ->pluck('organization')
+            ->filter();
+
+        $connected = 0;
+
+        foreach ($organizations as $organization) {
+            $orgId = $organization['id'] ?? null;
+
+            if (!$orgId) {
+                continue;
+            }
+
+            $adAccountsResponse = $this->apiService->get($this->config . "organizations/{$orgId}/adaccounts", $headers);
+
+            if (!$adAccountsResponse['success']) {
+                continue;
+            }
+
+            $adAccounts = collect($adAccountsResponse['data']['adaccounts'] ?? [])
+                ->pluck('adaccount')
+                ->filter();
+     
+            foreach ($adAccounts as $adAccount) {
+                $adAccountId = $adAccount['id'] ?? null;
+
+                if (!$adAccountId) {
+                    continue;
+                }
+
+                $result = $this->apiService->success(
+                    [
+                        'platform'            => 'snapchat',
+                        'user_id'             => Auth::id(),
+                        'name'                => $adAccount['name'] ?? "Snapchat Ad Account {$adAccountId}",
+                        'platform_account_id' => $adAccountId,
+                        'access_token'        => $accessToken,
+                        'refresh_token'       => $refreshToken,
+                        'is_token_valid'      => true,
+                        'expires_at'          => $expiresAt,
+                        'has_ads_permission'  => true,
+                        'metadata'            => array_filter([
+                            'currency'         => $adAccount['currency'] ?? null,
+                            'organization_id'  => $orgId,
+                        ]),
+                    ],
+                    [
+                        'platform'            => 'snapchat',
+                        'platform_account_id' => $adAccountId,
+                        'user_id'             => Auth::id(),
+                    ],
+                    new SocialAccount
+                );
+
+                $result['data']->syncAdDetails([
+                    'currency'    => $adAccount['currency'] ?? null,
+                    'timezone'    => $adAccount['timezone'] ?? null,
+                    'business_id' => $orgId,
+                ]);
+
+                $connected++;
+            }
+        }
+
+        if ($connected === 0) {
+            return redirect()->route('admin.ads.dashboard')->with('error', 'Connected to Snapchat, but no usable Ad Account was found where you have a role.');
+        }
+
+        return redirect()->route('admin.ads.dashboard')->with('success', "Connected {$connected} Snapchat Ad Account(s).");
     }
 
     public function store($platform, $request)
@@ -119,7 +275,7 @@ class SnapchatAdService
 
     private function storeCampaign($platform, $request)
     {
-        $endpoint = $this->config . 'adaccounts/' . $this->account->ad_account_id . '/campaigns';
+        $endpoint = $this->config . 'adaccounts/' . $this->account->platform_account_id . '/campaigns';
 
         $objectiveProperties = ['objective_v2_type' => $request['objective']];
 
@@ -134,7 +290,7 @@ class SnapchatAdService
 
         $payload = [
             'campaigns' => [[
-                'ad_account_id' => $this->account->ad_account_id,
+                'ad_account_id' => $this->account->platform_account_id,
                 'name'          => $request['name'],
                 'status'        => 'PAUSED',
                 'start_time'    => Carbon::parse($request['start_time'])->utc()->format('Y-m-d\TH:i:s.v\Z'),
@@ -160,7 +316,7 @@ class SnapchatAdService
         $dataToInsert = [
             'ad_campaign_id'   => $id,
             'user_id'          => Auth::user()->id,
-            'ad_account_id'    => $this->account->id,
+            'social_account_id'    => $this->account->id,
             'name'             => $request['name'],
             'objective'        => $request['objective'],
             'budget_mode'      => $request['budget_mode'],
@@ -280,7 +436,7 @@ class SnapchatAdService
             'ad_campaign_id'      => $request['ad_campaign_id'],
             'user_id'             => Auth::user()->id,
             'ad_adgroup_id'       => $id,
-            'ad_account_id'       => $this->account->id,
+            'social_account_id'       => $this->account->id,
             'name'                => $request['name'],
             'location_ids'        => json_encode($countries),
             'platform'            => $platform,
@@ -321,10 +477,10 @@ class SnapchatAdService
 
             $containerResult = $this->parseSnapResponse(
                 $this->apiService->post(
-                    $this->config . "adaccounts/{$this->account->ad_account_id}/media",
+                    $this->config . "adaccounts/{$this->account->platform_account_id}/media",
                     $this->header['data'],
                     ['media' => [[
-                        'ad_account_id' => $this->account->ad_account_id,
+                        'ad_account_id' => $this->account->platform_account_id,
                         'type'          => strtoupper($mediaType),
                         'name'          => $fileName,
                     ]]]
@@ -370,7 +526,7 @@ class SnapchatAdService
 
             $dataToInsert = [
                 'ad_media_id'    => $snapMediaId,
-                'ad_account_id'  => $this->account->id,
+                'social_account_id'  => $this->account->id,
                 'ad_campaign_id' => $request['ad_campaign_id'],
                 'platform'       => $platform,
                 'name'           => $fileName,
@@ -445,7 +601,7 @@ class SnapchatAdService
             'ad_adgroup_id'   => $request['ad_adgroup_id'],
             'ad_creative_id'  => $id,
             'platform'        => 'snapchat',
-            'ad_account_id'   => $this->account->id,
+            'social_account_id'   => $this->account->id,
             'ad_campaign_id'  => $request['ad_campaign_id'],
             'name'            => $request['name'],
             'message'         => $request['description'] ?? null,
@@ -492,16 +648,16 @@ class SnapchatAdService
         $payload = array_merge([
             'name'          => $request['name'],
             'type'          => $request['creative_type'],
-            'ad_account_id' => $this->account->ad_account_id,
+            'ad_account_id' => $this->account->platform_account_id,
             'headline'      => $request['description'],
             'brand_name'    => $request['name'],
             'top_snap_media_id' => $media['media_id'],
-            'profile_properties' => ['profile_id' => $this->account->profile_id],
+            'profile_properties' => ['profile_id' => ($this->account->metadata['profile_id'] ?? null)],
         ], $properties);
 
         $result = $this->parseSnapResponse(
             $this->apiService->post(
-                $this->config . "adaccounts/{$this->account->ad_account_id}/creatives",
+                $this->config . "adaccounts/{$this->account->platform_account_id}/creatives",
                 $this->header['data'],
                 ['creatives' => [$payload]]
             ),
@@ -539,16 +695,16 @@ class SnapchatAdService
             $cardPayload = array_merge([
                 'name'          => $request['name'] . ' - Card ' . ($index + 1),
                 'type'          => 'SNAP_AD',
-                'ad_account_id' => $this->account->ad_account_id,
+                'ad_account_id' => $this->account->platform_account_id,
                 'headline'      => $cardMedia?->title ?: $request['description'],
                 'brand_name'    => $request['name'],
                 'top_snap_media_id' => $media['media_id'],
-                'profile_properties' => ['profile_id' => $this->account->profile_id],
+                'profile_properties' => ['profile_id' => ($this->account->metadata['profile_id'] ?? null)],
             ], $properties);
 
             $cardResult = $this->parseSnapResponse(
                 $this->apiService->post(
-                    $this->config . "adaccounts/{$this->account->ad_account_id}/creatives",
+                    $this->config . "adaccounts/{$this->account->platform_account_id}/creatives",
                     $this->header['data'],
                     ['creatives' => [$cardPayload]]
                 ),
@@ -566,7 +722,7 @@ class SnapchatAdService
         $compositePayload = [
             'name'          => $request['name'],
             'type'          => 'COMPOSITE',
-            'ad_account_id' => $this->account->ad_account_id,
+            'ad_account_id' => $this->account->platform_account_id,
             'headline'      => $request['description'],
             'brand_name'    => $request['name'],
             'composite_properties' => ['creative_ids' => $cardCreativeIds],
@@ -574,7 +730,7 @@ class SnapchatAdService
 
         $result = $this->parseSnapResponse(
             $this->apiService->post(
-                $this->config . "adaccounts/{$this->account->ad_account_id}/creatives",
+                $this->config . "adaccounts/{$this->account->platform_account_id}/creatives",
                 $this->header['data'],
                 ['creatives' => [$compositePayload]]
             ),
@@ -710,7 +866,7 @@ class SnapchatAdService
             'status'         => false,
             'platform'       => 'snapchat',
             'type'           => $request['creative_type'],
-            'ad_account_id'  => $this->account->id,
+            'social_account_id'  => $this->account->id,
             'ad_campaign_id' => $request['ad_campaign_id'],
             'name'           => $request['name'],
             'call_to_action' => $request['call_to_action'] ?? null,
@@ -768,7 +924,7 @@ class SnapchatAdService
 
     public function refreshToken($account)
     {
-        $endpoint = adminSetting('ads.snapchat.access_token');
+        $endpoint = adminSetting('ads.snapchat.access_token') ?: 'https://accounts.snapchat.com/login/oauth2/access_token';
 
         $response = $this->apiService->post($endpoint, ["Content-Type" => "application/x-www-form-urlencoded"], [
             'client_id'     => adminSetting('ads.snapchat.client_id'),
@@ -894,7 +1050,7 @@ class SnapchatAdService
 
         $result = $this->parseSnapResponse(
             $this->apiService->put(
-                $this->config . 'adaccounts/' . $this->account->ad_account_id . '/campaigns',
+                $this->config . 'adaccounts/' . $this->account->platform_account_id . '/campaigns',
                 $this->header['data'],
                 ['campaigns' => [[
                     'id'   => $campaign->ad_campaign_id,
@@ -969,7 +1125,7 @@ class SnapchatAdService
             'ad_campaign_id'      => $campaignId,
             'user_id'             => Auth::user()->id,
             'ad_adgroup_id'       => $adGroup->ad_adgroup_id,
-            'ad_account_id'       => $this->account->id,
+            'social_account_id'       => $this->account->id,
             'name'                => $request['name'],
             'location_ids'        => json_encode($countries),
             'platform'            => $platform,
@@ -1009,7 +1165,7 @@ class SnapchatAdService
 
         $result = $this->parseSnapResponse(
             $this->apiService->put(
-                $this->config . "adaccounts/{$this->account->ad_account_id}/creatives",
+                $this->config . "adaccounts/{$this->account->platform_account_id}/creatives",
                 $this->header['data'],
                 ['creatives' => [array_merge([
                     'id'       => $existingCreative->ad_creative_id,
@@ -1083,7 +1239,7 @@ class SnapchatAdService
 
         $result = $this->parseSnapResponse(
             $this->apiService->put(
-                $this->config . 'adaccounts/' . $this->account->ad_account_id . '/campaigns',
+                $this->config . 'adaccounts/' . $this->account->platform_account_id . '/campaigns',
                 $this->header['data'],
                 ['campaigns' => [['id' => $campaign->ad_campaign_id, 'status' => $status]]]
             ),

@@ -129,9 +129,10 @@ Route::get('/user', function (Request $request) {
         Route::post('/linkedin', [\App\Http\Controllers\Api\Ads\LinkedinAdWebhookController::class, 'receive'])->name('linkedin.receive');
     });
 
-    // Email Marketing - one shared endpoint for every Mailgun event type
-    // (delivered/opened/clicked/unsubscribed/complained/failed), same
-    // "one URL, dispatch on the event field" shape as the messaging
-    // webhooks above. See MailgunWebhookController.
-    Route::post('/email-marketing/mailgun', [\App\Http\Controllers\Api\EmailMarketing\MailgunWebhookController::class, 'receive'])->name('email_marketing.mailgun.receive');
+    // Email Marketing - Mailgun replaced with per-seller SendGrid
+    // subaccounts. One shared app-level URL receives every seller's
+    // events (SendGrid's ECDSA-signed Event Webhook, not Mailgun's HMAC
+    // one) - see SendGridWebhookController/SendGridWebhookService for how
+    // the right subaccount is identified without a URL segment.
+    Route::post('/webhooks/sendgrid/events', [\App\Http\Controllers\Api\EmailMarketing\SendGridWebhookController::class, 'receive'])->name('email_marketing.sendgrid.receive');
 // });

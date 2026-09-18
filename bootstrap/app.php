@@ -19,10 +19,20 @@ return tap(
 
             $middleware->redirectUsersTo(fn ($request) => app(\App\Services\DashboardService::class)->url($request->user()));
 
-            $middleware->web(append: [
-                \App\Http\Middleware\SetLocale::class,
-            ]);
-
+            // App\Http\Middleware\SetLocale used to run here, appended to
+            // the global 'web' middleware group. Deliberately deleted in
+            // the "Translation" commit (702d893) - it manually replicated
+            // exactly what mcamara/laravel-localization's own middleware
+            // stack already does (LaravelLocalizationRoutes/
+            // LocaleSessionRedirect/LocaleCookieRedirect/
+            // LaravelLocalizationRedirectFilter/LaravelLocalizationViewPath,
+            // all applied in routes/web.php's outer route group). Since
+            // that group's own middleware array includes the literal
+            // string 'web', appending SetLocale here would run it first,
+            // deciding the locale from the request segment/session before
+            // the package's own middleware got a chance to - two
+            // independent implementations of the same decision, racing
+            // each other on every request. Left removed.
 	        $middleware->alias([
 		                           'active.user' => \App\Http\Middleware\EnsureActiveUser::class,
                                'seller' => \App\Http\Middleware\EnsureSeller::class,

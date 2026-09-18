@@ -26,13 +26,31 @@
             rel="stylesheet"
     />
 
+    @php
+        // rtlcss-generated mirrors of the theme's own layout CSS - only for
+        // core.css/admin.css, which have zero built-in RTL support (hardcoded
+        // left/right values that dir="rtl" alone doesn't flip). socialeaz-
+        // admin.css is deliberately EXCLUDED from this swap: it already ships
+        // its own hand-written `[dir="rtl"] .admin-sidebar {...}` overrides
+        // (search that file for "RTL") that activate correctly the moment
+        // <html dir="rtl"> is set below - running rtlcss over the whole file
+        // double-flipped those already-correct overrides back to their wrong
+        // LTR values (that selector has higher specificity than the base
+        // rule, so the double-flipped version always won), which is what
+        // pinned the sidebar to the left and broke the layout width in RTL.
+        // Regenerate the two that ARE swapped with
+        // `npm run build:rtl` if the LTR originals ever change. demo.css
+        // isn't included here - it's generic widget/demo-page styling, not
+        // layout chrome.
+        $isRtl = LaravelLocalization::getCurrentLocaleDirection() === 'rtl';
+    @endphp
     <!-- Iconify Icons -->
     <link rel="stylesheet" href="{{ asset('assets/vendor/fonts/iconify-icons.css') }}" />
     <link rel="stylesheet" href="{{ asset('assets/css/plugins/select2.css') }}" />
     <!-- Core CSS -->
-    <link rel="stylesheet" href="{{ asset('assets/vendor/css/core.css') }}" />
+    <link rel="stylesheet" href="{{ asset($isRtl ? 'assets/vendor/css/core-rtl.css' : 'assets/vendor/css/core.css') }}" />
     <link rel="stylesheet" href="{{ asset('assets/css/demo.css') }}" />
-    <link rel="stylesheet" href="{{ asset('assets/css/admin.css') }}" />
+    <link rel="stylesheet" href="{{ asset($isRtl ? 'assets/css/admin-rtl.css' : 'assets/css/admin.css') }}" />
     <link
             rel="stylesheet"
             href="{{ asset('assets/css/socialeaz-admin.css') }}"
@@ -121,6 +139,26 @@
 <!-- Main JS -->
 <script src="{{ asset('assets/js/main.js') }}"></script>
 @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+{{-- Snap Creative Kit Web - "Share to Snapchat" button used by the Quick
+     Post composer (see PostsDashboard.vue / dashboard.blade.php's calendar
+     quick-post modal). Snapchat has no public API for automated organic
+     posting (only Ads, and a read-only Public Profile API - verified
+     against developers.snap.com), so this is the legitimate mechanism:
+     a user-triggered client-side share, not a server-side auto-publish
+     like the other platforms. Loaded globally, async, so it's a no-op on
+     every page that doesn't use it. Official integration doc:
+     https://developers.snap.com/snap-kit/creative-kit/web --}}
+<script>
+    (function (d, s, id) {
+        var js, sjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) return;
+        js = d.createElement(s);
+        js.id = id;
+        js.src = 'https://sdk.snapkit.com/js/v1/create.js';
+        sjs.parentNode.insertBefore(js, sjs);
+    })(document, 'script', 'snapkit-creative-kit-sdk');
+</script>
 
 @stack('scripts')
 

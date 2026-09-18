@@ -16,7 +16,8 @@ class EmailCampaign extends Model
         'from_name', 'from_email', 'body', 'status', 'scheduled_at', 'sent_at',
         'total_recipients', 'sent_count', 'delivered_count', 'opened_count',
         'clicked_count', 'bounced_count', 'complained_count', 'unsubscribed_count',
-        'failed_count', 'error_message',
+        'failed_count', 'error_message', 'sendgrid_single_send_id',
+        'sender_identity_id', 'preheader', 'audience_type', 'audience_id',
     ];
 
     protected $casts = [
@@ -39,9 +40,38 @@ class EmailCampaign extends Model
         return $this->belongsTo(EmailTemplate::class, 'email_template_id');
     }
 
+    public function senderIdentity(): BelongsTo
+    {
+        return $this->belongsTo(SenderIdentity::class);
+    }
+
     public function sends(): HasMany
     {
         return $this->hasMany(EmailCampaignSend::class);
+    }
+
+    public function events(): HasMany
+    {
+        return $this->hasMany(EmailEvent::class);
+    }
+
+    /**
+     * Resolves the actual audience row (EmailList or EmailSegment) from
+     * audience_type/audience_id - kept as one lookup here rather than two
+     * separate nullable belongsTo relations, since a campaign only ever
+     * has one or the other (see the audience_type enum).
+     */
+    public function audience(): EmailList|EmailSegment|null
+    {
+        if (!$this->audience_id) {
+            // Pre-migration rows (or ones created before audience_id was
+            // set) fall back to the original email_list_id column.
+            return $this->email_list_id ? $this->list : null;
+        }
+
+        return $this->audience_type === 'segment'
+            ? EmailSegment::find($this->audience_id)
+            : EmailList::find($this->audience_id);
     }
 
     public function isEditable(): bool

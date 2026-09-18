@@ -30,7 +30,7 @@ class EmailMarketingController extends Controller
         $recentCampaigns = EmailCampaign::where('user_id', $userId)->with('list')->latest()->take(6)->get();
 
         return view('admin.email.dashboard', [
-            'isConfigured'     => $this->emailMarketing->isConfigured(),
+            'isReady'          => $this->emailMarketing->isReadyForUser($userId),
             'totalSubscribers' => $totalSubscribers,
             'totalLists'       => $totalLists,
             'totalSent'        => $sentCampaigns->count(),

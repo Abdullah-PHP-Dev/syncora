@@ -9,15 +9,15 @@
         <button type="button"
                 class="admin-menu-toggle d-none d-xl-flex"
                 id="adminSidebarToggle"
-                aria-label="Toggle sidebar"
-                title="Toggle sidebar">
+                aria-label="{{ __('admin.navbar.toggle_sidebar') }}"
+                title="{{ __('admin.navbar.toggle_sidebar') }}">
             <i class="bx bx-menu"></i>
         </button>
 
         <!-- Mobile Menu -->
         <button type="button"
                 class="admin-menu-toggle d-xl-none"
-                aria-label="Open menu"
+                aria-label="{{ __('admin.navbar.open_menu') }}"
                 data-bs-toggle="offcanvas"
                 data-bs-target="#layout-menu">
             <i class="bx bx-menu"></i>
@@ -34,8 +34,8 @@
             <i class="bx bx-search"></i>
 
             <input type="text"
-                   placeholder="Search..."
-                   aria-label="Search">
+                   placeholder="{{ __('admin.navbar.search_placeholder') }}"
+                   aria-label="{{ __('admin.navbar.search_placeholder') }}">
 
             <span class="admin-search-shortcut">
                 ⌘ K
@@ -70,8 +70,8 @@
             }
 
             $subscriptionPlan = $hasActiveSubscription
-                ? ($subscription->plan_name ?? 'Premium')
-                : 'Free Plan';
+                ? ($subscription->plan_name ?? __('admin.navbar.premium'))
+                : __('admin.navbar.free_plan');
         @endphp
 
         <a href="{{ url('subscription/select') }}"
@@ -94,13 +94,7 @@
                     </span>
 
                     <span class="admin-subscription-days">
-                        @if($remainingDays <= 0)
-                            Expired
-                        @elseif($remainingDays == 1)
-                            1 day left
-                        @else
-                            {{ $remainingDays }} days left
-                        @endif
+                        {{ trans_choice('admin.navbar.days_left', $remainingDays, ['count' => $remainingDays]) }}
                     </span>
 
                 </span>
@@ -113,9 +107,13 @@
 
                 <span class="admin-subscription-info">
 
-                    <span class="admin-subscription-plan">{{ __('Free Plan') }}</span>
+                    <span class="admin-subscription-plan">
+                        {{ __('admin.navbar.free_plan') }}
+                    </span>
 
-                    <span class="admin-subscription-days">{{ __('Upgrade') }}</span>
+                    <span class="admin-subscription-days">
+                        {{ __('admin.navbar.upgrade') }}
+                    </span>
 
                 </span>
 
@@ -135,7 +133,7 @@
                     class="admin-navbar-icon dropdown-toggle"
                     data-bs-toggle="dropdown"
                     aria-expanded="false"
-                    title="Language">
+                    title="{{ __('admin.navbar.language') }}">
 
                 <i class="bx bx-globe"></i>
 
@@ -187,17 +185,19 @@
 
 
         <!-- =================================================
-             NOTIFICATIONS
+             NOTIFICATIONS - combined unread Comments + Messages.
+             Own Vue root (see resources/js/app.js) - the navbar renders
+             outside the #app root's DOM subtree, so this can't be
+             registered as a plain component inside that root.
         ================================================== -->
-        <button type="button"
-                class="admin-navbar-icon admin-notification-button"
-                title="Notifications">
-
-            <i class="bx bx-bell"></i>
-
-            <span class="admin-notification-dot"></span>
-
-        </button>
+        <div id="notification-center-root">
+            <notification-center
+                index-url="{{ route('admin.notifications.index') }}"
+                comment-read-url-template="{{ route('admin.comments.read', ['comment' => ':id']) }}"
+                conversation-read-url-template="{{ route('admin.chats.read', ['conversation' => ':id']) }}"
+                current-user-id="{{ auth()->id() }}"
+            ></notification-center>
+        </div>
 
 
         <!-- =================================================
@@ -213,7 +213,7 @@
                 <div class="admin-user-avatar">
 
                     <img src="{{ asset('assets/img/avatars/1.png') }}"
-                         alt="User Avatar">
+                         alt="{{ __('admin.navbar.user_avatar_alt') }}">
 
                     <span class="admin-user-online"></span>
 
@@ -222,7 +222,7 @@
                 <div class="admin-user-info d-none d-sm-flex">
 
                     <span class="admin-user-name">
-                        {{ auth()->user()->name ?? 'Guest User' }}
+                        {{ auth()->user()->name ?? __('admin.navbar.guest_user') }}
                     </span>
 
                     <span class="admin-user-role">
@@ -247,7 +247,7 @@
                         <div class="admin-user-avatar admin-user-avatar-lg">
 
                             <img src="{{ asset('assets/img/avatars/1.png') }}"
-                                 alt="User Avatar">
+                                 alt="{{ __('admin.navbar.user_avatar_alt') }}">
 
                             <span class="admin-user-online"></span>
 
@@ -256,7 +256,7 @@
                         <div>
 
                             <div class="admin-dropdown-name">
-                                {{ auth()->user()->name ?? 'Guest User' }}
+                                {{ auth()->user()->name ?? __('admin.navbar.guest_user') }}
                             </div>
 
                             <div class="admin-dropdown-role">

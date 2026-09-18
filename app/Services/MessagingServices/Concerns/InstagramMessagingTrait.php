@@ -3,6 +3,7 @@
 namespace App\Services\MessagingServices\Concerns;
 
 use App\Models\Messaging\MessageChannel;
+use App\Models\SocialAccount;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -43,6 +44,20 @@ trait InstagramMessagingTrait
         return "https://graph.facebook.com/{$version}/" . ltrim($path, '/');
     }
 
+    /**
+     * Required on every server-side Graph call authenticated via an access
+     * token whenever the Meta App has "Require App Secret" enabled (App
+     * Dashboard > Settings > Advanced) - without it Graph rejects the call
+     * with "API calls from the server require an appsecret_proof
+     * argument" regardless of how valid the access token itself is. Same
+     * App Secret this trait already uses for the token exchange calls
+     * below and for X-Hub-Signature-256 verification (posts.facebook.client_secret).
+     */
+    protected function metaAppSecretProof(string $accessToken): string
+    {
+        return hash_hmac('sha256', $accessToken, (string) adminSetting('posts.facebook.client_secret'));
+    }
+
     protected function graphApiCall(string $method, string $path, array $params, string $accessToken)
     {
         $headers = ['Authorization' => "Bearer {$accessToken}"];
@@ -52,6 +67,7 @@ trait InstagramMessagingTrait
         if (!isset($params['access_token'])) {
             $params['access_token'] = $accessToken;
         }
+        $params['appsecret_proof'] = $this->metaAppSecretProof($accessToken);
 
         $response = match (strtoupper($method)) {
             'GET'   => $this->apiService->get($url, $headers, $params),
@@ -68,7 +84,7 @@ trait InstagramMessagingTrait
 
     protected function instagramRedirectUri(): string
     {
-        return config('services.app_url') . '/messaging/auth/instagram/callback';
+        return oauthCallbackUrl('admin.messaging.auth.instagram.callback');
     }
 
     /**
@@ -124,8 +140,9 @@ trait InstagramMessagingTrait
 
         // 3. Resolve Connected Instagram Business Accounts & Page Tokens
         $pagesResponse = $this->apiService->get($this->graphApiUrl('me/accounts'), [], [
-            'access_token' => $userToken,
-            'fields'       => 'id,name,access_token,instagram_business_account{id,username,profile_picture_url,name}',
+            'access_token'    => $userToken,
+            'appsecret_proof' => $this->metaAppSecretProof($userToken),
+            'fields'          => 'id,name,access_token,instagram_business_account{id,username,profile_picture_url,name}',
         ]);
 
         if (!$pagesResponse['success'] || empty($pagesResponse['data']['data'])) {
@@ -139,18 +156,25 @@ trait InstagramMessagingTrait
                 $ig = $page['instagram_business_account'];
                 $pageAccessToken = $page['access_token'];
 
+                $account = SocialAccount::updateOrCreate(
+                    ['platform' => 'instagram', 'platform_account_id' => $ig['id'], 'user_id' => Auth::id()],
+                    [
+                        'name'                     => $ig['name'] ?? $ig['username'] ?? 'Instagram Business',
+                        'username'                 => $ig['username'] ?? null,
+                        'avatar_url'               => $ig['profile_picture_url'] ?? null,
+                        'access_token'             => $pageAccessToken,
+                        'refresh_token'            => $userToken,
+                        'is_token_valid'           => true,
+                        'has_messaging_permission' => true,
+                    ]
+                );
+
                 $channel = MessageChannel::updateOrCreate(
                     ['platform' => 'instagram', 'external_id' => $ig['id']],
                     [
-                        'user_id'       => Auth::id(),
-                        'name'          => $ig['name'] ?? $ig['username'] ?? 'Instagram Business',
-                        'username'      => $ig['username'] ?? null,
-                        'avatar_url'    => $ig['profile_picture_url'] ?? null,
-                        'access_token'  => $pageAccessToken,
-                        'refresh_token' => $userToken,
-                        'expires_at'    => now()->addSeconds($expiresIn),
-                        'status'        => true,
-                        'meta'          => ['auth_type' => 'instagram_business'],
+                        'social_account_id' => $account->id,
+                        'expires_at'        => now()->addSeconds($expiresIn),
+                        'meta'              => ['auth_type' => 'instagram_business'],
                     ]
                 );
 

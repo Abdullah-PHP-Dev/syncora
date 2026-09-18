@@ -3,11 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\PostAccount;
+use App\Models\SocialAccount;
 use App\Services\PostServices\ApiPostService;
 use App\Services\PostServices\InstagramPostService;
-use App\Services\PostServices\MetaPostService;
-use App\Services\PostServices\YoutubePostService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -16,12 +14,12 @@ use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 /**
- * Most platforms in the Posts module still have no working "connect an
- * account" flow (post_accounts rows aren't created anywhere for them -
- * confirmed by searching for PostAccount::create/updateOrCreate before
- * writing the first of these). This currently covers WhatsApp, Threads,
- * Pinterest, Facebook/Instagram, and LinkedIn - X, TikTok, and YouTube/
- * Google still have no connect flow.
+ * Connect flows for the posting-only platforms: WhatsApp (manual entry),
+ * Threads, Pinterest, X, and Instagram (standalone Instagram Login).
+ * Facebook, Google, LinkedIn, and TikTok connect through
+ * SocialAccountController instead (admin.social-accounts.redirect) - see
+ * SocialAuthService - since their OAuth model supports requesting
+ * posting + ads + messaging scopes together in one redirect.
  */
 class PostAccountController extends Controller
 {
@@ -53,14 +51,14 @@ class PostAccountController extends Controller
 
         $data = $check->json();
 
-        PostAccount::updateOrCreate(
-            ['platform' => 'whatsapp', 'account_id' => $validated['phone_number_id'], 'user_id' => Auth::id()],
+        SocialAccount::updateOrCreate(
+            ['platform' => 'whatsapp', 'platform_account_id' => $validated['phone_number_id'], 'user_id' => Auth::id()],
             [
-                'name'         => $validated['name'],
-                'username'     => $data['display_phone_number'] ?? null,
-                'access_token' => $validated['access_token'],
-                'is_active'    => true,
-                'status'       => 'active',
+                'name'                    => $validated['name'],
+                'username'                => $data['display_phone_number'] ?? null,
+                'access_token'            => $validated['access_token'],
+                'is_token_valid'          => true,
+                'has_posting_permission'  => true,
             ]
         );
 
@@ -130,15 +128,15 @@ class PostAccountController extends Controller
 
         $data = $check->json();
 
-        $account = PostAccount::updateOrCreate(
-            ['platform' => 'whatsapp', 'account_id' => $validated['phone_number_id'], 'user_id' => Auth::id()],
+        $account = SocialAccount::updateOrCreate(
+            ['platform' => 'whatsapp', 'platform_account_id' => $validated['phone_number_id'], 'user_id' => Auth::id()],
             [
-                'name'         => $validated['business_name'] ?: ($data['verified_name'] ?? 'WhatsApp Business'),
-                'username'     => $data['display_phone_number'] ?? null,
-                'access_token' => $accessToken,
-                'is_active'    => true,
-                'status'       => 'active',
-                'settings'     => ['waba_id' => $validated['waba_id']],
+                'name'                   => $validated['business_name'] ?: ($data['verified_name'] ?? 'WhatsApp Business'),
+                'username'               => $data['display_phone_number'] ?? null,
+                'access_token'           => $accessToken,
+                'is_token_valid'         => true,
+                'has_posting_permission' => true,
+                'metadata'               => ['settings' => ['waba_id' => $validated['waba_id']]],
             ]
         );
 
@@ -147,197 +145,6 @@ class PostAccountController extends Controller
             'message' => 'WhatsApp number connected via Facebook.',
             'account' => $account,
         ]);
-    }
-
-    /**
-     * Facebook Login for Business - a standard server-side OAuth redirect
-     * that resolves every Page the user administers via /me/accounts, the
-     * same call the Messaging module's Meta connection already makes (see
-     * MetaMessagingTrait::handleMetaCallback()), but requesting posting
-     * scopes (pages_manage_posts, instagram_content_publish) instead of
-     * messaging ones. One Page can produce up to two post_accounts rows -
-     * a Facebook one always, plus an Instagram one if that Page has a
-     * linked Instagram professional account - both sharing the Page's own
-     * access token, since Instagram Content Publishing authenticates
-     * through the linked Page, not a separate IG-specific token.
-     *
-     * Reuses posts.facebook.client_id/client_secret/base_url - already
-     * configured and used by MetaPostService/InstagramPostService's own
-     * token-refresh calls, not a separate credential set from this app's
-     * other Facebook App connections.
-     */
-    public function redirectMeta()
-    {
-        $state = Str::uuid()->toString();
-        session(['meta_oauth_state' => $state]);
-
-        $url = 'https://www.facebook.com/' . $this->metaGraphVersion() . '/dialog/oauth?' . http_build_query([
-            'client_id'     => adminSetting('posts.facebook.client_id'),
-            'redirect_uri'  => $this->metaCallbackUrl(),
-            'state'         => $state,
-            'response_type' => 'code',
-            // pages_read_user_content is required for Meta to actually
-            // deliver comment events on the 'feed' webhook field - without
-            // it, the App-level webhook subscription and per-Page
-            // /subscribed_apps opt-in can both be perfectly configured and
-            // Meta will still never push comment events for this Page's
-            // token. pages_manage_engagement covers the same ground on
-            // newer API versions/Advanced Access reviews.
-            'scope'         => 'pages_show_list,pages_manage_posts,pages_read_engagement,pages_manage_metadata,pages_read_user_content,pages_manage_engagement,read_insights,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights',
-        ]);
-
-        return Redirect::away($url);
-    }
-
-    public function callbackMeta(Request $request, ApiPostService $api, MetaPostService $metaPostService, InstagramPostService $instagramPostService)
-    {
-        if (!$request->filled('code') || $request->query('state') !== session('meta_oauth_state')) {
-            return redirect()->route('admin.posts.create')->with('error', 'Facebook/Instagram connection failed or was cancelled.');
-        }
-
-        $baseUrl = $this->metaBaseUrl();
-        $clientId = adminSetting('posts.facebook.client_id');
-        $clientSecret = adminSetting('posts.facebook.client_secret');
-
-        $tokenResponse = $api->request('get', $baseUrl . 'oauth/access_token', [], [
-            'client_id'     => $clientId,
-            'client_secret' => $clientSecret,
-            'redirect_uri'  => $this->metaCallbackUrl(),
-            'code'          => $request->query('code'),
-        ]);
-
-        if (!$tokenResponse->successful()) {
-            return redirect()->route('admin.posts.create')->with('error', $tokenResponse->json()['error']['message'] ?? 'Failed to exchange code for a Facebook access token.');
-        }
-
-        $shortLivedToken = $tokenResponse->json()['access_token'];
-
-        // Exchanged for a long-lived user token (~60 days) before resolving
-        // Pages, so the resulting Page access tokens inherit that longer
-        // life too - same two-step exchange the Messaging module's Meta
-        // connection already does, falling back to the short-lived token
-        // if this second call fails rather than losing the connection
-        // entirely over it.
-        $longLivedResponse = $api->request('get', $baseUrl . 'oauth/access_token', [], [
-            'grant_type'        => 'fb_exchange_token',
-            'client_id'         => $clientId,
-            'client_secret'     => $clientSecret,
-            'fb_exchange_token' => $shortLivedToken,
-        ]);
-
-        $userToken = $longLivedResponse->successful() ? $longLivedResponse->json()['access_token'] : $shortLivedToken;
-
-        $pagesResponse = $api->request('get', $baseUrl . 'me/accounts', [], [
-            'access_token' => $userToken,
-            'fields'       => 'id,name,access_token,picture,instagram_business_account{id,username,profile_picture_url}',
-        ]);
-
-        if (!$pagesResponse->successful()) {
-            return redirect()->route('admin.posts.create')->with('error', $pagesResponse->json()['error']['message'] ?? 'Failed to fetch Facebook Pages.');
-        }
-
-        $created = ['facebook' => 0, 'instagram' => 0];
-        // Page access tokens derived this way don't have Meta's usual
-        // short expiry, but ensureValidToken() still needs a concrete
-        // future timestamp to compare against - 60 days mirrors the long-
-        // lived user token's own lifetime and keeps its periodic
-        // fb_exchange_token refresh call harmless or a no-op either way.
-        $expiresAt = Carbon::now()->addDays(60);
-
-        foreach ($pagesResponse->json()['data'] ?? [] as $page) {
-            $facebookAccount = PostAccount::updateOrCreate(
-                ['platform' => 'facebook', 'account_id' => $page['id'], 'user_id' => Auth::id()],
-                [
-                    'name'         => $page['name'],
-                    'username'     => $page['name'],
-                    'image'        => $page['picture']['data']['url'] ?? null,
-                    'access_token' => $page['access_token'],
-                    'expires_in'   => $expiresAt,
-                    'is_active'    => true,
-                    'status'       => 'active',
-                ]
-            );
-            $created['facebook']++;
-
-            // Each of these three is independently failure-tolerant
-            // (internally try/caught, logs and returns rather than
-            // throwing) - this outer try/catch is a deliberate second
-            // safety net so a Page too small for Meta's Insights API, or
-            // a token missing a scope, can never prevent the
-            // PostAccount above from having already saved, or block the
-            // other two operations from running.
-            try {
-                $metaPostService->syncAccountStats($facebookAccount);
-            } catch (\Throwable $e) {
-                Log::warning('Facebook stats sync failed after connect.', ['account_id' => $facebookAccount->id, 'error' => $e->getMessage()]);
-            }
-            try {
-                $metaPostService->subscribeToWebhooks($facebookAccount);
-            } catch (\Throwable $e) {
-                Log::warning('Facebook webhook subscribe failed after connect.', ['account_id' => $facebookAccount->id, 'error' => $e->getMessage()]);
-            }
-            try {
-                $metaPostService->backfillRecentPosts($facebookAccount);
-            } catch (\Throwable $e) {
-                Log::warning('Facebook post backfill failed after connect.', ['account_id' => $facebookAccount->id, 'error' => $e->getMessage()]);
-            }
-
-            if (!empty($page['instagram_business_account']['id'])) {
-                $ig = $page['instagram_business_account'];
-
-                $instagramAccount = PostAccount::updateOrCreate(
-                    ['platform' => 'instagram', 'account_id' => $ig['id'], 'user_id' => Auth::id()],
-                    [
-                        'name'         => $ig['username'] ?? $page['name'],
-                        'username'     => $ig['username'] ?? null,
-                        'image'        => $ig['profile_picture_url'] ?? null,
-                        'access_token' => $page['access_token'],
-                        'expires_in'   => $expiresAt,
-                        'is_active'    => true,
-                        'status'       => 'active',
-                    ]
-                );
-                $created['instagram']++;
-
-                try {
-                    $instagramPostService->syncAccountStats($instagramAccount);
-                } catch (\Throwable $e) {
-                    Log::warning('Instagram stats sync failed after connect.', ['account_id' => $instagramAccount->id, 'error' => $e->getMessage()]);
-                }
-                try {
-                    $instagramPostService->subscribeToWebhooks($instagramAccount);
-                } catch (\Throwable $e) {
-                    Log::warning('Instagram webhook subscribe failed after connect.', ['account_id' => $instagramAccount->id, 'error' => $e->getMessage()]);
-                }
-                try {
-                    $instagramPostService->backfillRecentPosts($instagramAccount);
-                } catch (\Throwable $e) {
-                    Log::warning('Instagram post backfill failed after connect.', ['account_id' => $instagramAccount->id, 'error' => $e->getMessage()]);
-                }
-            }
-        }
-
-        return redirect()->route('admin.posts.create')->with(
-            'success',
-            "Connected {$created['facebook']} Facebook Page(s) and {$created['instagram']} Instagram account(s)."
-        );
-    }
-
-    private function metaGraphVersion(): string
-    {
-        preg_match('#/(v[\d.]+)/#', $this->metaBaseUrl(), $matches);
-
-        return $matches[1] ?? 'v21.0';
-    }
-
-    private function metaBaseUrl(): string
-    {
-        return adminSetting('posts.facebook.base_url') ?: 'https://graph.facebook.com/v25.0/';
-    }
-
-    private function metaCallbackUrl(): string
-    {
-        return url('/post-accounts/meta/callback');
     }
 
     /**
@@ -406,16 +213,16 @@ class PostAccountController extends Controller
 
         $profileData = $profile->successful() ? $profile->json() : [];
 
-        PostAccount::updateOrCreate(
-            ['platform' => 'threads', 'account_id' => $threadsUserId, 'user_id' => Auth::id()],
+        SocialAccount::updateOrCreate(
+            ['platform' => 'threads', 'platform_account_id' => $threadsUserId, 'user_id' => Auth::id()],
             [
-                'name'         => $profileData['username'] ?? 'Threads Account',
-                'username'     => $profileData['username'] ?? null,
-                'image'        => $profileData['threads_profile_picture_url'] ?? null,
-                'access_token' => $accessToken,
-                'expires_in'   => Carbon::now()->addSeconds($expiresIn),
-                'is_active'    => true,
-                'status'       => 'active',
+                'name'                   => $profileData['username'] ?? 'Threads Account',
+                'username'               => $profileData['username'] ?? null,
+                'avatar_url'             => $profileData['threads_profile_picture_url'] ?? null,
+                'access_token'           => $accessToken,
+                'expires_at'             => Carbon::now()->addSeconds($expiresIn),
+                'is_token_valid'         => true,
+                'has_posting_permission' => true,
             ]
         );
 
@@ -424,13 +231,16 @@ class PostAccountController extends Controller
 
     private function threadsCallbackUrl(): string
     {
-        // url() resolves from this environment's real APP_URL -
-        // config('services.app_url') is a separate, currently misconfigured
-        // value (pointed at an unrelated domain) that would build a
-        // redirect_uri Threads/Meta would reject as not matching what's
-        // registered, the same issue already found and worked around for
-        // the Messaging module's OAuth flows and for Meta below.
-        return url('/post-accounts/threads/callback');
+        // oauthCallbackUrl() (see app/Helpers/Helper.php) reverse-resolves
+        // from routes/web.php itself rather than a hand-typed path string -
+        // config('services.app_url') is a separate, misconfigured value
+        // (pointed at an unrelated domain) that would build a redirect_uri
+        // Threads/Meta would reject as not matching what's registered, and
+        // strips the locale prefix a bare route() call would otherwise add
+        // (this route lives inside the LaravelLocalization group). Same
+        // reasoning applied across every callback URL in Ads/Posting/
+        // Messaging.
+        return oauthCallbackUrl('admin.post-accounts.threads.callback');
     }
 
     /**
@@ -491,18 +301,22 @@ class PostAccountController extends Controller
             return redirect()->route('admin.posts.create')->with('error', 'Connected to Pinterest, but no board could be found or created for posting.');
         }
 
-        PostAccount::updateOrCreate(
-            ['platform' => 'pinterest', 'account_id' => $profileData['username'] ?? $token['access_token'], 'user_id' => Auth::id()],
+        SocialAccount::updateOrCreate(
+            ['platform' => 'pinterest', 'platform_account_id' => $profileData['username'] ?? $token['access_token'], 'user_id' => Auth::id()],
             [
-                'name'          => $profileData['username'] ?? 'Pinterest Account',
-                'username'      => $profileData['username'] ?? null,
-                'image'         => $profileData['profile_image'] ?? null,
-                'access_token'  => $token['access_token'],
-                'refresh_token' => $token['refresh_token'] ?? null,
-                'expires_in'    => Carbon::now()->addSeconds($token['expires_in'] ?? 2592000),
-                'is_active'     => true,
-                'status'        => 'active',
-                'settings'      => ['board_id' => $boardId],
+                'name'                   => $profileData['username'] ?? 'Pinterest Account',
+                'username'               => $profileData['username'] ?? null,
+                'avatar_url'             => $profileData['profile_image'] ?? null,
+                'followers_count'        => $profileData['follower_count'] ?? null,
+                'following_count'        => $profileData['following_count'] ?? null,
+                'views_count'            => $profileData['monthly_views'] ?? null,
+                'media_count'            => $profileData['pin_count'] ?? null,
+                'access_token'           => $token['access_token'],
+                'refresh_token'          => $token['refresh_token'] ?? null,
+                'expires_at'             => Carbon::now()->addSeconds($token['expires_in'] ?? 2592000),
+                'is_token_valid'         => true,
+                'has_posting_permission' => true,
+                'metadata'               => ['settings' => ['board_id' => $boardId]],
             ]
         );
 
@@ -532,7 +346,7 @@ class PostAccountController extends Controller
 
     private function pinterestCallbackUrl(): string
     {
-        return url('/post-accounts/pinterest/callback');
+        return oauthCallbackUrl('admin.post-accounts.pinterest.callback');
     }
 
     /**
@@ -581,7 +395,21 @@ class PostAccountController extends Controller
             return redirect()->route('admin.posts.create')->with('error', 'Missing PKCE code verifier - please restart the connection flow.');
         }
 
-        $tokenResponse = $api->request('post', 'https://api.x.com/2/oauth2/token', [], [
+        // HTTP Basic Auth (client_secret_basic) - the X Developer Console
+        // shows this app registered as "Web App, Automated App or Bot"
+        // (Confidential client), not "Native App" (Public client). A
+        // confidential client's token endpoint calls must authenticate
+        // with client_secret - PKCE's code_verifier alone doesn't
+        // substitute for that. This call never sent client_secret
+        // anywhere, which would fail token exchange the moment a user
+        // actually got past X's consent screen (same gap found and fixed
+        // in XMessagingService for the DM flow, which registers under the
+        // same X app).
+        $tokenResponse = $api->request('post', 'https://api.x.com/2/oauth2/token', [
+            'Authorization' => 'Basic ' . base64_encode(
+                adminSetting('posts.x.client_id') . ':' . adminSetting('posts.x.client_secret')
+            ),
+        ], [
             'grant_type'    => 'authorization_code',
             'code'          => $request->query('code'),
             'client_id'     => adminSetting('posts.x.client_id'),
@@ -600,25 +428,29 @@ class PostAccountController extends Controller
 
         $userResponse = $api->request('get', $baseUrl . 'users/me', [
             'Authorization' => 'Bearer ' . $token['access_token'],
-        ], ['user.fields' => 'profile_image_url,username,name']);
+        ], ['user.fields' => 'profile_image_url,username,name,public_metrics']);
 
         if (!$userResponse->successful()) {
             return redirect()->route('admin.posts.create')->with('error', 'Connected, but failed to fetch the X account profile.');
         }
 
         $user = $userResponse->json()['data'];
+        $metrics = $user['public_metrics'] ?? [];
 
-        PostAccount::updateOrCreate(
-            ['platform' => 'x', 'account_id' => $user['id'], 'user_id' => Auth::id()],
+        SocialAccount::updateOrCreate(
+            ['platform' => 'x', 'platform_account_id' => $user['id'], 'user_id' => Auth::id()],
             [
-                'name'          => $user['name'] ?? $user['username'],
-                'username'      => $user['username'] ?? null,
-                'image'         => $user['profile_image_url'] ?? null,
-                'access_token'  => $token['access_token'],
-                'refresh_token' => $token['refresh_token'] ?? null,
-                'expires_in'    => Carbon::now()->addSeconds($token['expires_in'] ?? 7200),
-                'is_active'     => true,
-                'status'        => 'active',
+                'name'                   => $user['name'] ?? $user['username'],
+                'username'               => $user['username'] ?? null,
+                'avatar_url'             => $user['profile_image_url'] ?? null,
+                'followers_count'        => $metrics['followers_count'] ?? null,
+                'following_count'        => $metrics['following_count'] ?? null,
+                'media_count'            => $metrics['tweet_count'] ?? null,
+                'access_token'           => $token['access_token'],
+                'refresh_token'          => $token['refresh_token'] ?? null,
+                'expires_at'             => Carbon::now()->addSeconds($token['expires_in'] ?? 7200),
+                'is_token_valid'         => true,
+                'has_posting_permission' => true,
             ]
         );
 
@@ -627,158 +459,7 @@ class PostAccountController extends Controller
 
     private function xCallbackUrl(): string
     {
-        return url('/post-accounts/x/callback');
-    }
-
-    /**
-     * LinkedIn - standard OAuth 2.0 authorization code flow.
-     * LinkedInPostService posts as an Organization
-     * (urn:li:organization:{account_id}, not a personal profile - see its
-     * publishPost()), so after the user token exchange this resolves
-     * every Organization the user has an admin role on via
-     * organizationAcls, creating one post_accounts row per Organization -
-     * all sharing the same user-level access token, since LinkedIn
-     * (unlike Facebook Pages) doesn't hand out separate per-organization
-     * tokens.
-     */
-    public function redirectLinkedin()
-    {
-        $state = Str::uuid()->toString();
-        session(['linkedin_oauth_state' => $state]);
-
-        $url = 'https://www.linkedin.com/oauth/v2/authorization?' . http_build_query([
-            'response_type' => 'code',
-            'client_id'     => adminSetting('posts.linkedin.client_id'),
-            'redirect_uri'  => $this->linkedinCallbackUrl(),
-            'state'         => $state,
-            // r_organization_admin: list the Organizations this user administers
-            // (organizationAcls walk below). w_organization_social/rw_organization_admin:
-            // publish as the Organization and manage its Page. r_organization_social:
-            // read the Organization's own posts, plus their comments/likes/shares via
-            // the socialActions endpoints - without it, GET /posts, /socialActions, and
-            // the analytics endpoints below all 403 even though publishing still works.
-            'scope'         => 'openid profile w_member_social r_organization_admin r_organization_social w_organization_social rw_organization_admin',
-        ]);
-
-        return Redirect::away($url);
-    }
-
-    public function callbackLinkedin(Request $request, ApiPostService $api, \App\Services\PostServices\LinkedInPostService $linkedInPostService)
-    {
-        if (!$request->filled('code') || $request->query('state') !== session('linkedin_oauth_state')) {
-            return redirect()->route('admin.posts.create')->with('error', 'LinkedIn connection failed or was cancelled.');
-        }
-
-        $tokenResponse = $api->request('post', 'https://www.linkedin.com/oauth/v2/accessToken', [], [
-            'grant_type'    => 'authorization_code',
-            'code'          => $request->query('code'),
-            'client_id'     => adminSetting('posts.linkedin.client_id'),
-            'client_secret' => adminSetting('posts.linkedin.client_secret'),
-            'redirect_uri'  => $this->linkedinCallbackUrl(),
-        ], 'form');
-
-        if (!$tokenResponse->successful()) {
-            return redirect()->route('admin.posts.create')->with('error', $tokenResponse->json()['error_description'] ?? 'Failed to exchange code for a LinkedIn access token.');
-        }
-
-        $token = $tokenResponse->json();
-        $accessToken = $token['access_token'];
-        $baseUrl = adminSetting('posts.linkedin.base_url') ?: 'https://api.linkedin.com/rest/';
-        $headers = [
-            'Authorization'             => 'Bearer ' . $accessToken,
-            'LinkedIn-Version'          => '202401',
-            'X-Restli-Protocol-Version' => '2.0.0',
-        ];
-
-        // Every Organization this user has an admin role on - each becomes
-        // its own postable account, the same "resolve every postable
-        // entity the user manages" shape as Meta's /me/accounts walk above.
-        $aclsResponse = $api->request('get', $baseUrl . 'organizationAcls', $headers, [
-            'q'    => 'roleAssignee',
-            'role' => 'ADMINISTRATOR',
-        ]);
-
-        if (!$aclsResponse->successful()) {
-            Log::warning('LinkedIn organizationAcls fetch failed.', [
-                'status' => $aclsResponse->status(),
-                'body'   => $aclsResponse->body(),
-            ]);
-
-            // A 403 here almost always means the app itself hasn't been
-            // granted LinkedIn's "Community Management API" product yet
-            // (Developer Portal > app > Products) - that product is what
-            // actually backs r_organization_admin/rw_organization_admin/
-            // w_organization_social/r_organization_social. Requesting
-            // those scopes in redirectLinkedin() and getting a token back
-            // doesn't mean the token carries them; LinkedIn silently caps
-            // the grant to whatever products are approved for the app,
-            // and this call is the first one that exposes the gap.
-            $message = $aclsResponse->status() === 403
-                ? 'Connected, but this LinkedIn app is not approved for the "Community Management API" product yet, so it has no permission to list Organizations. Request access to that product in the LinkedIn Developer Portal (Products tab) and wait for approval, then reconnect.'
-                : 'Connected, but could not fetch your LinkedIn Organizations.';
-
-            return redirect()->route('admin.posts.create')->with('error', $message);
-        }
-
-        $created = 0;
-
-        foreach ($aclsResponse->json()['elements'] ?? [] as $acl) {
-            $orgUrn = $acl['organization'] ?? null;
-
-            if (!$orgUrn || !preg_match('#urn:li:organization:(\d+)#', $orgUrn, $matches)) {
-                continue;
-            }
-
-            $orgId = $matches[1];
-            $orgResponse = $api->request('get', $baseUrl . 'organizations/' . $orgId, $headers);
-            $org = $orgResponse->successful() ? $orgResponse->json() : [];
-
-            $linkedinAccount = PostAccount::updateOrCreate(
-                ['platform' => 'linkedin', 'account_id' => $orgId, 'user_id' => Auth::id()],
-                [
-                    'name'         => $org['localizedName'] ?? 'LinkedIn Organization',
-                    'username'     => $org['vanityName'] ?? null,
-                    'access_token' => $accessToken,
-                    'expires_in'   => Carbon::now()->addSeconds($token['expires_in'] ?? 5184000),
-                    'is_active'    => true,
-                    'status'       => 'active',
-                ]
-            );
-            $created++;
-
-            // Each of these three is independently failure-tolerant (see
-            // their own docblocks) - this outer try/catch is a deliberate
-            // second safety net so a missing scope/analytics approval can
-            // never prevent the PostAccount above from having already
-            // saved, or block the other two operations from running. Same
-            // shape as callbackMeta()'s post-connect sync above.
-            try {
-                $linkedInPostService->syncAccountStats($linkedinAccount);
-            } catch (\Throwable $e) {
-                Log::warning('LinkedIn stats sync failed after connect.', ['account_id' => $linkedinAccount->id, 'error' => $e->getMessage()]);
-            }
-            try {
-                $linkedInPostService->subscribeToWebhooks($linkedinAccount);
-            } catch (\Throwable $e) {
-                Log::warning('LinkedIn webhook callback registration failed after connect.', ['account_id' => $linkedinAccount->id, 'error' => $e->getMessage()]);
-            }
-            try {
-                $linkedInPostService->backfillRecentPosts($linkedinAccount);
-            } catch (\Throwable $e) {
-                Log::warning('LinkedIn post backfill failed after connect.', ['account_id' => $linkedinAccount->id, 'error' => $e->getMessage()]);
-            }
-        }
-
-        if ($created === 0) {
-            return redirect()->route('admin.posts.create')->with('error', 'Connected to LinkedIn, but no Organization Page was found where you have admin access - posting through this app requires a Company Page, not a personal profile.');
-        }
-
-        return redirect()->route('admin.posts.create')->with('success', "Connected {$created} LinkedIn Organization(s).");
-    }
-
-    private function linkedinCallbackUrl(): string
-    {
-        return url('/post-accounts/linkedin/callback');
+        return oauthCallbackUrl('admin.post-accounts.x.callback');
     }
 
     public function redirectInstagram()
@@ -862,26 +543,32 @@ class PostAccountController extends Controller
         $igUser = $userResponse->json();
         $accId  = $igUser['id'] ?? $igUserId;
 
-        // 5. Store / Update PostAccount Record
-        $instagramAccount = PostAccount::updateOrCreate(
+        // 5. Store / Update SocialAccount Record
+        $instagramAccount = SocialAccount::updateOrCreate(
             [
-                'platform'   => 'instagram',
-                'account_id' => $accId,
-                'user_id'    => Auth::id(),
+                'platform'             => 'instagram',
+                'platform_account_id'  => $accId,
+                'user_id'              => Auth::id(),
             ],
             [
-                'name'         => $igUser['name'] ?? $igUser['username'] ?? 'Instagram Business',
-                'username'     => $igUser['username'] ?? null,
-                'avatar'       => $igUser['profile_picture_url'] ?? null,
-                'access_token' => $accessToken,
-                'expires_in'   => Carbon::now()->addSeconds($expiresIn),
-                'is_active'    => true,
-                'status'       => 'active',
+                'name'                   => $igUser['name'] ?? $igUser['username'] ?? 'Instagram Business',
+                'username'               => $igUser['username'] ?? null,
+                // Bug fix: this used to write an 'avatar' key, which isn't
+                // a real column on the old PostAccount model's fillable
+                // (nor is it 'avatar_url'/'image'), so it was silently
+                // dropped by mass-assignment protection and the standalone
+                // Instagram Login flow never actually persisted an avatar.
+                // Now correctly targets avatar_url.
+                'avatar_url'             => $igUser['profile_picture_url'] ?? null,
+                'access_token'           => $accessToken,
+                'expires_at'             => Carbon::now()->addSeconds($expiresIn),
+                'is_token_valid'         => true,
+                'has_posting_permission' => true,
                 // Tags this account as a standalone Instagram Login token
                 // (graph.instagram.com), distinct from callbackMeta()'s
                 // Facebook Page tokens (graph.facebook.com) - see
                 // InstagramPostService::resolveBaseUrl().
-                'settings'     => ['auth_type' => 'instagram_login'],
+                'metadata'               => ['settings' => ['auth_type' => 'instagram_login']],
             ]
         );
 
@@ -913,311 +600,10 @@ class PostAccountController extends Controller
 
     private function instagramCallbackUrl(): string
     {
-        return url('/post-accounts/instagram/callback');
+        return oauthCallbackUrl('admin.post-accounts.instagram.callback');
     }
 
-    /**
-     * TikTok Content Posting API - OAuth 2.0 with PKCE (mandatory here,
-     * unlike X's optional-but-recommended PKCE), on TikTok's own domain
-     * (www.tiktok.com/v2/auth/authorize, not a Graph-API-style host). The
-     * user's open_id (returned directly in the token response) is what
-     * every later Content Posting API call is scoped to - no separate
-     * "list pages" step the way Meta/LinkedIn need, since a TikTok
-     * account always posts as itself. TikTok app review is required
-     * before most scopes work outside of a small allow-listed developer
-     * group - worth knowing going in, the same category of real
-     * distribution constraint already flagged for other platforms in this
-     * app.
-     */
-    public function redirectTiktok()
-    {
-        $codeVerifier = bin2hex(random_bytes(32));
-        session(['tiktok_code_verifier' => $codeVerifier]);
-
-        $state = Str::uuid()->toString();
-        session(['tiktok_oauth_state' => $state]);
-
-        $codeChallenge = hash('sha256', $codeVerifier);
-
-        $url = 'https://www.tiktok.com/v2/auth/authorize/?' . http_build_query([
-            'client_key'            => adminSetting('posts.tiktok.client_id'),
-            'response_type'         => 'code',
-            'scope'                 => 'user.info.basic,video.publish,video.upload,user.info.profile,user.info.stats',
-            'redirect_uri'          => $this->tiktokCallbackUrl(),
-            'state'                 => $state,
-            'code_challenge'        => $codeChallenge,
-            'code_challenge_method' => 'S256',
-        ]);
-
-        return Redirect::away($url);
-    }
-
-    public function callbackTiktok(Request $request, ApiPostService $api)
-    {
-        if (!$request->filled('code') || $request->query('state') !== session('tiktok_oauth_state')) {
-            return redirect()->route('admin.posts.create')->with('error', 'TikTok connection failed or was cancelled.');
-        }
-
-        $codeVerifier = session('tiktok_code_verifier');
-
-        if (!$codeVerifier) {
-            return redirect()->route('admin.posts.create')->with('error', 'Missing PKCE code verifier - please restart the connection flow.');
-        }
-
-        $tokenResponse = $api->request('post', 'https://open.tiktokapis.com/v2/oauth/token/', [
-            'Content-Type' => 'application/x-www-form-urlencoded',
-        ], [
-            'client_key'    => adminSetting('posts.tiktok.client_id'),
-            'client_secret' => adminSetting('posts.tiktok.client_secret'),
-            'code'          => $request->query('code'),
-            'grant_type'    => 'authorization_code',
-            'redirect_uri'  => $this->tiktokCallbackUrl(),
-            'code_verifier' => $codeVerifier,
-        ], 'form');
-
-        session()->forget(['tiktok_code_verifier', 'tiktok_oauth_state']);
-
-        if (!$tokenResponse->successful() || !empty($tokenResponse->json()['error'])) {
-            return redirect()->route('admin.posts.create')->with('error', $tokenResponse->json()['error_description'] ?? 'Failed to exchange code for a TikTok access token.');
-        }
-
-        $token = $tokenResponse->json();
-
-        $profileResponse = $api->request('get', 'https://open.tiktokapis.com/v2/user/info/', [
-            'Authorization' => 'Bearer ' . $token['access_token'],
-        ], ['fields' => 'open_id,display_name,avatar_url,profile_deep_link,username,bio_description,follower_count,following_count,likes_count,video_count']);
-
-        $profile = $profileResponse->successful() ? ($profileResponse->json()['data']['user'] ?? []) : [];
-
-        PostAccount::updateOrCreate(
-            ['platform' => 'tiktok', 'account_id' => $token['open_id'], 'user_id' => Auth::id()],
-            [
-                'name'             => $profile['display_name'] ?? 'TikTok Account',
-                'username'         => $profile['username'] ?? null,
-                'image'            => $profile['avatar_url'] ?? null,
-                'access_token'     => $token['access_token'],
-                'refresh_token'    => $token['refresh_token'] ?? null,
-                'expires_in'       => Carbon::now()->addSeconds($token['expires_in'] ?? 86400),
-                'is_active'        => true,
-                'status'           => 'active',
-                'follower_count'   => $profile['follower_count'],
-                'description'      => $profile['bio_description'],
-                'account_url'      => $profile['profile_deep_link'],
-                'likes_count'      => $profile['likes_count'],
-                'following_count'  => $profile['following_count'],
-                'media_count'      => $profile['video_count'],
-            ]
-        );
-
-        return redirect()->route('admin.posts.create')->with('success', 'TikTok account connected.');
-    }
-
-    private function tiktokCallbackUrl(): string
-    {
-        return url('/post-accounts/tiktok/callback');
-    }
-
-    /**
-     * Google OAuth 2.0 - one flow covering both YouTube uploads and
-     * Google Business Profile local posts, the two Google-backed
-     * platforms in this module (YoutubePostService/GooglePostService),
-     * requesting both products' scopes together the same way Meta's flow
-     * above covers Facebook and Instagram in one authorization. Two
-     * different account-enumeration calls follow: the user's own YouTube
-     * channel (a personal channel always posts as the authenticated user,
-     * no "pages" concept), and every Business Profile location under
-     * every account they manage (which does have a pages-like structure).
-     */
-    public function redirectGoogle()
-    {
-        $state = Str::uuid()->toString();
-        session(['google_oauth_state' => $state]);
-
-        $url = 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query([
-            'client_id'     => adminSetting('posts.google.client_id'),
-            'redirect_uri'  => $this->googleCallbackUrl(),
-            'response_type' => 'code',
-            'access_type'   => 'offline',
-            'prompt'        => 'consent',
-            // youtube.force-ssl is required for commentThreads/comments
-            // (list AND insert) - youtube.readonly alone gets "insufficient
-            // authentication scopes" from commentThreads.list, confirmed
-            // live. Covers both getComments() (backfill) and
-            // publishComment() (replying), which were silently broken
-            // without it.
-            'scope'         => 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/business.manage',
-            'state'         => $state,
-        ]);
-
-        return Redirect::away($url);
-    }
-
-    public function callbackGoogle(Request $request, ApiPostService $api, YoutubePostService $youtubeService)
-    {
-        if (!$request->filled('code') || $request->query('state') !== session('google_oauth_state')) {
-            return redirect()->route('admin.posts.create')->with('error', 'Google connection failed or was cancelled.');
-        }
-
-        $tokenResponse = $api->request('post', 'https://oauth2.googleapis.com/token', [], [
-            'code'          => $request->query('code'),
-            'client_id'     => adminSetting('posts.google.client_id'),
-            'client_secret' => adminSetting('posts.google.client_secret'),
-            'redirect_uri'  => $this->googleCallbackUrl(),
-            'grant_type'    => 'authorization_code',
-        ], 'form');
-
-        if (!$tokenResponse->successful()) {
-            return redirect()->route('admin.posts.create')->with('error', $tokenResponse->json()['error_description'] ?? 'Failed to exchange code for a Google access token.');
-        }
-
-        $token = $tokenResponse->json();
-        $accessToken = $token['access_token'];
-        $expiresAt = Carbon::now()->addSeconds($token['expires_in'] ?? 3600);
-        $headers = ['Authorization' => 'Bearer ' . $accessToken];
-        $created = ['youtube' => 0, 'google' => 0];
-
-        // YouTube - the authenticated user's own channel.
-        $channelResponse = $api->request('get', 'https://www.googleapis.com/youtube/v3/channels', $headers, [
-            'part' => 'snippet,statistics',
-            'mine' => 'true',
-        ]);
-
-        if ($channelResponse->successful() && !empty($channelResponse->json()['items'])) {
-            $channel = $channelResponse->json()['items'][0];
-
-            $youtubeAccount = PostAccount::updateOrCreate(
-                ['platform' => 'youtube', 'account_id' => $channel['id'], 'user_id' => Auth::id()],
-                [
-                    'name'          => $channel['snippet']['title'] ?? 'YouTube Channel',
-                    'username'      => $channel['snippet']['customUrl'] ?? null,
-                    'description'     => $channel['snippet']['description'] ?? '',
-                    'image'         => $channel['snippet']['thumbnails']['default']['url'] ?? null,
-                    'account_url'   => 'https://www.youtube.com/' . $channel['snippet']['customUrl'] ?? null,
-                    'access_token'  => $accessToken,
-                    'media_count'   => $channel['statistics']['videoCount'] ?? null,
-                    'views_count'    => $channel['statistics']['viewCount'] ?? null,
-                    'follower_count'  => $channel['statistics']['subscriberCount'] ?? null,
-                    'refresh_token' => $token['refresh_token'] ?? null,
-                    'expires_in'    => $expiresAt,
-                    'is_active'     => true,
-                    'status'        => 'active',
-                ]
-            );
-            $created['youtube']++;
-
-            // Each of these three is independently failure-tolerant so the
-            // channel above stays saved even if a sync/subscribe/backfill
-            // call fails - same pattern as the Meta/Instagram connect flows.
-            try {
-                $youtubeService->syncAccountStats($youtubeAccount);
-            } catch (\Throwable $e) {
-                Log::warning('YouTube channel stats sync failed after connect.', ['account_id' => $youtubeAccount->id, 'error' => $e->getMessage()]);
-            }
-            try {
-                $youtubeService->subscribeToWebhooks($youtubeAccount);
-            } catch (\Throwable $e) {
-                Log::warning('YouTube channel webhook subscribe failed after connect.', ['account_id' => $youtubeAccount->id, 'error' => $e->getMessage()]);
-            }
-            try {
-                $youtubeService->backfillRecentPosts($youtubeAccount);
-            } catch (\Throwable $e) {
-                Log::warning('YouTube video backfill failed after connect.', ['account_id' => $youtubeAccount->id, 'error' => $e->getMessage()]);
-            }
-        }
-
-        // Google Business Profile - every location under every account the
-        // user manages, mirroring GooglePostService's accounts/{parent}/
-        // locations/{account_id} nesting (parent_account_id stores the raw
-        // GBP account id a location belongs to - GooglePostService reads
-        // it directly as a URL path segment, not as a post_accounts.id
-        // foreign key, despite the model's own parentAccount() relation
-        // assuming the latter; this matches what publishPost() actually
-        // needs to work).
-        $accountBaseUrl = adminSetting('posts.google.account_base_url') ?: 'https://mybusinessaccountmanagement.googleapis.com/v1/';
-        $accountsResponse = $api->request('get', $accountBaseUrl . 'accounts', $headers);
-
-        if (!$accountsResponse->successful()) {
-            // Almost always SERVICE_DISABLED (the My Business Account
-            // Management API is not enabled on the Cloud project) or a
-            // token minted without business.manage. Logged because the
-            // block below silently skipped it, making a Business Profile
-            // that never connects indistinguishable from a Google account
-            // that simply has no locations.
-            Log::warning('Google Business Profile accounts fetch failed.', [
-                'status' => $accountsResponse->status(),
-                'body'   => $accountsResponse->body(),
-            ]);
-        }
-
-        if ($accountsResponse->successful()) {
-            foreach ($accountsResponse->json()['accounts'] ?? [] as $gbpAccount) {
-                $accountName = $gbpAccount['name'] ?? null; // "accounts/{id}"
-
-                if (!$accountName) {
-                    continue;
-                }
-
-                $locationsResponse = $api->request('get', "https://mybusinessbusinessinformation.googleapis.com/v1/{$accountName}/locations", $headers, [
-                    'readMask' => 'name,title',
-                ]);
-
-                if (!$locationsResponse->successful()) {
-                    // Separate API from the accounts call above - the
-                    // My Business *Business Information* API must be
-                    // enabled on the Cloud project in its own right, and a
-                    // 403 SERVICE_DISABLED here is why accounts can list
-                    // fine while zero locations ever get saved.
-                    Log::warning('Google Business Profile locations fetch failed.', [
-                        'account' => $accountName,
-                        'status'  => $locationsResponse->status(),
-                        'body'    => $locationsResponse->body(),
-                    ]);
-
-                    continue;
-                }
-
-                $gbpAccountId = str_replace('accounts/', '', $accountName);
-
-                foreach ($locationsResponse->json()['locations'] ?? [] as $location) {
-                    $locationId = str_replace('locations/', '', $location['name'] ?? '');
-
-                    if (!$locationId) {
-                        continue;
-                    }
-
-                    PostAccount::updateOrCreate(
-                        ['platform' => 'google', 'account_id' => $locationId, 'user_id' => Auth::id()],
-                        [
-                            'name'              => $location['title'] ?? 'Google Business location',
-                            'parent_account_id' => $gbpAccountId,
-                            'access_token'      => $accessToken,
-                            'refresh_token'     => $token['refresh_token'] ?? null,
-                            'expires_in'        => $expiresAt,
-                            'is_active'         => true,
-                            'status'            => 'active',
-                        ]
-                    );
-                    $created['google']++;
-                }
-            }
-        }
-
-        if ($created['youtube'] === 0 && $created['google'] === 0) {
-            return redirect()->route('admin.posts.create')->with('error', 'Connected to Google, but no YouTube channel or Business Profile location was found.');
-        }
-
-        return redirect()->route('admin.posts.create')->with(
-            'success',
-            "Connected {$created['youtube']} YouTube channel(s) and {$created['google']} Google Business location(s)."
-        );
-    }
-
-    private function googleCallbackUrl(): string
-    {
-        return url('/post-accounts/google/callback');
-    }
-
-    public function destroy(PostAccount $account)
+    public function destroy(SocialAccount $account)
     {
         abort_unless($account->user_id === Auth::id(), 403);
 

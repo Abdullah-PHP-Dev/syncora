@@ -19,6 +19,8 @@ use App\Http\Controllers\Admin\AdCampaignController;
 use App\Http\Controllers\Admin\SubscriptionController;
 use App\Http\Controllers\Admin\PostCategoryController;
 use App\Http\Controllers\Admin\EmailMarketingController;
+use App\Http\Controllers\Admin\EmailSetupController;
+use App\Http\Controllers\Admin\EmailSegmentController;
 use App\Http\Controllers\Admin\EmailListController;
 use App\Http\Controllers\Admin\EmailSubscriberController;
 use App\Http\Controllers\Admin\EmailTemplateController;
@@ -359,6 +361,22 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::get('email/dashboard', [EmailMarketingController::class, 'dashboard'])
 					->name('email.dashboard');
 
+				// Setup wizard - SendGrid subaccount -> domain -> DNS ->
+				// sender -> ready. Plain synchronous forms (see
+				// EmailSetupController's docblock for why, over a JS
+				// stepper).
+				Route::get('email/setup', [EmailSetupController::class, 'index'])->name('email.setup.index');
+				Route::post('email/setup/subaccount', [EmailSetupController::class, 'provisionSubaccount'])->name('email.setup.subaccount');
+				Route::post('email/setup/domain', [EmailSetupController::class, 'authenticateDomain'])->name('email.setup.domain');
+				Route::post('email/setup/domain/{domain}/verify', [EmailSetupController::class, 'verifyDomain'])->name('email.setup.domain.verify');
+				Route::post('email/setup/sender', [EmailSetupController::class, 'createSender'])->name('email.setup.sender');
+				Route::post('email/setup/sender/{sender}/refresh', [EmailSetupController::class, 'refreshSenderStatus'])->name('email.setup.sender.refresh');
+				Route::post('email/setup/sender/{sender}/resend', [EmailSetupController::class, 'resendSenderVerification'])->name('email.setup.sender.resend');
+
+				Route::resource('email/segments', EmailSegmentController::class)
+					->only(['index', 'store', 'destroy'])
+					->names('email.segments');
+
 				Route::get('email/lists', [EmailListController::class, 'index'])->name('email.lists.index');
 				Route::post('email/lists', [EmailListController::class, 'store'])->name('email.lists.store');
 				Route::patch('email/lists/{list}', [EmailListController::class, 'update'])->name('email.lists.update');
@@ -372,12 +390,14 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::resource('email/templates', EmailTemplateController::class)
 					->except(['show'])
 					->names('email.templates');
+				Route::post('email/templates/{template}/versions/{version}/restore', [EmailTemplateController::class, 'restoreVersion'])->name('email.templates.versions.restore');
 
 				Route::resource('email/campaigns', EmailCampaignController::class)
 					->except(['show'])
 					->names('email.campaigns');
 				Route::get('email/campaigns/{campaign}', [EmailCampaignController::class, 'show'])->name('email.campaigns.show');
 				Route::post('email/campaigns/{campaign}/send', [EmailCampaignController::class, 'sendNow'])->name('email.campaigns.send');
+				Route::get('email/campaigns/{campaign}/preflight', [EmailCampaignController::class, 'preflight'])->name('email.campaigns.preflight');
 
 
 				// SYSTEM

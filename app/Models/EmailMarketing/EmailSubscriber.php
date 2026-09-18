@@ -15,7 +15,7 @@ class EmailSubscriber extends Model
 
     protected $fillable = [
         'user_id', 'email', 'name', 'status', 'unsubscribe_token',
-        'subscribed_at', 'unsubscribed_at',
+        'subscribed_at', 'unsubscribed_at', 'sendgrid_contact_id',
     ];
 
     protected $casts = [

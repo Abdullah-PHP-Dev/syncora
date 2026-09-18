@@ -47,16 +47,16 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
             <h4><i class="bx bx-envelope-open"></i> Email Marketing</h4>
-            <p>Build lists, design campaigns, and track opens/clicks/bounces through your Mailgun sending domain.</p>
+            <p>Build lists, design campaigns, and track opens/clicks/bounces through your own isolated SendGrid sending account.</p>
         </div>
         <a href="{{ route('admin.email.campaigns.create') }}" class="btn btn-light fw-semibold"><i class="bx bx-plus"></i> New Campaign</a>
     </div>
 </div>
 
-@if (!$isConfigured)
+@if (!$isReady)
     <div class="alert alert-warning d-flex align-items-center gap-2">
         <i class="bx bx-error-circle fs-5"></i>
-        Mailgun isn't configured yet, so campaigns can't send. Add <code>email_marketing.mailgun.domain</code> and <code>email_marketing.mailgun.secret</code> under <a href="{{ route('admin.apis.index') }}">Admin &gt; APIs</a>.
+        Email Marketing setup isn't complete yet, so campaigns can't send. <a href="{{ route('admin.email.setup.index') }}">Finish setup</a> (SendGrid subaccount, sending domain, and a verified sender).
     </div>
 @endif
 
@@ -133,6 +133,8 @@
         <div class="card p-3">
             <h6 class="mb-3">Quick Links</h6>
             <div class="email-quick-links">
+                <a href="{{ route('admin.email.setup.index') }}"><i class="bx bx-cog text-primary"></i> Email Marketing Setup</a>
+                <a href="{{ route('admin.email.segments.index') }}"><i class="bx bx-filter-alt text-primary"></i> Segments</a>
                 <a href="{{ route('admin.email.lists.index') }}"><i class="bx bx-list-ul text-primary"></i> Manage Lists</a>
                 <a href="{{ route('admin.email.templates.index') }}"><i class="bx bx-file text-primary"></i> Email Templates</a>
                 <a href="{{ route('admin.email.campaigns.index') }}"><i class="bx bx-paper-plane text-primary"></i> All Campaigns</a>

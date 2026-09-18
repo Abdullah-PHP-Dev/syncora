@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\EmailMarketing\EmailCampaign;
 use App\Models\EmailMarketing\EmailList;
+use App\Models\EmailMarketing\EmailSegment;
 use App\Models\EmailMarketing\EmailTemplate;
+use App\Models\EmailMarketing\SenderIdentity;
 use App\Services\EmailMarketingServices\EmailMarketingService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -15,10 +18,12 @@ use Illuminate\Validation\Rule;
  * A campaign's subject/body is copied in at creation time from whichever
  * template (if any) was picked - see EmailCampaign::$fillable - so later
  * edits to that template never change a campaign that's scheduled or
- * already sent. Sending itself (immediate or once a schedule is due) goes
- * through EmailMarketingService::dispatchCampaign(), which is also what
- * SendScheduledEmailCampaigns calls - this controller never talks to
- * Mailgun directly.
+ * already sent. Sending/scheduling goes through
+ * EmailMarketingService::dispatchCampaign(), which now calls SendGrid's
+ * own Single Send schedule endpoint directly - unlike the old Mailgun
+ * flow, "Schedule" no longer waits for a local cron to notice
+ * scheduled_at has arrived; SendGrid itself holds and fires the send at
+ * the chosen time once scheduled here.
  */
 class EmailCampaignController extends Controller
 {
@@ -29,7 +34,7 @@ class EmailCampaignController extends Controller
     public function index()
     {
         $campaigns = EmailCampaign::where('user_id', Auth::id())
-            ->with('list')
+            ->with('list', 'senderIdentity')
             ->latest()
             ->paginate(20);
 
@@ -39,9 +44,11 @@ class EmailCampaignController extends Controller
     public function create()
     {
         $lists = EmailList::where('user_id', Auth::id())->withCount('subscribers')->get();
+        $segments = EmailSegment::where('user_id', Auth::id())->get();
         $templates = EmailTemplate::where('user_id', Auth::id())->get();
+        $senders = SenderIdentity::where('user_id', Auth::id())->where('status', 'verified')->get();
 
-        return view('admin.email.campaigns.create', compact('lists', 'templates'));
+        return view('admin.email.campaigns.create', compact('lists', 'segments', 'templates', 'senders'));
     }
 
     public function store(Request $request)
@@ -49,19 +56,22 @@ class EmailCampaignController extends Controller
         $validated = $this->validated($request);
 
         $campaign = EmailCampaign::create([
-            'user_id'           => Auth::id(),
-            'email_list_id'     => $validated['email_list_id'],
-            'email_template_id' => $validated['email_template_id'] ?? null,
-            'name'              => $validated['name'],
-            'subject'           => $validated['subject'],
-            'from_name'         => $validated['from_name'],
-            'from_email'        => $validated['from_email'],
-            'body'              => $validated['body'],
-            'status'            => $validated['action'] === 'schedule' ? 'scheduled' : 'draft',
-            'scheduled_at'      => $validated['action'] === 'schedule' ? $validated['scheduled_at'] : null,
+            'user_id'            => Auth::id(),
+            'email_list_id'      => $validated['audience_type'] === 'list' ? $validated['audience_id'] : null,
+            'audience_type'      => $validated['audience_type'],
+            'audience_id'        => $validated['audience_id'],
+            'email_template_id'  => $validated['email_template_id'] ?? null,
+            'sender_identity_id' => $validated['sender_identity_id'],
+            'name'               => $validated['name'],
+            'subject'            => $validated['subject'],
+            'preheader'          => $validated['preheader'] ?? null,
+            'from_name'          => $validated['from_name'],
+            'from_email'         => $validated['from_email'],
+            'body'               => $validated['body'],
+            'status'             => 'draft',
         ]);
 
-        return $this->afterSave($campaign, $validated['action']);
+        return $this->afterSave($campaign, $validated['action'], $validated['scheduled_at'] ?? null);
     }
 
     public function edit(EmailCampaign $campaign)
@@ -70,9 +80,11 @@ class EmailCampaignController extends Controller
         abort_unless($campaign->isEditable(), 403, 'This campaign has already been sent and can no longer be edited.');
 
         $lists = EmailList::where('user_id', Auth::id())->withCount('subscribers')->get();
+        $segments = EmailSegment::where('user_id', Auth::id())->get();
         $templates = EmailTemplate::where('user_id', Auth::id())->get();
+        $senders = SenderIdentity::where('user_id', Auth::id())->where('status', 'verified')->get();
 
-        return view('admin.email.campaigns.edit', compact('campaign', 'lists', 'templates'));
+        return view('admin.email.campaigns.edit', compact('campaign', 'lists', 'segments', 'templates', 'senders'));
     }
 
     public function update(Request $request, EmailCampaign $campaign)
@@ -83,32 +95,38 @@ class EmailCampaignController extends Controller
         $validated = $this->validated($request);
 
         $campaign->update([
-            'email_list_id'     => $validated['email_list_id'],
-            'email_template_id' => $validated['email_template_id'] ?? null,
-            'name'              => $validated['name'],
-            'subject'           => $validated['subject'],
-            'from_name'         => $validated['from_name'],
-            'from_email'        => $validated['from_email'],
-            'body'              => $validated['body'],
-            'status'            => $validated['action'] === 'schedule' ? 'scheduled' : 'draft',
-            'scheduled_at'      => $validated['action'] === 'schedule' ? $validated['scheduled_at'] : null,
+            'email_list_id'      => $validated['audience_type'] === 'list' ? $validated['audience_id'] : null,
+            'audience_type'      => $validated['audience_type'],
+            'audience_id'        => $validated['audience_id'],
+            'email_template_id'  => $validated['email_template_id'] ?? null,
+            'sender_identity_id' => $validated['sender_identity_id'],
+            'name'               => $validated['name'],
+            'subject'            => $validated['subject'],
+            'preheader'          => $validated['preheader'] ?? null,
+            'from_name'          => $validated['from_name'],
+            'from_email'         => $validated['from_email'],
+            'body'               => $validated['body'],
         ]);
 
-        return $this->afterSave($campaign, $validated['action']);
+        return $this->afterSave($campaign, $validated['action'], $validated['scheduled_at'] ?? null);
     }
 
     public function show(EmailCampaign $campaign)
     {
         abort_unless($campaign->user_id === Auth::id(), 403);
 
-        $sends = $campaign->sends()->with('subscriber')->latest()->paginate(50);
+        $events = $campaign->events()->latest('event_at')->paginate(50);
 
-        return view('admin.email.campaigns.show', compact('campaign', 'sends'));
+        return view('admin.email.campaigns.show', compact('campaign', 'events'));
     }
 
     public function destroy(EmailCampaign $campaign)
     {
         abort_unless($campaign->user_id === Auth::id(), 403);
+
+        if (in_array($campaign->status, ['scheduled', 'sending'], true)) {
+            $this->emailMarketing->cancelCampaign($campaign);
+        }
 
         $campaign->delete();
 
@@ -131,25 +149,41 @@ class EmailCampaignController extends Controller
             return back()->with('error', $result['error'] ?? 'Failed to send campaign.');
         }
 
-        return redirect()->route('admin.email.campaigns.index')->with('success', 'Campaign is sending.');
+        return redirect()->route('admin.email.campaigns.index')->with('success', 'Campaign sent.');
     }
 
-    private function afterSave(EmailCampaign $campaign, string $action)
+    /**
+     * Read-only pre-flight checklist, used by the Review & Send step
+     * before showing the Send Now/Schedule buttons at all - a direct
+     * implementation of the spec's "cannot send until every item passes"
+     * requirement.
+     */
+    public function preflight(EmailCampaign $campaign)
     {
-        if ($action === 'send_now') {
-            $result = $this->emailMarketing->dispatchCampaign($campaign);
+        abort_unless($campaign->user_id === Auth::id(), 403);
 
-            if (!($result['success'] ?? false)) {
-                return redirect()->route('admin.email.campaigns.edit', $campaign)
-                    ->with('error', $result['error'] ?? 'Failed to send campaign. It has been saved as a draft.');
-            }
+        return response()->json($this->emailMarketing->preflight($campaign));
+    }
 
-            return redirect()->route('admin.email.campaigns.index')->with('success', 'Campaign is sending.');
+    private function afterSave(EmailCampaign $campaign, string $action, ?string $scheduledAt)
+    {
+        if ($action === 'save_draft') {
+            $this->emailMarketing->saveDraft($campaign);
+
+            return redirect()->route('admin.email.campaigns.index')->with('success', 'Campaign saved as draft.');
+        }
+
+        $sendAt = $action === 'schedule' ? Carbon::parse($scheduledAt) : null;
+        $result = $this->emailMarketing->dispatchCampaign($campaign, $sendAt);
+
+        if (!($result['success'] ?? false)) {
+            return redirect()->route('admin.email.campaigns.edit', $campaign)
+                ->with('error', $result['error'] ?? 'Failed to send campaign. It has been saved as a draft.');
         }
 
         return redirect()->route('admin.email.campaigns.index')->with(
             'success',
-            $action === 'schedule' ? 'Campaign scheduled.' : 'Campaign saved as draft.'
+            $action === 'schedule' ? 'Campaign scheduled.' : 'Campaign sent.'
         );
     }
 
@@ -157,16 +191,29 @@ class EmailCampaignController extends Controller
     {
         $userId = Auth::id();
 
-        return $request->validate([
-            'name'              => ['required', 'string', 'max:255'],
-            'email_list_id'     => ['required', Rule::exists('email_lists', 'id')->where('user_id', $userId)],
-            'email_template_id' => ['nullable', Rule::exists('email_templates', 'id')->where('user_id', $userId)],
-            'subject'           => ['required', 'string', 'max:255'],
-            'from_name'         => ['required', 'string', 'max:255'],
-            'from_email'        => ['required', 'email', 'max:255'],
-            'body'              => ['required', 'string'],
-            'action'            => ['required', Rule::in(['save_draft', 'schedule', 'send_now'])],
-            'scheduled_at'      => ['required_if:action,schedule', 'nullable', 'date', 'after:now'],
+        $validated = $request->validate([
+            'name'               => ['required', 'string', 'max:255'],
+            'audience_type'      => ['required', Rule::in(['list', 'segment'])],
+            'audience_id'        => ['required', 'integer'],
+            'sender_identity_id' => ['required', Rule::exists('sender_identities', 'id')->where('user_id', $userId)->where('status', 'verified')],
+            'email_template_id'  => ['nullable', Rule::exists('email_templates', 'id')->where('user_id', $userId)],
+            'subject'            => ['required', 'string', 'max:255'],
+            'preheader'          => ['nullable', 'string', 'max:255'],
+            'from_name'          => ['required', 'string', 'max:255'],
+            'from_email'         => ['required', 'email', 'max:255'],
+            'body'               => ['required', 'string'],
+            'action'             => ['required', Rule::in(['save_draft', 'schedule', 'send_now'])],
+            'scheduled_at'       => ['required_if:action,schedule', 'nullable', 'date', 'after:now'],
         ]);
+
+        $table = $validated['audience_type'] === 'segment' ? 'email_segments' : 'email_lists';
+        $exists = ($validated['audience_type'] === 'segment' ? EmailSegment::query() : EmailList::query())
+            ->where('id', $validated['audience_id'])
+            ->where('user_id', $userId)
+            ->exists();
+
+        abort_unless($exists, 422, "Selected audience does not exist in {$table} for this account.");
+
+        return $validated;
     }
 }

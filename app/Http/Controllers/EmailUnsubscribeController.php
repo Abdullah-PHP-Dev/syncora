@@ -7,17 +7,23 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 /**
- * Public, no-auth unsubscribe flow - the link embedded in every campaign
- * email. Deliberately a GET confirmation page + separate POST, rather than
+ * Public, no-auth unsubscribe flow - kept for any link already sent
+ * through the old Mailgun integration (still valid, still needs to work
+ * for as long as those emails exist in someone's inbox). New campaigns
+ * sent through SendGrid use SendGrid's own suppression-group unsubscribe
+ * link instead (see SendGridCampaignService/EmailMarketingService's
+ * docblock) rather than this app-hosted page - this controller isn't
+ * wired into that flow going forward.
+ *
+ * Deliberately a GET confirmation page + separate POST, rather than
  * unsubscribing immediately on GET: mail-security scanners and some
  * corporate proxies pre-fetch every link in an email, which would
  * silently unsubscribe people who never clicked anything if GET alone did
  * it. The POST route is also what RFC 8058 one-click unsubscribe (the
  * native "Unsubscribe" button Gmail/Yahoo/Outlook show next to the
- * sender, driven by the List-Unsubscribe-Post header set in
- * EmailMarketingService::sendCampaignEmail()) hits directly from the mail
- * provider's own servers - no page ever loads for that path, so it's
- * exempted from CSRF verification (see bootstrap/app.php).
+ * sender) hits directly from the mail provider's own servers - no page
+ * ever loads for that path, so it's exempted from CSRF verification (see
+ * bootstrap/app.php).
  */
 class EmailUnsubscribeController extends Controller
 {
