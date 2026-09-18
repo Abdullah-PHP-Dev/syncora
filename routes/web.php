@@ -220,12 +220,29 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 				Route::get('help-center', [HelpCenterController::class, 'index'])->name('help-center.index');
 
-				Route::get('tickets', [TicketController::class, 'index'])->name('tickets.index');
-				Route::get('tickets/create', [TicketController::class, 'create'])->name('tickets.create');
-				Route::post('tickets', [TicketController::class, 'store'])->name('tickets.store');
-				Route::get('tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
-				Route::post('tickets/{ticket}/messages', [TicketController::class, 'storeMessage'])->name('tickets.messages.store');
-				Route::patch('tickets/{ticket}/status', [TicketController::class, 'updateStatus'])->name('tickets.status');
+				// URI deliberately 'support/tickets', not 'tickets' - the
+				// plain 'tickets' URI (GET/POST tickets, GET tickets/create,
+				// GET tickets/{ticket}) is already claimed by
+				// Team\TicketController's resource route above (the older
+				// "file a ticket to Socialeaz support" flow the main
+				// seller sidebar links to via route('tickets.index')).
+				// Both used to register at the identical method+URI - not
+				// just "wrong one wins on dispatch" but worse: Laravel
+				// drops the LOSING route from its name lookup entirely,
+				// so route('tickets.index') (Team's, bare name - this
+				// group's own routes get 'admin.' prefixed automatically)
+				// threw RouteNotFoundException on every single page using
+				// the shared seller sidebar, confirmed live
+				// (labs.socialeaz.com/en/ads/dashboard and any other admin
+				// page). Route names here are unchanged
+				// (admin.tickets.index etc - nothing else in the app
+				// references these URIs directly, only via route()).
+				Route::get('support/tickets', [TicketController::class, 'index'])->name('tickets.index');
+				Route::get('support/tickets/create', [TicketController::class, 'create'])->name('tickets.create');
+				Route::post('support/tickets', [TicketController::class, 'store'])->name('tickets.store');
+				Route::get('support/tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
+				Route::post('support/tickets/{ticket}/messages', [TicketController::class, 'storeMessage'])->name('tickets.messages.store');
+				Route::patch('support/tickets/{ticket}/status', [TicketController::class, 'updateStatus'])->name('tickets.status');
 			});
 
 
@@ -307,7 +324,22 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::post('posts/listing/comments/{comment}/replies', [PostController::class, 'storeReply'])->name('posts.comments.reply');
 				Route::post('posts/listing/{post}/comments', [PostController::class, 'storeComment'])->name('posts.comments.store');
 				Route::get('posts', [PostController::class, 'dashboard']);
-				Route::resource('posts', PostController::class);
+				// ->except(['index']) - an unrestricted Route::resource()
+				// here auto-generates its own GET posts/index (named
+				// posts.index, prefixed admin.posts.index by this group),
+				// which is an exact duplicate of the intentional
+				// posts.index above (posts/listing, PostController::
+				// index_vue - the real Vue posts list page) and also
+				// shadows the bare unnamed GET posts route right above
+				// this line. Two routes with the identical final name
+				// (admin.posts.index) isn't just "wrong one wins" -
+				// php artisan route:cache throws a hard LogicException
+				// and refuses to run at all with a real duplicate name,
+				// confirmed live. create/store/show/edit/update/destroy
+				// below are still genuinely used (see the comment near
+				// posts/composer above) - only the accidental index
+				// action is removed.
+				Route::resource('posts', PostController::class)->except(['index']);
 				Route::post('post-accounts/whatsapp', [PostAccountController::class, 'storeWhatsApp'])
 					->name('post-accounts.whatsapp.store');
 				Route::post('post-accounts/whatsapp/embedded', [PostAccountController::class, 'storeWhatsappEmbedded'])
