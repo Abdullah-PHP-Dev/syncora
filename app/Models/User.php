@@ -137,8 +137,17 @@ class User extends Authenticatable
 
 	public function hasActiveSubscription()
 	{
-
-		return $this->subscription &&
-			($this->subscription->status === 'active');
+		// SubscriptionService::assignFreeTrial() - the method every new
+		// seller actually goes through on signup (AssignSellerRoleListener
+		// -> AssignFreeSubscriptionListener) - sets status to 'trial', not
+		// 'active'. Checking for 'active' only meant a brand new seller's
+		// free trial was never recognized as an active subscription at
+		// all: EnsureActiveSubscription would redirect them to
+		// subscription/select immediately after signup, despite genuinely
+		// having a live, unexpired trial. Confirmed live while testing the
+		// Email Marketing setup wizard with a fresh trial account.
+		return $this->subscription
+			&& in_array($this->subscription->status, ['active', 'trial'], true)
+			&& (!$this->subscription->end_date || $this->subscription->end_date->isFuture());
 	}
 }

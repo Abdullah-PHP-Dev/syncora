@@ -20,9 +20,9 @@
                 <label class="form-label">Body (HTML) *</label>
                 <p class="text-muted small mb-2">
                     Personalization tags (substituted by SendGrid against each contact's synced fields when this template is used in a campaign):
-                    <button type="button" class="btn btn-sm btn-outline-secondary insert-tag" data-tag="{{ '{{first_name}}' }}">first_name</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary insert-tag" data-tag="{{ '{{last_name}}' }}">last_name</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary insert-tag" data-tag="{{ '{{email}}' }}">email</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary insert-tag" data-tag="@{{first_name}}">first_name</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary insert-tag" data-tag="@{{last_name}}">last_name</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary insert-tag" data-tag="@{{email}}">email</button>
                 </p>
                 <textarea name="body" id="templateBody" class="form-control" rows="16" required>{{ old('body', $template->body ?? '') }}</textarea>
                 @error('body')<p class="text-danger small">{{ $message }}</p>@enderror
