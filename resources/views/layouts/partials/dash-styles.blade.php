@@ -140,4 +140,23 @@
     .socialeaz-dash .dash-stepper-label { display: none; }
     .socialeaz-dash .dash-stepper-line { width: 16px; }
 }
+
+/* =========================================================
+   WIZARD STEP PANELS - same show/hide-by-data-step mechanism as
+   admin/ads/google/campaigns/create.blade.php's own .wizard-step, scoped
+   under .socialeaz-dash so it can sit alongside .dash-stepper for the
+   Email Marketing campaign builder's 4-step flow.
+========================================================= */
+.socialeaz-dash .wizard-step { display: none; }
+.socialeaz-dash .wizard-step.active { display: block; }
+.socialeaz-dash .wizard-nav { display: flex; justify-content: space-between; margin-top: 1rem; }
+.socialeaz-dash .review-row { display: flex; justify-content: space-between; padding: .6rem 0; border-bottom: 1px solid var(--dash-border); font-size: .85rem; }
+.socialeaz-dash .review-row:last-child { border-bottom: none; }
+.socialeaz-dash .review-row span:first-child { color: var(--dash-muted); }
+.socialeaz-dash .review-row span:last-child { font-weight: 600; color: var(--dash-heading); text-align: right; }
+.socialeaz-dash .preflight-check { display: flex; align-items: center; gap: .6rem; padding: .5rem 0; border-bottom: 1px solid var(--dash-border); font-size: .85rem; }
+.socialeaz-dash .preflight-check:last-child { border-bottom: none; }
+.socialeaz-dash .preflight-check .bx { font-size: 1.1rem; }
+.socialeaz-dash .preflight-check.is-pass .bx-check-circle { color: var(--dash-success); }
+.socialeaz-dash .preflight-check.is-fail .bx-x-circle { color: var(--dash-danger); }
 </style>
