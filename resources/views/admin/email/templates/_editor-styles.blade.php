@@ -38,4 +38,16 @@
     .socialeaz-dash .pro-tips-list li { display: flex; align-items: flex-start; gap: .5rem; font-size: .8125rem; color: var(--dash-text); margin-bottom: .5rem; }
     .socialeaz-dash .pro-tips-list li:last-child { margin-bottom: 0; }
     .socialeaz-dash .pro-tips-list i { color: var(--dash-success); margin-top: .15rem; }
+
+    .socialeaz-dash .social-account-chip {
+        display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .7rem .3rem .3rem;
+        border: 1px solid var(--dash-border); border-radius: 2rem; background: var(--dash-card);
+        color: var(--dash-text); font-size: .78rem; font-weight: 600;
+    }
+    .socialeaz-dash .social-account-chip img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+    .socialeaz-dash .social-account-chip-fallback { width: 24px; height: 24px; border-radius: 50%; background: var(--dash-card-hover); display: inline-flex; align-items: center; justify-content: center; color: var(--dash-muted); }
+    .socialeaz-dash .social-account-chip.is-custom { padding: .3rem .7rem; }
+    .socialeaz-dash .social-account-chip.is-custom i { font-size: 1rem; color: var(--dash-muted); }
+    .socialeaz-dash .social-account-chip:hover { border-color: var(--dash-primary); }
+    .socialeaz-dash .social-account-chip.is-selected { border-color: var(--dash-primary); background: rgba(124,92,255,.08); color: var(--dash-primary); }
 </style>

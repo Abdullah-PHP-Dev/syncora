@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\EmailMarketing\EmailTemplate;
 use App\Models\EmailMarketing\EmailTemplateVersion;
+use App\Models\SocialAccount;
 use App\Support\Gemini\RetryPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -55,7 +56,8 @@ class EmailTemplateController extends Controller
         $categories = EmailTemplate::where('user_id', Auth::id())
             ->whereNotNull('category')->distinct()->pluck('category');
 
-        return view('admin.email.templates.create', compact('categories'));
+        return view('admin.email.templates.create', compact('categories'))
+            ->with('socialAccountsByPlatform', $this->connectedSocialAccounts());
     }
 
     public function store(Request $request)
@@ -86,7 +88,8 @@ class EmailTemplateController extends Controller
         $categories = EmailTemplate::where('user_id', Auth::id())
             ->whereNotNull('category')->distinct()->pluck('category');
 
-        return view('admin.email.templates.edit', compact('template', 'versions', 'categories'));
+        return view('admin.email.templates.edit', compact('template', 'versions', 'categories'))
+            ->with('socialAccountsByPlatform', $this->connectedSocialAccounts());
     }
 
     public function update(Request $request, EmailTemplate $template)
@@ -269,6 +272,35 @@ class EmailTemplateController extends Controller
             'success' => true,
             'data'    => ['subject' => $data['subject'], 'body' => $data['body']],
         ]);
+    }
+
+    /**
+     * The seller's own connected, currently-postable pages/profiles
+     * (same active()+withPostingPermission() filter PostController's
+     * composer uses), grouped by platform with a real public URL
+     * computed per account - powers the Social Icons block's account
+     * picker so a seller can choose a real connected page instead of
+     * typing its link by hand. Accounts with no derivable public URL
+     * (eg. a Facebook row that's actually an ad account) are left out
+     * entirely rather than offered with a dead link.
+     */
+    private function connectedSocialAccounts(): array
+    {
+        return SocialAccount::where('user_id', Auth::id())
+            ->active()
+            ->withPostingPermission()
+            ->get()
+            ->map(fn (SocialAccount $account) => [
+                'id'         => $account->id,
+                'platform'   => $account->platform,
+                'name'       => $account->name,
+                'avatar_url' => $account->avatar_url,
+                'url'        => $account->publicProfileUrl(),
+            ])
+            ->filter(fn ($account) => $account['url'] !== null)
+            ->groupBy('platform')
+            ->map(fn ($group) => $group->values())
+            ->toArray();
     }
 
     private function validated(Request $request): array

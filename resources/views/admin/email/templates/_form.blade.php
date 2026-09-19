@@ -306,31 +306,63 @@
     </div>
 </div>
 
+@php
+    // icon: the real, self-hosted PNG this app ships at
+    // public/assets/img/icons/social/{platform}.png - referenced via
+    // asset() so it's a real, absolute, publicly reachable URL both in
+    // the Live Preview iframe and in an actually-sent email (an icon
+    // FONT glyph like the old bx bxl-facebook-circle class renders as
+    // nothing in both cases: the iframe's srcdoc document never loads
+    // this app's boxicons stylesheet, and mainstream mail clients strip
+    // custom @font-face/icon fonts entirely - only a plain <img> works
+    // reliably in both places).
+    $socialPlatforms = [
+        'facebook'  => ['label' => 'Facebook', 'color' => '#1877f2'],
+        'instagram' => ['label' => 'Instagram', 'color' => '#e1306c'],
+        'x'         => ['label' => 'X / Twitter', 'color' => '#000000'],
+        'linkedin'  => ['label' => 'LinkedIn', 'color' => '#0a66c2'],
+        'tiktok'    => ['label' => 'TikTok', 'color' => '#000000'],
+        'pinterest' => ['label' => 'Pinterest', 'color' => '#e60023'],
+    ];
+@endphp
+
 <div class="modal fade" id="socialBlockModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Insert Social Icons</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p class="dash-subtitle small">Add a link for each platform to include - platforms left blank are skipped.</p>
-                <div class="mb-2">
-                    <label class="form-label small"><i class="bx bxl-facebook-circle" style="color:#1877f2;"></i> Facebook</label>
-                    <input type="url" id="socialFacebookInput" class="form-control form-control-sm" placeholder="https://facebook.com/yourpage">
-                </div>
-                <div class="mb-2">
-                    <label class="form-label small"><i class="bx bxl-instagram-alt" style="color:#e1306c;"></i> Instagram</label>
-                    <input type="url" id="socialInstagramInput" class="form-control form-control-sm" placeholder="https://instagram.com/yourpage">
-                </div>
-                <div class="mb-2">
-                    <label class="form-label small"><i class="bx bxl-twitter" style="color:#1da1f2;"></i> X / Twitter</label>
-                    <input type="url" id="socialTwitterInput" class="form-control form-control-sm" placeholder="https://x.com/yourpage">
-                </div>
-                <div class="mb-2">
-                    <label class="form-label small"><i class="bx bxl-linkedin-square" style="color:#0a66c2;"></i> LinkedIn</label>
-                    <input type="url" id="socialLinkedinInput" class="form-control form-control-sm" placeholder="https://linkedin.com/company/yourpage">
-                </div>
+                <p class="dash-subtitle small">Pick one of your connected pages, or paste a link by hand - platforms left blank are skipped.</p>
+
+                @foreach ($socialPlatforms as $platform => $cfg)
+                    <div class="social-platform-row mb-3" data-platform="{{ $platform }}">
+                        <label class="form-label small d-flex align-items-center gap-1">
+                            <img src="{{ asset('assets/img/icons/social/' . $platform . '.png') }}" alt="" style="width:16px;height:16px;">
+                            {{ $cfg['label'] }}
+                        </label>
+
+                        <div class="social-account-chips d-flex flex-wrap gap-2 mb-2">
+                            @foreach (($socialAccountsByPlatform[$platform] ?? []) as $account)
+                                <button type="button" class="social-account-chip" data-url="{{ $account['url'] }}">
+                                    @if ($account['avatar_url'])
+                                        <img src="{{ $account['avatar_url'] }}" alt="">
+                                    @else
+                                        <span class="social-account-chip-fallback"><i class="bx bx-user"></i></span>
+                                    @endif
+                                    <span>{{ $account['name'] }}</span>
+                                </button>
+                            @endforeach
+                            <button type="button" class="social-account-chip is-custom" data-url="">
+                                <i class="bx bx-link"></i><span>Custom Link</span>
+                            </button>
+                        </div>
+
+                        <input type="url" class="form-control form-control-sm social-url-input" placeholder="https://{{ $platform }}.com/yourpage" {{ !empty($socialAccountsByPlatform[$platform]) ? 'style=display:none;' : '' }}>
+                    </div>
+                @endforeach
+
                 <div id="socialBlockError" class="text-danger small" style="display:none;"></div>
             </div>
             <div class="modal-footer">
@@ -702,18 +734,49 @@
         });
 
         const socialBlockModal = new bootstrap.Modal(document.getElementById('socialBlockModal'));
-        const socialInputs = {
-            facebook:  { el: document.getElementById('socialFacebookInput'), icon: 'bxl-facebook-circle', color: '#1877f2' },
-            instagram: { el: document.getElementById('socialInstagramInput'), icon: 'bxl-instagram-alt', color: '#e1306c' },
-            twitter:   { el: document.getElementById('socialTwitterInput'), icon: 'bxl-twitter', color: '#1da1f2' },
-            linkedin:  { el: document.getElementById('socialLinkedinInput'), icon: 'bxl-linkedin-square', color: '#0a66c2' },
-        };
         const socialBlockError = document.getElementById('socialBlockError');
+        const socialPlatformRows = document.querySelectorAll('.social-platform-row');
+
+        // Each platform row: clicking a real connected-account chip sets
+        // that as the row's link and hides the manual input; clicking
+        // "Custom Link" clears the selection and reveals the manual
+        // input instead. resolveRowUrl() below reads whichever is active.
+        socialPlatformRows.forEach(function (row) {
+            const chips = row.querySelectorAll('.social-account-chip');
+            const urlInput = row.querySelector('.social-url-input');
+
+            chips.forEach(function (chip) {
+                chip.addEventListener('click', function () {
+                    chips.forEach(function (c) { c.classList.remove('is-selected'); });
+                    chip.classList.add('is-selected');
+
+                    if (chip.classList.contains('is-custom')) {
+                        urlInput.style.display = '';
+                        urlInput.focus();
+                    } else {
+                        urlInput.style.display = 'none';
+                    }
+                });
+            });
+        });
+
+        function resolveRowUrl(row) {
+            const selectedChip = row.querySelector('.social-account-chip.is-selected');
+            if (selectedChip && !selectedChip.classList.contains('is-custom')) {
+                return selectedChip.dataset.url;
+            }
+            return row.querySelector('.social-url-input').value.trim();
+        }
 
         document.getElementById('socialBlockInsertBtn').addEventListener('click', function () {
-            const icons = Object.values(socialInputs)
-                .map(function (cfg) { return { url: cfg.el.value.trim(), icon: cfg.icon, color: cfg.color }; })
-                .filter(function (cfg) { return cfg.url; });
+            const icons = [];
+
+            socialPlatformRows.forEach(function (row) {
+                const url = resolveRowUrl(row);
+                if (url) {
+                    icons.push({ platform: row.dataset.platform, url: url });
+                }
+            });
 
             if (icons.length === 0) {
                 socialBlockError.textContent = 'Add at least one social link.';
@@ -721,8 +784,15 @@
                 return;
             }
 
+            // Real hosted <img> icons, not an icon-font glyph - a font
+            // class like "bx bxl-facebook-circle" renders as nothing both
+            // in the Live Preview (its iframe never loads this app's
+            // boxicons stylesheet) and in an actually-sent email (mail
+            // clients strip custom icon fonts entirely).
             const html = '<p style="text-align:center;">' + icons.map(function (cfg) {
-                return '<a href="' + cfg.url + '" style="margin:0 6px;text-decoration:none;"><i class="bx ' + cfg.icon + '" style="font-size:24px;color:' + cfg.color + ';"></i></a>';
+                return '<a href="' + cfg.url + '" style="margin:0 6px;text-decoration:none;">'
+                    + '<img src="{{ asset('assets/img/icons/social') }}/' + cfg.platform + '.png" alt="" style="width:32px;height:32px;">'
+                    + '</a>';
             }).join('') + '</p>';
 
             restoreCanvasSelection();
@@ -730,7 +800,12 @@
             renderPreview();
 
             socialBlockModal.hide();
-            Object.values(socialInputs).forEach(function (cfg) { cfg.el.value = ''; });
+            socialPlatformRows.forEach(function (row) {
+                row.querySelectorAll('.social-account-chip').forEach(function (c) { c.classList.remove('is-selected'); });
+                const urlInput = row.querySelector('.social-url-input');
+                urlInput.value = '';
+                urlInput.style.display = row.querySelector('.social-account-chip:not(.is-custom)') ? 'none' : '';
+            });
             socialBlockError.style.display = 'none';
         });
 
