@@ -280,6 +280,67 @@
     </div>
 </div>
 
+<div class="modal fade" id="buttonBlockModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Insert Button</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label small">Button Text *</label>
+                    <input type="text" id="buttonTextInput" class="form-control" value="Click Here" maxlength="60">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Button Link *</label>
+                    <input type="url" id="buttonUrlInput" class="form-control" placeholder="https://yourdomain.com/offer">
+                </div>
+                <div id="buttonBlockError" class="text-danger small" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="buttonBlockInsertBtn">Insert Button</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="socialBlockModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Insert Social Icons</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="dash-subtitle small">Add a link for each platform to include - platforms left blank are skipped.</p>
+                <div class="mb-2">
+                    <label class="form-label small"><i class="bx bxl-facebook-circle" style="color:#1877f2;"></i> Facebook</label>
+                    <input type="url" id="socialFacebookInput" class="form-control form-control-sm" placeholder="https://facebook.com/yourpage">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small"><i class="bx bxl-instagram-alt" style="color:#e1306c;"></i> Instagram</label>
+                    <input type="url" id="socialInstagramInput" class="form-control form-control-sm" placeholder="https://instagram.com/yourpage">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small"><i class="bx bxl-twitter" style="color:#1da1f2;"></i> X / Twitter</label>
+                    <input type="url" id="socialTwitterInput" class="form-control form-control-sm" placeholder="https://x.com/yourpage">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small"><i class="bx bxl-linkedin-square" style="color:#0a66c2;"></i> LinkedIn</label>
+                    <input type="url" id="socialLinkedinInput" class="form-control form-control-sm" placeholder="https://linkedin.com/company/yourpage">
+                </div>
+                <div id="socialBlockError" class="text-danger small" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="socialBlockInsertBtn">Insert Social Icons</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
     window.addEventListener('load', function () {
@@ -416,14 +477,7 @@
         // ------------------------------------------------------------
         const blockSnippets = {
             text: '<p>Your text here</p>',
-            button: '<p><a href="#" style="display:inline-block;background:#7c5cff;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;">Click Here</a></p>',
             divider: '<hr style="border:none;border-top:1px solid #e2e2ea;margin:20px 0;">',
-            social: '<p style="text-align:center;">'
-                + '<a href="#" style="margin:0 6px;text-decoration:none;"><i class="bx bxl-facebook-circle" style="font-size:24px;color:#1877f2;"></i></a>'
-                + '<a href="#" style="margin:0 6px;text-decoration:none;"><i class="bx bxl-instagram-alt" style="font-size:24px;color:#e1306c;"></i></a>'
-                + '<a href="#" style="margin:0 6px;text-decoration:none;"><i class="bx bxl-twitter" style="font-size:24px;color:#1da1f2;"></i></a>'
-                + '<a href="#" style="margin:0 6px;text-decoration:none;"><i class="bx bxl-linkedin-square" style="font-size:24px;color:#0a66c2;"></i></a>'
-                + '</p>',
             header: '<div style="text-align:center;padding:16px 0;"><strong style="font-size:20px;">Your Company</strong></div>',
             footer: '<div style="text-align:center;color:#8b8d9c;font-size:12px;padding:16px 0;">Sent by Your Company &middot; @{{email}}</div>',
             spacer: '<div style="height:24px;"></div>',
@@ -621,10 +675,70 @@
             headerLogoPreview.style.display = 'none';
         });
 
-        // Image/Header/Video blocks need a real uploaded file (and Header/
-        // Video need more than one field), so they open a proper modal
-        // instead of a native prompt()/confirm() dialog - Text/Button/
-        // Divider/Social/Footer/Spacer stay simple immediate inserts.
+        const buttonBlockModal = new bootstrap.Modal(document.getElementById('buttonBlockModal'));
+        const buttonTextInput = document.getElementById('buttonTextInput');
+        const buttonUrlInput = document.getElementById('buttonUrlInput');
+        const buttonBlockError = document.getElementById('buttonBlockError');
+
+        document.getElementById('buttonBlockInsertBtn').addEventListener('click', function () {
+            const text = buttonTextInput.value.trim() || 'Click Here';
+            const url = buttonUrlInput.value.trim();
+
+            if (!url) {
+                buttonBlockError.textContent = 'A button link is required.';
+                buttonBlockError.style.display = 'block';
+                return;
+            }
+
+            restoreCanvasSelection();
+            document.execCommand('insertHTML', false,
+                '<p style="text-align:center;"><a href="' + url + '" style="display:inline-block;background:#7c5cff;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;">' + text + '</a></p>');
+            renderPreview();
+
+            buttonBlockModal.hide();
+            buttonUrlInput.value = '';
+            buttonTextInput.value = 'Click Here';
+            buttonBlockError.style.display = 'none';
+        });
+
+        const socialBlockModal = new bootstrap.Modal(document.getElementById('socialBlockModal'));
+        const socialInputs = {
+            facebook:  { el: document.getElementById('socialFacebookInput'), icon: 'bxl-facebook-circle', color: '#1877f2' },
+            instagram: { el: document.getElementById('socialInstagramInput'), icon: 'bxl-instagram-alt', color: '#e1306c' },
+            twitter:   { el: document.getElementById('socialTwitterInput'), icon: 'bxl-twitter', color: '#1da1f2' },
+            linkedin:  { el: document.getElementById('socialLinkedinInput'), icon: 'bxl-linkedin-square', color: '#0a66c2' },
+        };
+        const socialBlockError = document.getElementById('socialBlockError');
+
+        document.getElementById('socialBlockInsertBtn').addEventListener('click', function () {
+            const icons = Object.values(socialInputs)
+                .map(function (cfg) { return { url: cfg.el.value.trim(), icon: cfg.icon, color: cfg.color }; })
+                .filter(function (cfg) { return cfg.url; });
+
+            if (icons.length === 0) {
+                socialBlockError.textContent = 'Add at least one social link.';
+                socialBlockError.style.display = 'block';
+                return;
+            }
+
+            const html = '<p style="text-align:center;">' + icons.map(function (cfg) {
+                return '<a href="' + cfg.url + '" style="margin:0 6px;text-decoration:none;"><i class="bx ' + cfg.icon + '" style="font-size:24px;color:' + cfg.color + ';"></i></a>';
+            }).join('') + '</p>';
+
+            restoreCanvasSelection();
+            document.execCommand('insertHTML', false, html);
+            renderPreview();
+
+            socialBlockModal.hide();
+            Object.values(socialInputs).forEach(function (cfg) { cfg.el.value = ''; });
+            socialBlockError.style.display = 'none';
+        });
+
+        // Image/Header/Video/Button/Social blocks each need real input
+        // (an uploaded file, a link, or several links) rather than a
+        // static snippet, so they open a proper modal instead of
+        // inserting a dead "#" href - Text/Divider/Footer/Spacer stay
+        // simple immediate inserts.
         document.querySelectorAll('.block-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 const block = btn.dataset.block;
@@ -648,6 +762,18 @@
                 if (block === 'video') {
                     saveCanvasSelection();
                     videoBlockModal.show();
+                    return;
+                }
+
+                if (block === 'button') {
+                    saveCanvasSelection();
+                    buttonBlockModal.show();
+                    return;
+                }
+
+                if (block === 'social') {
+                    saveCanvasSelection();
+                    socialBlockModal.show();
                     return;
                 }
 
