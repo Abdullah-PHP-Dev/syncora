@@ -76,7 +76,7 @@
                 <select id="templateSelect" class="form-select">
                     <option value="">Blank</option>
                     @foreach ($templates as $template)
-                        <option value="{{ $template->id }}">{{ $template->name }}</option>
+                        <option value="{{ $template->id }}" @selected(old('email_template_id', $preselectedTemplateId ?? null) == $template->id)>{{ $template->name }}</option>
                     @endforeach
                 </select>
             </div>
@@ -241,6 +241,15 @@
         });
         if (senderSelect.value) {
             senderSelect.dispatchEvent(new Event('change'));
+        }
+        // "Use Template" from the templates gallery lands here with a
+        // preselected value already set server-side (old()/$preselectedTemplateId
+        // rendered into the <option selected> above) - firing 'change' once
+        // on load applies that template's real subject/body the same way
+        // picking it manually would, instead of leaving the fields blank
+        // until the seller re-picks it themselves.
+        if (templateSelect.value) {
+            templateSelect.dispatchEvent(new Event('change'));
         }
 
         window.requireScheduleTime = function () {

@@ -41,14 +41,21 @@ class EmailCampaignController extends Controller
         return view('admin.email.campaigns.index', compact('campaigns'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $lists = EmailList::where('user_id', Auth::id())->withCount('subscribers')->get();
         $segments = EmailSegment::where('user_id', Auth::id())->get();
         $templates = EmailTemplate::where('user_id', Auth::id())->get();
         $senders = SenderIdentity::where('user_id', Auth::id())->where('status', 'verified')->get();
 
-        return view('admin.email.campaigns.create', compact('lists', 'segments', 'templates', 'senders'));
+        // "Use Template" from the templates gallery links here with
+        // ?template={id} - only honored when it's a real template this
+        // seller actually owns, never trusted blindly from the query string.
+        $preselectedTemplateId = $templates->contains('id', (int) $request->query('template'))
+            ? (int) $request->query('template')
+            : null;
+
+        return view('admin.email.campaigns.create', compact('lists', 'segments', 'templates', 'senders', 'preselectedTemplateId'));
     }
 
     public function store(Request $request)

@@ -14,11 +14,35 @@ use Illuminate\Validation\Rule;
 
 class EmailTemplateController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $templates = EmailTemplate::where('user_id', Auth::id())->latest()->paginate(50);
+        $userId = Auth::id();
 
-        return view('admin.email.templates.index', compact('templates'));
+        $categories = EmailTemplate::where('user_id', $userId)->whereNotNull('category')->distinct()->pluck('category');
+
+        $sort = $request->query('sort', 'newest');
+        $sortColumn = $sort === 'name' ? 'name' : 'updated_at';
+        $sortDirection = $sort === 'oldest' ? 'asc' : ($sort === 'name' ? 'asc' : 'desc');
+
+        $templates = EmailTemplate::where('user_id', $userId)
+            ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($request) {
+                $q->where('name', 'like', '%' . $request->query('search') . '%')
+                  ->orWhere('subject', 'like', '%' . $request->query('search') . '%');
+            }))
+            ->when($request->filled('category'), fn ($q) => $q->where('category', $request->query('category')))
+            ->orderBy($sortColumn, $sortDirection)
+            ->paginate(24)
+            ->withQueryString();
+
+        // Real counts only - no fabricated usage/rating/success-rate
+        // numbers, since nothing in this app tracks any of that.
+        $totalTemplates = EmailTemplate::where('user_id', $userId)->count();
+        $draftCount = EmailTemplate::where('user_id', $userId)->where('status', 'draft')->count();
+        $publishedCount = EmailTemplate::where('user_id', $userId)->where('status', 'published')->count();
+
+        return view('admin.email.templates.index', compact(
+            'templates', 'categories', 'totalTemplates', 'draftCount', 'publishedCount'
+        ));
     }
 
     public function create()
