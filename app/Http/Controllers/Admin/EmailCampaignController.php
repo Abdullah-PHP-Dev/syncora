@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\EmailMarketing\EmailCampaign;
 use App\Models\EmailMarketing\EmailList;
 use App\Models\EmailMarketing\EmailSegment;
+use App\Models\EmailMarketing\EmailSubscriber;
 use App\Models\EmailMarketing\EmailTemplate;
 use App\Models\EmailMarketing\SenderIdentity;
 use App\Services\EmailMarketingServices\EmailMarketingService;
@@ -55,7 +56,11 @@ class EmailCampaignController extends Controller
             ? (int) $request->query('template')
             : null;
 
-        return view('admin.email.campaigns.create', compact('lists', 'segments', 'templates', 'senders', 'preselectedTemplateId'));
+        $totalSubscribers = EmailSubscriber::where('user_id', Auth::id())->where('status', 'subscribed')->count();
+
+        return view('admin.email.campaigns.create', compact(
+            'lists', 'segments', 'templates', 'senders', 'preselectedTemplateId', 'totalSubscribers'
+        ));
     }
 
     public function store(Request $request)
@@ -76,6 +81,7 @@ class EmailCampaignController extends Controller
             'from_email'         => $validated['from_email'],
             'body'               => $validated['body'],
             'status'             => 'draft',
+            'campaign_type'      => $validated['campaign_type'],
         ]);
 
         return $this->afterSave($campaign, $validated['action'], $validated['scheduled_at'] ?? null);
@@ -90,8 +96,11 @@ class EmailCampaignController extends Controller
         $segments = EmailSegment::where('user_id', Auth::id())->get();
         $templates = EmailTemplate::where('user_id', Auth::id())->get();
         $senders = SenderIdentity::where('user_id', Auth::id())->where('status', 'verified')->get();
+        $totalSubscribers = EmailSubscriber::where('user_id', Auth::id())->where('status', 'subscribed')->count();
 
-        return view('admin.email.campaigns.edit', compact('campaign', 'lists', 'segments', 'templates', 'senders'));
+        return view('admin.email.campaigns.edit', compact(
+            'campaign', 'lists', 'segments', 'templates', 'senders', 'totalSubscribers'
+        ));
     }
 
     public function update(Request $request, EmailCampaign $campaign)
@@ -113,6 +122,7 @@ class EmailCampaignController extends Controller
             'from_name'          => $validated['from_name'],
             'from_email'         => $validated['from_email'],
             'body'               => $validated['body'],
+            'campaign_type'      => $validated['campaign_type'],
         ]);
 
         return $this->afterSave($campaign, $validated['action'], $validated['scheduled_at'] ?? null);
@@ -243,6 +253,10 @@ class EmailCampaignController extends Controller
             'body'               => ['required', 'string'],
             'action'             => ['required', Rule::in(['save_draft', 'schedule', 'send_now'])],
             'scheduled_at'       => ['required_if:action,schedule', 'nullable', 'date', 'after:now'],
+            // 'automated'/'drip' deliberately excluded - see the
+            // campaign_type migration's docblock for why those aren't
+            // real, selectable values yet.
+            'campaign_type'      => ['required', Rule::in(['one_time', 'newsletter'])],
         ]);
 
         $table = $validated['audience_type'] === 'segment' ? 'email_segments' : 'email_lists';

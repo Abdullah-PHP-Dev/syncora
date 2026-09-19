@@ -193,10 +193,10 @@
 .email-hero .hero-progress-card .progress { height: 6px; background: rgba(99,102,241,.12); }
 .email-hero .hero-progress-card .progress-bar { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
 
-/* Detailed (two-line) stepper variant - the setup wizard's header shows
-   a title + short description per step rather than just one label, so
-   this is additive alongside .dash-stepper-label rather than replacing
-   it (the campaign builder wizard still uses the single-line version). */
+/* Detailed (two-line) stepper variant - shows a title + short
+   description per step rather than just one label, used by both the
+   setup wizard and the campaign builder wizard headers. Additive
+   alongside .dash-stepper-label rather than replacing it. */
 .socialeaz-dash .dash-stepper-text { display: flex; flex-direction: column; margin: 0 1.25rem 0 .65rem; }
 .socialeaz-dash .dash-stepper-title { font-size: .8125rem; font-weight: 700; color: var(--dash-muted); white-space: nowrap; }
 .socialeaz-dash .dash-stepper-desc { font-size: .7rem; color: var(--dash-muted); white-space: nowrap; }
@@ -207,4 +207,39 @@
 @media (max-width: 768px) {
     .socialeaz-dash .dash-stepper-text { display: none; }
 }
+
+/* Device-toggle live preview frame - used by the template editor and
+   the campaign builder's persistent Preview panel. */
+.socialeaz-dash .char-counter { position: absolute; right: .6rem; top: 50%; transform: translateY(-50%); font-size: .68rem; color: var(--dash-muted); pointer-events: none; }
+.socialeaz-dash .device-toggle { display: flex; gap: .25rem; }
+.socialeaz-dash .device-btn { width: 28px; height: 28px; border-radius: .4rem; border: 1px solid var(--dash-border); background: var(--dash-card); color: var(--dash-muted); display: inline-flex; align-items: center; justify-content: center; }
+.socialeaz-dash .device-btn.active { background: var(--dash-primary); border-color: var(--dash-primary); color: #fff; }
+.socialeaz-dash .browser-chrome { background: var(--dash-card-hover); border: 1px solid var(--dash-border); border-bottom: none; border-radius: .6rem .6rem 0 0; padding: .5rem .75rem; }
+.socialeaz-dash .browser-dots { display: flex; gap: .3rem; }
+.socialeaz-dash .browser-dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--dash-border); }
+.socialeaz-dash .browser-dots span:nth-child(1) { background: #ff5f57; }
+.socialeaz-dash .browser-dots span:nth-child(2) { background: #febc2e; }
+.socialeaz-dash .browser-dots span:nth-child(3) { background: #28c840; }
+.socialeaz-dash .template-preview-frame { width: 100%; height: 420px; border: 1px solid var(--dash-border); border-radius: 0 0 .6rem .6rem; transition: width .2s ease; display: block; }
+
+/* Campaign builder's Campaign Type radio-cards (Step 1) - a plain
+   radio input visually styled as a card, plus a disabled "Coming Soon"
+   variant for options with no real backing implementation yet
+   (automated/drip campaigns need a trigger engine and a multi-step
+   scheduler that don't exist - see the campaign_type migration). */
+.socialeaz-dash .campaign-type-card {
+    position: relative; display: block; border: 1px solid var(--dash-border); border-radius: .7rem;
+    padding: 1rem; cursor: pointer; height: 100%;
+}
+.socialeaz-dash .campaign-type-card input[type="radio"] { position: absolute; top: .85rem; right: .85rem; }
+.socialeaz-dash .campaign-type-card:hover { border-color: var(--dash-primary); }
+.socialeaz-dash .campaign-type-card.is-selected { border-color: var(--dash-primary); background: rgba(124,92,255,.06); box-shadow: 0 0 0 1px var(--dash-primary); }
+.socialeaz-dash .campaign-type-card.is-disabled { cursor: not-allowed; opacity: .55; }
+.socialeaz-dash .campaign-type-card-icon { width: 34px; height: 34px; border-radius: .55rem; background: var(--dash-card-hover); color: var(--dash-primary); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin-bottom: .6rem; }
+.socialeaz-dash .campaign-type-card-title { font-weight: 700; color: var(--dash-heading); font-size: .8125rem; }
+.socialeaz-dash .campaign-type-card-desc { font-size: .72rem; color: var(--dash-muted); margin-top: .15rem; }
+
+/* Personalization-tag pill chips (informational, non-interactive) -
+   used on the campaign builder's Details step. */
+.socialeaz-dash .tag-chip { display: inline-block; padding: .25rem .6rem; border-radius: .4rem; background: var(--dash-card); border: 1px solid var(--dash-border); font-size: .75rem; font-family: monospace; color: var(--dash-primary); }
 </style>
