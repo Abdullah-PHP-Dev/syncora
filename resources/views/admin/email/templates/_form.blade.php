@@ -77,7 +77,7 @@
                     <label class="form-label">Email Content</label>
 
                     <div class="editor-toolbar">
-                        <select id="formatBlockSelect" class="form-select form-select-sm" style="max-width:130px;">
+                        <select id="formatBlockSelect" class="form-control" style="max-width:130px;">
                             <option value="p">Paragraph</option>
                             <option value="h1">Heading 1</option>
                             <option value="h2">Heading 2</option>
@@ -203,6 +203,62 @@
 </div>
 
 <input type="hidden" name="body" id="templateBody">
+
+<div class="modal fade" id="videoBlockModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Insert Video</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="dash-subtitle small">Video can't be embedded directly in an email - this inserts a clickable thumbnail that opens your video wherever it's hosted.</p>
+                <div class="mb-3">
+                    <label class="form-label small">Video URL *</label>
+                    <input type="url" id="videoUrlInput" class="form-control" placeholder="https://youtube.com/watch?v=...">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small d-block">Thumbnail Image *</label>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="videoThumbPickBtn"><i class="bx bx-upload"></i> Choose Image</button>
+                    <span id="videoThumbFileName" class="dash-subtitle small ms-2">No file selected</span>
+                    <div><img id="videoThumbPreview" src="" alt="" style="display:none;max-width:100%;margin-top:.6rem;border-radius:8px;"></div>
+                </div>
+                <div id="videoBlockError" class="text-danger small" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="videoBlockInsertBtn">Insert Video Block</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="headerBlockModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Insert Header</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label small">Company / Brand Name *</label>
+                    <input type="text" id="headerNameInput" class="form-control" placeholder="Your Company">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small d-block">Logo Image (optional)</label>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="headerLogoPickBtn"><i class="bx bx-upload"></i> Choose Logo</button>
+                    <span id="headerLogoFileName" class="dash-subtitle small ms-2">No file selected</span>
+                    <div><img id="headerLogoPreview" src="" alt="" style="display:none;max-height:48px;margin-top:.6rem;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="headerBlockInsertBtn">Insert Header</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 @push('scripts')
 <script>
@@ -353,16 +409,118 @@
             spacer: '<div style="height:24px;"></div>',
         };
 
-        // Image/Header/Video blocks need a real uploaded file rather than
-        // a static snippet - handled here instead of in blockSnippets
-        // above, with pickImage() doing the actual upload.
+        // Bootstrap modals move DOM focus away from the canvas, which
+        // clears its text selection - the cursor position has to be
+        // captured before a modal opens and restored right before
+        // execCommand('insertHTML', ...) runs, or the block would land
+        // wherever the browser's default caret ends up instead of where
+        // the seller actually clicked "Video"/"Header" from.
+        let savedRange = null;
+        function saveCanvasSelection() {
+            const sel = window.getSelection();
+            savedRange = (sel.rangeCount > 0 && canvas.contains(sel.anchorNode)) ? sel.getRangeAt(0).cloneRange() : null;
+        }
+        function restoreCanvasSelection() {
+            canvas.focus();
+            if (savedRange) {
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(savedRange);
+            }
+        }
+
+        const videoBlockModalEl = document.getElementById('videoBlockModal');
+        const videoBlockModal = new bootstrap.Modal(videoBlockModalEl);
+        const videoUrlInput = document.getElementById('videoUrlInput');
+        const videoThumbPickBtn = document.getElementById('videoThumbPickBtn');
+        const videoThumbFileName = document.getElementById('videoThumbFileName');
+        const videoThumbPreview = document.getElementById('videoThumbPreview');
+        const videoBlockError = document.getElementById('videoBlockError');
+        let videoThumbUrl = null;
+
+        videoThumbPickBtn.addEventListener('click', function () {
+            pickImage(function (url) {
+                videoThumbUrl = url;
+                videoThumbFileName.textContent = 'Image uploaded';
+                videoThumbPreview.src = url;
+                videoThumbPreview.style.display = 'block';
+            });
+        });
+
+        document.getElementById('videoBlockInsertBtn').addEventListener('click', function () {
+            const videoUrl = videoUrlInput.value.trim();
+
+            if (!videoUrl || !videoThumbUrl) {
+                videoBlockError.textContent = !videoUrl ? 'A video URL is required.' : 'A thumbnail image is required.';
+                videoBlockError.style.display = 'block';
+                return;
+            }
+
+            // Video itself can't be embedded in an email (every
+            // mainstream mail client strips <video>) - the real, correct
+            // pattern is a linked thumbnail image that opens the actual
+            // video elsewhere, which is what this inserts.
+            restoreCanvasSelection();
+            document.execCommand('insertHTML', false,
+                '<p style="text-align:center;"><a href="' + videoUrl + '" style="display:inline-block;text-decoration:none;">'
+                + '<img src="' + videoThumbUrl + '" alt="Video" style="max-width:100%;border-radius:8px;">'
+                + '</a></p><p style="text-align:center;"><small>Click the thumbnail above to watch - video can\'t be embedded directly in an email.</small></p>');
+            renderPreview();
+
+            videoBlockModal.hide();
+            videoUrlInput.value = '';
+            videoThumbUrl = null;
+            videoThumbFileName.textContent = 'No file selected';
+            videoThumbPreview.style.display = 'none';
+            videoBlockError.style.display = 'none';
+        });
+
+        const headerBlockModalEl = document.getElementById('headerBlockModal');
+        const headerBlockModal = new bootstrap.Modal(headerBlockModalEl);
+        const headerNameInput = document.getElementById('headerNameInput');
+        const headerLogoPickBtn = document.getElementById('headerLogoPickBtn');
+        const headerLogoFileName = document.getElementById('headerLogoFileName');
+        const headerLogoPreview = document.getElementById('headerLogoPreview');
+        let headerLogoUrl = null;
+
+        headerLogoPickBtn.addEventListener('click', function () {
+            pickImage(function (url) {
+                headerLogoUrl = url;
+                headerLogoFileName.textContent = 'Image uploaded';
+                headerLogoPreview.src = url;
+                headerLogoPreview.style.display = 'block';
+            });
+        });
+
+        document.getElementById('headerBlockInsertBtn').addEventListener('click', function () {
+            const name = headerNameInput.value.trim() || 'Your Company';
+
+            restoreCanvasSelection();
+            const logoHtml = headerLogoUrl
+                ? '<img src="' + headerLogoUrl + '" alt="' + name + '" style="max-height:48px;">'
+                : '<strong style="font-size:20px;">' + name + '</strong>';
+            document.execCommand('insertHTML', false, '<div style="text-align:center;padding:16px 0;">' + logoHtml + '</div>');
+            renderPreview();
+
+            headerBlockModal.hide();
+            headerNameInput.value = '';
+            headerLogoUrl = null;
+            headerLogoFileName.textContent = 'No file selected';
+            headerLogoPreview.style.display = 'none';
+        });
+
+        // Image/Header/Video blocks need a real uploaded file (and Header/
+        // Video need more than one field), so they open a proper modal
+        // instead of a native prompt()/confirm() dialog - Text/Button/
+        // Divider/Social/Footer/Spacer stay simple immediate inserts.
         document.querySelectorAll('.block-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
-                canvas.focus();
                 const block = btn.dataset.block;
 
                 if (block === 'image') {
+                    saveCanvasSelection();
                     pickImage(function (url) {
+                        restoreCanvasSelection();
                         document.execCommand('insertHTML', false, '<img src="' + url + '" alt="" style="max-width:100%;">');
                         renderPreview();
                     });
@@ -370,39 +528,18 @@
                 }
 
                 if (block === 'header') {
-                    if (confirm('Upload a logo image for the header? Click Cancel to insert a text-only header instead.')) {
-                        pickImage(function (url) {
-                            document.execCommand('insertHTML', false,
-                                '<div style="text-align:center;padding:16px 0;"><img src="' + url + '" alt="Logo" style="max-height:48px;"></div>');
-                            renderPreview();
-                        });
-                    } else {
-                        document.execCommand('insertHTML', false, blockSnippets.header);
-                        renderPreview();
-                    }
+                    saveCanvasSelection();
+                    headerBlockModal.show();
                     return;
                 }
 
                 if (block === 'video') {
-                    // Video itself can't be embedded in an email (every
-                    // mainstream mail client strips <video>) - the real,
-                    // correct pattern is a linked thumbnail image that
-                    // opens the actual video elsewhere, which is what
-                    // this inserts: a real uploaded thumbnail + a real
-                    // destination link, not a fake inline player.
-                    const videoUrl = prompt('Paste the video link (YouTube, Vimeo, etc.):');
-                    if (!videoUrl) return;
-
-                    pickImage(function (thumbUrl) {
-                        document.execCommand('insertHTML', false,
-                            '<p style="text-align:center;"><a href="' + videoUrl + '" style="display:inline-block;text-decoration:none;">'
-                            + '<img src="' + thumbUrl + '" alt="Video" style="max-width:100%;border-radius:8px;">'
-                            + '</a></p><p style="text-align:center;"><small>Click the thumbnail above to watch - video can\'t be embedded directly in an email.</small></p>');
-                        renderPreview();
-                    });
+                    saveCanvasSelection();
+                    videoBlockModal.show();
                     return;
                 }
 
+                canvas.focus();
                 document.execCommand('insertHTML', false, blockSnippets[block] || '');
                 renderPreview();
             });
