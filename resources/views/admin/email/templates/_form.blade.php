@@ -97,7 +97,7 @@
                         <button type="button" class="toolbar-btn" data-cmd="redo" title="Redo"><i class="bx bx-redo"></i></button>
                     </div>
 
-                    <div id="templateCanvas" class="editor-canvas" contenteditable="true">{!! old('body', $template->body ?? '<p>Hi {{first_name}},</p><p>Write your message here...</p>') !!}</div>
+                    <div id="templateCanvas" class="editor-canvas" contenteditable="true" v-pre>{!! old('body', $template->body ?? '<p>Hi {{first_name}},</p><p>Write your message here...</p>') !!}</div>
                     <input type="file" id="mediaFileInput" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;">
                     <input type="file" id="videoFileInput" accept="video/mp4,video/quicktime,video/webm,video/x-msvideo" style="display:none;">
 

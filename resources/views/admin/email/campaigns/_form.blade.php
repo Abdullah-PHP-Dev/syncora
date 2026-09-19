@@ -83,8 +83,8 @@
             <div class="col-12">
                 <input type="hidden" name="email_template_id" id="emailTemplateId" value="{{ old('email_template_id', $campaign->email_template_id ?? '') }}">
                 <label class="form-label">Body (HTML) *</label>
-                <p class="dash-subtitle small mb-2">Personalization is handled by SendGrid itself against each contact's synced fields: <code>@{{first_name}}</code>, <code>@{{last_name}}</code>, <code>@{{email}}</code>. Unsubscribe links are added automatically by SendGrid's suppression group, not this form.</p>
-                <textarea name="body" id="campaignBody" class="form-control" rows="14" required>{{ old('body', $campaign->body ?? '') }}</textarea>
+                <p class="dash-subtitle small mb-2" v-pre>Personalization is handled by SendGrid itself against each contact's synced fields: <code>@{{first_name}}</code>, <code>@{{last_name}}</code>, <code>@{{email}}</code>. Unsubscribe links are added automatically by SendGrid's suppression group, not this form.</p>
+                <textarea name="body" id="campaignBody" class="form-control" rows="14" required v-pre>{{ old('body', $campaign->body ?? '') }}</textarea>
                 @error('body')<p class="text-danger small">{{ $message }}</p>@enderror
             </div>
             <div class="col-12">
