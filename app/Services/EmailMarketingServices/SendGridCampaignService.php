@@ -43,6 +43,13 @@ class SendGridCampaignService
             ['label' => 'Audience contains recipients', 'pass' => $recipientCount > 0],
             ['label' => 'Subject provided', 'pass' => filled($campaign->subject)],
             ['label' => 'Content provided', 'pass' => filled($campaign->body)],
+            // Every marketing send needs a real SendGrid unsubscribe
+            // group attached (ASM) - a draft can be saved without one,
+            // but Send Now/Schedule stay blocked until it's set. Never
+            // silently falls back to a hardcoded/shared group id (see
+            // SendGridSuppressionService's docblock for why a single
+            // global value was wrong for this per-subaccount model).
+            ['label' => 'Unsubscribe group selected', 'pass' => (bool) $campaign->suppression_group_id],
         ];
 
         return [
@@ -91,7 +98,7 @@ class SendGridCampaignService
                 'subject'      => $campaign->subject,
                 'html_content' => $campaign->body,
                 'sender_id'    => (int) $campaign->senderIdentity?->sendgrid_sender_id,
-                'suppression_group_id' => (int) adminSetting('email_marketing.sendgrid.suppression_group_id') ?: null,
+                'suppression_group_id' => $campaign->suppression_group_id,
             ],
         ];
 

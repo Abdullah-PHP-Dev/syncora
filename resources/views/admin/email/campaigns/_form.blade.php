@@ -106,6 +106,24 @@
                     </div>
 
                     <div class="col-12">
+                        <label class="form-label">Unsubscribe Group *</label>
+                        @if ($suppressionGroupsError)
+                            <div class="alert alert-warning small mb-2">{{ $suppressionGroupsError }}</div>
+                        @endif
+                        <div class="d-flex gap-2">
+                            <select name="suppression_group_id" id="suppressionGroupSelect" class="form-select" @if(count($suppressionGroups) === 0) disabled @endif>
+                                <option value="">Select an unsubscribe group…</option>
+                                @foreach ($suppressionGroups as $group)
+                                    <option value="{{ $group['id'] }}" @selected(old('suppression_group_id', $campaign->suppression_group_id ?? null) == $group['id'])>{{ $group['name'] }}</option>
+                                @endforeach
+                            </select>
+                            <button type="button" class="dash-btn dash-btn-ghost text-nowrap" data-bs-toggle="modal" data-bs-target="#suppressionGroupModal"><i class="bx bx-plus"></i> New Group</button>
+                        </div>
+                        <p class="dash-subtitle small mt-1 mb-0">Required before sending or scheduling (drafts can be saved without one). Recipients can unsubscribe from just this group without opting out of every email from you.</p>
+                        @error('suppression_group_id')<p class="text-danger small">{{ $message }}</p>@enderror
+                    </div>
+
+                    <div class="col-12">
                         <label class="form-label">Campaign Type</label>
                         <div class="row g-2">
                             <div class="col-6 col-md-3">
@@ -212,6 +230,7 @@
                         <div class="review-row"><span>Subject</span><span id="reviewSubject">—</span></div>
                         <div class="review-row"><span>Sender</span><span id="reviewSender">—</span></div>
                         <div class="review-row"><span>Audience</span><span id="reviewAudience">—</span></div>
+                        <div class="review-row"><span>Unsubscribe Group</span><span id="reviewSuppressionGroup">—</span></div>
                     </div>
                     <div class="col-md-6">
                         @if ($isExisting)
@@ -266,6 +285,33 @@
                 <div class="browser-dots"><span></span><span></span><span></span></div>
             </div>
             <iframe id="campaignPreview" class="template-preview-frame" style="height:360px;"></iframe>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="suppressionGroupModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Unsubscribe Group</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="dash-subtitle small">Creates a real SendGrid Suppression Group (ASM) on your subaccount - recipients who unsubscribe here only opt out of emails sent through this specific group.</p>
+                <div class="mb-3">
+                    <label class="form-label small">Name *</label>
+                    <input type="text" id="newGroupName" class="form-control" placeholder="e.g. Marketing Emails">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Description</label>
+                    <textarea id="newGroupDescription" class="form-control" rows="2"></textarea>
+                </div>
+                <div id="newGroupError" class="text-danger small" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="createGroupBtn">Create Group</button>
+            </div>
         </div>
     </div>
 </div>
@@ -397,6 +443,62 @@
         syncCampaignTypeCards();
 
         // ------------------------------------------------------------
+        // UNSUBSCRIBE GROUP - "Create New Group" posts to a real
+        // endpoint that creates an actual SendGrid ASM group on this
+        // seller's own subaccount, then adds it to the select and picks
+        // it, rather than sending the seller off to SendGrid's own
+        // dashboard with no way back into the wizard's progress.
+        // ------------------------------------------------------------
+        const suppressionGroupModalEl = document.getElementById('suppressionGroupModal');
+        const suppressionGroupModal = new bootstrap.Modal(suppressionGroupModalEl);
+        const suppressionGroupSelect = document.getElementById('suppressionGroupSelect');
+        const newGroupName = document.getElementById('newGroupName');
+        const newGroupDescription = document.getElementById('newGroupDescription');
+        const newGroupError = document.getElementById('newGroupError');
+
+        document.getElementById('createGroupBtn').addEventListener('click', function () {
+            const name = newGroupName.value.trim();
+            if (!name) {
+                newGroupError.textContent = 'A name is required.';
+                newGroupError.style.display = 'block';
+                return;
+            }
+
+            fetch('{{ route('admin.email.campaigns.suppressionGroups.store') }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({ name: name, description: newGroupDescription.value.trim() }),
+            })
+                .then(r => r.json())
+                .then(function (res) {
+                    if (res.success) {
+                        suppressionGroupSelect.disabled = false;
+                        const option = document.createElement('option');
+                        option.value = res.group.id;
+                        option.textContent = res.group.name;
+                        option.selected = true;
+                        suppressionGroupSelect.appendChild(option);
+                        updateSummary();
+                        suppressionGroupModal.hide();
+                        newGroupName.value = '';
+                        newGroupDescription.value = '';
+                        newGroupError.style.display = 'none';
+                    } else {
+                        newGroupError.textContent = res.message || 'Failed to create the group.';
+                        newGroupError.style.display = 'block';
+                    }
+                })
+                .catch(function () {
+                    newGroupError.textContent = 'Failed to create the group - please try again.';
+                    newGroupError.style.display = 'block';
+                });
+        });
+
+        // ------------------------------------------------------------
         // CAMPAIGN SUMMARY - real-time reflection of the form's current
         // state, persistent across all 4 steps (not just Details).
         // ------------------------------------------------------------
@@ -501,6 +603,7 @@
             document.getElementById('reviewAudience').textContent = audienceType.value === 'list'
                 ? (audienceListSelect.options[audienceListSelect.selectedIndex]?.text || '—')
                 : (audienceSegmentSelect.options[audienceSegmentSelect.selectedIndex]?.text || '—');
+            document.getElementById('reviewSuppressionGroup').textContent = suppressionGroupSelect.options[suppressionGroupSelect.selectedIndex]?.text || '—';
         }
 
         // Real pre-flight check against actual infrastructure state -

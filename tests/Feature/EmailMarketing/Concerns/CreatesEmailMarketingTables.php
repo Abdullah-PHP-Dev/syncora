@@ -53,6 +53,9 @@ trait CreatesEmailMarketingTables
             '2026_09_18_000011_create_email_events_table',
             '2026_09_18_000012_add_webhook_public_key_to_email_subaccounts_table',
             '2026_09_18_000013_make_email_list_id_nullable_on_email_campaigns_table',
+            '2026_09_18_223326_add_source_to_email_subscribers_table',
+            '2026_09_19_111946_add_campaign_type_to_email_campaigns_table',
+            '2026_09_19_113707_add_suppression_group_id_to_email_campaigns_table',
         ] as $migration) {
             (require database_path('migrations/' . $migration . '.php'))->up();
         }

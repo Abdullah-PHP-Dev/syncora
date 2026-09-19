@@ -98,6 +98,39 @@ class CampaignPreflightTest extends TestCase
         $this->assertFalse(collect($result['checks'])->firstWhere('label', 'Audience contains recipients')['pass']);
     }
 
+    public function test_preflight_fails_without_an_unsubscribe_group_even_with_everything_else_ready(): void
+    {
+        $user = User::factory()->create();
+        $subaccount = EmailSubaccount::create(['user_id' => $user->id, 'status' => 'active', 'api_key' => ['key' => 'SG.test']]);
+        SenderIdentity::create([
+            'user_id' => $user->id, 'email_subaccount_id' => $subaccount->id, 'sendgrid_sender_id' => '1',
+            'nickname' => 'n', 'from_name' => 'F', 'from_email' => 'f@example.com',
+            'address' => 'a', 'city' => 'c', 'country' => 'US', 'status' => 'verified',
+        ]);
+        $list = EmailList::create(['user_id' => $user->id, 'name' => 'List']);
+        $subscriber = EmailSubscriber::create(['user_id' => $user->id, 'email' => 'a@example.com', 'status' => 'subscribed']);
+        $list->subscribers()->attach($subscriber->id);
+
+        $campaign = $this->baseCampaign($user, [
+            'audience_type'      => 'list',
+            'audience_id'        => $list->id,
+            'email_list_id'      => $list->id,
+            'sender_identity_id' => SenderIdentity::first()->id,
+            'suppression_group_id' => null,
+        ]);
+
+        $result = app(SendGridCampaignService::class)->preflight($campaign);
+
+        $this->assertFalse($result['ready']);
+        $this->assertFalse(collect($result['checks'])->firstWhere('label', 'Unsubscribe group selected')['pass']);
+
+        $campaign->update(['suppression_group_id' => 4242]);
+        $result = app(SendGridCampaignService::class)->preflight($campaign);
+
+        $this->assertTrue($result['ready']);
+        $this->assertTrue(collect($result['checks'])->firstWhere('label', 'Unsubscribe group selected')['pass']);
+    }
+
     public function test_sendorschedule_refuses_to_call_sendgrid_when_preflight_fails(): void
     {
         Http::preventStrayRequests();

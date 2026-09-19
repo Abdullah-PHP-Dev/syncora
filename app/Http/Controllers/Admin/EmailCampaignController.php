@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\EmailMarketing\EmailCampaign;
 use App\Models\EmailMarketing\EmailList;
 use App\Models\EmailMarketing\EmailSegment;
+use App\Models\EmailMarketing\EmailSubaccount;
 use App\Models\EmailMarketing\EmailSubscriber;
 use App\Models\EmailMarketing\EmailTemplate;
 use App\Models\EmailMarketing\SenderIdentity;
 use App\Services\EmailMarketingServices\EmailMarketingService;
+use App\Services\EmailMarketingServices\SendGridSuppressionService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -42,7 +44,7 @@ class EmailCampaignController extends Controller
         return view('admin.email.campaigns.index', compact('campaigns'));
     }
 
-    public function create(Request $request)
+    public function create(Request $request, SendGridSuppressionService $suppression)
     {
         $lists = EmailList::where('user_id', Auth::id())->withCount('subscribers')->get();
         $segments = EmailSegment::where('user_id', Auth::id())->get();
@@ -57,9 +59,11 @@ class EmailCampaignController extends Controller
             : null;
 
         $totalSubscribers = EmailSubscriber::where('user_id', Auth::id())->where('status', 'subscribed')->count();
+        [$suppressionGroups, $suppressionGroupsError] = $this->fetchSuppressionGroups($suppression);
 
         return view('admin.email.campaigns.create', compact(
-            'lists', 'segments', 'templates', 'senders', 'preselectedTemplateId', 'totalSubscribers'
+            'lists', 'segments', 'templates', 'senders', 'preselectedTemplateId', 'totalSubscribers',
+            'suppressionGroups', 'suppressionGroupsError'
         ));
     }
 
@@ -82,12 +86,13 @@ class EmailCampaignController extends Controller
             'body'               => $validated['body'],
             'status'             => 'draft',
             'campaign_type'      => $validated['campaign_type'],
+            'suppression_group_id' => $validated['suppression_group_id'] ?? null,
         ]);
 
         return $this->afterSave($campaign, $validated['action'], $validated['scheduled_at'] ?? null);
     }
 
-    public function edit(EmailCampaign $campaign)
+    public function edit(EmailCampaign $campaign, SendGridSuppressionService $suppression)
     {
         abort_unless($campaign->user_id === Auth::id(), 403);
         abort_unless($campaign->isEditable(), 403, 'This campaign has already been sent and can no longer be edited.');
@@ -97,9 +102,11 @@ class EmailCampaignController extends Controller
         $templates = EmailTemplate::where('user_id', Auth::id())->get();
         $senders = SenderIdentity::where('user_id', Auth::id())->where('status', 'verified')->get();
         $totalSubscribers = EmailSubscriber::where('user_id', Auth::id())->where('status', 'subscribed')->count();
+        [$suppressionGroups, $suppressionGroupsError] = $this->fetchSuppressionGroups($suppression);
 
         return view('admin.email.campaigns.edit', compact(
-            'campaign', 'lists', 'segments', 'templates', 'senders', 'totalSubscribers'
+            'campaign', 'lists', 'segments', 'templates', 'senders', 'totalSubscribers',
+            'suppressionGroups', 'suppressionGroupsError'
         ));
     }
 
@@ -123,6 +130,7 @@ class EmailCampaignController extends Controller
             'from_email'         => $validated['from_email'],
             'body'               => $validated['body'],
             'campaign_type'      => $validated['campaign_type'],
+            'suppression_group_id' => $validated['suppression_group_id'] ?? null,
         ]);
 
         return $this->afterSave($campaign, $validated['action'], $validated['scheduled_at'] ?? null);
@@ -214,6 +222,54 @@ class EmailCampaignController extends Controller
         return response()->json($this->emailMarketing->preflight($campaign));
     }
 
+    /**
+     * AJAX endpoint backing the wizard's "Create New Group" action - a
+     * marketing send has nowhere to go if a seller has zero SendGrid
+     * suppression groups yet, so this is a real create call, not a
+     * dead-end pointing them at SendGrid's own dashboard.
+     */
+    public function storeSuppressionGroup(Request $request, SendGridSuppressionService $suppression)
+    {
+        $validated = $request->validate([
+            'name'        => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $subaccount = EmailSubaccount::where('user_id', Auth::id())->first();
+
+        if (!$subaccount) {
+            return response()->json(['success' => false, 'message' => 'Complete Email Marketing setup before creating an unsubscribe group.'], 422);
+        }
+
+        $result = $suppression->createGroup($subaccount, $validated['name'], $validated['description'] ?? null);
+
+        if (!$result['success']) {
+            return response()->json(['success' => false, 'message' => $result['error']], 422);
+        }
+
+        return response()->json(['success' => true, 'group' => $result['group']]);
+    }
+
+    /**
+     * [$groups, $error] - $groups is always a real array (never
+     * fabricated placeholders) and $error carries the real reason when
+     * the fetch failed (no subaccount yet, subaccount inactive, or a
+     * genuine SendGrid API error), so the view can tell "you have none"
+     * apart from "we couldn't check".
+     */
+    private function fetchSuppressionGroups(SendGridSuppressionService $suppression): array
+    {
+        $subaccount = EmailSubaccount::where('user_id', Auth::id())->first();
+
+        if (!$subaccount) {
+            return [[], 'Complete Email Marketing setup before creating a campaign.'];
+        }
+
+        $result = $suppression->listGroups($subaccount);
+
+        return [$result['groups'], $result['success'] ? null : $result['error']];
+    }
+
     private function afterSave(EmailCampaign $campaign, string $action, ?string $scheduledAt)
     {
         if ($action === 'save_draft') {
@@ -257,6 +313,16 @@ class EmailCampaignController extends Controller
             // campaign_type migration's docblock for why those aren't
             // real, selectable values yet.
             'campaign_type'      => ['required', Rule::in(['one_time', 'newsletter'])],
+            // Only required to actually send/schedule - a draft can be
+            // saved before a group's been picked, but
+            // SendGridCampaignService::preflight()'s "Unsubscribe group
+            // selected" check blocks Send Now/Schedule without one
+            // regardless of what's enforced here, so this is real
+            // client-facing validation, not the only safety net.
+            'suppression_group_id' => [
+                Rule::requiredIf(fn () => in_array($request->input('action'), ['send_now', 'schedule'], true)),
+                'nullable', 'integer',
+            ],
         ]);
 
         $table = $validated['audience_type'] === 'segment' ? 'email_segments' : 'email_lists';

@@ -18,7 +18,7 @@ class EmailCampaign extends Model
         'clicked_count', 'bounced_count', 'complained_count', 'unsubscribed_count',
         'failed_count', 'error_message', 'sendgrid_single_send_id',
         'sender_identity_id', 'preheader', 'audience_type', 'audience_id',
-        'campaign_type',
+        'campaign_type', 'suppression_group_id',
     ];
 
     protected $casts = [
