@@ -144,10 +144,6 @@ class EmailTemplateController extends Controller
      * Header logo, Video thumbnail) - same Storage::disk('r2') (Cloudflare
      * R2, S3-compatible) pattern PostController already uses for social
      * post media, so this is a genuine working upload, not a URL prompt().
-     * Images only (not arbitrary files/videos) - an email's HTML body can
-     * only ever reference an <img>, and video itself can't be embedded in
-     * an email at all (every mainstream mail client strips <video>), so
-     * there is no real "upload a video" case for this feature to serve.
      */
     public function uploadMedia(Request $request)
     {
@@ -158,6 +154,35 @@ class EmailTemplateController extends Controller
         $file = $request->file('file');
         $extension = strtolower($file->getClientOriginalExtension());
         $path = 'uploads/email-templates/' . Auth::id() . '/' . now()->format('Y/m') . '/' . Str::uuid() . '.' . $extension;
+
+        Storage::disk('r2')->put($path, file_get_contents($file->getRealPath()), ['visibility' => 'public']);
+
+        return response()->json([
+            'success' => true,
+            'url'     => Storage::disk('r2')->url($path),
+        ]);
+    }
+
+    /**
+     * Real video FILE upload (as an alternative to pasting an existing
+     * YouTube/Vimeo link) - the Video block's thumbnail then links here
+     * instead of to a third-party site. The video still can't be embedded
+     * INSIDE the email itself (every mainstream mail client strips
+     * <video> entirely, no matter where the file is hosted), so clicking
+     * the thumbnail always opens this real hosted file in a new tab,
+     * where the browser plays it natively - same real constraint as
+     * before, just no longer requiring the seller to already have an
+     * external link.
+     */
+    public function uploadVideo(Request $request)
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:mp4,mov,webm,avi,m4v', 'max:51200'],
+        ]);
+
+        $file = $request->file('file');
+        $extension = strtolower($file->getClientOriginalExtension());
+        $path = 'uploads/email-templates/' . Auth::id() . '/videos/' . now()->format('Y/m') . '/' . Str::uuid() . '.' . $extension;
 
         Storage::disk('r2')->put($path, file_get_contents($file->getRealPath()), ['visibility' => 'public']);
 

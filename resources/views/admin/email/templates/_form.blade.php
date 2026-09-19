@@ -99,6 +99,7 @@
 
                     <div id="templateCanvas" class="editor-canvas" contenteditable="true">{!! old('body', $template->body ?? '<p>Hi {{first_name}},</p><p>Write your message here...</p>') !!}</div>
                     <input type="file" id="mediaFileInput" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;">
+                    <input type="file" id="videoFileInput" accept="video/mp4,video/quicktime,video/webm,video/x-msvideo" style="display:none;">
 
                     <p class="dash-subtitle small mt-2 mb-0">
                         Personalization tags (substituted by SendGrid against each contact's synced fields when this template is used in a campaign):
@@ -213,10 +214,29 @@
             </div>
             <div class="modal-body">
                 <p class="dash-subtitle small">Video can't be embedded directly in an email - this inserts a clickable thumbnail that opens your video wherever it's hosted.</p>
-                <div class="mb-3">
+
+                <div class="btn-group w-100 mb-3" role="group">
+                    <input type="radio" class="btn-check" name="videoSource" id="videoSourceUpload" checked>
+                    <label class="btn btn-outline-primary btn-sm" for="videoSourceUpload">Upload Video File</label>
+                    <input type="radio" class="btn-check" name="videoSource" id="videoSourceLink">
+                    <label class="btn btn-outline-primary btn-sm" for="videoSourceLink">Link to External Video</label>
+                </div>
+
+                <div id="videoSourceUploadPane" class="mb-3">
+                    <label class="form-label small d-block">Video File *</label>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="videoFilePickBtn"><i class="bx bx-upload"></i> Choose Video</button>
+                    <span id="videoFileName" class="dash-subtitle small ms-2">No file selected</span>
+                    <div class="dash-subtitle small mt-1">MP4, MOV, WebM or AVI, up to 50MB.</div>
+                    <div class="progress mt-2" id="videoUploadProgressWrap" style="height:6px;display:none;">
+                        <div class="progress-bar" id="videoUploadProgressBar" style="width:0%;"></div>
+                    </div>
+                </div>
+
+                <div id="videoSourceLinkPane" class="mb-3" style="display:none;">
                     <label class="form-label small">Video URL *</label>
                     <input type="url" id="videoUrlInput" class="form-control" placeholder="https://youtube.com/watch?v=...">
                 </div>
+
                 <div class="mb-2">
                     <label class="form-label small d-block">Thumbnail Image *</label>
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="videoThumbPickBtn"><i class="bx bx-upload"></i> Choose Image</button>
@@ -431,12 +451,91 @@
 
         const videoBlockModalEl = document.getElementById('videoBlockModal');
         const videoBlockModal = new bootstrap.Modal(videoBlockModalEl);
+        const videoSourceUpload = document.getElementById('videoSourceUpload');
+        const videoSourceLink = document.getElementById('videoSourceLink');
+        const videoSourceUploadPane = document.getElementById('videoSourceUploadPane');
+        const videoSourceLinkPane = document.getElementById('videoSourceLinkPane');
         const videoUrlInput = document.getElementById('videoUrlInput');
+        const videoFileInput = document.getElementById('videoFileInput');
+        const videoFilePickBtn = document.getElementById('videoFilePickBtn');
+        const videoFileName = document.getElementById('videoFileName');
+        const videoUploadProgressWrap = document.getElementById('videoUploadProgressWrap');
+        const videoUploadProgressBar = document.getElementById('videoUploadProgressBar');
         const videoThumbPickBtn = document.getElementById('videoThumbPickBtn');
         const videoThumbFileName = document.getElementById('videoThumbFileName');
         const videoThumbPreview = document.getElementById('videoThumbPreview');
         const videoBlockError = document.getElementById('videoBlockError');
         let videoThumbUrl = null;
+        let uploadedVideoUrl = null;
+        let videoUploadInProgress = false;
+
+        function toggleVideoSourcePane() {
+            const isUpload = videoSourceUpload.checked;
+            videoSourceUploadPane.style.display = isUpload ? '' : 'none';
+            videoSourceLinkPane.style.display = isUpload ? 'none' : '';
+        }
+        videoSourceUpload.addEventListener('change', toggleVideoSourcePane);
+        videoSourceLink.addEventListener('change', toggleVideoSourcePane);
+
+        videoFilePickBtn.addEventListener('click', function () {
+            videoFileInput.value = '';
+            videoFileInput.click();
+        });
+
+        // XMLHttpRequest, not fetch() - fetch has no upload-progress event,
+        // and a real video file can take long enough that a silent
+        // "nothing is happening" button would look broken.
+        videoFileInput.addEventListener('change', function () {
+            const file = this.files[0];
+            if (!file) return;
+
+            uploadedVideoUrl = null;
+            videoUploadInProgress = true;
+            videoFileName.textContent = file.name;
+            videoUploadProgressWrap.style.display = 'block';
+            videoUploadProgressBar.style.width = '0%';
+            videoBlockError.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '{{ route('admin.email.templates.uploadVideo') }}');
+            xhr.setRequestHeader('X-CSRF-TOKEN', document.querySelector('meta[name="csrf-token"]').content);
+            xhr.setRequestHeader('Accept', 'application/json');
+
+            xhr.upload.addEventListener('progress', function (e) {
+                if (e.lengthComputable) {
+                    videoUploadProgressBar.style.width = Math.round((e.loaded / e.total) * 100) + '%';
+                }
+            });
+
+            xhr.addEventListener('load', function () {
+                videoUploadInProgress = false;
+                let res = {};
+                try { res = JSON.parse(xhr.responseText); } catch (e) {}
+
+                if (xhr.status === 200 && res.success) {
+                    uploadedVideoUrl = res.url;
+                    videoFileName.textContent = file.name + ' - uploaded';
+                } else {
+                    videoFileName.textContent = 'No file selected';
+                    videoUploadProgressWrap.style.display = 'none';
+                    videoBlockError.textContent = (res.message) || 'Failed to upload video - please try again.';
+                    videoBlockError.style.display = 'block';
+                }
+            });
+
+            xhr.addEventListener('error', function () {
+                videoUploadInProgress = false;
+                videoFileName.textContent = 'No file selected';
+                videoUploadProgressWrap.style.display = 'none';
+                videoBlockError.textContent = 'Failed to upload video - please try again.';
+                videoBlockError.style.display = 'block';
+            });
+
+            xhr.send(formData);
+        });
 
         videoThumbPickBtn.addEventListener('click', function () {
             pickImage(function (url) {
@@ -448,10 +547,19 @@
         });
 
         document.getElementById('videoBlockInsertBtn').addEventListener('click', function () {
-            const videoUrl = videoUrlInput.value.trim();
+            const isUpload = videoSourceUpload.checked;
+            const videoUrl = isUpload ? uploadedVideoUrl : videoUrlInput.value.trim();
+
+            if (isUpload && videoUploadInProgress) {
+                videoBlockError.textContent = 'Please wait for the video to finish uploading.';
+                videoBlockError.style.display = 'block';
+                return;
+            }
 
             if (!videoUrl || !videoThumbUrl) {
-                videoBlockError.textContent = !videoUrl ? 'A video URL is required.' : 'A thumbnail image is required.';
+                videoBlockError.textContent = !videoUrl
+                    ? (isUpload ? 'Please upload a video file.' : 'A video URL is required.')
+                    : 'A thumbnail image is required.';
                 videoBlockError.style.display = 'block';
                 return;
             }
@@ -459,7 +567,8 @@
             // Video itself can't be embedded in an email (every
             // mainstream mail client strips <video>) - the real, correct
             // pattern is a linked thumbnail image that opens the actual
-            // video elsewhere, which is what this inserts.
+            // video elsewhere (a real uploaded file, or a real external
+            // link), which is what this inserts.
             restoreCanvasSelection();
             document.execCommand('insertHTML', false,
                 '<p style="text-align:center;"><a href="' + videoUrl + '" style="display:inline-block;text-decoration:none;">'
@@ -469,6 +578,9 @@
 
             videoBlockModal.hide();
             videoUrlInput.value = '';
+            uploadedVideoUrl = null;
+            videoFileName.textContent = 'No file selected';
+            videoUploadProgressWrap.style.display = 'none';
             videoThumbUrl = null;
             videoThumbFileName.textContent = 'No file selected';
             videoThumbPreview.style.display = 'none';
