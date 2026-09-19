@@ -554,6 +554,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->names('email.templates');
 				Route::post('email/templates/{template}/versions/{version}/restore', [EmailTemplateController::class, 'restoreVersion'])->name('email.templates.versions.restore');
 				Route::post('email/templates/generate-ai', [EmailTemplateController::class, 'generateAiContent'])->name('email.templates.generateAi');
+				Route::post('email/templates/upload-media', [EmailTemplateController::class, 'uploadMedia'])->name('email.templates.uploadMedia');
 
 				Route::resource('email/campaigns', EmailCampaignController::class)
 					->except(['show'])

@@ -10,6 +10,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class EmailTemplateController extends Controller
@@ -137,6 +139,34 @@ class EmailTemplateController extends Controller
      * The UI calls this "AI", not "ChatGPT", since the real backend is
      * Google Gemini.
      */
+    /**
+     * Real image upload for the Design tab's toolbar/Blocks panel (Image,
+     * Header logo, Video thumbnail) - same Storage::disk('r2') (Cloudflare
+     * R2, S3-compatible) pattern PostController already uses for social
+     * post media, so this is a genuine working upload, not a URL prompt().
+     * Images only (not arbitrary files/videos) - an email's HTML body can
+     * only ever reference an <img>, and video itself can't be embedded in
+     * an email at all (every mainstream mail client strips <video>), so
+     * there is no real "upload a video" case for this feature to serve.
+     */
+    public function uploadMedia(Request $request)
+    {
+        $request->validate([
+            'file' => ['required', 'image', 'mimes:jpg,jpeg,png,gif,webp', 'max:5120'],
+        ]);
+
+        $file = $request->file('file');
+        $extension = strtolower($file->getClientOriginalExtension());
+        $path = 'uploads/email-templates/' . Auth::id() . '/' . now()->format('Y/m') . '/' . Str::uuid() . '.' . $extension;
+
+        Storage::disk('r2')->put($path, file_get_contents($file->getRealPath()), ['visibility' => 'public']);
+
+        return response()->json([
+            'success' => true,
+            'url'     => Storage::disk('r2')->url($path),
+        ]);
+    }
+
     public function generateAiContent(Request $request)
     {
         $validated = $request->validate([

@@ -98,6 +98,7 @@
                     </div>
 
                     <div id="templateCanvas" class="editor-canvas" contenteditable="true">{!! old('body', $template->body ?? '<p>Hi {{first_name}},</p><p>Write your message here...</p>') !!}</div>
+                    <input type="file" id="mediaFileInput" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;">
 
                     <p class="dash-subtitle small mt-2 mb-0">
                         Personalization tags (substituted by SendGrid against each contact's synced fields when this template is used in a campaign):
@@ -271,13 +272,58 @@
                 renderPreview();
             }
         });
+        // ------------------------------------------------------------
+        // IMAGE UPLOAD - real upload to Cloudflare R2 via the app's own
+        // storage disk (same one PostController already uses for social
+        // media), not a URL prompt(). One hidden <input type=file> is
+        // reused by every image-needing control (toolbar, Image block,
+        // Header logo, Video thumbnail) rather than one per button.
+        // ------------------------------------------------------------
+        const mediaFileInput = document.getElementById('mediaFileInput');
+        let pendingUploadCallback = null;
+
+        function pickImage(onUploaded) {
+            pendingUploadCallback = onUploaded;
+            mediaFileInput.value = '';
+            mediaFileInput.click();
+        }
+
+        mediaFileInput.addEventListener('change', function () {
+            const file = this.files[0];
+            const callback = pendingUploadCallback;
+            pendingUploadCallback = null;
+            if (!file || !callback) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('{{ route('admin.email.templates.uploadMedia') }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json',
+                },
+                body: formData,
+            })
+                .then(r => r.json())
+                .then(function (res) {
+                    if (res.success) {
+                        callback(res.url);
+                    } else {
+                        alert(res.message || 'Failed to upload image.');
+                    }
+                })
+                .catch(function () {
+                    alert('Failed to upload image - please try again.');
+                });
+        });
+
         document.getElementById('insertImageBtn').addEventListener('click', function () {
-            const url = prompt('Enter an image URL:');
-            if (url) {
-                canvas.focus();
+            canvas.focus();
+            pickImage(function (url) {
                 document.execCommand('insertImage', false, url);
                 renderPreview();
-            }
+            });
         });
 
         document.querySelectorAll('.insert-tag').forEach(function (btn) {
@@ -294,7 +340,6 @@
         // ------------------------------------------------------------
         const blockSnippets = {
             text: '<p>Your text here</p>',
-            image: '<img src="https://via.placeholder.com/560x200" alt="" style="max-width:100%;">',
             button: '<p><a href="#" style="display:inline-block;background:#7c5cff;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;">Click Here</a></p>',
             divider: '<hr style="border:none;border-top:1px solid #e2e2ea;margin:20px 0;">',
             social: '<p style="text-align:center;">'
@@ -303,18 +348,62 @@
                 + '<a href="#" style="margin:0 6px;text-decoration:none;"><i class="bx bxl-twitter" style="font-size:24px;color:#1da1f2;"></i></a>'
                 + '<a href="#" style="margin:0 6px;text-decoration:none;"><i class="bx bxl-linkedin-square" style="font-size:24px;color:#0a66c2;"></i></a>'
                 + '</p>',
-            video: '<p style="text-align:center;"><a href="#" style="display:inline-block;position:relative;text-decoration:none;">'
-                + '<img src="https://via.placeholder.com/400x225" alt="Video" style="max-width:100%;border-radius:8px;">'
-                + '</a></p><p style="text-align:center;"><small>Click the thumbnail above to watch - video can\'t be embedded directly in an email.</small></p>',
             header: '<div style="text-align:center;padding:16px 0;"><strong style="font-size:20px;">Your Company</strong></div>',
             footer: '<div style="text-align:center;color:#8b8d9c;font-size:12px;padding:16px 0;">Sent by Your Company &middot; @{{email}}</div>',
             spacer: '<div style="height:24px;"></div>',
         };
 
+        // Image/Header/Video blocks need a real uploaded file rather than
+        // a static snippet - handled here instead of in blockSnippets
+        // above, with pickImage() doing the actual upload.
         document.querySelectorAll('.block-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 canvas.focus();
-                document.execCommand('insertHTML', false, blockSnippets[btn.dataset.block] || '');
+                const block = btn.dataset.block;
+
+                if (block === 'image') {
+                    pickImage(function (url) {
+                        document.execCommand('insertHTML', false, '<img src="' + url + '" alt="" style="max-width:100%;">');
+                        renderPreview();
+                    });
+                    return;
+                }
+
+                if (block === 'header') {
+                    if (confirm('Upload a logo image for the header? Click Cancel to insert a text-only header instead.')) {
+                        pickImage(function (url) {
+                            document.execCommand('insertHTML', false,
+                                '<div style="text-align:center;padding:16px 0;"><img src="' + url + '" alt="Logo" style="max-height:48px;"></div>');
+                            renderPreview();
+                        });
+                    } else {
+                        document.execCommand('insertHTML', false, blockSnippets.header);
+                        renderPreview();
+                    }
+                    return;
+                }
+
+                if (block === 'video') {
+                    // Video itself can't be embedded in an email (every
+                    // mainstream mail client strips <video>) - the real,
+                    // correct pattern is a linked thumbnail image that
+                    // opens the actual video elsewhere, which is what
+                    // this inserts: a real uploaded thumbnail + a real
+                    // destination link, not a fake inline player.
+                    const videoUrl = prompt('Paste the video link (YouTube, Vimeo, etc.):');
+                    if (!videoUrl) return;
+
+                    pickImage(function (thumbUrl) {
+                        document.execCommand('insertHTML', false,
+                            '<p style="text-align:center;"><a href="' + videoUrl + '" style="display:inline-block;text-decoration:none;">'
+                            + '<img src="' + thumbUrl + '" alt="Video" style="max-width:100%;border-radius:8px;">'
+                            + '</a></p><p style="text-align:center;"><small>Click the thumbnail above to watch - video can\'t be embedded directly in an email.</small></p>');
+                        renderPreview();
+                    });
+                    return;
+                }
+
+                document.execCommand('insertHTML', false, blockSnippets[block] || '');
                 renderPreview();
             });
         });
