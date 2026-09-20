@@ -146,8 +146,14 @@ class SendGridCampaignService
 
         $subaccount = EmailSubaccount::where('user_id', $campaign->user_id)->first();
 
+        // PUT, not POST - confirmed live against the real API this
+        // session: POST here returns an empty-body 405 (a routing-level
+        // rejection, not a validation error), which is what actually
+        // produced the "json could not be unmarshalled" error a seller
+        // saw - the previous docblock's "confirmed against docs" claim
+        // for this endpoint was wrong.
         $response = $this->client->asSubaccount($subaccount->apiKeyValue(), $subaccount->region)
-            ->post("marketing/singlesends/{$campaign->sendgrid_single_send_id}/schedule", [
+            ->put("marketing/singlesends/{$campaign->sendgrid_single_send_id}/schedule", [
                 'send_at' => $sendAt ? $sendAt->toIso8601String() : 'now',
             ]);
 

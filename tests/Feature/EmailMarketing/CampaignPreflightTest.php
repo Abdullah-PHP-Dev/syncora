@@ -131,6 +131,44 @@ class CampaignPreflightTest extends TestCase
         $this->assertTrue(collect($result['checks'])->firstWhere('label', 'Unsubscribe group selected')['pass']);
     }
 
+    /**
+     * Real bug found live this session: the schedule call used POST,
+     * which SendGrid's API rejects with an empty-body 405 (surfaced to a
+     * seller as an opaque "json could not be unmarshalled" error) -
+     * PUT is the correct method. This pins the fix so a future edit
+     * can't silently revert it back to POST.
+     */
+    public function test_sendorschedule_calls_the_schedule_endpoint_with_put_not_post(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $subaccount = EmailSubaccount::create(['user_id' => $user->id, 'status' => 'active', 'api_key' => ['key' => 'SG.test']]);
+        SenderIdentity::create([
+            'user_id' => $user->id, 'email_subaccount_id' => $subaccount->id, 'sendgrid_sender_id' => '1',
+            'nickname' => 'n', 'from_name' => 'F', 'from_email' => 'f@example.com',
+            'address' => 'a', 'city' => 'c', 'country' => 'US', 'status' => 'verified',
+        ]);
+        $list = EmailList::create(['user_id' => $user->id, 'name' => 'List', 'sendgrid_list_id' => 'sg-list-1']);
+        $subscriber = EmailSubscriber::create(['user_id' => $user->id, 'email' => 'a@example.com', 'status' => 'subscribed']);
+        $list->subscribers()->attach($subscriber->id);
+
+        $campaign = $this->baseCampaign($user, [
+            'audience_type' => 'list', 'audience_id' => $list->id, 'email_list_id' => $list->id,
+            'sender_identity_id' => SenderIdentity::first()->id, 'suppression_group_id' => 4242,
+        ]);
+
+        Http::fake([
+            'api.sendgrid.com/v3/marketing/singlesends' => Http::response(['id' => 'ss-1'], 200),
+            'api.sendgrid.com/v3/marketing/singlesends/ss-1/schedule' => Http::response(['status' => 'scheduled'], 200),
+        ]);
+
+        $result = app(SendGridCampaignService::class)->sendOrSchedule($campaign);
+
+        $this->assertTrue($result['success']);
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/schedule') && $request->method() === 'PUT');
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), '/schedule') && $request->method() === 'POST');
+    }
+
     public function test_sendorschedule_refuses_to_call_sendgrid_when_preflight_fails(): void
     {
         Http::preventStrayRequests();
