@@ -565,6 +565,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::post('email/campaigns/{campaign}/send', [EmailCampaignController::class, 'sendNow'])->name('email.campaigns.send');
 				Route::get('email/campaigns/{campaign}/preflight', [EmailCampaignController::class, 'preflight'])->name('email.campaigns.preflight');
 				Route::get('email/campaigns/{campaign}/export', [EmailCampaignController::class, 'exportReport'])->name('email.campaigns.export');
+				Route::post('email/campaigns/{campaign}/duplicate', [EmailCampaignController::class, 'duplicate'])->name('email.campaigns.duplicate');
 				Route::post('email/campaigns/suppression-groups', [EmailCampaignController::class, 'storeSuppressionGroup'])->name('email.campaigns.suppressionGroups.store');
 
 

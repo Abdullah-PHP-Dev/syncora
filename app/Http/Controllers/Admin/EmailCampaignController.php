@@ -117,6 +117,7 @@ class EmailCampaignController extends Controller
 
         $validated = $this->validated($request);
 
+      
         $campaign->update([
             'email_list_id'      => $validated['audience_type'] === 'list' ? $validated['audience_id'] : null,
             'audience_type'      => $validated['audience_type'],
@@ -132,7 +133,7 @@ class EmailCampaignController extends Controller
             'campaign_type'      => $validated['campaign_type'],
             'suppression_group_id' => $validated['suppression_group_id'] ?? null,
         ]);
-
+  
         return $this->afterSave($campaign, $validated['action'], $validated['scheduled_at'] ?? null);
     }
 
@@ -140,9 +141,99 @@ class EmailCampaignController extends Controller
     {
         abort_unless($campaign->user_id === Auth::id(), 403);
 
-        $events = $campaign->events()->latest('event_at')->paginate(50);
+        $campaign->load('senderIdentity', 'template');
 
-        return view('admin.email.campaigns.show', compact('campaign', 'events'));
+        $events = $campaign->events()->latest('event_at')->paginate(50, ['*'], 'events_page');
+        $recentEvents = $campaign->events()->latest('event_at')->take(6)->get();
+
+        // Segment membership lives in SendGrid, not locally (see
+        // audienceRecipientCount()'s own note in SendGridCampaignService) -
+        // the Recipients tab can only list real rows for a list audience.
+        $audience = $campaign->audience();
+        $recipients = $audience instanceof EmailList
+            ? $audience->subscribers()->where('status', 'subscribed')->orderBy('email')->paginate(50, ['*'], 'recipients_page')
+            : null;
+
+        [$chartLabels, $chartDelivered, $chartOpened, $chartClicked] = $this->engagementSeries($campaign);
+
+        return view('admin.email.campaigns.show', compact(
+            'campaign', 'events', 'recentEvents', 'audience', 'recipients',
+            'chartLabels', 'chartDelivered', 'chartOpened', 'chartClicked'
+        ));
+    }
+
+    /**
+     * Daily delivered/opened/clicked counts sourced from this campaign's
+     * own EmailEvent rows, from its send date to today (capped at 30 days
+     * for chart readability) - mirrors
+     * EmailMarketingController::dailyEventSeries()'s gap-filling approach
+     * but scoped to one campaign instead of a user-wide date range. A
+     * campaign that hasn't sent yet has nothing to chart, so it returns
+     * empty series rather than a row of misleading zeros.
+     */
+    private function engagementSeries(EmailCampaign $campaign): array
+    {
+        if (!$campaign->sent_at) {
+            return [[], [], [], []];
+        }
+
+        $start = $campaign->sent_at->copy()->startOfDay();
+        $end = now()->startOfDay();
+        if ($start->diffInDays($end) > 29) {
+            $start = $end->copy()->subDays(29);
+        }
+        $days = $start->diffInDays($end) + 1;
+
+        $rows = $campaign->events()
+            ->where('event_at', '>=', $start)
+            ->selectRaw('DATE(event_at) as day, event_type, COUNT(*) as c')
+            ->groupBy('day', 'event_type')
+            ->get()
+            ->groupBy('day');
+
+        $labels = $delivered = $opened = $clicked = [];
+
+        for ($i = 0; $i < $days; $i++) {
+            $date = $start->copy()->addDays($i);
+            $dayRows = $rows->get($date->format('Y-m-d'), collect());
+            $labels[] = $date->format('M j');
+            $delivered[] = (int) ($dayRows->firstWhere('event_type', 'delivered')->c ?? 0);
+            $opened[] = (int) ($dayRows->firstWhere('event_type', 'open')->c ?? 0);
+            $clicked[] = (int) ($dayRows->firstWhere('event_type', 'click')->c ?? 0);
+        }
+
+        return [$labels, $delivered, $opened, $clicked];
+    }
+
+    /**
+     * Clones a campaign as a brand-new draft - name, content, audience,
+     * sender and settings carry over; anything about a specific send
+     * (SendGrid single-send id, schedule, delivery counters) starts fresh
+     * since this is a new, never-sent campaign.
+     */
+    public function duplicate(EmailCampaign $campaign)
+    {
+        abort_unless($campaign->user_id === Auth::id(), 403);
+
+        $copy = $campaign->replicate();
+        $copy->name = $campaign->name . ' (Copy)';
+        $copy->status = 'draft';
+        $copy->sendgrid_single_send_id = null;
+        $copy->scheduled_at = null;
+        $copy->sent_at = null;
+        $copy->total_recipients = 0;
+        $copy->sent_count = 0;
+        $copy->delivered_count = 0;
+        $copy->opened_count = 0;
+        $copy->clicked_count = 0;
+        $copy->bounced_count = 0;
+        $copy->complained_count = 0;
+        $copy->unsubscribed_count = 0;
+        $copy->failed_count = 0;
+        $copy->error_message = null;
+        $copy->save();
+
+        return redirect()->route('admin.email.campaigns.edit', $copy)->with('success', 'Campaign duplicated as a new draft.');
     }
 
     /**
@@ -279,8 +370,9 @@ class EmailCampaignController extends Controller
         }
 
         $sendAt = $action === 'schedule' ? Carbon::parse($scheduledAt) : null;
+     
         $result = $this->emailMarketing->dispatchCampaign($campaign, $sendAt);
-
+      
         if (!($result['success'] ?? false)) {
             return redirect()->route('admin.email.campaigns.edit', $campaign)
                 ->with('error', $result['error'] ?? 'Failed to send campaign. It has been saved as a draft.');

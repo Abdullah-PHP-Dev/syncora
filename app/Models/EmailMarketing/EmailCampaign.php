@@ -103,6 +103,27 @@ class EmailCampaign extends Model
             : 0.0;
     }
 
+    public function deliveryRate(): float
+    {
+        return $this->sent_count > 0
+            ? round(($this->delivered_count / $this->sent_count) * 100, 1)
+            : 0.0;
+    }
+
+    public function bounceRate(): float
+    {
+        return $this->sent_count > 0
+            ? round(($this->bounced_count / $this->sent_count) * 100, 1)
+            : 0.0;
+    }
+
+    public function unsubscribeRate(): float
+    {
+        return $this->delivered_count > 0
+            ? round(($this->unsubscribed_count / $this->delivered_count) * 100, 1)
+            : 0.0;
+    }
+
     /**
      * SendGrid's "blocked" event has no dedicated counter column (unlike
      * delivered/opened/clicked/bounced/complained/unsubscribed, which are
