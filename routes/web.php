@@ -531,6 +531,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::post('email/setup/subaccount', [EmailSetupController::class, 'provisionSubaccount'])->name('email.setup.subaccount');
 				Route::post('email/setup/domain', [EmailSetupController::class, 'authenticateDomain'])->name('email.setup.domain');
 				Route::post('email/setup/domain/{domain}/verify', [EmailSetupController::class, 'verifyDomain'])->name('email.setup.domain.verify');
+				Route::post('email/setup/domain/{domain}/configure-dns', [EmailSetupController::class, 'configureDnsAutomatically'])->name('email.setup.domain.configureDns');
 				Route::post('email/setup/sender', [EmailSetupController::class, 'createSender'])->name('email.setup.sender');
 				Route::post('email/setup/sender/{sender}/refresh', [EmailSetupController::class, 'refreshSenderStatus'])->name('email.setup.sender.refresh');
 				Route::post('email/setup/sender/{sender}/resend', [EmailSetupController::class, 'resendSenderVerification'])->name('email.setup.sender.resend');

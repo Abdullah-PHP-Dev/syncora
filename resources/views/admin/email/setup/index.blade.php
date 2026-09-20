@@ -173,7 +173,50 @@
                 @endif
             </p>
 
+            @if ($domain->dns_last_synced_at)
+                <p class="dash-subtitle small mb-2"><i class="bx bx-cloud"></i> DNS automatically configured via Cloudflare {{ $domain->dns_last_synced_at->diffForHumans() }}.</p>
+            @endif
+
             @unless ($domain->isVerified())
+                @if (session('dnsConfigureResults'))
+                    <div class="dash-card mb-3" style="background:var(--dash-card-hover);box-shadow:none;">
+                        <h6 style="color:var(--dash-heading);font-size:.85rem;">Cloudflare DNS Configuration Result</h6>
+                        <div class="table-responsive">
+                            <table class="dash-table mb-0">
+                                <thead><tr><th>Type</th><th>Hostname</th><th>Result</th></tr></thead>
+                                <tbody>
+                                    @foreach (session('dnsConfigureResults') as $r)
+                                        <tr>
+                                            <td>{{ $r['type'] }}</td>
+                                            <td><code>{{ $r['host'] }}</code></td>
+                                            <td>
+                                                @switch($r['outcome'])
+                                                    @case('created')
+                                                        <span class="dash-badge dash-badge-success">Created</span>
+                                                        @break
+                                                    @case('skipped')
+                                                        <span class="dash-badge dash-badge-muted">Already exists</span>
+                                                        @break
+                                                    @case('updated')
+                                                        <span class="dash-badge dash-badge-info">Fixed ({{ $r['reason'] ?? 'updated' }})</span>
+                                                        @break
+                                                    @case('conflict')
+                                                        <span class="dash-badge dash-badge-danger">Conflict</span>
+                                                        <div class="dash-subtitle" style="font-size:.7rem;">Existing record points elsewhere - not changed automatically.</div>
+                                                        @break
+                                                    @default
+                                                        <span class="dash-badge dash-badge-danger">Error</span>
+                                                        <div class="dash-subtitle" style="font-size:.7rem;">{{ $r['error'] ?? '' }}</div>
+                                                @endswitch
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @endif
+
                 <div class="table-responsive">
                     <table class="dash-table dns-table">
                         <thead><tr><th>Type</th><th>Host / Name</th><th>Value</th><th>Status</th><th>Action</th></tr></thead>
@@ -203,10 +246,18 @@
                     <strong>DMARC recommended:</strong> SendGrid doesn't generate a DMARC record for you - it's a separate DNS TXT policy record you manage yourself (eg. <code>_dmarc.{{ $domain->domain }}</code>). Optional, but recommended for deliverability.
                 </div>
 
-                <form method="POST" action="{{ route('admin.email.setup.domain.verify', $domain) }}">
-                    @csrf
-                    <button class="dash-btn dash-btn-primary">Verify DNS</button>
-                </form>
+                <div class="d-flex gap-2 flex-wrap">
+                    @if ($cloudflareConfigured)
+                        <form method="POST" action="{{ route('admin.email.setup.domain.configureDns', $domain) }}">
+                            @csrf
+                            <button class="dash-btn dash-btn-ghost"><i class="bx bxl-cloud"></i> Configure DNS Automatically</button>
+                        </form>
+                    @endif
+                    <form method="POST" action="{{ route('admin.email.setup.domain.verify', $domain) }}">
+                        @csrf
+                        <button class="dash-btn dash-btn-primary">Verify DNS</button>
+                    </form>
+                </div>
             @endunless
         @endif
     </div>

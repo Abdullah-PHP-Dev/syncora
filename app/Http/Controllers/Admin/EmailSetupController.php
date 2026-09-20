@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\EmailMarketing\EmailSubaccount;
 use App\Models\EmailMarketing\SenderIdentity;
 use App\Models\EmailMarketing\VerifiedDomain;
+use App\Services\EmailMarketingServices\CloudflareDnsService;
 use App\Services\EmailMarketingServices\SendGridDomainService;
 use App\Services\EmailMarketingServices\SendGridSenderService;
 use App\Services\EmailMarketingServices\SendGridSubaccountService;
@@ -23,7 +24,7 @@ use Illuminate\Support\Facades\Auth;
  */
 class EmailSetupController extends Controller
 {
-    public function index()
+    public function index(CloudflareDnsService $cloudflare)
     {
         $userId = Auth::id();
 
@@ -38,7 +39,14 @@ class EmailSetupController extends Controller
 
         $ready = $subaccount?->isActive() && $domain?->isVerified() && $senders->contains(fn ($s) => $s->isVerified());
 
-        return view('admin.email.setup.index', compact('subaccount', 'domain', 'sender', 'senders', 'ready'));
+        // A cheap local config check only - never calls Cloudflare just to
+        // decide whether to show the button. Whether this SPECIFIC domain
+        // actually belongs to the configured zone is only checked live
+        // when "Configure DNS Automatically" is actually clicked (see
+        // CloudflareDnsService::domainBelongsToZone()'s docblock).
+        $cloudflareConfigured = $cloudflare->isConfigured();
+
+        return view('admin.email.setup.index', compact('subaccount', 'domain', 'sender', 'senders', 'ready', 'cloudflareConfigured'));
     }
 
     public function provisionSubaccount(SendGridSubaccountService $service)
@@ -77,6 +85,27 @@ class EmailSetupController extends Controller
             $result['valid'] ? 'success' : 'error',
             $result['valid'] ? 'Domain verified.' : 'DNS records not detected yet - they can take up to 48 hours to propagate.'
         );
+    }
+
+    /**
+     * "Configure DNS Automatically" - an additional capability alongside
+     * the existing manual-DNS-instructions table, never a replacement
+     * for it (see CloudflareDnsService's own docblock for why: this only
+     * works for domains on the platform's own Cloudflare zone). Safe to
+     * click repeatedly - CloudflareDnsService::ensureRecord() is the
+     * idempotency boundary, not this action.
+     */
+    public function configureDnsAutomatically(VerifiedDomain $domain, CloudflareDnsService $cloudflare)
+    {
+        abort_unless($domain->user_id === Auth::id(), 403);
+
+        $result = $cloudflare->configureSendGridRecords($domain);
+
+        if (!$result['success']) {
+            return back()->with('error', $result['error']);
+        }
+
+        return back()->with('dnsConfigureResults', $result['records']);
     }
 
     public function createSender(Request $request, SendGridSenderService $service)

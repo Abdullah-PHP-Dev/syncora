@@ -12,11 +12,13 @@ class VerifiedDomain extends Model
     protected $fillable = [
         'user_id', 'email_subaccount_id', 'sendgrid_domain_id', 'domain',
         'subdomain', 'automatic_security', 'is_default', 'status',
+        'dns_last_synced_at',
     ];
 
     protected $casts = [
         'automatic_security' => 'boolean',
         'is_default'         => 'boolean',
+        'dns_last_synced_at' => 'datetime',
     ];
 
     public function user(): BelongsTo
