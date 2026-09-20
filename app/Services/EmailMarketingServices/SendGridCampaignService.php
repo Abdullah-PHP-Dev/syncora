@@ -129,7 +129,13 @@ class SendGridCampaignService
         $preflight = $this->preflight($campaign);
 
         if (!$preflight['ready']) {
-            return ['success' => false, 'error' => 'This campaign is not ready to send.', 'preflight' => $preflight];
+            $failed = collect($preflight['checks'])->where('pass', false)->pluck('label')->implode(', ');
+
+            return [
+                'success'  => false,
+                'error'    => "This campaign is not ready to send: {$failed}.",
+                'preflight' => $preflight,
+            ];
         }
 
         $draftResult = $this->saveDraft($campaign);
