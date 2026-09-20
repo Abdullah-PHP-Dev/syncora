@@ -22,8 +22,17 @@ class EmailCampaign extends Model
     ];
 
     protected $casts = [
-        'scheduled_at' => 'datetime',
-        'sent_at'      => 'datetime',
+        'scheduled_at'          => 'datetime',
+        'sent_at'               => 'datetime',
+        // Without this, a value just set via mass-assignment from an
+        // HTML <select> (always a string over HTTP) stays a string
+        // in-memory for the rest of that same request - a fresh
+        // ::find() happens to come back as a real int from the DB
+        // driver, which is what made this bug so easy to miss testing
+        // via tinker. SendGrid's Go backend rejects a JSON string here
+        // with an opaque "json could not be unmarshalled" error, since
+        // it strictly expects a JSON number for this field.
+        'suppression_group_id' => 'integer',
     ];
 
     public function user(): BelongsTo

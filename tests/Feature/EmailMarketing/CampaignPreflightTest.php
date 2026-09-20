@@ -169,6 +169,47 @@ class CampaignPreflightTest extends TestCase
         Http::assertNotSent(fn ($request) => str_contains($request->url(), '/schedule') && $request->method() === 'POST');
     }
 
+    /**
+     * Real bug found live this session: a suppression_group_id just set
+     * via mass-assignment from an HTML <select> (always a string over
+     * HTTP) stayed a string in-memory for the rest of that same request
+     * (a fresh ::find() happens to come back as a real int from the DB
+     * driver, which is what made this so easy to miss testing via
+     * tinker). SendGrid's Go backend rejects a JSON string here with an
+     * opaque "json could not be unmarshalled" error - this pins both the
+     * model cast and saveDraft()'s own defensive cast.
+     */
+    public function test_save_draft_sends_suppression_group_id_as_a_real_integer_not_a_string(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $subaccount = EmailSubaccount::create(['user_id' => $user->id, 'status' => 'active', 'api_key' => ['key' => 'SG.test']]);
+        SenderIdentity::create([
+            'user_id' => $user->id, 'email_subaccount_id' => $subaccount->id, 'sendgrid_sender_id' => '1',
+            'nickname' => 'n', 'from_name' => 'F', 'from_email' => 'f@example.com',
+            'address' => 'a', 'city' => 'c', 'country' => 'US', 'status' => 'verified',
+        ]);
+        $list = EmailList::create(['user_id' => $user->id, 'name' => 'List', 'sendgrid_list_id' => 'sg-list-1']);
+        $subscriber = EmailSubscriber::create(['user_id' => $user->id, 'email' => 'a@example.com', 'status' => 'subscribed']);
+        $list->subscribers()->attach($subscriber->id);
+
+        $campaign = $this->baseCampaign($user, [
+            'audience_type' => 'list', 'audience_id' => $list->id, 'email_list_id' => $list->id,
+            'sender_identity_id' => SenderIdentity::first()->id,
+        ]);
+        // Exactly what an HTML <select> submits - a string, not an int.
+        $campaign->update(['suppression_group_id' => '4242']);
+
+        Http::fake(['api.sendgrid.com/v3/marketing/singlesends' => Http::response(['id' => 'ss-1'], 200)]);
+
+        app(SendGridCampaignService::class)->saveDraft($campaign);
+
+        Http::assertSent(function ($request) {
+            return $request['email_config']['suppression_group_id'] === 4242
+                && is_int($request['email_config']['suppression_group_id']);
+        });
+    }
+
     public function test_sendorschedule_refuses_to_call_sendgrid_when_preflight_fails(): void
     {
         Http::preventStrayRequests();

@@ -80,6 +80,7 @@ class SendGridCampaignService
     public function saveDraft(EmailCampaign $campaign): array
     {
         $preflight = $this->preflight($campaign);
+       
         $subaccount = EmailSubaccount::where('user_id', $campaign->user_id)->first();
 
         if (!$subaccount?->isActive()) {
@@ -87,6 +88,7 @@ class SendGridCampaignService
         }
 
         $audience = $campaign->audience();
+        
         $sendTo = $audience instanceof EmailSegment
             ? ['segment_ids' => [$audience->sendgrid_segment_id]]
             : ['list_ids' => array_filter([$audience?->sendgrid_list_id])];
@@ -98,7 +100,14 @@ class SendGridCampaignService
                 'subject'      => $campaign->subject,
                 'html_content' => $campaign->body,
                 'sender_id'    => (int) $campaign->senderIdentity?->sendgrid_sender_id,
-                'suppression_group_id' => $campaign->suppression_group_id,
+                // Cast explicitly, not just relying on the model's own
+                // 'integer' cast - SendGrid's Go backend rejects a JSON
+                // string here with an opaque "json could not be
+                // unmarshalled" error (confirmed live this session: a
+                // value just set via mass-assignment from an HTML
+                // <select> stayed a string in-memory for the rest of
+                // that request).
+                'suppression_group_id' => $campaign->suppression_group_id ? (int) $campaign->suppression_group_id : null,
             ],
         ];
 
@@ -127,7 +136,7 @@ class SendGridCampaignService
     public function sendOrSchedule(EmailCampaign $campaign, ?Carbon $sendAt = null): array
     {
         $preflight = $this->preflight($campaign);
-
+       
         if (!$preflight['ready']) {
             $failed = collect($preflight['checks'])->where('pass', false)->pluck('label')->implode(', ');
 
@@ -139,7 +148,7 @@ class SendGridCampaignService
         }
 
         $draftResult = $this->saveDraft($campaign);
-
+   
         if (!$draftResult['success']) {
             return $draftResult;
         }
