@@ -9,7 +9,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class EmailTemplateVersion extends Model
 {
     protected $fillable = [
-        'email_template_id', 'version', 'html_content', 'editor_type', 'created_by',
+        'email_template_id', 'version', 'html_content', 'schema_json', 'editor_type', 'created_by',
+    ];
+
+    protected $casts = [
+        'schema_json' => 'array',
     ];
 
     public function template(): BelongsTo

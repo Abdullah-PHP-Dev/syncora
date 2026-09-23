@@ -85,7 +85,7 @@ class EmailMarketingService
         if (!in_array($campaign->status, ['draft', 'scheduled'], true)) {
             return ['success' => false, 'error' => 'This campaign has already been sent or is currently sending.'];
         }
-
+    
         $result = $this->campaigns->sendOrSchedule($campaign, $sendAt);
 
         if (!$result['success']) {

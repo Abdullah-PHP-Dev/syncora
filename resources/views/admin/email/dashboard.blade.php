@@ -82,7 +82,23 @@
     @if (session('error'))
         <div class="alert alert-danger d-flex align-items-center gap-2"><i class="bx bx-error-circle fs-5"></i> {{ session('error') }}</div>
     @endif
-
+    <div class="dash-card row g-3 mb-3">
+        <h6 class="mb-3" style="color:var(--dash-heading);font-weight:600;">Quick Links</h6>
+        <div class="row">
+            <div class="col-md-3 col-6">
+                <div class="email-quick-links"><a href="{{ route('admin.email.setup.index') }}"><i class="bx bx-cog"></i> Email Marketing Setup</a></div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="email-quick-links"><a href="{{ route('admin.email.segments.index') }}"><i class="bx bx-filter-alt"></i> Segments</a></div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="email-quick-links"><a href="{{ route('admin.email.lists.index') }}"><i class="bx bx-list-ul"></i> Manage Lists</a></div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="email-quick-links"><a href="{{ route('admin.email.templates.index') }}"><i class="bx bx-file"></i> Email Templates</a></div>
+            </div>
+        </div>
+    </div>
     <div class="row g-3 mb-3">
         <div class="col-md-3 col-6">
             <x-metric-card label="Total Contacts" :value="number_format($totalSubscribers)">
@@ -269,24 +285,6 @@
                 @empty
                     <div class="dash-empty-row">Nothing has happened yet - activity shows up here as contacts subscribe and campaigns go out.</div>
                 @endforelse
-            </div>
-        </div>
-    </div>
-
-    <div class="dash-card">
-        <h6 class="mb-3" style="color:var(--dash-heading);font-weight:600;">Quick Links</h6>
-        <div class="row">
-            <div class="col-md-3 col-6">
-                <div class="email-quick-links"><a href="{{ route('admin.email.setup.index') }}"><i class="bx bx-cog"></i> Email Marketing Setup</a></div>
-            </div>
-            <div class="col-md-3 col-6">
-                <div class="email-quick-links"><a href="{{ route('admin.email.segments.index') }}"><i class="bx bx-filter-alt"></i> Segments</a></div>
-            </div>
-            <div class="col-md-3 col-6">
-                <div class="email-quick-links"><a href="{{ route('admin.email.lists.index') }}"><i class="bx bx-list-ul"></i> Manage Lists</a></div>
-            </div>
-            <div class="col-md-3 col-6">
-                <div class="email-quick-links"><a href="{{ route('admin.email.templates.index') }}"><i class="bx bx-file"></i> Email Templates</a></div>
             </div>
         </div>
     </div>

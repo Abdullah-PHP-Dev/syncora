@@ -112,7 +112,35 @@ class LinkedinAdService
             // manage them. r_ads_reporting: the adAnalytics finder - the
             // pull-only substitute for the webhook LinkedIn doesn't offer,
             // see class docblock.
-            'scope'         => 'r_ads rw_ads r_ads_reporting',
+            //
+            // w_organization_social/r_organization_social: reproduced live
+            // - Sponsored Content ads (storeCreative() -> createSponsoredPost())
+            // always create a real Post object first and reference it from
+            // the Creative, and that POST /rest/posts call is gated by
+            // LinkedIn's Community Management API product/permission
+            // (partnerApiPostsExternal.CREATE), entirely separate from the
+            // Advertising API scopes above - an ads-only token that never
+            // requested these two scopes gets "Not enough permissions to
+            // access: partnerApiPostsExternal.CREATE" the moment it tries
+            // to create that Post, even though every ads-only call
+            // (campaign group, campaign) succeeds fine.
+            //
+            // IMPORTANT: adding these scopes here only produces a token
+            // that actually carries them once the LinkedIn Developer app
+            // behind ads.linkedin.client_id has the Community Management
+            // API product approved (LinkedIn's own docs: "How do I gain
+            // access to the Community Management API if I already have
+            // Advertising API access?" - a separate app-review/approval
+            // step on LinkedIn's Developer Portal, not something this
+            // scope string alone can grant). Until that's approved,
+            // LinkedIn's consent screen may reject the whole authorize
+            // request as unauthorized_scope_error rather than silently
+            // dropping the unapproved scopes - and any LinkedIn account
+            // already connected (this app shares one SocialAccount row
+            // for posting+ads per platform) needs a fresh reconnect
+            // through this redirect() to get a token that actually has
+            // these scopes; the old token can't gain them retroactively.
+            'scope'         => 'r_ads rw_ads r_ads_reporting w_organization_social r_organization_social',
         ]);
 
         return Redirect::to($url);
@@ -442,6 +470,45 @@ class LinkedinAdService
         if (!empty($request['bid_amount'])) {
             $payload['unitCost'] = ['currencyCode' => $this->account->currency ?? 'USD', 'amount' => number_format((float) $request['bid_amount'], 2, '.', '')];
         }
+
+        // LinkedIn's Campaign schema requires both of these on every create
+        // call (reproduced live: "field is required but not found and has
+        // no default value" for both) - added after array_filter() closes
+        // above, never inside it, since array_filter() with no callback
+        // strips any falsy value including `false`, which would silently
+        // drop these right back out and reproduce the same error.
+        //
+        // offsiteDeliveryEnabled: this app's LinkedIn create form has no
+        // placement picker for LinkedIn Audience Network (offsite)
+        // delivery - every campaign only ever targets LinkedIn's own
+        // feed/inbox, so this is always false.
+        //
+        // politicalIntent: a STRING enum, not a boolean (confirmed live:
+        // "enum type is not backed by a String" when this was first sent
+        // as `false` - and confirmed against LinkedIn's own docs, Microsoft
+        // Learn "Create and Manage LinkedIn Campaigns", table of Campaign
+        // schema fields). Valid symbols are POLITICAL / NOT_POLITICAL /
+        // NOT_DECLARED. This app has no "declare this a political ad"
+        // feature anywhere (same situation Google/YouTube's
+        // containsEuPoliticalAdvertising hardcode already handles
+        // identically - see GoogleAdService::storeCampaign()), so this is
+        // always NOT_POLITICAL rather than guessed at per campaign -
+        // declaring POLITICAL for a non-political campaign would
+        // misrepresent it to LinkedIn and could trigger compliance
+        // requirements that don't apply.
+        //
+        // Compliance note (not yet implemented, flagging for follow-up):
+        // LinkedIn's docs require partner apps to show an explicit,
+        // checked-by-default EU-political-advertising consent notice in
+        // the campaign creation UI before submitting/activating any
+        // campaign that targets the EU region, and pass back the seller's
+        // actual consent via this same field rather than a silent
+        // hardcode. This app's LinkedIn create form has no such notice -
+        // hardcoding NOT_POLITICAL unblocks every campaign technically,
+        // but a campaign whose targeting includes EU countries is not
+        // actually collecting/declaring that consent today.
+        $payload['offsiteDeliveryEnabled'] = false;
+        $payload['politicalIntent'] = 'NOT_POLITICAL';
 
         $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
 

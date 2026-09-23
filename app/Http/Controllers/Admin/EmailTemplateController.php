@@ -3,20 +3,30 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\EmailMarketing\EmailSubaccount;
 use App\Models\EmailMarketing\EmailTemplate;
 use App\Models\EmailMarketing\EmailTemplateVersion;
+use App\Models\EmailMarketing\SenderIdentity;
 use App\Models\SocialAccount;
+use App\Rules\ValidEmailTemplateSchema;
+use App\Services\EmailMarketingServices\SendGridClient;
+use App\Support\Email\EmailHtmlSanitizer;
 use App\Support\Gemini\RetryPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class EmailTemplateController extends Controller
 {
+    public function __construct(protected SendGridClient $sendGridClient)
+    {
+    }
+
     public function index(Request $request)
     {
         $userId = Auth::id();
@@ -64,18 +74,21 @@ class EmailTemplateController extends Controller
     {
         $validated = $this->validated($request);
 
-        $template = EmailTemplate::create(['user_id' => Auth::id(), ...$validated]);
+        // current_version is explicit here (matching the migration's own
+        // default of 1) rather than left to the DB default - Eloquent's
+        // create() doesn't read a column's DB-level default back into the
+        // in-memory model afterward, so snapshotVersion() below would
+        // otherwise see a null current_version and fail its NOT NULL
+        // version column.
+        $template = EmailTemplate::create(['user_id' => Auth::id(), 'current_version' => 1, ...$validated]);
 
         // The first save is version 1's content too - snapshotted so
         // "Version History" always has at least one entry, even for a
-        // template that's never been edited since creation.
-        $template->versions()->create([
-            'version'      => 1,
-            'html_content' => $template->body,
-            'editor_type'  => 'code',
-            'created_by'   => Auth::id(),
-        ]);
-        $template->update(['current_version' => 2]);
+        // template that's never been edited since creation. Reuses
+        // snapshotVersion() (rather than duplicating its shape here)
+        // so schema_json/editor_type stay correct without maintaining
+        // two copies of this logic.
+        $template->snapshotVersion(Auth::id());
 
         return redirect()->route('admin.email.templates.index')->with('success', 'Template created.');
     }
@@ -119,7 +132,7 @@ class EmailTemplateController extends Controller
         abort_unless($version->email_template_id === $template->id, 403);
 
         $template->snapshotVersion(Auth::id());
-        $template->update(['body' => $version->html_content]);
+        $template->update(['body' => $version->html_content, 'schema_json' => $version->schema_json]);
 
         return redirect()->route('admin.email.templates.edit', $template)->with('success', "Restored version {$version->version}.");
     }
@@ -303,14 +316,153 @@ class EmailTemplateController extends Controller
             ->toArray();
     }
 
+    /**
+     * autosave() intentionally does NOT go through this method - it only
+     * ever touches schema_json/body (never name/subject/category/status,
+     * which live outside the Vue root and are only ever submitted by the
+     * real Save button), but it reuses validateAndSanitizeSchemaAndBody()
+     * below so the security-critical sanitize step can't drift between
+     * store()/update()/autosave()/sendTestEmail().
+     */
     private function validated(Request $request): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'name'     => ['required', 'string', 'max:255'],
             'subject'  => ['required', 'string', 'max:255'],
             'body'     => ['required', 'string'],
             'category' => ['nullable', 'string', 'max:100'],
             'status'   => ['required', Rule::in(['draft', 'published'])],
         ]);
+
+        return [...$validated, ...$this->validateAndSanitizeSchemaAndBody($request)];
+    }
+
+    /**
+     * Shared by store()/update()/autosave()/sendTestEmail() - the single
+     * place schema_json gets shape-checked (ValidEmailTemplateSchema) and
+     * body gets run through EmailHtmlSanitizer before either is trusted.
+     * Both HTML is generated client-side and the hidden form field
+     * submitting it is an ordinary request field - nothing stops a
+     * tampered/hand-crafted request from bypassing the generator, so this
+     * runs unconditionally regardless of how "body" was really produced.
+     */
+    private function validateAndSanitizeSchemaAndBody(Request $request): array
+    {
+        $data = $request->validate([
+            'body'        => ['required', 'string', 'max:512000'],
+            'schema_json' => ['nullable', 'string', 'max:307200'],
+        ]);
+
+        $schema = null;
+
+        if (filled($data['schema_json'] ?? null)) {
+            $decoded = json_decode($data['schema_json'], true);
+
+            Validator::make(
+                ['schema_json' => $decoded],
+                ['schema_json' => [new ValidEmailTemplateSchema]]
+            )->validate();
+
+            $schema = $decoded;
+        }
+
+        return [
+            'body'        => EmailHtmlSanitizer::sanitize($data['body']),
+            'schema_json' => $schema,
+        ];
+    }
+
+    /**
+     * Lightweight save-in-place for the block editor's autosave timer -
+     * deliberately NOT update() (which calls snapshotVersion()): a version
+     * row per autosave tick every couple of seconds would explode
+     * email_template_versions and defeat version history as meaningful
+     * checkpoints, not a running log. Only schema_json/body move here -
+     * name/subject/category/status are only ever submitted by the real
+     * Save/Save as Draft button.
+     */
+    public function autosave(Request $request, EmailTemplate $template)
+    {
+        abort_unless($template->user_id === Auth::id(), 403);
+
+        $template->update($this->validateAndSanitizeSchemaAndBody($request));
+
+        return response()->json(['success' => true, 'saved_at' => now()->toIso8601String()]);
+    }
+
+    /**
+     * Sends a real transactional email via the seller's own SendGrid
+     * subaccount (POST /v3/mail/send - not the Marketing Single Send API
+     * SendGridCampaignService uses, since a template being edited has no
+     * SendGrid Single Send object of its own yet). Uses the CURRENT
+     * in-editor subject/body from the request, not what's saved in the
+     * DB, so a seller can test before ever clicking Save and the confirm
+     * step's preview is guaranteed to match what's actually sent.
+     */
+    public function sendTestEmail(Request $request, EmailTemplate $template)
+    {
+        abort_unless($template->user_id === Auth::id(), 403);
+
+        $validated = $request->validate([
+            'recipient_email' => ['required', 'email', 'max:255'],
+            'subject'         => ['required', 'string', 'max:255'],
+        ]);
+        $validated = [...$validated, ...$this->validateAndSanitizeSchemaAndBody($request)];
+
+        [$subaccount, $sender, $error] = $this->resolveTestSendIdentity();
+
+        if ($error) {
+            return response()->json(['success' => false, 'message' => $error], 422);
+        }
+
+        // No real recipient Contact record exists to resolve these
+        // against (SendGrid only substitutes personalization tags at real
+        // send time against synced Contacts) - readable sample values are
+        // substituted here so the test email is actually legible, never
+        // persisted anywhere.
+        $sampleValues = [
+            '{{first_name}}' => 'John',
+            '{{last_name}}'  => 'Doe',
+            '{{email}}'      => $validated['recipient_email'],
+        ];
+        $htmlContent = strtr($validated['body'], $sampleValues);
+        $subject = strtr($validated['subject'], $sampleValues);
+
+        $result = $this->sendGridClient->asSubaccount($subaccount->apiKeyValue(), $subaccount->region)->post('mail/send', [
+            'personalizations' => [['to' => [['email' => $validated['recipient_email']]]]],
+            'subject'          => $subject,
+            'from'             => ['email' => $sender->from_email, 'name' => $sender->from_name],
+            'content'          => [['type' => 'text/html', 'value' => $htmlContent]],
+        ]);
+
+        if (!$result['success']) {
+            return response()->json(['success' => false, 'message' => $result['error']], 422);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * [$subaccount, $sender, $error] - mirrors
+     * EmailCampaignController::fetchSuppressionGroups()'s return shape so
+     * the caller can tell "not set up yet" apart from a genuine SendGrid
+     * error, same as SendGridCampaignService::preflight()'s identical two
+     * checks for actually sending a campaign.
+     */
+    private function resolveTestSendIdentity(): array
+    {
+        $subaccount = EmailSubaccount::where('user_id', Auth::id())->first();
+
+        if (!$subaccount?->isActive()) {
+            return [null, null, 'Complete Email Marketing setup (SendGrid subaccount) before sending a test email.'];
+        }
+
+        $sender = SenderIdentity::where('user_id', Auth::id())->where('status', 'verified')->first();
+
+        if (!$sender) {
+            return [null, null, 'Verify a sender identity before sending a test email.'];
+        }
+
+        return [$subaccount, $sender, null];
     }
 }

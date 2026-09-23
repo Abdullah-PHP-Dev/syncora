@@ -557,6 +557,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::post('email/templates/generate-ai', [EmailTemplateController::class, 'generateAiContent'])->name('email.templates.generateAi');
 				Route::post('email/templates/upload-media', [EmailTemplateController::class, 'uploadMedia'])->name('email.templates.uploadMedia');
 				Route::post('email/templates/upload-video', [EmailTemplateController::class, 'uploadVideo'])->name('email.templates.uploadVideo');
+				Route::post('email/templates/{template}/autosave', [EmailTemplateController::class, 'autosave'])->name('email.templates.autosave');
+				Route::post('email/templates/{template}/send-test', [EmailTemplateController::class, 'sendTestEmail'])->name('email.templates.sendTest');
 
 				Route::resource('email/campaigns', EmailCampaignController::class)
 					->except(['show'])

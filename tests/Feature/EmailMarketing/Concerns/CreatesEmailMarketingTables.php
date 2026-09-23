@@ -57,6 +57,8 @@ trait CreatesEmailMarketingTables
             '2026_09_19_111946_add_campaign_type_to_email_campaigns_table',
             '2026_09_19_113707_add_suppression_group_id_to_email_campaigns_table',
             '2026_09_20_190804_add_dns_last_synced_at_to_verified_domains_table',
+            '2026_09_21_000001_add_schema_json_to_email_templates_table',
+            '2026_09_21_000002_add_schema_json_to_email_template_versions_table',
         ] as $migration) {
             (require database_path('migrations/' . $migration . '.php'))->up();
         }

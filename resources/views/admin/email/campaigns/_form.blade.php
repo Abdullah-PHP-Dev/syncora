@@ -61,7 +61,7 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Sender *</label>
-                        <select name="sender_identity_id" id="senderSelect" class="form-select" required>
+                        <select name="sender_identity_id" id="senderSelect" class="form-control" required>
                             <option value="">Select a verified sender…</option>
                             @foreach ($senders as $sender)
                                 <option value="{{ $sender->id }}" @selected(old('sender_identity_id', $campaign->sender_identity_id ?? null) == $sender->id)>{{ $sender->from_name }} &lt;{{ $sender->from_email }}&gt;</option>
@@ -111,7 +111,7 @@
                             <div class="alert alert-warning small mb-2">{{ $suppressionGroupsError }}</div>
                         @endif
                         <div class="d-flex gap-2">
-                            <select name="suppression_group_id" id="suppressionGroupSelect" class="form-select" @if(count($suppressionGroups) === 0) disabled @endif>
+                            <select name="suppression_group_id" id="suppressionGroupSelect" class="form-control" @if(count($suppressionGroups) === 0) disabled @endif>
                                 <option value="">Select an unsubscribe group…</option>
                                 @foreach ($suppressionGroups as $group)
                                     <option value="{{ $group['id'] }}" @selected(old('suppression_group_id', $campaign->suppression_group_id ?? null) == $group['id'])>{{ $group['name'] }}</option>

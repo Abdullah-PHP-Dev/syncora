@@ -149,14 +149,14 @@
                 <h6 class="mb-3" style="color:var(--dash-heading);"><i class="bx bx-filter-alt"></i> Filter Templates</h6>
                 <form method="GET">
                     <label class="form-label small">Category</label>
-                    <select name="category" class="form-select form-select-sm mb-3" onchange="this.form.submit()">
+                    <select name="category" class="form-select form-select-sm mb-3 dash-input flex-grow-1" onchange="this.form.submit()">
                         <option value="">All Categories</option>
                         @foreach ($categories as $category)
                             <option value="{{ $category }}" @selected(request('category') === $category)>{{ $category }}</option>
                         @endforeach
                     </select>
                     <label class="form-label small">Sort By</label>
-                    <select name="sort" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <select name="sort" class="form-select form-select-sm dash-input flex-grow-1" onchange="this.form.submit()">
                         <option value="newest" @selected(request('sort', 'newest') === 'newest')>Newest First</option>
                         <option value="oldest" @selected(request('sort') === 'oldest')>Oldest First</option>
                         <option value="name" @selected(request('sort') === 'name')>Name A-Z</option>
