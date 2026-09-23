@@ -40,7 +40,7 @@
                         </div>
 
                         <!-- Post Form -->
-                        <form id="postForm" action="{{ url('admin/posts/facebook') }}" method="POST"
+                        <form id="postForm" action="{{ url('posts/facebook') }}" method="POST"
                             enctype="multipart/form-data">
                             @csrf
                             <div class="mb-3">
@@ -813,7 +813,7 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    window.location.href = data.redirect || '/admin/posts/facebook';
+                    window.location.href = data.redirect || '/posts/facebook';
                 } else {
                     alert('Error: ' + (data.message || 'Something went wrong.'));
                 }

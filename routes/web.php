@@ -21,6 +21,8 @@ use App\Http\Controllers\Admin\AdCampaignController;
 use App\Http\Controllers\Admin\SubscriptionController;
 use App\Http\Controllers\Admin\PostCategoryController;
 use App\Http\Controllers\Admin\EmailMarketingController;
+use App\Http\Controllers\Admin\EmailSetupController;
+use App\Http\Controllers\Admin\EmailSegmentController;
 use App\Http\Controllers\Admin\EmailListController;
 use App\Http\Controllers\Admin\EmailSubscriberController;
 use App\Http\Controllers\Admin\EmailTemplateController;
@@ -60,18 +62,21 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	})->name('product');
 
 
+	// These are sections on the homepage itself (no standalone
+	// product.ai-copilot / product.channels / product.tools views exist),
+	// so route to the matching in-page anchor instead of a 404.
 	Route::get('/ai-copilot', function () {
-		return view('product.ai-copilot');
+		return redirect(route('home') . '#ai-copilot');
 	})->name('ai-copilot');
 
 
 	Route::get('/channels', function () {
-		return view('product.channels');
+		return redirect(route('home') . '#channels');
 	})->name('channels');
 
 
 	Route::get('/tools', function () {
-		return view('product.tools');
+		return redirect(route('home') . '#tools');
 	})->name('tools');
 
 
@@ -82,7 +87,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	*/
 
 	Route::get('/pricing', function () {
-		return view('pricing');
+		return view('front.pages.pricing', ['plans' => \App\Models\Bundle::where('is_active', true)->where('is_free', false)->orderBy('sort_order')->get()]);
 	})->name('pricing');
 
 
@@ -129,14 +134,9 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	|--------------------------------------------------------------------------
 	*/
 
-	Route::get('/privacy', function () {
-		return view('privacy');
-	})->name('privacy');
+	Route::view('/privacy', 'front.pages.privacy')->name('privacy');
 
-
-	Route::get('/terms', function () {
-		return view('terms');
-	})->name('terms');
+	Route::view('/terms', 'front.pages.terms')->name('terms');
 
 
 	/*
@@ -155,21 +155,31 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 	/*Route::view('/about', 'front.pages.about');
 	Route::view('/services', 'front.pages.services');
-	Route::view('/product', 'front.pages.product');
-	Route::view('/pricing', 'front.pages.pricing');
-	Route::view('/terms', 'front.pages.terms')->name('front.terms');
-	Route::view('/privacy', 'front.pages.privacy')->name('front.privacy');
 	Route::get('/r2-upload', [\App\Http\Controllers\R2Controller::class, 'index']);
 	Route::post('/r2-upload', [\App\Http\Controllers\R2Controller::class, 'upload'])->name('r2.upload');*/
 
 
-	Route::middleware(['auth'])->group(function () {
+	Route::middleware(['auth', 'active.user'])->group(function () {
+        Route::get('/dashboard', [\App\Http\Controllers\Admin\DashboardController::class, 'dashboard'])->name('dashboard');
+
+        Route::middleware('role:admin')->group(function () {
+            Route::resource('employees', \App\Http\Controllers\Team\EmployeeController::class)->except(['show', 'destroy']);
+            Route::resource('plans', \App\Http\Controllers\Team\PlanController::class)->except(['show', 'destroy']);
+        });
+        Route::get('/subscribers', [\App\Http\Controllers\Team\SubscriberController::class, 'index'])
+            ->middleware('role:admin|customer_support')->name('subscribers.index');
+        Route::middleware('role:admin|customer_support|seller')->group(function () {
+            Route::resource('tickets', \App\Http\Controllers\Team\TicketController::class)->only(['index', 'create', 'store', 'show', 'update']);
+            Route::post('/tickets/{ticket}/replies', [\App\Http\Controllers\Team\TicketController::class, 'reply'])->name('tickets.reply');
+        });
+
+
 		/*
 		|--------------------------------------------------------------------------
 		| DASHBOARD (NO SUBSCRIPTION REQUIRED)
 		|--------------------------------------------------------------------------
 		*/
-		Route::prefix('admin')
+		Route::middleware('seller')
 			->name('admin.')
 			->group(function () {
 				/*
@@ -177,8 +187,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 		| SUBSCRIPTION FLOW (ALWAYS ACCESSIBLE)
 		|--------------------------------------------------------------------------
 		*/
-				// subscription flow (NO middleware restriction)
-				Route::get('/subscription/select', [SubscriptionController::class, 'select']);
+				// Sellers can manage plans without an active subscription.
+				Route::get('/subscription/select', [SubscriptionController::class, 'select'])->name('subscription.select');
 				Route::get('/subscription/plans', [SubscriptionController::class, 'plans']);
 				Route::get('/subscription/checkout', [SubscriptionController::class, 'showCheckout'])->name('subscription.checkout');
 				Route::post('/subscription/checkout', [SubscriptionController::class, 'checkoutProcess'])->name('subscription.checkout.process');
@@ -188,9 +198,6 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('subscription.checkout.process');*/
 				Route::post('/subscription/activate', [SubscriptionController::class, 'activate']);
 				Route::post('/subscription/cancel', [SubscriptionController::class, 'cancel']);
-
-				Route::get('/dashboard', [\App\Http\Controllers\Admin\DashboardController::class, 'dashboard'])
-					->name('dashboard');
 
 				Route::view('/dashboard/crm', 'admin.crm-dashboard')
 					->name('crm-dashboard');
@@ -213,12 +220,29 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 				Route::get('help-center', [HelpCenterController::class, 'index'])->name('help-center.index');
 
-				Route::get('tickets', [TicketController::class, 'index'])->name('tickets.index');
-				Route::get('tickets/create', [TicketController::class, 'create'])->name('tickets.create');
-				Route::post('tickets', [TicketController::class, 'store'])->name('tickets.store');
-				Route::get('tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
-				Route::post('tickets/{ticket}/messages', [TicketController::class, 'storeMessage'])->name('tickets.messages.store');
-				Route::patch('tickets/{ticket}/status', [TicketController::class, 'updateStatus'])->name('tickets.status');
+				// URI deliberately 'support/tickets', not 'tickets' - the
+				// plain 'tickets' URI (GET/POST tickets, GET tickets/create,
+				// GET tickets/{ticket}) is already claimed by
+				// Team\TicketController's resource route above (the older
+				// "file a ticket to Socialeaz support" flow the main
+				// seller sidebar links to via route('tickets.index')).
+				// Both used to register at the identical method+URI - not
+				// just "wrong one wins on dispatch" but worse: Laravel
+				// drops the LOSING route from its name lookup entirely,
+				// so route('tickets.index') (Team's, bare name - this
+				// group's own routes get 'admin.' prefixed automatically)
+				// threw RouteNotFoundException on every single page using
+				// the shared seller sidebar, confirmed live
+				// (labs.socialeaz.com/en/ads/dashboard and any other admin
+				// page). Route names here are unchanged
+				// (admin.tickets.index etc - nothing else in the app
+				// references these URIs directly, only via route()).
+				Route::get('support/tickets', [TicketController::class, 'index'])->name('tickets.index');
+				Route::get('support/tickets/create', [TicketController::class, 'create'])->name('tickets.create');
+				Route::post('support/tickets', [TicketController::class, 'store'])->name('tickets.store');
+				Route::get('support/tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
+				Route::post('support/tickets/{ticket}/messages', [TicketController::class, 'storeMessage'])->name('tickets.messages.store');
+				Route::patch('support/tickets/{ticket}/status', [TicketController::class, 'updateStatus'])->name('tickets.status');
 			});
 
 
@@ -227,8 +251,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 		| PROTECTED SAAS MODULES (SUBSCRIPTION REQUIRED)
 		|--------------------------------------------------------------------------
 		*/
-		Route::middleware(['subscription'])
-			->prefix('admin')
+		Route::middleware(['seller', 'subscription'])
 			->name('admin.')
 			->group(function () {
 				// ADS
@@ -301,7 +324,22 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::post('posts/listing/comments/{comment}/replies', [PostController::class, 'storeReply'])->name('posts.comments.reply');
 				Route::post('posts/listing/{post}/comments', [PostController::class, 'storeComment'])->name('posts.comments.store');
 				Route::get('posts', [PostController::class, 'dashboard']);
-				Route::resource('posts', PostController::class);
+				// ->except(['index']) - an unrestricted Route::resource()
+				// here auto-generates its own GET posts/index (named
+				// posts.index, prefixed admin.posts.index by this group),
+				// which is an exact duplicate of the intentional
+				// posts.index above (posts/listing, PostController::
+				// index_vue - the real Vue posts list page) and also
+				// shadows the bare unnamed GET posts route right above
+				// this line. Two routes with the identical final name
+				// (admin.posts.index) isn't just "wrong one wins" -
+				// php artisan route:cache throws a hard LogicException
+				// and refuses to run at all with a real duplicate name,
+				// confirmed live. create/store/show/edit/update/destroy
+				// below are still genuinely used (see the comment near
+				// posts/composer above) - only the accidental index
+				// action is removed.
+				Route::resource('posts', PostController::class)->except(['index']);
 				Route::post('post-accounts/whatsapp', [PostAccountController::class, 'storeWhatsApp'])
 					->name('post-accounts.whatsapp.store');
 				Route::post('post-accounts/whatsapp/embedded', [PostAccountController::class, 'storeWhatsappEmbedded'])
@@ -485,6 +523,23 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::get('email/dashboard', [EmailMarketingController::class, 'dashboard'])
 					->name('email.dashboard');
 
+				// Setup wizard - SendGrid subaccount -> domain -> DNS ->
+				// sender -> ready. Plain synchronous forms (see
+				// EmailSetupController's docblock for why, over a JS
+				// stepper).
+				Route::get('email/setup', [EmailSetupController::class, 'index'])->name('email.setup.index');
+				Route::post('email/setup/subaccount', [EmailSetupController::class, 'provisionSubaccount'])->name('email.setup.subaccount');
+				Route::post('email/setup/domain', [EmailSetupController::class, 'authenticateDomain'])->name('email.setup.domain');
+				Route::post('email/setup/domain/{domain}/verify', [EmailSetupController::class, 'verifyDomain'])->name('email.setup.domain.verify');
+				Route::post('email/setup/domain/{domain}/configure-dns', [EmailSetupController::class, 'configureDnsAutomatically'])->name('email.setup.domain.configureDns');
+				Route::post('email/setup/sender', [EmailSetupController::class, 'createSender'])->name('email.setup.sender');
+				Route::post('email/setup/sender/{sender}/refresh', [EmailSetupController::class, 'refreshSenderStatus'])->name('email.setup.sender.refresh');
+				Route::post('email/setup/sender/{sender}/resend', [EmailSetupController::class, 'resendSenderVerification'])->name('email.setup.sender.resend');
+
+				Route::resource('email/segments', EmailSegmentController::class)
+					->only(['index', 'store', 'destroy'])
+					->names('email.segments');
+
 				Route::get('email/lists', [EmailListController::class, 'index'])->name('email.lists.index');
 				Route::post('email/lists', [EmailListController::class, 'store'])->name('email.lists.store');
 				Route::patch('email/lists/{list}', [EmailListController::class, 'update'])->name('email.lists.update');
@@ -498,12 +553,22 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::resource('email/templates', EmailTemplateController::class)
 					->except(['show'])
 					->names('email.templates');
+				Route::post('email/templates/{template}/versions/{version}/restore', [EmailTemplateController::class, 'restoreVersion'])->name('email.templates.versions.restore');
+				Route::post('email/templates/generate-ai', [EmailTemplateController::class, 'generateAiContent'])->name('email.templates.generateAi');
+				Route::post('email/templates/upload-media', [EmailTemplateController::class, 'uploadMedia'])->name('email.templates.uploadMedia');
+				Route::post('email/templates/upload-video', [EmailTemplateController::class, 'uploadVideo'])->name('email.templates.uploadVideo');
+				Route::post('email/templates/{template}/autosave', [EmailTemplateController::class, 'autosave'])->name('email.templates.autosave');
+				Route::post('email/templates/{template}/send-test', [EmailTemplateController::class, 'sendTestEmail'])->name('email.templates.sendTest');
 
 				Route::resource('email/campaigns', EmailCampaignController::class)
 					->except(['show'])
 					->names('email.campaigns');
 				Route::get('email/campaigns/{campaign}', [EmailCampaignController::class, 'show'])->name('email.campaigns.show');
 				Route::post('email/campaigns/{campaign}/send', [EmailCampaignController::class, 'sendNow'])->name('email.campaigns.send');
+				Route::get('email/campaigns/{campaign}/preflight', [EmailCampaignController::class, 'preflight'])->name('email.campaigns.preflight');
+				Route::get('email/campaigns/{campaign}/export', [EmailCampaignController::class, 'exportReport'])->name('email.campaigns.export');
+				Route::post('email/campaigns/{campaign}/duplicate', [EmailCampaignController::class, 'duplicate'])->name('email.campaigns.duplicate');
+				Route::post('email/campaigns/suppression-groups', [EmailCampaignController::class, 'storeSuppressionGroup'])->name('email.campaigns.suppressionGroups.store');
 
 
 				// SYSTEM

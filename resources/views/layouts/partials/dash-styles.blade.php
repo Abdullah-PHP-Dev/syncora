@@ -1,0 +1,245 @@
+{{--
+    Shared ".socialeaz-dash" mini design-system - originally written inline
+    in admin/posts/dashboard.blade.php only. Extracted here so the Email
+    Marketing module (dashboard/setup/lists/campaigns) can reuse the exact
+    same stat cards, trend arrows, dot-status pills, badges, and table
+    style instead of a second hand-copied version. Only the genuinely
+    generic primitives moved here - posts/dashboard.blade.php's own
+    calendar/inbox-grid/action-tile/account-card rules (and the
+    deliberately-unscoped .cal-modal-* rules, which render outside this
+    wrapper entirely) stay in that file, since nothing else uses them.
+
+    Any page using this partial must wrap its @section('content') body in
+    <div class="socialeaz-dash">...</div> for these rules to apply -
+    scoping is deliberate (see the calendar-modal comment this was copied
+    from: unscoped Bootstrap modals never inherit .socialeaz-dash rules).
+--}}
+<style>
+:root {
+    --status-success-bg: rgba(22,163,74,.1);
+    --status-success-color: #16a34a;
+    --status-info-bg: rgba(8,145,178,.1);
+    --status-info-color: #0891b2;
+    --status-warning-bg: rgba(217,119,6,.1);
+    --status-warning-color: #d97706;
+    --status-danger-bg: rgba(225,29,72,.1);
+    --status-danger-color: #e11d48;
+    --status-muted-bg: rgba(139,141,156,.12);
+    --status-muted-color: #8b8d9c;
+}
+
+.socialeaz-dash {
+    --dash-bg: #f5f5fa;
+    --dash-card: #ffffff;
+    --dash-card-hover: #f7f7fc;
+    --dash-border: rgba(20,20,40,.08);
+    --dash-text: #4b4d5c;
+    --dash-heading: #1e1e2d;
+    --dash-muted: #8b8d9c;
+    --dash-primary: #7c5cff;
+    --dash-primary-2: #a855f7;
+    --dash-success: #16a34a;
+    --dash-danger: #e11d48;
+    --dash-warning: #d97706;
+    --dash-info: #0891b2;
+
+    background: var(--dash-bg);
+    color: var(--dash-text);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    margin: -1.5rem;
+    min-height: calc(100vh - 8rem);
+}
+.socialeaz-dash .dash-title { color: var(--dash-heading); font-weight: 700; }
+.socialeaz-dash .dash-subtitle { color: var(--dash-muted); }
+.socialeaz-dash .dash-input {
+    background: var(--dash-card); border: 1px solid var(--dash-border); color: var(--dash-text);
+    border-radius: .5rem; padding: .4rem .75rem; font-size: .8125rem;
+}
+.socialeaz-dash .dash-input::placeholder { color: var(--dash-muted); }
+.socialeaz-dash .dash-btn {
+    display: inline-flex; align-items: center; gap: .375rem;
+    border-radius: .5rem; padding: .5rem .9rem; font-size: .8125rem; font-weight: 600;
+    border: 1px solid var(--dash-border); text-decoration: none; position: relative;
+}
+.socialeaz-dash .dash-btn-ghost { background: var(--dash-card); color: var(--dash-text); }
+.socialeaz-dash .dash-btn-ghost:hover { background: var(--dash-card-hover); color: var(--dash-primary); border-color: var(--dash-primary); }
+.socialeaz-dash .dash-btn-primary { background: linear-gradient(135deg, var(--dash-primary), var(--dash-primary-2)); color: #fff; box-shadow: 0 4px 12px rgba(124,92,255,.28); }
+.socialeaz-dash .dash-btn-primary:hover { opacity: .92; color: #fff; }
+
+.socialeaz-dash .dash-card {
+    background: var(--dash-card); border: 1px solid var(--dash-border);
+    border-radius: .85rem; padding: 1.25rem;
+    box-shadow: 0 1px 3px rgba(20,20,50,.04);
+}
+.socialeaz-dash .dash-card-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: .5rem;
+}
+.socialeaz-dash .dash-card-header h6 { color: var(--dash-heading); font-weight: 600; }
+.socialeaz-dash .dash-link { color: var(--dash-primary); font-size: .8125rem; text-decoration: none; font-weight: 500; white-space: nowrap; }
+.socialeaz-dash .dash-link:hover { text-decoration: underline; }
+
+.socialeaz-dash .dash-stat-label { color: var(--dash-muted); font-size: .8125rem; margin-bottom: .5rem; }
+.socialeaz-dash .dash-stat-value { color: var(--dash-heading); font-size: 1.6rem; font-weight: 700; line-height: 1; }
+.socialeaz-dash .dash-stat-foot { color: var(--dash-muted); font-size: .75rem; margin-top: .6rem; }
+.socialeaz-dash .dash-trend { display: inline-flex; align-items: center; gap: .1rem; font-weight: 700; }
+.socialeaz-dash .dash-trend-up { color: var(--dash-success); }
+.socialeaz-dash .dash-trend-down { color: var(--dash-danger); }
+.socialeaz-dash .dash-sparkline { margin-top: .5rem; height: 32px; }
+
+.socialeaz-dash .dash-status-pill { display: inline-flex; align-items: center; gap: .35rem; color: var(--dash-success); font-size: .7rem; font-weight: 600; }
+.socialeaz-dash .dash-status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dash-success); display: inline-block; }
+.socialeaz-dash .dash-status-pill.is-warning { color: var(--dash-warning); }
+.socialeaz-dash .dash-status-pill.is-warning .dot { background: var(--dash-warning); }
+.socialeaz-dash .dash-status-pill.is-danger { color: var(--dash-danger); }
+.socialeaz-dash .dash-status-pill.is-danger .dot { background: var(--dash-danger); }
+.socialeaz-dash .dash-status-pill.is-muted { color: var(--dash-muted); }
+.socialeaz-dash .dash-status-pill.is-muted .dot { background: var(--dash-muted); }
+
+.socialeaz-dash .dash-table { width: 100%; border-collapse: collapse; font-size: .8125rem; }
+.socialeaz-dash .dash-table th { text-align: left; color: var(--dash-muted); font-weight: 600; font-size: .7rem; text-transform: uppercase; letter-spacing: .03em; padding: 0 .5rem .6rem; border-bottom: 1px solid var(--dash-border); }
+.socialeaz-dash .dash-table td { padding: .6rem .5rem; border-bottom: 1px solid var(--dash-border); vertical-align: middle; color: var(--dash-text); }
+.socialeaz-dash .dash-table tr:last-child td { border-bottom: none; }
+.socialeaz-dash .dash-badge { display: inline-block; padding: .2rem .55rem; border-radius: .4rem; font-size: .68rem; font-weight: 600; }
+.socialeaz-dash .dash-badge-success { background: var(--status-success-bg); color: var(--status-success-color); }
+.socialeaz-dash .dash-badge-info { background: var(--status-info-bg); color: var(--status-info-color); }
+.socialeaz-dash .dash-badge-warning { background: var(--status-warning-bg); color: var(--status-warning-color); }
+.socialeaz-dash .dash-badge-danger { background: var(--status-danger-bg); color: var(--status-danger-color); }
+.socialeaz-dash .dash-badge-muted { background: var(--status-muted-bg); color: var(--status-muted-color); }
+.socialeaz-dash .dash-empty-row { color: var(--dash-muted); text-align: center; padding: 1.5rem 0 !important; border-bottom: none !important; display: block; }
+
+.socialeaz-dash .apexcharts-text { fill: var(--dash-muted); }
+.socialeaz-dash .apexcharts-legend-text { color: var(--dash-muted) !important; }
+
+/* =========================================================
+   NUMBERED-CIRCLE STEP INDICATOR - used by the Email Marketing
+   setup wizard header and the campaign builder's 4-step flow.
+   Distinct from admin/ads/google/campaigns/create.blade.php's
+   .campaign-steps (a rounded PILL, no connecting line) - the
+   reference screenshots for this module specifically show numbered
+   circles joined by a line, which didn't exist anywhere in this
+   codebase yet.
+========================================================= */
+.socialeaz-dash .dash-stepper { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0; margin-bottom: 1.5rem; }
+.socialeaz-dash .dash-stepper-item { display: flex; align-items: center; }
+.socialeaz-dash .dash-stepper-item:last-child .dash-stepper-line { display: none; }
+.socialeaz-dash .dash-stepper-circle {
+    width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: .85rem; background: var(--dash-card-hover); color: var(--dash-muted);
+    border: 2px solid var(--dash-border); flex-shrink: 0;
+}
+.socialeaz-dash .dash-stepper-label { margin: 0 .6rem 0 .5rem; font-size: .8125rem; font-weight: 600; color: var(--dash-muted); white-space: nowrap; }
+.socialeaz-dash .dash-stepper-line { width: 32px; height: 2px; background: var(--dash-border); margin-right: .6rem; }
+.socialeaz-dash .dash-stepper-item.is-current .dash-stepper-circle { background: var(--dash-primary); border-color: var(--dash-primary); color: #fff; }
+.socialeaz-dash .dash-stepper-item.is-current .dash-stepper-label { color: var(--dash-heading); }
+.socialeaz-dash .dash-stepper-item.is-done .dash-stepper-circle { background: var(--dash-success); border-color: var(--dash-success); color: #fff; }
+.socialeaz-dash .dash-stepper-item.is-done .dash-stepper-label { color: var(--dash-heading); }
+.socialeaz-dash .dash-stepper-item.is-done .dash-stepper-line { background: var(--dash-success); }
+
+@media (max-width: 576px) {
+    .socialeaz-dash .dash-stepper-label { display: none; }
+    .socialeaz-dash .dash-stepper-line { width: 16px; }
+}
+
+/* =========================================================
+   WIZARD STEP PANELS - same show/hide-by-data-step mechanism as
+   admin/ads/google/campaigns/create.blade.php's own .wizard-step, scoped
+   under .socialeaz-dash so it can sit alongside .dash-stepper for the
+   Email Marketing campaign builder's 4-step flow.
+========================================================= */
+.socialeaz-dash .wizard-step { display: none; }
+.socialeaz-dash .wizard-step.active { display: block; }
+.socialeaz-dash .wizard-nav { display: flex; justify-content: space-between; margin-top: 1rem; }
+.socialeaz-dash .review-row { display: flex; justify-content: space-between; padding: .6rem 0; border-bottom: 1px solid var(--dash-border); font-size: .85rem; }
+.socialeaz-dash .review-row:last-child { border-bottom: none; }
+.socialeaz-dash .review-row span:first-child { color: var(--dash-muted); }
+.socialeaz-dash .review-row span:last-child { font-weight: 600; color: var(--dash-heading); text-align: right; }
+.socialeaz-dash .preflight-check { display: flex; align-items: center; gap: .6rem; padding: .5rem 0; border-bottom: 1px solid var(--dash-border); font-size: .85rem; }
+.socialeaz-dash .preflight-check:last-child { border-bottom: none; }
+.socialeaz-dash .preflight-check .bx { font-size: 1.1rem; }
+.socialeaz-dash .preflight-check.is-pass .bx-check-circle { color: var(--dash-success); }
+.socialeaz-dash .preflight-check.is-fail .bx-x-circle { color: var(--dash-danger); }
+
+/* Small inline stat tile - used by the dashboard's Campaign Performance/
+   Audience Overview sub-cards, the campaign builder's recipient
+   estimate, and the template editor's Settings tab. */
+.socialeaz-dash .mini-stat { background: var(--dash-card-hover); border-radius: .7rem; padding: .9rem 1rem; }
+.socialeaz-dash .mini-stat-label { display: flex; align-items: center; gap: .4rem; color: var(--dash-muted); font-size: .78rem; font-weight: 600; margin-bottom: .35rem; }
+.socialeaz-dash .mini-stat-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.socialeaz-dash .mini-stat-value { font-size: 1.35rem; font-weight: 700; color: var(--dash-heading); }
+.socialeaz-dash .mini-stat-foot { font-size: .72rem; color: var(--dash-muted); margin-top: .2rem; }
+
+/* =========================================================
+   GRADIENT HERO BANNER - used by the Email Marketing dashboard and
+   setup wizard headers. Not scoped under .socialeaz-dash since it sits
+   as the first child of it either way, but written defensively with its
+   own class so it still works if ever used outside that wrapper.
+========================================================= */
+.email-hero {
+    background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 55%, #8b5cf6 100%);
+    border-radius: 20px;
+    padding: 28px 32px;
+    color: #fff;
+    margin-bottom: 24px;
+}
+.email-hero h4 { color: #fff; font-weight: 700; margin-bottom: 6px; }
+.email-hero p { color: rgba(255,255,255,.85); margin-bottom: 0; max-width: 480px; }
+.email-hero .dash-btn-ghost { background: rgba(255,255,255,.14); color: #fff; border-color: rgba(255,255,255,.3); }
+.email-hero .dash-btn-ghost:hover { background: rgba(255,255,255,.24); color: #fff; border-color: rgba(255,255,255,.5); }
+.email-hero .dash-btn-primary { background: #fff; color: #4338ca; box-shadow: none; }
+.email-hero .dash-btn-primary:hover { opacity: .92; color: #4338ca; }
+.email-hero .dropdown-menu { min-width: 12rem; }
+.email-hero .hero-progress-card { background: #fff; border-radius: .85rem; padding: .85rem 1.1rem; color: #1e1e2d; min-width: 220px; }
+.email-hero .hero-progress-card .progress { height: 6px; background: rgba(99,102,241,.12); }
+.email-hero .hero-progress-card .progress-bar { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+
+/* Detailed (two-line) stepper variant - shows a title + short
+   description per step rather than just one label, used by both the
+   setup wizard and the campaign builder wizard headers. Additive
+   alongside .dash-stepper-label rather than replacing it. */
+.socialeaz-dash .dash-stepper-text { display: flex; flex-direction: column; margin: 0 1.25rem 0 .65rem; }
+.socialeaz-dash .dash-stepper-title { font-size: .8125rem; font-weight: 700; color: var(--dash-muted); white-space: nowrap; }
+.socialeaz-dash .dash-stepper-desc { font-size: .7rem; color: var(--dash-muted); white-space: nowrap; }
+.socialeaz-dash .dash-stepper-item.is-current .dash-stepper-title { color: var(--dash-heading); }
+.socialeaz-dash .dash-stepper-item.is-done .dash-stepper-title { color: var(--dash-heading); }
+.socialeaz-dash .dash-stepper-item.is-current .dash-stepper-circle { box-shadow: 0 0 0 4px rgba(124,92,255,.15); }
+
+@media (max-width: 768px) {
+    .socialeaz-dash .dash-stepper-text { display: none; }
+}
+
+/* Device-toggle live preview frame - used by the template editor and
+   the campaign builder's persistent Preview panel. */
+.socialeaz-dash .char-counter { position: absolute; right: .6rem; top: 50%; transform: translateY(-50%); font-size: .68rem; color: var(--dash-muted); pointer-events: none; }
+.socialeaz-dash .device-toggle { display: flex; gap: .25rem; }
+.socialeaz-dash .device-btn { width: 28px; height: 28px; border-radius: .4rem; border: 1px solid var(--dash-border); background: var(--dash-card); color: var(--dash-muted); display: inline-flex; align-items: center; justify-content: center; }
+.socialeaz-dash .device-btn.active { background: var(--dash-primary); border-color: var(--dash-primary); color: #fff; }
+.socialeaz-dash .browser-chrome { background: var(--dash-card-hover); border: 1px solid var(--dash-border); border-bottom: none; border-radius: .6rem .6rem 0 0; padding: .5rem .75rem; }
+.socialeaz-dash .browser-dots { display: flex; gap: .3rem; }
+.socialeaz-dash .browser-dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--dash-border); }
+.socialeaz-dash .browser-dots span:nth-child(1) { background: #ff5f57; }
+.socialeaz-dash .browser-dots span:nth-child(2) { background: #febc2e; }
+.socialeaz-dash .browser-dots span:nth-child(3) { background: #28c840; }
+.socialeaz-dash .template-preview-frame { width: 100%; height: 420px; border: 1px solid var(--dash-border); border-radius: 0 0 .6rem .6rem; transition: width .2s ease; display: block; }
+
+/* Campaign builder's Campaign Type radio-cards (Step 1) - a plain
+   radio input visually styled as a card, plus a disabled "Coming Soon"
+   variant for options with no real backing implementation yet
+   (automated/drip campaigns need a trigger engine and a multi-step
+   scheduler that don't exist - see the campaign_type migration). */
+.socialeaz-dash .campaign-type-card {
+    position: relative; display: block; border: 1px solid var(--dash-border); border-radius: .7rem;
+    padding: 1rem; cursor: pointer; height: 100%;
+}
+.socialeaz-dash .campaign-type-card input[type="radio"] { position: absolute; top: .85rem; right: .85rem; }
+.socialeaz-dash .campaign-type-card:hover { border-color: var(--dash-primary); }
+.socialeaz-dash .campaign-type-card.is-selected { border-color: var(--dash-primary); background: rgba(124,92,255,.06); box-shadow: 0 0 0 1px var(--dash-primary); }
+.socialeaz-dash .campaign-type-card.is-disabled { cursor: not-allowed; opacity: .55; }
+.socialeaz-dash .campaign-type-card-icon { width: 34px; height: 34px; border-radius: .55rem; background: var(--dash-card-hover); color: var(--dash-primary); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin-bottom: .6rem; }
+.socialeaz-dash .campaign-type-card-title { font-weight: 700; color: var(--dash-heading); font-size: .8125rem; }
+.socialeaz-dash .campaign-type-card-desc { font-size: .72rem; color: var(--dash-muted); margin-top: .15rem; }
+
+/* Personalization-tag pill chips (informational, non-interactive) -
+   used on the campaign builder's Details step. */
+.socialeaz-dash .tag-chip { display: inline-block; padding: .25rem .6rem; border-radius: .4rem; background: var(--dash-card); border: 1px solid var(--dash-border); font-size: .75rem; font-family: monospace; color: var(--dash-primary); }
+</style>

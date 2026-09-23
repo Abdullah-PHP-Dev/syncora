@@ -1,0 +1,26 @@
+<?php
+
+return [
+    'open' => 'Open',
+    'in_progress' => 'In progress',
+    'waiting_customer' => 'Waiting for customer',
+    'resolved' => 'Resolved',
+    'closed' => 'Closed',
+    'low' => 'Low',
+    'normal' => 'Normal',
+    'high' => 'High',
+    'urgent' => 'Urgent',
+    'general' => 'General',
+    'billing' => 'Billing',
+    'technical' => 'Technical',
+    'account' => 'Account',
+    'status' => 'Status',
+    'priority' => 'Priority',
+    'category' => 'Category',
+    'trial' => 'Trial',
+    'active' => 'Active',
+    'cancelled' => 'Cancelled',
+    'expired' => 'Expired',
+    'inactive' => 'Inactive',
+    'pending' => 'Pending',
+];

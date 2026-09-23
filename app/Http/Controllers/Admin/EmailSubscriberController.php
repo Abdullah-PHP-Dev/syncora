@@ -3,10 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\EmailMarketing\PollSendGridContactImport;
 use App\Models\EmailMarketing\EmailList;
+use App\Models\EmailMarketing\EmailSubaccount;
 use App\Models\EmailMarketing\EmailSubscriber;
+use App\Services\EmailMarketingServices\SendGridContactService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Manages membership of a single list (routes are nested under
@@ -28,14 +32,25 @@ class EmailSubscriberController extends Controller
                 $q->where('email', 'like', '%' . $request->query('search') . '%')
                   ->orWhere('name', 'like', '%' . $request->query('search') . '%');
             }))
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->query('status')))
             ->orderByDesc('email_list_subscriber.created_at')
             ->paginate(50)
             ->withQueryString();
 
-        return view('admin.email.lists.subscribers', compact('list', 'subscribers'));
+        // Real per-status counts for the stat-card row - queried
+        // unfiltered (ignores the search/status query params) so the
+        // cards always reflect the whole list, not just the current
+        // filtered page.
+        $statusCounts = $list->subscribers()
+            ->selectRaw('email_subscribers.status, COUNT(*) as c')
+            ->groupBy('email_subscribers.status')
+            ->pluck('c', 'status');
+        $totalContacts = $statusCounts->sum();
+
+        return view('admin.email.lists.subscribers', compact('list', 'subscribers', 'statusCounts', 'totalContacts'));
     }
 
-    public function store(Request $request, EmailList $list)
+    public function store(Request $request, EmailList $list, SendGridContactService $contacts)
     {
         abort_unless($list->user_id === Auth::id(), 403);
 
@@ -46,10 +61,12 @@ class EmailSubscriberController extends Controller
 
         $subscriber = EmailSubscriber::firstOrCreate(
             ['user_id' => Auth::id(), 'email' => $validated['email']],
-            ['name' => $validated['name'] ?? null, 'status' => 'subscribed']
+            ['name' => $validated['name'] ?? null, 'status' => 'subscribed', 'source' => 'manual']
         );
 
         $list->subscribers()->syncWithoutDetaching([$subscriber->id]);
+
+        $this->syncOneToSendGrid($subscriber, $list);
 
         return back()->with('success', 'Subscriber added.');
     }
@@ -60,8 +77,11 @@ class EmailSubscriberController extends Controller
      * skipped and counted, not fatal to the whole import - a large list
      * from an export elsewhere in the wild will always have a few bad
      * rows, and losing the other 999 good ones over that would be worse.
+     * SendGrid sync is one batched call for the whole file (see
+     * SendGridContactService::upsertBatch()'s docblock), not one call per
+     * row.
      */
-    public function import(Request $request, EmailList $list)
+    public function import(Request $request, EmailList $list, SendGridContactService $contacts)
     {
         abort_unless($list->user_id === Auth::id(), 403);
 
@@ -82,6 +102,7 @@ class EmailSubscriberController extends Controller
 
         $imported = 0;
         $skipped = 0;
+        $importedSubscribers = [];
 
         while (($row = fgetcsv($handle)) !== false) {
             $email = trim($row[$emailIndex] ?? '');
@@ -94,14 +115,17 @@ class EmailSubscriberController extends Controller
 
             $subscriber = EmailSubscriber::firstOrCreate(
                 ['user_id' => Auth::id(), 'email' => $email],
-                ['name' => $name ?: null, 'status' => 'subscribed']
+                ['name' => $name ?: null, 'status' => 'subscribed', 'source' => 'import']
             );
 
             $list->subscribers()->syncWithoutDetaching([$subscriber->id]);
+            $importedSubscribers[] = $subscriber;
             $imported++;
         }
 
         fclose($handle);
+
+        $this->syncBatchToSendGrid($importedSubscribers, $list, $contacts);
 
         return back()->with('success', "Imported {$imported} subscriber(s)." . ($skipped ? " Skipped {$skipped} invalid row(s)." : ''));
     }
@@ -118,5 +142,61 @@ class EmailSubscriberController extends Controller
         $list->subscribers()->detach($subscriber->id);
 
         return back()->with('success', 'Subscriber removed from this list.');
+    }
+
+    /**
+     * Best-effort, same "save locally first, sync externally in an outer
+     * try/catch" pattern used across every connect flow in this app -
+     * a SendGrid sync failure never blocks the subscriber actually being
+     * added to the local list.
+     */
+    private function syncOneToSendGrid(EmailSubscriber $subscriber, EmailList $list): void
+    {
+        if ($subscriber->sendgrid_contact_id) {
+            return;
+        }
+
+        $subaccount = EmailSubaccount::where('user_id', Auth::id())->where('status', 'active')->first();
+
+        if (!$subaccount) {
+            return;
+        }
+
+        try {
+            $result = app(SendGridContactService::class)->upsert($subaccount, $subscriber, $list);
+
+            if (($result['success'] ?? false) && ($result['job_id'] ?? null)) {
+                PollSendGridContactImport::dispatch($subaccount->id, $subscriber->id, $result['job_id']);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('SendGrid contact sync failed after adding subscriber.', ['subscriber_id' => $subscriber->id, 'error' => $e->getMessage()]);
+        }
+    }
+
+    private function syncBatchToSendGrid(array $subscribers, EmailList $list, SendGridContactService $contacts): void
+    {
+        if (empty($subscribers)) {
+            return;
+        }
+
+        $subaccount = EmailSubaccount::where('user_id', Auth::id())->where('status', 'active')->first();
+
+        if (!$subaccount) {
+            return;
+        }
+
+        try {
+            $result = $contacts->upsertBatch($subaccount, $subscribers, $list);
+
+            if (($result['success'] ?? false) && ($result['job_id'] ?? null)) {
+                foreach ($subscribers as $subscriber) {
+                    if (!$subscriber->sendgrid_contact_id) {
+                        PollSendGridContactImport::dispatch($subaccount->id, $subscriber->id, $result['job_id']);
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('SendGrid batch contact sync failed after CSV import.', ['list_id' => $list->id, 'error' => $e->getMessage()]);
+        }
     }
 }

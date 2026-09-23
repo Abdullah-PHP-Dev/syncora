@@ -275,7 +275,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }).then(function (result) {
             if (!result.isConfirmed) return;
 
-            fetch('{{ url("admin/integrations/connections") }}/' + current.userIntegrationId, {
+            fetch('{{ url("integrations/connections") }}/' + current.userIntegrationId, {
                 method: 'DELETE',
                 headers: {
                     'Accept': 'application/json',

@@ -28,6 +28,18 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // The platform's own Cloudflare zone - used by CloudflareDnsService to
+    // automate DNS record creation for SendGrid Domain Authentication.
+    // Not a per-seller credential: only domains that actually resolve
+    // under this one zone get automatic DNS (validated live against
+    // Cloudflare's own API, never assumed) - every other seller domain
+    // keeps using the existing manual DNS-instructions flow untouched.
+    'cloudflare' => [
+        'api_token'  => env('CLOUDFLARE_API_TOKEN'),
+        'account_id' => env('CLOUDFLARE_ACCOUNT_ID'),
+        'zone_id'    => env('CLOUDFLARE_ZONE_ID'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
@@ -45,7 +57,7 @@ return [
     ],
     // No trailing slash - every consumer of this value (OAuth redirect_uri
     // builders across the Messaging and Ads modules) appends a leading-
-    // slash path directly, eg. config('services.app_url') . '/admin/...'.
+    // slash path directly, eg. config('services.app_url') . '/...'.
     // A trailing slash here produced a double slash in every callback URL,
     // which would mismatch the redirect_uri registered with each OAuth
     // provider (Meta/X/Zalo/Slack/etc all require an exact match).

@@ -145,7 +145,7 @@ export default {
     loadPlans() {
       this.loading = true
 
-      axios.get('/admin/subscription/plans')
+      axios.get('/subscription/plans')
           .then(response => {
             const data = response.data.data || {}
             this.packages = data.packages || []
@@ -166,6 +166,7 @@ export default {
     },
 
     getPackageFeatures(packageItem) {
+      if (packageItem.display_features && packageItem.display_features.length) return packageItem.display_features
       const features = packageItem.features || {}
       const limits = features.limits || {}
       const enabledFeatures = features.features || {}

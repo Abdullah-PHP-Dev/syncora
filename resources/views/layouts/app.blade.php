@@ -1,6 +1,5 @@
 <!doctype html>
-<html lang="{{ app()->getLocale() }}"
-      dir="{{ LaravelLocalization::getCurrentLocaleDirection() }}"
+<html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}"
       class="layout-menu-fixed layout-compact">
 
 <head>
@@ -15,6 +14,8 @@
 
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{{ asset('assets/img/favicon/favicon.ico') }}" />
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/img/logo/socialeaz-logo-32.png') }}" />
+    <link rel="apple-touch-icon" href="{{ asset('assets/img/logo/socialeaz-logo-128.png') }}" />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -73,7 +74,7 @@
     <div class="layout-container">
 
         <!-- SIDEBAR -->
-        @include('layouts.partials.sidebar')
+        @include(auth()->user()->isTeamMember() ? 'layouts.partials.team-sidebar' : 'layouts.partials.sidebar')
 
         <!-- MAIN CONTENT -->
         <div class="layout-page">
@@ -85,6 +86,7 @@
             <div class="content-wrapper">
                 <div id="app"class="container-xxl flex-grow-1 container-p-y">
 
+                    @include('team.feedback')
                     @yield('content')
 
                 </div>

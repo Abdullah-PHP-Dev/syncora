@@ -236,6 +236,7 @@ export default {
       return Math.max(this.currentPrice - Number(this.discount || 0) + Number(this.vat || 0),0)
     },
     packageFeatures(){
+      if (this.packageData.display_features && this.packageData.display_features.length) return this.packageData.display_features
       const features=this.packageData.features || {}
       const result=[]
       const limits=features.limits || {}
@@ -277,7 +278,7 @@ export default {
       this.loading = true
       this.errorMessage = ''
 
-      axios.get('/admin/subscription/plans')
+      axios.get('/subscription/plans')
           .then(response => {
             const packages = response.data.data.packages || []
 

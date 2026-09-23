@@ -296,4 +296,39 @@ class SocialAccount extends Model
             ->groupBy('platform')
             ->toArray();
     }
+
+    /**
+     * Best-effort real public profile/page URL, built from data this
+     * connection actually stored - never a fabricated link. Used by the
+     * Email Marketing template editor's Social Icons block so a seller
+     * can pick one of their own connected pages instead of typing a URL
+     * by hand.
+     *
+     * Facebook is the one exception that needs platform_account_id
+     * rather than username: this table also holds Facebook AD ACCOUNT
+     * rows (platform_account_id like "act_123..."), which have no public
+     * profile at all - those return null here rather than a broken link,
+     * since facebook.com/act_123 doesn't resolve to anything.
+     */
+    public function publicProfileUrl(): ?string
+    {
+        if ($this->platform === 'facebook') {
+            return str_starts_with((string) $this->platform_account_id, 'act_')
+                ? null
+                : ($this->platform_account_id ? 'https://facebook.com/' . $this->platform_account_id : null);
+        }
+
+        if (empty($this->username)) {
+            return null;
+        }
+
+        return match ($this->platform) {
+            'instagram' => 'https://instagram.com/' . $this->username,
+            'x'         => 'https://x.com/' . $this->username,
+            'linkedin'  => 'https://linkedin.com/company/' . $this->username,
+            'tiktok'    => 'https://tiktok.com/@' . $this->username,
+            'pinterest' => 'https://pinterest.com/' . $this->username,
+            default     => null,
+        };
+    }
 }

@@ -17,6 +17,7 @@ import TicketThread from './components/support/TicketThread.vue';
 import CopilotFindAnswer from './components/support/CopilotFindAnswer.vue';
 import AdsDashboard from './components/ads/AdsDashboard.vue';
 import PlatformCampaignsDashboard from './components/ads/PlatformCampaignsDashboard.vue';
+import EmailTemplateDesigner from './components/email/EmailTemplateDesigner.vue';
 
 window.Alpine = Alpine;
 // Needed so admin/chats/dashboard.blade.php's plain inline <script> (a
@@ -42,6 +43,7 @@ Vue.component('ticket-thread', TicketThread);
 Vue.component('copilot-find-answer', CopilotFindAnswer);
 Vue.component('ads-dashboard', AdsDashboard);
 Vue.component('platform-campaigns-dashboard', PlatformCampaignsDashboard);
+Vue.component('email-template-designer', EmailTemplateDesigner);
 
 new Vue({
     el: '#app',

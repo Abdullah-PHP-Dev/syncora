@@ -10,16 +10,16 @@ class EnsureActiveSubscription
 	public function handle(Request $request, Closure $next)
 	{
 		$user = auth()->user();
-		$role = $user->getRoleNames()->first();
 
 
-		if (! $user || ! $user->hasRole('seller')) {
+
+		if (! $user || ! $user->hasRole('seller') || $user->isTeamMember()) {
 			abort(403);
 		}
 
 
 		if (!$user->hasActiveSubscription()) {
-			return redirect('/admin/subscription/select')
+			return redirect()->route('admin.subscription.select')
 				->with('error', 'Please choose a subscription plan');
 		}
 

@@ -2,7 +2,7 @@
     <div class="container">
 
         <a class="navbar-brand fw-bold d-flex align-items-center" href="/">
-            <img src="https://cdn.socialeaz.com/uploads/6kyYmO2jeGMdWShseKtxLtnuIlN7oDqBq4jxkWYL.png" alt="Socialeaz" height="32">
+            <img src="{{ asset('assets/img/logo/socialeaz-logo-64.png') }}" alt="Socialeaz" height="32">
         </a>
 
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -34,11 +34,11 @@
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ route('front.terms') }}">{{ __('nav.terms') }}</a>
+                    <a class="nav-link" href="{{ route('terms') }}">{{ __('nav.terms') }}</a>
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ route('front.privacy') }}">{{ __('nav.privacy') }}</a>
+                    <a class="nav-link" href="{{ route('privacy') }}">{{ __('nav.privacy') }}</a>
                 </li>
 
             </ul>

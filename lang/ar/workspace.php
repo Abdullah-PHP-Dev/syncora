@@ -1,0 +1,26 @@
+<?php
+
+return [
+    'open' => 'مفتوحة',
+    'in_progress' => 'قيد المعالجة',
+    'waiting_customer' => 'بانتظار العميل',
+    'resolved' => 'تم الحل',
+    'closed' => 'مغلقة',
+    'low' => 'منخفضة',
+    'normal' => 'عادية',
+    'high' => 'عالية',
+    'urgent' => 'عاجلة',
+    'general' => 'عام',
+    'billing' => 'الفوترة',
+    'technical' => 'تقني',
+    'account' => 'الحساب',
+    'status' => 'الحالة',
+    'priority' => 'الأولوية',
+    'category' => 'الفئة',
+    'trial' => 'تجريبي',
+    'active' => 'نشط',
+    'cancelled' => 'ملغى',
+    'expired' => 'منتهي',
+    'inactive' => 'غير نشط',
+    'pending' => 'قيد الانتظار',
+];

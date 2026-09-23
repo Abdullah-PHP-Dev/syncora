@@ -23,6 +23,8 @@ class AssignSellerRoleListener
     {
         logger('AssignSellerRoleListener triggered');
 
-        $event->user->assignRole('seller');
+        if (!$event->user->isTeamMember()) {
+            $event->user->assignRole('seller');
+        }
     }
 }
