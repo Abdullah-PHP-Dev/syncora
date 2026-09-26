@@ -19,17 +19,29 @@
       <div class="card-body">
         <div class="row g-2 align-items-end">
           <div class="col-md-4">
+            <label class="form-label small text-muted mb-1">Search</label>
+            <input type="search" v-model="filters.search" @keyup.enter="fetchTickets(1)" class="form-control" placeholder="Search by subject">
+          </div>
+          <div class="col-md-3">
             <label class="form-label small text-muted mb-1">Status</label>
             <select v-model="filters.status" @change="fetchTickets(1)" class="form-select">
               <option value="">All statuses</option>
               <option v-for="s in statuses" :key="s" :value="s">{{ label(s) }}</option>
             </select>
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label small text-muted mb-1">Priority</label>
             <select v-model="filters.priority" @change="fetchTickets(1)" class="form-select">
               <option value="">All priorities</option>
               <option v-for="p in priorities" :key="p" :value="p">{{ p.charAt(0).toUpperCase() + p.slice(1) }}</option>
+            </select>
+          </div>
+          <div class="col-md-2" v-if="isAdmin">
+            <label class="form-label small text-muted mb-1">Assignment</label>
+            <select v-model="filters.assignment" @change="fetchTickets(1)" class="form-select">
+              <option value="">All</option>
+              <option value="mine">Assigned to me</option>
+              <option value="unassigned">Unassigned</option>
             </select>
           </div>
         </div>
@@ -97,6 +109,12 @@ const props = defineProps({
   // a server-built template rather than a hand-concatenated base + id
   // (LaravelLocalization's locale prefix, which a plain url() base drops).
   showUrlTemplate: { type: String, required: true },
+  // Seeded from the query string when this page is reached via the admin
+  // navbar's ticket search or a dashboard "Unassigned"/"Assigned to me"
+  // shortcut (see TeamDashboardService/team/ticket-summary.blade.php) -
+  // both are plain GETs to this same route, not AJAX.
+  initialSearch: { type: String, default: '' },
+  initialAssignment: { type: String, default: '' },
 });
 
 const tickets = ref(props.initialTickets.data || []);
@@ -106,7 +124,7 @@ const meta = ref({
   total: props.initialTickets.total || 0,
 });
 const loading = ref(false);
-const filters = ref({ status: '', priority: '' });
+const filters = ref({ status: '', priority: '', search: props.initialSearch, assignment: props.initialAssignment });
 const statuses = ['open', 'in_progress', 'waiting_customer', 'resolved', 'closed'];
 const priorities = ['urgent', 'high', 'medium', 'low'];
 
@@ -118,7 +136,13 @@ async function fetchTickets(page = 1) {
   loading.value = true;
   try {
     const { data } = await window.axios.get(props.fetchUrl, {
-      params: { status: filters.value.status || undefined, priority: filters.value.priority || undefined, page },
+      params: {
+        status: filters.value.status || undefined,
+        priority: filters.value.priority || undefined,
+        search: filters.value.search || undefined,
+        assignment: filters.value.assignment || undefined,
+        page,
+      },
     });
     tickets.value = data.tickets.data;
     meta.value = { current_page: data.tickets.current_page, last_page: data.tickets.last_page, total: data.tickets.total };

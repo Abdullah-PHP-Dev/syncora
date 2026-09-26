@@ -414,7 +414,7 @@ class LinkedinAdService
         ]);
 
         $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
-
+       
         if (!$response['success']) {
             return $this->errorResponse($response['data']['message'] ?? 'Failed to create LinkedIn Campaign Group.');
         }
@@ -521,7 +521,7 @@ class LinkedinAdService
         $payload['politicalIntent'] = 'NOT_POLITICAL';
 
         $response = $this->apiService->post($endpoint, $this->header['data'], $payload);
-
+       
         if (!$response['success']) {
             return $this->errorResponse($response['data']['message'] ?? 'Failed to create LinkedIn Campaign.');
         }
@@ -569,7 +569,27 @@ class LinkedinAdService
     {
         return match ($objective) {
             'BRAND_AWARENESS'    => 'MAX_IMPRESSION',
-            'ENGAGEMENT'         => 'MAX_ENGAGEMENT',
+            // Reproduced live: "/optimizationTargetType :: "MAX_ENGAGEMENT"
+            // is not an enum symbol" - MAX_ENGAGEMENT was never a real
+            // LinkedIn value. Confirmed against LinkedIn's own "Campaign
+            // Objective API Mapping" docs (Engagement section): for
+            // SPONSORED_STATUS_UPDATE/SPONSORED_VIDEO creative types
+            // optimizing for "Engagement clicks", the real
+            // optimizationTargetType values are MAX_CLICK/
+            // TARGET_COST_PER_CLICK/ENHANCED_CONVERSION - MAX_CLICK is the
+            // "MAX" bidding-strategy default, matching the same MAX_*
+            // convention every other objective below already uses.
+            'ENGAGEMENT'         => 'MAX_CLICK',
+            // NOT verified live - LinkedIn's own mapping table actually
+            // shows "None" in the optimizationTargetType column for Video
+            // Views (both the "Video views" and "Impressions" optimization
+            // goal rows), while separately noting "CPV (if MAX_VIDEO_VIEW)"
+            // for cost type - genuinely ambiguous from the docs alone, and
+            // this hasn't reproduced a live error the way ENGAGEMENT just
+            // did. Left unchanged; if a VIDEO_VIEW campaign hits a similar
+            // "not an enum symbol" error, test both `null`/omitted and
+            // MAX_CLICK against the real API before assuming MAX_VIDEO_VIEW
+            // is simply another wrong guess like MAX_ENGAGEMENT was.
             'VIDEO_VIEW'         => 'MAX_VIDEO_VIEW',
             'LEAD_GENERATION'    => 'MAX_LEAD',
             'WEBSITE_CONVERSION' => 'MAX_CONVERSION',
@@ -613,7 +633,7 @@ class LinkedinAdService
     {
         $andClauses = [];
         $local = [];
-
+           
         $geoUrns = [];
         foreach (Country::whereIn('id', $request['countries'] ?? [])->pluck('name') as $countryName) {
             $urn = $this->resolveEntityUrns('urn:li:adTargetingFacet:locations', [$countryName])[0] ?? null;
@@ -880,15 +900,33 @@ class LinkedinAdService
 
     /**
      * Same initializeUpload/PUT-to-uploadUrl flow as
-     * LinkedInPostService::uploadLinkedinImage() for organic posts, but
-     * owned by the ad account (urn:li:sponsoredAccount) rather than the
-     * organization, since ad-image assets belong to the Ad Account here.
+     * LinkedInPostService::uploadLinkedinImage() for organic posts.
+     *
+     * `owner` MUST be the organization URN, not the ad account
+     * (urn:li:sponsoredAccount) as this was previously set to - reproduced
+     * live: LinkedIn rejected the Post referencing this image with
+     * "com.linkedin.content.common.exception.BadRequestResponseException:
+     * One or more of the contents is not owned by the author. All
+     * contents must be owned by the author" (the Post's `author` is
+     * urn:li:organization:{id} - see createSponsoredPost() - and content
+     * ownership must match the author exactly). Confirmed against
+     * LinkedIn's own Images API docs too:
+     * initializeUploadRequest.owner "Can be a person... or organization...
+     * URN" - sponsoredAccount is not a valid value there at all, even
+     * though it's a valid owner type for other purposes on this same
+     * resource. The ad-account association this previously tried to
+     * express belongs in a separate, optional
+     * initializeUploadRequest.mediaLibraryMetadata.associatedAccount
+     * field instead, not `owner` - not added here since it's optional and
+     * unrelated to this fix.
      */
     private function uploadImage($media): ?string
     {
+        $organizationId = $this->account->metadata['profile_id'] ?? $this->account->platform_account_id;
+
         $initResponse = $this->apiService->post($this->config . 'images?action=initializeUpload', $this->header['data'], [
             'initializeUploadRequest' => [
-                'owner' => 'urn:li:sponsoredAccount:' . $this->account->platform_account_id,
+                'owner' => 'urn:li:organization:' . $organizationId,
             ],
         ]);
 
@@ -911,13 +949,17 @@ class LinkedinAdService
         return $uploadResponse->successful() ? $imageUrn : null;
     }
 
+    // Same owner-must-match-author fix as uploadImage() above -
+    // initializeUploadRequest.owner on the Videos API is likewise
+    // documented as person/organization only, never sponsoredAccount.
     private function uploadVideo($media): ?string
     {
         $fileSize = $media->getSize();
+        $organizationId = $this->account->metadata['profile_id'] ?? $this->account->platform_account_id;
 
         $initResponse = $this->apiService->post($this->config . 'videos?action=initializeUpload', $this->header['data'], [
             'initializeUploadRequest' => [
-                'owner'           => 'urn:li:sponsoredAccount:' . $this->account->platform_account_id,
+                'owner'           => 'urn:li:organization:' . $organizationId,
                 'fileSizeBytes'   => $fileSize,
                 'uploadCaptions'  => false,
                 'uploadThumbnail' => false,
@@ -963,18 +1005,91 @@ class LinkedinAdService
             ],
         ]);
 
-        return $finalizeResponse['success'] ? $videoUrn : null;
+        if (!$finalizeResponse['success']) {
+            return null;
+        }
+
+        // finalizeUpload() returning success only means LinkedIn has
+        // accepted the raw bytes - it still transcodes the video
+        // server-side afterward (status goes WAITING_UPLOAD/PROCESSING ->
+        // AVAILABLE) before the URN is actually referenceable elsewhere.
+        // Reproduced live: referencing the URN immediately after
+        // finalizeUpload() failed with "Media asset is waiting upload."
+        // since createSponsoredPost() ran before processing finished.
+        // Same bounded poll-and-sleep shape already used for this exact
+        // kind of async-processing wait on every other platform in this
+        // module (see SnapchatAdService::ensureMediaIsReady(),
+        // TiktokAdService/XAdService/PinterestPostService/
+        // InstagramPostService's own sleep(2) polling loops) - not a new
+        // pattern introduced just for LinkedIn.
+        return $this->ensureVideoIsReady($videoUrn) ? $videoUrn : null;
+    }
+
+    /**
+     * Polls GET /rest/videos/{urn} until LinkedIn's async transcoding
+     * finishes (status: AVAILABLE) or genuinely fails (PROCESSING_FAILED)
+     * - PROCESSING/WAITING_UPLOAD keep polling. 20 attempts * 2s = up to
+     * 40s, matching SnapchatAdService::ensureMediaIsReady()'s own bound
+     * for the identical kind of wait.
+     */
+    private function ensureVideoIsReady(string $videoUrn): bool
+    {
+        $endpoint = $this->config . 'videos/' . urlencode($videoUrn);
+        $maxAttempts = 20;
+        $attempt = 0;
+
+        while ($attempt < $maxAttempts) {
+            $response = $this->apiService->get($endpoint, $this->header['data']);
+
+            if ($response['success']) {
+                $status = $response['data']['status'] ?? null;
+
+                if ($status === 'AVAILABLE') {
+                    return true;
+                }
+
+                if ($status === 'PROCESSING_FAILED') {
+                    Log::error('LinkedIn ad video processing failed.', ['video' => $videoUrn]);
+                    return false;
+                }
+            }
+
+            sleep(2);
+            $attempt++;
+        }
+
+        Log::warning('LinkedIn ad video did not finish processing in time.', ['video' => $videoUrn]);
+
+        return false;
     }
 
     private function storeCreative($platform, $request)
     {
         $creativeType = $request['creative_type'] ?? 'SPONSORED_CONTENT';
 
+        // No top-level `type` field on the current (202606) Creatives
+        // schema - reproduced live: "/type :: unrecognized field found but
+        // not allowed". Confirmed against LinkedIn's own "Create and
+        // Manage Creatives" docs too: every real create/batch-create
+        // example is just {content, campaign, intendedStatus} - the ad
+        // type is entirely inferred from the shape of `content` (textAd
+        // vs. a Post reference), there's nothing left to declare
+        // separately. This was presumably valid on an older API version
+        // this class was first written against.
+        // intendedStatus: DRAFT, not PAUSED - reproduced live: "/Creative/
+        // status transition is not allowed from null to PAUSED if
+        // /Creative/review/reviewStatus is not set to APPROVED." A brand
+        // new Creative has no review yet, so PAUSED (which implies it was
+        // previously servable and has since been paused) is an invalid
+        // starting state - DRAFT is the correct initial status, matching
+        // every create/batch-create example in LinkedIn's own docs and
+        // the same DRAFT convention this class already uses for the
+        // Campaign Group and Campaign themselves (storeCampaign()/
+        // storeAdGroup() above).
         if ($creativeType === 'TEXT_AD') {
             $payload = [
                 'campaign'       => 'urn:li:sponsoredCampaign:' . $request['adgroup_id'],
-                'type'           => 'TEXT_AD',
-                'intendedStatus' => 'PAUSED',
+                'intendedStatus' => 'DRAFT',
                 'content'        => [
                     'textAd' => array_filter([
                         'headline'    => $request['name'],
@@ -992,8 +1107,7 @@ class LinkedinAdService
 
             $payload = [
                 'campaign'       => 'urn:li:sponsoredCampaign:' . $request['adgroup_id'],
-                'type'           => 'SPONSORED_STATUS_UPDATE',
-                'intendedStatus' => 'PAUSED',
+                'intendedStatus' => 'DRAFT',
                 'content'        => [
                     'reference' => $postResult['data'],
                 ],
@@ -1047,6 +1161,23 @@ class LinkedinAdService
      * Videos endpoint shapes LinkedInPostService uses for organic content,
      * since Sponsored Content creatives reference a Post URN via
      * content.reference rather than carrying media inline themselves.
+     *
+     * LinkedIn's "dark post" docs (Posts API, Create Dark Posts) require
+     * an `adContext` block on every DSC post - reproduced live: LinkedIn
+     * first rejected the post with "Field /adContext/dscAdAccount is
+     * required when the post is a Direct Sponsored Content, but missing
+     * in the request" with no adContext sent at all. A first attempt at
+     * the fix added dscAdAccount plus isDsc/dscAdType/dscStatus (per
+     * LinkedIn's own documented Post schema, which shows all four on a
+     * GET of an existing DSC post) - but LinkedIn's CREATE endpoint
+     * rejected THAT with "ReadOnly field present in a create request" for
+     * both isDsc and dscAdType: those two are server-computed and must
+     * never be sent on create, only dscAdAccount actually belongs in the
+     * request body. Confirmed live: dscAdAccount alone (no isDsc/
+     * dscAdType/dscStatus) succeeds with a real 201 and a real Post URN.
+     * Don't add isDsc/dscAdType back without testing live again first -
+     * this is exactly the kind of field LinkedIn's docs describe
+     * correctly for reads but not for writes.
      */
     private function createSponsoredPost($request)
     {
@@ -1063,7 +1194,30 @@ class LinkedinAdService
             ],
             'lifecycleState'            => 'PUBLISHED',
             'isReshareDisabledByAuthor' => true,
+            'adContext'                 => [
+                'dscAdAccount' => 'urn:li:sponsoredAccount:' . $this->account->platform_account_id,
+            ],
         ];
+
+        // contentLandingPage is "Required if the campaign creative has the
+        // WEBSITE_VISIT objective - otherwise optional" (LinkedIn's Post
+        // Schema docs) - reproduced live: "Creative content should be
+        // associated with a landing page url" the moment a campaign used
+        // that objective (storeAdGroup()'s own default when none is
+        // picked). Always included when the form collected a link, same
+        // condition the TEXT_AD branch below already uses for its own
+        // content.textAd.landingPage. contentCallToActionLabel is fully
+        // optional per the same docs, but the form's own <select> options
+        // (create.blade.php) are already a real subset of LinkedIn's
+        // documented enum (LEARN_MORE/APPLY/DOWNLOAD/SIGN_UP/SUBSCRIBE/
+        // REGISTER/JOIN/ATTEND/REQUEST_DEMO) so it's safe to pass straight
+        // through with no translation.
+        if (!empty($request['target_link'])) {
+            $payload['contentLandingPage'] = $request['target_link'];
+        }
+        if (!empty($request['call_to_action'])) {
+            $payload['contentCallToActionLabel'] = $request['call_to_action'];
+        }
 
         if (!empty($request['media'])) {
             if (count($request['media']) === 1) {
@@ -1074,6 +1228,16 @@ class LinkedinAdService
                     ],
                 ];
             } else {
+                // NOT verified against a live multi-image DSC post -
+                // LinkedIn's own docs say sponsored multi-image ads go
+                // through a separate Carousel API/content shape rather
+                // than this organic-post multiImage content type ("If you
+                // want to create a sponsored post with multiple images,
+                // refer to the Carousel API"). Left as-is (pre-existing
+                // behavior, not something this fix changed) since no
+                // multi-image campaign has been reported failing yet -
+                // flagging so a real carousel-ad attempt isn't mistaken
+                // for this same adContext bug if it fails differently.
                 $payload['content'] = [
                     'multiImage' => [
                         'images' => array_map(fn($m) => ['id' => $m['media_id']], $request['media']),
@@ -1290,7 +1454,7 @@ class LinkedinAdService
             array_merge($this->header['data'], ['X-RestLi-Method' => 'PARTIAL_UPDATE']),
             ['patch' => ['$set' => $patch]]
         );
-
+         
         if (!$response['success']) {
             return $this->errorResponse($response['data']['message'] ?? 'Failed to update LinkedIn Campaign.');
         }

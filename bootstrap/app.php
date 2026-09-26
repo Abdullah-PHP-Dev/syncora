@@ -58,6 +58,12 @@ return tap(
             // Fires any Email Marketing campaign whose scheduled send time
             // has arrived - see SendScheduledEmailCampaigns.
             $schedule->command('email-marketing:send-scheduled')->everyMinute()->withoutOverlapping();
+
+            // Backstop for a FAQ that failed to embed at save time (Gemini
+            // outage) or was published without a content change - see
+            // ReembedFaqs's own docblock. Hourly since this is a backstop,
+            // not the primary embed path.
+            $schedule->command('ai-copilot:reembed-faqs')->hourly()->withoutOverlapping();
         })
         ->withExceptions(function (Exceptions $exceptions) {
             //

@@ -64,6 +64,16 @@ class User extends Authenticatable
         return $this->hasRole('admin') || $this->hasRole('customer_support');
     }
 
+    public function aiCopilotSetting()
+    {
+        return $this->hasOne(AiCopilotSetting::class);
+    }
+
+    public function businessProfile()
+    {
+        return $this->hasOne(BusinessProfile::class);
+    }
+
 	public function subscription()
 	{
 		return $this->hasOne(Subscription::class)->with('bundle');

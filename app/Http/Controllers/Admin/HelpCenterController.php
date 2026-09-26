@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Faq;
 use App\Models\FaqCategory;
+use App\Services\AiCopilotService;
 use Illuminate\Http\Request;
 
 /**
@@ -17,6 +18,10 @@ use Illuminate\Http\Request;
  */
 class HelpCenterController extends Controller
 {
+    public function __construct(private AiCopilotService $copilot)
+    {
+    }
+
     public function index(Request $request)
     {
         $categories = FaqCategory::system()->orderBy('sort_order')->get();
@@ -42,5 +47,32 @@ class HelpCenterController extends Controller
         // just the first paint would be a second, divergent implementation
         // of the same logic).
         return view('admin.help-center.index', ['faqs' => $faqs, 'categories' => $categories]);
+    }
+
+    /**
+     * "Ask AI" on the Help Center - Level 1 of the BRD's two-domain split
+     * (Socialeaz's own platform-support FAQs, see AiCopilotService::
+     * findBestSystemMatch()'s docblock). A one-off self-service search, not
+     * part of a conversation thread - unlike the customer-facing Copilot
+     * flow, there's no per-seller setting gating this and no CopilotMessage
+     * audit row (that table requires a conversation_id, which doesn't
+     * apply here). $answer is the matched FAQ's text verbatim - same no-
+     * hallucination grounding rule as every other AI Copilot response.
+     */
+    public function askAi(Request $request)
+    {
+        $validated = $request->validate([
+            'question' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $result = $this->copilot->findBestSystemMatch($validated['question']);
+
+        return response()->json([
+            'success'          => true,
+            'status'           => $result['status'],
+            'confidence'       => $result['confidence'],
+            'answer'           => $result['suggested_reply'],
+            'matched_question' => $result['faq']?->question,
+        ]);
     }
 }

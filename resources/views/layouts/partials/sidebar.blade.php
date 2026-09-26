@@ -68,7 +68,8 @@
                         request()->routeIs('admin.chats.*') ||
                         request()->routeIs('admin.comments.*') ||
                         request()->routeIs('admin.email.*') ||
-                        request()->routeIs('admin.knowledge-base.*')
+                        request()->routeIs('admin.knowledge-base.*') ||
+                        request()->routeIs('admin.ai-copilot.*')
                     ) ? 'active open' : ''
                 }}">
 
@@ -127,6 +128,41 @@
                         <a href="{{ route('admin.knowledge-base.index') }}"
                            class="menu-link">
                             {{ __('admin.marketing_tools.knowledge_base.header') }}
+                        </a>
+                    </li>
+
+                    {{-- Automatic customer-reply loop on top of the Knowledge
+                         Base above: settings, Business Profile (structured
+                         data), Knowledge Gaps (unanswered questions) and
+                         Analytics (copilot_messages KPIs) - four flat
+                         entries rather than a nested sub-menu, since this
+                         theme's menu styling isn't confirmed to support a
+                         third nesting level. --}}
+                    <li class="menu-item {{ request()->routeIs('admin.ai-copilot.settings.*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.ai-copilot.settings.index') }}"
+                           class="menu-link">
+                            {{ __('admin.marketing_tools.ai_copilot.header') }}
+                        </a>
+                    </li>
+
+                    <li class="menu-item {{ request()->routeIs('admin.ai-copilot.business-profile.*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.ai-copilot.business-profile.edit') }}"
+                           class="menu-link">
+                            {{ __('admin.marketing_tools.business_profile.header') }}
+                        </a>
+                    </li>
+
+                    <li class="menu-item {{ request()->routeIs('admin.ai-copilot.knowledge-gaps.*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.ai-copilot.knowledge-gaps.index') }}"
+                           class="menu-link">
+                            {{ __('admin.marketing_tools.knowledge_gaps.header') }}
+                        </a>
+                    </li>
+
+                    <li class="menu-item {{ request()->routeIs('admin.ai-copilot.analytics.*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.ai-copilot.analytics.index') }}"
+                           class="menu-link">
+                            {{ __('admin.marketing_tools.ai_copilot_analytics.header') }}
                         </a>
                     </li>
 
@@ -282,10 +318,6 @@
                             {{ __('admin.sidebar.connections') }}
                         </a>
                     </li>
-
-                    <li class="menu-item {{ request()->routeIs('tickets.*') ? 'active' : '' }}">
-                <a href="{{ route('tickets.index') }}" class="menu-link"><i class="menu-icon tf-icons bx bx-support"></i><span>{{ __('Support tickets') }}</span></a>
-            </li>
         </ul>
 
             </li>
@@ -321,10 +353,6 @@
                             {{ __('admin.sidebar.forgot_password') }}
                         </a>
                     </li>
-
-                    <li class="menu-item {{ request()->routeIs('tickets.*') ? 'active' : '' }}">
-                <a href="{{ route('tickets.index') }}" class="menu-link"><i class="menu-icon tf-icons bx bx-support"></i><span>{{ __('Support tickets') }}</span></a>
-            </li>
         </ul>
 
             </li>
@@ -385,10 +413,6 @@
 
                 </a>
 
-            </li>
-
-            <li class="menu-item {{ request()->routeIs('tickets.*') ? 'active' : '' }}">
-                <a href="{{ route('tickets.index') }}" class="menu-link"><i class="menu-icon tf-icons bx bx-support"></i><span>{{ __('Support tickets') }}</span></a>
             </li>
         </ul>
 

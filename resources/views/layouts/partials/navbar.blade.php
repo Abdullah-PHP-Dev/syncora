@@ -25,7 +25,7 @@
 
         <!-- Search -->
         @if(auth()->user()->isTeamMember())
-        <form class="admin-search" method="GET" action="{{ route('tickets.index') }}">
+        <form class="admin-search" method="GET" action="{{ route('admin.tickets.index') }}">
             <i class="bx bx-search"></i>
             <input type="search" name="search" placeholder="{{ __('Search tickets') }}" aria-label="{{ __('Search tickets') }}">
         </form>

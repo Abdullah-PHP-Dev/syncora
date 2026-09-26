@@ -44,15 +44,7 @@ class CopilotController extends Controller
 
         abort_if(!$latestInbound, 422, 'This conversation has no customer message to answer yet.');
 
-        $recentMessages = $conversation->messages()
-            ->where('id', '<', $latestInbound->id)
-            ->latest('id')
-            ->take(4)
-            ->pluck('body')
-            ->filter()
-            ->reverse()
-            ->values()
-            ->all();
+        $recentMessages = $this->copilot->recentMessagesFor($conversation, $latestInbound->id);
 
         $result = $this->copilot->findBestMatch($latestInbound->body ?? '', Auth::id(), $recentMessages);
 

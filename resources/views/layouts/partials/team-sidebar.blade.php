@@ -35,9 +35,13 @@
                 $links = [
                     ['dashboard', 'Dashboard', 'bx-grid-alt', 'dashboard'],
                     ['subscribers.index', 'Subscribers', 'bx-group', 'subscribers.*'],
-                    ['tickets.index', 'Support tickets', 'bx-support', 'tickets.*'],
+                    ['admin.tickets.index', 'Support tickets', 'bx-support', 'admin.tickets.*'],
                 ];
                 if(auth()->user()->hasRole('admin')) {
+                    // FAQ management previously had no link anywhere in this
+                    // (the real, actually-shown-to-admins) sidebar at all -
+                    // only reachable by typing the URL directly.
+                    $links[] = ['admin.faqs.index', 'FAQ Management', 'bx-help-circle', 'admin.faqs.*'];
                     $links[] = ['employees.index', 'Employees', 'bx-user-plus', 'employees.*'];
                     $links[] = ['plans.index', 'Subscription plans', 'bx-crown', 'plans.*'];
                 }

@@ -15,11 +15,12 @@ class Conversation extends Model
     protected $fillable = [
         'social_account_id', 'platform', 'external_conversation_id', 'customer_external_id',
         'customer_name', 'customer_avatar_url', 'last_message_at', 'last_message_preview',
-        'unread_count', 'status', 'assigned_user_id', 'meta',
+        'unread_count', 'status', 'assigned_user_id', 'meta', 'ai_paused_at',
     ];
 
     protected $casts = [
         'last_message_at' => 'datetime',
+        'ai_paused_at'     => 'datetime',
         'meta'             => 'array',
     ];
 

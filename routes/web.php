@@ -34,6 +34,10 @@ use App\Http\Controllers\Admin\HelpCenterController;
 use App\Http\Controllers\Admin\TicketController;
 use App\Http\Controllers\Admin\KnowledgeBaseController;
 use App\Http\Controllers\Admin\CopilotController;
+use App\Http\Controllers\Admin\AiCopilotSettingController;
+use App\Http\Controllers\Admin\BusinessProfileController;
+use App\Http\Controllers\Admin\KnowledgeGapController;
+use App\Http\Controllers\Admin\AiCopilotAnalyticsController;
 
 
 Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
@@ -168,10 +172,17 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
         });
         Route::get('/subscribers', [\App\Http\Controllers\Team\SubscriberController::class, 'index'])
             ->middleware('role:admin|customer_support')->name('subscribers.index');
-        Route::middleware('role:admin|customer_support|seller')->group(function () {
-            Route::resource('tickets', \App\Http\Controllers\Team\TicketController::class)->only(['index', 'create', 'store', 'show', 'update']);
-            Route::post('/tickets/{ticket}/replies', [\App\Http\Controllers\Team\TicketController::class, 'reply'])->name('tickets.reply');
-        });
+        // Team\TicketController (SupportTicket model) was a second, fully
+        // parallel ticket implementation duplicating Admin\TicketController
+        // (Ticket model, routes/web.php's 'support/tickets' group below) -
+        // consolidated onto the latter (the audited, tested, actively-used
+        // one) rather than maintaining two. A plain redirect covers old
+        // bookmarks/muscle memory for the list/create pages; /tickets/{id}
+        // and /tickets/{id}/replies are NOT redirected, since SupportTicket
+        // and Ticket ids are different, unrelated sequences - a blind id
+        // redirect there could point at the wrong ticket entirely.
+        Route::redirect('/tickets', '/support/tickets');
+        Route::redirect('/tickets/create', '/support/tickets/create');
 
 
 		/*
@@ -204,39 +215,76 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 				/*
 				|--------------------------------------------------------------------------
-				| SUPPORT: SYSTEM FAQ (admin-role only), HELP CENTER + TICKETS (every seller)
+				| SUPPORT: HELP CENTER (every seller's read-only window onto System FAQs)
 				|--------------------------------------------------------------------------
 				| Deliberately outside the ->middleware(['subscription']) group below -
-				| EnsureActiveSubscription aborts(403) any non-'seller' user outright,
-				| which would make the admin-only FAQ screens unreachable, and a
-				| seller whose subscription lapsed should still be able to reach
-				| support. See FaqController/TicketController docblocks.
+				| a seller whose subscription lapsed should still be able to reach
+				| support. See HelpCenterController's docblock.
 				*/
+				Route::get('help-center', [HelpCenterController::class, 'index'])->name('help-center.index');
+				// Level-1 "Ask AI" search over System FAQs - see
+				// AiCopilotService::findBestSystemMatch()/HelpCenterController::
+				// askAi() docblocks.
+				Route::post('help-center/ask-ai', [HelpCenterController::class, 'askAi'])->name('help-center.ask-ai');
+			});
+
+		/*
+		|--------------------------------------------------------------------------
+		| SUPPORT: SYSTEM FAQ MANAGEMENT (admin role only)
+		|--------------------------------------------------------------------------
+		| Reproduced live: this used to sit inside the 'seller'-only group
+		| above. EnsureSeller requires hasRole('seller') && !isTeamMember(),
+		| and isTeamMember() = hasRole('admin') || hasRole('customer_support')
+		| - so ANY admin account fails EnsureSeller and got a 403 before ever
+		| reaching FaqController::authorizeAdmin()'s own (correct)
+		| hasRole('admin') check. Net effect: the System FAQ management
+		| screens these routes serve were completely unreachable for the
+		| only role they're built for, even though the sidebar link
+		| (@if(hasRole('admin'))) and the controller's own guard were both
+		| already correct in isolation. role:admin here matches the exact
+		| pattern already used for Employees/Plans above - the controller's
+		| authorizeAdmin() stays in place as defense in depth, this just
+		| fixes which requests are even allowed to reach it.
+		*/
+		Route::middleware('role:admin')
+			->name('admin.')
+			->group(function () {
 				Route::get('faqs', [FaqController::class, 'index'])->name('faqs.index');
 				Route::post('faqs', [FaqController::class, 'store'])->name('faqs.store');
 				Route::put('faqs/{faq}', [FaqController::class, 'update'])->name('faqs.update');
 				Route::delete('faqs/{faq}', [FaqController::class, 'destroy'])->name('faqs.destroy');
 				Route::post('faqs/categories', [FaqController::class, 'storeCategory'])->name('faqs.categories.store');
+			});
 
-				Route::get('help-center', [HelpCenterController::class, 'index'])->name('help-center.index');
-
-				// URI deliberately 'support/tickets', not 'tickets' - the
-				// plain 'tickets' URI (GET/POST tickets, GET tickets/create,
-				// GET tickets/{ticket}) is already claimed by
-				// Team\TicketController's resource route above (the older
-				// "file a ticket to Socialeaz support" flow the main
-				// seller sidebar links to via route('tickets.index')).
-				// Both used to register at the identical method+URI - not
-				// just "wrong one wins on dispatch" but worse: Laravel
-				// drops the LOSING route from its name lookup entirely,
-				// so route('tickets.index') (Team's, bare name - this
-				// group's own routes get 'admin.' prefixed automatically)
-				// threw RouteNotFoundException on every single page using
-				// the shared seller sidebar, confirmed live
-				// (labs.socialeaz.com/en/ads/dashboard and any other admin
-				// page). Route names here are unchanged
-				// (admin.tickets.index etc - nothing else in the app
-				// references these URIs directly, only via route()).
+		/*
+		|--------------------------------------------------------------------------
+		| SUPPORT: SYSTEM A TICKETS (Admin\TicketController) - every seller
+		| can file/view their own; admin/customer_support can view and
+		| manage all.
+		|--------------------------------------------------------------------------
+		| Same routing bug as the FAQ group above, reproduced live the same
+		| way: sat inside the 'seller'-only group, so no admin/
+		| customer_support account could ever reach it even though
+		| Admin\TicketController::index()/show()/updateStatus() already
+		| correctly branch on hasRole('admin') in code (dead code until
+		| now). Moved to the exact role:admin|customer_support|seller
+		| pattern already used for Team\TicketController's routes above -
+		| the actual per-ticket ownership check
+		| (abort_unless($user->hasRole('admin') || $ticket->user_id ===
+		| $user->id, 403), in TicketController::show()/storeMessage())
+		| still lives in the controller; this only fixes which roles can
+		| reach the controller at all.
+		|
+		| URI deliberately 'support/tickets', not 'tickets' - the plain
+		| 'tickets' URI is already claimed by Team\TicketController's
+		| resource route above (the separate "file a ticket to Socialeaz
+		| support" flow the main seller sidebar also links to via
+		| route('tickets.index')) - route names here are unchanged
+		| (admin.tickets.index etc), only the middleware moved.
+		*/
+		Route::middleware('role:admin|customer_support|seller')
+			->name('admin.')
+			->group(function () {
 				Route::get('support/tickets', [TicketController::class, 'index'])->name('tickets.index');
 				Route::get('support/tickets/create', [TicketController::class, 'create'])->name('tickets.create');
 				Route::post('support/tickets', [TicketController::class, 'store'])->name('tickets.store');
@@ -441,6 +489,11 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('chats.copilot.find-answer');
 				Route::post('platform/copilot-messages/{copilotMessage}/feedback', [CopilotController::class, 'feedback'])
 					->name('chats.copilot.feedback');
+				// Hands a conversation back to the automatic AI Copilot
+				// after a human agent's reply paused it - see
+				// ChatController::store()'s ai_paused_at comment.
+				Route::post('platform/chats/{conversation}/resume-ai', [ChatController::class, 'resumeAi'])
+					->name('chats.resume-ai');
 
 				// NOTIFICATION CENTER - combined unread Comments + Messages
 				// badge/dropdown in the navbar. Conversation-type items reuse
@@ -517,6 +570,36 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::put('knowledge-base/{faq}', [KnowledgeBaseController::class, 'update'])->name('knowledge-base.update');
 				Route::delete('knowledge-base/{faq}', [KnowledgeBaseController::class, 'destroy'])->name('knowledge-base.destroy');
 				Route::post('knowledge-base/categories', [KnowledgeBaseController::class, 'storeCategory'])->name('knowledge-base.categories.store');
+
+
+				// AI COPILOT SETTINGS - per-seller on/off, auto-reply,
+				// confidence thresholds, tone (Phase 4 of the AI Copilot +
+				// FAQ + Ticket System BRD). See AiCopilotSettingController's
+				// docblock.
+				Route::get('ai-copilot/settings', [AiCopilotSettingController::class, 'index'])->name('ai-copilot.settings.index');
+				Route::put('ai-copilot/settings', [AiCopilotSettingController::class, 'update'])->name('ai-copilot.settings.update');
+
+				// BUSINESS PROFILE - structured facts (hours/policies/
+				// contact) the AI Copilot checks before guessing. See
+				// BusinessProfileFaqSyncService's docblock for how this
+				// actually reaches AiCopilotService::findBestMatch().
+				Route::get('ai-copilot/business-profile', [BusinessProfileController::class, 'edit'])->name('ai-copilot.business-profile.edit');
+				Route::put('ai-copilot/business-profile', [BusinessProfileController::class, 'update'])->name('ai-copilot.business-profile.update');
+
+				// KNOWLEDGE GAPS - questions the AI Copilot couldn't answer
+				// (Phase 5). Populated by ProcessAiCopilotReply, never
+				// created directly here. See KnowledgeGapController's
+				// docblock for the "convert to FAQ always creates a draft"
+				// rule.
+				Route::get('ai-copilot/knowledge-gaps', [KnowledgeGapController::class, 'index'])->name('ai-copilot.knowledge-gaps.index');
+				Route::post('ai-copilot/knowledge-gaps/{gap}/convert-to-faq', [KnowledgeGapController::class, 'convertToFaq'])->name('ai-copilot.knowledge-gaps.convert-to-faq');
+				Route::post('ai-copilot/knowledge-gaps/{gap}/ignore', [KnowledgeGapController::class, 'ignore'])->name('ai-copilot.knowledge-gaps.ignore');
+				Route::post('ai-copilot/knowledge-gaps/{gap}/under-review', [KnowledgeGapController::class, 'markUnderReview'])->name('ai-copilot.knowledge-gaps.under-review');
+				Route::post('ai-copilot/knowledge-gaps/{gap}/resolve', [KnowledgeGapController::class, 'resolve'])->name('ai-copilot.knowledge-gaps.resolve');
+
+				// AI COPILOT ANALYTICS - KPIs over the existing
+				// copilot_messages audit trail, no new tracking.
+				Route::get('ai-copilot/analytics', [AiCopilotAnalyticsController::class, 'index'])->name('ai-copilot.analytics.index');
 
 
 				// EMAIL MARKETING

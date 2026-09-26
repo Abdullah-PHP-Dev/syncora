@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\Subscription;
-use App\Models\SupportTicket;
+use App\Models\Ticket;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -11,7 +11,13 @@ class TeamDashboardService
 {
     public function data(User $user): array
     {
-        $tickets = SupportTicket::query();
+        // Was SupportTicket (Team\TicketController's separate, parallel
+        // ticket system) - repointed to Ticket (Admin\TicketController)
+        // when the two duplicate systems were consolidated onto the
+        // latter. Field/relation names below (status, assigned_to,
+        // 'assignee', last_activity_at-ordered) all match Ticket's actual
+        // schema - see Ticket model.
+        $tickets = Ticket::query();
         $data = [
             'ticketCounts' => [
                 'open' => (clone $tickets)->whereIn('status', ['open', 'in_progress', 'waiting_customer'])->count(),
@@ -19,7 +25,7 @@ class TeamDashboardService
                 'urgent' => (clone $tickets)->where('priority', 'urgent')->whereNotIn('status', ['resolved', 'closed'])->count(),
                 'mine' => (clone $tickets)->where('assigned_to', $user->id)->whereNotIn('status', ['resolved', 'closed'])->count(),
             ],
-            'recentTickets' => (clone $tickets)->with(['customer', 'assignee'])->whereNotIn('status', ['resolved', 'closed'])->latest('updated_at')->limit(8)->get(),
+            'recentTickets' => (clone $tickets)->with(['user', 'assignee'])->whereNotIn('status', ['resolved', 'closed'])->latest('updated_at')->limit(8)->get(),
         ];
         if (!$user->hasRole('admin')) {
             return $data;

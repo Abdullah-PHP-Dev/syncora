@@ -63,9 +63,14 @@ const props = defineProps({
   storeUrl: { type: String, required: true },
   indexUrl: { type: String, required: true },
   helpCenterUrl: { type: String, required: true },
+  // Prefilled from the Help Center's "Ask AI" low-confidence escalation
+  // link (see HelpCenterBrowser.vue) - both default to '' so arriving
+  // here directly still shows the exact same empty form as before.
+  initialSubject: { type: String, default: '' },
+  initialBody: { type: String, default: '' },
 });
 
-const form = ref({ subject: '', category: 'Account & Billing', priority: 'medium', body: '' });
+const form = ref({ subject: props.initialSubject, category: 'Account & Billing', priority: 'medium', body: props.initialBody });
 const errors = ref({});
 const generalError = ref('');
 const submitting = ref(false);

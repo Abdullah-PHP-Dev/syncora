@@ -190,6 +190,18 @@ return [
         'knowledge_base' => [
             'header' => 'Knowledge Base'
         ],
+        'ai_copilot' => [
+            'header' => 'AI Copilot'
+        ],
+        'business_profile' => [
+            'header' => 'Business Profile'
+        ],
+        'knowledge_gaps' => [
+            'header' => 'Knowledge Gaps'
+        ],
+        'ai_copilot_analytics' => [
+            'header' => 'AI Analytics'
+        ],
     ],
     'support' => [
         'help_center' => 'Help Center',

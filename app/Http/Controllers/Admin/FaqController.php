@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Faq;
 use App\Models\FaqCategory;
+use App\Services\AiCopilotService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -38,6 +39,10 @@ use Illuminate\Support\Str;
  */
 class FaqController extends Controller
 {
+    public function __construct(private AiCopilotService $copilot)
+    {
+    }
+
     /**
      * Inline guard, not a constructor $this->middleware() callback - this
      * app's base Controller (app/Http/Controllers/Controller.php) is bare
@@ -95,6 +100,12 @@ class FaqController extends Controller
             'tags'            => $validated['tags'],
         ])->load('category');
 
+        // Without this, System FAQs were never embedded at all (unlike a
+        // seller's own Knowledge Base via KnowledgeBaseController) - the
+        // Help Center's "Ask AI" search (HelpCenterController::askAi())
+        // has nothing to semantically match against otherwise.
+        $this->copilot->embedFaq($faq);
+
         return response()->json(['success' => true, 'faq' => $faq, 'message' => 'FAQ "' . Str::limit($faq->question, 60) . '" created.']);
     }
 
@@ -113,6 +124,12 @@ class FaqController extends Controller
             'status'          => $validated['status'],
             'tags'            => $validated['tags'],
         ]);
+
+        // Same "only re-embed if the embedded text actually changed" rule
+        // as KnowledgeBaseController::update().
+        if ($faq->wasChanged(['question', 'answer'])) {
+            $this->copilot->embedFaq($faq);
+        }
 
         return response()->json(['success' => true, 'faq' => $faq->fresh('category'), 'message' => 'FAQ updated.']);
     }
@@ -172,6 +189,21 @@ class FaqController extends Controller
             : [];
 
         $validated['faq_category_id'] = $validated['faq_category_id'] ?? null;
+
+        // Sanitized server-side before it's ever persisted - the answer
+        // field had zero HTML/script handling on the way in (a validation
+        // rule of 'string' only never rejects or cleans markup), and the
+        // one thing currently preventing this from being exploitable
+        // stored XSS is a client-side escape function in one Vue
+        // component (HelpCenterBrowser.vue's nl2br()) - fragile, and no
+        // protection at all for any other future consumer of this field
+        // (an admin preview pane, a digest email, a different render
+        // path). mews/purifier is already a project dependency (added for
+        // the Email Marketing module) with a general-purpose 'default'
+        // profile - reused here rather than inventing a new one, since a
+        // plain FAQ answer needs exactly that: basic formatting tags,
+        // never scripts/event handlers/iframes.
+        $validated['answer'] = \Mews\Purifier\Facades\Purifier::clean($validated['answer'], 'default');
 
         return $validated;
     }

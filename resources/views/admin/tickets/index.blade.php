@@ -11,6 +11,8 @@
         create-url="{{ route('admin.tickets.create') }}"
         help-center-url="{{ route('admin.help-center.index') }}"
         show-url-template="{{ route('admin.tickets.show', ['ticket' => 'TICKET_ID']) }}"
+        initial-search="{{ $initialSearch }}"
+        initial-assignment="{{ $initialAssignment }}"
     ></tickets-list>
 
 @endsection

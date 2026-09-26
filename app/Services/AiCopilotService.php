@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Faq;
+use App\Models\Messaging\Conversation;
 use App\Support\Gemini\RetryPolicy;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -45,7 +46,9 @@ use Illuminate\Support\Facades\Log;
  */
 class AiCopilotService
 {
-    private const EMBEDDING_MODEL = 'gemini-embedding-001';
+    // Public so ReembedFaqs can detect a stale-model row the same way
+    // embedFaq() itself stamps it.
+    public const EMBEDDING_MODEL = 'gemini-embedding-001';
 
     /**
      * Default routing thresholds - BRD 5.2 calls these out as "a
@@ -100,9 +103,17 @@ class AiCopilotService
             );
 
         if (!$response->successful()) {
+            // QA-audit finding: logging the raw response body unredacted is
+            // a credential-leak risk on this specific call - the request
+            // URL carries the Gemini API key as a query parameter
+            // (?key=...), and some Google API error payloads echo the
+            // requested URL back in their error details. Stripping any
+            // key=... pattern before logging costs nothing diagnostically
+            // (the failure reason is in the JSON error message/status, not
+            // in the key) and closes that leak either way.
             Log::warning('Gemini embedding request failed.', [
                 'status' => $response->status(),
-                'body'   => $response->body(),
+                'body'   => preg_replace('/key=[^&\s"]+/', 'key=[redacted]', $response->body()),
             ]);
 
             return null;
@@ -235,20 +246,94 @@ class AiCopilotService
     }
 
     /**
+     * The last few messages before $beforeMessageId in a conversation, as
+     * plain bodies oldest-to-newest - the shared "context" input for
+     * findBestMatch(), gathered identically whether the match is triggered
+     * by a human clicking "Find Answer" (CopilotController) or
+     * automatically on inbound (ProcessAiCopilotReply).
+     */
+    public function recentMessagesFor(Conversation $conversation, int $beforeMessageId, int $take = 4): array
+    {
+        return $conversation->messages()
+            ->where('id', '<', $beforeMessageId)
+            ->latest('id')
+            ->take($take)
+            ->pluck('body')
+            ->filter()
+            ->reverse()
+            ->values()
+            ->all();
+    }
+
+    /**
      * The actual retrieval + scoring pass for one inbound customer
      * message. $recentMessages is prior message bodies in the same
      * conversation, oldest-to-newest excluded of the current one - see
      * CopilotController::findAnswer() for how that's gathered.
+     *
+     * $autoThreshold/$suggestedThreshold default to this class's own BRD-
+     * default constants so CopilotController's existing manual-trigger
+     * behavior is unchanged for a seller with no AiCopilotSetting row yet
+     * - ProcessAiCopilotReply passes that seller's own configured
+     * thresholds instead (see AiCopilotSetting::forSeller()).
      */
-    public function findBestMatch(string $customerMessage, int $sellerUserId, array $recentMessages = []): array
-    {
+    public function findBestMatch(
+        string $customerMessage,
+        int $sellerUserId,
+        array $recentMessages = [],
+        ?int $autoThreshold = null,
+        ?int $suggestedThreshold = null,
+    ): array {
         $candidates = Faq::ownedBy($sellerUserId)->published()->whereNotNull('embedding')->get();
 
+        return $this->scoreAgainstCandidates(
+            $customerMessage,
+            $candidates,
+            $recentMessages,
+            $autoThreshold ?? self::AUTO_REPLY_THRESHOLD,
+            $suggestedThreshold ?? self::SUGGESTED_THRESHOLD,
+        );
+    }
+
+    /**
+     * Level 1 of the two-domain BRD split: Socialeaz's own platform-
+     * support FAQs (Faq::system(), user_id null), searched from a
+     * seller's Help Center - see HelpCenterController::askAi(). Unlike
+     * findBestMatch(), there's no per-seller setting to read (a Help
+     * Center search isn't gated by AiCopilotSetting at all), so this
+     * always uses the class's own BRD-default thresholds.
+     */
+    public function findBestSystemMatch(string $question, array $recentMessages = []): array
+    {
+        $candidates = Faq::system()->published()->whereNotNull('embedding')->get();
+
+        return $this->scoreAgainstCandidates(
+            $question,
+            $candidates,
+            $recentMessages,
+            self::AUTO_REPLY_THRESHOLD,
+            self::SUGGESTED_THRESHOLD,
+        );
+    }
+
+    /**
+     * The retrieval + scoring pass shared by findBestMatch() (Level 2 -
+     * a seller's own Knowledge Base) and findBestSystemMatch() (Level 1 -
+     * Socialeaz's own FAQs) - identical scoring logic, only the candidate
+     * query differs between the two callers.
+     */
+    private function scoreAgainstCandidates(
+        string $customerMessage,
+        \Illuminate\Support\Collection $candidates,
+        array $recentMessages,
+        int $autoThreshold,
+        int $suggestedThreshold,
+    ): array {
         if ($candidates->isEmpty()) {
             return $this->result(null, 0, [
                 'semantic_similarity' => 0, 'keyword_overlap' => 0,
                 'historical_accuracy' => 0, 'context_consistency' => 0,
-            ]);
+            ], $autoThreshold, $suggestedThreshold);
         }
 
         // Semantic similarity is scored TWICE per candidate and the
@@ -303,18 +388,46 @@ class AiCopilotService
 
         $best = $scored->first();
 
-        return $this->result($best['faq'], $best['confidence'], $best['breakdown']);
+        return $this->result($best['faq'], $best['confidence'], $best['breakdown'], $autoThreshold, $suggestedThreshold);
     }
 
-    private function result(?Faq $faq, int $confidence, array $breakdown): array
+    private function result(?Faq $faq, int $confidence, array $breakdown, int $autoThreshold, int $suggestedThreshold): array
     {
         return [
-            'status'              => $faq && $confidence >= self::SUGGESTED_THRESHOLD ? 'suggested' : 'no_match',
+            'status'              => $faq && $confidence >= $suggestedThreshold ? 'suggested' : 'no_match',
             'faq'                 => $faq,
             'confidence'          => $confidence,
-            'auto_reply_eligible' => $confidence >= self::AUTO_REPLY_THRESHOLD,
+            'auto_reply_eligible' => $confidence >= $autoThreshold,
             'breakdown'           => $breakdown,
-            'suggested_reply'     => $confidence >= self::SUGGESTED_THRESHOLD ? $faq?->answer : null,
+            'suggested_reply'     => $confidence >= $suggestedThreshold ? $this->htmlToPlainText($faq?->answer) : null,
         ];
+    }
+
+    /**
+     * QA finding: Faq::answer is real, Purifier-sanitized HTML (every
+     * FaqController/KnowledgeBaseController save wraps even a one-line
+     * answer in <p>...</p>) - fine for on-page rendering, but
+     * suggested_reply is never rendered as a web page: ProcessAiCopilotReply
+     * sends it verbatim as a real message body to a real customer on
+     * Facebook/Instagram/etc, and CopilotFindAnswer.vue drops it straight
+     * into a human agent's reply textarea to send as-is. Live-verified
+     * before this fix: a plain one-sentence FAQ answer, saved through the
+     * real controller, came back from Purifier as "<p>...</p>" and would
+     * have gone out to a real customer with literal, visible HTML tags.
+     * Strips tags back to plain text with paragraph/list/line breaks
+     * preserved as newlines, rather than raw stripped-together text.
+     */
+    private function htmlToPlainText(?string $html): ?string
+    {
+        if ($html === null) {
+            return null;
+        }
+
+        $text = preg_replace('/<(p|div|li|br)[^>]*>/i', "\n", $html) ?? $html;
+        $text = strip_tags($text);
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5);
+        $text = preg_replace("/\n{3,}/", "\n\n", $text) ?? $text;
+
+        return trim($text);
     }
 }

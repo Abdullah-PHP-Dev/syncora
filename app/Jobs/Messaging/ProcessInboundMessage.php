@@ -124,5 +124,10 @@ class ProcessInboundMessage implements ShouldQueue
         });
 
         broadcast(new MessageCreated($message->load('attachments', 'conversation.channel')));
+
+        // Fire-and-forget: ProcessAiCopilotReply does its own AiCopilotSetting
+        // gate (defaults to fully off), so dispatching unconditionally here
+        // is safe for every seller who hasn't configured AI Copilot.
+        ProcessAiCopilotReply::dispatch($message->id);
     }
 }

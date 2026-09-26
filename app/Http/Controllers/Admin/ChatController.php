@@ -200,6 +200,12 @@ class ChatController extends Controller
         $conversation->update([
             'last_message_at'      => now(),
             'last_message_preview' => \Illuminate\Support\Str::limit($validated['body'] ?? ('[' . ucfirst($mediaType ?? 'file') . ']'), 120),
+            // A human agent replying takes the conversation over from the
+            // AI Copilot - stop it from replying underneath them until
+            // explicitly resumed (resumeAi() below). Only set on the first
+            // human reply (?? not unconditional) so it isn't repeatedly
+            // bumped forward by every subsequent human message.
+            'ai_paused_at'          => $conversation->ai_paused_at ?? now(),
         ]);
 
         broadcast(new MessageCreated($message->load('attachments', 'conversation.channel')));
@@ -209,6 +215,21 @@ class ChatController extends Controller
             'message' => $message,
             'error'   => $result['error'] ?? null,
         ]);
+    }
+
+    /**
+     * Explicit "hand the conversation back to the bot" action - the AI
+     * Copilot has no automatic resolved-state detection (Conversation has
+     * no such concept), so resuming is a deliberate agent action rather
+     * than something that happens on its own.
+     */
+    public function resumeAi(Conversation $conversation)
+    {
+        abort_unless($conversation->channel->user_id === Auth::id(), 403);
+
+        $conversation->update(['ai_paused_at' => null]);
+
+        return response()->json(['success' => true]);
     }
 
     /**

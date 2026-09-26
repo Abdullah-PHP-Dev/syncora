@@ -178,6 +178,12 @@ class KnowledgeBaseController extends Controller
 
         $validated['faq_category_id'] = $validated['faq_category_id'] ?? null;
 
+        // Same save-time sanitization as FaqController::validated() - see
+        // that method's comment for why (zero server-side HTML/script
+        // handling otherwise, reusing the project's existing general-
+        // purpose Purifier profile rather than a new one).
+        $validated['answer'] = \Mews\Purifier\Facades\Purifier::clean($validated['answer'], 'default');
+
         return $validated;
     }
 }

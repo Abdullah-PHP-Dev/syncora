@@ -190,6 +190,18 @@ return [
         'knowledge_base' => [
             'header' => 'قاعدة المعرفة'
         ],
+        'ai_copilot' => [
+            'header' => 'المساعد الذكي'
+        ],
+        'business_profile' => [
+            'header' => 'الملف التجاري'
+        ],
+        'knowledge_gaps' => [
+            'header' => 'فجوات المعرفة'
+        ],
+        'ai_copilot_analytics' => [
+            'header' => 'تحليلات المساعد الذكي'
+        ],
     ],
     'support' => [
         'help_center' => 'مركز المساعدة',

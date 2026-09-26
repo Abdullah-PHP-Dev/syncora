@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Bundle;
 use App\Models\Subscription;
-use App\Models\SupportTicket;
+use App\Models\Ticket;
 use App\Models\User;
 use App\Services\TeamDashboardService;
 use Illuminate\Database\Schema\Blueprint;
@@ -26,8 +26,26 @@ class TeamWorkspaceTest extends TestCase
             \Mcamara\LaravelLocalization\Middleware\LaravelLocalizationRedirectFilter::class,
         ]);
         // Build only this workspace's schema; the legacy migration history has duplicate tables.
-        foreach (['0001_01_01_000000_create_users_table', '2026_06_13_213124_create_permission_tables', '2026_08_17_233010_create_bundles_table', '2026_08_17_234708_create_subscriptions_table', '2026_09_17_000001_create_team_support_workspace'] as $migration) {
+        // tickets/ticket_messages added when TeamDashboardService/the ticket
+        // pages were repointed from SupportTicket (Team\TicketController,
+        // removed) onto Ticket (Admin\TicketController) - see routes/web.php.
+        // Ticket uses Spatie's LogsActivity trait, hence activity_log too -
+        // those three predate this app's anonymous-migration-class
+        // convention, guarded by class name (same technique as
+        // CreatesSupportModuleTables) in case another test class in the
+        // same PHPUnit process already declared them.
+        foreach (['0001_01_01_000000_create_users_table', '2026_06_13_213124_create_permission_tables', '2026_08_17_233010_create_bundles_table', '2026_08_17_234708_create_subscriptions_table', '2026_09_17_000001_create_team_support_workspace', '2026_09_05_143253_create_tickets_table', '2026_09_05_143254_create_ticket_messages_table'] as $migration) {
             (require database_path('migrations/'.$migration.'.php'))->up();
+        }
+        foreach ([
+            ['2026_06_13_214010_create_activity_log_table', 'CreateActivityLogTable'],
+            ['2026_06_13_214011_add_event_column_to_activity_log_table', 'AddEventColumnToActivityLogTable'],
+            ['2026_06_13_214012_add_batch_uuid_column_to_activity_log_table', 'AddBatchUuidColumnToActivityLogTable'],
+        ] as [$migrationFile, $migrationClass]) {
+            if (!class_exists($migrationClass)) {
+                require database_path('migrations/'.$migrationFile.'.php');
+            }
+            (new $migrationClass())->up();
         }
         foreach (['ads', 'posts'] as $table) {
             Schema::create($table, function (Blueprint $table) { $table->id(); $table->timestamps(); });
@@ -45,9 +63,16 @@ class TeamWorkspaceTest extends TestCase
     {
         return ['name_en' => 'Growth', 'name_ar' => 'النمو', 'slug' => 'growth', 'price' => '49.50', 'yearly_price' => '499.00', 'currency' => 'SAR', 'description_en' => 'Grow your team', 'description_ar' => 'نمّ فريقك', 'features_en' => "Unlimited drafts\nPriority support", 'features_ar' => "مسودات غير محدودة\nدعم مميز", 'sort_order' => 2, 'is_active' => 1, 'is_free' => 0, 'is_popular' => 1, 'trial_days' => 15];
     }
-    private function ticket(User $seller): SupportTicket
+    private function ticket(User $seller): Ticket
     {
-        return SupportTicket::create(['user_id' => $seller->id, 'subject' => 'Help with my account']);
+        return Ticket::create([
+            'ticket_number'    => Ticket::generateTicketNumber(),
+            'user_id'          => $seller->id,
+            'subject'          => 'Help with my account',
+            'priority'         => 'medium',
+            'status'           => 'open',
+            'last_activity_at' => now(),
+        ]);
     }
 
     public function test_admin_and_support_have_shared_layout_but_distinct_navigation(): void
@@ -59,7 +84,12 @@ class TeamWorkspaceTest extends TestCase
     {
         $admin = $this->user('admin');
         $this->actingAs($admin);
-        foreach (['/employees/create', '/employees/'.$admin->id.'/edit', '/plans/create', '/tickets', '/tickets/create', '/subscribers'] as $url) {
+        // /tickets and /tickets/create are the old Team\TicketController
+        // paths - now a plain redirect onto the consolidated
+        // Admin\TicketController pages (see routes/web.php).
+        $this->get('/tickets')->assertRedirect('/support/tickets');
+        $this->get('/tickets/create')->assertRedirect('/support/tickets/create');
+        foreach (['/employees/create', '/employees/'.$admin->id.'/edit', '/plans/create', '/support/tickets', '/support/tickets/create', '/subscribers'] as $url) {
             $this->get($url)->assertOk();
         }
         $this->post('/plans', $this->planData());
@@ -143,23 +173,50 @@ class TeamWorkspaceTest extends TestCase
         $this->assertSame(1, $data['chart']['ads'][10]);
         $this->assertSame(1, $data['chart']['posts'][11]);
     }
+    /**
+     * Was written against Team\TicketController (POST/PUT /tickets/*,
+     * redirect-based, 404 on cross-tenant access, hard-forbidden on a
+     * tampered internal-note flag). Rewritten against the consolidated
+     * Admin\TicketController (JSON /support/tickets/* endpoints, 403 on
+     * cross-tenant access, a tampered internal-note flag is silently
+     * ignored rather than rejected - see storeMessage()'s own comment)
+     * when the two duplicate ticket systems were merged - see
+     * routes/web.php's removal comment. Same coverage intent: ownership,
+     * internal-note visibility, staff-only assignment/status, and the
+     * resolved-ticket-reopens-on-customer-reply behavior (ported from
+     * Team\TicketController's equivalent, since Admin\TicketController's
+     * own reopen logic originally only covered waiting_customer, not
+     * resolved/closed - fixed alongside this consolidation).
+     */
     public function test_ticket_ownership_notes_assignment_and_status(): void
     {
         $seller = $this->user('seller'); $other = $this->user('seller'); $support = $this->user('customer_support');
-        $this->actingAs($seller)->post('/tickets', ['subject' => 'Billing question', 'body' => 'Please help', 'category' => 'billing', 'priority' => 'high'])->assertRedirect();
-        $ticket = SupportTicket::firstOrFail();
-        $this->actingAs($other)->get('/tickets/'.$ticket->id)->assertNotFound();
-        $this->post('/tickets/'.$ticket->id.'/replies', ['body' => 'intrusion'])->assertNotFound();
-        $this->actingAs($seller)->post('/tickets/'.$ticket->id.'/replies', ['body' => 'secret', 'is_internal' => 1])->assertForbidden();
-        $this->put('/tickets/'.$ticket->id, ['status' => 'resolved', 'priority' => 'low'])->assertForbidden();
-        $this->actingAs($support)->put('/tickets/'.$ticket->id, ['status' => 'in_progress', 'priority' => 'urgent', 'assigned_to' => $support->id])->assertRedirect();
-        $this->post('/tickets/'.$ticket->id.'/replies', ['body' => 'Private staff note', 'is_internal' => 1])->assertRedirect();
-        $this->get('/tickets/'.$ticket->id)->assertOk()->assertSee('Private staff note');
-        $this->actingAs($seller)->get('/tickets/'.$ticket->id)->assertOk()->assertDontSee('Private staff note');
-        $this->actingAs($support)->put('/tickets/'.$ticket->id, ['status' => 'resolved', 'priority' => 'urgent', 'assigned_to' => $support->id])->assertRedirect();
+        $this->actingAs($seller)->postJson('/support/tickets', ['subject' => 'Billing question', 'body' => 'Please help', 'category' => 'billing', 'priority' => 'high'])->assertOk();
+        $ticket = Ticket::firstOrFail();
+
+        $this->actingAs($other)->getJson('/support/tickets/'.$ticket->id)->assertForbidden();
+        $this->postJson('/support/tickets/'.$ticket->id.'/messages', ['body' => 'intrusion'])->assertForbidden();
+
+        // A seller tampering with is_internal_note on their own ticket is
+        // silently ignored (the note is saved as a normal, visible reply),
+        // not rejected outright - see storeMessage()'s own comment.
+        $this->actingAs($seller)->postJson('/support/tickets/'.$ticket->id.'/messages', ['body' => 'secret', 'is_internal_note' => 1])->assertOk();
+        $this->assertDatabaseHas('ticket_messages', ['ticket_id' => $ticket->id, 'body' => 'secret', 'is_internal_note' => false]);
+
+        $this->patchJson('/support/tickets/'.$ticket->id.'/status', ['status' => 'resolved', 'priority' => 'low'])->assertForbidden();
+
+        $this->actingAs($support)->patchJson('/support/tickets/'.$ticket->id.'/status', ['status' => 'in_progress', 'priority' => 'urgent', 'assigned_to' => $support->id])->assertOk();
+        $this->assertSame('urgent', $ticket->fresh()->priority);
+
+        $this->postJson('/support/tickets/'.$ticket->id.'/messages', ['body' => 'Private staff note', 'is_internal_note' => 1])->assertOk();
+        $this->get('/support/tickets/'.$ticket->id)->assertOk()->assertSee('Private staff note');
+        $this->actingAs($seller)->get('/support/tickets/'.$ticket->id)->assertOk()->assertDontSee('Private staff note');
+
+        $this->actingAs($support)->patchJson('/support/tickets/'.$ticket->id.'/status', ['status' => 'resolved'])->assertOk();
         $this->assertNotNull($ticket->fresh()->resolved_at);
-        $this->actingAs($seller)->post('/tickets/'.$ticket->id.'/replies', ['body' => 'Still need help'])->assertRedirect();
-        $this->assertSame('open', $ticket->fresh()->status);
+
+        $this->actingAs($seller)->postJson('/support/tickets/'.$ticket->id.'/messages', ['body' => 'Still need help'])->assertOk();
+        $this->assertSame('in_progress', $ticket->fresh()->status);
         $this->assertNull($ticket->fresh()->resolved_at);
     }
     public function test_disabled_accounts_cannot_log_in(): void

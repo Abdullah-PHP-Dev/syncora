@@ -10,7 +10,31 @@
       </p>
       <div class="hc-search input-group">
         <span class="input-group-text bg-white border-0"><i class="bx bx-search"></i></span>
-        <input type="text" v-model="q" @input="debouncedSearch" class="form-control border-0" placeholder="Search the Help Center...">
+        <input type="text" v-model="q" @input="debouncedSearch" @keyup.enter="askAi" class="form-control border-0" placeholder="Search the Help Center...">
+        <button type="button" class="btn btn-light" :disabled="!q.trim() || asking" @click="askAi">
+          <span v-if="asking" class="spinner-border spinner-border-sm"></span>
+          <template v-else><i class="bx bx-bulb"></i> Ask AI</template>
+        </button>
+      </div>
+    </div>
+
+    <div v-if="aiResult" class="card mb-3 hc-ai-card">
+      <div class="card-body">
+        <template v-if="aiResult.status === 'suggested'">
+          <div class="d-flex align-items-start gap-2">
+            <i class="bx bx-bulb text-primary fs-4"></i>
+            <div>
+              <div class="fw-semibold mb-1">{{ aiResult.matched_question }}</div>
+              <div v-html="plainTextToHtml(aiResult.answer)"></div>
+            </div>
+          </div>
+        </template>
+        <template v-else>
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <span class="text-muted"><i class="bx bx-search-alt me-1"></i> We couldn't find a confident answer to that in the Help Center.</span>
+            <a :href="escalateUrl" class="btn btn-sm btn-primary">Open a support ticket</a>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -36,7 +60,14 @@
                   </button>
                 </h2>
                 <div class="accordion-collapse collapse" :class="{ show: openId === faq.id }">
-                  <div class="accordion-body" v-html="nl2br(faq.answer)"></div>
+                  <!-- faq.answer is already real, Purifier-sanitized HTML
+                       (every save wraps it in <p>/<br> etc.) - rendered
+                       directly, not escaped-then-nl2br'd (that combination
+                       double-escaped real tags into literally visible
+                       "<p>...</p>" text - see plainTextToHtml()'s docblock
+                       for why that helper is for a different, genuinely
+                       plain-text field instead). -->
+                  <div class="accordion-body" v-html="faq.answer"></div>
                 </div>
               </div>
             </div>
@@ -63,6 +94,7 @@ const props = defineProps({
   initialCategories: { type: Array, default: () => [] },
   fetchUrl: { type: String, required: true },
   ticketsCreateUrl: { type: String, required: true },
+  askAiUrl: { type: String, required: true },
 });
 
 const faqs = ref(props.initialFaqs);
@@ -71,6 +103,21 @@ const loading = ref(false);
 const q = ref('');
 const activeCategory = ref('');
 const openId = ref(null);
+const asking = ref(false);
+const aiResult = ref(null);
+
+// Prefills the ticket form with the exact question that couldn't be
+// confidently answered - TicketCreateForm.vue reads these as initial
+// values, see its own props.
+const escalateUrl = computed(() => {
+  const question = q.value.trim();
+  const params = new URLSearchParams({
+    subject: question.length > 200 ? question.slice(0, 197) + '...' : question,
+    body: question,
+  });
+
+  return `${props.ticketsCreateUrl}?${params.toString()}`;
+});
 
 const grouped = computed(() => {
   const out = {};
@@ -86,7 +133,14 @@ function toggle(id) {
   openId.value = openId.value === id ? null : id;
 }
 
-function nl2br(text) {
+// Only ever safe to use on a field guaranteed to be plain text, never on
+// faq.answer (real HTML - see the accordion body's own comment). AiCopilot
+// findBestMatch()/findBestSystemMatch()'s suggested_reply (what aiResult.answer
+// is) is converted to plain text server-side specifically because it's also
+// sent verbatim to a real customer/dropped into a human agent's reply box
+// elsewhere in the app - this only re-adds readable line breaks for display
+// here, it never needs to interpret real markup.
+function plainTextToHtml(text) {
   const escaped = (text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   return escaped.replace(/\n/g, '<br>');
 }
@@ -104,6 +158,7 @@ function selectCategory(id) {
 
 async function search() {
   loading.value = true;
+  aiResult.value = null;
   try {
     const { data } = await window.axios.get(props.fetchUrl, {
       params: { q: q.value || undefined, category: activeCategory.value || undefined },
@@ -112,6 +167,22 @@ async function search() {
     categories.value = data.categories;
   } finally {
     loading.value = false;
+  }
+}
+
+async function askAi() {
+  const question = q.value.trim();
+  if (!question) return;
+
+  asking.value = true;
+  aiResult.value = null;
+  try {
+    const { data } = await window.axios.post(props.askAiUrl, { question });
+    aiResult.value = data;
+  } catch (error) {
+    aiResult.value = { status: 'no_match' };
+  } finally {
+    asking.value = false;
   }
 }
 </script>
