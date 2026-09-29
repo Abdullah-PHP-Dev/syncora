@@ -102,7 +102,7 @@ class AdCampaignController extends Controller
         // YouTube Demand Gen campaigns run through the same Google Ads
         // customer as Search campaigns - there's no separate "YouTube Ads
         // account" - so account-linked status is read off the 'google' row.
-        $account = $this->adAccountModel->where('has_ads_permission', true)->where('platform', $platform === 'youtube' ? 'google' : $platform)->first();
+        $account = $this->adAccountModel->where('user_id', Auth::id())->where('has_ads_permission', true)->where('platform', $platform === 'youtube' ? 'google' : $platform)->with('adDetails')->first();
         $countries = $this->countryModel->all();
         $platformPages = $this->platformPages($platform);
 
@@ -169,7 +169,7 @@ class AdCampaignController extends Controller
      */
     public function edit($platform, string $id)
     {
-        $account = $this->adAccountModel->where('has_ads_permission', true)->where('platform', $platform === 'youtube' ? 'google' : $platform)->first();
+        $account = $this->adAccountModel->where('user_id', Auth::id())->where('has_ads_permission', true)->where('platform', $platform === 'youtube' ? 'google' : $platform)->with('adDetails')->first();
         $countries = $this->countryModel->all();
         $campaign = $this->adCampaignModel->with(['socialAccount', 'adGroups', 'adGroups.creatives', 'adGroups.creatives.media', 'ads'])->find($id);
         $platformPages = $this->platformPages($platform);
