@@ -17,10 +17,8 @@
 
         </a>
 
-        <button type="button"
-                class="admin-sidebar-collapse layout-menu-toggle"
-                aria-label="{{ __('admin.navbar.toggle_sidebar') }}"
-                title="{{ __('admin.sidebar.collapse_sidebar') }}">
+        <button type="button" class="admin-sidebar-collapse layout-menu-toggle"
+            aria-label="{{ __('admin.navbar.toggle_sidebar') }}" title="{{ __('admin.sidebar.collapse_sidebar') }}">
 
             <i class="bx bx-chevron-left"></i>
 
@@ -37,10 +35,10 @@
         <ul class="menu-inner admin-sidebar-menu">
 
             {{-- DASHBOARD --}}
-            <li class="menu-item {{ request()->routeIs('dashboard') || request()->routeIs('crm-dashboard') ? 'active' : '' }}">
+            <li
+                class="menu-item {{ request()->routeIs('dashboard') || request()->routeIs('crm-dashboard') ? 'active' : '' }}">
 
-                <a href="{{ route('dashboard') }}"
-                   class="menu-link">
+                <a href="{{ route('dashboard') }}" class="menu-link">
 
                     <i class="menu-icon tf-icons bx bx-grid-alt"></i>
 
@@ -60,21 +58,19 @@
 
 
             {{-- MARKETING --}}
-            <li class="menu-item
-                {{
-                    (
-                        request()->routeIs('admin.ads.*') ||
-                        request()->routeIs('admin.posts.*') ||
-                        request()->routeIs('admin.chats.*') ||
-                        request()->routeIs('admin.comments.*') ||
-                        request()->routeIs('admin.email.*') ||
-                        request()->routeIs('admin.knowledge-base.*') ||
-                        request()->routeIs('admin.ai-copilot.*')
-                    ) ? 'active open' : ''
-                }}">
+            <li
+                class="menu-item
+                {{ request()->routeIs('admin.ads.*') ||
+                request()->routeIs('admin.posts.*') ||
+                request()->routeIs('admin.chats.*') ||
+                request()->routeIs('admin.comments.*') ||
+                request()->routeIs('admin.email.*') ||
+                request()->routeIs('admin.knowledge-base.*') ||
+                request()->routeIs('admin.ai-copilot.*')
+                    ? 'active open'
+                    : '' }}">
 
-                <a href="javascript:void(0)"
-                   class="menu-link menu-toggle">
+                <a href="javascript:void(0)" class="menu-link menu-toggle">
 
                     <i class="menu-icon tf-icons bx bx-broadcast"></i>
 
@@ -87,36 +83,31 @@
                 <ul class="menu-sub">
 
                     <li class="menu-item {{ request()->routeIs('admin.ads.*') ? 'active' : '' }}">
-                        <a href="{{ route('admin.ads.dashboard') }}"
-                           class="menu-link">
+                        <a href="{{ route('admin.ads.dashboard') }}" class="menu-link">
                             {{ __('admin.marketing_tools.ads.header') }}
                         </a>
                     </li>
 
                     <li class="menu-item {{ request()->routeIs('admin.posts.*') ? 'active' : '' }}">
-                        <a href="{{ route('admin.posts.dashboard') }}"
-                           class="menu-link">
+                        <a href="{{ route('admin.posts.dashboard') }}" class="menu-link">
                             {{ __('admin.marketing_tools.posts.header') }}
                         </a>
                     </li>
 
                     <li class="menu-item {{ request()->routeIs('admin.chats.*') ? 'active' : '' }}">
-                        <a href="{{ route('admin.chats.dashboard') }}"
-                           class="menu-link">
+                        <a href="{{ route('admin.chats.dashboard') }}" class="menu-link">
                             {{ __('admin.marketing_tools.chats.header') }}
                         </a>
                     </li>
 
                     <li class="menu-item {{ request()->routeIs('admin.comments.*') ? 'active' : '' }}">
-                        <a href="{{ route('admin.comments.dashboard') }}"
-                           class="menu-link">
+                        <a href="{{ route('admin.comments.dashboard') }}" class="menu-link">
                             {{ __('admin.marketing_tools.comments.header') }}
                         </a>
                     </li>
 
                     <li class="menu-item {{ request()->routeIs('admin.email.*') ? 'active' : '' }}">
-                        <a href="{{ route('admin.email.dashboard') }}"
-                           class="menu-link">
+                        <a href="{{ route('admin.email.dashboard') }}" class="menu-link">
                             {{ __('admin.marketing_tools.email.header') }}
                         </a>
                     </li>
@@ -125,8 +116,7 @@
                          customer-facing answers (Phase 3), distinct from
                          the read-only System Help Center below. --}}
                     <li class="menu-item {{ request()->routeIs('admin.knowledge-base.*') ? 'active' : '' }}">
-                        <a href="{{ route('admin.knowledge-base.index') }}"
-                           class="menu-link">
+                        <a href="{{ route('admin.knowledge-base.index') }}" class="menu-link">
                             {{ __('admin.marketing_tools.knowledge_base.header') }}
                         </a>
                     </li>
@@ -139,29 +129,27 @@
                          theme's menu styling isn't confirmed to support a
                          third nesting level. --}}
                     <li class="menu-item {{ request()->routeIs('admin.ai-copilot.settings.*') ? 'active' : '' }}">
-                        <a href="{{ route('admin.ai-copilot.settings.index') }}"
-                           class="menu-link">
+                        <a href="{{ route('admin.ai-copilot.settings.index') }}" class="menu-link">
                             {{ __('admin.marketing_tools.ai_copilot.header') }}
                         </a>
                     </li>
 
-                    <li class="menu-item {{ request()->routeIs('admin.ai-copilot.business-profile.*') ? 'active' : '' }}">
-                        <a href="{{ route('admin.ai-copilot.business-profile.edit') }}"
-                           class="menu-link">
+                    <li
+                        class="menu-item {{ request()->routeIs('admin.ai-copilot.business-profile.*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.ai-copilot.business-profile.edit') }}" class="menu-link">
                             {{ __('admin.marketing_tools.business_profile.header') }}
                         </a>
                     </li>
 
-                    <li class="menu-item {{ request()->routeIs('admin.ai-copilot.knowledge-gaps.*') ? 'active' : '' }}">
-                        <a href="{{ route('admin.ai-copilot.knowledge-gaps.index') }}"
-                           class="menu-link">
+                    <li
+                        class="menu-item {{ request()->routeIs('admin.ai-copilot.knowledge-gaps.*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.ai-copilot.knowledge-gaps.index') }}" class="menu-link">
                             {{ __('admin.marketing_tools.knowledge_gaps.header') }}
                         </a>
                     </li>
 
                     <li class="menu-item {{ request()->routeIs('admin.ai-copilot.analytics.*') ? 'active' : '' }}">
-                        <a href="{{ route('admin.ai-copilot.analytics.index') }}"
-                           class="menu-link">
+                        <a href="{{ route('admin.ai-copilot.analytics.index') }}" class="menu-link">
                             {{ __('admin.marketing_tools.ai_copilot_analytics.header') }}
                         </a>
                     </li>
@@ -171,22 +159,47 @@
             </li>
 
 
+
+
+
+            {{-- API --}}
+            <li class="menu-item {{ request()->routeIs('admin.apis.*') ? 'active' : '' }}">
+
+                <a href="{{ route('admin.apis.index') }}" class="menu-link">
+
+                    <i class="menu-icon tf-icons bx bx-code-alt"></i>
+
+                    <span>
+                        {{ __('admin.api.header') }}
+                    </span>
+
+                </a>
+
+            </li>
+
+
+            {{-- =================================================
+                 SUPPORT
+            ================================================== --}}
+            <li class="admin-sidebar-section">
+                <span>{{ __('admin.sidebar.support') }}</span>
+            </li>
+
+
             {{-- SUPPORT: Help Center + Tickets for every seller, plus
                  System FAQ management for admin-role users only. Outside
                  the subscription-required tier server-side (see
                  routes/web.php) - the link still only needs to render,
                  not re-enforce that. --}}
-            <li class="menu-item
-                {{
-                    (
-                        request()->routeIs('admin.help-center.*') ||
-                        request()->routeIs('admin.tickets.*') ||
-                        request()->routeIs('admin.faqs.*')
-                    ) ? 'active open' : ''
-                }}">
+            <li
+                class="menu-item
+                {{ request()->routeIs('admin.help-center.*') ||
+                request()->routeIs('admin.tickets.*') ||
+                request()->routeIs('admin.faqs.*')
+                    ? 'active open'
+                    : '' }}">
 
-                <a href="javascript:void(0)"
-                   class="menu-link menu-toggle">
+                <a href="javascript:void(0)" class="menu-link menu-toggle">
 
                     <i class="menu-icon tf-icons bx bx-support"></i>
 
@@ -221,199 +234,6 @@
                 </ul>
 
             </li>
-
-
-            {{-- API --}}
-            <li class="menu-item {{ request()->routeIs('admin.apis.*') ? 'active' : '' }}">
-
-                <a href="{{ route('admin.apis.index') }}"
-                   class="menu-link">
-
-                    <i class="menu-icon tf-icons bx bx-code-alt"></i>
-
-                    <span>
-                        {{ __('admin.api.header') }}
-                    </span>
-
-                </a>
-
-            </li>
-
-
-            {{-- =================================================
-                 APPLICATIONS
-            ================================================== --}}
-            <li class="admin-sidebar-section">
-                <span>{{ __('admin.sidebar.applications') }}</span>
-            </li>
-
-
-            <li class="menu-item">
-                <a href="#" class="menu-link">
-                    <i class="menu-icon tf-icons bx bx-envelope"></i>
-                    <span>{{ __('admin.sidebar.email') }}</span>
-                </a>
-            </li>
-
-
-            <li class="menu-item">
-                <a href="#" class="menu-link">
-                    <i class="menu-icon tf-icons bx bx-message-rounded"></i>
-                    <span>{{ __('admin.sidebar.chat') }}</span>
-                </a>
-            </li>
-
-
-            <li class="menu-item">
-                <a href="#" class="menu-link">
-                    <i class="menu-icon tf-icons bx bx-calendar"></i>
-                    <span>{{ __('admin.sidebar.calendar') }}</span>
-                </a>
-            </li>
-
-
-            <li class="menu-item">
-                <a href="#" class="menu-link">
-                    <i class="menu-icon tf-icons bx bx-task"></i>
-                    <span>{{ __('admin.sidebar.kanban') }}</span>
-                </a>
-            </li>
-
-
-            {{-- =================================================
-                 ACCOUNT
-            ================================================== --}}
-            <li class="admin-sidebar-section">
-                <span>{{ __('admin.sidebar.account') }}</span>
-            </li>
-
-
-            <li class="menu-item">
-
-                <a href="javascript:void(0)"
-                   class="menu-link menu-toggle">
-
-                    <i class="menu-icon tf-icons bx bx-user-circle"></i>
-
-                    <span>{{ __('admin.sidebar.account_settings') }}</span>
-
-                </a>
-
-                <ul class="menu-sub">
-
-                    <li class="menu-item">
-                        <a href="#" class="menu-link">
-                            {{ __('admin.sidebar.account') }}
-                        </a>
-                    </li>
-
-                    <li class="menu-item">
-                        <a href="#" class="menu-link">
-                            {{ __('admin.sidebar.notifications') }}
-                        </a>
-                    </li>
-
-                    <li class="menu-item">
-                        <a href="#" class="menu-link">
-                            {{ __('admin.sidebar.connections') }}
-                        </a>
-                    </li>
-        </ul>
-
-            </li>
-
-
-            <li class="menu-item">
-
-                <a href="javascript:void(0)"
-                   class="menu-link menu-toggle">
-
-                    <i class="menu-icon tf-icons bx bx-lock-alt"></i>
-
-                    <span>{{ __('admin.sidebar.authentications') }}</span>
-
-                </a>
-
-                <ul class="menu-sub">
-
-                    <li class="menu-item">
-                        <a href="#" class="menu-link">
-                            {{ __('admin.sidebar.login') }}
-                        </a>
-                    </li>
-
-                    <li class="menu-item">
-                        <a href="#" class="menu-link">
-                            {{ __('admin.sidebar.register') }}
-                        </a>
-                    </li>
-
-                    <li class="menu-item">
-                        <a href="#" class="menu-link">
-                            {{ __('admin.sidebar.forgot_password') }}
-                        </a>
-                    </li>
-        </ul>
-
-            </li>
-
-
-            {{-- =================================================
-                 DATA
-            ================================================== --}}
-            <li class="admin-sidebar-section">
-                <span>{{ __('admin.sidebar.data') }}</span>
-            </li>
-
-
-            <li class="menu-item">
-                <a href="#" class="menu-link">
-                    <i class="menu-icon tf-icons bx bx-table"></i>
-                    <span>{{ __('admin.sidebar.tables') }}</span>
-                </a>
-            </li>
-
-
-            {{-- =================================================
-                 SUPPORT
-            ================================================== --}}
-            <li class="admin-sidebar-section">
-                <span>{{ __('admin.sidebar.support') }}</span>
-            </li>
-
-
-            <li class="menu-item">
-
-                <a href="https://github.com/"
-                   target="_blank"
-                   class="menu-link">
-
-                    <i class="menu-icon tf-icons bx bx-support"></i>
-
-                    <span>{{ __('admin.sidebar.support') }}</span>
-
-                    <i class="bx bx-link-external admin-sidebar-external"></i>
-
-                </a>
-
-            </li>
-
-
-            <li class="menu-item">
-
-                <a href="https://docs.example.com"
-                   target="_blank"
-                   class="menu-link">
-
-                    <i class="menu-icon tf-icons bx bx-file"></i>
-
-                    <span>{{ __('admin.sidebar.documentation') }}</span>
-
-                    <i class="bx bx-link-external admin-sidebar-external"></i>
-
-                </a>
-
-            </li>
         </ul>
 
     </div>
@@ -424,8 +244,7 @@
     ========================================================== --}}
     <div class="admin-sidebar-footer">
 
-        <a href="{{ url('subscription/select') }}"
-           class="admin-sidebar-subscription">
+        <a href="{{ url('subscription/select') }}" class="admin-sidebar-subscription">
 
             <i class="bx bx-crown"></i>
 
