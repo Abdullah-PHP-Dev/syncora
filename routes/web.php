@@ -570,6 +570,10 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::put('knowledge-base/{faq}', [KnowledgeBaseController::class, 'update'])->name('knowledge-base.update');
 				Route::delete('knowledge-base/{faq}', [KnowledgeBaseController::class, 'destroy'])->name('knowledge-base.destroy');
 				Route::post('knowledge-base/categories', [KnowledgeBaseController::class, 'storeCategory'])->name('knowledge-base.categories.store');
+				Route::get('knowledge-base/export', [KnowledgeBaseController::class, 'export'])->name('knowledge-base.export');
+				Route::post('knowledge-base/import', [KnowledgeBaseController::class, 'import'])->name('knowledge-base.import');
+				Route::post('knowledge-base/bulk', [KnowledgeBaseController::class, 'bulk'])->name('knowledge-base.bulk');
+				Route::post('knowledge-base/improve', [KnowledgeBaseController::class, 'improve'])->name('knowledge-base.improve');
 
 
 				// AI COPILOT SETTINGS - per-seller on/off, auto-reply,

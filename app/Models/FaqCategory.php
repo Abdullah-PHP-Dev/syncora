@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class FaqCategory extends Model
 {
     protected $fillable = [
-        'user_id', 'name', 'slug', 'description', 'sort_order',
+        'user_id', 'name', 'slug', 'description', 'icon', 'sort_order',
     ];
 
     public function user(): BelongsTo

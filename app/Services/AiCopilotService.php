@@ -284,7 +284,7 @@ class AiCopilotService
         ?int $autoThreshold = null,
         ?int $suggestedThreshold = null,
     ): array {
-        $candidates = Faq::ownedBy($sellerUserId)->published()->whereNotNull('embedding')->get();
+        $candidates = Faq::ownedBy($sellerUserId)->published()->where('copilot_enabled', true)->whereNotNull('embedding')->get();
 
         return $this->scoreAgainstCandidates(
             $customerMessage,

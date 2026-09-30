@@ -279,6 +279,29 @@ return [
         'documentation' => 'Documentation',
         'subscription' => 'Subscription',
         'manage_your_plan' => 'Manage your plan',
+
+        // Seller sidebar navigation - short labels kept separate from the
+        // page headers in marketing_tools.* / support.* so renaming a menu
+        // entry never changes a page title.
+        'marketing' => 'Marketing',
+        'engagement' => 'Engagement',
+        'ai_assistant' => 'AI Assistant',
+        'administration' => 'Administration',
+        'ads' => 'Ads Manager',
+        'posts' => 'Content Publishing',
+        'email_marketing' => 'Email Marketing',
+        'inbox' => 'Inbox',
+        'comments' => 'Comments',
+        'ai_copilot' => 'AI Copilot',
+        'copilot_settings' => 'Settings',
+        'business_profile' => 'Business Profile',
+        'knowledge_base' => 'Knowledge Base',
+        'knowledge_gaps' => 'Knowledge Gaps',
+        'analytics' => 'Analytics',
+        'help_center' => 'Help Center',
+        'tickets' => 'Support Tickets',
+        'system_faq' => 'System FAQ',
+        'api' => 'API Integrations',
     ],
 
     // admin/posts/dashboard.blade.php - kept separate from

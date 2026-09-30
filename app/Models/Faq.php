@@ -23,13 +23,14 @@ class Faq extends Model
 
     protected $fillable = [
         'faq_category_id', 'user_id', 'question', 'answer', 'language',
-        'status', 'tags', 'helpful_count', 'unhelpful_count',
+        'status', 'copilot_enabled', 'tags', 'helpful_count', 'unhelpful_count',
         'embedding', 'embedding_model', 'source', 'source_key',
     ];
 
     protected $casts = [
-        'tags'      => 'array',
-        'embedding' => 'array',
+        'tags'            => 'array',
+        'embedding'       => 'array',
+        'copilot_enabled' => 'boolean',
     ];
 
     // A 3072-float vector per row is useless to (and needlessly bloats)
