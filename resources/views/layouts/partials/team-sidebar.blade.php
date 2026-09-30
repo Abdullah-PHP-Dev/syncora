@@ -44,6 +44,7 @@
                     $links[] = ['admin.faqs.index', 'FAQ Management', 'bx-help-circle', 'admin.faqs.*'];
                     $links[] = ['employees.index', 'Employees', 'bx-user-plus', 'employees.*'];
                     $links[] = ['plans.index', 'Subscription plans', 'bx-crown', 'plans.*'];
+                    $links[] = ['admin.apis.index', 'API Integrations', 'bx-code-alt', 'admin.apis.*'];
                 }
             @endphp
             @foreach($links as [$route, $label, $icon, $match])

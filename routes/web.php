@@ -255,6 +255,13 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::put('faqs/{faq}', [FaqController::class, 'update'])->name('faqs.update');
 				Route::delete('faqs/{faq}', [FaqController::class, 'destroy'])->name('faqs.destroy');
 				Route::post('faqs/categories', [FaqController::class, 'storeCategory'])->name('faqs.categories.store');
+
+				// Platform-wide API credentials (admin_settings - Gemini key,
+				// every platform's client id/secret). Was in the seller +
+				// subscription group: any subscribed seller could read/change
+				// these global secrets, while admins (team members) were
+				// blocked by EnsureSeller. Route names unchanged (admin.apis.*).
+				Route::resource('/apis', AdminAPIController::class);
 			});
 
 		/*
@@ -668,7 +675,6 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 
 				// SYSTEM
-				Route::resource('/apis', AdminAPIController::class);
 				Route::resource('/profiles', ProfileController::class);
 			});
 	});

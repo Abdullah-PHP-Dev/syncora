@@ -240,30 +240,6 @@
                 </a>
             </li>
 
-
-            {{-- =================================================
-                 ADMINISTRATION - admin-role users only
-            ================================================== --}}
-            @if (Auth::user()?->hasAnyRole(['admin', 'administrator']))
-                <li class="admin-sidebar-section">
-                    <span>{{ __('admin.sidebar.administration') }}</span>
-                </li>
-
-                <li class="menu-item {{ request()->routeIs('admin.faqs.*') ? 'active' : '' }}">
-                    <a href="{{ route('admin.faqs.index') }}" class="menu-link">
-                        <i class="menu-icon tf-icons bx bx-list-check"></i>
-                        <span>{{ __('admin.sidebar.system_faq') }}</span>
-                    </a>
-                </li>
-
-                <li class="menu-item {{ request()->routeIs('admin.apis.*') ? 'active' : '' }}">
-                    <a href="{{ route('admin.apis.index') }}" class="menu-link">
-                        <i class="menu-icon tf-icons bx bx-code-alt"></i>
-                        <span>{{ __('admin.sidebar.api') }}</span>
-                    </a>
-                </li>
-            @endif
-
         </ul>
 
     </div>
