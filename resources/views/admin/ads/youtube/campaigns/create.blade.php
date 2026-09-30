@@ -306,6 +306,7 @@
                                                     <p>Square logo shown alongside the video ad (max 5MB).</p>
                                                     <input type="file" name="media[]" id="mediaInput" hidden accept="image/*">
                                                     <button type="button" class="btn btn-primary" onclick="document.getElementById('mediaInput').click()">Upload Logo</button>
+                                                    @include('admin.media-gallery.partials.attach', ['platform' => 'youtube'])
                                                     <p class="error-message error-media"></p>
                                                 </div>
                                             </div>

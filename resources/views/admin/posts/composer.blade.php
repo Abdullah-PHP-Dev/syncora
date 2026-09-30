@@ -14,6 +14,7 @@
             store-url="{{ route('admin.posts.store') }}"
             manage-accounts-url="{{ route('admin.posts.create') }}"
             redirect-url="{{ route('admin.posts.dashboard') }}"
+            :gallery-urls='@json(['index' => route('admin.media-gallery.index'), 'store' => route('admin.media-gallery.store')])'
     ></post-composer>
 
 @stop

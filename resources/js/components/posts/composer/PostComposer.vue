@@ -54,6 +54,8 @@
 
         <media-grid
             :items="mediaItems"
+            :gallery-urls="galleryUrls"
+            :platforms="selectedPlatforms"
             @update:items="mediaItems = $event"
             @update:useAsFirstComment="useAsFirstComment = $event" />
 
@@ -157,6 +159,12 @@ const props = defineProps({
   redirectUrl: {
     type: String,
     default: null
+  },
+
+  // Media Gallery endpoints (index, store) for MediaGrid's picker.
+  galleryUrls: {
+    type: Object,
+    default: null
   }
 
 });
@@ -169,6 +177,9 @@ const selectedAccountIds = ref(props.accounts.map(account => account.id));
 const title = ref('');
 const description = ref('');
 const mediaItems = ref([]);
+const selectedPlatforms = computed(() => [...new Set(
+  props.accounts.filter(account => selectedAccountIds.value.includes(account.id)).map(account => account.platform)
+)]);
 const useAsFirstComment = ref(false);
 const showEmojiPicker = ref(false);
 const quickEmojis = ['😀','🎉','🚀','🔥','❤️','👏','✨','📈','💡','🙌'];
@@ -305,7 +316,12 @@ function buildFormData(mode) {
     grouped[platform].forEach(id => formData.append(`${platform}[pages][]`, id));
   });
 
-  mediaItems.value.forEach(item => formData.append('media[]', item.file));
+  // Local picks are uploaded as files; Media Gallery picks are sent by id
+  // and reuse the gallery's stored file server-side.
+  mediaItems.value.forEach(item => {
+    if (item.assetId) formData.append('media_asset_ids[]', item.assetId);
+    else formData.append('media[]', item.file);
+  });
 
   if (mode === 'schedule') {
     formData.append('schedule_mode', '1');

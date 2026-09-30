@@ -645,6 +645,7 @@
                                                     onclick="document.getElementById('mediaInput').click()">
                                                     Upload Media
                                                 </button>
+                                                @include('admin.media-gallery.partials.attach', ['platform' => $platform, 'thumbnailTarget' => '#thumbnailInput'])
                                                 <p class="error-message error-media"></p>
                                             </div>
 

@@ -2448,6 +2448,22 @@
     list-style: none;
 }
 
+/* Sneat sizes every top-level row to the full menu width
+   (.menu-vertical .menu-inner > .menu-item { inline-size: var(--bs-menu-width) },
+   260px), wider than this padded list (239px) - rows were clipped on the
+   right, cutting off the active background's rounded corner and any
+   trailing chevron. Same specificity, loaded later, so this wins. */
+.menu-vertical .admin-sidebar-menu > .menu-item {
+    inline-size: auto;
+    align-self: stretch;
+}
+
+/* Sneat's active-row edge bar sat in the clipped 21px until rows were
+   fitted above - it was never part of this sidebar's design, keep it off. */
+.layout-wrapper:not(.layout-horizontal) .menu-vertical .admin-sidebar-menu > .menu-item.active::before {
+    content: none;
+}
+
 
 /* =========================================================
    MENU LINK
@@ -2613,6 +2629,253 @@
     color: #a1a1aa;
 
     font-size: 16px;
+}
+
+
+/* =========================================================
+   COLLAPSIBLE NAV GROUPS (Ads Manager, Content Publishing)
+   Parent label links to the group's overview; the chevron button
+   expands/collapses the platform list. Deliberately not Sneat's
+   .menu-toggle/.menu-sub, whose JS swallows the parent link click.
+========================================================= */
+
+.admin-nav-group {
+    position: relative;
+}
+
+.admin-sidebar-menu > .admin-nav-group > .menu-link {
+    padding-right: 40px;
+}
+
+.admin-nav-chevron {
+    position: absolute;
+    top: 5px;
+    right: 21px; /* 16px Sneat .menu-link side margin + 5px inset */
+
+    width: 32px;
+    height: 32px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 0;
+
+    border: 0;
+    border-radius: 7px;
+
+    background: transparent;
+
+    color: #a1a1aa;
+
+    font-size: 18px;
+
+    cursor: pointer;
+
+    transition:
+            background .18s ease,
+            color .18s ease;
+}
+
+.admin-nav-chevron:hover {
+    background: rgba(24, 24, 27, .06);
+
+    color: #52525b;
+}
+
+.admin-nav-chevron:focus-visible {
+    outline: 2px solid #a78bfa;
+    outline-offset: 1px;
+}
+
+.admin-nav-chevron i {
+    transition: transform .25s ease;
+}
+
+.admin-nav-group.open > .admin-nav-chevron i {
+    transform: rotate(180deg);
+}
+
+.admin-nav-group.active > .admin-nav-chevron {
+    color: #7c3aed;
+}
+
+/* Height animation via grid rows: 0fr -> 1fr animates to the list's
+   natural height without hard-coding a max-height. */
+.admin-nav-collapse {
+    display: grid;
+    grid-template-rows: 0fr;
+
+    transition: grid-template-rows .25s ease;
+}
+
+.admin-nav-group.open > .admin-nav-collapse {
+    grid-template-rows: 1fr;
+}
+
+.admin-nav-group.no-anim > .admin-nav-collapse,
+.admin-nav-group.no-anim > .admin-nav-chevron i,
+.admin-nav-group.no-anim .admin-nav-sub {
+    transition: none;
+}
+
+.admin-nav-sub {
+    position: relative;
+
+    min-height: 0;
+    overflow: hidden;
+
+    margin: 0;
+    padding: 0 16px 0 31px; /* right inset matches the parent .menu-link's 16px margin */
+
+    list-style: none;
+
+    opacity: 0;
+
+    transition:
+            opacity .2s ease,
+            padding .25s ease;
+}
+
+.admin-nav-group.open .admin-nav-sub {
+    padding-top: 4px;
+    padding-bottom: 5px;
+
+    opacity: 1;
+}
+
+.admin-nav-sub::before {
+    content: "";
+
+    position: absolute;
+
+    top: 6px;
+    bottom: 8px;
+    left: 20px;
+
+    width: 1px;
+
+    background: #e4e4e7;
+}
+
+.admin-nav-sub li {
+    margin: 1px 0;
+}
+
+.admin-nav-sub a {
+    position: relative;
+
+    min-height: 32px;
+
+    display: flex;
+    align-items: center;
+
+    gap: 9px;
+
+    padding: 5px 10px;
+
+    border-radius: 7px;
+
+    color: #71717a;
+
+    font-size: 12.5px;
+    font-weight: 400;
+
+    text-decoration: none;
+
+    transition:
+            background .18s ease,
+            color .18s ease;
+}
+
+.admin-nav-sub a i {
+    width: 16px;
+
+    flex-shrink: 0;
+
+    color: #a1a1aa;
+
+    font-size: 15px;
+    text-align: center;
+
+    transition: color .18s ease;
+}
+
+.admin-nav-sub a:hover {
+    background: #f1f5f9;
+
+    color: #18181b;
+}
+
+.admin-nav-sub a:hover i {
+    color: #71717a;
+}
+
+.admin-nav-sub li.active > a {
+    background: #f5f3ff;
+
+    color: #6d28d9;
+
+    font-weight: 600;
+}
+
+.admin-nav-sub li.active > a i {
+    color: #7c3aed;
+}
+
+/* Dot on the guide line next to the current page. */
+.admin-nav-sub li.active > a::before {
+    content: "";
+
+    position: absolute;
+
+    left: -14px;
+    top: 50%;
+
+    width: 7px;
+    height: 7px;
+
+    margin-top: -3.5px;
+
+    border-radius: 50%;
+
+    background: #7c3aed;
+
+    box-shadow: 0 0 0 3px #fff;
+}
+
+.layout-menu-collapsed .admin-nav-chevron,
+.layout-menu-collapsed .admin-nav-collapse {
+    display: none;
+}
+
+.layout-menu-collapsed .admin-sidebar-menu > .admin-nav-group > .menu-link {
+    padding-right: 8px;
+}
+
+[dir="rtl"] .admin-sidebar-menu > .admin-nav-group > .menu-link {
+    padding-right: 11px;
+    padding-left: 40px;
+}
+
+[dir="rtl"] .admin-nav-chevron {
+    right: auto;
+    left: 21px;
+}
+
+[dir="rtl"] .admin-nav-sub {
+    padding-left: 16px;
+    padding-right: 31px;
+}
+
+[dir="rtl"] .admin-nav-sub::before {
+    left: auto;
+    right: 20px;
+}
+
+[dir="rtl"] .admin-nav-sub li.active > a::before {
+    left: auto;
+    right: -14px;
 }
 
 

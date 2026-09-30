@@ -33,6 +33,7 @@ use App\Http\Controllers\Admin\FaqController;
 use App\Http\Controllers\Admin\HelpCenterController;
 use App\Http\Controllers\Admin\TicketController;
 use App\Http\Controllers\Admin\KnowledgeBaseController;
+use App\Http\Controllers\Admin\MediaGalleryController;
 use App\Http\Controllers\Admin\CopilotController;
 use App\Http\Controllers\Admin\AiCopilotSettingController;
 use App\Http\Controllers\Admin\BusinessProfileController;
@@ -302,6 +303,14 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 		Route::middleware(['seller', 'subscription'])
 			->name('admin.')
 			->group(function () {
+				// MEDIA GALLERY - seller's reusable images/videos, shared by
+				// the posts composer and the ads campaign forms. The raw
+				// file stream (media-gallery.file) is registered outside
+				// the localized group at the bottom of this file.
+				Route::get('media-gallery', [MediaGalleryController::class, 'index'])->name('media-gallery.index');
+				Route::post('media-gallery', [MediaGalleryController::class, 'store'])->name('media-gallery.store');
+				Route::delete('media-gallery/{mediaAsset}', [MediaGalleryController::class, 'destroy'])->name('media-gallery.destroy');
+
 				// ADS
 				Route::resource('/platform/ads', AdController::class);
 				Route::get('ads/dashboard', [AdController::class, 'dashboard'])
@@ -671,5 +680,12 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 // never gains/loses a locale prefix depending on app config, since these
 // links are baked into emails that may have already been sent. See
 // EmailUnsubscribeController and the CSRF exemption in bootstrap/app.php.
+// Media Gallery file stream - outside the LaravelLocalization group on
+// purpose: LocaleCookieRedirect calls withCookie() on every response, which
+// Symfony's StreamedResponse doesn't have. See MediaGalleryController::file().
+Route::middleware(['auth', 'active.user', 'seller'])
+	->get('media-gallery/{mediaAsset}/file', [MediaGalleryController::class, 'file'])
+	->name('admin.media-gallery.file');
+
 Route::get('/email/unsubscribe/{token}', [EmailUnsubscribeController::class, 'show'])->name('email.unsubscribe');
 Route::post('/email/unsubscribe/{token}', [EmailUnsubscribeController::class, 'confirm'])->name('email.unsubscribe.confirm');

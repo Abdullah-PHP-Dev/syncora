@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Http\Requests\Admin\AdCampaignRequest;
 use App\Models\Admin\AdCampaign;
+use App\Models\MediaAsset;
 use App\Models\SocialAccount;
 use App\Models\Admin\PlatformPage;
 use App\Models\Country;
@@ -151,9 +152,35 @@ class AdCampaignController extends Controller
      */
     public function store($platform, AdCampaignRequest $request)
     {
-        $request = $request->validated();
+        // Media Gallery items the form's media[] files came from (the
+        // picker copies each gallery file into the form's own file input,
+        // so the platform services upload them exactly like a local pick).
+        // Only the current user's own assets are ever linked.
+        $galleryIds = MediaAsset::ownedBy(Auth::id())
+            ->whereIn('id', array_map('intval', (array) $request->input('media_asset_ids', [])))
+            ->pluck('id');
+        $startedAt = now()->subSecond();
 
-        return $this->socialAdManager->store($platform, $request);
+        $response = $this->socialAdManager->store($platform, $request->validated());
+
+        // Services return a JsonResponse without the new campaign's id -
+        // the campaign this request just created is this user's newest.
+        $succeeded = match (true) {
+            $response instanceof \Illuminate\Http\JsonResponse => ($response->getData(true)['success'] ?? false) === true,
+            is_array($response) => ($response['success'] ?? false) === true,
+            default => false,
+        };
+
+        if ($galleryIds->isNotEmpty() && $succeeded) {
+            $this->adCampaignModel->where('user_id', Auth::id())
+                ->where('created_at', '>=', $startedAt)
+                ->latest('id')
+                ->first()
+                ?->mediaAssets()
+                ->syncWithoutDetaching($galleryIds);
+        }
+
+        return $response;
     }
 
     /**

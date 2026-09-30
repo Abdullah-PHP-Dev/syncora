@@ -711,6 +711,7 @@
                                                     <p id="uploadHint">Upload image (max 30MB) or video (max 500MB).</p>
                                                     <input type="file" name="media[]" id="mediaInput" hidden accept="image/*">
                                                     <button type="button" class="btn btn-primary" onclick="document.getElementById('mediaInput').click()">Upload Media</button>
+                                                    @include('admin.media-gallery.partials.attach', ['platform' => 'linkedin'])
                                                     <p class="error-message error-media"></p>
                                                 </div>
                                             </div>

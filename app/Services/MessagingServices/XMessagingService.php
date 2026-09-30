@@ -53,6 +53,17 @@ class XMessagingService
 {
     private string $base;
 
+    /**
+     * One scope set for BOTH X connect flows (Content Posting in
+     * PostAccountController::redirectX() and Messaging here). They share an
+     * X app and upsert the same social_accounts row (same X user id), so a
+     * narrower set in either flow replaced the other's working token -
+     * connecting Messaging broke posting (no tweet.write/media.write) and
+     * reconnecting Posting broke DMs. media.write is required by X API v2
+     * media upload for OAuth 2.0 user tokens.
+     */
+    public const OAUTH_SCOPES = 'tweet.read tweet.write users.read media.write dm.read dm.write offline.access';
+
     public function __construct(protected ApiService $apiService)
     {
         // Falls back to the real, hardcoded X API v2 URLs wherever the
@@ -118,7 +129,7 @@ class XMessagingService
             'response_type'         => 'code',
             'client_id'             => adminSetting('posts.x.client_id'),
             'redirect_uri'          => $this->callbackUrl(),
-            'scope'                 => 'dm.read dm.write tweet.read users.read offline.access',
+            'scope'                 => self::OAUTH_SCOPES,
             'state'                 => $state,
             'code_challenge'        => $codeChallenge,
             'code_challenge_method' => 'S256',
@@ -174,6 +185,7 @@ class XMessagingService
                 'avatar_url'               => $user['profile_image_url'] ?? null,
                 'access_token'             => $accessToken,
                 'refresh_token'            => $tokenResponse['data']['refresh_token'] ?? null,
+                'expires_at'               => Carbon::now()->addSeconds($tokenResponse['data']['expires_in'] ?? 7200),
                 'is_token_valid'           => true,
                 'has_messaging_permission' => true,
             ]
@@ -437,6 +449,7 @@ class XMessagingService
             $channel->socialAccount->update([
                 'access_token'  => $response['data']['access_token'],
                 'refresh_token' => $response['data']['refresh_token'] ?? $channel->socialAccount->refresh_token,
+                'expires_at'    => Carbon::now()->addSeconds($response['data']['expires_in'] ?? 7200),
             ]);
 
             $channel->update([
@@ -451,7 +464,15 @@ class XMessagingService
 
     public function sendMessage(Conversation $conversation, array $data)
     {
-        $channel = $conversation->channel;
+        // Conversation::channel() is the SocialAccount (see the model) - the
+        // X-specific token/expiry state lives on its MessageChannel. Passing
+        // the SocialAccount here was a TypeError on every X reply.
+        $channel = $conversation->channel->messageChannel;
+
+        if (!$channel) {
+            return ['success' => false, 'error' => 'This X account is no longer connected for messaging - reconnect it in Channels.'];
+        }
+
         $accessToken = $this->ensureFreshToken($channel);
 
         $endpoint = $conversation->external_conversation_id
@@ -485,8 +506,12 @@ class XMessagingService
 
     /**
      * Called on a schedule (see PollXDirectMessagesCommand) rather than
-     * from a webhook. Uses the channel's stored pagination cursor so each
-     * run only fetches events that arrived since the last one.
+     * from a webhook. Always reads the NEWEST page of DM events: X returns
+     * dm_events newest-first, and its next_token points to OLDER events -
+     * so the previous "resume from the stored pagination_token" walked
+     * backwards through history each minute and missed new DMs until it
+     * ran out of pages. Already-seen events are skipped by
+     * ProcessInboundMessage's external_message_id check.
      */
     public function pollMessages(MessageChannel $channel): void
     {
@@ -499,10 +524,6 @@ class XMessagingService
             'expansions'     => 'sender_id',
             'user.fields'    => 'name,username,profile_image_url',
         ];
-
-        if (!empty($meta['pagination_token'])) {
-            $params['pagination_token'] = $meta['pagination_token'];
-        }
 
         $response = $this->apiService->get($this->base . 'dm_events', ['Authorization' => "Bearer {$accessToken}"], $params);
      
@@ -533,7 +554,7 @@ class XMessagingService
         }
 
         $channel->update([
-            'meta'           => array_merge($meta, ['pagination_token' => $response['data']['meta']['next_token'] ?? null]),
+            'meta'           => \Illuminate\Support\Arr::except($meta, ['pagination_token']),
             'last_synced_at' => now(),
         ]);
     }
@@ -659,7 +680,7 @@ class XMessagingService
                     customerAvatarUrl: $this->upsizeXAvatar($sender['profile_image_url'] ?? null),
                     externalConversationId: $effectivePayload['conversation_id'] ?? null,
                     externalMessageId: $effectivePayload['id'] ?? null,
-                    body: json_encode($payload) ?? 'New encrypted message - open X to read (content not readable server-side, see handleWebhook() docblock).',
+                    body: 'New encrypted message - open X to read it (X Chat messages are end-to-end encrypted and can\'t be read here).',
                 );
 
                 $dispatched = true;
@@ -731,7 +752,12 @@ class XMessagingService
                 customerExternalId: $senderId,
                 customerName: $profileName,
                 customerAvatarUrl: $this->upsizeXAvatar($profileImage),
-                externalConversationId: $recipientId,
+                // Not $recipientId - that's this account's own user id, and
+                // storing it as the conversation id sent every reply to
+                // dm_conversations/{our id}/messages. null keeps any real
+                // dm_conversation_id already known (from polling) and
+                // otherwise replies via dm_conversations/with/{customer}.
+                externalConversationId: null,
                 externalMessageId: $messageId,
                 type: !empty($attachments) && empty($text) ? $attachments[0]['type'] : 'text',
                 body: $text,

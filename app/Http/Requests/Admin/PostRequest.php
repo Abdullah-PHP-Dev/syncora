@@ -33,6 +33,10 @@ class PostRequest extends FormRequest
             //'ai_image_url' => ['nullable', 'required_without:media'],
             'media'        => ['nullable', 'array'],
             'media.*'        => ['nullable', 'file'],
+            // Media Gallery items (MediaAsset ids) - ownership is enforced by
+            // PostController::galleryMedia(), not by a bare 'exists' rule.
+            'media_asset_ids'   => ['nullable', 'array', 'max:20'],
+            'media_asset_ids.*' => ['integer'],
             
             'url' => ['nullable', 'url'],
             

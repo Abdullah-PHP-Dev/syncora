@@ -19,6 +19,8 @@ use App\Services\PostServices\ThreadsPostService;
 use App\Services\PostServices\PinterestPostService;
 use App\Models\PostCategory;
 use App\Models\SocialAccount;
+use App\Models\MediaAsset;
+use App\Services\MediaAssetService;
 use App\Models\PostMedia;
 use App\Models\PostComment;
 use App\Models\Messaging\Message;
@@ -1213,6 +1215,25 @@ class PostController extends Controller
             $validated['uploaded_media'] = $uploadResult['media'];
         }
 
+        // Media Gallery picks: already on R2, so they join uploaded_media
+        // as-is - every platform service reuses the gallery's own file
+        // instead of uploading a copy (see MediaAsset::toUploadedMedia()).
+        $galleryMedia = $this->galleryMedia($validated['media_asset_ids'] ?? [], $userId);
+
+        if ($galleryMedia === null) {
+            return response()->json([
+                'success' => false,
+                'errors' => [['message' => 'One or more selected gallery items no longer exist - remove them and try again.']],
+            ], 422);
+        }
+
+        if ($galleryMedia->isNotEmpty()) {
+            $validated['uploaded_media'] = array_merge(
+                $validated['uploaded_media'] ?? [],
+                $galleryMedia->map->toUploadedMedia()->all()
+            );
+        }
+
         $results = [];
         $errors = [];
 
@@ -1349,12 +1370,44 @@ class PostController extends Controller
             }
         }
 
+        // Record which gallery item each post_media row came from (the
+        // platform services create those rows from uploaded_media, which
+        // carries the asset's URL) - lets the gallery know a file is still
+        // in use before deleting it.
+        foreach ($galleryMedia as $asset) {
+            PostMedia::whereNull('media_asset_id')
+                ->where('media_url', $asset->url)
+                ->whereIn('post_id', Post::where('group_id', $validated['group_id'])->select('id'))
+                ->update(['media_asset_id' => $asset->id]);
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Posts published successfully!',
             'results' => $results,
             'redirect_url' => route('admin.posts.dashboard')
         ]);
+    }
+
+    /**
+     * The current user's gallery assets for these ids, in the order the
+     * composer sent them. null if any id isn't theirs (or was deleted).
+     */
+    private function galleryMedia(array $ids, int $userId): ?\Illuminate\Support\Collection
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+
+        if (!$ids) {
+            return collect();
+        }
+
+        $assets = MediaAsset::ownedBy($userId)->whereIn('id', $ids)->get()->keyBy('id');
+
+        if ($assets->count() !== count($ids)) {
+            return null;
+        }
+
+        return collect($ids)->map(fn ($id) => $assets[$id]);
     }
 
     /**
@@ -1674,6 +1727,13 @@ class PostController extends Controller
                         ->exists();
 
                     if ($stillReferenced) {
+                        continue;
+                    }
+
+                    // Media Gallery files belong to the gallery: kept while
+                    // the item is still in the gallery, purged here only if
+                    // it was already removed from the gallery.
+                    if (app(MediaAssetService::class)->releaseIfOrphaned($media->media_url, $media->id)) {
                         continue;
                     }
 

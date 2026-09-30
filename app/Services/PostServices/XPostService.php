@@ -41,20 +41,29 @@ class XPostService
             return false;
         }
 
-        $endpoint = $this->baseUrl . "oauth2/token";
+        $endpoint = rtrim($this->baseUrl ?: 'https://api.x.com/2/', '/') . '/oauth2/token';
 
-        $payload = [
+        // The X app is a confidential client: the token endpoint requires
+        // HTTP Basic client authentication (same as the initial code
+        // exchange in PostAccountController::callbackX()) - credentials in
+        // the form body are rejected.
+        $response = $this->api->request('post', $endpoint, [
+            'Authorization' => 'Basic ' . base64_encode(
+                adminSetting('posts.x.client_id') . ':' . adminSetting('posts.x.client_secret')
+            ),
+        ], [
             'grant_type'    => 'refresh_token',
             'refresh_token' => $account->refresh_token,
             'client_id'     => adminSetting('posts.x.client_id'),
-            'client_secret' => adminSetting('posts.x.client_secret')
-        ];
-     
-        $response = $this->api->request('post', $endpoint, [], $payload, 'form');
-
+        ], 'form');
 
         if (!$response->successful()) {
-            return $this->errorResponse($post, $response);
+            // Returning errorResponse()'s array here was truthy, so
+            // publishPost() carried on with the expired token.
+            $this->errorResponse($post, $response);
+            $account->update(['is_token_valid' => false]);
+
+            return false;
         }
 
         $token = $response->json();
@@ -62,7 +71,8 @@ class XPostService
         $account->update([
             'access_token'   => $token['access_token'],
             'refresh_token'  => $token['refresh_token'] ?? $account->refresh_token,
-            'expires_at'     => now()->addSeconds($token['expires_in']),
+            'expires_at'     => now()->addSeconds($token['expires_in'] ?? 7200),
+            'is_token_valid' => true,
         ]);
 
         $account->refresh();
@@ -328,7 +338,8 @@ class XPostService
         $account = $post->socialAccount;
         $payload = [
             'text' => $post->content ?? '',
-            "share_with_followers" => true,
+            // share_with_followers only applies to Super Follows-exclusive
+            // posts - not sent for normal posts.
         ];
     
         // 1. Process all media items attached to the post
@@ -512,7 +523,7 @@ class XPostService
     
                 $appendResponse = Http::withToken($account->access_token)
                     ->attach('media', $chunk, $fileName)
-                    ->post($this->baseUrl . "/media/upload/{$mediaId}/append", [
+                    ->post(rtrim($this->baseUrl, '/') . "/media/upload/{$mediaId}/append", [
                         'segment_index' => $segmentIndex,
                     ]);
     
@@ -532,41 +543,49 @@ class XPostService
             if (!$finalize->successful()) {
                 return $this->errorResponse($post, $finalize);
             }
-            
+            // Video is transcoded asynchronously: wait for it here (the
+            // loop below) rather than returning early - a post that
+            // references media still "pending" is rejected by X.
             $finalResponse = $finalize->json()['data'] ?? [];
-  
-            if (!empty($finalResponse)) {
-                $status = $finalResponse['processing_info']['state'];
-                if (in_array($status, ['pending', 'in_progress'])) {
-                    $post->post_id = $finalResponse['id'];
-                    $post->status = $status;
-                    $post->save();
-    
-                    return [
-                        'success'   => true,
-                        'media_id'  => $mediaId,
-                        'media_key' => $mediaKey,
-                        'url'       => $url,
-                        'state'     => $status,
-                    ];
-                }
+            if (empty($finalResponse['processing_info'])) {
+                return [
+                    'success'   => true,
+                    'media_id'  => $mediaId,
+                    'media_key' => $mediaKey,
+                    'url'       => $url,
+                    'state'     => 'succeeded',
+                ];
             }
+
     
             $state = 'pending';
             $attempts = 0;
     
             do {
                 sleep(2);
-                $status = Http::withHeaders($authHeaders)->get($this->baseUrl . "/media/upload/{$mediaId}");
+                // v2 status check is GET /2/media/upload?command=STATUS&media_id=...
+                $status = Http::withToken($account->access_token)->get(rtrim($this->baseUrl, '/') . '/media/upload', [
+                    'command'  => 'STATUS',
+                    'media_id' => $mediaId,
+                ]);
     
                 if (!$status->successful()) {
                     return $this->errorResponse($post, $status);
                 }
     
-                $processingInfo = data_get($status->json(), 'processing_info');
+                $processingInfo = data_get($status->json(), 'data.processing_info');
                 $state = data_get($processingInfo, 'state', 'succeeded');
                 $attempts++;
             } while (in_array($state, ['pending', 'in_progress']) && $attempts < 15);
+
+            if ($state !== 'succeeded') {
+                return [
+                    'success' => false,
+                    'message' => $state === 'failed'
+                        ? 'X could not process this video.'
+                        : 'X is still processing this video - it will be retried on the next publish run.',
+                ];
+            }
     
             return [
                 'success'   => true,

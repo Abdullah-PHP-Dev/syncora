@@ -557,6 +557,7 @@
                                                 <button type="button" class="btn btn-primary"
                                                     onclick="document.getElementById('mediaInput').click()">Upload
                                                     Media</button>
+                                                @include('admin.media-gallery.partials.attach', ['platform' => 'tiktok'])
                                                 <p class="error-message error-media"></p>
                                             </div>
                                             <div class="mt-3" id="carouselMusicBlock" style="display:none;">

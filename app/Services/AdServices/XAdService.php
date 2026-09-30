@@ -12,6 +12,7 @@ use App\Models\Country;
 use App\Services\ApiService;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
@@ -57,13 +58,23 @@ class XAdService
     public function __construct(SocialAccount $account, ApiService $apiService)
     {
         $this->apiService = $apiService;
-        $this->account = $account->wherePlatform('x')->whereUserId(Auth::user()->id)->first();
+        // has_ads_permission: an X Content Posting / Messaging connection is
+        // also a platform='x' row, but holds an OAuth 2.0 token that can't
+        // sign Ads API requests.
+        $this->account = $account->wherePlatform('x')->whereUserId(Auth::user()->id)->where('has_ads_permission', true)->first();
         // ads-api.x.com/12/ confirmed still the current, non-deprecated Ads
         // API version this session (docs.x.com/x-ads-api/fundamentals/
         // versioning) - a fixed fallback rather than depending on this
         // admin_settings row always being filled in.
         $this->config = adminSetting('ads.x.base_url') ?: 'https://ads-api.x.com/12/';
-        $this->uploadUrl = adminSetting('ads.x.upload_url') ?: 'https://upload.twitter.com/1.1/media/upload.json';
+        // X retired the v1.1 media upload endpoints (upload.twitter.com/
+        // 1.1/media/upload.json) in June 2025 - a stored v1.1 value in
+        // ads.x.upload_url is ignored in favour of the v2 endpoint, which
+        // accepts the same OAuth 1.0a user-context signing.
+        $configuredUpload = adminSetting('ads.x.upload_url');
+        $this->uploadUrl = $configuredUpload && !str_contains($configuredUpload, '/1.1/')
+            ? rtrim($configuredUpload, '/')
+            : 'https://api.x.com/2/media/upload';
     }
 
     /**
@@ -237,7 +248,6 @@ class XAdService
             // error), just silently never advanced. $cursor must go
             // through the real $payload parameter instead.
             $accountsResponse = $this->apiService->get($accountsUrl, ['Authorization' => $acctHeader], $apiParams);
-            dd($accountsUrl, ['Authorization' => $acctHeader], $apiParams, $accountsResponse);
             if (!$accountsResponse['success']) {
                 return redirect()->route('admin.ads.dashboard')->with('error', $accountsResponse['data']['errors'][0]['message'] ?? 'Connected to X, but could not fetch your Ads accounts (the app likely needs X Ads API access).');
             }
@@ -252,7 +262,6 @@ class XAdService
             if (empty($acct['id']) || $acct['approval_status'] == 'REJECTED') {
                 continue;
             }
-            dd($acct);
             $record = $this->apiService->success(
                 [
                     'platform'            => 'x',
@@ -264,6 +273,9 @@ class XAdService
                     'has_ads_permission'  => true,
                     'metadata'            => array_filter([
                         'legacy_token_secret' => $accessTokenSecret,
+                        // storeTweet() needs the numeric X user id as
+                        // as_user_id - kept under both keys for older rows.
+                        'profile_id'          => $access['user_id'] ?? null,
                         'x_user_id'           => $access['user_id'] ?? null,
                         'screen_name'         => $access['screen_name'] ?? null,
                         'timezone'            => $acct['timezone'] ?? null,
@@ -452,15 +464,15 @@ class XAdService
             'name'                  => $request['name'],
             'funding_instrument_id' => $request['funding_instrument_id'],
             'entity_status'         => 'PAUSED',
-            'start_time'            => Carbon::parse($request['start_time'])->toIso8601String(),
-            'end_time'              => Carbon::parse($request['end_time'])->toIso8601String(),
         ];
 
+        // Ads API v12: campaigns take no start_time/end_time (they're
+        // required on the line item - see storeLineItem()) and
+        // standard_delivery is deprecated at campaign level.
         if ($request['budget_mode'] === 'daily') {
             $params['daily_budget_amount_local_micro'] = (int) ((float) $request['budget'] * 1000000);
         } else {
             $params['total_budget_amount_local_micro'] = (int) ((float) $request['budget'] * 1000000);
-            $params['standard_delivery'] = 'true';
         }
 
         $result = $this->call('POST', $this->config . 'accounts/' . $this->accountId() . '/campaigns', $params);
@@ -498,7 +510,12 @@ class XAdService
             'objective'     => $request['objective'],
             'product_type'  => 'PROMOTED_TWEETS',
             'placements'    => implode(',', $request['placements'] ?? ['ALL_ON_TWITTER']),
-            'bid_type'      => $request['bid_type'],
+            // Ads API v12 names this bid_strategy (renamed from bid_type);
+            // the form's AUTO/MAX/TARGET values are the same enum.
+            'bid_strategy'  => $request['bid_type'],
+            // Required on line items (not campaigns) in v12.
+            'start_time'    => Carbon::parse($request['start_time'])->toIso8601String(),
+            'end_time'      => Carbon::parse($request['end_time'])->toIso8601String(),
             'entity_status' => 'ACTIVE',
         ];
 
@@ -611,102 +628,131 @@ class XAdService
     }
 
     /**
-     * Single-shot upload (INIT -> one APPEND -> FINALIZE, no multi-chunk
-     * splitting) - mirrors how SnapchatAdService handles media in this app
-     * despite Snapchat's own API also technically supporting resumable
-     * chunked uploads. Returns the media_id_string for use on the Tweet.
+     * X API v2 chunked media upload (initialize -> append x N -> finalize
+     * -> poll status), signed with the ad account's OAuth 1.0a user
+     * token like every other Ads call. Returns the media_key that
+     * storeTweet() passes as media_keys. Only query-string parameters are
+     * part of the OAuth 1.0a signature, so the JSON/multipart bodies here
+     * don't need signing.
      */
     private function storeMedia($platform, $request)
     {
         $media = $request['media'][0];
         $extension = strtolower($media->getClientOriginalExtension());
-        $isVideo = in_array($extension, ['mp4', 'mov']);
-        $mediaType = $isVideo ? 'video/mp4' : ($extension === 'gif' ? 'image/gif' : 'image/jpeg');
-        $mediaCategory = $isVideo ? 'TWEET_VIDEO' : ($extension === 'gif' ? 'TWEET_GIF' : 'TWEET_IMAGE');
+        $isVideo = in_array($extension, ['mp4', 'mov', 'm4v']);
+        $mimeType = $media->getMimeType() ?: ($isVideo ? 'video/mp4' : 'image/jpeg');
+        // amplify_video is X's category for video used in ads.
+        $mediaCategory = $isVideo ? 'amplify_video' : ($extension === 'gif' ? 'tweet_gif' : 'tweet_image');
         $totalBytes = $media->getSize();
-
         $fileName = time() . '_' . uniqid() . '.' . $extension;
+
         $s3Path = "uploads/{$platform}/media/{$fileName}";
-        Storage::disk('r2')->put($s3Path, file_get_contents($media->getRealPath()), ['visibility' => 'public']);
+        Storage::disk('r2')->put($s3Path, fopen($media->getRealPath(), 'r'), ['visibility' => 'public']);
         $fileUrl = Storage::disk('r2')->url($s3Path);
 
-        $initResult = $this->call('POST', $this->uploadUrl, [
-            'command'        => 'INIT',
-            'media_type'     => $mediaType,
-            'total_bytes'    => $totalBytes,
-            'media_category' => $mediaCategory,
-        ]);
+        $initUrl = $this->uploadUrl . '/initialize';
+        $init = Http::timeout(60)
+            ->withHeaders(['Authorization' => $this->oauthHeader('POST', $initUrl)])
+            ->asJson()
+            ->post($initUrl, [
+                'media_category' => $mediaCategory,
+                'media_type'     => $mimeType,
+                'total_bytes'    => $totalBytes,
+            ]);
 
-        if (!$initResult['success']) {
-            return $initResult;
+        $mediaId = $init->json('data.id');
+        $mediaKey = $init->json('data.media_key');
+
+        if (!$init->successful() || !$mediaId) {
+            return $this->errorResponse('X media upload could not start: ' . ($init->json('errors.0.message') ?? $init->json('detail') ?? $init->body()));
         }
 
-        $mediaId = $initResult['data']['media_id_string'] ?? $initResult['data']['media_id'] ?? null;
+        // 4 MB segments - X's v2 append accepts up to 5 MB per segment.
+        $handle = fopen($media->getRealPath(), 'rb');
+        $segment = 0;
 
-        if (!$mediaId) {
-            return $this->errorResponse('X media INIT did not return a media_id.');
-        }
+        try {
+            while (!feof($handle)) {
+                $chunk = fread($handle, 4 * 1024 * 1024);
 
-        $appendParams = ['command' => 'APPEND', 'media_id' => $mediaId, 'segment_index' => 0];
-        $authHeader = $this->oauthHeader('POST', $this->uploadUrl, $appendParams);
-        $appendUrl = $this->uploadUrl . '?' . http_build_query($appendParams, '', '&', PHP_QUERY_RFC3986);
-
-        $appendResponse = $this->apiService->post(
-            $appendUrl,
-            ['Authorization' => $authHeader],
-            [],
-            'multipart',
-            [[
-                'name'       => 'media',
-                'file_name'  => $fileName,
-                'media_file' => $media->getRealPath(),
-            ]]
-        );
-
-        if (!$appendResponse['success']) {
-            return $this->errorResponse('Failed to upload media binary to X.');
-        }
-
-        $finalizeResult = $this->call('POST', $this->uploadUrl, ['command' => 'FINALIZE', 'media_id' => $mediaId]);
-
-        if (!$finalizeResult['success']) {
-            return $finalizeResult;
-        }
-
-        if (isset($finalizeResult['data']['processing_info'])) {
-            for ($i = 0; $i < 5; $i++) {
-                $statusResult = $this->call('GET', $this->uploadUrl, ['command' => 'STATUS', 'media_id' => $mediaId]);
-                $state = $statusResult['data']['processing_info']['state'] ?? null;
-
-                if ($state === 'succeeded') {
+                if ($chunk === '' || $chunk === false) {
                     break;
                 }
 
-                if ($state === 'failed') {
-                    return $this->errorResponse('X media processing failed.');
+                $appendUrl = $this->uploadUrl . '/' . $mediaId . '/append';
+                $append = Http::timeout(120)
+                    ->withHeaders(['Authorization' => $this->oauthHeader('POST', $appendUrl)])
+                    ->attach('media', $chunk, $fileName)
+                    ->post($appendUrl, ['segment_index' => $segment]);
+
+                if (!$append->successful()) {
+                    return $this->errorResponse('Failed to upload media to X (segment ' . $segment . '): ' . ($append->json('errors.0.message') ?? $append->json('detail') ?? $append->body()));
                 }
 
-                sleep($statusResult['data']['processing_info']['check_after_secs'] ?? 2);
+                $segment++;
             }
+        } finally {
+            fclose($handle);
+        }
+
+        $finalizeUrl = $this->uploadUrl . '/' . $mediaId . '/finalize';
+        $finalize = Http::timeout(60)
+            ->withHeaders(['Authorization' => $this->oauthHeader('POST', $finalizeUrl)])
+            ->post($finalizeUrl);
+
+        if (!$finalize->successful()) {
+            return $this->errorResponse('X media finalize failed: ' . ($finalize->json('errors.0.message') ?? $finalize->json('detail') ?? $finalize->body()));
+        }
+
+        $mediaKey = $finalize->json('data.media_key') ?? $mediaKey;
+        $processing = $finalize->json('data.processing_info');
+
+        // Videos are transcoded asynchronously - a Tweet can't reference
+        // the media until processing succeeds.
+        for ($i = 0; $processing && $i < 20; $i++) {
+            if (($processing['state'] ?? null) === 'succeeded') {
+                break;
+            }
+
+            if (($processing['state'] ?? null) === 'failed') {
+                return $this->errorResponse('X could not process this media: ' . ($processing['error']['message'] ?? 'unknown error'));
+            }
+
+            sleep(min(10, max(1, (int) ($processing['check_after_secs'] ?? 2))));
+
+            $statusParams = ['command' => 'STATUS', 'media_id' => $mediaId];
+            $status = Http::timeout(30)
+                ->withHeaders(['Authorization' => $this->oauthHeader('GET', $this->uploadUrl, $statusParams)])
+                ->get($this->uploadUrl, $statusParams);
+
+            $processing = $status->json('data.processing_info');
+        }
+
+        if ($processing && ($processing['state'] ?? null) !== 'succeeded') {
+            return $this->errorResponse('X is still processing this video - please try again in a minute.');
+        }
+
+        if (!$mediaKey) {
+            return $this->errorResponse('X media upload did not return a media_key.');
         }
 
         $this->apiService->success(
             [
-                'user_id'        => Auth::id(),
-                'platform'       => $platform,
-                'social_account_id'  => $this->account->id,
-                'ad_campaign_id' => $request['ad_campaign_id'],
-                'name'           => $fileName,
-                'file_name'      => $fileName,
-                'type'           => $isVideo ? 'VIDEO' : 'IMAGE',
-                'url'            => $fileUrl,
-                'file_id'        => $mediaId,
+                'user_id'           => Auth::id(),
+                'platform'          => $platform,
+                'social_account_id' => $this->account->id,
+                'ad_campaign_id'    => $request['ad_campaign_id'],
+                'name'              => $fileName,
+                'file_name'         => $fileName,
+                'type'              => $isVideo ? 'VIDEO' : 'IMAGE',
+                'url'               => $fileUrl,
+                'file_id'           => $mediaKey,
             ],
             [],
             new AdMedia
         );
 
-        return $this->successResponse($mediaId);
+        return $this->successResponse($mediaKey);
     }
 
     /**
@@ -719,7 +765,9 @@ class XAdService
      */
     private function storeTweet($platform, $request, $mediaKey = null)
     {
-        if (empty($this->account->metadata['profile_id'] ?? null)) {
+        $asUserId = $this->account->metadata['profile_id'] ?? $this->account->metadata['x_user_id'] ?? null;
+
+        if (empty($asUserId)) {
             return $this->errorResponse('This X account is missing its numeric user ID (profile_id) - required to create a promoted Tweet. Reconnect the account.');
         }
 
@@ -732,11 +780,13 @@ class XAdService
         $params = [
             'text'       => $text,
             'nullcast'   => 'true',
-            'as_user_id' => $this->account->metadata['profile_id'] ?? null,
+            'as_user_id' => $asUserId,
         ];
 
         if ($mediaKey) {
-            $params['media_ids'] = $mediaKey;
+            // Ads API v12 POST accounts/:id/tweet takes media_keys -
+            // media_ids is not a parameter of this endpoint.
+            $params['media_keys'] = $mediaKey;
         }
 
         $result = $this->call('POST', $this->config . 'accounts/' . $this->accountId() . '/tweet', $params);

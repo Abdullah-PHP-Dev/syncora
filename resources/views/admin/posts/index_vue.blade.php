@@ -50,6 +50,7 @@
             :initial-per-page="{{ $posts->perPage() }}"
             :platform-counts='@json($platformCounts)'
             platform="{{ $platform }}"
+            initial-platform="{{ strtolower((string) request('platform')) }}"
             create-url="{{ route('admin.posts.composer') }}"
             api-url="{{ route('admin.posts.data') }}"
             quick-create-url="{{ route('admin.posts.quick') }}"

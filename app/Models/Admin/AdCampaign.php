@@ -28,6 +28,11 @@ class AdCampaign extends Model
         return $this->hasMany(AdAdGroup::class);
     }
 
+    public function mediaAssets(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(\App\Models\MediaAsset::class, 'ad_campaign_media_asset')->withTimestamps()->withTrashed();
+    }
+
     public function creatives(): HasMany
     {
         return $this->hasMany(AdCreative::class);

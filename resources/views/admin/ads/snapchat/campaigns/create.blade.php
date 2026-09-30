@@ -581,6 +581,7 @@
                                                 <button type="button" class="btn btn-primary"
                                                     onclick="document.getElementById('mediaInput').click()">Upload
                                                     Media</button>
+                                                @include('admin.media-gallery.partials.attach', ['platform' => 'snapchat'])
                                                 <p class="error-message error-media"></p>
                                             </div>
                                             <div class="mt-4">

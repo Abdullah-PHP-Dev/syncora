@@ -283,12 +283,15 @@ return [
         // Seller sidebar navigation - short labels kept separate from the
         // page headers in marketing_tools.* / support.* so renaming a menu
         // entry never changes a page title.
+        'overview' => 'Overview',
+        'toggle_group' => 'Show or hide :name platforms',
         'marketing' => 'Marketing',
         'engagement' => 'Engagement',
         'ai_assistant' => 'AI Assistant',
         'administration' => 'Administration',
         'ads' => 'Ads Manager',
         'posts' => 'Content Publishing',
+        'media_gallery' => 'Media Gallery',
         'email_marketing' => 'Email Marketing',
         'inbox' => 'Inbox',
         'comments' => 'Comments',

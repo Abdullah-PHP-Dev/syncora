@@ -613,6 +613,15 @@ export default {
       default: ''
     },
 
+    // Set only from an explicit ?platform= (the sidebar's Content
+    // Publishing > <Platform> links) - unlike `platform` above, which the
+    // controller also falls back to session/'facebook', so it can't tell
+    // "no filter" apart from "Facebook".
+    initialPlatform: {
+      type: String,
+      default: ''
+    },
+
     createUrl: {
       type: String,
       default: ''
@@ -688,6 +697,22 @@ export default {
 
   data(){
 
+    // Filter tabs only - Snapchat/Google are appended here rather than
+    // to the shared platformOrder so they don't become quick-post
+    // targets (posting targets come from postingAccounts).
+    const tabs = [
+      { key: 'all', name: 'All', icon: 'fas fa-globe', color: '#5D87FF' },
+      ...platformOrder.map(key => ({
+        key,
+        name: platformMeta[key].name,
+        icon: platformMeta[key].icon,
+        color: platformMeta[key].color
+      })),
+      { key: 'snapchat', name: 'Snapchat', icon: 'fab fa-snapchat-ghost', color: '#F7C600' },
+      { key: 'google', name: 'Google', icon: 'fab fa-google', color: '#4285F4' }
+    ];
+    const initialTab = tabs.find(t => t.key !== 'all' && t.key === (this.initialPlatform || '').toLowerCase());
+
     return{
       loading: false,
       searchDebounce: null,
@@ -702,7 +727,7 @@ export default {
         lastPage: this.initialLastPage
 
       },
-      activePlatform: 'All',
+      activePlatform: initialTab ? initialTab.name : 'All',
       posts: this.initialPosts.map(this.transformPost),
       platformCountsData: { ...this.platformCounts },
       filters:{
@@ -714,15 +739,7 @@ export default {
       },
 
       gridView:true,
-      platforms: [
-        { key: 'all', name: 'All', icon: 'fas fa-globe', color: '#5D87FF' },
-        ...platformOrder.map(key => ({
-          key,
-          name: platformMeta[key].name,
-          icon: platformMeta[key].icon,
-          color: platformMeta[key].color
-        }))
-      ],
+      platforms: tabs,
 
       quickPost: {
         content: '',

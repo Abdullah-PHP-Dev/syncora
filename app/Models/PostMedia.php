@@ -9,6 +9,7 @@ class PostMedia extends Model
 {
     protected $fillable = [
         'post_id',
+        'media_asset_id',
         'user_id',
         'platform',
         'social_account_id',
@@ -49,6 +50,11 @@ class PostMedia extends Model
     public function socialAccount(): BelongsTo
     {
         return $this->belongsTo(SocialAccount::class);
+    }
+
+    public function mediaAsset(): BelongsTo
+    {
+        return $this->belongsTo(MediaAsset::class)->withTrashed();
     }
 
     public function user(): BelongsTo

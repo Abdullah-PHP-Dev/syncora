@@ -355,6 +355,7 @@
                                                     <p>Image (max 15MB) or video (max 500MB).</p>
                                                     <input type="file" name="media[]" id="mediaInput" hidden accept="image/*,video/*">
                                                     <button type="button" class="btn btn-primary" onclick="document.getElementById('mediaInput').click()">Upload Media</button>
+                                                    @include('admin.media-gallery.partials.attach', ['platform' => 'x'])
                                                     <p class="error-message error-media"></p>
                                                 </div>
                                             </div>

@@ -50,17 +50,91 @@
                 <span>{{ __('admin.sidebar.marketing') }}</span>
             </li>
 
-            <li class="menu-item {{ request()->routeIs('admin.ads.*') ? 'active' : '' }}">
-                <a href="{{ route('admin.ads.dashboard') }}" class="menu-link">
-                    <i class="menu-icon tf-icons bx bx-bullseye"></i>
-                    <span>{{ __('admin.sidebar.ads') }}</span>
-                </a>
-            </li>
+            @php
+                // Platforms listed under the Ads Manager and Content Publishing
+                // groups - key is the {platform} route segment / ?platform= value.
+                $navPlatforms = [
+                    'facebook'  => ['Facebook',  'bxl-facebook-circle'],
+                    'instagram' => ['Instagram', 'bxl-instagram'],
+                    'tiktok'    => ['TikTok',    'bxl-tiktok'],
+                    'snapchat'  => ['Snapchat',  'bxl-snapchat'],
+                    'google'    => ['Google',    'bxl-google'],
+                    'youtube'   => ['YouTube',   'bxl-youtube'],
+                    'linkedin'  => ['LinkedIn',  'bxl-linkedin-square'],
+                ];
 
-            <li class="menu-item {{ request()->routeIs('admin.posts.*') ? 'active' : '' }}">
-                <a href="{{ route('admin.posts.dashboard') }}" class="menu-link">
-                    <i class="menu-icon tf-icons bx bx-calendar-edit"></i>
-                    <span>{{ __('admin.sidebar.posts') }}</span>
+                $adsPlatform = request()->routeIs('admin.ads.campaigns.*', 'admin.ads.identities') ? request()->route('platform') : null;
+                $postsPlatform = request()->routeIs('admin.posts.index') ? strtolower((string) request('platform')) : null;
+
+                // A group is open (and its parent highlighted) on any page
+                // inside it; otherwise the script at the bottom of this file restores the seller's
+                // last manual expand/collapse choice.
+                $navGroups = [
+                    'ads' => [
+                        'label'    => __('admin.sidebar.ads'),
+                        'icon'     => 'bx-bullseye',
+                        'overview' => route('admin.ads.dashboard'),
+                        'current'  => request()->routeIs('admin.ads.*'),
+                        'overviewActive' => request()->routeIs('admin.ads.dashboard'),
+                        'active'   => $adsPlatform,
+                        'url'      => fn ($key) => route('admin.ads.campaigns.index', ['platform' => $key]),
+                    ],
+                    'posts' => [
+                        'label'    => __('admin.sidebar.posts'),
+                        'icon'     => 'bx-calendar-edit',
+                        'overview' => route('admin.posts.dashboard'),
+                        'current'  => request()->routeIs('admin.posts.*'),
+                        'overviewActive' => request()->routeIs('admin.posts.dashboard'),
+                        'active'   => $postsPlatform,
+                        'url'      => fn ($key) => route('admin.posts.index', ['platform' => $key]),
+                    ],
+                ];
+            @endphp
+
+            @foreach ($navGroups as $groupKey => $group)
+                <li class="menu-item admin-nav-group {{ $group['current'] ? 'active open' : '' }}" data-nav-group="{{ $groupKey }}">
+
+                    {{-- The label opens the unified dashboard; the chevron
+                         only expands/collapses the platform list. --}}
+                    <a href="{{ $group['overview'] }}" class="menu-link">
+                        <i class="menu-icon tf-icons bx {{ $group['icon'] }}"></i>
+                        <span>{{ $group['label'] }}</span>
+                    </a>
+
+                    <button type="button" class="admin-nav-chevron"
+                        aria-expanded="{{ $group['current'] ? 'true' : 'false' }}"
+                        aria-controls="admin-nav-{{ $groupKey }}"
+                        aria-label="{{ __('admin.sidebar.toggle_group', ['name' => $group['label']]) }}">
+                        <i class="bx bx-chevron-down"></i>
+                    </button>
+
+                    <div class="admin-nav-collapse" id="admin-nav-{{ $groupKey }}">
+                        <ul class="admin-nav-sub">
+                            <li class="{{ $group['overviewActive'] ? 'active' : '' }}">
+                                <a href="{{ $group['overview'] }}" @if ($group['overviewActive']) aria-current="page" @endif>
+                                    <i class="bx bx-grid-alt"></i>
+                                    <span>{{ __('admin.sidebar.overview') }}</span>
+                                </a>
+                            </li>
+                            @foreach ($navPlatforms as $key => [$name, $icon])
+                                <li class="{{ $group['active'] === $key ? 'active' : '' }}">
+                                    <a href="{{ $group['url']($key) }}" @if ($group['active'] === $key) aria-current="page" @endif>
+                                        <i class="bx {{ $icon }}"></i>
+                                        <span>{{ $name }}</span>
+                                    </a>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+
+                </li>
+            @endforeach
+
+            {{-- Reusable images/videos for posts and ad campaigns. --}}
+            <li class="menu-item {{ request()->routeIs('admin.media-gallery.*') ? 'active' : '' }}">
+                <a href="{{ route('admin.media-gallery.index') }}" class="menu-link">
+                    <i class="menu-icon tf-icons bx bx-images"></i>
+                    <span>{{ __('admin.sidebar.media_gallery') }}</span>
                 </a>
             </li>
 
@@ -216,3 +290,37 @@
     </div>
 
 </aside>
+
+{{-- Ads Manager / Content Publishing expand-collapse. Outside #app, so
+     plain DOM listeners are safe here (Vue never re-mounts the sidebar). --}}
+<script>
+    (function () {
+        document.querySelectorAll('.admin-nav-group').forEach(function (group) {
+            var key = 'sidebar-nav-' + group.dataset.navGroup;
+            var button = group.querySelector('.admin-nav-chevron');
+
+            function setOpen(open) {
+                group.classList.toggle('open', open);
+                button.setAttribute('aria-expanded', open ? 'true' : 'false');
+            }
+
+            // Pages inside the group always render it open; elsewhere,
+            // restore the last manual choice (no animation on load).
+            if (!group.classList.contains('active')) {
+                try {
+                    if (localStorage.getItem(key) === '1') {
+                        group.classList.add('no-anim');
+                        setOpen(true);
+                        requestAnimationFrame(function () { group.classList.remove('no-anim'); });
+                    }
+                } catch (e) {}
+            }
+
+            button.addEventListener('click', function () {
+                var open = !group.classList.contains('open');
+                setOpen(open);
+                try { localStorage.setItem(key, open ? '1' : '0'); } catch (e) {}
+            });
+        });
+    })();
+</script>

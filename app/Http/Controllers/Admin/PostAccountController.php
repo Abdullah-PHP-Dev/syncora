@@ -374,7 +374,7 @@ class PostAccountController extends Controller
             'response_type'         => 'code',
             'client_id'             => adminSetting('posts.x.client_id'),
             'redirect_uri'          => $this->xCallbackUrl(),
-            'scope'                 => 'tweet.read tweet.write users.read offline.access',
+            'scope'                 => \App\Services\MessagingServices\XMessagingService::OAUTH_SCOPES,
             'state'                 => $state,
             'code_challenge'        => $codeChallenge,
             'code_challenge_method' => 'S256',
