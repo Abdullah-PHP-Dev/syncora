@@ -9,9 +9,7 @@
           ? 'Combined overview across every connected advertising platform.'
           : activePlatform.label + ' campaigns, accounts and budgets.' }}</p>
       </div>
-      <a :href="connectModalTrigger" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#socialConnectModal">
-        <i class="bx bx-link"></i> Connect account
-      </a>
+      <slot></slot>
     </div>
 
     <!-- ================= PLATFORM SELECTOR ================= -->

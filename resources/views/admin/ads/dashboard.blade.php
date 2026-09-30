@@ -2,26 +2,19 @@
 
 @section('title', __('admin.marketing_tools.ads.header'))
 
+@push('styles')
+    <style>
+        [v-cloak] { display: none !important; }
+    </style>
+@endpush
+
 @section('content')
 
-    {{-- Every ad platform's OAuth callback (see the *AdService::callback()
-         methods) redirects back here with a flash message on both success
-         and failure. --}}
-    @if (session('error'))
-        <div class="alert alert-danger alert-dismissible" role="alert">
-            {{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    @endif
-
-    @if (session('success'))
-        <div class="alert alert-success alert-dismissible" role="alert">
-            {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    @endif
-
-    <ads-dashboard :data='@json($data)'></ads-dashboard>
+    <div v-cloak>
+        <ads-dashboard :data='@json($data)'>
+            <x-connect-social-media id="adsConnectSocialMediaModal" />
+        </ads-dashboard>
+    </div>
 
     @php
         // Shared with posts/dashboard.blade.php via the social-connect-modal
