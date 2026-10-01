@@ -748,6 +748,53 @@ class MessageChannelController extends Controller
         );
     }
 
+    /**
+     * Enable encrypted X Chat for one connected X account. The PIN is the
+     * account owner's X Chat PIN (set in the X app); X's Chat XDK uses it to
+     * recover the account's keys from X's secure key backup. It's verified
+     * by a real unlock before being stored (encrypted at rest), so a wrong
+     * PIN is rejected immediately and never saved. Throttled: X's backup
+     * allows only a limited number of PIN guesses.
+     */
+    public function enableXChat(Request $request, MessageChannel $channel, \App\Services\MessagingServices\XChat\XChatKeyService $keys)
+    {
+        abort_unless($channel->socialAccount->user_id === Auth::id() && $channel->platform === 'x', 403);
+
+        $validated = $request->validate([
+            'pin'     => ['required', 'string', 'min:4', 'max:64'],
+            'consent' => ['accepted'],
+        ], [
+            'consent.accepted' => 'Please confirm you understand how the PIN is used.',
+        ]);
+
+        try {
+            $keys->enable($channel->socialAccount, $validated['pin']);
+        } catch (\App\Services\MessagingServices\XChat\XChatException $e) {
+            $message = match ($e->reason) {
+                'unlock_failed'           => 'X could not unlock your encrypted chats with that PIN. Check the X Chat PIN you set in the X app and try again (X limits the number of attempts).',
+                'worker_unavailable'      => 'The encrypted-chat service is not running on the server. Please contact support.',
+                'public_keys_unavailable' => $e->getMessage(),
+                default                   => 'Could not enable encrypted X Chat: ' . $e->getMessage(),
+            };
+
+            return redirect()->route('admin.chats.channels')->with('error', $message);
+        }
+
+        // Decrypt anything that arrived before the PIN was set.
+        \Illuminate\Support\Facades\Artisan::call('messaging:x-chat-decrypt-pending', ['--account' => $channel->social_account_id, '--limit' => 100]);
+
+        return redirect()->route('admin.chats.channels')->with('success', 'Encrypted X Chat enabled - new X messages will appear as readable text in your inbox.');
+    }
+
+    public function disableXChat(MessageChannel $channel, \App\Services\MessagingServices\XChat\XChatKeyService $keys)
+    {
+        abort_unless($channel->socialAccount->user_id === Auth::id() && $channel->platform === 'x', 403);
+
+        $keys->disable($channel->socialAccount);
+
+        return redirect()->route('admin.chats.channels')->with('success', 'Encrypted X Chat disabled - the stored PIN was deleted.');
+    }
+
     public function destroy(MessageChannel $channel)
     {
         abort_unless($channel->socialAccount->user_id === Auth::id(), 403);

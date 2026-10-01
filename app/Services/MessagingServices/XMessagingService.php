@@ -8,6 +8,7 @@ use App\Models\Messaging\MessageChannel;
 use App\Models\SocialAccount;
 use App\Services\ApiService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
@@ -434,7 +435,7 @@ class XMessagingService
         ]);
     }
 
-    private function ensureFreshToken(MessageChannel $channel): string
+    public function ensureFreshToken(MessageChannel $channel): string
     {
         if ($channel->expires_at && now()->lt($channel->expires_at)) {
             return $channel->socialAccount->access_token;
@@ -476,6 +477,18 @@ class XMessagingService
 
         if (!$channel) {
             return ['success' => false, 'error' => 'This X account is no longer connected for messaging - reconnect it in Channels.'];
+        }
+
+        // X Chat (end-to-end encrypted) conversation: the reply must be
+        // encrypted + signed with the Chat XDK and sent through the X Chat
+        // API - plaintext via the legacy DM endpoint isn't delivered there.
+        if ($xChatConversationId = ($conversation->meta['x_chat_conversation_id'] ?? null)) {
+            return app(XChat\XChatService::class)->sendText(
+                $conversation->channel,
+                $xChatConversationId,
+                (string) $conversation->customer_external_id,
+                (string) ($data['body'] ?? '')
+            );
         }
 
         $accessToken = $this->ensureFreshToken($channel);
@@ -625,6 +638,148 @@ class XMessagingService
      * reason: lets the controller record an accurate WebhookLog.processed
      * flag without duplicating this method's own decision logic.
      */
+    /**
+     * X Chat webhook event -> verified, decrypted inbox message.
+     *
+     *   event_uuid claimed once (webhook_event_receipts, unique) - redeliveries
+     *   return without reprocessing;
+     *   chat.received from a customer -> XChatDecryptionService (Chat XDK
+     *   worker) -> XChatMessageMapper -> ProcessInboundMessage;
+     *   our own chat.sent / echoes -> only their key-change event is kept;
+     *   a retryable failure (no PIN yet, worker down, key not yet known)
+     *   stores the message as pending with its ciphertext, decrypted later
+     *   by messaging:x-chat-decrypt-pending - never lost, never shown as
+     *   unverified content.
+     */
+    private function handleXChatEvent(array $payload, array $event, MessageChannel $channel): bool
+    {
+        $eventType = $payload['data']['event_type'] ?? 'chat.received';
+        $eventUuid = $payload['data']['event_uuid'] ?? null;
+        $senderId = $event['sender_id'] ?? null;
+        $conversationId = $event['conversation_id'] ?? null;
+        // Audit log without the bulky ciphertext: the encrypted blobs are
+        // replaced by their size + hash (a pending message keeps its own
+        // copy in messages.meta for the retry).
+        $redacted = $payload;
+        foreach (['encoded_event', 'conversation_key_change_event', 'conversation_token'] as $field) {
+            if (isset($redacted['data']['payload'][$field]) && is_string($redacted['data']['payload'][$field])) {
+                $value = $redacted['data']['payload'][$field];
+                $redacted['data']['payload'][$field] = '[redacted: ' . strlen($value) . ' chars, sha256 ' . substr(hash('sha256', $value), 0, 16) . ']';
+            }
+        }
+        $log = fn (bool $processed, string $note) => WebhookLog::create([
+            'platform'        => 'x',
+            'event_type'      => $eventType,
+            'signature_valid' => true,
+            'processed'       => $processed,
+            'note'            => $note,
+            'payload'         => $redacted,
+            'ip'              => request()->ip(),
+        ]);
+
+        if ($eventUuid && DB::table('webhook_event_receipts')->insertOrIgnore([
+            'platform' => 'x', 'event_uuid' => (string) $eventUuid, 'received_at' => now(),
+        ]) === 0) {
+            Log::info('X Chat: duplicate webhook delivery ignored.', ['event_uuid' => $eventUuid]);
+
+            return true;
+        }
+
+        $keys = app(XChat\XChatKeyService::class);
+
+        if ($eventType !== 'chat.received' || !$senderId || $senderId === $channel->external_id) {
+            if (!empty($event['conversation_key_change_event']) && $conversationId) {
+                $keys->recordKeyChangeEvent($conversationId, $event['conversation_key_version'] ?? null, $event['conversation_key_change_event']);
+            }
+            $log(false, 'X Chat event is not an inbound customer message (own send / echo) - key-change event recorded if present.');
+
+            return false;
+        }
+
+        $account = $channel->socialAccount;
+        $sender = $this->fetchXChatSenderProfile($senderId);
+        $externalMessageId = $event['id'] ?? null;
+        $common = [
+            'socialAccountId'        => $channel->social_account_id,
+            'customerExternalId'     => $senderId,
+            'customerName'           => $sender['name'] ?? null,
+            'customerAvatarUrl'      => $this->upsizeXAvatar($sender['profile_image_url'] ?? null),
+            // Replies to X Chat conversations go through XChatService
+            // (encrypted), keyed by this id - not the legacy DM API.
+            'externalConversationId' => null,
+            'conversationMeta'       => ['x_chat_conversation_id' => $conversationId],
+        ];
+
+        try {
+            $decrypted = app(XChat\XChatDecryptionService::class)->decryptIncomingEvent($event, $account);
+            $mapped = XChat\XChatMessageMapper::map($decrypted);
+
+            if ($mapped['action'] === 'ignore') {
+                $log(true, 'X Chat event decrypted - protocol event (' . ($decrypted['type'] ?? 'unknown') . '), no inbox message.');
+
+                return true;
+            }
+
+            if ($mapped['action'] === 'edit') {
+                $edited = $this->applyXChatEdit($channel->social_account_id, $mapped['target_message_id'], $mapped['body']);
+                $log(true, $edited ? 'X Chat edit decrypted and applied.' : 'X Chat edit decrypted - original message not found.');
+
+                return true;
+            }
+
+            ProcessInboundMessage::dispatch(...$common + [
+                'externalMessageId' => $externalMessageId ?? ($decrypted['message_id'] ?? null),
+                'type'              => $mapped['type'],
+                'body'              => $mapped['body'],
+                'messageMeta'       => ['x_chat' => [
+                    'status'       => 'decrypted',
+                    'verified'     => (bool) ($decrypted['verified'] ?? false),
+                    'content_type' => $decrypted['content_type'] ?? null,
+                    'key_version'  => $decrypted['key_version'] ?? null,
+                ]],
+            ]);
+            $log(true, 'X Chat message decrypted and dispatched (' . ($mapped['type'] ?? '') . ').');
+
+            return true;
+        } catch (XChat\XChatException $e) {
+            $pending = $e->isRetryable();
+
+            ProcessInboundMessage::dispatch(...$common + [
+                'externalMessageId' => $externalMessageId,
+                'type'              => $pending ? 'text' : 'unsupported',
+                'body'              => $pending ? XChat\XChatMessageMapper::PENDING_BODY : XChat\XChatMessageMapper::UNVERIFIED_BODY,
+                'messageMeta'       => ['x_chat' => array_filter([
+                    'status'  => $pending ? 'pending' : 'failed',
+                    'reason'  => $e->reason,
+                    // Ciphertext + public fields only - what a later retry needs.
+                    'payload' => $pending ? array_intersect_key($event, array_flip([
+                        'id', 'sender_id', 'conversation_id', 'conversation_key_version',
+                        'encoded_event', 'conversation_key_change_event', 'message_event_signature',
+                    ])) : null,
+                ])],
+            ]);
+
+            Log::warning('X Chat: message stored undecrypted.', ['social_account_id' => $channel->social_account_id, 'reason' => $e->reason, 'retryable' => $pending]);
+            $log(false, 'X Chat message NOT decrypted (' . $e->reason . ') - stored as ' . ($pending ? 'pending, will retry' : 'failed') . '.');
+
+            return false;
+        }
+    }
+
+    /** Apply a decrypted X Chat edit to the original inbound message. */
+    public function applyXChatEdit(int $socialAccountId, ?string $targetMessageId, string $newText): bool
+    {
+        if (!$targetMessageId) {
+            return false;
+        }
+
+        $message = \App\Models\Messaging\Message::where('external_message_id', $targetMessageId)
+            ->whereHas('conversation', fn ($q) => $q->where('social_account_id', $socialAccountId))
+            ->first();
+
+        return (bool) $message?->update(['body' => $newText, 'edited_at' => now()]);
+    }
+
     public function handleWebhook(array $payload): bool
     {
         // --------------------------------------------------------------------------
@@ -659,54 +814,11 @@ class XMessagingService
         }
 
         // --------------------------------------------------------------------------
-        // 1b. XChat (encrypted) events - a genuinely different shape from
-        // classic direct_message_events, identified by encoded_event's
-        // presence rather than absence of a key normalize() can't produce
-        // here. encoded_event itself is real, unrecoverable ciphertext -
-        // confirmed via docs.x.com/xchat: X itself "cannot read plaintext
-        // content". sender_id/conversation_id/timestamp around it are real
-        // cleartext though, so this still surfaces a real inbox entry
-        // (sender, conversation, time) with a placeholder body instead of
-        // the event silently producing nothing in `messages` - see
-        // fetchXChatSenderProfile()'s docblock.
+        // 1b. X Chat (end-to-end encrypted) events - chat.received / chat.sent.
+        // Decrypted with X's official Chat XDK; see handleXChatEvent().
         // --------------------------------------------------------------------------
         if (isset($effectivePayload['encoded_event'])) {
-            $eventType = $payload['data']['event_type'] ?? 'chat.received';
-            $senderId = $effectivePayload['sender_id'] ?? null;
-            $dispatched = false;
-
-            if ($eventType === 'chat.received' && $senderId && $senderId !== $channel->external_id) {
-                $sender = $this->fetchXChatSenderProfile($senderId);
-
-                ProcessInboundMessage::dispatch(
-                    socialAccountId: $channel->social_account_id,
-                    customerExternalId: $senderId,
-                    customerName: $sender['name'] ?? null,
-                    customerAvatarUrl: $this->upsizeXAvatar($sender['profile_image_url'] ?? null),
-                    // XChat conversation ids ("sender:recipient") aren't
-                    // DM-API conversation ids - null makes replies go to
-                    // dm_conversations/with/{sender} instead.
-                    externalConversationId: null,
-                    externalMessageId: $effectivePayload['id'] ?? null,
-                    body: 'New encrypted message - open X to read it (X Chat messages are end-to-end encrypted and can\'t be read here).',
-                );
-
-                $dispatched = true;
-            }
-
-            WebhookLog::create([
-                'platform'        => 'x',
-                'event_type'      => $eventType,
-                'signature_valid' => true,
-                'processed'       => $dispatched,
-                'note'            => $dispatched
-                    ? 'XChat (encrypted) event - placeholder message dispatched (real text unavailable server-side, see handleWebhook() docblock).'
-                    : 'XChat (encrypted) event received - not a new inbound message (an echo of our own send, or missing sender_id).',
-                'payload'         => $payload,
-                'ip'              => request()->ip(),
-            ]);
-
-            return $dispatched;
+            return $this->handleXChatEvent($payload, $effectivePayload, $channel);
         }
 
         // --------------------------------------------------------------------------

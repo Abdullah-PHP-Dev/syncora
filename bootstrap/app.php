@@ -55,6 +55,11 @@ return tap(
             // approximation of "real time" available on standard API tiers.
             $schedule->command('messaging:poll-x-dms')->everyMinute()->withoutOverlapping();
 
+            // X Chat messages that arrived before the account's X Chat PIN
+            // was set (or while the xchat-worker was down) - see
+            // DecryptPendingXChatMessages.
+            $schedule->command('messaging:x-chat-decrypt-pending')->everyFiveMinutes()->withoutOverlapping();
+
             // Fires any Email Marketing campaign whose scheduled send time
             // has arrived - see SendScheduledEmailCampaigns.
             $schedule->command('email-marketing:send-scheduled')->everyMinute()->withoutOverlapping();

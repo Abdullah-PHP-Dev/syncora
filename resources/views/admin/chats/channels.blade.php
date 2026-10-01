@@ -370,6 +370,22 @@
                             <span class="status-dot {{ $channel->status ? 'active' : 'inactive' }}"></span>
                             {{ $channel->status ? 'Active' : 'Inactive' }}
                         </span>
+                        @if ($channel->platform === 'x')
+                            @php $xChat = \App\Models\Messaging\XChatCredential::where('social_account_id', $channel->social_account_id)->first(); @endphp
+                            @if ($xChat && $xChat->status === 'active')
+                                <form action="{{ route('admin.messaging.channels.x-chat.disable', ['channel' => $channel->id]) }}" method="POST" onsubmit="return confirm('Disable encrypted X Chat? The stored PIN is deleted and new X messages will no longer be decrypted.');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Encrypted X Chat is on - click to disable"><i class="bx bx-lock-alt"></i> X Chat on</button>
+                                </form>
+                            @else
+                                <button type="button" class="btn btn-sm {{ $xChat ? 'btn-outline-danger' : 'btn-outline-dark' }}" data-bs-toggle="modal" data-bs-target="#xChatModal"
+                                        data-action="{{ route('admin.messaging.channels.x-chat.enable', ['channel' => $channel->id]) }}" data-name="{{ $channel->name }}"
+                                        title="{{ $xChat?->last_error ?? 'Read encrypted X messages in your inbox' }}">
+                                    <i class="bx bx-lock-open-alt"></i> {{ $xChat ? 'Re-enter X Chat PIN' : 'Enable X Chat' }}
+                                </button>
+                            @endif
+                        @endif
                         <form action="{{ route('admin.messaging.channels.destroy', ['channel' => $channel->id]) }}" method="POST" onsubmit="return confirm('Disconnect this channel? Existing conversations are kept, but it will stop sending/receiving.');">
                             @csrf
                             @method('DELETE')
@@ -550,6 +566,42 @@
                     <p class="text-muted">Connects a TikTok Business Account for the Business Messaging API. Requires TikTok to have granted this app the Business Messaging permission - a manual approval step separate from Ads API access.</p>
                     <a href="{{ route('admin.messaging.auth.tiktok.redirect') }}" class="btn btn-sm text-white" style="background:#000">Connect TikTok</a>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Encrypted X Chat Modal -->
+    <div class="modal fade" id="xChatModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="POST" id="xChatForm" autocomplete="off">
+                    @csrf
+                    <div class="modal-header">
+                        <h5 class="modal-title d-flex align-items-center"><span class="modal-icon-badge" style="background:#000"><i class="bx bx-lock-alt"></i></span> Enable encrypted X Chat</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="small text-muted mb-2">X now sends direct messages end-to-end encrypted. To show them as readable text in your inbox (and let AI Copilot answer them), Socialeaz needs your <strong>X Chat PIN</strong> for <strong id="xChatAccountName">this account</strong> - the PIN you set for encrypted messages in the X app.</p>
+                        <ul class="small text-muted ps-3 mb-3">
+                            <li>X's official encryption library uses it to unlock your encrypted chats on our server.</li>
+                            <li>It is checked with X first, then stored encrypted. It is never shown, logged or shared.</li>
+                            <li>Anyone with this PIN can read your encrypted X messages. Disable here at any time to delete it, and change your PIN in the X app if you stop using Socialeaz.</li>
+                        </ul>
+                        <div class="mb-3">
+                            <label class="form-label">X Chat PIN *</label>
+                            <input type="password" name="pin" class="form-control" minlength="4" maxlength="64" required autocomplete="new-password" inputmode="text">
+                            @error('pin')<p class="text-danger small mb-0">{{ $message }}</p>@enderror
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="consent" value="1" id="xChatConsent" required>
+                            <label class="form-check-label small" for="xChatConsent">I'm the owner of this X account and allow Socialeaz to decrypt and send its encrypted X messages.</label>
+                            @error('consent')<p class="text-danger small mb-0">{{ $message }}</p>@enderror
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-dark w-100">Unlock & enable</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -765,3 +817,16 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    // Point the shared X Chat PIN modal at the account whose button opened
+    // it. Delegated on document: this page renders inside the Vue #app
+    // root, which replaces the original DOM nodes after this script runs.
+    document.addEventListener('show.bs.modal', function (event) {
+        if (event.target.id !== 'xChatModal' || !event.relatedTarget) return;
+        document.getElementById('xChatForm').action = event.relatedTarget.dataset.action;
+        document.getElementById('xChatAccountName').textContent = event.relatedTarget.dataset.name || 'this account';
+    });
+</script>
+@endpush

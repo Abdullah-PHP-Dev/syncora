@@ -38,6 +38,9 @@ class ProcessInboundMessage implements ShouldQueue
         public ?string $body = null,
         public array $attachments = [],
         public ?array $conversationMeta = null,
+        // Per-message metadata (eg. X Chat: decryption status and, while
+        // pending, the encrypted event to retry with) - messages.meta.
+        public ?array $messageMeta = null,
     ) {
     }
 
@@ -103,6 +106,7 @@ class ProcessInboundMessage implements ShouldQueue
                 'sender_type'         => 'customer',
                 'type'                => $this->type,
                 'body'                => $this->body,
+                'meta'                => $this->messageMeta,
                 'status'              => 'delivered',
                 'user_id'              => $account->user_id,
                 'sent_at'             => now(),

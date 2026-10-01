@@ -14,10 +14,11 @@ class Message extends Model
     protected $fillable = [
         'conversation_id', 'external_message_id', 'direction', 'sender_type', 'user_id',
         'type', 'body', 'status', 'error_message', 'sent_at', 'delivered_at', 'read_at',
-        'edited_at', 'deleted_at',
+        'edited_at', 'deleted_at', 'meta',
     ];
 
     protected $casts = [
+        'meta'         => 'array',
         'sent_at'      => 'datetime',
         'delivered_at' => 'datetime',
         'read_at'      => 'datetime',

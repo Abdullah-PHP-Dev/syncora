@@ -97,4 +97,14 @@ return [
     //     ],
     // ],
 
+    /*
+    | Localhost X Chat worker (xchat-worker/, X's official Chat XDK) - decrypts
+    | encrypted X Chat webhooks and encrypts replies. Never expose it publicly.
+    */
+    'xchat_worker' => [
+        'url'     => env('XCHAT_WORKER_URL', 'http://127.0.0.1:8790'),
+        'token'   => env('XCHAT_WORKER_TOKEN'),
+        'timeout' => (int) env('XCHAT_WORKER_TIMEOUT', 20),
+    ],
+
 ];

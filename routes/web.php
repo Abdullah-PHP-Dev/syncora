@@ -570,6 +570,13 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('messaging.auth.slack.callback');
 				Route::delete('messaging/channels/{channel}', [MessageChannelController::class, 'destroy'])
 					->name('messaging.channels.destroy');
+				// Encrypted X Chat: the account owner's X Chat PIN, verified via
+				// the XDK worker before it's stored (encrypted). See XChatKeyService.
+				Route::post('messaging/channels/{channel}/x-chat', [MessageChannelController::class, 'enableXChat'])
+					->middleware('throttle:5,1')
+					->name('messaging.channels.x-chat.enable');
+				Route::delete('messaging/channels/{channel}/x-chat', [MessageChannelController::class, 'disableXChat'])
+					->name('messaging.channels.x-chat.disable');
 
 
 				// COMMENTS
