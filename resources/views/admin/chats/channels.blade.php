@@ -349,7 +349,7 @@
                     <div class="connected-channel-row">
                         @php
                             $noBrandGlyph = in_array($channel->platform, ['line', 'zalo', 'google_chat', 'matrix']);
-                            $platformIconClass = $channel->platform === 'x' ? 'bxl-twitter' : ($noBrandGlyph ? 'bx-message-rounded-dots' : 'bxl-' . $channel->platform);
+                            $platformIconClass = $channel->platform === 'x' ? 'bxl-x-logo' : ($noBrandGlyph ? 'bx-message-rounded-dots' : 'bxl-' . $channel->platform);
                         @endphp
                         @if ($channel->avatar_url)
                             {{-- Falls back to the platform icon (hidden by default) if the avatar URL fails to load --}}
@@ -437,7 +437,7 @@
                     @if ($channelsByPlatform->has('x'))
                         <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('x')->count() }} connected</span>
                     @endif
-                    <div class="channel-platform-icon x mx-auto"><i class="bx bxl-twitter"></i></div>
+                    <div class="channel-platform-icon x mx-auto"><i class="bx bxl-x-logo"></i></div>
                     <h6>X (Twitter) DMs</h6>
                     <p class="text-muted">New messages are checked roughly every minute (X's real-time DM webhooks require an Enterprise tier).</p>
                     <a href="{{ route('admin.messaging.auth.x.redirect') }}" class="btn btn-dark btn-sm">Connect X Account</a>

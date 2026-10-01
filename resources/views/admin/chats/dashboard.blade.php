@@ -1134,7 +1134,7 @@
                 'instagram'   => 'bxl-instagram',
                 'whatsapp'    => 'bxl-whatsapp',
                 'telegram'    => 'bxl-telegram',
-                'x'           => 'bxl-twitter',
+                'x'           => 'bxl-x-logo',
                 'line'        => 'bx-message-rounded-dots',
                 'zalo'        => 'bx-message-rounded-dots',
                 'discord'     => 'bxl-discord',
@@ -1265,7 +1265,7 @@
         $manageChannelsPlatforms = [
             ['key' => 'facebook',    'class' => 'facebook',    'icon' => 'bxl-facebook',  'label' => 'Meta Messenger',    'url' => route('admin.social-accounts.redirect', ['platform' => 'facebook']) . '?return_to=dashboard'],
             ['key' => 'instagram',   'class' => 'instagram',   'icon' => 'bxl-instagram', 'label' => 'Instagram Messenger', 'url' => route('admin.messaging.auth.instagram.redirect') . '?return_to=dashboard'],
-            ['key' => 'x',           'class' => 'twitter',     'icon' => 'bxl-twitter',   'label' => 'X Messenger',       'url' => route('admin.messaging.auth.x.redirect') . '?return_to=dashboard'],
+            ['key' => 'x',           'class' => 'twitter',     'icon' => 'bxl-x-logo',   'label' => 'X Messenger',       'url' => route('admin.messaging.auth.x.redirect') . '?return_to=dashboard'],
             // No posting-permission gate here (unlike the Posts dashboard's
             // Add Account tiles) - has_messaging_permission is what actually
             // matters for the inbox.

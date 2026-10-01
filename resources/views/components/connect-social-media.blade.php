@@ -16,7 +16,7 @@
             'linkedin' => ['label' => 'LinkedIn', 'icon' => 'bxl-linkedin', 'class' => 'linkedin', 'route' => 'admin.social-accounts.redirect', 'tag' => 'Posting + Ads'],
             'tiktok'   => ['label' => 'TikTok', 'icon' => 'bxl-tiktok', 'class' => 'tiktok', 'route' => 'admin.social-accounts.redirect', 'tag' => 'Posting'],
             'instagram'=> ['label' => 'Instagram', 'icon' => 'bxl-instagram', 'class' => 'instagram', 'route' => 'admin.post-accounts.instagram.redirect', 'tag' => 'Posting'],
-            'x'        => ['label' => 'X', 'icon' => 'bxl-twitter', 'class' => 'twitter', 'route' => 'admin.post-accounts.x.redirect', 'tag' => 'Posting'],
+            'x'        => ['label' => 'X', 'icon' => 'bxl-x-logo', 'class' => 'twitter', 'route' => 'admin.post-accounts.x.redirect', 'tag' => 'Posting'],
             'threads'  => ['label' => 'Threads', 'icon' => 'bx-at', 'class' => 'threads', 'route' => 'admin.post-accounts.threads.redirect', 'tag' => 'Posting'],
             'pinterest'=> ['label' => 'Pinterest', 'icon' => 'bx-share-alt', 'class' => 'pinterest', 'route' => 'admin.post-accounts.pinterest.redirect', 'tag' => 'Posting'],
         ];
