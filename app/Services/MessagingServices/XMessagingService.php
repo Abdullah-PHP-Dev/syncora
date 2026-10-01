@@ -390,7 +390,12 @@ class XMessagingService
         $ok = true;
         $lastBody = null;
 
-        foreach (['dm.received', 'dm.sent'] as $eventType) {
+        // dm.received = classic (unencrypted) DMs; chat.received = XChat
+        // (end-to-end encrypted) messages, surfaced as a "new encrypted
+        // message" notice - see handleWebhook(). dm.sent is deliberately
+        // not subscribed: handleWebhook() drops every event sent BY this
+        // account, and on capped tiers each subscription counts.
+        foreach (['dm.received', 'chat.received'] as $eventType) {
             $response = $this->apiService->post(
                 'https://api.x.com/2/activity/subscriptions',
                 ['Authorization' => "Bearer {$accessToken}"],
@@ -678,7 +683,10 @@ class XMessagingService
                     customerExternalId: $senderId,
                     customerName: $sender['name'] ?? null,
                     customerAvatarUrl: $this->upsizeXAvatar($sender['profile_image_url'] ?? null),
-                    externalConversationId: $effectivePayload['conversation_id'] ?? null,
+                    // XChat conversation ids ("sender:recipient") aren't
+                    // DM-API conversation ids - null makes replies go to
+                    // dm_conversations/with/{sender} instead.
+                    externalConversationId: null,
                     externalMessageId: $effectivePayload['id'] ?? null,
                     body: 'New encrypted message - open X to read it (X Chat messages are end-to-end encrypted and can\'t be read here).',
                 );
