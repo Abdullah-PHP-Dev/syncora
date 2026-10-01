@@ -53,7 +53,7 @@
     <link rel="stylesheet" href="{{ asset($isRtl ? 'assets/css/admin-rtl.css' : 'assets/css/admin.css') }}" />
     <link
             rel="stylesheet"
-            href="{{ asset('assets/css/socialeaz-admin.css') }}"
+            href="{{ asset('assets/css/socialeaz-admin.css') }}?v={{ @filemtime(public_path('assets/css/socialeaz-admin.css')) }}"
     />
     <!-- Vendor CSS -->
     <link rel="stylesheet" href="{{ asset('assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css') }}" />

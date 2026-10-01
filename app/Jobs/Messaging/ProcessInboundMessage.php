@@ -56,7 +56,17 @@ class ProcessInboundMessage implements ShouldQueue
         // based platforms (Meta retries on anything slower than its
         // timeout, even after the first attempt actually succeeded) - skip
         // silently rather than creating a second copy of the same message.
-        if ($this->externalMessageId && Message::where('external_message_id', $this->externalMessageId)->exists()) {
+        //
+        // Scoped to THIS connected account's conversations (matching the
+        // messages table's own unique index, conversation_id +
+        // external_message_id): when two accounts connected to this app
+        // message each other, the sender's outbound row and the
+        // recipient's inbound row legitimately share the platform's
+        // message id - a global check silently dropped the recipient's
+        // copy as a "duplicate" of the other seller's outgoing message.
+        if ($this->externalMessageId && Message::where('external_message_id', $this->externalMessageId)
+            ->whereHas('conversation', fn ($q) => $q->where('social_account_id', $this->socialAccountId))
+            ->exists()) {
             return;
         }
 
