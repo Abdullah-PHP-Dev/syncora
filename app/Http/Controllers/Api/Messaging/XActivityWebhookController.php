@@ -95,6 +95,15 @@ class XActivityWebhookController extends Controller
         // (XChat/encrypted, unrecognized channel, or a real classic DM) -
         // see its docblock - so there's exactly one WebhookLog row per
         // real request, not two.
+        WebhookLog::create([
+                'platform'        => 'x',
+                'event_type'      => 'direct_message_events',
+                'signature_valid' => false,
+                'processed'       => false,
+                'note'            => 'Signature verification failed - request rejected before handling.',
+                'payload'         => $request->all(),
+                'ip'              => $request->ip(),
+            ]);
         $this->service->handleWebhook($request->all());
 
         return response('OK', 200);
