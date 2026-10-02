@@ -217,12 +217,26 @@ class XChatMediaService
             ->acceptJson()
             ->asJson()
             ->beforeSending(function () use (&$attempts) {
-                $attempts++; // runs once per attempt, retries included
+                $attempts++;
             })
-            // 3 attempts: wait 1s before the 2nd, 3s before the 3rd. The
-            // `when` callback gets the exception (not the response).
-            ->retry([1000, 3000], when: fn (\Throwable $e) => $e instanceof ConnectionException
-                || ($e instanceof RequestException && ($e->response->serverError() || $e->response->status() === 429)), throw: false)
+            // Pass a closure expecting (\Illuminate\Http\Client\Response $response, \Throwable $e)
+            // or check status directly if using newer Laravel HTTP client signatures:
+            ->retry([1000, 3000], when: function (\Throwable $e, $response = null) {
+                if ($e instanceof ConnectionException) {
+                    return true;
+                }
+
+                if ($e instanceof RequestException) {
+                    return $e->response->serverError() || $e->response->status() === 429;
+                }
+
+                // If response is passed directly (Laravel 10+)
+                if ($response) {
+                    return $response->serverError() || $response->status() === 429;
+                }
+
+                return false;
+            }, throw: false)
             ->post(self::API . $path, $body);
 
         if (!$response->successful()) {
@@ -235,7 +249,7 @@ class XChatMediaService
                 'detail'            => Str::limit((string) ($response->json('detail') ?? $response->body()), 300),
             ]);
         }
-        dd($response->json());
+
         return $response;
     }
 
