@@ -53,7 +53,7 @@ return tap(
             // X has no realistically obtainable real-time DM webhook (see
             // PollXDirectMessages) - every-minute polling is the closest
             // approximation of "real time" available on standard API tiers.
-            $schedule->command('messaging:poll-x-dms')->everyMinute()->withoutOverlapping();
+            // $schedule->command('messaging:poll-x-dms')->everyMinute()->withoutOverlapping();
 
             // X Chat messages that arrived before the account's X Chat PIN
             // was set (or while the xchat-worker was down) - see
