@@ -235,7 +235,7 @@ class XChatMediaService
                 'detail'            => Str::limit((string) ($response->json('detail') ?? $response->body()), 300),
             ]);
         }
-
+        dd($response->json());
         return $response;
     }
 
