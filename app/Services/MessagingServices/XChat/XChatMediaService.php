@@ -150,14 +150,18 @@ class XChatMediaService
             'conversation_id' => $bodyConversationId,
             'total_bytes'     => strlen($ciphertext),
         ]);
+<<<<<<< HEAD
 
+=======
+>>>>>>> parent of b609c3d (Revert "X Chat")
         $sessionId = $init->json('data.session_id');
         $mediaHashKey = $init->json('data.media_hash_key');
 
         if ($init->status() === 503) {
             // X-side: the same token is accepted by /2/media/upload, only the
             // X Chat media service refuses (see messaging:x-chat-diagnose).
-            throw new XChatException('send_failed', 'X is not accepting encrypted file uploads right now (HTTP 503). Send the message as text, or send the file from the X app.');
+            // XMessagingService::sendMessage() falls back to a regular DM on this reason.
+            throw new XChatException('chat_media_unavailable', 'X is not accepting encrypted file uploads right now (HTTP 503). Send the message as text, or send the file from the X app.');
         }
 
         if (!$init->successful() || !$sessionId || !$mediaHashKey) {

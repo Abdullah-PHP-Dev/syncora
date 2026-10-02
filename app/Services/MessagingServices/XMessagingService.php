@@ -484,20 +484,53 @@ class XMessagingService
         // encrypted + signed with the Chat XDK and sent through the X Chat
         // API - plaintext via the legacy DM endpoint isn't delivered there.
         if ($xChatConversationId = ($conversation->meta['x_chat_conversation_id'] ?? null)) {
-            return app(XChat\XChatService::class)->sendText(
+            $result = app(XChat\XChatService::class)->sendText(
                 $conversation->channel,
                 $xChatConversationId,
                 (string) $conversation->customer_external_id,
                 (string) ($data['body'] ?? ''),
                 !empty($data['media_url']) ? ['url' => $data['media_url'], 'file_name' => $data['file_name'] ?? null] : null
             );
-        }
 
-        $accessToken = $this->ensureFreshToken($channel);
+            // X's encrypted media store (/2/chat/media/upload) refuses
+            // uploads (503) while the regular media upload works for the
+            // same token - send the file as a regular DM to the same person
+            // instead (NOT end-to-end encrypted). Text-only replies stay
+            // on X Chat.
+            if (!$result['success'] && ($result['reason'] ?? null) === 'chat_media_unavailable' && !empty($data['media_url'])) {
+                Log::info('X Chat: encrypted media upload unavailable, sending the file as a regular DM.', ['social_account_id' => $conversation->social_account_id]);
+
+                $fallback = $this->sendLegacyDm($channel, $this->base . 'dm_conversations/with/' . $conversation->customer_external_id . '/messages', $data);
+                // Keep the conversation on X Chat routing: no external_conversation_id.
+                unset($fallback['external_conversation_id']);
+
+                return $fallback;
+            }
+
+            return $result;
+        }
 
         $endpoint = $conversation->external_conversation_id
             ? $this->base . 'dm_conversations/' . $conversation->external_conversation_id . '/messages'
             : $this->base . 'dm_conversations/with/' . $conversation->customer_external_id . '/messages';
+
+        $result = $this->sendLegacyDm($channel, $endpoint, $data);
+
+        if ($result['success']) {
+            $result['external_conversation_id'] ??= $conversation->external_conversation_id;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Legacy (unencrypted) DM: POST /2/dm_conversations/.../messages, with
+     * a file uploaded through the v2 media upload (XDmMediaUploader) and
+     * attached by media_id.
+     */
+    private function sendLegacyDm(MessageChannel $channel, string $endpoint, array $data): array
+    {
+        $accessToken = $this->ensureFreshToken($channel);
 
         $payload = array_filter(['text' => trim((string) ($data['body'] ?? ''))], fn ($v) => $v !== '');
 
@@ -509,7 +542,13 @@ class XMessagingService
                 if (!$file->successful()) {
                     return ['success' => false, 'error' => 'Could not read the file to send (HTTP ' . $file->status() . ').'];
                 }
-                $payload['attachments'] = [['media_id' => app(XDmMediaUploader::class)->upload($accessToken, $file->body())]];
+                // Sniff the bytes; the storage Content-Type is only a fallback
+                // when they look generic.
+                $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($file->body()) ?: '';
+                if (!preg_match('#^(image|video)/#', $mime)) {
+                    $mime = strtok((string) $file->header('Content-Type'), ';') ?: $mime;
+                }
+                $payload['attachments'] = [['media_id' => app(XDmMediaUploader::class)->upload($accessToken, $file->body(), $mime ?: null)]];
             } catch (\RuntimeException $e) {
                 return ['success' => false, 'error' => $e->getMessage()];
             }
@@ -524,7 +563,7 @@ class XMessagingService
         return [
             'success'               => true,
             'external_message_id'   => $response['data']['data']['dm_event_id'] ?? null,
-            'external_conversation_id' => $response['data']['data']['dm_conversation_id'] ?? $conversation->external_conversation_id,
+            'external_conversation_id' => $response['data']['data']['dm_conversation_id'] ?? null,
         ];
     }
 
