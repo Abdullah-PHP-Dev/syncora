@@ -74,10 +74,13 @@ class DiagnoseXChat extends Command
                 'media_category' => 'tweet_image',
             ]));
 
-            $conversationId = $this->option('conversation') ?: Conversation::where('social_account_id', $account->id)
+            // Read meta as a whole: Eloquent's value('meta->key') can't map a
+            // JSON-path select back to an attribute and returns null.
+            $conversationId = $this->option('conversation') ?: (Conversation::where('social_account_id', $account->id)
                 ->whereNotNull('meta->x_chat_conversation_id')
                 ->latest('id')
-                ->value('meta->x_chat_conversation_id');
+                ->first(['id', 'meta'])
+                ?->meta['x_chat_conversation_id'] ?? null);
 
             if (!$conversationId) {
                 $this->line('  X Chat media: <comment>skipped - no X Chat conversation yet (pass --conversation=A:B)</comment>');
