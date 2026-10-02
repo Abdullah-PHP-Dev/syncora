@@ -215,7 +215,7 @@ class XChatMediaService
         }
 
         if (!$response->successful()) {
-            dd('X Chat media API call failed.', [
+            Log::warning('X Chat media API call failed.', [
                 'path'   => preg_replace('#/upload/[^/]+/#', '/upload/{session}/', $path),
                 'status' => $response->status(),
                 // X's request id - quote it in an X developer support ticket.
