@@ -139,22 +139,26 @@ class XChatMediaService
         ));
 
         $ciphertext = base64_decode($encrypted['ciphertext_b64'], true);
-
-        // Convert conversation ID to hyphenated format for media endpoints (e.g., "1424335092948873221-2078202038584766464")
-        $bodyConversationId = str_replace(':', '-', XChatKeyService::canonicalConversationId($conversationId));
+        // The media upload endpoints take the COLON form of the conversation
+        // id in the request body ("A:B") - the hyphen form is only for URL
+        // paths (download / send). Sending "A-B" here made X answer 503.
+        // Matches X's reference client (chat-xdk examples, upload_media).
+        $bodyConversationId = XChatKeyService::canonicalConversationId($conversationId);
         $token = $this->accessToken($account);
 
         $init = $this->postWithRetry($token, 'chat/media/upload/initialize', [
             'conversation_id' => $bodyConversationId,
-            'total_bytes'     => (int) strlen($ciphertext),
+            'total_bytes'     => strlen($ciphertext),
         ]);
-
-        if ($init->status() === 503) {
-            throw new XChatException('send_failed', 'X is not accepting encrypted file uploads right now (HTTP 503). Send the message as text, or send the file from the X app.');
-        }
 
         $sessionId = $init->json('data.session_id');
         $mediaHashKey = $init->json('data.media_hash_key');
+
+        if ($init->status() === 503) {
+            // X-side: the same token is accepted by /2/media/upload, only the
+            // X Chat media service refuses (see messaging:x-chat-diagnose).
+            throw new XChatException('send_failed', 'X is not accepting encrypted file uploads right now (HTTP 503). Send the message as text, or send the file from the X app.');
+        }
 
         if (!$init->successful() || !$sessionId || !$mediaHashKey) {
             throw new XChatException('send_failed', 'X media upload could not start (HTTP ' . $init->status() . '): ' . ($init->json('detail') ?? $init->json('title') ?? 'unknown error') . $this->scopeHint($init->status()));
@@ -162,10 +166,11 @@ class XChatMediaService
 
         $parts = str_split($ciphertext, self::SEGMENT_BYTES);
         foreach ($parts as $index => $segment) {
+            // JSON body with base64 segment bytes (the documented JSON form).
             $append = $this->postWithRetry($token, "chat/media/upload/{$sessionId}/append", [
                 'conversation_id' => $bodyConversationId,
                 'media_hash_key'  => $mediaHashKey,
-                'segment_index'   => (int) $index,
+                'segment_index'   => (string) $index,
                 'media'           => base64_encode($segment),
             ], 120);
 
@@ -177,7 +182,7 @@ class XChatMediaService
         $finalize = $this->postWithRetry($token, "chat/media/upload/{$sessionId}/finalize", [
             'conversation_id' => $bodyConversationId,
             'media_hash_key'  => $mediaHashKey,
-            'num_parts'       => (int) count($parts),
+            'num_parts'       => (string) count($parts),
         ]);
 
         if (!$finalize->successful()) {
@@ -200,6 +205,9 @@ class XChatMediaService
      * POST to the X API, retrying transient 5xx/429 responses with backoff
      * (X's media guide: "Retry transient 5xx with backoff"). Logs the
      * response title/detail of a final failure - never request bodies.
+     *
+     * A failed response is RETURNED, not thrown (throw: false), so callers
+     * can map it to an XChatException with a readable message.
      */
     private function postWithRetry(string $token, string $path, array $body, int $timeout = 30): \Illuminate\Http\Client\Response
     {
@@ -210,8 +218,11 @@ class XChatMediaService
             ->acceptJson()
             ->asJson()
             ->beforeSending(function () use (&$attempts) {
-                $attempts++;
+                $attempts++; // runs once per attempt, retries included
             })
+            // 3 attempts: wait 1s before the 2nd, 3s before the 3rd. Laravel
+            // calls `when` with ($exception, $pendingRequest) - the failed
+            // response is $exception->response, never a second argument.
             ->retry([1000, 3000], when: fn (\Throwable $e) => $e instanceof ConnectionException
                 || ($e instanceof RequestException && ($e->response->serverError() || $e->response->status() === 429)), throw: false)
             ->post(self::API . $path, $body);

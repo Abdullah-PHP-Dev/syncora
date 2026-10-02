@@ -9,6 +9,7 @@ use App\Models\SocialAccount;
 use App\Services\ApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
@@ -498,16 +499,20 @@ class XMessagingService
             ? $this->base . 'dm_conversations/' . $conversation->external_conversation_id . '/messages'
             : $this->base . 'dm_conversations/with/' . $conversation->customer_external_id . '/messages';
 
-        $payload = ['text' => $data['body']];
+        $payload = array_filter(['text' => trim((string) ($data['body'] ?? ''))], fn ($v) => $v !== '');
 
         if (!empty($data['media_url'])) {
-            // Sending media over the v2 DM API requires first uploading it
-            // through the v1.1 media/upload endpoint (the same chunked
-            // INIT/APPEND/FINALIZE flow XAdService already implements for
-            // Ads creatives) to get a media_id, then attaching that here -
-            // left out for now since it would just duplicate that logic
-            // for a secondary, non-essential path; text sends are unaffected.
-            $payload['text'] = trim($data['body'] . ' ' . $data['media_url']);
+            // Upload through the v2 chunked media API (dm_image / dm_gif /
+            // dm_video) and attach the media_id - see XDmMediaUploader.
+            try {
+                $file = Http::timeout(60)->get($data['media_url']);
+                if (!$file->successful()) {
+                    return ['success' => false, 'error' => 'Could not read the file to send (HTTP ' . $file->status() . ').'];
+                }
+                $payload['attachments'] = [['media_id' => app(XDmMediaUploader::class)->upload($accessToken, $file->body())]];
+            } catch (\RuntimeException $e) {
+                return ['success' => false, 'error' => $e->getMessage()];
+            }
         }
 
         $response = $this->apiService->post($endpoint, ['Authorization' => "Bearer {$accessToken}"], $payload);
