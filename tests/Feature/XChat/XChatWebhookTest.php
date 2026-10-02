@@ -44,6 +44,9 @@ class XChatWebhookTest extends TestCase
 
     private int $initFailures = 0;
 
+    /** ton.twitter.com answers 403 to OAuth 2.0 tokens in production. */
+    private bool $dmDownloadForbidden = false;
+
     /** Number of upcoming /v1/decrypt calls that answer 409 session_locked. */
     private int $lockedResponses = 0;
 
@@ -134,6 +137,9 @@ class XChatWebhookTest extends TestCase
             }
             if ($url === 'https://ton.twitter.com/1.1/ton/data/dm/1/2/abc.png') {
                 $this->mediaRequests[] = ['dm_download', $request->header('Authorization')[0] ?? null];
+                if ($this->dmDownloadForbidden) {
+                    return Http::response(['title' => 'Forbidden'], 403, ['Content-Type' => 'application/problem+json']);
+                }
 
                 return Http::response("\x89PNG\r\n\x1a\n\0\0\0\rIHDR\0\0\0\x01\0\0\0\x01\x08\x06\0\0\0\x1f\x15\xc4\x89", 200, ['Content-Type' => 'image/png']);
             }
@@ -399,6 +405,38 @@ class XChatWebhookTest extends TestCase
         $this->assertSame('image', $attachment->type);
         // Stored in our storage - never the private ton.twitter.com URL.
         $this->assertStringNotContainsString('ton.twitter.com', $attachment->url);
+    }
+
+    public function test_media_this_app_sent_is_reused_without_asking_x(): void
+    {
+        $this->enableXChat();
+        // The sender side of the regular-DM fallback: our outbound message,
+        // keyed by the dm_event_id X returned, with the file on R2.
+        $sent = \App\Models\Messaging\Conversation::create(['social_account_id' => $this->account->id, 'platform' => 'x', 'customer_external_id' => '3333', 'status' => 'open'])
+            ->messages()->create(['direction' => 'outbound', 'sender_type' => 'agent', 'type' => 'image', 'status' => 'sent', 'external_message_id' => '1880000000000000001']);
+        $sent->attachments()->create(['type' => 'image', 'url' => 'https://r2.test/uploads/messaging/x/sent.png']);
+        $this->workerDecrypt['ENC-T4'] = $this->decryptedText('https://t.co/Media123');
+
+        $this->deliver('ENC-T4', 'uuid-t4');
+
+        $message = Message::where('external_message_id', 'uuid-t4-id')->firstOrFail();
+        $this->assertSame('image', $message->type);
+        $this->assertNull($message->body);
+        $this->assertSame('https://r2.test/uploads/messaging/x/sent.png', $message->attachments()->value('url'));
+        Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), '/2/dm_events/') || str_contains($r->url(), 'ton.twitter.com'));
+    }
+
+    public function test_unreachable_dm_media_gets_a_readable_label(): void
+    {
+        $this->enableXChat();
+        $this->dmDownloadForbidden = true;
+        $this->workerDecrypt['ENC-T5'] = $this->decryptedText('Invoice https://t.co/Media123');
+
+        $this->deliver('ENC-T5', 'uuid-t5');
+
+        $message = Message::where('external_message_id', 'uuid-t5-id')->firstOrFail();
+        $this->assertSame('Invoice [Media - open X to view: https://t.co/Media123]', $message->body);
+        $this->assertSame(0, $message->attachments()->count());
     }
 
     public function test_media_upload_retries_a_transient_5xx(): void

@@ -132,11 +132,18 @@ class XChatMediaService
                     continue; // an ordinary link, not DM media
                 }
 
-                $files = $this->fetchDmEventMedia($account, $m[1]);
-                if ($files) {
-                    array_push($attachments, ...$files);
-                    $body = trim(str_replace($link, '', $body));
-                }
+                // 1. Sent from this app (regular-DM fallback): the file is
+                //    already in our storage, on the outbound message whose
+                //    external_message_id is this dm_event_id.
+                // 2. Otherwise ask X. X's DM media host (ton.twitter.com)
+                //    only accepts OAuth 1.0a, so with the OAuth 2.0 token
+                //    this usually fails (403) - kept for when it doesn't.
+                $files = $this->ownSentFiles($m[1]) ?: $this->fetchDmEventMedia($account, $m[1]);
+
+                $body = $files
+                    ? trim(str_replace($link, '', $body))
+                    : trim(str_replace($link, "[Media - open X to view: {$link}]", $body));
+                array_push($attachments, ...$files);
             } catch (\Throwable $e) {
                 Log::warning('X Chat: DM media link could not be resolved.', [
                     'social_account_id' => $account->id,
@@ -146,6 +153,19 @@ class XChatMediaService
         }
 
         return ['body' => $body, 'attachments' => $attachments];
+    }
+
+    /** Files of a message this app sent as DM event $eventId. */
+    private function ownSentFiles(string $eventId): array
+    {
+        $message = \App\Models\Messaging\Message::where('external_message_id', $eventId)
+            ->where('direction', 'outbound')
+            ->with('attachments')
+            ->first();
+
+        return $message
+            ? $message->attachments->map(fn ($a) => $a->only(['type', 'url', 'mime_type', 'file_name', 'file_size']))->all()
+            : [];
     }
 
     /** @return array<int, array{type: string, url: string, mime_type: string, file_name: string, file_size: int}> */
