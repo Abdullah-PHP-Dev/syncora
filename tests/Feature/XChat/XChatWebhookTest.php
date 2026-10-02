@@ -42,6 +42,8 @@ class XChatWebhookTest extends TestCase
 
     private array $encryptAttachments = [];
 
+    private int $initFailures = 0;
+
     /** Number of upcoming /v1/decrypt calls that answer 409 session_locked. */
     private int $lockedResponses = 0;
 
@@ -93,11 +95,16 @@ class XChatWebhookTest extends TestCase
             }
             if (str_contains($url, '/2/chat/media/upload/initialize')) {
                 $this->mediaRequests[] = ['initialize', $request->data()];
+                if ($this->initFailures > 0) {
+                    $this->initFailures--;
+
+                    return Http::response(['title' => 'Service Unavailable'], 503);
+                }
 
                 return Http::response(['data' => ['session_id' => 'sess-9', 'media_hash_key' => 'hash-out-1', 'conversation_id' => '1111-2222']]);
             }
             if (preg_match('#/2/chat/media/upload/sess-9/(append|finalize)#', $url, $m)) {
-                $this->mediaRequests[] = [$m[1], $request->isMultipart() ? 'multipart' : $request->data()];
+                $this->mediaRequests[] = [$m[1], $request->data()];
 
                 return Http::response(['data' => []]);
             }
@@ -298,6 +305,20 @@ class XChatWebhookTest extends TestCase
         \Illuminate\Support\Facades\Storage::disk('r2')->assertExists(preg_replace('#^.*?(uploads/)#', '$1', $path));
     }
 
+    public function test_media_upload_retries_a_transient_5xx(): void
+    {
+        $this->enableXChat();
+        $this->workerDecrypt['ENC-M4'] = $this->decryptedText('hi');
+        $this->deliver('ENC-M4', 'uuid-m4');
+        $conversation = Message::where('external_message_id', 'uuid-m4-id')->firstOrFail()->conversation;
+        $this->initFailures = 1; // first initialize answers 503
+
+        $result = app(XMessagingService::class)->sendMessage($conversation, ['body' => 'pic', 'media_url' => 'https://cdn.test/uploads/messaging/x/photo.png', 'file_name' => 'photo.png']);
+
+        $this->assertTrue($result['success'], $result['error'] ?? '');
+        $this->assertSame(2, collect($this->mediaRequests)->where(0, 'initialize')->count());
+    }
+
     public function test_link_attachment_becomes_a_link_and_failed_media_is_noted(): void
     {
         $this->enableXChat();
@@ -329,9 +350,10 @@ class XChatWebhookTest extends TestCase
         $this->assertTrue($result['success'], $result['error'] ?? '');
         $this->assertSame(['encrypt', 'PNG-BYTES'], $this->mediaRequests[0]);
         $this->assertSame('initialize', $this->mediaRequests[1][0]);
-        $this->assertSame(['conversation_id' => '1111-2222', 'total_bytes' => 15], $this->mediaRequests[1][1]);
-        $this->assertSame(['append', 'multipart'], $this->mediaRequests[2]);
-        $this->assertSame(['finalize', ['conversation_id' => '1111-2222', 'media_hash_key' => 'hash-out-1', 'num_parts' => '1']], $this->mediaRequests[3]);
+        // Media endpoints take the colon conversation id in the body (X reference client).
+        $this->assertSame(['conversation_id' => '1111:2222', 'total_bytes' => 15], $this->mediaRequests[1][1]);
+        $this->assertSame(['append', ['conversation_id' => '1111:2222', 'media_hash_key' => 'hash-out-1', 'segment_index' => '0', 'media' => base64_encode('ENCRYPTED-BYTES')]], $this->mediaRequests[2]);
+        $this->assertSame(['finalize', ['conversation_id' => '1111:2222', 'media_hash_key' => 'hash-out-1', 'num_parts' => '1']], $this->mediaRequests[3]);
         $this->assertSame([['attachment_type' => 'media', 'media_hash_key' => 'hash-out-1', 'width' => 4, 'height' => 3, 'filesize_bytes' => 9, 'filename' => 'photo.png']], end($this->encryptAttachments));
         $this->assertSame('CIPHERTEXT', end($this->sentToX)['encoded_message_create_event']);
         Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->body(), 'PNG-BYTES') && str_contains($r->url(), 'api.x.com'));

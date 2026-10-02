@@ -28,7 +28,8 @@ class XChatMediaService
 {
     private const API = 'https://api.x.com/2/';
     private const MAX_BYTES = 25 * 1024 * 1024;
-    private const SEGMENT_BYTES = 4 * 1024 * 1024;
+    // 3 MB, as in X's reference client (chat-xdk examples x_api upload_media).
+    private const SEGMENT_BYTES = 3 * 1024 * 1024;
 
     public function __construct(
         private XChatWorkerClient $worker,
@@ -136,11 +137,15 @@ class XChatMediaService
         ));
 
         $ciphertext = base64_decode($encrypted['ciphertext_b64'], true);
-        $apiConversationId = str_replace(':', '-', XChatKeyService::canonicalConversationId($conversationId));
+        // The media upload endpoints take the COLON form of the conversation
+        // id in the request body ("A:B") - the hyphen form is only for URL
+        // paths (download / send). Sending "A-B" here made X answer 503.
+        // Matches X's reference client (chat-xdk examples, upload_media).
+        $bodyConversationId = XChatKeyService::canonicalConversationId($conversationId);
         $token = $this->accessToken($account);
 
-        $init = Http::withToken($token)->timeout(30)->post(self::API . 'chat/media/upload/initialize', [
-            'conversation_id' => $apiConversationId,
+        $init = $this->postWithRetry($token, 'chat/media/upload/initialize', [
+            'conversation_id' => $bodyConversationId,
             'total_bytes'     => strlen($ciphertext),
         ]);
         $sessionId = $init->json('data.session_id');
@@ -152,21 +157,21 @@ class XChatMediaService
 
         $parts = str_split($ciphertext, self::SEGMENT_BYTES);
         foreach ($parts as $index => $segment) {
-            $append = Http::withToken($token)->timeout(120)
-                ->attach('media', $segment, 'segment.bin')
-                ->post(self::API . "chat/media/upload/{$sessionId}/append", [
-                    'conversation_id' => $apiConversationId,
-                    'media_hash_key'  => $mediaHashKey,
-                    'segment_index'   => $index,
-                ]);
+            // JSON body with base64 segment bytes (the documented JSON form).
+            $append = $this->postWithRetry($token, "chat/media/upload/{$sessionId}/append", [
+                'conversation_id' => $bodyConversationId,
+                'media_hash_key'  => $mediaHashKey,
+                'segment_index'   => (string) $index,
+                'media'           => base64_encode($segment),
+            ], 120);
 
             if (!$append->successful()) {
                 throw new XChatException('send_failed', "X media upload failed at part {$index} (HTTP {$append->status()}).");
             }
         }
 
-        $finalize = Http::withToken($token)->timeout(60)->post(self::API . "chat/media/upload/{$sessionId}/finalize", [
-            'conversation_id' => $apiConversationId,
+        $finalize = $this->postWithRetry($token, "chat/media/upload/{$sessionId}/finalize", [
+            'conversation_id' => $bodyConversationId,
             'media_hash_key'  => $mediaHashKey,
             'num_parts'       => (string) count($parts),
         ]);
@@ -185,6 +190,39 @@ class XChatMediaService
             'filesize_bytes'  => (int) $encrypted['plaintext_size'],
             'filename'        => $this->safeFileName($fileName, $encrypted['mime_type']),
         ];
+    }
+
+    /**
+     * POST to the X API, retrying transient 5xx/429 responses with backoff
+     * (X's media guide: "Retry transient 5xx with backoff"). Logs the
+     * response title/detail of a final failure - never request bodies.
+     */
+    private function postWithRetry(string $token, string $path, array $body, int $timeout = 30): \Illuminate\Http\Client\Response
+    {
+        $response = null;
+
+        foreach ([0, 1, 3] as $attempt => $waitSeconds) {
+            if ($waitSeconds) {
+                sleep($waitSeconds);
+            }
+
+            $response = Http::withToken($token)->timeout($timeout)->acceptJson()->asJson()->post(self::API . $path, $body);
+
+            if ($response->status() < 500 && $response->status() !== 429) {
+                break;
+            }
+        }
+
+        if (!$response->successful()) {
+            Log::warning('X Chat media API call failed.', [
+                'path'   => preg_replace('#/upload/[^/]+/#', '/upload/{session}/', $path),
+                'status' => $response->status(),
+                'title'  => $response->json('title'),
+                'detail' => Str::limit((string) ($response->json('detail') ?? $response->body()), 300),
+            ]);
+        }
+
+        return $response;
     }
 
     /** Run a worker call, unlocking the account's session once if the worker restarted. */
