@@ -151,7 +151,6 @@ class XChatMediaService
             'total_bytes'     => strlen($ciphertext),
         ]);
 
-        dd($init->json());
         $sessionId = $init->json('data.session_id');
         $mediaHashKey = $init->json('data.media_hash_key');
 
@@ -219,28 +218,15 @@ class XChatMediaService
             ->acceptJson()
             ->asJson()
             ->beforeSending(function () use (&$attempts) {
-                $attempts++;
+                $attempts++; // runs once per attempt, retries included
             })
-            // Pass a closure expecting (\Illuminate\Http\Client\Response $response, \Throwable $e)
-            // or check status directly if using newer Laravel HTTP client signatures:
-            ->retry([1000, 3000], when: function (\Throwable $e, $response = null) {
-                if ($e instanceof ConnectionException) {
-                    return true;
-                }
-
-                if ($e instanceof RequestException) {
-                    return $e->response->serverError() || $e->response->status() === 429;
-                }
-
-                // If response is passed directly (Laravel 10+)
-                if ($response) {
-                    return $response->serverError() || $response->status() === 429;
-                }
-
-                return false;
-            }, throw: false)
+            // 3 attempts: wait 1s before the 2nd, 3s before the 3rd. Laravel
+            // calls `when` with ($exception, $pendingRequest) - the failed
+            // response is $exception->response, never a second argument.
+            ->retry([1000, 3000], when: fn (\Throwable $e) => $e instanceof ConnectionException
+                || ($e instanceof RequestException && ($e->response->serverError() || $e->response->status() === 429)), throw: false)
             ->post(self::API . $path, $body);
-        dd($token,  self::API . $path, $body);        
+
         if (!$response->successful()) {
             Log::warning('X Chat media API call failed.', [
                 'path'              => preg_replace('#/upload/[^/]+/#', '/upload/{session}/', $path),
@@ -251,7 +237,6 @@ class XChatMediaService
                 'detail'            => Str::limit((string) ($response->json('detail') ?? $response->body()), 300),
             ]);
         }
-        dd($response->json());         
         return $response;
     }
 
