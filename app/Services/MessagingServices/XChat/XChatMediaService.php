@@ -5,6 +5,8 @@ namespace App\Services\MessagingServices\XChat;
 use App\Models\Messaging\MessageChannel;
 use App\Models\SocialAccount;
 use App\Services\MessagingServices\XMessagingService;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -202,31 +204,25 @@ class XChatMediaService
      * POST to the X API, retrying transient 5xx/429 responses with backoff
      * (X's media guide: "Retry transient 5xx with backoff"). Logs the
      * response title/detail of a final failure - never request bodies.
-     */
-   /**
-     * POST to the X API, retrying transient 5xx/429 responses with backoff
-     * (X's media guide: "Retry transient 5xx with backoff"). Logs the
-     * response title/detail of a final failure - never request bodies.
+     *
+     * A failed response is RETURNED, not thrown (throw: false), so callers
+     * can map it to an XChatException with a readable message.
      */
     private function postWithRetry(string $token, string $path, array $body, int $timeout = 30): \Illuminate\Http\Client\Response
     {
-        $attemptCount = 0;
-        
+        $attempts = 0;
+
         $response = Http::withToken($token)
             ->timeout($timeout)
             ->acceptJson()
             ->asJson()
-            ->retry(3, function ($attempt, $exception) use (&$attemptCount) {
-                $attemptCount = $attempt;
-                // Sleep progression: 1s, then 3s (mimicking your [0, 1, 3] pattern)
-                return $attempt === 1 ? 1000 : 3000;
-            }, function ($response, $exception) use (&$attemptCount) {
-                // Determine if we should retry based on server error or rate limit
-                if ($exception instanceof \Illuminate\Http\Client\ConnectionException) {
-                    return true;
-                }
-                return $response && ($response->status() >= 500 || $response->status() === 429);
+            ->beforeSending(function () use (&$attempts) {
+                $attempts++; // runs once per attempt, retries included
             })
+            // 3 attempts: wait 1s before the 2nd, 3s before the 3rd. The
+            // `when` callback gets the exception (not the response).
+            ->retry([1000, 3000], when: fn (\Throwable $e) => $e instanceof ConnectionException
+                || ($e instanceof RequestException && ($e->response->serverError() || $e->response->status() === 429)), throw: false)
             ->post(self::API . $path, $body);
 
         if (!$response->successful()) {
@@ -234,7 +230,7 @@ class XChatMediaService
                 'path'              => preg_replace('#/upload/[^/]+/#', '/upload/{session}/', $path),
                 'status'            => $response->status(),
                 'x_transaction_id'  => $response->header('x-transaction-id') ?: null,
-                'attempts'          => max(1, $attemptCount),
+                'attempts'          => $attempts,
                 'title'             => $response->json('title'),
                 'detail'            => Str::limit((string) ($response->json('detail') ?? $response->body()), 300),
             ]);
