@@ -138,6 +138,20 @@
 </script>
 <!-- Main JS -->
 <script src="{{ asset('assets/js/main.js') }}"></script>
+{{-- Reverb (WebSocket) client settings, read at runtime by
+     resources/js/bootstrap.js from THIS server's .env - not baked into
+     the committed public/build at build time (which pointed every
+     environment's browsers at the building machine's localhost:8080).
+     The app key is public by design; the secret never leaves the server. --}}
+@php
+    $reverbClientConfig = [
+        'key'    => config('broadcasting.connections.reverb.key'),
+        'host'   => config('broadcasting.connections.reverb.options.host'),
+        'port'   => (int) config('broadcasting.connections.reverb.options.port'),
+        'scheme' => config('broadcasting.connections.reverb.options.scheme'),
+    ];
+@endphp
+<script>window.reverbConfig = @json($reverbClientConfig);</script>
 @vite(['resources/css/app.css', 'resources/js/app.js'])
 
 {{-- Snap Creative Kit Web - "Share to Snapchat" button used by the Quick

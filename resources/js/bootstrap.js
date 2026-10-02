@@ -13,12 +13,27 @@ import Pusher from 'pusher-js';
 
 window.Pusher = Pusher;
 
-window.Echo = new Echo({
-    broadcaster: 'reverb',
+// Runtime config from the server (layouts/app.blade.php) wins, so one
+// committed build works on every environment; Vite env is the fallback
+// for pages that don't render it.
+const reverb = window.reverbConfig ?? {
     key: import.meta.env.VITE_REVERB_APP_KEY,
-    wsHost: import.meta.env.VITE_REVERB_HOST,
-    wsPort: import.meta.env.VITE_REVERB_PORT ?? 80,
-    wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
-    forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'https') === 'https',
-    enabledTransports: ['ws', 'wss'],
-});
+    host: import.meta.env.VITE_REVERB_HOST,
+    port: import.meta.env.VITE_REVERB_PORT,
+    scheme: import.meta.env.VITE_REVERB_SCHEME,
+};
+
+// Without a key/host there is no Reverb to connect to - skip Echo instead
+// of retrying a dead socket forever (pages check `if (window.Echo)`).
+if (reverb.key && reverb.host) {
+    const tls = (reverb.scheme ?? 'https') === 'https';
+    window.Echo = new Echo({
+        broadcaster: 'reverb',
+        key: reverb.key,
+        wsHost: reverb.host,
+        wsPort: reverb.port || (tls ? 443 : 80),
+        wssPort: reverb.port || 443,
+        forceTLS: tls,
+        enabledTransports: ['ws', 'wss'],
+    });
+}
