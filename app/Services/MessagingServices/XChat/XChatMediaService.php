@@ -150,6 +150,8 @@ class XChatMediaService
             'conversation_id' => $bodyConversationId,
             'total_bytes'     => strlen($ciphertext),
         ]);
+
+        dd($init->json());
         $sessionId = $init->json('data.session_id');
         $mediaHashKey = $init->json('data.media_hash_key');
 
@@ -249,7 +251,7 @@ class XChatMediaService
                 'detail'            => Str::limit((string) ($response->json('detail') ?? $response->body()), 300),
             ]);
         }
-
+        dd($response->json());         
         return $response;
     }
 
