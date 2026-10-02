@@ -381,6 +381,26 @@ class XChatWebhookTest extends TestCase
         Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), '/2/dm_events/'));
     }
 
+    public function test_regular_dm_webhook_media_is_stored_not_shown_as_a_link(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('r2');
+
+        app(XMessagingService::class)->handleWebhook(['for_user_id' => '2222', 'direct_message_events' => [[
+            'type' => 'message_create', 'id' => 'legacy-dm-1',
+            'message_create' => ['sender_id' => '1111', 'target' => ['recipient_id' => '2222'], 'message_data' => [
+                'text'       => 'Photo https://t.co/Media123',
+                'attachment' => ['type' => 'media', 'media' => ['type' => 'photo', 'media_url_https' => 'https://ton.twitter.com/1.1/ton/data/dm/1/2/abc.png']],
+            ]],
+        ]]]);
+
+        $message = Message::where('external_message_id', 'legacy-dm-1')->firstOrFail();
+        $this->assertSame('Photo', $message->body);
+        $attachment = $message->attachments()->firstOrFail();
+        $this->assertSame('image', $attachment->type);
+        // Stored in our storage - never the private ton.twitter.com URL.
+        $this->assertStringNotContainsString('ton.twitter.com', $attachment->url);
+    }
+
     public function test_media_upload_retries_a_transient_5xx(): void
     {
         $this->enableXChat();

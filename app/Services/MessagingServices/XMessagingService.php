@@ -604,7 +604,13 @@ class XMessagingService
                 continue;
             }
 
+            if ($this->alreadyStored($channel, $event['id'] ?? null)) {
+                continue; // don't re-download media for messages we have
+            }
+
             $sender = $users->get($event['sender_id']);
+            // DM media arrives as a t.co link in the text - store the file.
+            $media = $this->resolveDmMedia($channel, (string) ($event['text'] ?? ''));
             ProcessInboundMessage::dispatch(
                 socialAccountId: $channel->social_account_id,
                 customerExternalId: $event['sender_id'],
@@ -612,7 +618,9 @@ class XMessagingService
                 customerAvatarUrl: $this->upsizeXAvatar($sender['profile_image_url'] ?? null),
                 externalConversationId: $event['dm_conversation_id'] ?? null,
                 externalMessageId: $event['id'] ?? null,
-                body: $event['text'] ?? null,
+                type: $media['type'],
+                body: $media['body'],
+                attachments: $media['attachments'],
             );
         }
 
@@ -643,6 +651,32 @@ class XMessagingService
      * appOnlyBearerToken() now uses to authenticate, not a different one
      * that merely happened to look plausible.
      */
+    /**
+     * Turn t.co DM media links in a message text into stored files (see
+     * XChat\XChatMediaService::resolveDmMediaLinks()).
+     *
+     * @return array{type: string, body: ?string, attachments: array}
+     */
+    private function resolveDmMedia(MessageChannel $channel, string $text): array
+    {
+        $resolved = $text !== '' && $channel->socialAccount
+            ? app(XChat\XChatMediaService::class)->resolveDmMediaLinks($channel->socialAccount, $text)
+            : ['body' => $text, 'attachments' => []];
+
+        return [
+            'type'        => $resolved['attachments'] && $resolved['body'] === '' ? $resolved['attachments'][0]['type'] : 'text',
+            'body'        => $resolved['body'] !== '' ? $resolved['body'] : null,
+            'attachments' => $resolved['attachments'],
+        ];
+    }
+
+    private function alreadyStored(MessageChannel $channel, ?string $externalMessageId): bool
+    {
+        return $externalMessageId && \App\Models\Messaging\Message::where('external_message_id', $externalMessageId)
+            ->whereHas('conversation', fn ($q) => $q->where('social_account_id', $channel->social_account_id))
+            ->exists();
+    }
+
     public function crcResponseToken(string $crcToken): string
     {
         return 'sha256=' . base64_encode(hash_hmac('sha256', $crcToken, (string) adminSetting('posts.x.consumer_secret'), true));
@@ -906,11 +940,16 @@ class XMessagingService
                 ?? $users[$senderId]['data']['profile_image_url']
                 ?? null;
 
-            // Extract media attachments
-            $attachments = [];
-            if (!empty($messageData['attachment']['media']['media_url_https'])) {
+            // DM media: the text carries a t.co link to it, and the
+            // media_url_https is private (needs the account's token) - so
+            // download it into our storage instead of hotlinking.
+            $media = $this->resolveDmMedia($channel, (string) $text);
+            $attachments = $media['attachments'];
+            if ($attachments) {
+                $text = (string) $media['body'];
+            } elseif (!empty($messageData['attachment']['media']['media_url_https'])) {
                 $attachments[] = [
-                    'type' => $messageData['attachment']['media']['type'] ?? 'image',
+                    'type' => ($messageData['attachment']['media']['type'] ?? 'photo') === 'photo' ? 'image' : 'video',
                     'url'  => $messageData['attachment']['media']['media_url_https'],
                 ];
             }
@@ -928,8 +967,8 @@ class XMessagingService
                 // otherwise replies via dm_conversations/with/{customer}.
                 externalConversationId: null,
                 externalMessageId: $messageId,
-                type: !empty($attachments) && empty($text) ? $attachments[0]['type'] : 'text',
-                body: $text,
+                type: !empty($attachments) && $text === '' ? $attachments[0]['type'] : 'text',
+                body: $text !== '' ? $text : null,
                 attachments: $attachments
             );
 

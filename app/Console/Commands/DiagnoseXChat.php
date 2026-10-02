@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\Http;
  */
 class DiagnoseXChat extends Command
 {
-    protected $signature = 'messaging:x-chat-diagnose {--account= : social_account_id (default: every X account with X Chat enabled)} {--conversation= : X Chat conversation id "A:B" to test media with}';
+    protected $signature = 'messaging:x-chat-diagnose {--account= : social_account_id (default: every X account with X Chat enabled)} {--conversation= : X Chat conversation id "A:B" to test media with} {--dm-media= : a t.co media link from a message, to test turning it into the file}';
 
     protected $description = 'Diagnose X Chat (encrypted DMs) setup and media upload access for X accounts';
 
@@ -76,6 +76,10 @@ class DiagnoseXChat extends Command
 
             // Read meta as a whole: Eloquent's value('meta->key') can't map a
             // JSON-path select back to an attribute and returns null.
+            if ($link = $this->option('dm-media')) {
+                $this->diagnoseDmMediaLink($token, $link);
+            }
+
             $conversationId = $this->option('conversation') ?: (Conversation::where('social_account_id', $account->id)
                 ->whereNotNull('meta->x_chat_conversation_id')
                 ->latest('id')
@@ -102,6 +106,41 @@ class DiagnoseXChat extends Command
         $this->line('Only "X Chat media initialize" = 503 = X-side: open an X developer ticket with the x-transaction-id shown.');
 
         return self::SUCCESS;
+    }
+
+    /** Each step of XChatMediaService::resolveDmMediaLinks(), with its HTTP status. */
+    private function diagnoseDmMediaLink(string $token, string $link): void
+    {
+        $redirect = Http::withoutRedirecting()->timeout(10)->get($link);
+        $location = (string) $redirect->header('Location');
+        $this->line("  t.co redirect: {$redirect->status()} -> " . ($location ?: '(none)'));
+
+        if (!preg_match('#(?:x|twitter)\.com/messages/media/(\d{1,19})#', $location, $m)) {
+            $this->line('  <comment>Not a DM media link.</comment>');
+
+            return;
+        }
+
+        $event = Http::withToken($token)->timeout(20)->acceptJson()->get(self::API . "dm_events/{$m[1]}", [
+            'dm_event.fields' => 'attachments',
+            'expansions'      => 'attachments.media_keys',
+            'media.fields'    => 'type,url,preview_image_url,variants',
+        ]);
+        $this->report("dm_events/{$m[1]}", $event);
+
+        foreach ($event->json('includes.media') ?? [] as $media) {
+            $url = $media['url'] ?? collect($media['variants'] ?? [])->where('content_type', 'video/mp4')->sortByDesc('bit_rate')->value('url');
+            $this->line('  media ' . ($media['type'] ?? '?') . ': ' . ($url ? parse_url($url, PHP_URL_HOST) . parse_url($url, PHP_URL_PATH) : '(no url)'));
+
+            if ($url) {
+                $download = Http::withToken($token)->timeout(60)->get($url);
+                $this->line("  download (with token): {$download->status()} " . $download->header('Content-Type') . ' ' . strlen($download->body()) . ' bytes');
+            }
+        }
+
+        if ($event->successful() && !$event->json('includes.media')) {
+            $this->line('  <comment>The DM event has no media for this account.</comment>');
+        }
     }
 
     private function report(string $label, Response $response): void
