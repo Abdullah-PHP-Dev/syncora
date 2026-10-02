@@ -487,7 +487,8 @@ class XMessagingService
                 $conversation->channel,
                 $xChatConversationId,
                 (string) $conversation->customer_external_id,
-                (string) ($data['body'] ?? '')
+                (string) ($data['body'] ?? ''),
+                !empty($data['media_url']) ? ['url' => $data['media_url'], 'file_name' => $data['file_name'] ?? null] : null
             );
         }
 
@@ -727,10 +728,14 @@ class XMessagingService
                 return true;
             }
 
+            // Encrypted attachments: downloaded + decrypted into real files.
+            $resolved = XChat\XChatMessageMapper::withMedia($mapped, app(XChat\XChatMediaService::class), $account, (string) $conversationId, $decrypted['key_version'] ?? null);
+
             ProcessInboundMessage::dispatch(...$common + [
                 'externalMessageId' => $externalMessageId ?? ($decrypted['message_id'] ?? null),
-                'type'              => $mapped['type'],
-                'body'              => $mapped['body'],
+                'type'              => $resolved['type'],
+                'body'              => $resolved['body'],
+                'attachments'       => $resolved['attachments'],
                 'messageMeta'       => ['x_chat' => [
                     'status'       => 'decrypted',
                     'verified'     => (bool) ($decrypted['verified'] ?? false),
@@ -738,7 +743,7 @@ class XMessagingService
                     'key_version'  => $decrypted['key_version'] ?? null,
                 ]],
             ]);
-            $log(true, 'X Chat message decrypted and dispatched (' . ($mapped['type'] ?? '') . ').');
+            $log(true, 'X Chat message decrypted and dispatched (' . $resolved['type'] . ', ' . count($resolved['attachments']) . ' attachment(s)).');
 
             return true;
         } catch (XChat\XChatException $e) {

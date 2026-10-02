@@ -5,7 +5,8 @@
  * stays inside X's official library.
  *
  * Env:
- *   XCHAT_WORKER_TOKEN   required - shared secret (same value in Laravel .env)
+ *   XCHAT_WORKER_TOKEN   shared secret; if unset it's read from the Laravel .env
+ *                        (../.env) - the same value Laravel uses
  *   XCHAT_WORKER_HOST    default 127.0.0.1 (never expose publicly)
  *   XCHAT_WORKER_PORT    default 8790
  *   XCHAT_SESSION_IDLE_MINUTES  default 720 - unlocked sessions are locked
@@ -17,23 +18,42 @@
  *   /v1/sessions/status         { session_id }
  *   /v1/sessions/lock           { session_id }
  *   /v1/decrypt                 { session_id, event, key_change_events[], signing_keys[] }
- *   /v1/encrypt                 { session_id, conversation_id, text, key_change_events[], signing_keys[], reply_to_event? }
+ *   /v1/encrypt                 { session_id, conversation_id, text, key_change_events[], signing_keys[], reply_to_event?, attachments? }
+ *   /v1/media/decrypt           { session_id, ciphertext_b64, key_version, key_change_events[], signing_keys[] }
+ *   /v1/media/encrypt           { session_id, plaintext_b64, key_change_events[], signing_keys[] }
  *
  * A request for a session that isn't unlocked returns 409 session_locked;
  * Laravel then calls /v1/sessions/unlock and retries.
  */
 import { createServer } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { XChatSession, XChatError, classifyError } from './src/xchat.mjs';
 
-const TOKEN = process.env.XCHAT_WORKER_TOKEN ?? '';
+/**
+ * Token source: XCHAT_WORKER_TOKEN from the environment, else read from the
+ * Laravel app's own .env (../.env, or XCHAT_LARAVEL_ENV) - so on Forge the
+ * secret lives in exactly one place and the daemon command stays plain.
+ */
+function tokenFromLaravelEnv() {
+    try {
+        const envPath = process.env.XCHAT_LARAVEL_ENV ?? new URL('../.env', import.meta.url);
+        const line = readFileSync(envPath, 'utf8').split(/\r?\n/).reverse().find((l) => /^XCHAT_WORKER_TOKEN=/.test(l));
+        return line ? line.slice('XCHAT_WORKER_TOKEN='.length).trim().replace(/^["']|["']$/g, '') : '';
+    } catch {
+        return '';
+    }
+}
+
+const TOKEN = process.env.XCHAT_WORKER_TOKEN || tokenFromLaravelEnv();
 const HOST = process.env.XCHAT_WORKER_HOST ?? '127.0.0.1';
 const PORT = Number(process.env.XCHAT_WORKER_PORT ?? 8790);
 const IDLE_MS = Number(process.env.XCHAT_SESSION_IDLE_MINUTES ?? 720) * 60_000;
-const MAX_BODY = 2 * 1024 * 1024;
+// Media endpoints carry base64 file bytes (X Chat attachments; Laravel caps uploads at 20 MB).
+const MAX_BODY = 40 * 1024 * 1024;
 
 if (TOKEN.length < 32) {
-    console.error('[xchat-worker] XCHAT_WORKER_TOKEN must be set (32+ characters). Refusing to start.');
+    console.error('[xchat-worker] XCHAT_WORKER_TOKEN must be set (32+ characters) in the environment or in the Laravel .env. Refusing to start.');
     process.exit(1);
 }
 
@@ -115,13 +135,33 @@ const routes = {
     async '/v1/encrypt'(b) {
         const payload = sessionFor(b.session_id).encrypt({
             conversationId: b.conversation_id,
-            text: b.text,
+            text: b.text ?? '',
             keyChangeEvents: Array.isArray(b.key_change_events) ? b.key_change_events : [],
             signingKeys: Array.isArray(b.signing_keys) ? b.signing_keys : [],
             replyToEvent: b.reply_to_event ?? null,
+            attachments: Array.isArray(b.attachments) ? b.attachments : null,
         });
         log('encrypted', { session_id: String(b.session_id) });
         return { status: 'ok', payload };
+    },
+    async '/v1/media/decrypt'(b) {
+        const result = sessionFor(b.session_id).decryptMedia({
+            ciphertextB64: b.ciphertext_b64,
+            keyVersion: b.key_version,
+            keyChangeEvents: Array.isArray(b.key_change_events) ? b.key_change_events : [],
+            signingKeys: Array.isArray(b.signing_keys) ? b.signing_keys : [],
+        });
+        log('media_decrypted', { session_id: String(b.session_id), mime_type: result.mime_type, size: result.size });
+        return { status: 'ok', ...result };
+    },
+    async '/v1/media/encrypt'(b) {
+        const result = sessionFor(b.session_id).encryptMedia({
+            plaintextB64: b.plaintext_b64,
+            keyChangeEvents: Array.isArray(b.key_change_events) ? b.key_change_events : [],
+            signingKeys: Array.isArray(b.signing_keys) ? b.signing_keys : [],
+        });
+        log('media_encrypted', { session_id: String(b.session_id), mime_type: result.mime_type, size: result.plaintext_size });
+        return { status: 'ok', ...result };
     },
 };
 

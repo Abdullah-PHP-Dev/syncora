@@ -100,3 +100,40 @@ test('lock wipes the session', async () => {
     const r = await call('/v1/sessions/status', { session_id: 'acct-1' });
     assert.equal(r.body.status, 'locked');
 });
+
+// 1x1 transparent PNG.
+const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+test('media: encrypt -> decrypt round trip returns identical bytes and detects the type', async () => {
+    await unlock();
+    const kc = { key_change_events: [v.event_key_change_b64], signing_keys: signingKeys };
+    const enc = await call('/v1/media/encrypt', { session_id: 'acct-1', plaintext_b64: PNG_B64, ...kc });
+    assert.equal(enc.status, 200, JSON.stringify(enc.body));
+    assert.equal(enc.body.mime_type, 'image/png');
+    assert.equal(enc.body.width, 1);
+    assert.notEqual(enc.body.ciphertext_b64, PNG_B64);
+    assert.equal(enc.body.key_version, String(v.event_conversation_key_version));
+
+    const dec = await call('/v1/media/decrypt', { session_id: 'acct-1', ciphertext_b64: enc.body.ciphertext_b64, key_version: enc.body.key_version, ...kc });
+    assert.equal(dec.status, 200, JSON.stringify(dec.body));
+    assert.equal(dec.body.plaintext_b64, PNG_B64);
+    assert.equal(dec.body.mime_type, 'image/png');
+});
+
+test('media: unknown key version -> 422 missing_conversation_key', async () => {
+    await unlock();
+    const r = await call('/v1/media/decrypt', { session_id: 'acct-1', ciphertext_b64: PNG_B64, key_version: '999', key_change_events: [v.event_key_change_b64], signing_keys: signingKeys });
+    assert.equal(r.status, 422);
+    assert.equal(r.body.error, 'missing_conversation_key');
+});
+
+test('outgoing: message with a media attachment encrypts', async () => {
+    await unlock();
+    const r = await call('/v1/encrypt', {
+        session_id: 'acct-1', conversation_id: v.event_conversation_id, text: '',
+        key_change_events: [v.event_key_change_b64], signing_keys: signingKeys,
+        attachments: [{ attachment_type: 'media', media_hash_key: 'hash-123', width: 1, height: 1, filesize_bytes: 70, filename: 'pixel.png' }],
+    });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.ok(r.body.payload.encoded_message_create_event);
+});

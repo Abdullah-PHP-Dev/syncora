@@ -16,14 +16,28 @@ XCHAT_WORKER_TOKEN=<same value as Laravel .env> node server.mjs
 
 | Env | Default | |
 |---|---|---|
-| `XCHAT_WORKER_TOKEN` | — (required, 32+ chars) | Shared secret; must match `XCHAT_WORKER_TOKEN` in Laravel's `.env` |
+| `XCHAT_WORKER_TOKEN` | read from `../.env` | Shared secret (32+ chars). If not set in the environment, the worker reads `XCHAT_WORKER_TOKEN` from the Laravel `.env` one folder up, so it only needs to be set there |
 | `XCHAT_WORKER_HOST` | `127.0.0.1` | Never bind a public interface |
 | `XCHAT_WORKER_PORT` | `8790` | Laravel: `XCHAT_WORKER_URL=http://127.0.0.1:8790` |
 | `XCHAT_SESSION_IDLE_MINUTES` | `720` | Unlocked keys are wiped from memory after this idle time |
 
 Generate a token: `openssl rand -hex 32`.
 
-### Production (Supervisor)
+### Production on Laravel Forge
+
+Forge -> site -> **Background processes** -> **+**:
+
+| Field | Value |
+|---|---|
+| Command | `node server.mjs` |
+| Directory | `/home/forge/<site>/xchat-worker` |
+| User | `forge` |
+| Processes | `1` |
+
+No environment needed: the token is read from the site's `.env`. Restart the
+process after a deploy that changes `xchat-worker/`.
+
+### Production (plain Supervisor)
 
 ```ini
 [program:xchat-worker]

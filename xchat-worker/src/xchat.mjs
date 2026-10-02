@@ -23,7 +23,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createChat } from '@xdevplatform/chat-xdk';
+import { createChat, base64ToBytes, bytesToBase64, detectMimeType, detectImageDimensions } from '@xdevplatform/chat-xdk';
 
 const require = createRequire(import.meta.url);
 
@@ -149,16 +149,17 @@ export class XChatSession {
     }
 
     /** Encrypt + sign an outgoing text message (optionally a threaded reply). */
-    encrypt({ conversationId, text, keyChangeEvents = [], signingKeys = [], replyToEvent = null }) {
-        if (!conversationId || typeof text !== 'string' || text === '') {
-            throw new XChatError('malformed_event', 'conversationId and text are required.');
+    encrypt({ conversationId, text, keyChangeEvents = [], signingKeys = [], replyToEvent = null, attachments = null }) {
+        const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+        if (!conversationId || typeof text !== 'string' || (text === '' && !hasAttachments)) {
+            throw new XChatError('malformed_event', 'conversationId and text (or an attachment) are required.');
         }
-        const batch = this.#chat.decryptEvents(keyChangeEvents, signingKeys);
-        const version = batch.conversationKeys?.latestVersion;
-        const key = version ? batch.conversationKeys.keys[version] : null;
-        if (!key) throw new XChatError('missing_conversation_key', 'No verified conversation key is available for this conversation.');
+        const { key, version } = this.#latestKey(keyChangeEvents, signingKeys);
 
         const params = { conversationId, text, conversationKey: key, conversationKeyVersion: version };
+        // Media attachments (encryptMedia + X Chat media upload) are encrypted
+        // under the same latest key, so message and media versions match.
+        if (hasAttachments) params.attachments = attachments;
         const payload = replyToEvent
             ? this.#chat.encryptReply({ ...params, replyToEvent })
             : this.#chat.encryptMessage(params);
@@ -171,6 +172,65 @@ export class XChatSession {
         };
     }
 
+    /** Verified conversation keys from key-change events (signatures checked by the XDK). */
+    #keys(keyChangeEvents, signingKeys) {
+        const batch = this.#chat.decryptEvents(keyChangeEvents, signingKeys);
+        return batch.conversationKeys ?? { keys: {}, latestVersion: null };
+    }
+
+    #latestKey(keyChangeEvents, signingKeys) {
+        const { keys, latestVersion } = this.#keys(keyChangeEvents, signingKeys);
+        const key = latestVersion ? keys[latestVersion] : null;
+        if (!key) throw new XChatError('missing_conversation_key', 'No verified conversation key is available for this conversation.');
+        return { key, version: latestVersion };
+    }
+
+    /**
+     * Decrypt an attachment downloaded from GET /2/chat/media/{id}/{hash}.
+     * Uses the key of the MESSAGE's key version (not the latest) - X's media
+     * guide: "Pick the key by the event's key version".
+     */
+    decryptMedia({ ciphertextB64, keyVersion, keyChangeEvents = [], signingKeys = [] }) {
+        const { keys } = this.#keys(keyChangeEvents, signingKeys);
+        const key = keyVersion ? keys[String(keyVersion)] : null;
+        if (!key) throw new XChatError('missing_conversation_key', `No verified conversation key for version ${keyVersion}.`);
+        const ciphertext = base64ToBytes(ciphertextB64);
+        if (!ciphertext) throw new XChatError('malformed_event', 'Media ciphertext is not valid base64.');
+
+        let plaintext;
+        try {
+            plaintext = this.#chat.decryptStream(ciphertext, key);
+        } catch (err) {
+            throw new XChatError('decrypt_failed', `Media decryption failed: ${err?.message ?? err}`);
+        }
+        const dims = detectImageDimensions(plaintext);
+        return {
+            plaintext_b64: bytesToBase64(plaintext),
+            mime_type: detectMimeType(plaintext) ?? 'application/octet-stream',
+            width: dims?.width ?? null,
+            height: dims?.height ?? null,
+            size: plaintext.byteLength,
+        };
+    }
+
+    /** Encrypt file bytes for upload to the X Chat media store (latest key). */
+    encryptMedia({ plaintextB64, keyChangeEvents = [], signingKeys = [] }) {
+        const { key, version } = this.#latestKey(keyChangeEvents, signingKeys);
+        const plaintext = base64ToBytes(plaintextB64);
+        if (!plaintext) throw new XChatError('malformed_event', 'File bytes are not valid base64.');
+        const dims = detectImageDimensions(plaintext);
+        const ciphertext = this.#chat.encryptStream(plaintext, key);
+        return {
+            ciphertext_b64: bytesToBase64(ciphertext),
+            key_version: String(version),
+            mime_type: detectMimeType(plaintext) ?? 'application/octet-stream',
+            width: dims?.width ?? 0,
+            height: dims?.height ?? 0,
+            plaintext_size: plaintext.byteLength,
+            ciphertext_size: ciphertext.byteLength,
+        };
+    }
+
     lock() {
         try { this.#chat.lock(); } catch { /* already locked */ }
     }
@@ -179,7 +239,12 @@ export class XChatSession {
 /** Reduce the XDK Event to the fields Laravel stores. Plain text only - no keys. */
 export function normalize(ev) {
     const content = ev?.content ?? {};
-    const attachments = Array.isArray(ev?.attachments) ? ev.attachments : [];
+    const attachments = Array.isArray(ev?.attachments) && ev.attachments.length
+        ? ev.attachments
+        : (Array.isArray(content.attachments) ? content.attachments : []);
+    // Media hash keys the XDK derived from the attachments - used when an
+    // attachment entry itself doesn't carry one.
+    const mediaHashes = (Array.isArray(ev?.mediaHashes) ? ev.mediaHashes : []).map((m) => m?.mediaHashKey).filter(Boolean);
     return {
         type: ev?.type ?? 'unknown',                       // message | keyChange | failure | readReceipt | ...
         message_id: ev?.id ?? null,
@@ -194,11 +259,17 @@ export function normalize(ev) {
         emoji: content.emoji ?? null,
         target_message_id: content.targetMessageId ?? null,
         attachment_count: attachments.length,
-        attachments: attachments.map((a) => ({
-            type: a?.type ?? a?.kind ?? 'file',
-            mime_type: a?.mimeType ?? a?.mime_type ?? null,
-            file_name: a?.filename ?? a?.fileName ?? null,
-            url: a?.url ?? null,
+        attachments: attachments.map((a, i) => ({
+            attachment_type: a?.attachmentType ?? a?.attachment_type ?? (a?.mediaHashKey || mediaHashes[i] ? 'media' : null), // media | url | post | unifiedCard | money
+            media_hash_key: a?.mediaHashKey ?? a?.media_hash_key ?? mediaHashes[i] ?? null,
+            media_type: a?.mediaType ?? null,
+            file_name: a?.filename ?? null,
+            filesize_bytes: a?.filesizeBytes ?? null,
+            width: a?.dimensions?.width ?? null,
+            height: a?.dimensions?.height ?? null,
+            duration_millis: a?.durationMillis ?? null,
+            url: a?.url ?? a?.postUrl ?? null,
+            title: a?.displayTitle ?? null,
         })),
         reply_preview_validation: ev?.replyPreviewValidation ?? null,
         failure: ev?.failure ?? null,

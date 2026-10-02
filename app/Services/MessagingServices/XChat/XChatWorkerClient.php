@@ -49,15 +49,48 @@ class XChatWorkerClient
     /**
      * @return array{message_id: string, encoded_message_create_event: string, encoded_message_event_signature: string, conversation_key_version: string}
      */
-    public function encrypt(int $sessionId, string $conversationId, string $text, array $keyChangeEvents, array $signingKeys): array
+    public function encrypt(int $sessionId, string $conversationId, string $text, array $keyChangeEvents, array $signingKeys, array $attachments = []): array
     {
-        return $this->post('/v1/encrypt', [
+        return $this->post('/v1/encrypt', array_filter([
             'session_id'        => (string) $sessionId,
             'conversation_id'   => $conversationId,
             'text'              => $text,
             'key_change_events' => array_values($keyChangeEvents),
             'signing_keys'      => array_values($signingKeys),
-        ])['payload'];
+            'attachments'       => $attachments ?: null,
+        ], fn ($v) => $v !== null))['payload'];
+    }
+
+    /**
+     * Decrypt a downloaded X Chat attachment with the conversation key of
+     * the message's own key version.
+     *
+     * @return array{plaintext_b64: string, mime_type: string, width: ?int, height: ?int, size: int}
+     */
+    public function decryptMedia(int $sessionId, string $ciphertext, string $keyVersion, array $keyChangeEvents, array $signingKeys): array
+    {
+        return $this->post('/v1/media/decrypt', [
+            'session_id'        => (string) $sessionId,
+            'ciphertext_b64'    => base64_encode($ciphertext),
+            'key_version'       => $keyVersion,
+            'key_change_events' => array_values($keyChangeEvents),
+            'signing_keys'      => array_values($signingKeys),
+        ], 120);
+    }
+
+    /**
+     * Encrypt file bytes for the X Chat media store (latest conversation key).
+     *
+     * @return array{ciphertext_b64: string, key_version: string, mime_type: string, width: int, height: int, plaintext_size: int, ciphertext_size: int}
+     */
+    public function encryptMedia(int $sessionId, string $plaintext, array $keyChangeEvents, array $signingKeys): array
+    {
+        return $this->post('/v1/media/encrypt', [
+            'session_id'        => (string) $sessionId,
+            'plaintext_b64'     => base64_encode($plaintext),
+            'key_change_events' => array_values($keyChangeEvents),
+            'signing_keys'      => array_values($signingKeys),
+        ], 120);
     }
 
     public function isAvailable(): bool
@@ -69,7 +102,7 @@ class XChatWorkerClient
         }
     }
 
-    private function post(string $path, array $body): array
+    private function post(string $path, array $body, ?int $timeout = null): array
     {
         $token = config('services.xchat_worker.token');
 
@@ -79,7 +112,7 @@ class XChatWorkerClient
 
         try {
             $response = Http::withToken($token)
-                ->timeout(config('services.xchat_worker.timeout', 20))
+                ->timeout($timeout ?? config('services.xchat_worker.timeout', 20))
                 ->acceptJson()
                 ->post(rtrim(config('services.xchat_worker.url'), '/') . $path, $body);
         } catch (ConnectionException $e) {

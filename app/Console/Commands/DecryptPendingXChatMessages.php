@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Messaging\Message;
 use App\Services\MessagingServices\XChat\XChatDecryptionService;
 use App\Services\MessagingServices\XChat\XChatException;
+use App\Services\MessagingServices\XChat\XChatMediaService;
 use App\Services\MessagingServices\XChat\XChatMessageMapper;
 use App\Services\MessagingServices\XMessagingService;
 use Illuminate\Console\Command;
@@ -61,10 +62,15 @@ class DecryptPendingXChatMessages extends Command
                 } elseif ($mapped['action'] === 'ignore') {
                     $message->delete(); // protocol event, not a chat message
                 } else {
-                    $message->update(['type' => $mapped['type'], 'body' => $mapped['body'], 'meta' => $meta]);
+                    $resolved = XChatMessageMapper::withMedia($mapped, app(XChatMediaService::class), $account, (string) ($payload['conversation_id'] ?? ''), $event['key_version'] ?? null);
+                    $message->update(['type' => $resolved['type'], 'body' => $resolved['body'], 'meta' => $meta]);
+
+                    foreach ($resolved['attachments'] as $attachment) {
+                        $message->attachments()->create($attachment);
+                    }
 
                     if ($message->conversation->messages()->latest('id')->value('id') === $message->id) {
-                        $message->conversation->update(['last_message_preview' => \Illuminate\Support\Str::limit((string) $mapped['body'], 120)]);
+                        $message->conversation->update(['last_message_preview' => \Illuminate\Support\Str::limit((string) ($resolved['body'] ?? '[' . ucfirst($resolved['type']) . ']'), 120)]);
                     }
                 }
 

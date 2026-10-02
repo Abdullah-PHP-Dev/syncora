@@ -15,6 +15,38 @@ class XChatMessageMapper
     public const UNVERIFIED_BODY = 'Encrypted X Chat message could not be verified and was not shown.';
 
     /**
+     * Resolve a mapped message's attachments into stored files: the message
+     * type follows the first file (image/video/audio/file), link/post
+     * attachments are appended to the body, and anything that couldn't be
+     * fetched is noted instead of silently dropped.
+     *
+     * @return array{type: string, body: ?string, attachments: array}
+     */
+    public static function withMedia(array $mapped, XChatMediaService $media, \App\Models\SocialAccount $account, string $conversationId, ?string $keyVersion): array
+    {
+        $body = (string) ($mapped['body'] ?? '');
+        $type = $mapped['type'] ?? 'text';
+
+        if (empty($mapped['attachments'])) {
+            return ['type' => $type, 'body' => $body, 'attachments' => []];
+        }
+
+        $fetched = $media->fetchAttachments($account, $conversationId, $keyVersion, $mapped['attachments']);
+
+        if ($fetched['links']) {
+            $body = trim($body . "\n" . implode("\n", array_unique($fetched['links'])));
+        }
+        if ($fetched['failed']) {
+            $body = trim($body . "\n[" . $fetched['failed'] . ' attachment(s) could not be loaded - open X to view]');
+        }
+        if ($fetched['attachments'] && trim((string) $mapped['body']) === '') {
+            $type = $fetched['attachments'][0]['type'];
+        }
+
+        return ['type' => $type, 'body' => $body !== '' ? $body : null, 'attachments' => $fetched['attachments']];
+    }
+
+    /**
      * @return array{action: 'create'|'edit'|'ignore', type?: string, body?: ?string, target_message_id?: ?string, attachments?: array}
      */
     public static function map(array $event): array
@@ -28,12 +60,14 @@ class XChatMessageMapper
         $contentType = strtolower((string) ($event['content_type'] ?? ''));
 
         return match ($contentType) {
+            // Text, optionally with attachments: the caption is the body; the
+            // attachments themselves are downloaded + decrypted by
+            // XChatMediaService (see withMedia()).
             'text' => [
-                'action' => 'create',
-                'type'   => ($event['attachment_count'] ?? 0) > 0 && trim((string) $event['text']) === '' ? 'file' : 'text',
-                'body'   => ($event['attachment_count'] ?? 0) > 0
-                    ? trim(($event['text'] ?? '') . "\n[" . $event['attachment_count'] . ' encrypted attachment(s) - open X to view]')
-                    : (string) ($event['text'] ?? ''),
+                'action'      => 'create',
+                'type'        => 'text',
+                'body'        => (string) ($event['text'] ?? ''),
+                'attachments' => $event['attachments'] ?? [],
             ],
             'reaction' => [
                 'action' => 'create',

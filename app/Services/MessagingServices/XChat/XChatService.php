@@ -28,8 +28,11 @@ class XChatService
     ) {
     }
 
-    /** @return array{success: bool, external_message_id?: string, error?: string} */
-    public function sendText(SocialAccount $account, string $conversationId, string $customerId, string $text): array
+    /**
+     * @param array{url: string, file_name?: ?string}|null $media a file to attach (eg. the inbox upload on R2)
+     * @return array{success: bool, external_message_id?: string, error?: string}
+     */
+    public function sendText(SocialAccount $account, string $conversationId, string $customerId, string $text, ?array $media = null): array
     {
         if (!$this->keys->credentialFor($account)) {
             return ['success' => false, 'error' => 'This X conversation is end-to-end encrypted. Enable encrypted X Chat for this account (Channels > X > Enable X Chat) to reply from the inbox.'];
@@ -37,6 +40,23 @@ class XChatService
 
         $required = [(string) $account->platform_account_id => null, $customerId => null];
         $retried = [];
+        $attachments = [];
+
+        if ($media && !empty($media['url'])) {
+            try {
+                $file = Http::timeout(60)->get($media['url']);
+                if (!$file->successful()) {
+                    return ['success' => false, 'error' => 'Could not read the file to send (HTTP ' . $file->status() . ').'];
+                }
+                $fileName = $media['file_name'] ?? basename((string) parse_url($media['url'], PHP_URL_PATH));
+                // Encrypted with the conversation key, uploaded to X's media store.
+                $attachments[] = app(XChatMediaService::class)->uploadForMessage($account, $conversationId, $file->body(), $fileName);
+            } catch (XChatException $e) {
+                Log::warning('X Chat: media upload failed.', ['social_account_id' => $account->id, 'reason' => $e->reason]);
+
+                return ['success' => false, 'error' => $e->getMessage()];
+            }
+        }
 
         while (true) {
             try {
@@ -45,7 +65,8 @@ class XChatService
                     $conversationId,
                     $text,
                     $this->keys->keyChangeEventsFor($conversationId),
-                    $this->keys->signingKeysFor($account, $required)
+                    $this->keys->signingKeysFor($account, $required),
+                    $attachments
                 );
                 break;
             } catch (XChatException $e) {

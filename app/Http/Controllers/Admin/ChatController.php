@@ -181,6 +181,7 @@ class ChatController extends Controller
             'body'       => $validated['body'] ?? null,
             'media_url'  => $mediaUrl,
             'media_type' => $mediaType,
+            'file_name'  => $request->hasFile('media') ? $request->file('media')->getClientOriginalName() : null,
         ]);
 
         if ($result['success'] ?? false) {

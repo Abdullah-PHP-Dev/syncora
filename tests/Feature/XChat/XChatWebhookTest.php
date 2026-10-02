@@ -38,6 +38,10 @@ class XChatWebhookTest extends TestCase
 
     private array $sentToX = [];
 
+    private array $mediaRequests = [];
+
+    private array $encryptAttachments = [];
+
     /** Number of upcoming /v1/decrypt calls that answer 409 session_locked. */
     private int $lockedResponses = 0;
 
@@ -70,7 +74,35 @@ class XChatWebhookTest extends TestCase
                     : Http::response(['status' => 'ok', 'event' => $outcome, 'keyVersions' => ['1001'], 'keyChangeErrors' => 0]);
             }
             if (str_starts_with($url, 'http://xchat-worker.test/v1/encrypt')) {
+                $this->encryptAttachments[] = $request['attachments'] ?? [];
+
                 return Http::response(['status' => 'ok', 'payload' => ['message_id' => 'out-1', 'encoded_message_create_event' => 'CIPHERTEXT', 'encoded_message_event_signature' => 'SIG', 'conversation_key_version' => '1001']]);
+            }
+            if (str_starts_with($url, 'http://xchat-worker.test/v1/media/decrypt')) {
+                $this->mediaRequests[] = ['decrypt', $request['key_version'], base64_decode($request['ciphertext_b64'])];
+
+                return Http::response(['status' => 'ok', 'plaintext_b64' => base64_encode('%PDF-1.4 invoice'), 'mime_type' => 'application/pdf', 'width' => null, 'height' => null, 'size' => 16]);
+            }
+            if (str_starts_with($url, 'http://xchat-worker.test/v1/media/encrypt')) {
+                $this->mediaRequests[] = ['encrypt', base64_decode($request['plaintext_b64'])];
+
+                return Http::response(['status' => 'ok', 'ciphertext_b64' => base64_encode('ENCRYPTED-BYTES'), 'key_version' => '1001', 'mime_type' => 'image/png', 'width' => 4, 'height' => 3, 'plaintext_size' => 9, 'ciphertext_size' => 15]);
+            }
+            if (str_contains($url, '/2/chat/media/1111-2222/hash-in-1')) {
+                return Http::response('CIPHER-BYTES', 200, ['Content-Type' => 'application/octet-stream']);
+            }
+            if (str_contains($url, '/2/chat/media/upload/initialize')) {
+                $this->mediaRequests[] = ['initialize', $request->data()];
+
+                return Http::response(['data' => ['session_id' => 'sess-9', 'media_hash_key' => 'hash-out-1', 'conversation_id' => '1111-2222']]);
+            }
+            if (preg_match('#/2/chat/media/upload/sess-9/(append|finalize)#', $url, $m)) {
+                $this->mediaRequests[] = [$m[1], $request->isMultipart() ? 'multipart' : $request->data()];
+
+                return Http::response(['data' => []]);
+            }
+            if ($url === 'https://cdn.test/uploads/messaging/x/photo.png') {
+                return Http::response('PNG-BYTES', 200, ['Content-Type' => 'image/png']);
             }
             if (str_starts_with($url, 'http://xchat-worker.test/v1/sessions/unlock')) {
                 return Http::response(['status' => 'unlocked']);
@@ -240,6 +272,69 @@ class XChatWebhookTest extends TestCase
         $this->assertTrue($result['success']);
         $this->assertSame(['message_id' => 'out-1', 'encoded_message_create_event' => 'CIPHERTEXT', 'encoded_message_event_signature' => 'SIG'], $this->sentToX[0]);
         Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), 'dm_conversations'));
+    }
+
+    public function test_inbound_attachment_is_downloaded_decrypted_and_stored_as_a_file(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('r2');
+        $this->enableXChat();
+        $this->workerDecrypt['ENC-M1'] = $this->decryptedText('') + [
+            'attachment_count' => 1,
+            'attachments'      => [['attachment_type' => 'media', 'media_hash_key' => 'hash-in-1', 'file_name' => 'invoice.pdf']],
+        ];
+
+        $this->assertSame(200, $this->deliver('ENC-M1', 'uuid-m1')->getStatusCode());
+
+        $message = Message::where('external_message_id', 'uuid-m1-id')->firstOrFail();
+        $this->assertSame('file', $message->type);
+        $this->assertNull($message->body);
+        $attachment = $message->attachments()->firstOrFail();
+        $this->assertSame('invoice.pdf', $attachment->file_name);
+        $this->assertSame('application/pdf', $attachment->mime_type);
+        $this->assertSame(16, $attachment->file_size);
+        // Decrypted with the MESSAGE's key version, from the downloaded ciphertext.
+        $this->assertSame(['decrypt', '1001', 'CIPHER-BYTES'], $this->mediaRequests[0]);
+        $path = ltrim(parse_url($attachment->url, PHP_URL_PATH), '/');
+        \Illuminate\Support\Facades\Storage::disk('r2')->assertExists(preg_replace('#^.*?(uploads/)#', '$1', $path));
+    }
+
+    public function test_link_attachment_becomes_a_link_and_failed_media_is_noted(): void
+    {
+        $this->enableXChat();
+        $this->workerDecrypt['ENC-M2'] = $this->decryptedText('look') + [
+            'attachment_count' => 2,
+            'attachments'      => [
+                ['attachment_type' => 'url', 'url' => 'https://example.com/product'],
+                ['attachment_type' => 'media', 'media_hash_key' => 'missing-hash'],
+            ],
+        ];
+
+        $this->deliver('ENC-M2', 'uuid-m2');
+
+        $body = Message::where('external_message_id', 'uuid-m2-id')->value('body');
+        $this->assertStringContainsString('look', $body);
+        $this->assertStringContainsString('https://example.com/product', $body);
+        $this->assertStringContainsString('1 attachment(s) could not be loaded', $body);
+    }
+
+    public function test_outbound_file_is_encrypted_uploaded_and_attached(): void
+    {
+        $this->enableXChat();
+        $this->workerDecrypt['ENC-M3'] = $this->decryptedText('hi');
+        $this->deliver('ENC-M3', 'uuid-m3');
+        $conversation = Message::where('external_message_id', 'uuid-m3-id')->firstOrFail()->conversation;
+
+        $result = app(XMessagingService::class)->sendMessage($conversation, ['body' => '', 'media_url' => 'https://cdn.test/uploads/messaging/x/photo.png', 'file_name' => 'photo.png']);
+
+        $this->assertTrue($result['success'], $result['error'] ?? '');
+        $this->assertSame(['encrypt', 'PNG-BYTES'], $this->mediaRequests[0]);
+        $this->assertSame('initialize', $this->mediaRequests[1][0]);
+        $this->assertSame(['conversation_id' => '1111-2222', 'total_bytes' => 15], $this->mediaRequests[1][1]);
+        $this->assertSame(['append', 'multipart'], $this->mediaRequests[2]);
+        $this->assertSame(['finalize', ['conversation_id' => '1111-2222', 'media_hash_key' => 'hash-out-1', 'num_parts' => '1']], $this->mediaRequests[3]);
+        $this->assertSame([['attachment_type' => 'media', 'media_hash_key' => 'hash-out-1', 'width' => 4, 'height' => 3, 'filesize_bytes' => 9, 'filename' => 'photo.png']], end($this->encryptAttachments));
+        $this->assertSame('CIPHERTEXT', end($this->sentToX)['encoded_message_create_event']);
+        Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->body(), 'PNG-BYTES') && str_contains($r->url(), 'api.x.com'));
     }
 
     /**
