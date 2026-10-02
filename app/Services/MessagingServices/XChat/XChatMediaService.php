@@ -151,6 +151,12 @@ class XChatMediaService
         $sessionId = $init->json('data.session_id');
         $mediaHashKey = $init->json('data.media_hash_key');
 
+        if ($init->status() === 503) {
+            // X-side: the same token is accepted by /2/media/upload, only the
+            // X Chat media service refuses (see messaging:x-chat-diagnose).
+            throw new XChatException('send_failed', 'X is not accepting encrypted file uploads right now (HTTP 503). Send the message as text, or send the file from the X app.');
+        }
+
         if (!$init->successful() || !$sessionId || !$mediaHashKey) {
             throw new XChatException('send_failed', 'X media upload could not start (HTTP ' . $init->status() . '): ' . ($init->json('detail') ?? $init->json('title') ?? 'unknown error') . $this->scopeHint($init->status()));
         }
@@ -197,32 +203,40 @@ class XChatMediaService
      * (X's media guide: "Retry transient 5xx with backoff"). Logs the
      * response title/detail of a final failure - never request bodies.
      */
+   /**
+     * POST to the X API, retrying transient 5xx/429 responses with backoff
+     * (X's media guide: "Retry transient 5xx with backoff"). Logs the
+     * response title/detail of a final failure - never request bodies.
+     */
     private function postWithRetry(string $token, string $path, array $body, int $timeout = 30): \Illuminate\Http\Client\Response
     {
-        $response = null;
-        $attempt = 0;
-
-        foreach ([0, 1, 3] as $attempt => $waitSeconds) {
-            if ($waitSeconds) {
-                sleep($waitSeconds);
-            }
-
-            $response = Http::withToken($token)->timeout($timeout)->acceptJson()->asJson()->post(self::API . $path, $body);
-
-            if ($response->status() < 500 && $response->status() !== 429) {
-                break;
-            }
-        }
+        $attemptCount = 0;
+        
+        $response = Http::withToken($token)
+            ->timeout($timeout)
+            ->acceptJson()
+            ->asJson()
+            ->retry(3, function ($attempt, $exception) use (&$attemptCount) {
+                $attemptCount = $attempt;
+                // Sleep progression: 1s, then 3s (mimicking your [0, 1, 3] pattern)
+                return $attempt === 1 ? 1000 : 3000;
+            }, function ($response, $exception) use (&$attemptCount) {
+                // Determine if we should retry based on server error or rate limit
+                if ($exception instanceof \Illuminate\Http\Client\ConnectionException) {
+                    return true;
+                }
+                return $response && ($response->status() >= 500 || $response->status() === 429);
+            })
+            ->post(self::API . $path, $body);
 
         if (!$response->successful()) {
             Log::warning('X Chat media API call failed.', [
-                'path'   => preg_replace('#/upload/[^/]+/#', '/upload/{session}/', $path),
-                'status' => $response->status(),
-                // X's request id - quote it in an X developer support ticket.
-                'x_transaction_id' => $response->header('x-transaction-id') ?: null,
-                'attempts' => $attempt + 1,
-                'title'  => $response->json('title'),
-                'detail' => Str::limit((string) ($response->json('detail') ?? $response->body()), 300),
+                'path'              => preg_replace('#/upload/[^/]+/#', '/upload/{session}/', $path),
+                'status'            => $response->status(),
+                'x_transaction_id'  => $response->header('x-transaction-id') ?: null,
+                'attempts'          => max(1, $attemptCount),
+                'title'             => $response->json('title'),
+                'detail'            => Str::limit((string) ($response->json('detail') ?? $response->body()), 300),
             ]);
         }
 
