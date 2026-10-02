@@ -150,7 +150,7 @@ class XChatMediaService
         ]);
         $sessionId = $init->json('data.session_id');
         $mediaHashKey = $init->json('data.media_hash_key');
-        dd($init->successful(), $sessionId, $mediaHashKey, $init);
+        dd($init->successful(), $sessionId, $mediaHashKey, $init->json());
         if (!$init->successful() || !$sessionId || !$mediaHashKey) {
             throw new XChatException('send_failed', 'X media upload could not start (HTTP ' . $init->status() . '): ' . ($init->json('detail') ?? $init->json('title') ?? 'unknown error') . $this->scopeHint($init->status()));
         }
