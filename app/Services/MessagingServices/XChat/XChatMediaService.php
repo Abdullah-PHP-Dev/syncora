@@ -150,7 +150,7 @@ class XChatMediaService
             'conversation_id' => $bodyConversationId,
             'total_bytes'     => strlen($ciphertext),
         ]);
-        dd($init->json());
+
         $sessionId = $init->json('data.session_id');
         $mediaHashKey = $init->json('data.media_hash_key');
 
