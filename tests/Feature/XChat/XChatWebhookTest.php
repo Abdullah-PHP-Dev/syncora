@@ -108,18 +108,6 @@ class XChatWebhookTest extends TestCase
 
                 return Http::response(['data' => []]);
             }
-            // Regular (non-encrypted) media upload + legacy DM send - the
-            // fallback when X Chat media answers 503.
-            if (preg_match('#api\.x\.com/2/media/upload/(initialize|dm-1/append|dm-1/finalize)#', $url, $m)) {
-                $this->mediaRequests[] = ['dm:' . basename($m[1]), $request->isMultipart() ? 'multipart' : $request->data()];
-
-                return Http::response(['data' => ['id' => 'dm-1']]);
-            }
-            if (str_contains($url, '/2/dm_conversations/with/1111/messages')) {
-                $this->sentToX[] = ['legacy_dm' => $request->data()];
-
-                return Http::response(['data' => ['dm_event_id' => 'dm-event-1', 'dm_conversation_id' => '1111-2222']], 201);
-            }
             if ($url === 'https://cdn.test/uploads/messaging/x/photo.png') {
                 return Http::response('PNG-BYTES', 200, ['Content-Type' => 'image/png']);
             }
@@ -369,45 +357,6 @@ class XChatWebhookTest extends TestCase
         $this->assertSame([['attachment_type' => 'media', 'media_hash_key' => 'hash-out-1', 'width' => 4, 'height' => 3, 'filesize_bytes' => 9, 'filename' => 'photo.png']], end($this->encryptAttachments));
         $this->assertSame('CIPHERTEXT', end($this->sentToX)['encoded_message_create_event']);
         Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->body(), 'PNG-BYTES') && str_contains($r->url(), 'api.x.com'));
-    }
-
-    public function test_file_falls_back_to_regular_dm_when_x_chat_media_is_unavailable(): void
-    {
-        \Illuminate\Support\Sleep::fake();
-        $this->enableXChat();
-        $this->workerDecrypt['ENC-M4'] = $this->decryptedText('hi');
-        $this->deliver('ENC-M4', 'uuid-m4');
-        $conversation = Message::where('external_message_id', 'uuid-m4-id')->firstOrFail()->conversation;
-        $this->initFailures = 3; // X Chat media initialize: 503 on every retry
-
-        $result = app(XMessagingService::class)->sendMessage($conversation, ['body' => 'Your invoice', 'media_url' => 'https://cdn.test/uploads/messaging/x/photo.png', 'file_name' => 'photo.png']);
-
-        $this->assertTrue($result['success'], $result['error'] ?? '');
-        $this->assertSame('dm-event-1', $result['external_message_id']);
-        // The conversation must stay on X Chat routing.
-        $this->assertArrayNotHasKey('external_conversation_id', $result);
-        $this->assertSame(['media_type' => 'image/png', 'total_bytes' => 9, 'media_category' => 'dm_image'], collect($this->mediaRequests)->firstWhere(0, 'dm:initialize')[1]);
-        $this->assertSame(['text' => 'Your invoice', 'attachments' => [['media_id' => 'dm-1']]], end($this->sentToX)['legacy_dm']);
-        // Nothing was sent as an encrypted X Chat message.
-        Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), '/2/chat/conversations/'));
-    }
-
-    public function test_text_only_x_chat_failure_does_not_fall_back(): void
-    {
-        $conversation = $this->xChatConversationWithoutPin();
-
-        $result = app(XMessagingService::class)->sendMessage($conversation, ['body' => 'hello']);
-
-        $this->assertFalse($result['success']);
-        Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), 'dm_conversations'));
-    }
-
-    private function xChatConversationWithoutPin(): \App\Models\Messaging\Conversation
-    {
-        return \App\Models\Messaging\Conversation::create([
-            'social_account_id' => $this->account->id, 'platform' => 'x', 'customer_external_id' => '1111',
-            'meta' => ['x_chat_conversation_id' => '1111:2222'], 'status' => 'open',
-        ]);
     }
 
     /**

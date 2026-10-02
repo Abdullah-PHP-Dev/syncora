@@ -54,7 +54,7 @@ class XChatService
             } catch (XChatException $e) {
                 Log::warning('X Chat: media upload failed.', ['social_account_id' => $account->id, 'reason' => $e->reason]);
 
-                return ['success' => false, 'error' => $e->getMessage(), 'reason' => $e->reason];
+                return ['success' => false, 'error' => $e->getMessage()];
             }
         }
 
