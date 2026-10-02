@@ -210,7 +210,7 @@ $init->json());
             }
 
             $response = Http::withToken($token)->timeout($timeout)->acceptJson()->asJson()->post(self::API . $path, $body);
-
+            dd($response->status(), $response->json());
             if ($response->status() < 500 && $response->status() !== 429) {
                 break;
             }
