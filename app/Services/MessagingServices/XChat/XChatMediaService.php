@@ -150,10 +150,7 @@ class XChatMediaService
             'conversation_id' => $bodyConversationId,
             'total_bytes'     => strlen($ciphertext),
         ]);
-<<<<<<< HEAD
 
-=======
->>>>>>> parent of b609c3d (Revert "X Chat")
         $sessionId = $init->json('data.session_id');
         $mediaHashKey = $init->json('data.media_hash_key');
 
