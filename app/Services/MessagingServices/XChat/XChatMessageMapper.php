@@ -27,11 +27,27 @@ class XChatMessageMapper
         $body = (string) ($mapped['body'] ?? '');
         $type = $mapped['type'] ?? 'text';
 
+        // A regular DM's media arrives as a t.co link in the text - turn it
+        // back into the real file.
+        $linked = $body !== '' ? $media->resolveDmMediaLinks($account, $body) : ['body' => $body, 'attachments' => []];
+        $body = $linked['body'];
+
         if (empty($mapped['attachments'])) {
-            return ['type' => $type, 'body' => $body, 'attachments' => []];
+            if ($linked['attachments'] && $body === '') {
+                $type = $linked['attachments'][0]['type'];
+            }
+
+            return ['type' => $type, 'body' => $body !== '' || !$linked['attachments'] ? $body : null, 'attachments' => $linked['attachments']];
         }
 
         $fetched = $media->fetchAttachments($account, $conversationId, $keyVersion, $mapped['attachments']);
+        $fetched['attachments'] = array_merge($linked['attachments'], $fetched['attachments']);
+        if ($linked['attachments']) {
+            // X may also list the media link as a url attachment - it's the
+            // file now, so don't append it to the body again.
+            $resolvedLinks = array_diff(self::links((string) ($mapped['body'] ?? '')), self::links($body));
+            $fetched['links'] = array_values(array_filter($fetched['links'], fn ($l) => !in_array($l, $resolvedLinks, true) && !preg_match('#/messages/media/\d+#', $l)));
+        }
 
         if ($fetched['links']) {
             $body = trim($body . "\n" . implode("\n", array_unique($fetched['links'])));
@@ -39,11 +55,19 @@ class XChatMessageMapper
         if ($fetched['failed']) {
             $body = trim($body . "\n[" . $fetched['failed'] . ' attachment(s) could not be loaded - open X to view]');
         }
-        if ($fetched['attachments'] && trim((string) $mapped['body']) === '') {
+        if ($fetched['attachments'] && trim($linked['body']) === '') {
             $type = $fetched['attachments'][0]['type'];
         }
 
         return ['type' => $type, 'body' => $body !== '' ? $body : null, 'attachments' => $fetched['attachments']];
+    }
+
+    /** @return string[] t.co links in a text */
+    private static function links(string $text): array
+    {
+        preg_match_all('#https?://t\.co/[A-Za-z0-9]+#', $text, $m);
+
+        return $m[0];
     }
 
     /**

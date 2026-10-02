@@ -120,6 +120,23 @@ class XChatWebhookTest extends TestCase
 
                 return Http::response(['data' => ['dm_event_id' => 'dm-event-1', 'dm_conversation_id' => '1111-2222']], 201);
             }
+            // A regular DM's media inside X Chat: t.co -> x.com/messages/media/{dm_event_id}.
+            if ($url === 'https://t.co/Media123') {
+                return Http::response('', 301, ['Location' => 'https://x.com/messages/media/1880000000000000001']);
+            }
+            if ($url === 'https://t.co/Other456') {
+                return Http::response('', 301, ['Location' => 'https://example.com/pricing']);
+            }
+            if (str_contains($url, '/2/dm_events/1880000000000000001')) {
+                $this->mediaRequests[] = ['dm_event', $request->data()];
+
+                return Http::response(['data' => ['id' => '1880000000000000001', 'attachments' => ['media_keys' => ['3_1']]], 'includes' => ['media' => [['media_key' => '3_1', 'type' => 'photo', 'url' => 'https://ton.twitter.com/1.1/ton/data/dm/1/2/abc.png']]]]);
+            }
+            if ($url === 'https://ton.twitter.com/1.1/ton/data/dm/1/2/abc.png') {
+                $this->mediaRequests[] = ['dm_download', $request->header('Authorization')[0] ?? null];
+
+                return Http::response("\x89PNG\r\n\x1a\n\0\0\0\rIHDR\0\0\0\x01\0\0\0\x01\x08\x06\0\0\0\x1f\x15\xc4\x89", 200, ['Content-Type' => 'image/png']);
+            }
             if ($url === 'https://cdn.test/uploads/messaging/x/photo.png') {
                 return Http::response('PNG-BYTES', 200, ['Content-Type' => 'image/png']);
             }
@@ -315,6 +332,53 @@ class XChatWebhookTest extends TestCase
         $this->assertSame(['decrypt', '1001', 'CIPHER-BYTES'], $this->mediaRequests[0]);
         $path = ltrim(parse_url($attachment->url, PHP_URL_PATH), '/');
         \Illuminate\Support\Facades\Storage::disk('r2')->assertExists(preg_replace('#^.*?(uploads/)#', '$1', $path));
+    }
+
+    public function test_regular_dm_media_link_becomes_the_real_file(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('r2');
+        $this->enableXChat();
+        $this->workerDecrypt['ENC-T1'] = $this->decryptedText('Your invoice https://t.co/Media123');
+
+        $this->deliver('ENC-T1', 'uuid-t1');
+
+        $message = Message::where('external_message_id', 'uuid-t1-id')->firstOrFail();
+        $this->assertSame('Your invoice', $message->body);
+        $attachment = $message->attachments()->firstOrFail();
+        $this->assertSame('image', $attachment->type);
+        $this->assertSame('image/png', $attachment->mime_type);
+        $this->assertSame('abc.png', $attachment->file_name);
+        $this->assertSame(['dm_event', ['dm_event.fields' => 'attachments', 'expansions' => 'attachments.media_keys', 'media.fields' => 'type,url,preview_image_url,variants']], $this->mediaRequests[0]);
+        // DM media is private - downloaded with the account's token.
+        $this->assertSame(['dm_download', 'Bearer tok'], $this->mediaRequests[1]);
+    }
+
+    public function test_media_only_regular_dm_becomes_an_image_message(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('r2');
+        $this->enableXChat();
+        $this->workerDecrypt['ENC-T2'] = $this->decryptedText('https://t.co/Media123');
+
+        $this->deliver('ENC-T2', 'uuid-t2');
+
+        $message = Message::where('external_message_id', 'uuid-t2-id')->firstOrFail();
+        $this->assertSame('image', $message->type);
+        $this->assertNull($message->body);
+        $this->assertSame(1, $message->attachments()->count());
+    }
+
+    public function test_ordinary_links_stay_in_the_text(): void
+    {
+        $this->enableXChat();
+        $this->workerDecrypt['ENC-T3'] = $this->decryptedText('See https://t.co/Other456');
+
+        $this->deliver('ENC-T3', 'uuid-t3');
+
+        $message = Message::where('external_message_id', 'uuid-t3-id')->firstOrFail();
+        $this->assertSame('See https://t.co/Other456', $message->body);
+        $this->assertSame('text', $message->type);
+        $this->assertSame(0, $message->attachments()->count());
+        Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), '/2/dm_events/'));
     }
 
     public function test_media_upload_retries_a_transient_5xx(): void

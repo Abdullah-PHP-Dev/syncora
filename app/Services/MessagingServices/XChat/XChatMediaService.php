@@ -104,9 +104,96 @@ class XChatMediaService
             $this->keys->signingKeysFor($account, $this->participants($account, $conversationId))
         ));
 
-        $bytes = base64_decode($plain['plaintext_b64'], true);
-        $mime = $plain['mime_type'] ?: 'application/octet-stream';
-        $fileName = $this->safeFileName($attachment['file_name'] ?? null, $mime);
+        return $this->storeFile(base64_decode($plain['plaintext_b64'], true), $plain['mime_type'] ?: 'application/octet-stream', $attachment['file_name'] ?? null);
+    }
+
+    /**
+     * A regular (unencrypted) DM with media shows up in an X Chat
+     * conversation as text only, with a t.co link in place of the media.
+     * The link redirects to x.com/messages/media/{dm_event_id}: fetch that
+     * DM event's media (GET /2/dm_events/{id}), store it as a real
+     * attachment and drop the link from the body. Links that can't be
+     * resolved are left in the text, so nothing is lost.
+     *
+     * @return array{body: string, attachments: array}
+     */
+    public function resolveDmMediaLinks(SocialAccount $account, string $body): array
+    {
+        $attachments = [];
+
+        if (!preg_match_all('#https?://t\.co/[A-Za-z0-9]+#', $body, $matches)) {
+            return ['body' => $body, 'attachments' => []];
+        }
+
+        foreach (array_unique($matches[0]) as $link) {
+            try {
+                $location = (string) Http::withoutRedirecting()->timeout(10)->get($link)->header('Location');
+                if (!preg_match('#(?:x|twitter)\.com/messages/media/(\d{1,19})#', $location, $m)) {
+                    continue; // an ordinary link, not DM media
+                }
+
+                $files = $this->fetchDmEventMedia($account, $m[1]);
+                if ($files) {
+                    array_push($attachments, ...$files);
+                    $body = trim(str_replace($link, '', $body));
+                }
+            } catch (\Throwable $e) {
+                Log::warning('X Chat: DM media link could not be resolved.', [
+                    'social_account_id' => $account->id,
+                    'error'             => class_basename($e) . ': ' . Str::limit($e->getMessage(), 200),
+                ]);
+            }
+        }
+
+        return ['body' => $body, 'attachments' => $attachments];
+    }
+
+    /** @return array<int, array{type: string, url: string, mime_type: string, file_name: string, file_size: int}> */
+    private function fetchDmEventMedia(SocialAccount $account, string $eventId): array
+    {
+        $token = $this->accessToken($account);
+        $response = Http::withToken($token)->timeout(20)->acceptJson()->get(self::API . "dm_events/{$eventId}", [
+            'dm_event.fields' => 'attachments',
+            'expansions'      => 'attachments.media_keys',
+            'media.fields'    => 'type,url,preview_image_url,variants',
+        ]);
+
+        if (!$response->successful()) {
+            Log::warning('X Chat: DM event for a media link could not be read.', ['social_account_id' => $account->id, 'status' => $response->status(), 'title' => $response->json('title')]);
+
+            return [];
+        }
+
+        $files = [];
+        foreach ($response->json('includes.media') ?? [] as $media) {
+            // Photos: url. Videos/GIFs: the best MP4 variant.
+            $url = $media['url'] ?? collect($media['variants'] ?? [])
+                ->where('content_type', 'video/mp4')
+                ->sortByDesc(fn ($v) => (int) ($v['bit_rate'] ?? 0))
+                ->value('url');
+
+            if (!$url) {
+                continue;
+            }
+
+            // DM media is private: X serves it to the participants' token.
+            $download = Http::withToken($token)->timeout(60)->get($url);
+            if (!$download->successful() || strlen($download->body()) > self::MAX_BYTES) {
+                Log::warning('X Chat: DM media download failed.', ['social_account_id' => $account->id, 'status' => $download->status()]);
+                continue;
+            }
+
+            $bytes = $download->body();
+            $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes) ?: 'application/octet-stream';
+            $files[] = $this->storeFile($bytes, $mime, basename((string) parse_url($url, PHP_URL_PATH)));
+        }
+
+        return $files;
+    }
+
+    private function storeFile(string $bytes, string $mime, ?string $fileName): array
+    {
+        $fileName = $this->safeFileName($fileName, $mime);
         $storagePath = 'uploads/messaging/x/' . now()->format('Y/m') . '/' . Str::uuid() . '.' . pathinfo($fileName, PATHINFO_EXTENSION);
 
         Storage::disk('r2')->put($storagePath, $bytes, ['visibility' => 'public', 'ContentType' => $mime]);
