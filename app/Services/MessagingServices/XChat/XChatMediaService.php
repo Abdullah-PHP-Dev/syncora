@@ -240,7 +240,7 @@ class XChatMediaService
                 return false;
             }, throw: false)
             ->post(self::API . $path, $body);
-
+        dd(self::API . $path, $body);        
         if (!$response->successful()) {
             Log::warning('X Chat media API call failed.', [
                 'path'              => preg_replace('#/upload/[^/]+/#', '/upload/{session}/', $path),
