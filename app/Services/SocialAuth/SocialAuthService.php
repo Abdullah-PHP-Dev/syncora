@@ -76,7 +76,7 @@ class SocialAuthService
     {
         $expectedState = session("social_oauth_state_{$platform}");
         session()->forget("social_oauth_state_{$platform}");
-
+        dd($code, $state, $expectedState);
         if (!$code || $state !== $expectedState) {
             return redirect()->route('admin.posts.create')->with('error', ucfirst($platform) . ' connection failed or was cancelled.');
         }
