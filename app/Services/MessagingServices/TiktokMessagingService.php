@@ -189,17 +189,37 @@ class TiktokMessagingService
             return ['success' => false, 'error' => 'TikTok did not return an access token or business account id.'];
         }
 
+        // Only a token that was actually granted a direct-message scope can
+        // read/send DMs - TikTok returns whatever it granted in 'scope',
+        // which (until Business Messaging is approved for this app) holds
+        // no messaging scope at all. Marking every connect as messaging-
+        // capable showed the channel as Active while every DM call failed.
+        $grantedScope = $data['scope'] ?? null;
+        $canMessage = self::grantsMessaging($grantedScope);
+
+        if (!$canMessage) {
+            Log::warning('TikTok Business Messaging connected without a messaging scope - DMs will not work until TikTok approves Business Messaging for this app.', [
+                'granted_scope' => $grantedScope,
+            ]);
+        }
+
+        // Real display name / avatar / @username for the connected account
+        // (best-effort - the connect itself never fails on this).
+        $profile = $this->fetchBusinessProfile($accessToken, $businessId);
+
         $account = SocialAccount::updateOrCreate(
             ['platform' => 'tiktok', 'platform_account_id' => 'msg_' . $businessId, 'user_id' => Auth::id()],
             [
-                'name'                     => 'TikTok Business Account',
+                'name'                     => $profile['display_name'] ?? $profile['username'] ?? 'TikTok Business Account',
+                'username'                 => $profile['username'] ?? null,
+                'avatar_url'               => $profile['profile_image'] ?? null,
                 'account_type'             => 'business_messaging',
                 'access_token'             => $accessToken,
                 'refresh_token'            => $data['refresh_token'] ?? null,
                 'is_token_valid'           => true,
                 'expires_at'               => Carbon::now()->addSeconds($data['expires_in'] ?? 86400),
-                'has_messaging_permission' => true,
-                'metadata'                 => ['scope' => $data['scope'] ?? null],
+                'has_messaging_permission' => $canMessage,
+                'metadata'                 => ['scope' => $grantedScope],
             ]
         );
 
@@ -258,6 +278,60 @@ class TiktokMessagingService
      * until someone notices and re-registers the right callback_url (this
      * happened once already testing this method - see git history).
      */
+    /**
+     * Whether TikTok's granted scope string (comma- or space-separated)
+     * includes a direct-message scope. TikTok doesn't publish the
+     * Business Messaging scope names outside the approved-app portal, so
+     * this matches the messaging families by prefix (biz.dm.* - the one
+     * this app's portal lists once approved - plus dm./im./message.)
+     * rather than one exact string.
+     */
+    public static function grantsMessaging(?string $scope): bool
+    {
+        foreach (preg_split('/[\s,]+/', (string) $scope, -1, PREG_SPLIT_NO_EMPTY) as $granted) {
+            if (preg_match('/^(biz\.dm\.|biz\.message|dm\.|im\.|message\.)/i', trim($granted))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Profile of the connected TikTok account (Accounts API, same token
+     * family as Business Messaging): GET business/get/ with business_id +
+     * a JSON-array 'fields' param. Returns [] on any failure.
+     *
+     * @return array{display_name?: string, username?: string, profile_image?: string}
+     */
+    public function fetchBusinessProfile(string $accessToken, string $businessId): array
+    {
+        try {
+            $response = $this->apiService->get($this->base() . 'business/get/', ['Access-Token' => $accessToken], [
+                'business_id' => $businessId,
+                'fields'      => json_encode(['display_name', 'username', 'profile_image']),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('TikTok business profile fetch failed.', ['error' => $e->getMessage()]);
+
+            return [];
+        }
+
+        if (!$response['success'] || (int) ($response['data']['code'] ?? -1) !== 0) {
+            Log::warning('TikTok business profile fetch failed.', ['body' => $response['data'] ?? ($response['error'] ?? null)]);
+
+            return [];
+        }
+
+        $profile = $response['data']['data'] ?? [];
+
+        return array_filter([
+            'display_name'  => $profile['display_name'] ?? null,
+            'username'      => $profile['username'] ?? null,
+            'profile_image' => $profile['profile_image'] ?? null,
+        ]);
+    }
+
     public function subscribeToWebhooks(): void
     {
         $response = $this->apiService->post($this->base() . 'business/webhook/update/', ['Content-Type' => 'application/json'], [

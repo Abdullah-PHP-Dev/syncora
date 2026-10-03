@@ -4,7 +4,12 @@
 
 @php
     $channelsByPlatform = $channels->groupBy('platform');
-    $activeCount = $channels->where('status', true)->count();
+    // Identity + status live on the parent social_accounts row (the
+    // message_channels table has no name/avatar/status columns - see
+    // MessageChannel's docblock). A channel is active when its account's
+    // token is valid and it was granted messaging permission.
+    $isChannelActive = fn ($channel) => (bool) ($channel->socialAccount?->is_token_valid && $channel->socialAccount?->has_messaging_permission);
+    $activeCount = $channels->filter($isChannelActive)->count();
     $inactiveCount = $channels->count() - $activeCount;
 
     // Every platform the inbox supports. `href` = one-click sign-in,
@@ -264,13 +269,22 @@
             @php
                 $meta = $platformMeta->get($channel->platform, ['name' => \Illuminate\Support\Str::headline($channel->platform), 'icon' => 'bx-message-rounded-dots', 'color' => '#6d4aff']);
                 $xChat = $channel->platform === 'x' ? $xChatByAccount->get($channel->social_account_id) : null;
-                $displayName = $channel->name ?: ($channel->username ?: $meta['name'] . ' account');
+                $account = $channel->socialAccount;
+                $isActive = $isChannelActive($channel);
+                $displayName = $account?->name ?: ($account?->username ?: $meta['name'] . ' account');
+                $inactiveReason = !$account ? 'Account record missing - reconnect this channel.'
+                    : (!$account->is_token_valid ? 'Access token is no longer valid - reconnect this channel.'
+                    : (!$account->has_messaging_permission
+                        ? ($channel->platform === 'tiktok'
+                            ? 'Messaging permission not granted - TikTok has not approved Business Messaging for this app yet.'
+                            : 'Messaging permission was not granted - reconnect and allow messaging.')
+                        : null));
             @endphp
-            <div class="chn-row" style="--pc: {{ $meta['color'] }}" data-search="{{ strtolower($channel->name . ' ' . $channel->username . ' ' . $meta['name']) }}">
+            <div class="chn-row" style="--pc: {{ $meta['color'] }}" data-search="{{ strtolower($displayName . ' ' . $account?->username . ' ' . $meta['name']) }}">
                 <div class="chn-avatar">
-                    @if ($channel->avatar_url)
+                    @if ($account?->avatar_url)
                         {{-- Falls back to the platform logo if the avatar fails to load --}}
-                        <img src="{{ $channel->avatar_url }}" alt="{{ $displayName }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid'; this.nextElementSibling.nextElementSibling.remove();">
+                        <img src="{{ $account->avatar_url }}" alt="{{ $displayName }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid'; this.nextElementSibling.nextElementSibling.remove();">
                         <div class="chn-logo" style="display:none"><i class="bx {{ $meta['icon'] }}"></i></div>
                         <span class="chn-badge"><i class="bx {{ $meta['icon'] }}"></i></span>
                     @else
@@ -282,11 +296,11 @@
                     <div class="chn-row-name">{{ $displayName }}</div>
                     <div class="chn-row-sub">
                         <span class="chn-chip">{{ $meta['name'] }}</span>
-                        @if ($channel->username)<span>{{ $channel->username }}</span>@endif
+                        @if ($account?->username)<span>{{ '@' . ltrim($account->username, '@') }}</span>@endif
                     </div>
                 </div>
 
-                <span class="chn-status {{ $channel->status ? 'is-on' : 'is-off' }} d-none d-sm-inline-flex">{{ $channel->status ? 'Active' : 'Inactive' }}</span>
+                <span class="chn-status {{ $isActive ? 'is-on' : 'is-off' }} d-none d-sm-inline-flex" @if($inactiveReason) title="{{ $inactiveReason }}" @endif>{{ $isActive ? 'Active' : 'Inactive' }}</span>
 
                 <div class="chn-row-actions">
                     @if ($channel->platform === 'x')
