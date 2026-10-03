@@ -39,6 +39,7 @@ class SocialAccountController extends Controller
 
     public function callback(string $platform, Request $request)
     {
+        dd($request->all());
         if (!$this->service->isSupported($platform)) {
             abort(404);
         }
