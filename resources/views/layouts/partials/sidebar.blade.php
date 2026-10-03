@@ -73,6 +73,15 @@
                 // A group is open (and its parent highlighted) on any page
                 // inside it; otherwise the script at the bottom of this file restores the seller's
                 // last manual expand/collapse choice.
+                // Last-used platform (App\Support\WorkContext): a module's
+                // heading opens that platform's page directly instead of the
+                // overview - Content > TikTok, then "Ads Manager" lands on
+                // Ads > TikTok. Overview stays one click away underneath.
+                $ctxAds = \App\Support\WorkContext::platformFor('ads');
+                $ctxPosts = \App\Support\WorkContext::platformFor('posts');
+                $ctxInbox = \App\Support\WorkContext::platformFor('inbox');
+                $ctxComments = \App\Support\WorkContext::platformFor('comments');
+
                 $navGroups = [
                     'ads' => [
                         'label'    => __('admin.sidebar.ads'),
@@ -82,6 +91,7 @@
                         'overviewActive' => request()->routeIs('admin.ads.dashboard'),
                         'active'   => $adsPlatform,
                         'url'      => fn ($key) => route('admin.ads.campaigns.index', ['platform' => $key]),
+                        'context'  => $ctxAds,
                     ],
                     'posts' => [
                         'label'    => __('admin.sidebar.posts'),
@@ -91,6 +101,7 @@
                         'overviewActive' => request()->routeIs('admin.posts.dashboard'),
                         'active'   => $postsPlatform,
                         'url'      => fn ($key) => route('admin.posts.index', ['platform' => $key]),
+                        'context'  => $ctxPosts,
                     ],
                 ];
             @endphp
@@ -100,7 +111,13 @@
 
                     {{-- The label opens the unified dashboard; the chevron
                          only expands/collapses the platform list. --}}
-                    <a href="{{ $group['overview'] }}" class="menu-link">
+                    @php
+                        // Heading follows the working platform when coming
+                        // from another module; inside the module it's the
+                        // overview as before.
+                        $headingUrl = !$group['current'] && $group['context'] ? $group['url']($group['context']) : $group['overview'];
+                    @endphp
+                    <a href="{{ $headingUrl }}" class="menu-link" @if($headingUrl !== $group['overview']) title="{{ $navPlatforms[$group['context']][0] ?? '' }}" @endif>
                         <i class="menu-icon tf-icons bx {{ $group['icon'] }}"></i>
                         <span>{{ $group['label'] }}</span>
                     </a>
@@ -121,7 +138,7 @@
                                 </a>
                             </li>
                             @foreach ($navPlatforms as $key => [$name, $icon])
-                                <li class="{{ $group['active'] === $key ? 'active' : '' }}">
+                                <li class="{{ $group['active'] === $key ? 'active' : '' }} {{ !$group['active'] && $group['context'] === $key ? 'is-context' : '' }}">
                                     <a href="{{ $group['url']($key) }}" @if ($group['active'] === $key) aria-current="page" @endif>
                                         <i class="bx {{ $icon }}"></i>
                                         <span>{{ $name }}</span>
@@ -158,14 +175,14 @@
             </li>
 
             <li class="menu-item {{ request()->routeIs('admin.chats.*') ? 'active' : '' }}">
-                <a href="{{ route('admin.chats.dashboard') }}" class="menu-link">
+                <a href="{{ route('admin.chats.dashboard', array_filter(['platform' => request()->routeIs('admin.chats.*') ? null : $ctxInbox])) }}" class="menu-link">
                     <i class="menu-icon tf-icons bx bx-message-square-dots"></i>
                     <span>{{ __('admin.sidebar.inbox') }}</span>
                 </a>
             </li>
 
             <li class="menu-item {{ request()->routeIs('admin.comments.*') ? 'active' : '' }}">
-                <a href="{{ route('admin.comments.dashboard') }}" class="menu-link">
+                <a href="{{ route('admin.comments.dashboard', array_filter(['platform' => request()->routeIs('admin.comments.*') ? null : $ctxComments])) }}" class="menu-link">
                     <i class="menu-icon tf-icons bx bx-comment-detail"></i>
                     <span>{{ __('admin.sidebar.comments') }}</span>
                 </a>

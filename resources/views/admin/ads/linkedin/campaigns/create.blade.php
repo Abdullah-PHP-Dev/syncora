@@ -380,6 +380,7 @@
 </style>
 
 @section('content')
+    @include('admin.ads.partials.account-switcher')
     <div class="col-xxl-12 mb-0">
         <div class="authentication-wrapper authentication-basic container-p-y">
             <div class="authentication-inner">

@@ -30,9 +30,51 @@ class PostCommentController extends Controller
         $this->linkedinService   = $linkedinService;
      }
 
-    public function dashboard()
+    /**
+     * Engagement > Comments: every comment on the seller's own posts, newest
+     * first, filterable by platform / unread / search / post. Replaces the
+     * template demo page this route used to render. Replying happens on the
+     * post's preview page (PostPreview.vue already has threaded replies),
+     * which each row links to - no second reply UI.
+     */
+    public function dashboard(Request $request)
     {
-        return view('admin.comments.dashboard');
+        $userId = Auth::id();
+        $platform = strtolower((string) $request->query('platform', ''));
+        $platform = $platform === 'twitter' ? 'x' : $platform;
+        $filter = $request->query('filter') === 'unread' ? 'unread' : 'all';
+        $search = trim((string) $request->query('q', ''));
+        $postId = $request->integer('post') ?: null;
+
+        $base = PostComment::query()
+            ->topLevel()
+            ->whereHas('post', fn ($q) => $q->where('user_id', $userId));
+
+        $platformCounts = (clone $base)->selectRaw('platform, count(*) as total')->groupBy('platform')->pluck('total', 'platform');
+
+        $comments = (clone $base)
+            ->with(['post:id,user_id,platform,content,group_id', 'post.media', 'socialAccount:id,name,username,avatar_url,platform'])
+            ->when($platform !== '', fn ($q) => $q->where('platform', $platform))
+            ->when($filter === 'unread', fn ($q) => $q->whereNull('read_at'))
+            ->when($postId, fn ($q) => $q->where('post_id', $postId))
+            ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w->where('content', 'like', "%{$search}%")->orWhere('user_name', 'like', "%{$search}%")))
+            ->orderByRaw('COALESCE(posted_at, created_at) DESC')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('admin.comments.dashboard', [
+            'comments'       => $comments,
+            'platformCounts' => $platformCounts,
+            'platform'       => $platform,
+            'filter'         => $filter,
+            'search'         => $search,
+            'postId'         => $postId,
+            'totals'         => [
+                'all'    => (clone $base)->count(),
+                'unread' => (clone $base)->whereNull('read_at')->count(),
+                'today'  => (clone $base)->where(fn ($q) => $q->whereDate('posted_at', today())->orWhere(fn ($w) => $w->whereNull('posted_at')->whereDate('created_at', today())))->count(),
+            ],
+        ]);
     }
     /**
      * Display a listing of the resource.

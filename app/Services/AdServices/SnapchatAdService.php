@@ -49,7 +49,8 @@ class SnapchatAdService
     public function __construct(SocialAccount $account, ApiService $apiService)
     {
         $this->apiService = $apiService;
-        $this->account = $account->wherePlatform('snapchat')->whereUserId(Auth::user()->id)->first();
+        // Seller's selected ad account (App\Support\AdAccountSelection), not just ->first().
+        $this->account = \App\Support\AdAccountSelection::resolve(Auth::user()->id, 'snapchat');
         // Fixed, documented Marketing API base - fallback rather than
         // depending on this admin_settings row always being filled in,
         // same fix already applied to X Ads for the identical crash shape

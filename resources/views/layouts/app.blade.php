@@ -175,6 +175,7 @@
 </script>
 
 @stack('scripts')
+@include('layouts.partials.connect-toast')
 
 </body>
 </html>

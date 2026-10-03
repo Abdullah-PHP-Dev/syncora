@@ -314,6 +314,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				// the posts composer and the ads campaign forms. The raw
 				// file stream (media-gallery.file) is registered outside
 				// the localized group at the bottom of this file.
+				// Navbar ⌘K search across the seller's own records.
+				Route::get('search', \App\Http\Controllers\Admin\GlobalSearchController::class)->name('search');
 				Route::get('media-gallery', [MediaGalleryController::class, 'index'])->name('media-gallery.index');
 				Route::post('media-gallery', [MediaGalleryController::class, 'store'])->name('media-gallery.store');
 				Route::delete('media-gallery/{mediaAsset}', [MediaGalleryController::class, 'destroy'])->name('media-gallery.destroy');

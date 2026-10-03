@@ -326,7 +326,7 @@
         </div>
 
         <!-- Comments & replies (shared across platforms) -->
-        <div class="comments-panel" v-if="showComments">
+        <div class="comments-panel" id="comments" v-if="showComments">
 
           <h5 class="comments-toggle" @click="showComments = !showComments">
             Comments <span class="comments-count">({{ engagement.commentsCount }})</span>
@@ -647,6 +647,16 @@ export default {
 
     }
 
+  },
+
+  // Arriving from Engagement > Comments ("Reply") or a post's "View
+  // comments" action (#comments): show the thread instead of the top of
+  // the preview.
+  mounted() {
+    if (window.location.hash === '#comments') {
+      this.showComments = true;
+      this.$nextTick(() => document.getElementById('comments')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    }
   },
 
   methods: {

@@ -45,7 +45,8 @@ class YoutubeAdService
     public function __construct(SocialAccount $account, ApiService $apiService)
     {
         $this->apiService = $apiService;
-        $this->account = $account->wherePlatform('google')->whereUserId(Auth::user()->id)->first();
+        // Seller's selected ad account (App\Support\AdAccountSelection), not just ->first().
+        $this->account = \App\Support\AdAccountSelection::resolve(Auth::user()->id, 'google');
 
         $this->config = adminSetting('ads.google.base_url') ?: 'https://googleads.googleapis.com/v24/';
 

@@ -45,6 +45,11 @@ return tap(
             // servers), never by a page this app rendered - there's no
             // CSRF token to send, so this route is exempted the same way
             // any true webhook endpoint would need to be.
+            // Return-to-origin for every OAuth connect flow (see the class).
+            $middleware->appendToGroup('web', \App\Http\Middleware\ReturnToOrigin::class);
+            // Current platform/module for cross-module links (App\Support\WorkContext).
+            $middleware->appendToGroup('web', \App\Http\Middleware\RememberWorkContext::class);
+
             $middleware->validateCsrfTokens(except: [
                 'email/unsubscribe/*',
             ]);

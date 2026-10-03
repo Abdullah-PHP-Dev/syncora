@@ -2256,6 +2256,17 @@
                 applyConversationFilters();
             });
 
+            // Arriving with ?platform= (sidebar / another module keeps the
+            // working platform - App\Support\WorkContext): pre-filter the
+            // list to that channel, when this inbox has one.
+            (function () {
+                const platform = new URLSearchParams(window.location.search).get('platform');
+                if (platform && $(`#channelFilter option[value="${CSS.escape(platform)}"]`).length) {
+                    $('#channelFilter').val(platform);
+                    applyConversationFilters();
+                }
+            })();
+
             // ------------------------------------------------------------------
             // AI FEATURES - Summarize / Copilot actions / Explore AI Features
             // are presentational for now (no AI backend wired up yet). A

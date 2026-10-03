@@ -305,7 +305,27 @@
 
             </div>
 
-            <i class="fas fa-ellipsis-v"></i>
+            <!-- Quick actions: preview, its comments, or promote it as an ad
+                 (opens Ads > Create campaign with the post attached). -->
+            <div class="dropdown post-actions">
+              <button type="button" class="post-actions-btn" data-bs-toggle="dropdown" aria-expanded="false" :aria-label="'Actions for ' + (post.title || 'post')">
+                <i class="fas fa-ellipsis-v"></i>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end post-actions-menu">
+                <li v-if="post.platforms && post.platforms.length">
+                  <a class="dropdown-item" :href="previewUrl(post, post.platforms[0])"><i class="far fa-eye"></i> Preview</a>
+                </li>
+                <li v-if="post.platforms && post.platforms.length">
+                  <a class="dropdown-item" :href="previewUrl(post, post.platforms[0]) + '#comments'"><i class="far fa-comment"></i> View comments</a>
+                </li>
+                <template v-if="promoteTargets(post).length">
+                  <li><hr class="dropdown-divider"></li>
+                  <li v-for="target in promoteTargets(post)" :key="'promote-' + target.key">
+                    <a class="dropdown-item" :href="promoteUrl(post, target)"><i class="fas fa-bullhorn"></i> Promote on {{ target.name }}</a>
+                  </li>
+                </template>
+              </ul>
+            </div>
 
           </div>
 
@@ -627,6 +647,12 @@ export default {
       default: ''
     },
 
+    // Ads > Create campaign with __PLATFORM__ / __POST__ placeholders.
+    promoteUrlTemplate: {
+      type: String,
+      default: ''
+    },
+
     previewUrlBase: {
       type: String,
       default: '/posts'
@@ -752,6 +778,27 @@ export default {
       },
       quickPostSubmitting: false
 
+    }
+
+  },
+
+  // Restore filters kept in the URL by syncUrl() (Back / refresh).
+  created() {
+
+    const params = new URLSearchParams(window.location.search);
+    const restored = {
+      search: params.get('q') || '',
+      status: params.get('status') || '',
+      sort: params.get('sort') || 'latest',
+      page: parseInt(params.get('page'), 10) || 1,
+    };
+
+    if (restored.search || restored.status || restored.sort !== 'latest' || restored.page > 1) {
+      this.filters.search = restored.search;
+      this.filters.status = restored.status;
+      this.filters.sort = restored.sort;
+      this.pagination.currentPage = restored.page;
+      this.fetchPosts();
     }
 
   },
@@ -950,6 +997,26 @@ export default {
 
     },
 
+    // Keep the list's filters in the URL (replaceState - no extra history
+    // entries), so opening a post and coming Back - or refreshing -
+    // restores the same view.
+    syncUrl() {
+
+      const params = new URLSearchParams(window.location.search);
+      const set = (key, value) => (value ? params.set(key, value) : params.delete(key));
+
+      set('platform', this.activePlatform !== 'All' ? this.activePlatform.toLowerCase() : '');
+      set('q', this.filters.search);
+      set('status', this.filters.status);
+      set('sort', this.filters.sort !== 'latest' ? this.filters.sort : '');
+      set('page', this.pagination.currentPage > 1 ? this.pagination.currentPage : '');
+      params.delete('connected');
+
+      const query = params.toString();
+      window.history.replaceState(window.history.state, '', window.location.pathname + (query ? '?' + query : '') + window.location.hash);
+
+    },
+
     fetchPosts() {
 
       if (!this.apiUrl) return;
@@ -971,6 +1038,7 @@ export default {
         this.pagination.total = data.total;
         this.pagination.lastPage = data.last_page;
         this.platformCountsData = data.platform_counts || this.platformCountsData;
+        this.syncUrl();
 
       }).finally(() => {
 
@@ -983,6 +1051,25 @@ export default {
     createPost() {
 
       window.location.href = this.createUrl;
+
+    },
+
+    // Platforms of this post that Ads Manager can run campaigns on.
+    promoteTargets(post) {
+
+      const ads = ['facebook', 'instagram', 'tiktok', 'x', 'snapchat', 'linkedin', 'youtube', 'google'];
+
+      return this.promoteUrlTemplate
+        ? (post.platforms || []).filter(p => ads.includes(String(p.key).toLowerCase()))
+        : [];
+
+    },
+
+    promoteUrl(post, target) {
+
+      return this.promoteUrlTemplate
+        .replace('__PLATFORM__', encodeURIComponent(String(target.key).toLowerCase()))
+        .replace('__POST__', encodeURIComponent(target.post_id || post.id));
 
     },
 
@@ -1252,6 +1339,12 @@ export default {
 }
 </script>
 <style scoped>
+.post-actions-btn{border:none;background:transparent;width:30px;height:30px;border-radius:8px;color:#8a92a3;display:inline-grid;place-items:center;cursor:pointer;transition:background .15s,color .15s}
+.post-actions-btn:hover{background:#f1f3f7;color:#161b2b}
+.post-actions-menu{min-width:220px;border-radius:12px;padding:6px;font-size:.84rem}
+.post-actions-menu .dropdown-item{display:flex;align-items:center;gap:8px;border-radius:8px;padding:7px 10px}
+.post-actions-menu .dropdown-item i{width:16px;color:#8a92a3;text-align:center}
+
 
 .posts-dashboard{
 

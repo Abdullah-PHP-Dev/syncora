@@ -91,7 +91,8 @@ class LinkedinAdService
     public function __construct(SocialAccount $account, ApiService $apiService)
     {
         $this->apiService = $apiService;
-        $this->account = $account->wherePlatform('linkedin')->whereUserId(Auth::user()->id)->first();
+        // Seller's selected ad account (App\Support\AdAccountSelection), not just ->first().
+        $this->account = \App\Support\AdAccountSelection::resolve(Auth::user()->id, 'linkedin');
         $this->config = adminSetting('ads.linkedin.base_url') ?: 'https://api.linkedin.com/rest/';
 
         if ($this->account) {

@@ -40,7 +40,8 @@ class TiktokAdService
     public function __construct(SocialAccount $account, ApiService $apiService)
     {
         $this->apiService = $apiService;
-        $this->account = $account->wherePlatform('tiktok')->whereUserId(Auth::user()->id)->first();
+        // Seller's selected ad account (App\Support\AdAccountSelection), not just ->first().
+        $this->account = \App\Support\AdAccountSelection::resolve(Auth::user()->id, 'tiktok');
 
         // adminSetting('ads.tiktok.base_url') is already correctly configured
         // as https://business-api.tiktok.com/open_api/v1.3/ - endpoints below

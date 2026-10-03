@@ -12,6 +12,7 @@ use App\Models\Admin\PlatformPage;
 use App\Models\Country;
 use App\Services\AdServices\AdsDashboardService;
 use App\Services\AdServices\SocialAdManagerService;
+use App\Support\AdAccountSelection;
 use Illuminate\Support\Facades\Auth;
 
 
@@ -35,6 +36,24 @@ class AdCampaignController extends Controller
      * agnostic table so Instagram/TikTok/X/LinkedIn can reuse the same
      * "pick a page" UI once they populate their own rows.
      */
+    /**
+     * The ad account this page works with: ?account= (switcher) or
+     * ?connected= (just connected via OAuth, see ReturnToOrigin) when it's
+     * one of the seller's ad accounts, else the remembered choice - the same
+     * one the *AdService will use when the campaign is saved.
+     *
+     * @return array{0: ?\App\Models\SocialAccount, 1: \Illuminate\Support\Collection}
+     */
+    private function selectedAdAccount(string $platform): array
+    {
+        $requested = (int) (request()->query('account') ?: request()->query('connected'));
+        if ($requested) {
+            AdAccountSelection::select(Auth::id(), $platform, $requested);
+        }
+
+        return [AdAccountSelection::resolve(Auth::id(), $platform), AdAccountSelection::options(Auth::id(), $platform)];
+    }
+
     private function platformPages(string $platform)
     {
         return $this->platformPageModel
@@ -103,11 +122,18 @@ class AdCampaignController extends Controller
         // YouTube Demand Gen campaigns run through the same Google Ads
         // customer as Search campaigns - there's no separate "YouTube Ads
         // account" - so account-linked status is read off the 'google' row.
-        $account = $this->adAccountModel->where('user_id', Auth::id())->where('has_ads_permission', true)->where('platform', $platform === 'youtube' ? 'google' : $platform)->with('adDetails')->first();
+        [$account, $adAccounts] = $this->selectedAdAccount($platform);
+        $account?->loadMissing('adDetails');
         $countries = $this->countryModel->all();
         $platformPages = $this->platformPages($platform);
 
-        return view('admin.ads.' . $this->viewPlatform($platform) . '.campaigns.create', compact('platform', 'account', 'countries', 'platformPages'));
+        // "Promote" from Content Publishing: the seller's own post to use as
+        // this campaign's creative (see ads.partials.promote-banner).
+        $promotePost = request()->integer('post')
+            ? \App\Models\Post::with('media')->where('user_id', Auth::id())->find(request()->integer('post'))
+            : null;
+
+        return view('admin.ads.' . $this->viewPlatform($platform) . '.campaigns.create', compact('platform', 'account', 'adAccounts', 'countries', 'platformPages', 'promotePost'));
     }
 
     /**
@@ -126,7 +152,10 @@ class AdCampaignController extends Controller
      */
     public function createNew($platform)
     {
-        $account = $this->adAccountModel->where('has_ads_permission', true)->where('platform', 'facebook')->first();
+        // Scoped to the signed-in seller - this used to load the first
+        // Facebook ad account in the whole table, i.e. possibly another
+        // seller's.
+        [$account, $adAccounts] = $this->selectedAdAccount('facebook');
         $instagramAccount = $this->adAccountModel->where('has_ads_permission', true)->where('platform', 'instagram')->where('user_id', Auth::id())->first();
 
         // Mapped to plain arrays here rather than inside the view's
@@ -141,6 +170,8 @@ class AdCampaignController extends Controller
         return view('admin.ads.facebook.campaigns.create-new', [
             'platform'             => $platform,
             'account'              => $account,
+            'adAccounts'           => $adAccounts,
+            'platform'             => $platform,
             'countriesData'        => $countriesData,
             'pagesData'            => $pagesData,
             'instagramAccountData' => $instagramAccountData,

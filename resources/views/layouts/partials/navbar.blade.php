@@ -30,17 +30,27 @@
             <input type="search" name="search" placeholder="{{ __('Search tickets') }}" aria-label="{{ __('Search tickets') }}">
         </form>
         @else
-        <div class="admin-search">
+        {{-- ⌘K search across the seller's accounts, posts, campaigns,
+             conversations and tickets (Admin\GlobalSearchController). --}}
+        <div class="admin-search se-search" data-search-url="{{ route('admin.search') }}">
             <i class="bx bx-search"></i>
 
-            <input type="text"
+            <input type="search"
+                   id="seGlobalSearch"
+                   autocomplete="off"
+                   role="combobox"
+                   aria-expanded="false"
+                   aria-controls="seSearchResults"
                    placeholder="{{ __('admin.navbar.search_placeholder') }}"
                    aria-label="{{ __('admin.navbar.search_placeholder') }}">
 
             <span class="admin-search-shortcut">
                 ⌘ K
             </span>
+
+            <div class="se-search-results" id="seSearchResults" role="listbox" hidden></div>
         </div>
+        @include('layouts.partials.global-search-script')
         @endif
 
     </div>

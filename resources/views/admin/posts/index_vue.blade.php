@@ -52,6 +52,7 @@
             platform="{{ $platform }}"
             initial-platform="{{ strtolower((string) request('platform')) }}"
             create-url="{{ route('admin.posts.composer') }}"
+            promote-url-template="{{ route('admin.ads.campaigns.create', ['platform' => '__PLATFORM__']) }}?post=__POST__"
             api-url="{{ route('admin.posts.data') }}"
             quick-create-url="{{ route('admin.posts.quick') }}"
             preview-url-base="{{ url('admin/posts') }}"

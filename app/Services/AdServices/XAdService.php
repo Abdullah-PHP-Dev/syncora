@@ -61,7 +61,8 @@ class XAdService
         // has_ads_permission: an X Content Posting / Messaging connection is
         // also a platform='x' row, but holds an OAuth 2.0 token that can't
         // sign Ads API requests.
-        $this->account = $account->wherePlatform('x')->whereUserId(Auth::user()->id)->where('has_ads_permission', true)->first();
+        // Seller's selected ad account (App\Support\AdAccountSelection), not just ->first().
+        $this->account = \App\Support\AdAccountSelection::resolve(Auth::user()->id, 'x');
         // ads-api.x.com/12/ confirmed still the current, non-deprecated Ads
         // API version this session (docs.x.com/x-ads-api/fundamentals/
         // versioning) - a fixed fallback rather than depending on this

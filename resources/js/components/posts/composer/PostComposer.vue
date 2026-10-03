@@ -129,7 +129,7 @@
 // fetch("#", ...) placeholder) - see saveAsDraft() and
 // AiAssistantPanel.vue for how each surfaces that instead of faking
 // success.
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import AccountSelector from './AccountSelector.vue';
 import MediaGrid from './MediaGrid.vue';
 import AiAssistantPanel from './AiAssistantPanel.vue';
@@ -173,7 +173,14 @@ const props = defineProps({
 // and the reasonable default of "post everywhere I'm connected unless I
 // opt out") rather than empty - AccountSelector.vue's checkboxes make
 // deselecting any of them a single click.
-const selectedAccountIds = ref(props.accounts.map(account => account.id));
+// Returning from connecting an account (?connected=<id>, see
+// ReturnToOrigin middleware): start with just that account selected.
+const connectedId = Number(new URLSearchParams(window.location.search).get('connected')) || null;
+const selectedAccountIds = ref(
+  connectedId && props.accounts.some(account => account.id === connectedId)
+    ? [connectedId]
+    : props.accounts.map(account => account.id)
+);
 const title = ref('');
 const description = ref('');
 const mediaItems = ref([]);
@@ -193,6 +200,18 @@ const productName = ref('');
 
 const templatesNotice = ref('');
 const submitting = ref(false);
+const published = ref(false);
+
+// Unsaved-changes guard: only once something was actually written or
+// attached, never after a successful publish/schedule.
+const hasUnsavedWork = computed(() => !published.value && (title.value.trim() !== '' || description.value.trim() !== '' || mediaItems.value.length > 0));
+const warnBeforeLeaving = (event) => {
+  if (!hasUnsavedWork.value) return;
+  event.preventDefault();
+  event.returnValue = '';
+};
+onMounted(() => window.addEventListener('beforeunload', warnBeforeLeaving));
+onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeLeaving));
 const submitError = ref('');
 const showScheduler = ref(false);
 const scheduleAt = ref('');
@@ -362,6 +381,8 @@ async function submit(mode) {
       submitError.value = (data.errors || []).map(e => e.message).filter(Boolean).join(' ') || 'Failed to publish this post.';
       return;
     }
+
+    published.value = true;
 
     if (window.Swal) {
       window.Swal.fire('Success!', data.message || 'Post published successfully!', 'success')

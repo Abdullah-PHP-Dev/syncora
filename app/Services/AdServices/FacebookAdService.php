@@ -27,7 +27,8 @@ class FacebookAdService
     public function __construct(SocialAccount $account, ApiService $apiService)
     {
         $this->apiService = $apiService;
-        $this->account = $account->wherePlatform('facebook')->whereUserId(Auth::user()->id)->first();
+        // Seller's selected ad account (App\Support\AdAccountSelection), not just ->first().
+        $this->account = \App\Support\AdAccountSelection::resolve(Auth::user()->id, 'facebook');
         $this->config = adminSetting('ads.facebook.base_url'); //config("services.ads.facebook");
         if ($this->account) {
             $this->header = $this->getHeaders();
