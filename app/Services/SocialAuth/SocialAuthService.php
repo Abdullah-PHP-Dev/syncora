@@ -72,11 +72,23 @@ class SocialAuthService
         };
     }
 
-    public function callback(string $platform, string $code, ?string $state, ?string $codeVerifier = null)
+    public function callback(string $platform, string $code, ?string $state, ?string $codeVerifier = null, ?string $providerError = null)
     {
         $expectedState = session("social_oauth_state_{$platform}");
         session()->forget("social_oauth_state_{$platform}");
+
+        // The provider sent the user back with ?error=... (consent denied,
+        // or the app isn't approved for a requested scope) - show its own
+        // reason instead of a generic message.
+        if ($providerError) {
+            Log::warning(ucfirst($platform) . ' OAuth returned an error.', ['error' => $providerError]);
+
+            return redirect()->route('admin.posts.create')->with('error', ucfirst($platform) . ' connection failed: ' . $providerError);
+        }
+
         if (!$code || $state !== $expectedState) {
+            Log::warning(ucfirst($platform) . ' OAuth callback rejected.', ['has_code' => (bool) $code, 'state_matches' => $state === $expectedState && $state !== null]);
+
             return redirect()->route('admin.posts.create')->with('error', ucfirst($platform) . ' connection failed or was cancelled.');
         }
 
@@ -618,6 +630,8 @@ class SocialAuthService
         ], 'form');
         
         if (!$tokenResponse['success']) {
+            Log::warning('LinkedIn token exchange failed.', ['status' => $tokenResponse['status'] ?? null, 'body' => $tokenResponse['data'] ?? ($tokenResponse['error'] ?? null)]);
+
             return redirect()->route('admin.posts.create')->with('error', $tokenResponse['data']['error_description'] ?? 'Failed to exchange code for a LinkedIn access token.');
         }
 
@@ -628,7 +642,12 @@ class SocialAuthService
         $baseUrl = adminSetting('posts.linkedin.base_url') ?: 'https://api.linkedin.com/rest/';
         $headers = [
             'Authorization' => 'Bearer ' . $accessToken,
-            'LinkedIn-Version' => '202401',
+            // Must be an ACTIVE LinkedIn API version (they're retired about a
+            // year after release, after which every call is rejected). Was
+            // hard-coded to 202401 - long retired - so organizationAcls
+            // failed and no posting account was ever saved. Same version
+            // as LinkedInPostService / LinkedinAdService.
+            'LinkedIn-Version' => adminSetting('posts.linkedin.version') ?: '202606',
             'X-Restli-Protocol-Version' => '2.0.0',
         ];
 
@@ -639,6 +658,17 @@ class SocialAuthService
             'q' => 'roleAssignee',
             'role' => 'ADMINISTRATOR',
         ]);
+
+        // A failed call used to resolve to "no elements" and report
+        // "Connected 0" with nothing logged - keep LinkedIn's reason.
+        $aclsError = null;
+        if (!$aclsResponse['success']) {
+            $aclsError = $aclsResponse['data']['message'] ?? $aclsResponse['error'] ?? ('HTTP ' . ($aclsResponse['status'] ?? '?'));
+            Log::warning('LinkedIn organizationAcls failed - no Company Pages could be read.', [
+                'status' => $aclsResponse['status'] ?? null,
+                'body'   => $aclsResponse['data'] ?? ($aclsResponse['error'] ?? null),
+            ]);
+        }
 
         foreach ($aclsResponse['data']['elements'] ?? [] as $acl) {
             $orgUrn = $acl['organization'] ?? null;
@@ -714,6 +744,16 @@ class SocialAuthService
                 'currency' => $account['currency'] ?? null,
             ]);
             $adAccountsConnected++;
+        }
+
+        if (!$adAccountsResponse['success']) {
+            Log::info('LinkedIn adAccountUsers not available for this token.', ['status' => $adAccountsResponse['status'] ?? null]);
+        }
+
+        if ($orgsConnected === 0 && $adAccountsConnected === 0) {
+            return redirect()->route('admin.posts.create')->with('error', $aclsError
+                ? "LinkedIn didn't return your Company Pages ({$aclsError}). Check the app has the Community Management API product approved, then try again."
+                : 'No LinkedIn Company Pages found. Posting works for Pages where your LinkedIn user is a Super admin / Content admin - add yourself as an admin of the Page on LinkedIn, then connect again.');
         }
 
         return redirect()->route('admin.posts.create')->with(

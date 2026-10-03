@@ -643,7 +643,7 @@ class LinkedInPostService
             [
                 'Authorization' => "Bearer {$comment->socialAccount->access_token}",
                 'Content-Type'  => 'application/json',
-                'LinkedIn-Version' => '202401', // Update to your target API version
+                'LinkedIn-Version' => $this->linkedinVersion,
                 'X-Restli-Protocol-Version' => '2.0.0'
             ],
             $payload,

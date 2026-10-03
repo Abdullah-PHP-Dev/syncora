@@ -47,7 +47,9 @@ class SocialAccountController extends Controller
             $platform,
             (string) $request->query('code'),
             $request->query('state'),
-            $request->query('code_verifier')
+            $request->query('code_verifier'),
+            // ?error=&error_description= when the provider declined.
+            $request->query('error') ? trim($request->query('error_description') ?: $request->query('error')) : null
         );
     }
 }
