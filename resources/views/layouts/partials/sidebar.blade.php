@@ -57,6 +57,10 @@
                     'facebook'  => ['Facebook',  'bxl-facebook-circle'],
                     'instagram' => ['Instagram', 'bxl-instagram'],
                     'tiktok'    => ['TikTok',    'bxl-tiktok'],
+                    // Key 'x' = SocialAdManagerService's XAdService entry and
+                    // the posts ?platform=x filter. bxl-x-logo is the new X
+                    // mark (socialeaz-admin.css), not boxicons' old bird.
+                    'x'         => ['X',         'bxl-x-logo'],
                     'snapchat'  => ['Snapchat',  'bxl-snapchat'],
                     'google'    => ['Google',    'bxl-google'],
                     'youtube'   => ['YouTube',   'bxl-youtube'],
