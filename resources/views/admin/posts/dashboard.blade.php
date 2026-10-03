@@ -9,8 +9,8 @@
         'facebook'  => ['icon' => 'bxl-facebook',  'class' => 'facebook',  'label' => 'Facebook',  'tag' => 'Page'],
         'instagram' => ['icon' => 'bxl-instagram', 'class' => 'instagram', 'label' => 'Instagram', 'tag' => 'Business'],
         'tiktok'    => ['icon' => 'bxl-tiktok',    'class' => 'tiktok',    'label' => 'TikTok',     'tag' => 'Business'],
-        'x'         => ['icon' => 'bxl-twitter',   'class' => 'twitter',   'label' => 'X',          'tag' => 'Profile'],
-        'twitter'   => ['icon' => 'bxl-twitter',   'class' => 'twitter',   'label' => 'X',          'tag' => 'Profile'],
+        'x'         => ['icon' => 'bxl-x-logo',    'class' => 'twitter',   'label' => 'X',          'tag' => 'Profile'],
+        'twitter'   => ['icon' => 'bxl-x-logo',    'class' => 'twitter',   'label' => 'X',          'tag' => 'Profile'],
         'linkedin'  => ['icon' => 'bxl-linkedin',  'class' => 'linkedin',  'label' => 'LinkedIn',   'tag' => 'Page'],
         'youtube'   => ['icon' => 'bxl-youtube',   'class' => 'youtube',   'label' => 'YouTube',    'tag' => 'Channel'],
         'google'    => ['icon' => 'bxl-google',    'class' => 'google',    'label' => 'Google',     'tag' => 'Business'],
@@ -48,7 +48,7 @@
     $nextCalMonth = $calendarMonth->copy()->addMonthNoOverflow()->format('Y-m');
 @endphp
 
-<div class="socialeaz-dash">
+<div class="socialeaz-dash pd">
 
     <!-- Header -->
     <div class="dash-header d-flex flex-wrap align-items-start justify-content-between gap-4 mb-6">
@@ -57,13 +57,14 @@
             <p class="dash-subtitle mb-0">{{ __('admin.dashboard_page.welcome_subtitle') }}</p>
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
-            <form method="GET" action="{{ route('admin.posts.dashboard') }}" class="d-flex align-items-center gap-2">
+            <form method="GET" action="{{ route('admin.posts.dashboard') }}" class="pd-range">
+                <i class="bx bx-calendar pd-range-icon"></i>
                 <input type="text" id="dashboardDateRange" name="date_range" class="dash-input" style="max-width:210px;" placeholder="{{ __('admin.dashboard_page.select_date_range') }}" autocomplete="off" value="{{ $dateFrom && $dateTo ? $dateFrom->format('M j').' - '.$dateTo->format('M j, Y') : '' }}" />
                 <input type="hidden" name="from" id="dashboardFromInput" value="{{ $dateFrom?->format('Y-m-d') }}" />
                 <input type="hidden" name="to" id="dashboardToInput" value="{{ $dateTo?->format('Y-m-d') }}" />
-                <button type="submit" class="dash-btn dash-btn-ghost"><i class="bx bx-calendar"></i></button>
+                <button type="submit" class="pd-range-btn" title="{{ __('admin.dashboard_page.select_date_range') }}"><i class="bx bx-right-arrow-alt"></i></button>
                 @if($dateFrom && $dateTo)
-                <a href="{{ route('admin.posts.dashboard') }}" class="dash-btn dash-btn-ghost"><i class="bx bx-x"></i></a>
+                <a href="{{ route('admin.posts.dashboard') }}" class="pd-range-btn" title="Clear"><i class="bx bx-x"></i></a>
                 @endif
             </form>
             <a href="{{ route('admin.chats.dashboard') }}" class="dash-btn dash-btn-ghost dash-bell" title="{{ __('admin.dashboard_page.messages') }}">
@@ -91,7 +92,7 @@
     <!-- 1. Overview KPIs -->
     <div class="row g-4 mb-6">
         <div class="col-6 col-lg-3">
-            <x-metric-card :label="__('admin.dashboard_page.connected_accounts')" :value="$totalAccounts">
+            <x-metric-card class="h-100" icon="bx-link-alt" tone="primary" :label="__('admin.dashboard_page.connected_accounts')" :value="$totalAccounts">
                 <x-slot:valueExtra>
                     <div class="dash-mini-icons">
                         @foreach($accountsByPlatform->keys()->take(4) as $p)
@@ -111,12 +112,12 @@
             </x-metric-card>
         </div>
         <div class="col-6 col-lg-3">
-            <x-metric-card :label="__('admin.dashboard_page.total_followers')" :value="dash_short($totalFollowers)">
+            <x-metric-card class="h-100" icon="bx-group" tone="info" :label="__('admin.dashboard_page.total_followers')" :value="dash_short($totalFollowers)">
                 <x-slot:foot>{{ __('admin.dashboard_page.across_all_platforms') }}</x-slot:foot>
             </x-metric-card>
         </div>
         <div class="col-6 col-lg-3">
-            <x-metric-card :label="__('admin.dashboard_page.engagement_rate')" :value="$engagementRate === null ? '—' : $engagementRate.'%'">
+            <x-metric-card class="h-100" icon="bx-heart" tone="warning" :label="__('admin.dashboard_page.engagement_rate')" :value="$engagementRate === null ? '—' : $engagementRate.'%'">
                 <x-slot:foot>
                     @if($engagementChangePercent === null)
                         {{ $engagementRate === null ? __('admin.dashboard_page.not_enough_reach_data') : __('admin.dashboard_page.engagement_formula') }}
@@ -131,7 +132,7 @@
             </x-metric-card>
         </div>
         <div class="col-6 col-lg-3">
-            <x-metric-card :label="__('admin.dashboard_page.total_reach')" :value="dash_short($totalReach)">
+            <x-metric-card class="h-100" icon="bx-show" tone="success" :label="__('admin.dashboard_page.total_reach')" :value="dash_short($totalReach)">
                 <x-slot:foot>
                     @if($reachChangePercent === null)
                         {{ __('admin.dashboard_page.vs_previous_period') }}
@@ -158,7 +159,7 @@
         <div class="row g-3">
             <div class="col-6 col-md-4 col-xl-2">
                 <button type="button" class="dash-add-account-card" data-bs-toggle="modal" data-bs-target="#addAccountModal">
-                    <i class="bx bx-plus-circle"></i>
+                    <span class="pd-add-icon"><i class="bx bx-plus"></i></span>
                     <span>{{ __('admin.dashboard_page.add_account') }}</span>
                 </button>
             </div>
@@ -202,7 +203,7 @@
                 </div>
             </div>
             @empty
-            <div class="col-12 dash-empty-row">{{ __('admin.dashboard_page.no_accounts_connected') }}</div>
+            <div class="col-12 col-md-8 col-xl-10 pd-empty pd-empty-inline"><span class="pd-empty-icon"><i class="bx bx-link-alt"></i></span><span>{{ __('admin.dashboard_page.no_accounts_connected') }}</span></div>
             @endforelse
             
         </div>
@@ -374,7 +375,13 @@
                                 <td><span class="dash-badge dash-badge-{{ $sm['class'] }}">{{ $sm['label'] }}</span></td>
                             </tr>
                             @empty
-                            <tr><td colspan="6" class="dash-empty-row">{{ __('admin.dashboard_page.no_posts_yet') }}</td></tr>
+                            <tr><td colspan="6">
+                                <div class="pd-empty">
+                                    <span class="pd-empty-icon"><i class="bx bx-edit-alt"></i></span>
+                                    <strong>{{ __('admin.dashboard_page.no_posts_yet') }}</strong>
+                                    <a href="{{ route('admin.posts.index') }}" class="dash-btn dash-btn-primary"><i class="bx bx-plus"></i> {{ __('admin.dashboard_page.create_post') }}</a>
+                                </div>
+                            </td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -421,7 +428,11 @@
                         </div>
                     </li>
                     @empty
-                    <li class="dash-empty-row">{{ __('admin.dashboard_page.nothing_scheduled') }}</li>
+                    <li class="pd-empty pd-empty-sm">
+                        <span class="pd-empty-icon"><i class="bx bx-calendar-plus"></i></span>
+                        <strong>{{ __('admin.dashboard_page.nothing_scheduled') }}</strong>
+                        <a href="{{ route('admin.posts.index') }}" class="dash-link">{{ __('admin.dashboard_page.create_post') }} <i class="bx bx-right-arrow-alt"></i></a>
+                    </li>
                     @endforelse
                 </ul>
             </div>
@@ -455,7 +466,10 @@
                         </div>
                     </div>
                     @empty
-                    <div class="col-12 dash-empty-row">{{ __('admin.dashboard_page.no_posts_yet') }}</div>
+                    <div class="col-12 pd-empty pd-empty-sm">
+                        <span class="pd-empty-icon"><i class="bx bx-trophy"></i></span>
+                        <strong>{{ __('admin.dashboard_page.no_posts_yet') }}</strong>
+                    </div>
                     @endforelse
                 </div>
             </div>
@@ -1104,6 +1118,81 @@
     background: #5D87FF; border-color: #5D87FF; border-radius: 10px; padding: 12px; font-weight: 600;
 }
 #calendarQuickPostModal .modal-footer .btn-primary:disabled { opacity: .6; }
+
+/* =========================================================
+   Premium pass - scoped to this page (.pd) so the shared
+   dash-styles used by other dashboards are unchanged.
+========================================================= */
+.socialeaz-dash.pd { --pd-ln: #e7e9f0; --pd-ln-soft: #f1f3f7; --pd-ink: #161b2b; --pd-brand: #6d4aff; --pd-brand-2: #8f6bff; }
+.pd .dash-title { font-size: 1.45rem; letter-spacing: -.01em; color: var(--pd-ink); }
+.pd .dash-card { border: 1px solid var(--pd-ln); border-radius: 16px; box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.03); }
+.pd .dash-card-header { margin-bottom: 1rem; }
+.pd .dash-card-header h6, .pd .dash-card > h6, .pd .dash-card .d-flex > h6 { color: var(--pd-ink); font-weight: 700; font-size: .95rem; }
+.pd .dash-btn-primary { background: linear-gradient(135deg, var(--pd-brand), var(--pd-brand-2)); border: none; border-radius: 10px; height: 40px; padding: 0 16px; box-shadow: 0 4px 12px rgba(109,74,255,.25); }
+.pd .dash-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(109,74,255,.35); }
+.pd .dash-bell i { font-size: 1.2rem; }
+.pd .dash-bell { padding: 0; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--pd-ln); background: #fff; display: inline-flex; align-items: center; justify-content: center; position: relative; }
+
+/* Date range toolbar */
+.pd .pd-range { display: flex; align-items: center; height: 40px; border: 1px solid var(--pd-ln); border-radius: 10px; background: #fff; padding-inline-start: 10px; overflow: hidden; transition: border-color .15s, box-shadow .15s; }
+.pd .pd-range:focus-within { border-color: var(--pd-brand); box-shadow: 0 0 0 3px rgba(109,74,255,.12); }
+.pd .pd-range-icon { color: #8a92a3; font-size: 1.05rem; }
+.pd .pd-range .dash-input { border: none !important; box-shadow: none !important; background: transparent !important; height: 38px; min-width: 190px; font-size: .84rem; }
+.pd .pd-range-btn { height: 100%; width: 38px; border: none; border-inline-start: 1px solid var(--pd-ln); background: transparent; color: #545d70; display: inline-flex; align-items: center; justify-content: center; font-size: 1.1rem; text-decoration: none; }
+[dir="rtl"] .pd .pd-range-btn .bx-right-arrow-alt { transform: scaleX(-1); }
+.pd .pd-range-btn:hover { background: #f6f7fa; color: var(--pd-brand); }
+
+/* KPI cards */
+.pd .dash-stat { display: flex; flex-direction: column; padding: 1.15rem 1.25rem; transition: box-shadow .2s, transform .2s; }
+.pd .dash-stat:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(16,24,40,.08); }
+.pd .dash-stat-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.pd .dash-stat-label { font-weight: 600; color: #8a92a3; font-size: .8rem; }
+.pd .dash-stat-value { font-size: 1.75rem; letter-spacing: -.02em; margin-top: .15rem; color: var(--pd-ink); }
+.pd .dash-stat-foot { margin-top: auto; padding-top: .6rem; }
+.pd .dash-stat-icon { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 19px; flex-shrink: 0; }
+.pd .dash-stat-icon.is-primary { background: #f2eeff; color: var(--pd-brand); }
+.pd .dash-stat-icon.is-info { background: #eff8ff; color: #1570ef; }
+.pd .dash-stat-icon.is-warning { background: #fef6ee; color: #e04f16; }
+.pd .dash-stat-icon.is-success { background: #ecfdf3; color: #079455; }
+
+/* Accounts */
+.pd .dash-account-card { background: #fff; border: 1px solid var(--pd-ln); border-radius: 14px; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.pd .dash-account-card:hover { border-color: #d9d0ff; box-shadow: 0 10px 24px rgba(16,24,40,.07); transform: translateY(-2px); }
+.pd .dash-account-badge { border-color: #fff; }
+.pd .dash-add-account-card { border-radius: 14px; border-color: #d5d9e2; background: #fbfbfd; font-weight: 600; font-size: .84rem; }
+.pd .pd-add-icon { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: #f2eeff; color: var(--pd-brand); }
+.pd .pd-add-icon i { font-size: 1.35rem; }
+.pd .dash-add-account-card:hover { background: #fbfaff; }
+
+/* Calendar - compact cells instead of square ones */
+.pd .dash-calendar { gap: 6px; }
+.pd .dash-calendar-day { aspect-ratio: auto; height: 62px; border-radius: 10px; background: #f6f7fa; font-weight: 600; }
+.pd .dash-calendar-day.dash-calendar-pad { background: transparent; }
+.pd .dash-cal-nav { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--pd-ln); }
+.pd .dash-chip { background: #f2eeff; color: #4f2fd6; font-weight: 600; font-size: .74rem; padding: .3rem .75rem; }
+
+/* Summary / lists / table */
+.pd .dash-summary-icon { width: 34px; height: 34px; border-radius: 10px; }
+.pd .dash-summary-list li { padding: .7rem 0; }
+.pd .dash-table th { background: #fbfbfd; padding-top: .65rem; padding-bottom: .65rem; }
+.pd .dash-table tbody tr:hover td { background: #fafaff; }
+.pd .dash-top-post { background: #fff; border-radius: 12px; }
+.pd .dash-inbox-tile { border-radius: 12px; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.pd a.dash-inbox-tile:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(16,24,40,.07); }
+
+/* Empty states */
+.pd .pd-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 28px 16px; list-style: none; }
+.pd .pd-empty strong { color: var(--pd-ink); font-size: .86rem; font-weight: 600; }
+.pd .pd-empty-sm { padding: 18px 8px 10px; border: none !important; }
+.pd .pd-empty-inline { flex-direction: row; justify-content: flex-start; padding: 0 8px; min-height: 140px; color: #8a92a3; font-size: .85rem; }
+.pd .pd-empty-icon { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; font-size: 22px; background: #f2eeff; color: var(--pd-brand); }
+.pd .pd-empty .dash-link { display: inline-flex; align-items: center; gap: 2px; font-weight: 600; }
+[dir="rtl"] .pd .pd-empty .dash-link i { transform: scaleX(-1); }
+
+@media (max-width: 575.98px) {
+    .pd .pd-range .dash-input { min-width: 0; }
+    .pd .dash-calendar-day { height: 44px; }
+}
 </style>
 @endpush
 

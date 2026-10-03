@@ -2,573 +2,384 @@
 
 @section('title', 'Connected Channels')
 
+@php
+    $channelsByPlatform = $channels->groupBy('platform');
+    $activeCount = $channels->where('status', true)->count();
+    $inactiveCount = $channels->count() - $activeCount;
+
+    // Every platform the inbox supports. `href` = one-click sign-in,
+    // `modal` = credentials form below. `count` keys are the channel
+    // platforms that belong to the card.
+    $platforms = [
+        ['key' => 'facebook', 'name' => 'Facebook Messenger', 'icon' => 'bxl-facebook', 'color' => '#1877F2', 'group' => 'social', 'setup' => 'oauth',
+         'desc' => 'Connect every Page you manage and reply to Messenger conversations.',
+         'href' => route('admin.social-accounts.redirect', ['platform' => 'facebook'])],
+        ['key' => 'instagram', 'name' => 'Instagram Direct', 'icon' => 'bxl-instagram', 'color' => '#dd2a7b', 'group' => 'social', 'setup' => 'oauth',
+         'desc' => 'Sign in with your Instagram professional account - no Facebook Page needed.',
+         'href' => route('admin.messaging.auth.instagram.redirect')],
+        ['key' => 'x', 'name' => 'X Direct Messages', 'icon' => 'bxl-x-logo', 'color' => '#0f1419', 'group' => 'social', 'setup' => 'oauth',
+         'desc' => 'Real-time DMs through X webhooks, including end-to-end encrypted X Chat.',
+         'href' => route('admin.messaging.auth.x.redirect')],
+        ['key' => 'tiktok', 'name' => 'TikTok Messenger', 'icon' => 'bxl-tiktok', 'color' => '#111111', 'group' => 'social', 'setup' => 'oauth',
+         'desc' => 'TikTok Business Messaging for Business Accounts. Requires TikTok\'s Business Messaging approval.',
+         'href' => route('admin.messaging.auth.tiktok.redirect')],
+        ['key' => 'whatsapp', 'name' => 'WhatsApp Business', 'icon' => 'bxl-whatsapp', 'color' => '#25D366', 'group' => 'messaging', 'setup' => 'token',
+         'desc' => 'Use the Phone Number ID and permanent token from your Meta Business System User.',
+         'modal' => 'whatsappModal'],
+        ['key' => 'telegram', 'name' => 'Telegram Bot', 'icon' => 'bxl-telegram', 'color' => '#229ED9', 'group' => 'messaging', 'setup' => 'token',
+         'desc' => 'Create a bot with <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> and paste its token.',
+         'modal' => 'telegramModal'],
+        ['key' => 'line', 'name' => 'LINE', 'icon' => 'bx-message-rounded-dots', 'color' => '#06C755', 'group' => 'messaging', 'setup' => 'token',
+         'desc' => 'Messaging API channel from the <a href="https://developers.line.biz/console/" target="_blank" rel="noopener">LINE Developers Console</a>.',
+         'modal' => 'lineModal'],
+        ['key' => 'zalo', 'name' => 'Zalo', 'icon' => 'bx-message-rounded-dots', 'color' => '#0068ff', 'group' => 'messaging', 'setup' => 'oauth',
+         'desc' => 'Link a Zalo Official Account from the <a href="https://developers.zalo.me/" target="_blank" rel="noopener">Zalo Developers Console</a>.',
+         'modal' => 'zaloModal'],
+        ['key' => 'slack', 'name' => 'Slack', 'icon' => 'bxl-slack', 'color' => '#4A154B', 'group' => 'team', 'setup' => 'oauth',
+         'desc' => 'Customers or teams DM your Slack app - one click installs it into the workspace.',
+         'href' => route('admin.messaging.auth.slack.redirect')],
+        ['key' => 'teams', 'name' => 'Microsoft Teams', 'icon' => 'bxl-microsoft-teams', 'color' => '#5B5FC7', 'group' => 'team', 'setup' => 'token',
+         'desc' => 'Register an <a href="https://portal.azure.com" target="_blank" rel="noopener">Azure Bot</a>, then paste its App ID and password.',
+         'modal' => 'teamsModal'],
+        ['key' => 'google_chat', 'name' => 'Google Chat', 'icon' => 'bx-message-rounded-dots', 'color' => '#1a73e8', 'group' => 'team', 'setup' => 'token',
+         'desc' => 'A Chat app on your <a href="https://console.cloud.google.com" target="_blank" rel="noopener">Google Cloud</a> project, with its service account key.',
+         'modal' => 'googleChatModal', 'count' => ['google_chat', 'google_chat_user'],
+         'extra' => ['href' => route('admin.messaging.auth.google_chat.redirect'), 'label' => 'Or sign in with Google', 'hint' => 'Spaces you belong to only - no customer DMs.']],
+        ['key' => 'discord', 'name' => 'Discord', 'icon' => 'bxl-discord', 'color' => '#5865F2', 'group' => 'team', 'setup' => 'token',
+         'desc' => 'A bot from the <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">Developer Portal</a>; runs a listener process for DMs.',
+         'modal' => 'discordModal'],
+        ['key' => 'matrix', 'name' => 'Matrix', 'icon' => 'bx-message-rounded-dots', 'color' => '#0DBD8B', 'group' => 'team', 'setup' => 'token',
+         'desc' => 'Any homeserver - matrix.org or self-hosted - with an account access token.',
+         'modal' => 'matrixModal'],
+    ];
+
+    $groups = ['social' => 'Social', 'messaging' => 'Messaging apps', 'team' => 'Team & community'];
+    $platformMeta = collect($platforms)->keyBy('key');
+    $platformMeta->put('google_chat_user', $platformMeta['google_chat']);
+
+    foreach ($platforms as &$platform) {
+        $platform['connected'] = collect($platform['count'] ?? [$platform['key']])->sum(fn ($key) => $channelsByPlatform->get($key, collect())->count());
+    }
+    unset($platform);
+
+    $xChatByAccount = \App\Models\Messaging\XChatCredential::whereIn('social_account_id', $channels->where('platform', 'x')->pluck('social_account_id'))
+        ->get()->keyBy('social_account_id');
+@endphp
+
+@push('styles')
 <style>
-    .channels-hero {
-        background: linear-gradient(135deg, #4338ca 0%, #6d28d9 45%, #9333ea 100%);
-        border-radius: 20px;
-        padding: 32px 36px;
-        color: #fff;
-        position: relative;
-        overflow: hidden;
-        margin-bottom: 24px;
+    .chn { --ln: #e7e9f0; --ln-soft: #f1f3f7; --ink: #161b2b; --ink2: #545d70; --muted: #8a92a3; --brand: #6d4aff; --brand-2: #8f6bff; --brand-soft: #f2eeff; --ok: #079455; --ok-soft: #ecfdf3; --warn: #b54708; --warn-soft: #fffaeb; --danger: #d92d20; --radius: 16px; color: var(--ink2); }
+
+    /* ---------- Header ---------- */
+    .chn-head { position: relative; overflow: hidden; background: #fff; border: 1px solid var(--ln); border-radius: 20px; padding: 28px 28px 0; margin-bottom: 24px; box-shadow: 0 1px 2px rgba(16, 24, 40, .04); }
+    .chn-head::before { content: ''; position: absolute; inset: 0 0 auto auto; width: 520px; height: 260px; background: radial-gradient(closest-side, rgba(109, 74, 255, .12), transparent), radial-gradient(closest-side at 80% 30%, rgba(143, 107, 255, .10), transparent); pointer-events: none; }
+    .chn-head-top { position: relative; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+    .chn-head-title { display: flex; gap: 16px; align-items: flex-start; }
+    .chn-head-icon { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; font-size: 26px; color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-2)); box-shadow: 0 8px 20px rgba(109, 74, 255, .28); flex-shrink: 0; }
+    .chn-eyebrow { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--brand); margin-bottom: 4px; }
+    .chn-head h4 { color: var(--ink); font-weight: 700; font-size: 1.45rem; margin: 0 0 6px; letter-spacing: -.01em; }
+    .chn-head p { margin: 0; max-width: 560px; font-size: .9rem; line-height: 1.55; }
+    .chn-head-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .chn-stats { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 24px -28px 0; border-top: 1px solid var(--ln-soft); }
+    .chn-stat { padding: 18px 28px; border-right: 1px solid var(--ln-soft); }
+    .chn-stat:last-child { border-right: none; }
+    .chn-stat-label { display: flex; align-items: center; gap: 6px; font-size: .75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+    .chn-stat-value { font-size: 1.6rem; font-weight: 700; color: var(--ink); line-height: 1.1; }
+    .chn-stat-value small { font-size: .9rem; font-weight: 600; color: var(--muted); }
+
+    /* ---------- Buttons ---------- */
+    .chn-btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; height: 40px; padding: 0 1rem; border-radius: 10px; font-size: .85rem; font-weight: 600; border: 1px solid transparent; cursor: pointer; white-space: nowrap; text-decoration: none; transition: background .15s, border-color .15s, color .15s, box-shadow .15s, transform .15s; }
+    .chn-btn i { font-size: 1.05rem; }
+    .chn-btn-sm { height: 34px; padding: 0 .8rem; font-size: .8rem; border-radius: 9px; }
+    .chn-btn-brand { background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #fff; box-shadow: 0 4px 12px rgba(109, 74, 255, .25); }
+    .chn-btn-brand:hover { color: #fff; box-shadow: 0 6px 16px rgba(109, 74, 255, .35); transform: translateY(-1px); }
+    .chn-btn-outline { background: #fff; border-color: var(--ln); color: var(--ink); }
+    .chn-btn-outline:hover { border-color: #cfd4de; background: #fafbfd; color: var(--ink); }
+    .chn-btn-ok { background: var(--ok-soft); border-color: #abefc6; color: var(--ok); }
+    .chn-btn-ok:hover { background: #dcfae6; color: var(--ok); }
+    .chn-btn-warn { background: var(--warn-soft); border-color: #fedf89; color: var(--warn); }
+    .chn-btn-warn:hover { background: #fef0c7; color: var(--warn); }
+    .chn-icon-btn { width: 34px; height: 34px; border-radius: 9px; display: inline-grid; place-items: center; border: 1px solid var(--ln); background: #fff; color: var(--muted); font-size: 1.05rem; transition: all .15s; }
+    .chn-icon-btn:hover { border-color: #fda29b; background: #fef3f2; color: var(--danger); }
+
+    /* ---------- Section headers ---------- */
+    .chn-section { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+    .chn-section h5 { color: var(--ink); font-weight: 700; font-size: 1.05rem; margin: 0 0 2px; }
+    .chn-section p { margin: 0; font-size: .84rem; color: var(--muted); }
+    .chn-search { position: relative; }
+    .chn-search i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 1.05rem; pointer-events: none; }
+    .chn-search input { height: 38px; width: 240px; max-width: 100%; border: 1px solid var(--ln); border-radius: 10px; padding: 0 12px 0 36px; font-size: .85rem; color: var(--ink); background: #fff; outline: none; transition: border-color .15s, box-shadow .15s; }
+    .chn-search input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
+
+    /* ---------- Connected accounts ---------- */
+    .chn-card { background: #fff; border: 1px solid var(--ln); border-radius: var(--radius); box-shadow: 0 1px 2px rgba(16, 24, 40, .04); margin-bottom: 32px; overflow: hidden; }
+    .chn-row { display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--ln-soft); transition: background .15s; }
+    .chn-row:last-child { border-bottom: none; }
+    .chn-row:hover { background: #fafbfd; }
+    .chn-avatar { position: relative; width: 44px; height: 44px; flex-shrink: 0; }
+    .chn-avatar img, .chn-avatar .chn-logo { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
+    .chn-avatar img { box-shadow: 0 0 0 1px var(--ln); }
+    .chn-avatar .chn-badge { position: absolute; right: -3px; bottom: -3px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; color: #fff; background: var(--pc); border: 2px solid #fff; }
+    .chn-logo { display: grid; place-items: center; color: #fff; font-size: 22px; background: var(--pc); }
+    .chn-row-main { flex: 1; min-width: 0; }
+    .chn-row-name { color: var(--ink); font-weight: 600; font-size: .92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chn-row-sub { display: flex; align-items: center; gap: 8px; font-size: .78rem; color: var(--muted); flex-wrap: wrap; }
+    .chn-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; background: var(--ln-soft); color: var(--ink2); font-weight: 600; font-size: .7rem; }
+    .chn-status { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: .74rem; font-weight: 600; }
+    .chn-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .chn-status.is-on { background: var(--ok-soft); color: var(--ok); }
+    .chn-status.is-off { background: var(--ln-soft); color: var(--muted); }
+    .chn-row-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .chn-row-actions form { margin: 0; }
+    .chn-empty { text-align: center; padding: 48px 24px; }
+    .chn-empty-icon { width: 64px; height: 64px; margin: 0 auto 14px; border-radius: 18px; display: grid; place-items: center; font-size: 30px; color: var(--brand); background: var(--brand-soft); }
+    .chn-empty h6 { color: var(--ink); font-weight: 700; margin-bottom: 4px; }
+    .chn-no-match { display: none; padding: 28px; text-align: center; font-size: .85rem; color: var(--muted); }
+
+    /* ---------- Platform catalog ---------- */
+    .chn-tabs { display: inline-flex; gap: 4px; padding: 4px; background: var(--ln-soft); border-radius: 12px; flex-wrap: wrap; }
+    .chn-tab { border: none; background: transparent; height: 32px; padding: 0 14px; border-radius: 9px; font-size: .8rem; font-weight: 600; color: var(--ink2); transition: all .15s; }
+    .chn-tab:hover { color: var(--ink); }
+    .chn-tab.is-active { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(16, 24, 40, .1); }
+    .chn-tab span { color: var(--muted); font-weight: 500; margin-left: 2px; }
+
+    .chn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .chn-platform { position: relative; display: flex; flex-direction: column; background: #fff; border: 1px solid var(--ln); border-radius: var(--radius); padding: 20px; transition: border-color .2s, box-shadow .2s, transform .2s; }
+    .chn-platform::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 3px; border-radius: var(--radius) var(--radius) 0 0; background: var(--pc); opacity: 0; transition: opacity .2s; }
+    .chn-platform:hover { border-color: transparent; box-shadow: 0 12px 28px rgba(16, 24, 40, .09); transform: translateY(-2px); }
+    .chn-platform:hover::before { opacity: 1; }
+    .chn-platform-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .chn-platform .chn-logo { width: 46px; height: 46px; border-radius: 13px; font-size: 24px; flex-shrink: 0; box-shadow: 0 6px 14px color-mix(in srgb, var(--pc) 30%, transparent); }
+    .chn-platform h6 { color: var(--ink); font-weight: 700; font-size: .95rem; margin: 0 0 3px; }
+    .chn-setup { display: inline-flex; align-items: center; gap: 4px; font-size: .7rem; font-weight: 600; color: var(--muted); }
+    .chn-setup i { font-size: .85rem; }
+    .chn-platform p { font-size: .82rem; line-height: 1.55; margin: 0 0 16px; flex: 1; }
+    .chn-platform p a { color: var(--brand); text-decoration: none; font-weight: 500; }
+    .chn-platform p a:hover { text-decoration: underline; }
+    .chn-platform-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .chn-connected { display: inline-flex; align-items: center; gap: 4px; font-size: .74rem; font-weight: 600; color: var(--ok); }
+    .chn-connect { background: #fff; border: 1px solid var(--ln); color: var(--ink); }
+    .chn-platform:hover .chn-connect { background: var(--pc); border-color: var(--pc); color: #fff; }
+    .chn-extra { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--ln); font-size: .76rem; }
+    .chn-extra a { font-weight: 600; color: var(--brand); text-decoration: none; }
+    .chn-extra span { display: block; color: var(--muted); margin-top: 2px; }
+
+    .chn-alert { display: flex; align-items: center; gap: 10px; border-radius: 12px; padding: 12px 16px; font-size: .86rem; font-weight: 500; margin-bottom: 20px; border: 1px solid; }
+    .chn-alert i { font-size: 1.2rem; }
+    .chn-alert-ok { background: var(--ok-soft); border-color: #abefc6; color: var(--ok); }
+    .chn-alert-err { background: #fef3f2; border-color: #fecdca; color: var(--danger); }
+
+    /* ---------- Modals (this page) ---------- */
+    .chn-page .modal-content { border-radius: 18px; border: none; overflow: hidden; box-shadow: 0 24px 48px rgba(16, 24, 40, .18); }
+    .chn-page .modal-header { border-bottom: 1px solid #f1f3f7; padding: 20px 24px; }
+    .chn-page .modal-title { font-weight: 700; color: #161b2b; font-size: 1.05rem; }
+    .chn-page .modal-body { padding: 22px 24px; }
+    .chn-page .modal-body .form-label { font-weight: 600; font-size: .82rem; color: #344054; }
+    .chn-page .modal-body .form-control { border-radius: 10px; border-color: #e7e9f0; min-height: 42px; font-size: .88rem; }
+    .chn-page .modal-body .form-control:focus { border-color: #6d4aff; box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
+    .chn-page .modal-footer { border-top: none; padding: 0 24px 24px; }
+    .chn-page .modal-footer .btn { height: 44px; border-radius: 11px; font-weight: 600; }
+    .chn-page .modal-icon-badge { width: 40px; height: 40px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 19px; margin-right: 12px; }
+
+    @media (max-width: 991.98px) {
+        .chn-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .chn-stat:nth-child(2) { border-right: none; }
+        .chn-stat:nth-child(-n+2) { border-bottom: 1px solid var(--ln-soft); }
     }
-
-    .channels-hero::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background-image: radial-gradient(circle at 85% 20%, rgba(255,255,255,.14) 0%, transparent 45%),
-                           radial-gradient(circle at 15% 90%, rgba(255,255,255,.10) 0%, transparent 40%);
-        pointer-events: none;
-    }
-
-    .channels-hero-content {
-        position: relative;
-        z-index: 1;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 20px;
-    }
-
-    .channels-hero h4 {
-        color: #fff;
-        font-weight: 700;
-        margin-bottom: 6px;
-    }
-
-    .channels-hero p {
-        color: rgba(255,255,255,.82);
-        margin-bottom: 0;
-        max-width: 520px;
-    }
-
-    .btn-hero {
-        background: rgba(255,255,255,.16);
-        border: 1px solid rgba(255,255,255,.35);
-        color: #fff;
-        backdrop-filter: blur(6px);
-        transition: all .2s ease;
-    }
-
-    .btn-hero:hover {
-        background: rgba(255,255,255,.28);
-        color: #fff;
-        transform: translateY(-1px);
-    }
-
-    .stat-strip {
-        display: flex;
-        gap: 16px;
-        position: relative;
-        z-index: 1;
-        margin-top: 26px;
-        flex-wrap: wrap;
-    }
-
-    .stat-pill {
-        background: rgba(255,255,255,.12);
-        border: 1px solid rgba(255,255,255,.22);
-        border-radius: 14px;
-        padding: 14px 20px;
-        min-width: 150px;
-        backdrop-filter: blur(6px);
-    }
-
-    .stat-pill .stat-value {
-        font-size: 1.6rem;
-        font-weight: 700;
-        line-height: 1.1;
-        color: #fff;
-    }
-
-    .stat-pill .stat-label {
-        font-size: .78rem;
-        color: rgba(255,255,255,.75);
-        text-transform: uppercase;
-        letter-spacing: .04em;
-    }
-
-    .section-title {
-        font-weight: 700;
-        font-size: 1.05rem;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 4px;
-    }
-
-    .section-subtitle {
-        color: #8a93a6;
-        font-size: .85rem;
-        margin-bottom: 20px;
-    }
-
-    .connected-list-card {
-        border: 1px solid #eef1f5;
-        border-radius: 16px;
-        box-shadow: 0 2px 14px rgba(20, 20, 43, .04);
-        margin-bottom: 32px;
-    }
-
-    .connected-channel-row {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        padding: 16px 22px;
-        border-bottom: 1px solid #f3f5f9;
-        transition: background .15s ease;
-    }
-
-    .connected-channel-row:hover {
-        background: #fafbfe;
-    }
-
-    .connected-channel-row:last-child {
-        border-bottom: none;
-    }
-
-    .channel-avatar {
-        width: 48px;
-        height: 48px;
-        border-radius: 50%;
-        object-fit: cover;
-        flex-shrink: 0;
-        border: 2px solid #fff;
-        box-shadow: 0 0 0 1px #eef1f5;
-    }
-
-    .channel-platform-icon {
-        width: 48px;
-        height: 48px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #fff;
-        font-size: 22px;
-        flex-shrink: 0;
-        box-shadow: 0 4px 10px rgba(0,0,0,.12);
-    }
-
-    .channel-platform-icon.facebook { background: linear-gradient(135deg,#1877F2,#0d5bc4); }
-    .channel-platform-icon.instagram { background: linear-gradient(135deg,#f58529,#dd2a7b 45%,#8134af 75%,#515bd4); }
-    .channel-platform-icon.whatsapp { background: linear-gradient(135deg,#25D366,#128c7e); }
-    .channel-platform-icon.telegram { background: linear-gradient(135deg,#41c1ea,#229ED9); }
-    .channel-platform-icon.x { background: linear-gradient(135deg,#2b2b2b,#000); }
-    .channel-platform-icon.line { background: linear-gradient(135deg,#06d755,#00B900); }
-    .channel-platform-icon.zalo { background: linear-gradient(135deg,#4ab3f4,#0068ff); }
-    .channel-platform-icon.discord { background: linear-gradient(135deg,#7289da,#5865F2); }
-    .channel-platform-icon.slack { background: linear-gradient(135deg,#36C5F0,#4A154B); }
-    .channel-platform-icon.teams { background: linear-gradient(135deg,#5B5FC7,#4452a6); }
-    .channel-platform-icon.google_chat { background: linear-gradient(135deg,#4285F4,#34A853); }
-    .channel-platform-icon.matrix { background: linear-gradient(135deg,#0DBD8B,#0a8f68); }
-    .channel-platform-icon.tiktok { background: linear-gradient(135deg,#000,#69C9D0 50%,#EE1D52); }
-
-    .status-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        display: inline-block;
-        margin-right: 6px;
-    }
-
-    .status-dot.active { background: #2fce6b; box-shadow: 0 0 0 3px rgba(47,206,107,.18); }
-    .status-dot.inactive { background: #b5bacb; }
-
-    .btn-disconnect {
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border: 1px solid #f1d4d4;
-        color: #dc3545;
-        background: #fff;
-        transition: all .15s ease;
-    }
-
-    .btn-disconnect:hover {
-        background: #dc3545;
-        color: #fff;
-        border-color: #dc3545;
-    }
-
-    .empty-channels {
-        text-align: center;
-        padding: 48px 24px;
-        color: #8a93a6;
-    }
-
-    .empty-channels i {
-        font-size: 48px;
-        color: #d7dbe6;
-        margin-bottom: 14px;
-        display: block;
-    }
-
-    .platform-card {
-        position: relative;
-        border: 1px solid #eef1f5;
-        border-radius: 18px;
-        padding: 26px 22px;
-        text-align: center;
-        background: #fff;
-        height: 100%;
-        transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
-    }
-
-    .platform-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 14px 30px rgba(20, 20, 43, .08);
-        border-color: transparent;
-    }
-
-    .platform-connected-badge {
-        position: absolute;
-        top: 14px;
-        right: 14px;
-        font-size: .68rem;
-        font-weight: 600;
-        padding: 4px 10px;
-        border-radius: 20px;
-        background: rgba(47,206,107,.12);
-        color: #1e9e51;
-        display: flex;
-        align-items: center;
-        gap: 4px;
-    }
-
-    .platform-card .channel-platform-icon {
-        width: 56px;
-        height: 56px;
-        font-size: 26px;
-        margin: 0 auto 16px;
-    }
-
-    .platform-card h6 {
-        font-weight: 700;
-        margin-bottom: 8px;
-    }
-
-    .platform-card p {
-        font-size: .82rem;
-        line-height: 1.5;
-        min-height: 62px;
-    }
-
-    .platform-card .btn {
-        border-radius: 10px;
-        font-weight: 600;
-        padding: 8px 20px;
-    }
-
-    .modal-content {
-        border-radius: 16px;
-        border: none;
-        overflow: hidden;
-    }
-
-    .modal-header {
-        border-bottom: 1px solid #f3f5f9;
-        padding: 20px 24px;
-    }
-
-    .modal-body {
-        padding: 24px;
-    }
-
-    .modal-footer {
-        border-top: none;
-        padding: 0 24px 24px;
-    }
-
-    .modal-icon-badge {
-        width: 40px;
-        height: 40px;
-        border-radius: 10px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        color: #fff;
-        font-size: 18px;
-        margin-right: 10px;
+    @media (max-width: 575.98px) {
+        .chn-head { padding: 20px 16px 0; }
+        .chn-stats { margin: 20px -16px 0; }
+        .chn-stat { padding: 14px 16px; }
+        .chn-row { flex-wrap: wrap; padding: 14px 16px; }
+        .chn-row-actions { width: 100%; justify-content: flex-end; }
+        .chn-search, .chn-search input { width: 100%; }
     }
 </style>
+@endpush
 
 @section('content')
-    <div class="col-xxl-12 mb-0">
+<div class="col-xxl-12 mb-0 chn chn-page">
 
-        <div class="channels-hero">
-            <div class="channels-hero-content">
+    {{-- Header --}}
+    <div class="chn-head">
+        <div class="chn-head-top">
+            <div class="chn-head-title">
+                <div class="chn-head-icon"><i class="bx bx-plug"></i></div>
                 <div>
-                    <h4><i class="bx bx-plug-2"></i> Messaging Channels</h4>
-                    <p>Connect your customer-facing accounts once, then reply to every conversation from a single unified inbox - no more switching between apps.</p>
+                    <div class="chn-eyebrow">Unified Inbox</div>
+                    <h4>Messaging Channels</h4>
+                    <p>Connect your customer-facing accounts once, then answer every conversation from one inbox - with AI Copilot on every channel.</p>
                 </div>
-                <a href="{{ route('admin.chats.dashboard') }}" class="btn btn-hero">
-                    <i class="bx bx-message-dots"></i> Go to Inbox
-                </a>
             </div>
-
-            @php
-                $channelsByPlatform = $channels->groupBy('platform');
-                $activeCount = $channels->where('status', true)->count();
-            @endphp
-
-            <div class="stat-strip">
-                <div class="stat-pill">
-                    <div class="stat-value">{{ $channels->count() }}</div>
-                    <div class="stat-label">Connected Channels</div>
-                </div>
-                <div class="stat-pill">
-                    <div class="stat-value">{{ $activeCount }}</div>
-                    <div class="stat-label">Active Now</div>
-                </div>
-                <div class="stat-pill">
-                    <div class="stat-value">{{ $channelsByPlatform->count() }}/12</div>
-                    <div class="stat-label">Platforms In Use</div>
-                </div>
+            <div class="chn-head-actions">
+                <a href="#chn-catalog" class="chn-btn chn-btn-outline"><i class="bx bx-plus"></i> Add channel</a>
+                <a href="{{ route('admin.chats.dashboard') }}" class="chn-btn chn-btn-brand"><i class="bx bx-message-square-dots"></i> Open Inbox</a>
             </div>
         </div>
 
-        @if (session('success'))
-            <div class="alert alert-success d-flex align-items-center gap-2"><i class="bx bx-check-circle fs-5"></i> {{ session('success') }}</div>
-        @endif
-        @if (session('error'))
-            <div class="alert alert-danger d-flex align-items-center gap-2"><i class="bx bx-error-circle fs-5"></i> {{ session('error') }}</div>
-        @endif
-
-        <div class="section-title"><i class="bx bx-list-check text-primary"></i> Your Connected Channels</div>
-        <div class="section-subtitle">Every account currently wired into your inbox.</div>
-
-        <div class="connected-list-card">
-            @if ($channels->isNotEmpty())
-                @foreach ($channels as $channel)
-                    <div class="connected-channel-row">
-                        @php
-                            $noBrandGlyph = in_array($channel->platform, ['line', 'zalo', 'google_chat', 'matrix']);
-                            $platformIconClass = $channel->platform === 'x' ? 'bxl-x-logo' : ($noBrandGlyph ? 'bx-message-rounded-dots' : 'bxl-' . $channel->platform);
-                        @endphp
-                        @if ($channel->avatar_url)
-                            {{-- Falls back to the platform icon (hidden by default) if the avatar URL fails to load --}}
-                            <img src="{{ $channel->avatar_url }}" class="channel-avatar" alt="{{ $channel->name }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                            <div class="channel-platform-icon {{ $channel->platform }}" style="display:none">
-                                <i class="bx {{ $platformIconClass }}"></i>
-                            </div>
-                        @else
-                            <div class="channel-platform-icon {{ $channel->platform }}">
-                                <i class="bx {{ $platformIconClass }}"></i>
-                            </div>
-                        @endif
-                        <div class="flex-grow-1">
-                            <div class="fw-semibold">{{ $channel->name }}</div>
-                            <small class="text-muted text-capitalize">{{ str_replace('_', ' ', $channel->platform) }} @if($channel->username) &middot; {{ $channel->username }} @endif</small>
-                        </div>
-                        <span class="d-none d-sm-inline-flex align-items-center text-muted small">
-                            <span class="status-dot {{ $channel->status ? 'active' : 'inactive' }}"></span>
-                            {{ $channel->status ? 'Active' : 'Inactive' }}
-                        </span>
-                        @if ($channel->platform === 'x')
-                            @php $xChat = \App\Models\Messaging\XChatCredential::where('social_account_id', $channel->social_account_id)->first(); @endphp
-                            @if ($xChat && $xChat->status === 'active')
-                                <form action="{{ route('admin.messaging.channels.x-chat.disable', ['channel' => $channel->id]) }}" method="POST" onsubmit="return confirm('Disable encrypted X Chat? The stored PIN is deleted and new X messages will no longer be decrypted.');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Encrypted X Chat is on - click to disable"><i class="bx bx-lock-alt"></i> X Chat on</button>
-                                </form>
-                            @else
-                                <button type="button" class="btn btn-sm {{ $xChat ? 'btn-outline-danger' : 'btn-outline-dark' }}" data-bs-toggle="modal" data-bs-target="#xChatModal"
-                                        data-action="{{ route('admin.messaging.channels.x-chat.enable', ['channel' => $channel->id]) }}" data-name="{{ $channel->name }}"
-                                        title="{{ $xChat?->last_error ?? 'Read encrypted X messages in your inbox' }}">
-                                    <i class="bx bx-lock-open-alt"></i> {{ $xChat ? 'Re-enter X Chat PIN' : 'Enable X Chat' }}
-                                </button>
-                            @endif
-                        @endif
-                        <form action="{{ route('admin.messaging.channels.destroy', ['channel' => $channel->id]) }}" method="POST" onsubmit="return confirm('Disconnect this channel? Existing conversations are kept, but it will stop sending/receiving.');">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="btn-disconnect" title="Disconnect">
-                                <i class="bx bx-unlink"></i>
-                            </button>
-                        </form>
-                    </div>
-                @endforeach
-            @else
-                <div class="empty-channels">
-                    <i class="bx bx-plug-2"></i>
-                    <div class="fw-semibold text-body">No channels connected yet</div>
-                    <div>Pick a platform below to start receiving and replying to customer messages.</div>
-                </div>
-            @endif
-        </div>
-
-        <div class="section-title"><i class="bx bx-grid-alt text-primary"></i> Add a Platform</div>
-        <div class="section-subtitle">Connect as many accounts as you need across any of these platforms.</div>
-
-        <div class="row g-4 mb-4">
-            <div class="col-md-6 col-lg-4">
-                <div class="platform-card">
-                    @if ($channelsByPlatform->has('facebook'))
-                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('facebook')->count() }} connected</span>
-                    @endif
-                    <div class="channel-platform-icon facebook mx-auto"><i class="bx bxl-facebook"></i></div>
-                    <h6>Facebook Messenger</h6>
-                    <p class="text-muted">Connects every Page you manage for Messenger conversations.</p>
-                    <a href="{{ route('admin.social-accounts.redirect', ['platform' => 'facebook']) }}" class="btn btn-primary btn-sm">Connect Facebook</a>
-                </div>
+        <div class="chn-stats">
+            <div class="chn-stat">
+                <div class="chn-stat-label"><i class="bx bx-link-alt"></i> Connected</div>
+                <div class="chn-stat-value">{{ $channels->count() }}</div>
             </div>
-
-            <div class="col-md-6 col-lg-4">
-                <div class="platform-card">
-                    @if ($channelsByPlatform->has('instagram'))
-                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('instagram')->count() }} connected</span>
-                    @endif
-                    <div class="channel-platform-icon instagram mx-auto"><i class="bx bxl-instagram"></i></div>
-                    <h6>Instagram Direct</h6>
-                    <p class="text-muted">Connects your Instagram professional account directly - sign in with Instagram, no Facebook Page needed.</p>
-                    <a href="{{ route('admin.messaging.auth.instagram.redirect') }}" class="btn btn-sm" style="background:linear-gradient(135deg,#f58529,#dd2a7b 45%,#8134af 75%,#515bd4);color:#fff;">Connect Instagram</a>
-                </div>
+            <div class="chn-stat">
+                <div class="chn-stat-label"><i class="bx bx-pulse"></i> Active</div>
+                <div class="chn-stat-value">{{ $activeCount }}</div>
             </div>
-
-            <div class="col-md-6 col-lg-4">
-                <div class="platform-card">
-                    @if ($channelsByPlatform->has('x'))
-                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('x')->count() }} connected</span>
-                    @endif
-                    <div class="channel-platform-icon x mx-auto"><i class="bx bxl-x-logo"></i></div>
-                    <h6>X (Twitter) DMs</h6>
-                    <p class="text-muted">New messages are checked roughly every minute (X's real-time DM webhooks require an Enterprise tier).</p>
-                    <a href="{{ route('admin.messaging.auth.x.redirect') }}" class="btn btn-dark btn-sm">Connect X Account</a>
-                </div>
+            <div class="chn-stat">
+                <div class="chn-stat-label"><i class="bx bx-error-circle"></i> Need attention</div>
+                <div class="chn-stat-value" @if($inactiveCount) style="color: var(--warn)" @endif>{{ $inactiveCount }}</div>
             </div>
-
-            <div class="col-md-6 col-lg-4">
-                <div class="platform-card">
-                    @if ($channelsByPlatform->has('telegram'))
-                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('telegram')->count() }} connected</span>
-                    @endif
-                    <div class="channel-platform-icon telegram mx-auto"><i class="bx bxl-telegram"></i></div>
-                    <h6>Telegram Bot</h6>
-                    <p class="text-muted">Create a bot with <a href="https://t.me/BotFather" target="_blank">@BotFather</a>, then paste its token below.</p>
-                    <button type="button" class="btn btn-info btn-sm text-white" data-bs-toggle="modal" data-bs-target="#telegramModal">Connect Telegram Bot</button>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-4">
-                <div class="platform-card">
-                    @if ($channelsByPlatform->has('whatsapp'))
-                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('whatsapp')->count() }} connected</span>
-                    @endif
-                    <div class="channel-platform-icon whatsapp mx-auto"><i class="bx bxl-whatsapp"></i></div>
-                    <h6>WhatsApp Business</h6>
-                    <p class="text-muted">Paste the Phone Number ID and permanent access token from your Meta Business System User.</p>
-                    <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#whatsappModal">Connect WhatsApp Number</button>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-4">
-                <div class="platform-card">
-                    @if ($channelsByPlatform->has('line'))
-                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('line')->count() }} connected</span>
-                    @endif
-                    <div class="channel-platform-icon line mx-auto"><i class="bx bx-message-rounded-dots"></i></div>
-                    <h6>LINE</h6>
-                    <p class="text-muted">Create a Messaging API channel in the <a href="https://developers.line.biz/console/" target="_blank">LINE Developers Console</a>, then paste its Channel Secret and Access Token.</p>
-                    <button type="button" class="btn btn-sm text-white" style="background:#00B900" data-bs-toggle="modal" data-bs-target="#lineModal">Connect LINE Channel</button>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-4">
-                <div class="platform-card">
-                    @if ($channelsByPlatform->has('zalo'))
-                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('zalo')->count() }} connected</span>
-                    @endif
-                    <div class="channel-platform-icon zalo mx-auto"><i class="bx bx-message-rounded-dots"></i></div>
-                    <h6>Zalo</h6>
-                    <p class="text-muted">Vietnam's dominant messenger. Link an Official Account in the <a href="https://developers.zalo.me/" target="_blank">Zalo Developers Console</a>, then connect it below.</p>
-                    <button type="button" class="btn btn-sm text-white" style="background:#0068ff" data-bs-toggle="modal" data-bs-target="#zaloModal">Connect Zalo OA</button>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-4">
-                <div class="platform-card">
-                    @if ($channelsByPlatform->has('discord'))
-                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('discord')->count() }} connected</span>
-                    @endif
-                    <div class="channel-platform-icon discord mx-auto"><i class="bx bxl-discord"></i></div>
-                    <h6>Discord</h6>
-                    <p class="text-muted">Create a bot in the <a href="https://discord.com/developers/applications" target="_blank">Discord Developer Portal</a>, paste its token below, then start the listener process to receive DMs.</p>
-                    <button type="button" class="btn btn-sm text-white" style="background:#5865F2" data-bs-toggle="modal" data-bs-target="#discordModal">Connect Discord Bot</button>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-4">
-                <div class="platform-card">
-                    @if ($channelsByPlatform->has('slack'))
-                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('slack')->count() }} connected</span>
-                    @endif
-                    <div class="channel-platform-icon slack mx-auto"><i class="bx bxl-slack"></i></div>
-                    <h6>Slack</h6>
-                    <p class="text-muted">Let customers or teams DM your Slack app directly - one click installs it into their workspace.</p>
-                    <a href="{{ route('admin.messaging.auth.slack.redirect') }}" class="btn btn-sm text-white" style="background:#4A154B">Connect with Slack</a>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-4">
-                <div class="platform-card">
-                    @if ($channelsByPlatform->has('teams'))
-                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('teams')->count() }} connected</span>
-                    @endif
-                    <div class="channel-platform-icon teams mx-auto"><i class="bx bxl-microsoft-teams"></i></div>
-                    <h6>Microsoft Teams</h6>
-                    <p class="text-muted">Register a bot as an <a href="https://portal.azure.com" target="_blank">Azure Bot</a> resource, paste its App ID and Password below, then set the Messaging endpoint you'll be shown.</p>
-                    <button type="button" class="btn btn-sm text-white" style="background:#5B5FC7" data-bs-toggle="modal" data-bs-target="#teamsModal">Connect Teams Bot</button>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-4">
-                <div class="platform-card">
-                    @if ($channelsByPlatform->has('google_chat') || $channelsByPlatform->has('google_chat_user'))
-                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('google_chat', collect())->count() + $channelsByPlatform->get('google_chat_user', collect())->count() }} connected</span>
-                    @endif
-                    <div class="channel-platform-icon google_chat mx-auto"><i class="bx bx-message-rounded-dots"></i></div>
-                    <h6>Google Chat</h6>
-                    <p class="text-muted">Build a Chat app on a <a href="https://console.cloud.google.com" target="_blank">Google Cloud</a> project, paste its service account key below, then set the App URL you'll be shown.</p>
-                    <button type="button" class="btn btn-sm text-white" style="background:#4285F4" data-bs-toggle="modal" data-bs-target="#googleChatModal">Connect Google Chat</button>
-                    <div class="mt-2">
-                        <a href="{{ route('admin.messaging.auth.google_chat.redirect') }}" class="small">Or connect with your Google account</a>
-                        <p class="text-muted mb-0" style="font-size:.75rem;">Post/read in spaces you already belong to - won't receive customer DMs (that needs the Chat app above).</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-4">
-                <div class="platform-card">
-                    @if ($channelsByPlatform->has('matrix'))
-                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('matrix')->count() }} connected</span>
-                    @endif
-                    <div class="channel-platform-icon matrix mx-auto"><i class="bx bx-message-rounded-dots"></i></div>
-                    <h6>Matrix</h6>
-                    <p class="text-muted">The open, federated chat protocol. Connect any account's homeserver URL and access token - matrix.org or self-hosted.</p>
-                    <button type="button" class="btn btn-sm text-white" style="background:#0DBD8B" data-bs-toggle="modal" data-bs-target="#matrixModal">Connect Matrix Account</button>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-4">
-                <div class="platform-card">
-                    @if ($channelsByPlatform->has('tiktok'))
-                        <span class="platform-connected-badge"><i class="bx bx-check"></i> {{ $channelsByPlatform->get('tiktok')->count() }} connected</span>
-                    @endif
-                    <div class="channel-platform-icon tiktok mx-auto"><i class="bx bxl-tiktok"></i></div>
-                    <h6>TikTok Messenger</h6>
-                    <p class="text-muted">Connects a TikTok Business Account for the Business Messaging API. Requires TikTok to have granted this app the Business Messaging permission - a manual approval step separate from Ads API access.</p>
-                    <a href="{{ route('admin.messaging.auth.tiktok.redirect') }}" class="btn btn-sm text-white" style="background:#000">Connect TikTok</a>
-                </div>
+            <div class="chn-stat">
+                <div class="chn-stat-label"><i class="bx bx-grid-alt"></i> Platforms in use</div>
+                <div class="chn-stat-value">{{ collect($platforms)->where('connected', '>', 0)->count() }}<small> / {{ count($platforms) }}</small></div>
             </div>
         </div>
     </div>
+
+    @if (session('success'))
+        <div class="chn-alert chn-alert-ok"><i class="bx bx-check-circle"></i> {{ session('success') }}</div>
+    @endif
+    @if (session('error'))
+        <div class="chn-alert chn-alert-err"><i class="bx bx-error-circle"></i> {{ session('error') }}</div>
+    @endif
+
+    {{-- Connected accounts --}}
+    <div class="chn-section">
+        <div>
+            <h5>Connected accounts</h5>
+            <p>Every account currently wired into your inbox.</p>
+        </div>
+        @if ($channels->count() > 4)
+            <label class="chn-search mb-0">
+                <i class="bx bx-search"></i>
+                <input type="search" placeholder="Search accounts…" data-chn-filter="#chn-connected-list" aria-label="Search connected accounts">
+            </label>
+        @endif
+    </div>
+
+    <div class="chn-card" id="chn-connected-list">
+        @forelse ($channels as $channel)
+            @php
+                $meta = $platformMeta->get($channel->platform, ['name' => \Illuminate\Support\Str::headline($channel->platform), 'icon' => 'bx-message-rounded-dots', 'color' => '#6d4aff']);
+                $xChat = $channel->platform === 'x' ? $xChatByAccount->get($channel->social_account_id) : null;
+                $displayName = $channel->name ?: ($channel->username ?: $meta['name'] . ' account');
+            @endphp
+            <div class="chn-row" style="--pc: {{ $meta['color'] }}" data-search="{{ strtolower($channel->name . ' ' . $channel->username . ' ' . $meta['name']) }}">
+                <div class="chn-avatar">
+                    @if ($channel->avatar_url)
+                        {{-- Falls back to the platform logo if the avatar fails to load --}}
+                        <img src="{{ $channel->avatar_url }}" alt="{{ $displayName }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid'; this.nextElementSibling.nextElementSibling.remove();">
+                        <div class="chn-logo" style="display:none"><i class="bx {{ $meta['icon'] }}"></i></div>
+                        <span class="chn-badge"><i class="bx {{ $meta['icon'] }}"></i></span>
+                    @else
+                        <div class="chn-logo"><i class="bx {{ $meta['icon'] }}"></i></div>
+                    @endif
+                </div>
+
+                <div class="chn-row-main">
+                    <div class="chn-row-name">{{ $displayName }}</div>
+                    <div class="chn-row-sub">
+                        <span class="chn-chip">{{ $meta['name'] }}</span>
+                        @if ($channel->username)<span>{{ $channel->username }}</span>@endif
+                    </div>
+                </div>
+
+                <span class="chn-status {{ $channel->status ? 'is-on' : 'is-off' }} d-none d-sm-inline-flex">{{ $channel->status ? 'Active' : 'Inactive' }}</span>
+
+                <div class="chn-row-actions">
+                    @if ($channel->platform === 'x')
+                        @if ($xChat && $xChat->status === 'active')
+                            <form action="{{ route('admin.messaging.channels.x-chat.disable', ['channel' => $channel->id]) }}" method="POST" onsubmit="return confirm('Disable encrypted X Chat? The stored PIN is deleted and new X messages will no longer be decrypted.');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="chn-btn chn-btn-sm chn-btn-ok" title="Encrypted X Chat is on - click to disable"><i class="bx bx-lock-alt"></i> X Chat on</button>
+                            </form>
+                        @else
+                            <button type="button" class="chn-btn chn-btn-sm {{ $xChat ? 'chn-btn-warn' : 'chn-btn-outline' }}" data-bs-toggle="modal" data-bs-target="#xChatModal"
+                                    data-action="{{ route('admin.messaging.channels.x-chat.enable', ['channel' => $channel->id]) }}" data-name="{{ $displayName }}"
+                                    title="{{ $xChat?->last_error ?? 'Read encrypted X messages in your inbox' }}">
+                                <i class="bx {{ $xChat ? 'bx-error' : 'bx-lock-open-alt' }}"></i> {{ $xChat ? 'Re-enter PIN' : 'Enable X Chat' }}
+                            </button>
+                        @endif
+                    @endif
+                    <form action="{{ route('admin.messaging.channels.destroy', ['channel' => $channel->id]) }}" method="POST" onsubmit="return confirm('Disconnect this channel? Existing conversations are kept, but it will stop sending/receiving.');">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="chn-icon-btn" title="Disconnect {{ $displayName }}" aria-label="Disconnect {{ $displayName }}"><i class="bx bx-unlink"></i></button>
+                    </form>
+                </div>
+            </div>
+        @empty
+            <div class="chn-empty">
+                <div class="chn-empty-icon"><i class="bx bx-plug"></i></div>
+                <h6>No channels connected yet</h6>
+                <p class="mb-3 small">Pick a platform below to start receiving and replying to customer messages.</p>
+                <a href="#chn-catalog" class="chn-btn chn-btn-brand"><i class="bx bx-plus"></i> Connect your first channel</a>
+            </div>
+        @endforelse
+        <div class="chn-no-match">No accounts match your search.</div>
+    </div>
+
+    {{-- Platform catalog --}}
+    <div class="chn-section" id="chn-catalog">
+        <div>
+            <h5>Add a channel</h5>
+            <p>Connect as many accounts as you need, on any of these platforms.</p>
+        </div>
+        <div class="chn-tabs" role="tablist">
+            <button type="button" class="chn-tab is-active" data-chn-group="all">All <span>{{ count($platforms) }}</span></button>
+            @foreach ($groups as $groupKey => $groupLabel)
+                <button type="button" class="chn-tab" data-chn-group="{{ $groupKey }}">{{ $groupLabel }} <span>{{ collect($platforms)->where('group', $groupKey)->count() }}</span></button>
+            @endforeach
+        </div>
+    </div>
+
+    <div class="chn-grid">
+        @foreach ($platforms as $platform)
+            <div class="chn-platform" style="--pc: {{ $platform['color'] }}" data-group="{{ $platform['group'] }}">
+                <div class="chn-platform-top">
+                    <div class="chn-logo"><i class="bx {{ $platform['icon'] }}"></i></div>
+                    <div>
+                        <h6>{{ $platform['name'] }}</h6>
+                        <span class="chn-setup">
+                            @if ($platform['setup'] === 'oauth')
+                                <i class="bx bx-log-in-circle"></i> Sign in to connect
+                            @else
+                                <i class="bx bx-key"></i> API credentials
+                            @endif
+                        </span>
+                    </div>
+                </div>
+
+                <p>{!! $platform['desc'] !!}</p>
+
+                <div class="chn-platform-foot">
+                    @if ($platform['connected'])
+                        <span class="chn-connected"><i class="bx bxs-check-circle"></i> {{ $platform['connected'] }} connected</span>
+                    @else
+                        <span></span>
+                    @endif
+
+                    @if (isset($platform['href']))
+                        <a href="{{ $platform['href'] }}" class="chn-btn chn-btn-sm chn-connect"><i class="bx bx-plus"></i> {{ $platform['connected'] ? 'Add another' : 'Connect' }}</a>
+                    @else
+                        <button type="button" class="chn-btn chn-btn-sm chn-connect" data-bs-toggle="modal" data-bs-target="#{{ $platform['modal'] }}"><i class="bx bx-plus"></i> {{ $platform['connected'] ? 'Add another' : 'Connect' }}</button>
+                    @endif
+                </div>
+
+                @isset($platform['extra'])
+                    <div class="chn-extra">
+                        <a href="{{ $platform['extra']['href'] }}">{{ $platform['extra']['label'] }} <i class="bx bx-right-arrow-alt"></i></a>
+                        <span>{{ $platform['extra']['hint'] }}</span>
+                    </div>
+                @endisset
+            </div>
+        @endforeach
+    </div>
+
+</div>
 
     <!-- Encrypted X Chat Modal -->
     <div class="modal fade" id="xChatModal" tabindex="-1">
@@ -816,17 +627,45 @@
             </div>
         </div>
     </div>
+
 @endsection
 
 @push('scripts')
 <script>
-    // Point the shared X Chat PIN modal at the account whose button opened
-    // it. Delegated on document: this page renders inside the Vue #app
-    // root, which replaces the original DOM nodes after this script runs.
+    // Delegated on document: this page renders inside the Vue #app root,
+    // which replaces the original DOM nodes after this script runs.
+
+    // Point the shared X Chat PIN modal at the account whose button opened it.
     document.addEventListener('show.bs.modal', function (event) {
         if (event.target.id !== 'xChatModal' || !event.relatedTarget) return;
         document.getElementById('xChatForm').action = event.relatedTarget.dataset.action;
         document.getElementById('xChatAccountName').textContent = event.relatedTarget.dataset.name || 'this account';
+    });
+
+    // Platform category tabs.
+    document.addEventListener('click', function (event) {
+        const tab = event.target.closest('[data-chn-group]');
+        if (!tab) return;
+        const group = tab.dataset.chnGroup;
+        document.querySelectorAll('[data-chn-group]').forEach(t => t.classList.toggle('is-active', t === tab));
+        document.querySelectorAll('.chn-platform').forEach(card => {
+            card.style.display = group === 'all' || card.dataset.group === group ? '' : 'none';
+        });
+    });
+
+    // Connected-accounts search.
+    document.addEventListener('input', function (event) {
+        const input = event.target.closest('[data-chn-filter]');
+        if (!input) return;
+        const list = document.querySelector(input.dataset.chnFilter);
+        const term = input.value.trim().toLowerCase();
+        let shown = 0;
+        list.querySelectorAll('.chn-row').forEach(row => {
+            const match = !term || row.dataset.search.includes(term);
+            row.style.display = match ? '' : 'none';
+            shown += match ? 1 : 0;
+        });
+        list.querySelector('.chn-no-match').style.display = shown ? 'none' : 'block';
     });
 </script>
 @endpush

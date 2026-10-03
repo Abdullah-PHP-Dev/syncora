@@ -70,8 +70,16 @@ class TicketController extends Controller
             return response()->json(['success' => true, 'tickets' => $tickets]);
         }
 
+        // Per-status totals for the summary cards / status tabs - same
+        // scope as the list (a seller only counts their own), no filters.
+        $statusCounts = ($user->isTeamMember() ? Ticket::query() : Ticket::where('user_id', $user->id))
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
         return view('admin.tickets.index', [
             'tickets'          => $tickets,
+            'statusCounts'     => $statusCounts,
             'isAdmin'          => $user->isTeamMember(),
             'initialSearch'    => $request->string('search', '')->toString(),
             'initialAssignment'=> $request->string('assignment', '')->toString(),

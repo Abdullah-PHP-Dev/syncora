@@ -8,6 +8,8 @@
 
     Props:
       label  string - the small caption above the value, e.g. "Total Reach"
+      icon   string|null - optional boxicons class for a tinted chip
+      tone   string - chip tint: primary | info | success | warning
       value  string - already formatted by the caller (dash_short()
                       output, an em-dash, or a "X%" string - the exact
                       formatting differs per metric, so this component
@@ -28,10 +30,22 @@
 @props([
     'label',
     'value',
+    // Optional boxicons class shown as a tinted chip beside the label, and
+    // its tint (primary/info/success/warning) - pages that don't pass one
+    // render exactly as before.
+    'icon' => null,
+    'tone' => 'primary',
 ])
 
 <div {{ $attributes->class(['dash-card', 'dash-stat']) }}>
-    <div class="dash-stat-label">{{ $label }}</div>
+    @if($icon)
+        <div class="dash-stat-top">
+            <div class="dash-stat-label">{{ $label }}</div>
+            <span class="dash-stat-icon is-{{ $tone }}"><i class="bx {{ $icon }}"></i></span>
+        </div>
+    @else
+        <div class="dash-stat-label">{{ $label }}</div>
+    @endif
     @isset($valueExtra)
         <div class="d-flex align-items-end justify-content-between">
             <div class="dash-stat-value">{{ $value }}</div>

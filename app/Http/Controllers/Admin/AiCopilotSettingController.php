@@ -29,7 +29,13 @@ class AiCopilotSettingController extends Controller
     {
         $settings = AiCopilotSetting::forSeller(Auth::id());
 
-        return view('admin.ai-copilot.settings', ['settings' => $settings]);
+        // What the Copilot answers from - shown so a seller enabling it
+        // can see whether there's anything for it to match against yet.
+        return view('admin.ai-copilot.settings', [
+            'settings'           => $settings,
+            'publishedFaqCount'  => \App\Models\Faq::ownedBy(Auth::id())->published()->count(),
+            'hasBusinessProfile' => \App\Models\BusinessProfile::where('user_id', Auth::id())->exists(),
+        ]);
     }
 
     public function update(Request $request)

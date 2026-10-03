@@ -7,6 +7,7 @@
     <tickets-list
         :initial-tickets='@json($tickets)'
         :is-admin='@json($isAdmin)'
+        :status-counts='@json($statusCounts)'
         fetch-url="{{ route('admin.tickets.index') }}"
         create-url="{{ route('admin.tickets.create') }}"
         help-center-url="{{ route('admin.help-center.index') }}"
