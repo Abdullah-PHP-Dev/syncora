@@ -117,10 +117,16 @@ class TiktokMessagingService
      */
    public function redirect($state)
     {
+        $scopes = [
+            'user.info.basic',
+            'user.info.profile',
+            'biz.dm.direct_message', // TikTok Business Messaging Scope (or approved equivalents)
+        ];
+
         $url = 'https://www.tiktok.com/v2/auth/authorize?' . http_build_query([
             'client_key'    => adminSetting('ads.tiktok.client_id'),
             // Standard approved scope list without unapproved or invalid biz.dm.* strings
-            'scope'         => 'user.info.basic',
+            'scope'         => implode(',', $scopes),
             'response_type' => 'code',
             'redirect_uri'  => $this->callbackUrl(),
             'state'         => $state,
