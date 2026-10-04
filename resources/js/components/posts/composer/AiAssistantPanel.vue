@@ -28,7 +28,7 @@
         v-model="prompt"
         class="ai-panel__prompt"
         rows="3"
-        placeholder="Describe the content you want to create...&#10;Example: Create a motivational post about productivity for entrepreneurs"></textarea>
+        :placeholder="'Describe the content you want to create...\nExample: Create a motivational post about productivity for entrepreneurs'"></textarea>
 
     <button type="button" class="ai-panel__generate" :disabled="generating || !prompt.trim()" @click="generate">
       <span v-if="generating" class="spinner-border spinner-border-sm me-1"></span>

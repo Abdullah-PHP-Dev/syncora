@@ -40,7 +40,8 @@ class PostRequest extends FormRequest
             
             'url' => ['nullable', 'url'],
             
-            'category_id' => ['required', 'integer', 'exists:post_categories,id'],
+            // Only the seller's own categories.
+            'category_id' => ['required', 'integer', Rule::exists('post_categories', 'id')->where('user_id', $this->user()?->id)],
             
             'schedule_mode' => ['nullable', 'boolean'],
             'schedule_at' => [

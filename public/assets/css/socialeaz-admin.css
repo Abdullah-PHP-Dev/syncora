@@ -3436,22 +3436,6 @@
     --svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='24' height='24'%3E%3Cpath fill='black' d='M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z'/%3E%3C/svg%3E");
 }
 
-/* Last-used platform (App\Support\WorkContext) in a module the user isn't
-   in right now - a quiet hint of where the module heading will open. */
-.admin-nav-sub li.is-context > a {
-    color: #3f3f46;
-    font-weight: 500;
-}
-
-.admin-nav-sub li.is-context > a::after {
-    content: "";
-    width: 6px;
-    height: 6px;
-    margin-inline-start: auto;
-    border-radius: 50%;
-    background: #a78bfa;
-}
-
 /* Navbar ⌘K global search results (layouts.partials.global-search-script). */
 .se-search { position: relative; }
 .se-search-results { position: absolute; top: calc(100% + 8px); inset-inline-start: 0; width: min(560px, calc(100vw - 32px)); max-height: 70vh; overflow-y: auto; background: #fff; border: 1px solid #e7e9f0; border-radius: 14px; box-shadow: 0 20px 48px rgba(16, 24, 40, .18); padding: 8px; z-index: 1100; }

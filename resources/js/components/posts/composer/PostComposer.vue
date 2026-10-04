@@ -35,6 +35,29 @@
           <span class="composer-counter">{{ title.length }}/100</span>
         </div>
 
+        <label class="composer-field-label mt-3" for="composerCategory">Category</label>
+        <div class="composer-category">
+          <select v-if="!addingCategory" id="composerCategory" v-model="categoryId" class="form-select">
+            <option v-if="!categoryOptions.length" :value="null" disabled>No categories yet</option>
+            <option v-for="category in categoryOptions" :key="category.id" :value="category.id">{{ category.name }}</option>
+          </select>
+          <template v-else>
+            <input ref="newCategoryInput" v-model="newCategoryName" type="text" class="form-control" maxlength="80"
+                   placeholder="New category name" @keydown.enter.prevent="createCategory" @keydown.esc="addingCategory = false">
+          </template>
+          <button v-if="!addingCategory" type="button" class="composer-category-btn" @click="startNewCategory">
+            <i class="bx bx-plus"></i> New
+          </button>
+          <template v-else>
+            <button type="button" class="composer-category-btn is-primary" :disabled="savingCategory || !newCategoryName.trim()" @click="createCategory">
+              <span v-if="savingCategory" class="spinner-border spinner-border-sm"></span>
+              <template v-else>Add</template>
+            </button>
+            <button type="button" class="composer-category-btn" @click="addingCategory = false">Cancel</button>
+          </template>
+        </div>
+        <p v-if="categoryError" class="composer-category-error">{{ categoryError }}</p>
+
         <label class="composer-field-label mt-3">Post Description</label>
         <div class="composer-input-wrap">
           <textarea v-model="description" class="form-control" rows="5" maxlength="2200"
@@ -146,6 +169,11 @@ const props = defineProps({
     default: () => []
   },
 
+  categoryStoreUrl: {
+    type: String,
+    default: ''
+  },
+
   storeUrl: {
     type: String,
     required: true
@@ -216,12 +244,43 @@ const submitError = ref('');
 const showScheduler = ref(false);
 const scheduleAt = ref('');
 
-// No category picker in this design (the reference image doesn't have
-// one) - PostRequest still requires category_id, so this defaults to
-// whichever category the create page already loaded first. If the user
-// truly has none yet, submission fails loudly with a clear message
-// (below) rather than guessing an id that doesn't exist.
-const defaultCategoryId = computed(() => props.categories[0]?.id ?? null);
+// Category (PostRequest requires one): the seller's categories, newest
+// first - PostController::composer() guarantees at least a "General" one.
+// "+ New" creates another inline via admin.categories.store.
+const categoryOptions = ref([...props.categories]);
+const categoryId = ref(props.categories[0]?.id ?? null);
+const defaultCategoryId = computed(() => categoryId.value);
+const addingCategory = ref(false);
+const newCategoryName = ref('');
+const savingCategory = ref(false);
+const categoryError = ref('');
+const newCategoryInput = ref(null);
+
+function startNewCategory() {
+  addingCategory.value = true;
+  newCategoryName.value = '';
+  categoryError.value = '';
+  setTimeout(() => newCategoryInput.value?.focus(), 0);
+}
+
+async function createCategory() {
+  const name = newCategoryName.value.trim();
+  if (!name || savingCategory.value || !props.categoryStoreUrl) return;
+
+  savingCategory.value = true;
+  categoryError.value = '';
+
+  try {
+    const { data } = await window.axios.post(props.categoryStoreUrl, { name, description: name });
+    categoryOptions.value = [{ id: data.data.id, name: data.data.name }, ...categoryOptions.value];
+    categoryId.value = data.data.id;
+    addingCategory.value = false;
+  } catch (error) {
+    categoryError.value = error.response?.data?.message || 'Could not create the category. Please try again.';
+  } finally {
+    savingCategory.value = false;
+  }
+}
 
 const minScheduleAt = computed(() => {
   const d = new Date(Date.now() + 10 * 60 * 1000);
@@ -231,6 +290,7 @@ const minScheduleAt = computed(() => {
 
 const canSubmit = computed(() => {
   return selectedAccountIds.value.length > 0
+    && !!categoryId.value
     && (description.value.trim() !== '' || mediaItems.value.length > 0);
 });
 
@@ -356,7 +416,7 @@ async function submit(mode) {
   submitError.value = '';
 
   if (!defaultCategoryId.value) {
-    submitError.value = 'No post category exists yet for your account, and this form needs one - create a category first, then try again.';
+    submitError.value = 'Choose a category for this post (or add one with "+ New").';
     return;
   }
 
@@ -452,6 +512,56 @@ async function submit(mode) {
   text-transform: uppercase;
   letter-spacing: .03em;
   margin-bottom: 10px;
+}
+
+.composer-category {
+  display: flex;
+  gap: 8px;
+}
+
+.composer-category .form-select,
+.composer-category .form-control {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: .9rem;
+}
+
+.composer-category-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #374151;
+  font-size: .82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.composer-category-btn:hover:not(:disabled) {
+  background: #f9fafb;
+}
+
+.composer-category-btn.is-primary {
+  background: #6d4aff;
+  border-color: #6d4aff;
+  color: #fff;
+}
+
+.composer-category-btn:disabled {
+  opacity: .55;
+}
+
+.composer-category-error {
+  margin: 6px 0 0;
+  font-size: .78rem;
+  color: #dc2626;
 }
 
 .composer-field-label {

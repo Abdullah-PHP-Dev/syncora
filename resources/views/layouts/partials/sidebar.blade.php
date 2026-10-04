@@ -138,7 +138,9 @@
                                 </a>
                             </li>
                             @foreach ($navPlatforms as $key => [$name, $icon])
-                                <li class="{{ $group['active'] === $key ? 'active' : '' }} {{ !$group['active'] && $group['context'] === $key ? 'is-context' : '' }}">
+                                {{-- Active only inside its own module: Content > Facebook never
+                                     highlights Ads Manager > Facebook (or the reverse). --}}
+                                <li class="{{ $group['current'] && $group['active'] === $key ? 'active' : '' }}">
                                     <a href="{{ $group['url']($key) }}" @if ($group['active'] === $key) aria-current="page" @endif>
                                         <i class="bx {{ $icon }}"></i>
                                         <span>{{ $name }}</span>
@@ -288,36 +290,86 @@
 
 </aside>
 
-{{-- Ads Manager / Content Publishing expand-collapse. Outside #app, so
-     plain DOM listeners are safe here (Vue never re-mounts the sidebar). --}}
+{{-- One accordion for every expandable sidebar group: Ads Manager, Content
+     Publishing (our .admin-nav-group) and the template's own menu-toggle
+     groups (AI Copilot, ...). Opening any group closes all the others.
+     Outside #app, so plain DOM listeners are safe here (Vue never
+     re-mounts the sidebar). --}}
 <script>
     (function () {
-        document.querySelectorAll('.admin-nav-group').forEach(function (group) {
-            var key = 'sidebar-nav-' + group.dataset.navGroup;
-            var button = group.querySelector('.admin-nav-chevron');
+        var STORE = 'sidebar-nav-open';
+        var groups = Array.prototype.slice.call(document.querySelectorAll('.admin-nav-group'));
+        var sidebar = groups[0] ? groups[0].closest('ul') : document.querySelector('.menu-inner');
 
-            function setOpen(open) {
-                group.classList.toggle('open', open);
-                button.setAttribute('aria-expanded', open ? 'true' : 'false');
+        // Template (Sneat) groups: a .menu-item with a .menu-toggle link.
+        function templateGroups() {
+            return Array.prototype.slice.call(sidebar ? sidebar.querySelectorAll(':scope > .menu-item') : [])
+                .filter(function (item) { return item.querySelector(':scope > .menu-toggle'); });
+        }
+
+        function setOpen(group, open, animate) {
+            if (animate === false) {
+                group.classList.add('no-anim');
+                requestAnimationFrame(function () { group.classList.remove('no-anim'); });
             }
+            group.classList.toggle('open', open);
+            group.querySelector('.admin-nav-chevron').setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
 
-            // Pages inside the group always render it open; elsewhere,
-            // restore the last manual choice (no animation on load).
-            if (!group.classList.contains('active')) {
-                try {
-                    if (localStorage.getItem(key) === '1') {
-                        group.classList.add('no-anim');
-                        setOpen(true);
-                        requestAnimationFrame(function () { group.classList.remove('no-anim'); });
-                    }
-                } catch (e) {}
-            }
+        // Closed directly (not via the template menu's animated close(),
+        // which is requestAnimationFrame-driven and can be left half-done
+        // if another group opens in the same moment).
+        function closeTemplateGroup(item) {
+            item.classList.remove('open', 'menu-item-animating', 'menu-item-closing');
+            item.style.height = '';
+            item.style.overflow = '';
+        }
 
-            button.addEventListener('click', function () {
+        function remember(key) {
+            try { key ? localStorage.setItem(STORE, key) : localStorage.removeItem(STORE); } catch (e) {}
+            // Clean up the per-group keys an earlier version stored.
+            groups.forEach(function (g) { try { localStorage.removeItem('sidebar-nav-' + g.dataset.navGroup); } catch (e) {} });
+        }
+
+        // On load: whichever group holds the current page is already open
+        // (server-rendered). Only when no group does, restore the one the
+        // seller last opened - never two at once.
+        var anyCurrent = groups.some(function (g) { return g.classList.contains('active'); })
+            || templateGroups().some(function (item) { return item.classList.contains('open'); });
+        if (!anyCurrent) {
+            var saved = null;
+            try { saved = localStorage.getItem(STORE); } catch (e) {}
+            groups.forEach(function (g) { setOpen(g, g.dataset.navGroup === saved, false); });
+        }
+
+        // Ads Manager / Content Publishing chevrons.
+        groups.forEach(function (group) {
+            group.querySelector('.admin-nav-chevron').addEventListener('click', function () {
                 var open = !group.classList.contains('open');
-                setOpen(open);
-                try { localStorage.setItem(key, open ? '1' : '0'); } catch (e) {}
+
+                if (open) {
+                    groups.forEach(function (other) { if (other !== group) setOpen(other, false); });
+                    templateGroups().forEach(closeTemplateGroup);
+                }
+
+                setOpen(group, open);
+                remember(open ? group.dataset.navGroup : null);
             });
         });
+
+        // Template groups (AI Copilot, ...): the template opens them itself;
+        // this only closes ours when one is being opened. Capture phase, so
+        // it runs before the template's handler flips the 'open' class.
+        if (sidebar) {
+            sidebar.addEventListener('click', function (e) {
+                var toggle = e.target.closest('.menu-toggle');
+                var item = toggle && toggle.parentElement;
+                if (!item || item.classList.contains('open') || !item.classList.contains('menu-item')) return;
+
+                groups.forEach(function (g) { setOpen(g, false); });
+                templateGroups().forEach(function (other) { if (other !== item) closeTemplateGroup(other); });
+                remember(null);
+            }, true);
+        }
     })();
 </script>

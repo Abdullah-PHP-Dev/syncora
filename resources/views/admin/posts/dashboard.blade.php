@@ -74,7 +74,7 @@
                 @endif
             </a>
             <a href="{{ route('admin.posts.index') }}" class="dash-btn dash-btn-primary">
-                <i class="bx bx-plus"></i> {{ __('admin.dashboard_page.create_post') }}
+                <i class="bx bx-plus"></i> {{ __('admin.dashboard_page.view_all') }}
             </a>
         </div>
     </div>
@@ -379,7 +379,7 @@
                                 <div class="pd-empty">
                                     <span class="pd-empty-icon"><i class="bx bx-edit-alt"></i></span>
                                     <strong>{{ __('admin.dashboard_page.no_posts_yet') }}</strong>
-                                    <a href="{{ route('admin.posts.index') }}" class="dash-btn dash-btn-primary"><i class="bx bx-plus"></i> {{ __('admin.dashboard_page.create_post') }}</a>
+                                    <a href="{{ route('admin.posts.composer') }}" class="dash-btn dash-btn-primary"><i class="bx bx-plus"></i> {{ __('admin.dashboard_page.create_post') }}</a>
                                 </div>
                             </td></tr>
                             @endforelse

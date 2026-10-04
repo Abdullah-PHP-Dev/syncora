@@ -321,7 +321,7 @@ class PostController extends Controller
         $newAccountsThisWeek = SocialAccount::where('user_id', $userId)
             ->where('created_at', '>=', now()->subDays(7))
             ->count();
-
+            
         return view($this->_config['view'], compact(
             'totalAccounts',
             'accountsByPlatform',
@@ -898,9 +898,16 @@ class PostController extends Controller
     {
         $userId = Auth::id();
 
+        // Every post needs a category (PostRequest) - a seller who never
+        // created one gets a default "General" one, so the composer is never
+        // blocked; they can pick or add others in the form.
+        if (!PostCategory::where('user_id', $userId)->exists()) {
+            PostCategory::create(['user_id' => $userId, 'name' => 'General', 'description' => 'Default category']);
+        }
+
         $categories = PostCategory::where('user_id', $userId)
             ->orderBy('id', 'desc')
-            ->get();
+            ->get(['id', 'name']);
 
         $accounts = SocialAccount::whereUserId($userId)->where('has_posting_permission', true)->get();
 

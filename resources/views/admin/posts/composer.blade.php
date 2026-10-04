@@ -12,6 +12,7 @@
             :accounts='@json($accounts)'
             :categories='@json($categories)'
             store-url="{{ route('admin.posts.store') }}"
+            category-store-url="{{ route('admin.categories.store') }}"
             manage-accounts-url="{{ route('admin.posts.create') }}"
             redirect-url="{{ route('admin.posts.dashboard') }}"
             :gallery-urls='@json(['index' => route('admin.media-gallery.index'), 'store' => route('admin.media-gallery.store')])'
