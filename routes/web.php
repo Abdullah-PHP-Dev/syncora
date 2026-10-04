@@ -40,7 +40,10 @@ use App\Http\Controllers\Admin\BusinessProfileController;
 use App\Http\Controllers\Admin\KnowledgeGapController;
 use App\Http\Controllers\Admin\AiCopilotAnalyticsController;
 
+Route::get('/payments/tamara/return/{order}', [\App\Http\Controllers\Payments\TamaraController::class, 'returned'])
+    ->middleware(['auth', 'signed:orderId,status'])->name('payments.tamara.return');
 
+Route::get('payment/tamara/process', 'WalletController@TamaraCallback')->name('tamara.checkout-status'); //tamara_payment
 Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	'web',
 	LaravelLocalizationRoutes::class,

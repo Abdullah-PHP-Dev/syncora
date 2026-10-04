@@ -15,8 +15,8 @@ class CardPayment implements PaymentInterface
 
 
         $gateway     = $data['gateway'] ?? 'tap';
-      //  $transaction = $data['transaction'];
-      //  $transaction->update(['payment_method' => 'card', 'payment_gateway' => $gateway]);
+      $transaction = $data['transaction'];
+       $transaction->update(['payment_method' => 'card', 'payment_gateway' => $gateway]);
 
 
 
