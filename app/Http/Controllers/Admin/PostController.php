@@ -224,56 +224,104 @@ class PostController extends Controller
             ->limit(4)
             ->get();
 
-        // ---- Current month calendar: which days have posts/comments/messages ----
+        // ---- Content calendar (Monday-start month grid) ----
         $calendarMonth = $request->filled('cal')
             ? \Carbon\Carbon::createFromFormat('Y-m', $request->query('cal'))->startOfMonth()
-            : now();
+            : now()->startOfMonth();
+        // The grid shows whole weeks, so the trailing days of last month and
+        // the leading days of next month are real, clickable cells too.
+        $calendarGridStart = $calendarMonth->copy()->startOfWeek(\Carbon\Carbon::MONDAY);
+        $calendarGridEnd = $calendarMonth->copy()->endOfMonth()->endOfWeek(\Carbon\Carbon::SUNDAY);
+
         // A content calendar has to key posts by the day they're actually
         // scheduled for, not the day the DB row was created - scheduling
-        // something today for next Friday must show up on Friday's cell,
-        // not today's. (published_at is listed in Post::$fillable but
-        // isn't a real column on this table - not something to build on
-        // here - so "already published/no schedule" falls back to
-        // created_at, same as before.) schedule_at and created_at can
-        // each fall in a different month, so the query nets anything
-        // touching this month via either, then groups in PHP by whichever
-        // date is actually the right one to display for that post.
+        // something today for next Friday must show up on Friday's cell.
+        // (published_at is listed in Post::$fillable but isn't a real
+        // column, so "already published/no schedule" falls back to
+        // created_at.)
         $calendarEffectiveDate = fn ($p) => $p->schedule_mode && $p->schedule_at
             ? $p->schedule_at
             : $p->created_at;
 
-        $calendarMonthPosts = Post::where('user_id', $userId)
-            ->where(function ($q) use ($calendarMonth) {
-                $q->whereMonth('schedule_at', $calendarMonth->month)->whereYear('schedule_at', $calendarMonth->year)
-                    ->orWhere(function ($q2) use ($calendarMonth) {
-                        $q2->whereNull('schedule_at')
-                            ->whereMonth('created_at', $calendarMonth->month)->whereYear('created_at', $calendarMonth->year);
-                    });
-            })
-            ->with('media', 'socialAccount')
-            ->get()
-            ->filter(fn ($p) => $calendarEffectiveDate($p)?->isSameMonth($calendarMonth))
-            ->sortBy($calendarEffectiveDate)
-            ->groupBy(fn ($p) => $calendarEffectiveDate($p)->day)
-            ->map(function ($dayPosts) {
-                // Collapse posts sharing a group_id (one quickStore()
-                // submission fanned out across several platforms) into a
-                // single representative entry - the same COALESCE(group_id,
-                // id) grouping buildPostsQuery() uses for the main posts
-                // listing, so a post sent to both Facebook and Instagram at
-                // once shows up as one calendar entry, not two.
-                return $dayPosts->groupBy(fn ($p) => $p->group_id ?? $p->id)
-                    ->map(function ($groupMembers) {
-                        $representative = $groupMembers->first();
-                        $representative->setAttribute('group_platforms', $groupMembers->map(fn ($m) => [
+        // Every post is written as 'pending' when queued and flips to
+        // 'completed'/'failed' once social:publish-posts runs it, so the
+        // calendar buckets the raw statuses into the four legend states.
+        $calendarStatusKey = fn ($status) => match (strtolower((string) $status)) {
+            'completed', 'published' => 'published',
+            'failed' => 'failed',
+            'draft' => 'draft',
+            default => 'scheduled',
+        };
+
+        // Posts whose effective date falls in [$from, $to], with posts that
+        // share a group_id (one quickStore() submission fanned out across
+        // several platforms) collapsed into a single entry - the same
+        // COALESCE(group_id, id) grouping buildPostsQuery() uses for the
+        // main posts listing.
+        $calendarEntriesBetween = function (\Carbon\Carbon $from, \Carbon\Carbon $to) use ($userId, $calendarEffectiveDate, $calendarStatusKey) {
+            return Post::where('user_id', $userId)
+                ->where(fn ($q) => $q->whereBetween('schedule_at', [$from, $to])->orWhereBetween('created_at', [$from, $to]))
+                ->with('media', 'socialAccount')
+                ->get()
+                ->filter(fn ($p) => $calendarEffectiveDate($p)?->between($from, $to))
+                ->sortBy($calendarEffectiveDate)
+                ->groupBy(fn ($p) => $p->group_id ?? $p->id)
+                ->map(function ($members) use ($calendarEffectiveDate, $calendarStatusKey) {
+                    $post = $members->first();
+                    $when = $calendarEffectiveDate($post);
+                    $preview = dash_media_preview($post->media->first());
+
+                    return [
+                        'id' => $post->id,
+                        'platform' => $post->platform,
+                        'title' => $post->title ?: Str::limit(trim((string) $post->content) ?: __('admin.dashboard_page.no_caption'), 40),
+                        'content' => Str::limit((string) $post->content, 160),
+                        'status' => $calendarStatusKey($post->status),
+                        'platforms' => $members->map(fn ($m) => [
                             'platform' => $m->platform,
                             'status' => $m->status,
                             'post_id' => $m->id,
-                        ])->values());
-                        return $representative;
-                    })
-                    ->values();
-            });
+                        ])->values()->all(),
+                        'date' => $when->format('Y-m-d'),
+                        'datetime' => $when->toIso8601String(),
+                        'time' => $when->format('h:i A'),
+                        'date_label' => $when->format('M d, Y'),
+                        'thumb' => $preview && $preview['kind'] !== 'file' ? $preview['url'] : null,
+                        'is_video' => ($preview['kind'] ?? null) === 'video',
+                        'account_name' => $post->socialAccount->name ?? $post->socialAccount->username ?? null,
+                        'engagement' => (int) $members->sum(fn ($m) => $m->likes + $m->comments + $m->shares),
+                        'show_url' => route('admin.posts.show', $post->id),
+                    ];
+                })
+                ->values();
+        };
+
+        $calendarEntries = $calendarEntriesBetween($calendarGridStart, $calendarGridEnd);
+        $calendarPostsByDate = $calendarEntries->groupBy('date');
+
+        // Month-over-month stat cards above the grid.
+        $calendarMonthEntries = $calendarEntries->filter(fn ($e) => str_starts_with($e['date'], $calendarMonth->format('Y-m')))->values();
+        $calendarPrevMonth = $calendarMonth->copy()->subMonthNoOverflow();
+        $calendarPrevEntries = $calendarEntriesBetween($calendarPrevMonth->copy()->startOfMonth(), $calendarPrevMonth->copy()->endOfMonth());
+        $calendarMetrics = fn ($entries) => [
+            'total' => $entries->count(),
+            'published' => $entries->where('status', 'published')->count(),
+            'scheduled' => $entries->where('status', 'scheduled')->count(),
+            'engagement' => (int) $entries->sum('engagement'),
+        ];
+        $calendarCurr = $calendarMetrics($calendarMonthEntries);
+        $calendarPrev = $calendarMetrics($calendarPrevEntries);
+        $calendarStats = collect($calendarCurr)->map(fn ($value, $key) => [
+            'value' => $value,
+            // null when there's nothing to compare against, rather than a
+            // fabricated +100%.
+            'change' => $calendarPrev[$key] > 0 ? round((($value - $calendarPrev[$key]) / $calendarPrev[$key]) * 100) : null,
+        ])->all();
+
+        // Right-hand panel tabs: this month's scheduled (soonest first) and
+        // published (latest first) posts.
+        $calendarScheduled = $calendarMonthEntries->where('status', 'scheduled')->values();
+        $calendarPublished = $calendarMonthEntries->where('status', 'published')->sortByDesc('datetime')->values();
 
         // Posting-permitted accounts, for the calendar's "quick post" modal
         // platform picker - same has_posting_permission gate as the main
@@ -281,18 +329,6 @@ class PostController extends Controller
         $postingAccounts = SocialAccount::where('user_id', $userId)
             ->where('has_posting_permission', true)
             ->get();
-        $calendarPostDays = $calendarMonthPosts->map->count();
-        $calendarPostsThisMonth = (int) $calendarPostDays->sum();
-        $calendarCommentsThisMonth = PostComment::where('user_id', $userId)
-            ->whereMonth('created_at', $calendarMonth->month)
-            ->whereYear('created_at', $calendarMonth->year)
-            ->count();
-        $calendarMessagesThisMonth = Message::whereHas('conversation.channel', function ($q) use ($userId) {
-                $q->where('user_id', $userId);
-            })
-            ->whereMonth('created_at', $calendarMonth->month)
-            ->whereYear('created_at', $calendarMonth->year)
-            ->count();
 
         // ---- Unread inbox count, for the header notification bell ----
         $totalUnreadMessages = Conversation::whereHas('channel', function ($q) use ($userId) {
@@ -363,11 +399,13 @@ class PostController extends Controller
             'dailyEngagement',
             'dailyClicks',
             'calendarMonth',
-            'calendarMonthPosts',
-            'calendarPostDays',
-            'calendarPostsThisMonth',
-            'calendarCommentsThisMonth',
-            'calendarMessagesThisMonth',
+            'calendarGridStart',
+            'calendarGridEnd',
+            'calendarEntries',
+            'calendarPostsByDate',
+            'calendarStats',
+            'calendarScheduled',
+            'calendarPublished',
             'recentPosts',
             'topPosts',
             'totalUnreadMessages',
@@ -851,12 +889,14 @@ class PostController extends Controller
         return [
             'id' => $comment->id,
             'author' => $comment->user_name ?: ($comment->user->name ?? 'User'),
+            'avatar' => $comment->user_avatar_url,
             'content' => $comment->content,
             'timeAgo' => optional($comment->posted_at ?? $comment->created_at)->diffForHumans(),
             'likes' => (int) ($comment->likes ?? 0),
             'isOwn' => $comment->sender_type === 'support',
             'replies' => $comment->replies->map(fn ($reply) => [
                 'author' => $reply->user_name ?: ($reply->user->name ?? 'User'),
+                'avatar' => $reply->user_avatar_url,
                 'content' => $reply->content,
                 'timeAgo' => optional($reply->posted_at ?? $reply->created_at)->diffForHumans(),
                 'likes' => (int) ($reply->likes ?? 0),
@@ -1809,12 +1849,13 @@ class PostController extends Controller
         $anchor = Post::where('user_id', Auth::id())->findOrFail($postId);
         $groupKey = $anchor->group_id ?? $anchor->id;
 
-        $members = Post::with(['media', 'socialAccount'])
+        $members = $this->postWithPreviewRelations()
             ->where('user_id', Auth::id())
             ->where(function ($q) use ($groupKey) {
                 $q->where('group_id', $groupKey)->orWhere('id', $groupKey);
             })
             ->get();
+        $members->each(fn ($m) => $this->refreshInstagramCommentsIfNeeded($m));
 
         $primary = $members->firstWhere('id', $anchor->id) ?? $members->first();
 
@@ -1840,6 +1881,8 @@ class PostController extends Controller
                     'account_name'    => $m->socialAccount->name ?? $m->socialAccount->username ?? ucfirst($m->platform),
                     'account_username'=> $m->socialAccount->username ?? null,
                     'account_avatar'  => $m->socialAccount->avatar_url ?? null,
+                    'comments'        => $m->postComments->map(fn ($c) => $this->formatCommentNode($c))->values(),
+                    'comment_url'     => route('admin.posts.comments.store', $m->id),
                     'stats' => [
                         'likes'       => (int) $m->likes,
                         'comments'    => (int) $m->comments,
@@ -1850,6 +1893,7 @@ class PostController extends Controller
                     ],
                 ])->values(),
                 'edit_url'      => route('admin.posts.show', $primary->id),
+                'reply_url'     => route('admin.posts.comments.reply', '__COMMENT__'),
             ],
         ]);
     }
