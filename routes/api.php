@@ -3,6 +3,9 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+Route::post('/payments/tamara/webhook', [\App\Http\Controllers\Payments\TamaraController::class, 'webhook'])
+    ->name('payments.tamara.webhook');
+
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');

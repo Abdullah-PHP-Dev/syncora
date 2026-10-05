@@ -10,6 +10,7 @@ use App\Models\WalletTransaction;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use Illuminate\Validation\ValidationException;
 
 class SubscriptionService
 {
@@ -155,7 +156,8 @@ class SubscriptionService
 		float $discount,
 		string $subjectType,
 		string $subjectId,
-		string $callback
+		string $callback,
+        ?string $gateway = null
 	) {
 
 		$this->ensureSeller($user);
@@ -163,10 +165,10 @@ class SubscriptionService
         $amount = $months === 12 ? $bundle->yearly_price : (float) $bundle->price;
 		$plan = $bundle;
 		$cycle = $cycle;
-		//$this->validatePaymentAttempts($user);
+		$this->validatePaymentAttempts($user);
 
 
-		/*$transaction = WalletTransaction::create([
+		$transaction = WalletTransaction::create([
 			                                         'seller_id' => $user->id,
 			                                         'amount' => $amount,
 			                                         'direction' => 'debit',
@@ -181,7 +183,7 @@ class SubscriptionService
 				                                         'cycle' => $cycle,
 				                                         'starts_at' => now()->toISOString(),
 			                                         ],
-		                                         ]);*/
+		                                         ]);
 
 
 		$payment = app(PaymentManager::class)
@@ -192,8 +194,10 @@ class SubscriptionService
 				      'bundle' => $bundle,
 				      'cycle' => $cycle,
 				      'type' => self::DEFAULT_SUBSCRIPTION,
-				    /*  'transaction' => $transaction,*/
+				     'transaction' => $transaction,
+                      'gateway' => $gateway,
 			      ]);
+
 
 		/**
 		 * CASE 1: PAYMENT FAILED
@@ -263,6 +267,7 @@ class SubscriptionService
 
 	private function validatePaymentAttempts(User $user): void
 	{
+
 		$failedAttempts = WalletTransaction::where('seller_id', $user->id)
 			->whereIn('status', ['pending', 'rejected'])
 			->whereDate('created_at', today())
@@ -273,10 +278,12 @@ class SubscriptionService
 			 ])*/
 			->count();
 
+
+
 		if ($failedAttempts >= 5) {
-			throw new \RuntimeException(
-				'Too many failed payment attempts. Please try again tomorrow.'
-			);
+            throw ValidationException::withMessages([
+                'payment_method' => 'Too many failed payment attempts. Please try again tomorrow.',
+            ]);
 		}
 	}
 

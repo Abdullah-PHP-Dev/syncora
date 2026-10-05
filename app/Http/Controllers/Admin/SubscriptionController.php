@@ -252,11 +252,17 @@ class SubscriptionController extends Controller
         $data = $request->validate([
             'bundle_id' => ['required', 'integer'],
             'cycle' => ['required', \Illuminate\Validation\Rule::in(['monthly', 'yearly'])],
-            'payment_method' => ['required', \Illuminate\Validation\Rule::in(['card', 'wallet', 'cashback', 'tamara'])],
+            'payment_method' => ['required', \Illuminate\Validation\Rule::in(['card', 'wallet', 'cashback', 'tamara', 'tabby'])],
         ]);
         $bundleId = $data['bundle_id'];
         $cycle = $data['cycle'];
         $paymentMethod = $data['payment_method'];
+        $gateway = in_array($paymentMethod, ['tamara', 'tabby'], true) ? $paymentMethod : null;
+        if ($gateway !== null) {
+            $paymentMethod = 'installment';
+        }
+
+
 		$couponCode = $request->coupon_code;
 		$discount = 0;
 		$action = 0;
@@ -272,6 +278,7 @@ class SubscriptionController extends Controller
 			$bundle->getMorphClass(),
 			$bundle->id,
 			'App\Services\SubscriptionService',
+			$gateway,
 		);
 
 

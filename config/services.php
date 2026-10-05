@@ -49,6 +49,14 @@ return [
 
     'payment' => [
 
+        'tamara' => [
+            'base_url' => env('TAMARA_BASE_URL'),
+            'api_token' => env('TAMARA_API_TOKEN'),
+            'notification_token' => env('TAMARA_NOTIFICATION_TOKEN'),
+            'payment_type' => env('TAMARA_PAYMENT_TYPE'),
+            'instalments' => env('TAMARA_INSTALMENTS', 3),
+        ],
+
 	    'tap' => [
 		    'secret_key'  => env('TAP_SECRET_KEY'),
 		    'public_key'  => env('TAP_PUBLIC_KEY'),
