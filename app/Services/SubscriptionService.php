@@ -10,6 +10,7 @@ use App\Models\WalletTransaction;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use Illuminate\Validation\ValidationException;
 
 class SubscriptionService
 {
@@ -280,9 +281,9 @@ class SubscriptionService
 
 
 		if ($failedAttempts >= 5) {
-			throw new \RuntimeException(
-				'Too many failed payment attempts. Please try again tomorrow.'
-			);
+            throw ValidationException::withMessages([
+                'payment_method' => 'Too many failed payment attempts. Please try again tomorrow.',
+            ]);
 		}
 	}
 

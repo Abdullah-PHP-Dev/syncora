@@ -175,9 +175,6 @@
                   Secure payment · Your information is protected
                 </div>
 
-                <div v-if="errorMessage" class="alert alert-danger mt-3 mb-0">
-                  {{ errorMessage }}
-                </div>
               </div>
             </div>
           </div>
@@ -286,6 +283,7 @@ export default {
 
             if (!this.packageData.id) {
               this.errorMessage = 'Subscription plan not found.'
+              this.showPaymentError(this.errorMessage)
             }
           })
           .catch(error => {
@@ -293,6 +291,7 @@ export default {
             this.errorMessage = error.response && error.response.data && error.response.data.message
                 ? error.response.data.message
                 : 'Unable to load subscription plan.'
+            this.showPaymentError(this.errorMessage)
           })
           .finally(() => {
             this.loading = false
@@ -354,16 +353,19 @@ export default {
 
       if (!this.bundleId) {
         this.errorMessage = 'Invalid subscription plan.'
+        this.showPaymentError(this.errorMessage)
         return
       }
 
       if (!this.selectedPlanId) {
         this.errorMessage = 'Invalid payment plan.'
+        this.showPaymentError(this.errorMessage)
         return
       }
 
       if (!this.paymentMethod) {
         this.errorMessage = 'Please select a payment method.'
+        this.showPaymentError(this.errorMessage)
         return
       }
 
@@ -397,6 +399,7 @@ export default {
 
             this.errorMessage = data.message || 'Unable to create payment checkout.'
             this.processing = false
+            this.showPaymentError(this.errorMessage)
           })
           .catch(error => {
             console.error('Subscription checkout error', error)
@@ -406,7 +409,19 @@ export default {
                 : 'Unable to process your subscription. Please try again.'
 
             this.processing = false
+            this.showPaymentError(this.errorMessage)
           })
+    },
+
+    showPaymentError(message) {
+      if (window.Swal) {
+        window.Swal.fire({
+          icon: 'error',
+          title: 'Payment failed',
+          text: message,
+          confirmButtonText: 'OK'
+        })
+      }
     },
 
     formatLimitFeature(key, value) {

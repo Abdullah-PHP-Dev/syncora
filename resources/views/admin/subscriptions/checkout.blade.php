@@ -4,6 +4,10 @@
     <link rel="stylesheet" href="{{ asset('assets/css/subscription.css') }}" />
 @endpush
 
+@push('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+@endpush
+
 
 @section('content')
 
@@ -19,4 +23,3 @@
     ></subscription-checkout>
 
 @endsection
-
