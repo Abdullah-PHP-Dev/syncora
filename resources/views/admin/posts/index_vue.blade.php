@@ -5,7 +5,7 @@
 @stop
 
 @push('styles')
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <style>
         .media-preview-wrapper {
             width: 140px;
@@ -55,7 +55,7 @@
             promote-url-template="{{ route('admin.ads.campaigns.create', ['platform' => '__PLATFORM__']) }}?post=__POST__"
             api-url="{{ route('admin.posts.data') }}"
             quick-create-url="{{ route('admin.posts.quick') }}"
-            preview-url-base="{{ url('admin/posts') }}"
+            preview-url-template="{{ route('admin.posts.preview', ['post' => '__POST__', 'platform' => '__PLATFORM__']) }}"
             share-url-base="{{ url('share/posts') }}"
             user-name="{{ auth()->user()->name ?? 'Admin' }}"
             :posting-accounts='@json($postingAccounts)'

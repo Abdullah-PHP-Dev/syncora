@@ -2,12 +2,45 @@
 // Both pages import from here so a post's id + platforms stay consistent
 // when navigating between the list and its per-platform preview.
 
+// Official brand palettes. `color` is the solid brand colour (text, borders,
+// tints - always readable on white); `fill` is the badge/background fill,
+// a gradient where the brand's own app icon uses one; `ink` is the glyph
+// colour on top of `fill`; `glow` is an optional CSS filter for the glyph
+// (TikTok's cyan/red offset).
+const brand = {
+    facebook:  { color: '#0866FF', fill: 'linear-gradient(180deg, #18ACFE 0%, #0163E0 100%)', ink: '#FFFFFF' },
+    instagram: { color: '#E1306C', fill: 'radial-gradient(circle at 30% 107%, #FDF497 0%, #FDF497 5%, #FD5949 45%, #D6249F 60%, #285AEB 90%)', ink: '#FFFFFF' },
+    x:         { color: '#000000', fill: '#000000', ink: '#FFFFFF' },
+    linkedin:  { color: '#0A66C2', fill: 'linear-gradient(180deg, #0A66C2 0%, #004182 100%)', ink: '#FFFFFF' },
+    tiktok:    { color: '#000000', fill: '#000000', ink: '#FFFFFF', glow: 'drop-shadow(-1px -1px 0 #25F4EE) drop-shadow(1px 1px 0 #FE2C55)' },
+    youtube:   { color: '#FF0000', fill: 'linear-gradient(180deg, #FF3D3D 0%, #E60000 100%)', ink: '#FFFFFF' },
+    threads:   { color: '#000000', fill: '#000000', ink: '#FFFFFF' },
+    pinterest: { color: '#E60023', fill: 'linear-gradient(180deg, #F0002A 0%, #BD001C 100%)', ink: '#FFFFFF' },
+    whatsapp:  { color: '#25D366', fill: 'linear-gradient(180deg, #5FFC7B 0%, #28D146 100%)', ink: '#FFFFFF' },
+    snapchat:  { color: '#E8C800', fill: '#FFFC00', ink: '#000000' },
+    google:    { color: '#4285F4', fill: '#4285F4', ink: '#FFFFFF' },
+};
+
+// Brand palette for any platform key, with a neutral fallback.
+export function brandOf(key) {
+    const b = brand[key] || { color: '#5D87FF', fill: '#5D87FF', ink: '#FFFFFF' };
+    return { glow: 'none', ...b };
+}
+
+// CSS custom properties for an element that themes itself by platform:
+// --pf (solid colour), --pf-fill (badge background), --pf-ink (glyph on
+// the fill), --pf-glow (glyph filter).
+export function brandVars(key) {
+    const b = brandOf(key);
+    return { '--pf': b.color, '--pf-fill': b.fill, '--pf-ink': b.ink, '--pf-glow': b.glow };
+}
+
 export const platformMeta = {
     facebook: {
         key: 'facebook',
         name: 'Facebook',
         icon: 'fab fa-facebook-f',
-        color: '#1877F2',
+        ...brandOf('facebook'),
         page: 'Your Business Page',
         handle: '@yourbusiness',
     },
@@ -15,7 +48,7 @@ export const platformMeta = {
         key: 'instagram',
         name: 'Instagram',
         icon: 'fab fa-instagram',
-        color: '#E1306C',
+        ...brandOf('instagram'),
         page: 'yourbusiness',
         handle: '@yourbusiness',
     },
@@ -23,7 +56,7 @@ export const platformMeta = {
         key: 'x',
         name: 'X',
         icon: 'fab fa-x-twitter',
-        color: '#111827',
+        ...brandOf('x'),
         page: 'Your Business',
         handle: '@yourbusiness',
     },
@@ -31,7 +64,7 @@ export const platformMeta = {
         key: 'linkedin',
         name: 'LinkedIn',
         icon: 'fab fa-linkedin-in',
-        color: '#0A66C2',
+        ...brandOf('linkedin'),
         page: 'Your Business Inc.',
         handle: '1,204 followers',
     },
@@ -39,7 +72,7 @@ export const platformMeta = {
         key: 'tiktok',
         name: 'TikTok',
         icon: 'fab fa-tiktok',
-        color: '#111827',
+        ...brandOf('tiktok'),
         page: 'yourbusiness',
         handle: '@yourbusiness',
     },
@@ -47,7 +80,7 @@ export const platformMeta = {
         key: 'youtube',
         name: 'YouTube',
         icon: 'fab fa-youtube',
-        color: '#FF0000',
+        ...brandOf('youtube'),
         page: 'Your Business',
         handle: '12.4K subscribers',
     },

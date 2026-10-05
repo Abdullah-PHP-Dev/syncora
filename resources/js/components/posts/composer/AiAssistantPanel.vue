@@ -109,6 +109,14 @@
 // before either endpoint existed.
 import { ref } from 'vue';
 
+const props = defineProps({
+  // { content, image } - admin.posts.generate-ai-* routes, built by Blade.
+  urls: {
+    type: Object,
+    default: null
+  }
+});
+
 const emit = defineEmits(['generated']);
 
 const tabs = [
@@ -148,7 +156,9 @@ async function requestGeneration(kind) {
   try {
     const isImage = kind === 'image';
     const { data } = await window.axios.post(
-      isImage ? '/admin/posts/generate-ai-image' : '/admin/posts/generate-ai-content',
+      isImage
+        ? (props.urls?.image || '/posts/generate-ai-image')
+        : (props.urls?.content || '/posts/generate-ai-content'),
       { prompt: prompt.value }
     );
 

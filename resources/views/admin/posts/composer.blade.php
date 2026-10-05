@@ -16,6 +16,7 @@
             manage-accounts-url="{{ route('admin.posts.create') }}"
             redirect-url="{{ route('admin.posts.dashboard') }}"
             :gallery-urls='@json(['index' => route('admin.media-gallery.index'), 'store' => route('admin.media-gallery.store')])'
+            :ai-urls='@json(['content' => route('admin.posts.generate-ai-content'), 'image' => route('admin.posts.generate-ai-image')])'
     ></post-composer>
 
 @stop

@@ -19,14 +19,40 @@
         'threads'   => ['icon' => 'bx-at',         'class' => 'threads',  'label' => 'Threads',    'tag' => 'Profile'],
     ];
 
-    // Same brand colors the posts.index "Create post" modal uses
-    // (resources/js/data/mockPosts.js platformMeta) - kept in sync here
-    // since this page has no access to that JS module.
-    $platformBrandColors = [
-        'facebook' => '#1877F2', 'instagram' => '#E1306C', 'x' => '#111827', 'twitter' => '#111827',
-        'linkedin' => '#0A66C2', 'tiktok' => '#111827', 'youtube' => '#FF0000',
-        'google' => '#4285F4', 'pinterest' => '#E60023', 'whatsapp' => '#25D366', 'threads' => '#000000',
+    // Official brand palettes - the same values as brandOf() in
+    // resources/js/data/mockPosts.js (posts listing/preview), kept in sync
+    // here since this page has no access to that JS module. `color` is the
+    // solid brand colour (text/tints, readable on white); `fill` the badge
+    // background (a gradient where the brand's app icon uses one); `ink`
+    // the glyph colour on the fill; `glow` an optional glyph filter.
+    $platformBrand = [
+        'facebook'  => ['color' => '#0866FF', 'fill' => 'linear-gradient(180deg, #18ACFE 0%, #0163E0 100%)', 'ink' => '#FFFFFF'],
+        'instagram' => ['color' => '#E1306C', 'fill' => 'radial-gradient(circle at 30% 107%, #FDF497 0%, #FDF497 5%, #FD5949 45%, #D6249F 60%, #285AEB 90%)', 'ink' => '#FFFFFF'],
+        'x'         => ['color' => '#000000', 'fill' => '#000000', 'ink' => '#FFFFFF'],
+        'linkedin'  => ['color' => '#0A66C2', 'fill' => 'linear-gradient(180deg, #0A66C2 0%, #004182 100%)', 'ink' => '#FFFFFF'],
+        'tiktok'    => ['color' => '#000000', 'fill' => '#000000', 'ink' => '#FFFFFF', 'glow' => 'drop-shadow(-1px -1px 0 #25F4EE) drop-shadow(1px 1px 0 #FE2C55)'],
+        'youtube'   => ['color' => '#FF0000', 'fill' => 'linear-gradient(180deg, #FF3D3D 0%, #E60000 100%)', 'ink' => '#FFFFFF'],
+        'threads'   => ['color' => '#000000', 'fill' => '#000000', 'ink' => '#FFFFFF'],
+        'pinterest' => ['color' => '#E60023', 'fill' => 'linear-gradient(180deg, #F0002A 0%, #BD001C 100%)', 'ink' => '#FFFFFF'],
+        'whatsapp'  => ['color' => '#25D366', 'fill' => 'linear-gradient(180deg, #5FFC7B 0%, #28D146 100%)', 'ink' => '#FFFFFF'],
+        'snapchat'  => ['color' => '#E8C800', 'fill' => '#FFFC00', 'ink' => '#000000'],
+        'google'    => ['color' => '#4285F4', 'fill' => '#4285F4', 'ink' => '#FFFFFF'],
     ];
+    $platformBrand['twitter'] = $platformBrand['x'];
+    $platformBrand = array_map(fn ($b) => $b + ['glow' => 'none'], $platformBrand);
+    $platformBrandColors = array_map(fn ($b) => $b['color'], $platformBrand);
+    $brandFallback = ['color' => '#7c5cff', 'fill' => '#7c5cff', 'ink' => '#FFFFFF', 'glow' => 'none'];
+    // CSS custom properties for a platform-themed element (--pf solid,
+    // --pf-fill background, --pf-ink glyph, --pf-glow glyph filter).
+    $pfVars = function ($platform) use ($platformBrand, $brandFallback) {
+        $b = $platformBrand[$platform] ?? $brandFallback;
+        return "--pf: {$b['color']}; --pf-fill: {$b['fill']}; --pf-ink: {$b['ink']}; --pf-glow: {$b['glow']};";
+    };
+    // Inline style for a solid brand badge (icon on the platform's fill).
+    $pfBadge = function ($platform) use ($platformBrand, $brandFallback) {
+        $b = $platformBrand[$platform] ?? $brandFallback;
+        return "background: {$b['fill']}; color: {$b['ink']}; --pf-glow: {$b['glow']};";
+    };
 
     // dash_short() and dash_media_preview() live in app/Helpers/Helper.php
     // now (autoloaded project-wide, alongside adminSetting() etc.) instead
@@ -106,7 +132,7 @@
                         @foreach($accountsByPlatform->keys()->take(4) as $p)
                             @php $m = $platformMeta[$p] ?? null; @endphp
                             @if($m)
-                            <x-platform-icon :icon="$m['icon']" :color="$platformBrandColors[$p] ?? '#7c5cff'" />
+                            <x-platform-icon :icon="$m['icon']" :color="$platformBrandColors[$p] ?? '#7c5cff'" :fill="$platformBrand[$p]['fill'] ?? null" :ink="$platformBrand[$p]['ink'] ?? '#fff'" :glow="$platformBrand[$p]['glow'] ?? 'none'" />
                             @endif
                         @endforeach
                     </div>
@@ -193,7 +219,7 @@
                                 <i class="bx {{ $meta['icon'] }}"></i>
                             </span>
                         @endif
-                        <span class="dash-account-badge" style="background:{{ $color }};"><i class="bx {{ $meta['icon'] }}"></i></span>
+                        <span class="dash-account-badge" style="{{ $pfBadge($acct['platform']) }}"><i class="bx {{ $meta['icon'] }}"></i></span>
                     </span>
                     <div class="dash-account-name" title="{{ $acct['name'] ?: $meta['label'] }}">{{ $acct['name'] ?: $meta['label'] }}</div>
                     <div class="dash-account-tag">{{ $meta['tag'] }}</div>
@@ -283,12 +309,12 @@
             ['key' => 'engagement', 'icon' => 'bx-group',          'tone' => 'info',    'label' => __('admin.dashboard_page.cal_engagements')],
         ];
         // Renders one post card; shared by the grid cells and the side panel.
-        $calPlatformIcons = function (array $entry, int $max) use ($platformMeta, $platformBrandColors) {
+        $calPlatformIcons = function (array $entry, int $max) use ($platformMeta, $pfVars) {
             $platforms = collect($entry['platforms'])->pluck('platform')->unique()->values();
             $html = '';
             foreach ($platforms->take($max) as $p) {
                 $m = $platformMeta[$p] ?? ['icon' => 'bx-globe', 'label' => ucfirst($p)];
-                $html .= '<span class="cal-pf" style="--pf:'.($platformBrandColors[$p] ?? '#7c5cff').'" title="'.e($m['label']).'"><i class="bx '.$m['icon'].'"></i></span>';
+                $html .= '<span class="cal-pf" style="'.$pfVars($p).'" title="'.e($m['label']).'"><i class="bx '.$m['icon'].'"></i></span>';
             }
             if ($platforms->count() > $max) {
                 $html .= '<span class="cal-pf cal-pf-more">+'.($platforms->count() - $max).'</span>';
@@ -319,7 +345,7 @@
                         <button type="button" class="cal-filter is-active" data-cal-platform="all">{{ __('admin.dashboard_page.cal_all') }}</button>
                         @foreach($calFilterPlatforms as $p)
                             @php $m = $platformMeta[$p]; @endphp
-                            <button type="button" class="cal-filter cal-filter-icon" data-cal-platform="{{ $p }}" title="{{ $m['label'] }}" style="--pf: {{ $platformBrandColors[$p] ?? '#7c5cff' }}">
+                            <button type="button" class="cal-filter cal-filter-icon" data-cal-platform="{{ $p }}" title="{{ $m['label'] }}" style="{{ $pfVars($p) }}">
                                 <i class="bx {{ $m['icon'] }}"></i>
                             </button>
                         @endforeach
@@ -540,7 +566,7 @@
                                         <span class="dash-table-title">{{ Str::limit($post->content ?: __('admin.dashboard_page.no_caption'), 42) }}</span>
                                     </div>
                                 </td>
-                                <td><x-platform-icon :icon="$meta['icon']" :color="$platformBrandColors[$post->platform] ?? '#7c5cff'" size="xs" /></td>
+                                <td><x-platform-icon :icon="$meta['icon']" :color="$platformBrandColors[$post->platform] ?? '#7c5cff'" :fill="$platformBrand[$post->platform]['fill'] ?? null" :ink="$platformBrand[$post->platform]['ink'] ?? '#fff'" :glow="$platformBrand[$post->platform]['glow'] ?? 'none'" size="xs" /></td>
                                 <td>{{ dash_short($post->reach) }}</td>
                                 <td>{{ dash_short($post->likes + $post->comments + $post->shares) }}</td>
                                 <td>{{ $post->created_at->format('M j, Y') }}</td>
@@ -586,7 +612,7 @@
                                     <i class="bx {{ $meta['icon'] }}"></i>
                                 </span>
                             @endif
-                            <span class="dash-list-badge" style="background: {{ $brandColor }};">
+                            <span class="dash-list-badge" style="{{ $pfBadge($post->platform) }}">
                                 <i class="bx {{ $meta['icon'] }}"></i>
                             </span>
                         </span>
@@ -731,7 +757,7 @@
                                             <i class="bx {{ $meta['icon'] }}"></i>
                                         </span>
                                     @endif
-                                    <span class="quick-account-badge" style="background:{{ $color }};">
+                                    <span class="quick-account-badge" style="{{ $pfBadge($account->platform) }}">
                                         <i class="bx {{ $meta['icon'] }}"></i>
                                     </span>
                                 </span>
@@ -1162,7 +1188,7 @@
 .cvm-header-icons .cvm-pf + .cvm-pf { margin-inline-start: -8px; }
 .cvm-pf {
     width: 34px; height: 34px; border-radius: 10px; display: inline-grid; place-items: center; font-size: 1.05rem;
-    background: var(--pf); color: #fff; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(16,24,40,.15);
+    background: var(--pf-fill, var(--pf)); color: var(--pf-ink, #fff); border: 2px solid #fff; box-shadow: 0 2px 6px rgba(16,24,40,.15);
 }
 .cvm-title { margin: 0; color: #161b2b; font-weight: 700; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cvm-when { color: #8a92a3; font-size: .78rem; }
@@ -1210,10 +1236,10 @@
 }
 .cvm-tab i { font-size: 1.05rem; color: var(--pf); }
 .cvm-tab:hover { border-color: var(--pf); }
-.cvm-tab.is-active { background: var(--pf); border-color: var(--pf); color: #fff; box-shadow: 0 4px 12px color-mix(in srgb, var(--pf) 35%, transparent); }
-.cvm-tab.is-active i { color: #fff; }
+.cvm-tab.is-active { background: var(--pf-fill, var(--pf)); border-color: transparent; color: var(--pf-ink, #fff); box-shadow: 0 4px 12px color-mix(in srgb, var(--pf) 35%, transparent); }
+.cvm-tab.is-active i { color: var(--pf-ink, #fff); filter: var(--pf-glow, none); }
+.cvm-tab.is-active .cvm-tab-count { background: color-mix(in srgb, var(--pf-ink, #fff) 22%, transparent); color: var(--pf-ink, #fff); }
 .cvm-tab-count { font-size: .66rem; padding: .05rem .4rem; border-radius: 6px; background: #eef0f5; color: #4b5263; }
-.cvm-tab.is-active .cvm-tab-count { background: rgba(255,255,255,.25); color: #fff; }
 .cvm-tab-dot { position: absolute; top: -3px; inset-inline-end: -3px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid #fff; background: #94a3b8; }
 .cvm-tab-dot.success { background: #16a34a; } .cvm-tab-dot.info { background: #3b82f6; }
 .cvm-tab-dot.warning { background: #f59e0b; } .cvm-tab-dot.danger { background: #ef4444; }
@@ -1223,8 +1249,11 @@
 .cvm-account-avatar { position: relative; flex-shrink: 0; }
 .cvm-account-badge {
     position: absolute; bottom: -2px; inset-inline-end: -2px; width: 20px; height: 20px; border-radius: 50%;
-    background: var(--pf); color: #fff; display: grid; place-items: center; font-size: .7rem; border: 2px solid #fff;
+    background: var(--pf-fill, var(--pf)); color: var(--pf-ink, #fff); display: grid; place-items: center; font-size: .7rem; border: 2px solid #fff;
 }
+/* TikTok's cyan/red glyph edge (and any other --pf-glow) on brand badges */
+.cvm-pf i, .cvm-account-badge i, .socialeaz-dash .cal-pf i, .socialeaz-dash .social-icon-mini i,
+.socialeaz-dash .dash-account-badge i, .socialeaz-dash .dash-list-badge i, .quick-account-badge i { filter: var(--pf-glow, none); }
 .cvm-account-id { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .cvm-account-id strong { color: #161b2b; font-size: .92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cvm-account-id span { color: #8a92a3; font-size: .74rem; }
@@ -1435,6 +1464,9 @@
 .pd .cal-filter:hover { border-color: #cfc4ff; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(16,24,40,.06); }
 .pd .cal-filter.is-active { border-color: var(--pd-brand); background: #f2eeff; color: var(--pd-brand); box-shadow: 0 0 0 3px rgba(109,74,255,.1); }
 .pd .cal-filter-icon.is-active { color: var(--pf); background: #fff; border-color: var(--pf); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pf) 15%, transparent); }
+.pd .cal-filter-icon i { filter: var(--pf-glow, none); }
+/* Instagram's glyph in its own gradient (other brands read fine as solid --pf) */
+.pd .cal-filter-icon[data-cal-platform="instagram"] i { background: var(--pf-fill); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .pd .cal-filter-add { color: #6b7385; border-style: dashed; font-size: 1.15rem; }
 .pd .cal-views { display: inline-flex; padding: 4px; border-radius: 12px; border: 1px solid var(--pd-ln); background: #f8f9fc; }
 .pd .cal-views button { border: none; background: transparent; color: #6b7385; font-size: .8rem; font-weight: 600; padding: .4rem .95rem; border-radius: 8px; transition: background .15s, color .15s; }
@@ -1516,7 +1548,7 @@
 .pd .cal-pfs { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .pd .cal-pf {
     width: 18px; height: 18px; border-radius: 5px; display: inline-grid; place-items: center;
-    background: var(--pf); color: #fff; font-size: .7rem;
+    background: var(--pf-fill, var(--pf)); color: var(--pf-ink, #fff); font-size: .7rem;
 }
 .pd .cal-pf-more { background: #eef0f5; color: #6b7385; font-size: .6rem; font-weight: 700; width: auto; padding: 0 4px; }
 
@@ -1688,6 +1720,12 @@
         var platformMeta = @json($platformMeta);
         var statusMeta = @json($statusMeta);
         var platformBrandColors = @json($platformBrandColors);
+        var platformBrand = @json($platformBrand);
+        // Same as the Blade $pfVars() helper: --pf/--pf-fill/--pf-ink/--pf-glow.
+        function pfVars(platform) {
+            var b = platformBrand[platform] || { color: '#7c5cff', fill: '#7c5cff', ink: '#fff', glow: 'none' };
+            return '--pf:' + b.color + ';--pf-fill:' + b.fill + ';--pf-ink:' + b.ink + ';--pf-glow:' + b.glow + ';';
+        }
         var shareUrlBase = @json(url('share/posts'));
 
         // quickStore()'s response is keyed by platform, each an array of
@@ -1764,7 +1802,7 @@
         function calPlatformIconsHtml(entry) {
             return calEntryPlatforms(entry).filter(function (p, i, all) { return all.indexOf(p) === i; }).map(function (p) {
                 var meta = platformMeta[p] || { icon: 'bx-globe', label: p };
-                return '<span class="cal-pf" style="--pf:' + (platformBrandColors[p] || '#7c5cff') + '" title="' + escapeHtml(meta.label) + '"><i class="bx ' + meta.icon + '"></i></span>';
+                return '<span class="cal-pf" style="' + pfVars(p) + '" title="' + escapeHtml(meta.label) + '"><i class="bx ' + meta.icon + '"></i></span>';
             }).join('');
         }
 
@@ -2130,6 +2168,16 @@
         var cvmText = @json($cvmText);
         var cvmLoadingHtml = '<div class="cvm-loading"><i class="bx bx-loader-alt bx-spin"></i></div>';
         var cvmReplyUrl = '';
+        var cvmPreviewUrl = @json(route('admin.posts.preview', ['post' => '__POST__', 'platform' => '__PLATFORM__']));
+
+        // "Open full post" goes to that platform's preview page; it follows
+        // whichever platform tab is open in the modal.
+        function cvmSetOpenLink(pl) {
+            if (!pl) return;
+            document.getElementById('calendarViewPostOpenLink').href = cvmPreviewUrl
+                .replace('__POST__', pl.post_id)
+                .replace('__PLATFORM__', pl.platform);
+        }
 
         function openViewPostModal(postId) {
             var bodyEl = document.getElementById('calendarViewPostBody');
@@ -2200,7 +2248,7 @@
                 ['bx-broadcast', pl.stats.reach, cvmText.reach]
             ];
 
-            return '<div class="cvm-pane' + (index === 0 ? '' : ' d-none') + '" data-cvm-pane="' + index + '" style="--pf:' + color + '">' +
+            return '<div class="cvm-pane' + (index === 0 ? '' : ' d-none') + '" data-cvm-pane="' + index + '" style="' + pfVars(pl.platform) + '">' +
                 '<div class="cvm-account">' +
                     '<span class="cvm-account-avatar">' + cvmAvatar(pl.account_name, pl.account_avatar, 'cvm-avatar-lg') +
                         '<span class="cvm-account-badge"><i class="bx ' + meta.icon + '"></i></span></span>' +
@@ -2238,12 +2286,12 @@
 
             document.getElementById('calendarViewPostPlatformIcon').innerHTML = platforms.map(function (pl) {
                 var meta = platformMeta[pl.platform] || { icon: 'bx-globe' };
-                return '<span class="cvm-pf" style="--pf:' + (platformBrandColors[pl.platform] || '#7c5cff') + '"><i class="bx ' + meta.icon + '"></i></span>';
+                return '<span class="cvm-pf" style="' + pfVars(pl.platform) + '"><i class="bx ' + meta.icon + '"></i></span>';
             }).join('');
             document.getElementById('calendarViewPostAccountName').textContent = platforms.length > 1
                 ? cvmText.platforms_count.replace(':count', platforms.length)
                 : (platforms[0] ? platforms[0].account_name : cvmText.post);
-            document.getElementById('calendarViewPostOpenLink').href = post.edit_url;
+            cvmSetOpenLink(platforms[0]);
             document.getElementById('calendarViewPostWhen').textContent = post.schedule_mode && post.schedule_at
                 ? cvmText.scheduled_for + ' ' + dateLabelFormatter.format(new Date(post.schedule_at))
                 : (post.published_at
@@ -2275,7 +2323,7 @@
                 ? '<div class="cvm-tabs" role="tablist">' + platforms.map(function (pl, i) {
                     var meta = platformMeta[pl.platform] || { icon: 'bx-globe', label: pl.platform };
                     var status = statusMeta[pl.status] || { class: 'muted' };
-                    return '<button type="button" class="cvm-tab' + (i === 0 ? ' is-active' : '') + '" data-cvm-tab="' + i + '" style="--pf:' + (platformBrandColors[pl.platform] || '#7c5cff') + '">' +
+                    return '<button type="button" class="cvm-tab' + (i === 0 ? ' is-active' : '') + '" data-cvm-tab="' + i + '" style="' + pfVars(pl.platform) + '">' +
                         '<i class="bx ' + meta.icon + '"></i><span>' + escapeHtml(meta.label) + '</span>' +
                         '<span class="cvm-tab-count">' + (pl.comments || []).length + '</span>' +
                         '<span class="cvm-tab-dot ' + status.class + '"></span>' +
@@ -2308,6 +2356,7 @@
             bodyEl.querySelectorAll('[data-cvm-tab]').forEach(function (tab) {
                 tab.addEventListener('click', function () {
                     var i = tab.getAttribute('data-cvm-tab');
+                    cvmSetOpenLink(platforms[i]);
                     bodyEl.querySelectorAll('[data-cvm-tab]').forEach(function (t) { t.classList.toggle('is-active', t === tab); });
                     bodyEl.querySelectorAll('[data-cvm-pane]').forEach(function (p) { p.classList.toggle('d-none', p.getAttribute('data-cvm-pane') !== i); });
                 });

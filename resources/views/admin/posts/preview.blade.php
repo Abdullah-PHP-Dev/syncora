@@ -5,7 +5,7 @@
 @stop
 
 @push('styles')
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 @endpush
 
 @section('content')
@@ -16,6 +16,7 @@
     :group-posts='@json($groupPosts)'
     platform="{{ $platform }}"
     back-url="{{ url('posts/listing') }}"
+    preview-url-template="{{ route('admin.posts.preview', ['post' => '__POST__', 'platform' => '__PLATFORM__']) }}"
     user-name="{{ auth()->user()->name ?? 'Admin' }}"></post-preview>
 
 @stop

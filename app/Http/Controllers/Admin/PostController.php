@@ -913,6 +913,20 @@ class PostController extends Controller
         $summary = $this->formatPostSummary($post);
 
         $summary['platform_url'] = $post->platform_url;
+        $summary['raw_status'] = strtolower((string) $post->status);
+        $summary['error_message'] = $post->status === 'failed' ? $post->error_message : null;
+        $summary['account_avatar'] = $post->socialAccount->avatar_url ?? null;
+        $summary['created_label'] = optional($post->created_at)->format('M j, Y · g:i A');
+        $summary['scheduled_label'] = $post->schedule_mode && $post->schedule_at
+            ? $post->schedule_at->format('M j, Y · g:i A')
+            : null;
+        // Every attachment, so carousels can be paged through (image/thumbnail
+        // above only carry the first one).
+        $summary['media'] = $post->media->map(fn ($m) => [
+            'type' => $m->media_type === 'video' ? 'video' : 'image',
+            'url' => $m->media_url,
+            'poster' => $m->thumbnail_url,
+        ])->values();
 
         $summary['engagement'] = [
             'reactionsTotal' => (int) ($post->likes ?? 0),

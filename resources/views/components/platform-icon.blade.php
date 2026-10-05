@@ -18,8 +18,12 @@
 
     Props:
       icon   Boxicon suffix, e.g. 'bxl-facebook' (required)
-      color  brand hex, e.g. '#1877F2' (defaults to the app's neutral
+      color  brand hex, e.g. '#0866FF' (defaults to the app's neutral
              accent purple so a missing platform still renders sanely)
+      fill   optional badge background overriding color - the official
+             brand fill, which may be a gradient (Instagram)
+      ink    glyph colour on the fill (Snapchat's ghost is black on yellow)
+      glow   optional CSS filter for the glyph (TikTok's cyan/red edge)
       size   optional size variant - 'xs' adds the existing
              .social-icon-xs override class (used in compact table
              rows); the 22px "mini icons" size is still purely
@@ -30,12 +34,15 @@
 @props([
     'icon',
     'color' => '#7c5cff',
+    'fill' => null,
+    'ink' => '#fff',
+    'glow' => 'none',
     'size' => null,
 ])
 
 <span
     {{ $attributes->class(array_filter(['social-icon-mini', $size ? 'social-icon-'.$size : null])) }}
-    style="background: {{ $color }};"
+    style="background: {{ $fill ?? $color }}; color: {{ $ink }};"
 >
-    <i class="bx {{ $icon }}"></i>
+    <i class="bx {{ $icon }}" style="filter: {{ $glow }};"></i>
 </span>

@@ -130,7 +130,7 @@
 
     </section>
 
-    <ai-assistant-panel class="composer-ai-column" @generated="onAiGenerated" />
+    <ai-assistant-panel class="composer-ai-column" :urls="aiUrls" @generated="onAiGenerated" />
 
   </div>
 
@@ -191,6 +191,12 @@ const props = defineProps({
 
   // Media Gallery endpoints (index, store) for MediaGrid's picker.
   galleryUrls: {
+    type: Object,
+    default: null
+  },
+
+  // AI assistant endpoints (content, image) for AiAssistantPanel.
+  aiUrls: {
     type: Object,
     default: null
   }

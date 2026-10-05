@@ -81,6 +81,9 @@
             :avatar-url="platform.avatarUrl"
             :icon="platform.icon"
             :color="platform.color"
+            :fill="platform.fill"
+            :ink="platform.ink"
+            :glow="platform.glow"
             :size="44" />
 
         <div class="platform-info">
@@ -297,6 +300,9 @@
                     :avatar-url="platform.avatar"
                     :icon="platform.icon"
                     :color="platform.color"
+                    :fill="platform.fill"
+                    :ink="platform.ink"
+                    :glow="platform.glow"
                     :size="32" />
 
                 <span class="platform-account-name">{{ platform.page }}</span>
@@ -543,6 +549,9 @@
                     :avatar-url="platform.avatarUrl"
                     :icon="platform.icon"
                     :color="platform.color"
+                    :fill="platform.fill"
+                    :ink="platform.ink"
+                    :glow="platform.glow"
                     :size="32" />
 
                 <span class="quick-account-name">{{ platform.accountName }}</span>
@@ -617,7 +626,7 @@
 </template>
 
 <script>
-import { platformMeta, platformOrder } from '../../data/mockPosts';
+import { platformMeta, platformOrder, brandOf } from '../../data/mockPosts';
 import AccountAvatarBadge from './AccountAvatarBadge.vue';
 
 export default {
@@ -653,14 +662,16 @@ export default {
       default: ''
     },
 
-    previewUrlBase: {
+    // posts.preview route with __POST__ / __PLATFORM__ placeholders, built
+    // by Blade's route() so it always matches the real (localized) URL.
+    previewUrlTemplate: {
       type: String,
-      default: '/posts'
+      default: '/posts/__POST__/preview/__PLATFORM__'
     },
 
     // Base for the PUBLIC (unauthenticated) share-preview page - see
     // routes/web.php's posts.share route and PostController::sharePreview().
-    // Different from previewUrlBase above: that one requires login and is
+    // Different from previewUrlTemplate above: that one requires login and is
     // for viewing your own post inside the app; this one is what Snap's
     // Creative Kit share button points at, since Snap's servers fetch its
     // og:image/og:title with no session cookie.
@@ -732,10 +743,10 @@ export default {
         key,
         name: platformMeta[key].name,
         icon: platformMeta[key].icon,
-        color: platformMeta[key].color
+        ...brandOf(key)
       })),
-      { key: 'snapchat', name: 'Snapchat', icon: 'fab fa-snapchat-ghost', color: '#F7C600' },
-      { key: 'google', name: 'Google', icon: 'fab fa-google', color: '#4285F4' }
+      { key: 'snapchat', name: 'Snapchat', icon: 'fab fa-snapchat-ghost', ...brandOf('snapchat') },
+      { key: 'google', name: 'Google', icon: 'fab fa-google', ...brandOf('google') }
     ];
     const initialTab = tabs.find(t => t.key !== 'all' && t.key === (this.initialPlatform || '').toLowerCase());
 
@@ -1080,7 +1091,9 @@ export default {
       // without a grouped platforms array. Without this, every icon in a
       // grouped card would link to the same (wrong) post regardless of
       // which platform was clicked.
-      return `${this.previewUrlBase}/${platform.post_id || post.id}/preview/${platform.key}`;
+      return this.previewUrlTemplate
+        .replace('__POST__', platform.post_id || post.id)
+        .replace('__PLATFORM__', platform.key);
 
     },
 
@@ -1579,13 +1592,13 @@ export default {
 
 .facebook .platform-icon{
 
-  background:#1877F2;
+  background:linear-gradient(180deg,#18ACFE,#0163E0);
 
 }
 
 .instagram .platform-icon{
 
-  background:linear-gradient(135deg,#F58529,#DD2A7B,#8134AF);
+  background:radial-gradient(circle at 30% 107%,#FDF497 0%,#FDF497 5%,#FD5949 45%,#D6249F 60%,#285AEB 90%);
 
 }
 
@@ -1603,13 +1616,13 @@ export default {
 
 .tiktok .platform-icon{
 
-  background:#111827;
+  background:#000;
 
 }
 
 .youtube .platform-icon{
 
-  background:#FF0000;
+  background:linear-gradient(180deg,#FF3D3D,#E60000);
 
 }
 

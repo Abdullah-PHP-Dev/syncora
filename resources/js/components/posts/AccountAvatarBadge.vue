@@ -14,7 +14,7 @@
       <i :class="icon"></i>
     </span>
 
-    <span class="account-avatar-badge__badge" :style="{ color: color }">
+    <span class="account-avatar-badge__badge" :style="{ background: fill || color, color: ink, '--glow': glow }">
       <i :class="icon"></i>
     </span>
 
@@ -54,6 +54,24 @@ defineProps({
   color: {
     type: String,
     default: '#7c5cff'
+  },
+
+  // Brand badge fill (may be a gradient, e.g. Instagram), glyph colour on
+  // it, and optional glyph filter (TikTok's cyan/red edge) - see brandOf()
+  // in data/mockPosts.js. The badge falls back to a solid `color` fill.
+  fill: {
+    type: String,
+    default: null
+  },
+
+  ink: {
+    type: String,
+    default: '#fff'
+  },
+
+  glow: {
+    type: String,
+    default: 'none'
   },
 
   // Pixel size of the avatar circle. The platform badge stays a fixed
@@ -103,9 +121,8 @@ defineProps({
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
   border: 2px solid #fff;
-  box-shadow: 0 0 0 1px rgba(15, 23, 42, .08);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .18);
 }
 
 .account-avatar-badge__badge i {
@@ -114,9 +131,10 @@ defineProps({
   justify-content: center;
   width: 100%;
   height: 100%;
-  font-size: 10px;
+  font-size: 9px;
   line-height: 1;
   margin: 0;
+  filter: var(--glow, none);
 }
 
 </style>
