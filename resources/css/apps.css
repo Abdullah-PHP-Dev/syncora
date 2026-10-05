@@ -17,10 +17,10 @@
 .marketing-home img { display: block; max-width: 100%; height: auto; }
 .marketing-home svg { display: block; width: 24px; height: 24px; flex-shrink: 0; }
 .marketing-home h1, .marketing-home h2, .marketing-home p { margin: 0; }
-.marketing-home section[id] { scroll-margin-top: 24px; }
+.marketing-home section[id] { scroll-margin-top: 112px; }
 .marketing-home a:focus-visible { outline: 3px solid #710aff; outline-offset: 4px; }
 .theme-page { width: min(1180px, calc(100% - 96px)); margin-inline: auto; }
-.theme-header { position: relative; z-index: 2; }
+.theme-header { position: sticky; top: 0; z-index: 100; background: rgba(255, 255, 255, .97); border-bottom: 1px solid #edf0fa; }
 .theme-nav { width: min(1180px, calc(100% - 96px)); min-height: 88px; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 32px; }
 .theme-brand { flex-shrink: 0; }
 .theme-brand img { width: 200px; }
@@ -147,6 +147,7 @@
 }
 @media (max-width: 700px) {
     .theme-page, .theme-nav { width: calc(100% - 40px); }
+    .marketing-home section[id] { scroll-margin-top: 156px; }
     .theme-nav { min-height: 84px; flex-wrap: wrap; gap: 16px; padding-block: 16px; }
     .theme-brand img { width: 120px; }
     .theme-nav-actions { margin-left: auto; gap: 12px; font-size: 12px; }
