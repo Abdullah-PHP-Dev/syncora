@@ -63,7 +63,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	|--------------------------------------------------------------------------
 	*/
 
-	Route::view('/', 'front.pages.welcome')->name('home');
+	Route::view('/', 'front.pages.home_modern')->name('home');
 
 	Route::get('/product', function () {
 		return view('front.pages.product');

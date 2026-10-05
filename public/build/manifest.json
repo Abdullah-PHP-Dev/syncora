@@ -16,5 +16,20 @@
     "css": [
       "assets/app-BU6f1YTf.css"
     ]
+  },
+  "resources/css/apps.css": {
+    "file": "assets/apps-DmpxxAzH.css",
+    "src": "resources/css/apps.css",
+    "isEntry": true,
+    "name": "apps",
+    "names": [
+      "apps.css"
+    ]
+  },
+  "resources/js/apps.js": {
+    "file": "assets/apps-Dt5Vkwl4.js",
+    "name": "apps",
+    "src": "resources/js/apps.js",
+    "isEntry": true
   }
 }

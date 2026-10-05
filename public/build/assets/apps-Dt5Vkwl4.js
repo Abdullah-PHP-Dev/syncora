@@ -1,0 +1,1 @@
+document.addEventListener("click",t=>{const r=t.target.closest('a[href^="#"]');if(!r||t.defaultPrevented||t.button!==0||t.metaKey||t.ctrlKey||t.shiftKey||t.altKey)return;const e=document.getElementById(r.getAttribute("href").slice(1));e&&(e.setAttribute("tabindex","-1"),requestAnimationFrame(()=>e.focus({preventScroll:!0})))});
