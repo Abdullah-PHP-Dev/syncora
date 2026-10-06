@@ -39,8 +39,10 @@
                 'label'     => __("admin.marketing_tools.ads.accounts.{$platform}.header"),
                 'url'       => $isConnected
                     ? route('admin.ads.campaigns.index', ['platform' => $platform])
-                    : route('admin.ads.redirect', $platform),
+                    : (\App\Support\Connections\HubLink::for($platform) ?? route('admin.ads.redirect', $platform)),
                 'connected' => $isConnected,
+                // Meta connects once in the Connection Hub.
+                'note'      => \App\Support\Connections\HubLink::managed($platform) ? \App\Support\Connections\HubLink::note() : null,
             ];
         })->values()->all();
     @endphp

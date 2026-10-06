@@ -10,6 +10,7 @@ use Carbon\Carbon;
 
 use App\Services\AdServices\AdsDashboardService;
 use App\Services\AdServices\SocialAdManagerService;
+use App\Support\Connections\HubLink;
 
 class AdController extends Controller
 {
@@ -28,14 +29,18 @@ class AdController extends Controller
         // service without pulling the container in, and the connect target
         // differs by whether the platform is already connected.
         $data['platforms'] = collect($data['platforms'])->map(function (array $p) {
+            // Meta (Facebook / Instagram) connects once in the Connection
+            // Hub; other platforms keep their own OAuth entry point.
+            $hub = HubLink::for($p['platform']);
+
             $p['connect_url'] = $p['connected']
                 ? route('admin.ads.campaigns.index', ['platform' => $p['platform']])
-                : route('admin.ads.redirect', $p['platform']);
+                : ($hub ?? route('admin.ads.redirect', $p['platform']));
 
             // Same OAuth entry point as a first connect - the callback
             // upserts the existing social_accounts row, so re-running it
             // just refreshes the token / re-grants scopes.
-            $p['reconnect_url'] = route('admin.ads.redirect', $p['platform']);
+            $p['reconnect_url'] = $hub ?? route('admin.ads.redirect', $p['platform']);
 
             return $p;
         })->all();

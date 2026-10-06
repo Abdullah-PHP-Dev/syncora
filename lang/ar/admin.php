@@ -305,6 +305,8 @@ return [
 
     'connections' => [
         'title' => 'الاتصالات',
+        'managed_in_hub' => 'تُدار من صفحة الاتصالات',
+        'connect_meta' => 'إدارة فيسبوك وإنستغرام وواتساب من صفحة الاتصالات',
     ],
 
     'dashboard_page' => [

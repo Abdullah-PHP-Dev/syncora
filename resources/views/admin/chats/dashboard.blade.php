@@ -1545,14 +1545,15 @@
         // the full channels page's own identical-looking links omit this,
         // so their behavior is unchanged.
         $manageChannelsPlatforms = [
-            ['key' => 'facebook',    'class' => 'facebook',    'icon' => 'bxl-facebook',  'label' => __('Meta Messenger'),    'url' => route('admin.social-accounts.redirect', ['platform' => 'facebook']) . '?return_to=dashboard'],
-            ['key' => 'instagram',   'class' => 'instagram',   'icon' => 'bxl-instagram', 'label' => __('Instagram Messenger'), 'url' => route('admin.messaging.auth.instagram.redirect') . '?return_to=dashboard'],
+            // Meta connects once in the Connection Hub.
+            ['key' => 'facebook',    'class' => 'facebook',    'icon' => 'bxl-facebook',  'label' => __('Meta Messenger'),    'url' => \App\Support\Connections\HubLink::for('facebook'), 'note' => \App\Support\Connections\HubLink::note()],
+            ['key' => 'instagram',   'class' => 'instagram',   'icon' => 'bxl-instagram', 'label' => __('Instagram Messenger'), 'url' => \App\Support\Connections\HubLink::for('instagram'), 'note' => \App\Support\Connections\HubLink::note()],
             ['key' => 'x',           'class' => 'twitter',     'icon' => 'bxl-x-logo',   'label' => __('X Messenger'),       'url' => route('admin.messaging.auth.x.redirect') . '?return_to=dashboard'],
             // No posting-permission gate here (unlike the Posts dashboard's
             // Add Account tiles) - has_messaging_permission is what actually
             // matters for the inbox.
             ['key' => 'tiktok',      'class' => 'tiktok',      'icon' => 'bxl-tiktok',    'label' => __('TikTok Messenger'),  'url' => route('admin.messaging.auth.tiktok.redirect') . '?return_to=dashboard'],
-            ['key' => 'whatsapp',    'class' => 'whatsapp',    'icon' => 'bxl-whatsapp',  'label' => 'WhatsApp',          'url' => '#', 'note' => __('Paste your number\'s token')],
+            ['key' => 'whatsapp-hub', 'class' => 'whatsapp',    'icon' => 'bxl-whatsapp',  'label' => 'WhatsApp',          'url' => \App\Support\Connections\HubLink::for('whatsapp'), 'note' => \App\Support\Connections\HubLink::note()],
             ['key' => 'google_chat', 'class' => 'google_chat', 'icon' => 'bx-message-rounded-dots', 'label' => 'Google Chat', 'url' => '#', 'note' => __('Paste a service account key')],
         ];
     @endphp

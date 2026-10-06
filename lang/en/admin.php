@@ -313,6 +313,8 @@ return [
     // same-looking but independently-worded) labels.
     'connections' => [
         'title' => 'Connections',
+        'managed_in_hub' => 'Managed in Connections',
+        'connect_meta' => 'Manage Facebook, Instagram & WhatsApp in Connections',
     ],
 
     'dashboard_page' => [
