@@ -1,0 +1,133 @@
+<?php
+
+namespace App\Services\Connections;
+
+use App\Models\SocialAccount;
+use App\Models\SocialConnection;
+use Illuminate\Support\Collection;
+
+/**
+ * Shapes the Connection Hub page data (docs/connection-hub-design.md §10):
+ * one card per platform with its steps, consents, status and assets.
+ */
+class HubPresenter
+{
+    /** Which capabilities make sense per asset kind (the asset picker's toggles). */
+    private const ASSET_CAPABILITIES = [
+        'page' => ['posting', 'messaging', 'insights'],
+        'instagram' => ['posting', 'messaging', 'insights'],
+        'ad_account' => ['ads'],
+        'whatsapp' => ['messaging', 'posting'],
+    ];
+
+    /** Platforms that move into the Hub in later commits (design §11). */
+    private const UPCOMING = [
+        ['key' => 'google', 'label' => 'Google', 'detail' => 'YouTube, Google Ads'],
+        ['key' => 'x', 'label' => 'X', 'detail' => 'Posts, DMs, Ads'],
+        ['key' => 'linkedin', 'label' => 'LinkedIn', 'detail' => 'Pages, Ads'],
+        ['key' => 'tiktok', 'label' => 'TikTok', 'detail' => 'Posting, Ads'],
+        ['key' => 'snapchat', 'label' => 'Snapchat', 'detail' => 'Ads'],
+        ['key' => 'threads', 'label' => 'Threads', 'detail' => 'Posting'],
+        ['key' => 'pinterest', 'label' => 'Pinterest', 'detail' => 'Posting'],
+    ];
+
+    public function __construct(private ConnectionService $connections)
+    {
+    }
+
+    public function forUser(int $userId): array
+    {
+        $cards = collect($this->connections->platforms())
+            ->keys()
+            ->map(fn ($platform) => $this->card($userId, $platform))
+            ->values();
+
+        return [
+            'cards' => $cards,
+            'upcoming' => self::UPCOMING,
+            'summary' => [
+                'connected' => $cards->filter(fn ($c) => $c['connected'])->count(),
+                'attention' => $cards->sum(fn ($c) => collect($c['connections'])->filter(fn ($x) => $x['needs_attention'])->count()),
+            ],
+        ];
+    }
+
+    public function card(int $userId, string $platform): array
+    {
+        $driver = $this->connections->driver($platform);
+
+        $connections = SocialConnection::where('user_id', $userId)
+            ->where('platform', $platform)
+            ->with(['assets' => fn ($q) => $q->orderBy('platform')->orderBy('name')])
+            ->orderBy('id')
+            ->get();
+
+        $byStep = $connections->groupBy('step');
+
+        return [
+            'platform' => $platform,
+            'label' => $driver->label(),
+            'connected' => $connections->contains(fn ($c) => $c->isUsable()),
+            'steps' => collect($driver->steps())->map(fn ($step) => $step + [
+                'connect_url' => route('admin.connections.connect', ['platform' => $platform, 'step' => $step['key']]),
+                'connected' => $byStep->has($step['key']) && $byStep[$step['key']]->contains(fn ($c) => $c->isUsable()),
+            ])->values(),
+            'connections' => $connections->map(fn ($c) => $this->connection($c))->values(),
+        ];
+    }
+
+    public function connection(SocialConnection $connection): array
+    {
+        $attention = in_array($connection->status, [SocialConnection::EXPIRING, SocialConnection::EXPIRED, SocialConnection::NEEDS_REAUTH, SocialConnection::REVOKED, SocialConnection::ERROR], true);
+
+        return [
+            'id' => $connection->id,
+            'step' => $connection->step,
+            'status' => $connection->status,
+            'needs_attention' => $attention,
+            'provider_account_id' => $connection->provider_account_id,
+            'capabilities' => $connection->capabilities ?? [],
+            'granted_scopes' => $connection->granted_scopes ?? [],
+            'expires_at' => $connection->expires_at?->toIso8601String(),
+            'expires_in_days' => $connection->expires_at ? (int) floor(now()->diffInDays($connection->expires_at, false)) : null,
+            'last_checked_at' => $connection->last_checked_at?->toIso8601String(),
+            'last_error' => $connection->last_error,
+            'reconnect_url' => route('admin.connections.connect', ['platform' => $connection->platform, 'step' => $connection->step]),
+            'assets' => $this->assets($connection, $connection->assets),
+        ];
+    }
+
+    private function assets(SocialConnection $connection, Collection $assets): array
+    {
+        return $assets->map(function (SocialAccount $asset) use ($connection) {
+            $kind = $this->kind($asset);
+            $available = array_values(array_intersect(self::ASSET_CAPABILITIES[$kind] ?? [], $connection->capabilities ?? []));
+
+            return [
+                'id' => $asset->id,
+                'kind' => $kind,
+                'platform' => $asset->platform,
+                'name' => $asset->name,
+                'username' => $asset->username,
+                'avatar_url' => $asset->avatar_url,
+                'external_id' => $asset->platform_account_id,
+                'token_ok' => (bool) $asset->is_token_valid,
+                'available_capabilities' => $available,
+                // null = everything the connection allows is on
+                'enabled_capabilities' => $asset->enabled_capabilities === null
+                    ? $available
+                    : array_values(array_intersect($available, $asset->enabled_capabilities)),
+            ];
+        })->groupBy('kind')->map->values()->all();
+    }
+
+    private function kind(SocialAccount $asset): string
+    {
+        return match (true) {
+            $asset->platform === 'whatsapp' => 'whatsapp',
+            $asset->platform === 'instagram' => 'instagram',
+            $asset->account_type === 'ad_account' || ($asset->has_ads_permission && ! $asset->has_posting_permission) => 'ad_account',
+            default => 'page',
+        };
+    }
+}

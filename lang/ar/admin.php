@@ -303,6 +303,10 @@ return [
         'api' => 'تكاملات API',
     ],
 
+    'connections' => [
+        'title' => 'الاتصالات',
+    ],
+
     'dashboard_page' => [
         'welcome_back' => 'مرحبًا بعودتك، :name!',
         'welcome_subtitle' => 'إليك آخر مستجدات حضورك على وسائل التواصل الاجتماعي اليوم.',

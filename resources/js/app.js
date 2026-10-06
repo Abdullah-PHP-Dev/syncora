@@ -12,6 +12,7 @@ import NotificationCenter from './components/notifications/NotificationCenter.vu
 import FaqManager from './components/support/FaqManager.vue';
 import KnowledgeBaseManager from './components/support/KnowledgeBaseManager.vue';
 import MediaGallery from './components/media/MediaGallery.vue';
+import ConnectionHub from './components/connections/ConnectionHub.vue';
 import MediaInputAttach from './components/media/MediaInputAttach.vue';
 import HelpCenterBrowser from './components/support/HelpCenterBrowser.vue';
 import TicketsList from './components/support/TicketsList.vue';
@@ -50,6 +51,7 @@ Vue.component('copilot-find-answer', CopilotFindAnswer);
 Vue.component('ads-dashboard', AdsDashboard);
 Vue.component('platform-campaigns-dashboard', PlatformCampaignsDashboard);
 Vue.component('email-template-designer', EmailTemplateDesigner);
+Vue.component('connection-hub', ConnectionHub);
 
 new Vue({
     el: '#app',

@@ -311,6 +311,10 @@ return [
     // marketing_tools.posts.* above since that namespace is for the
     // Create/Edit Post page, a different screen with its own (sometimes
     // same-looking but independently-worded) labels.
+    'connections' => [
+        'title' => 'Connections',
+    ],
+
     'dashboard_page' => [
         'welcome_back' => 'Welcome back, :name!',
         'welcome_subtitle' => 'Here\'s what\'s happening with your social media presence today.',

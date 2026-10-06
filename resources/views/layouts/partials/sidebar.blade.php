@@ -153,6 +153,15 @@
                 </li>
             @endforeach
 
+            {{-- Connection Hub: every platform connected once, for Ads,
+                 Publishing and Inbox (docs/connection-hub-design.md). --}}
+            <li class="menu-item {{ request()->routeIs('admin.connections.*') ? 'active' : '' }}">
+                <a href="{{ route('admin.connections.index') }}" class="menu-link">
+                    <i class="menu-icon tf-icons bx bx-plug"></i>
+                    <span>{{ __('admin.sidebar.connections') }}</span>
+                </a>
+            </li>
+
             {{-- Reusable images/videos for posts and ad campaigns. --}}
             <li class="menu-item {{ request()->routeIs('admin.media-gallery.*') ? 'active' : '' }}">
                 <a href="{{ route('admin.media-gallery.index') }}" class="menu-link">

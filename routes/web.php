@@ -480,8 +480,16 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				// CONNECTION HUB - connect each platform once for every
 				// module (docs/connection-hub-design.md). Steps reuse the
 				// callback URLs already registered with each provider.
+				Route::get('connections', [ConnectionHubController::class, 'index'])
+					->name('connections.index');
 				Route::get('connections/{platform}/connect/{step}', [ConnectionHubController::class, 'connect'])
 					->name('connections.connect');
+				Route::patch('connections/assets/{socialAccount}', [ConnectionHubController::class, 'updateAsset'])
+					->name('connections.assets.update');
+				Route::post('connections/{connection}/check', [ConnectionHubController::class, 'check'])
+					->name('connections.check');
+				Route::delete('connections/{connection}', [ConnectionHubController::class, 'disconnect'])
+					->name('connections.disconnect');
 				Route::get('social-accounts/{platform}/redirect', [SocialAccountController::class, 'redirect'])
 					->name('social-accounts.redirect');
 				Route::get('social-accounts/{platform}/callback', [SocialAccountController::class, 'callback'])
