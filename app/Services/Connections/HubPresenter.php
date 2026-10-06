@@ -78,13 +78,11 @@ class HubPresenter
 
     public function connection(SocialConnection $connection): array
     {
-        $attention = in_array($connection->status, [SocialConnection::EXPIRING, SocialConnection::EXPIRED, SocialConnection::NEEDS_REAUTH, SocialConnection::REVOKED, SocialConnection::ERROR], true);
-
         return [
             'id' => $connection->id,
             'step' => $connection->step,
             'status' => $connection->status,
-            'needs_attention' => $attention,
+            'needs_attention' => $connection->needsAttention(),
             'provider_account_id' => $connection->provider_account_id,
             'capabilities' => $connection->capabilities ?? [],
             'granted_scopes' => $connection->granted_scopes ?? [],

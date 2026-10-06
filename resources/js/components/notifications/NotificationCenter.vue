@@ -41,7 +41,7 @@
         <span class="notif-item-body">
           <span class="notif-item-top">
             <span class="notif-item-type-icon" :class="item.type">
-              <i :class="item.type === 'comment' ? 'bx bx-comment-detail' : 'bx bx-message-rounded-dots'"></i>
+              <i :class="typeIcon(item.type)"></i>
             </span>
             <span class="notif-item-author">{{ item.author }}</span>
             <span class="notif-item-time">{{ timeAgo(item.created_at) }}</span>
@@ -181,7 +181,17 @@ function toggleOpen() {
   }
 }
 
+function typeIcon(type) {
+  return { comment: 'bx bx-comment-detail', connection: 'bx bx-plug' }[type] || 'bx bx-message-rounded-dots';
+}
+
 function markRead(item) {
+  // Connection warnings have no read state - they clear once the
+  // connection is fixed (NotificationController).
+  if (item.type === 'connection') {
+    return Promise.resolve();
+  }
+
   const template = item.type === 'comment'
     ? props.commentReadUrlTemplate
     : props.conversationReadUrlTemplate;
@@ -321,6 +331,10 @@ onBeforeUnmount(() => {
 
 .notif-item-type-icon.conversation {
   background: #7c5cff;
+}
+
+.notif-item-type-icon.connection {
+  background: #D97706;
 }
 
 .notif-item-author {

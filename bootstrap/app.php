@@ -74,6 +74,11 @@ return tap(
             // ReembedFaqs's own docblock. Hourly since this is a backstop,
             // not the primary embed path.
             $schedule->command('ai-copilot:reembed-faqs')->hourly()->withoutOverlapping();
+
+            // Connection Hub: token expiry + provider revocation checks feed
+            // the Hub's warnings and the notification bell - see
+            // CheckConnectionStatus.
+            $schedule->command('connections:check-status')->hourly()->withoutOverlapping();
         })
         ->withExceptions(function (Exceptions $exceptions) {
             //

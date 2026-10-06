@@ -69,10 +69,11 @@ class BackfillSocialConnections extends Command
         }
 
         $this->line($dryRun ? '<comment>DRY RUN - nothing was written.</comment>' : '<info>Done.</info>');
-        $this->table(['user', 'step', 'assets', 'token from', 'status', 'capabilities'], $this->report);
 
-        if (! $this->report) {
-            $this->line('Nothing to backfill.');
+        if ($this->report) {
+            $this->table(['user', 'step', 'assets', 'token from', 'status', 'capabilities'], $this->report);
+        } else {
+            $this->line('Nothing to backfill: every Meta account is already linked to a connection.');
         }
 
         return self::SUCCESS;

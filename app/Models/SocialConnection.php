@@ -24,6 +24,15 @@ class SocialConnection extends Model
 
     public const CAPABILITIES = ['posting', 'messaging', 'ads', 'insights'];
 
+    /**
+     * last_error of a connection the user disconnected themselves: revoked,
+     * but nothing to warn about.
+     */
+    public const DISCONNECTED_BY_USER = 'Disconnected from the Connection Hub.';
+
+    /** Statuses that put a warning in the Hub and the notification bell. */
+    public const ATTENTION = [self::EXPIRING, self::EXPIRED, self::NEEDS_REAUTH, self::REVOKED, self::ERROR];
+
     /** Days before expiry a connection shows as "expiring" in the Hub. */
     public const EXPIRING_WITHIN_DAYS = 7;
 
@@ -57,6 +66,17 @@ class SocialConnection extends Model
     public function assets(): HasMany
     {
         return $this->hasMany(SocialAccount::class);
+    }
+
+    public function needsAttention(): bool
+    {
+        return in_array($this->status, self::ATTENTION, true) && $this->last_error !== self::DISCONNECTED_BY_USER;
+    }
+
+    public function scopeAttentionNeeded($query)
+    {
+        return $query->whereIn('status', self::ATTENTION)
+            ->where(fn ($q) => $q->whereNull('last_error')->orWhere('last_error', '!=', self::DISCONNECTED_BY_USER));
     }
 
     public function isUsable(): bool

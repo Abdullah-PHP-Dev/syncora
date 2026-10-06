@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Messaging\Conversation;
 use App\Models\PostComment;
+use App\Models\SocialConnection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -74,13 +75,36 @@ class NotificationController extends Controller
                 ];
             });
 
-        $items = $commentItems->concat($conversationItems)
+        // Connections that need the user (expiring, reconnect needed,
+        // revoked by the provider) - derived from status like the rest of
+        // this list, so an item disappears once it's fixed.
+        $connectionItems = SocialConnection::where('user_id', $userId)
+            ->attentionNeeded()
+            ->latest('updated_at')
+            ->take(5)
+            ->get()
+            ->map(fn (SocialConnection $connection) => [
+                'type' => 'connection',
+                'id' => $connection->id,
+                'author' => match ($connection->status) {
+                    SocialConnection::EXPIRING => 'Connection expiring soon',
+                    SocialConnection::ERROR => 'Connection check failed',
+                    default => 'Reconnect needed',
+                },
+                'avatar' => null,
+                'preview' => $connection->last_error ?: 'Open Connections to keep Ads, Publishing and Inbox working.',
+                'platform' => $connection->platform === 'meta' ? 'facebook' : $connection->platform,
+                'url' => route('admin.connections.index') . '#' . $connection->platform,
+                'created_at' => $connection->updated_at,
+            ]);
+
+        $items = $connectionItems->concat($commentItems)->concat($conversationItems)
             ->sortByDesc('created_at')
             ->values()
             ->take(15);
 
         return response()->json([
-            'count' => $unreadComments + $unreadMessages,
+            'count' => $unreadComments + $unreadMessages + $connectionItems->count(),
             'items' => $items,
         ]);
     }

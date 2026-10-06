@@ -154,7 +154,7 @@ class MetaDriver implements ProviderDriver
                 'refresh_token' => null,
                 'status' => SocialConnection::REVOKED,
                 'revoked_at' => now(),
-                'last_error' => 'Disconnected from the Connection Hub.',
+                'last_error' => SocialConnection::DISCONNECTED_BY_USER,
             ])->save();
 
             // Assets stay (campaign/post history points at them) but can no
