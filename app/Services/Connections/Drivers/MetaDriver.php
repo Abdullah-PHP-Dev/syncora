@@ -85,9 +85,9 @@ class MetaDriver implements ProviderDriver
         return match ($step) {
             self::LOGIN => $this->socialAuth->redirect('facebook'),
             self::INSTAGRAM_LOGIN => redirect()->route('admin.post-accounts.instagram.redirect'),
-            // Embedded Signup runs in the browser (FB JS SDK) on the page
-            // that already hosts it.
-            self::WHATSAPP => redirect()->to(route('admin.posts.create') . '#whatsapp'),
+            // Embedded Signup runs in the browser (FB JS SDK) on the Hub's
+            // Meta card itself - see whatsappSignup().
+            self::WHATSAPP => redirect()->to(route('admin.connections.index') . '#meta'),
         };
     }
 
@@ -199,5 +199,31 @@ class MetaDriver implements ProviderDriver
     private function whatsappConfigId(): ?string
     {
         return adminSetting('connections.meta.whatsapp_config_id') ?: adminSetting('messaging.meta.whatsapp_config_id');
+    }
+
+    /**
+     * Everything the browser needs to run WhatsApp Embedded Signup, on the
+     * ONE Meta app (posts.facebook, design doc §4) - the same app the
+     * backend exchanges the code with (PostAccountController::
+     * storeWhatsappEmbedded), so the two can never disagree. Null until an
+     * Embedded Signup configuration exists.
+     *
+     * @return array{app_id: string, config_id: string, graph_version: string, store_url: string}|null
+     */
+    public static function whatsappSignup(): ?array
+    {
+        $configId = adminSetting('connections.meta.whatsapp_config_id') ?: adminSetting('messaging.meta.whatsapp_config_id');
+        $appId = adminSetting('posts.facebook.client_id');
+
+        if (! $configId || ! $appId) {
+            return null;
+        }
+
+        return [
+            'app_id' => (string) $appId,
+            'config_id' => (string) $configId,
+            'graph_version' => adminSetting('posts.facebook.graph_version') ?: (adminSetting('messaging.meta.graph_version') ?: 'v21.0'),
+            'store_url' => route('admin.post-accounts.whatsapp.embedded'),
+        ];
     }
 }

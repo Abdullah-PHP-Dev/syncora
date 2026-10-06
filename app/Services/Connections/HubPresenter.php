@@ -4,6 +4,7 @@ namespace App\Services\Connections;
 
 use App\Models\SocialAccount;
 use App\Models\SocialConnection;
+use App\Services\Connections\Drivers\MetaDriver;
 use Illuminate\Support\Collection;
 
 /**
@@ -73,6 +74,8 @@ class HubPresenter
                 'connected' => $byStep->has($step['key']) && $byStep[$step['key']]->contains(fn ($c) => $c->isUsable()),
             ])->values(),
             'connections' => $connections->map(fn ($c) => $this->connection($c))->values(),
+            // Meta only: in-page WhatsApp Embedded Signup (null until configured).
+            'whatsapp_signup' => $platform === 'meta' ? MetaDriver::whatsappSignup() : null,
         ];
     }
 

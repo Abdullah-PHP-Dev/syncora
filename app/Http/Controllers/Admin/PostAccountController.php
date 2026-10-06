@@ -82,14 +82,14 @@ class PostAccountController extends Controller
      * dashboard, under WhatsApp > Embedded Signup) - the browser never
      * navigates to a callback URL; instead the WABA ID, phone_number_id,
      * and an exchangeable authorization code arrive via postMessage to
-     * the page that opened the popup (see the JS in posts/create.blade.php),
-     * which then AJAX-POSTs them here.
+     * the page that opened the popup (the Connection Hub's Meta card, or
+     * posts/create.blade.php), which then AJAX-POSTs them here.
      *
-     * Requires messaging.meta.app_id/app_secret (shared with the
-     * Messaging module's Meta connection) and messaging.meta.
-     * whatsapp_config_id (created manually in Meta's App Dashboard - not
-     * something obtainable via API, same category of prerequisite as the
-     * ad campaign module's developer_token).
+     * Uses the one Meta app, posts.facebook (docs/connection-hub-design.md
+     * §4), plus an Embedded Signup configuration created manually in
+     * Meta's App Dashboard: connections.meta.whatsapp_config_id (the legacy
+     * messaging.meta.whatsapp_config_id is still read). See
+     * MetaDriver::whatsappSignup().
      */
     public function storeWhatsappEmbedded(Request $request, ApiPostService $api)
     {
@@ -106,9 +106,11 @@ class PostAccountController extends Controller
         // way a browser-navigation OAuth callback does - the code was
         // never attached to a redirect in the first place, it came back
         // via postMessage inside the same page.
+        // The one Meta app (docs/connection-hub-design.md §4) - the same
+        // app MetaDriver::whatsappSignup() gives the browser's FB SDK.
         $tokenResponse = $api->request('get', $baseUrl . 'oauth/access_token', [], [
-            'client_id'     => adminSetting('messaging.meta.app_id'),
-            'client_secret' => adminSetting('messaging.meta.app_secret'),
+            'client_id'     => adminSetting('posts.facebook.client_id'),
+            'client_secret' => adminSetting('posts.facebook.client_secret'),
             'code'          => $validated['code'],
         ]);
 
@@ -146,7 +148,9 @@ class PostAccountController extends Controller
         $account = SocialAccount::updateOrCreate(
             ['platform' => 'whatsapp', 'platform_account_id' => $validated['phone_number_id'], 'user_id' => Auth::id()],
             [
-                'name'                   => $validated['business_name'] ?: ($data['verified_name'] ?? 'WhatsApp Business'),
+                // business_name is optional and neither the Hub nor the Create
+                // Post button sends it - a bare $validated[...] read threw here.
+                'name'                   => ($validated['business_name'] ?? null) ?: ($data['verified_name'] ?? 'WhatsApp Business'),
                 'username'               => $data['display_phone_number'] ?? null,
                 'access_token'           => $accessToken,
                 'is_token_valid'         => true,

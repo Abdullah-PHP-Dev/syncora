@@ -1161,7 +1161,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                @if (adminSetting('messaging.meta.whatsapp_config_id'))
+                @if (\App\Services\Connections\Drivers\MetaDriver::whatsappSignup())
                     <button type="button" id="whatsappEmbeddedSignupBtn" class="btn btn-success w-100 mb-2">
                         <i class="fab fa-facebook"></i> Connect with Facebook
                     </button>
@@ -1224,13 +1224,14 @@
         // ("Connect with Facebook" - see PostAccountController::
         // storeWhatsappEmbedded for the backend half of this flow)
         // ============================================
-        @if (adminSetting('messaging.meta.whatsapp_config_id'))
+        @php $waSignup = \App\Services\Connections\Drivers\MetaDriver::whatsappSignup(); @endphp
+        @if ($waSignup)
             window.fbAsyncInit = function() {
                 FB.init({
-                    appId: '{{ adminSetting('messaging.meta.app_id') }}',
+                    appId: '{{ $waSignup['app_id'] }}',
                     cookie: true,
                     xfbml: true,
-                    version: '{{ adminSetting('messaging.meta.graph_version') ?: 'v21.0' }}'
+                    version: '{{ $waSignup['graph_version'] }}'
                 });
             };
 
@@ -1296,7 +1297,7 @@
                         }
                     });
                 }, {
-                    config_id: '{{ adminSetting('messaging.meta.whatsapp_config_id') }}',
+                    config_id: '{{ $waSignup['config_id'] }}',
                     response_type: 'code',
                     override_default_response_type: true,
                     extras: {

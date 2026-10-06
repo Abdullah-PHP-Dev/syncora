@@ -46,7 +46,17 @@
               <span v-if="!step.available && step.note" class="ch-step-note"><i class="bx bx-info-circle"></i> {{ step.note }}</span>
             </div>
           </div>
-          <a v-if="step.available" :href="step.connect_url" class="ch-btn" :class="step.primary ? 'ch-btn-primary' : 'ch-btn-ghost'">
+          <!-- WhatsApp Embedded Signup runs right here (FB JS SDK popup). -->
+          <button
+              v-if="step.key === 'meta.whatsapp' && step.available && card.whatsapp_signup"
+              type="button"
+              class="ch-btn ch-btn-ghost"
+              :disabled="waBusy"
+              @click="startWhatsappSignup(card.whatsapp_signup)">
+            <i class="bx" :class="waBusy ? 'bx-loader-alt bx-spin' : (step.connected ? 'bx-plus' : 'bx-link')"></i>
+            {{ step.connected ? 'Add a number' : 'Connect' }}
+          </button>
+          <a v-else-if="step.available" :href="step.connect_url" class="ch-btn" :class="step.primary ? 'ch-btn-primary' : 'ch-btn-ghost'">
             <i class="bx" :class="step.connected ? 'bx-refresh' : 'bx-link'"></i>
             {{ step.connected ? (step.primary ? 'Add or change accounts' : 'Reconnect') : (step.primary ? 'Connect with Facebook' : 'Connect') }}
           </a>
@@ -202,6 +212,7 @@ export default {
       busy: {},
       saving: {},
       confirming: null,
+      waBusy: false,
       flashMessage: flash.error
         ? { tone: 'is-error', text: flash.error }
         : (flash.success ? { tone: 'is-success', text: flash.success } : null),
@@ -337,6 +348,73 @@ export default {
         })
         .catch(() => { this.flashMessage = { tone: 'is-error', text: 'The check didn’t complete. Please try again.' }; })
         .finally(() => this.$delete(this.busy, conn.id));
+    },
+
+    // Facebook JS SDK, loaded once, initialised on the one Meta app.
+    loadFacebookSdk(cfg) {
+      if (window.FB) return Promise.resolve();
+
+      return new Promise((resolve, reject) => {
+        window.fbAsyncInit = () => {
+          window.FB.init({ appId: cfg.app_id, cookie: true, xfbml: false, version: cfg.graph_version });
+          resolve();
+        };
+        const script = document.createElement('script');
+        script.id = 'facebook-jssdk';
+        script.src = 'https://connect.facebook.net/en_US/sdk.js';
+        script.async = true;
+        script.onerror = () => reject(new Error('sdk'));
+        document.head.appendChild(script);
+      });
+    },
+
+    // WhatsApp Embedded Signup: the popup reports the new WABA + phone
+    // number via postMessage; FB.login's callback carries only the code,
+    // which the backend exchanges (PostAccountController::storeWhatsappEmbedded).
+    startWhatsappSignup(cfg) {
+      this.waBusy = true;
+      let session = {};
+      const onMessage = (event) => {
+        if (!String(event.origin).endsWith('facebook.com')) return;
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'WA_EMBEDDED_SIGNUP' && data.event === 'FINISH') {
+            session = { phone_number_id: data.data.phone_number_id, waba_id: data.data.waba_id };
+          }
+        } catch (e) { /* other facebook.com messages */ }
+      };
+      window.addEventListener('message', onMessage);
+
+      const done = () => { window.removeEventListener('message', onMessage); this.waBusy = false; };
+
+      this.loadFacebookSdk(cfg).then(() => {
+        window.FB.login((response) => {
+          const code = response && response.authResponse && response.authResponse.code;
+          if (!code) { done(); return; } // closed or cancelled
+          if (!session.phone_number_id) {
+            done();
+            this.flashMessage = { tone: 'is-error', text: 'Signup finished without a phone number. Please try again.' };
+            return;
+          }
+          window.axios.post(cfg.store_url, { code, phone_number_id: session.phone_number_id, waba_id: session.waba_id })
+            .then(({ data }) => {
+              this.flashMessage = { tone: 'is-success', text: data.message || 'WhatsApp number connected.' };
+              setTimeout(() => window.location.reload(), 900);
+            })
+            .catch((error) => {
+              this.flashMessage = { tone: 'is-error', text: (error.response && error.response.data && error.response.data.message) || 'Couldn’t connect WhatsApp.' };
+            })
+            .finally(done);
+        }, {
+          config_id: cfg.config_id,
+          response_type: 'code',
+          override_default_response_type: true,
+          extras: { setup: {}, featureType: '', sessionInfoVersion: '3' }
+        });
+      }).catch(() => {
+        done();
+        this.flashMessage = { tone: 'is-error', text: 'Couldn’t load Facebook. Check your connection or ad blocker and try again.' };
+      });
     },
 
     disconnect(card, conn) {
