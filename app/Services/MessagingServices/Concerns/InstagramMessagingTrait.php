@@ -171,7 +171,10 @@ trait InstagramMessagingTrait
                         'username'                 => $ig['username'] ?? null,
                         'avatar_url'               => $ig['profile_picture_url'] ?? null,
                         'access_token'             => $pageAccessToken,
-                        'refresh_token'            => $userToken,
+                        // Meta issues no refresh tokens (design doc §1c).
+                        'refresh_token'            => null,
+                        'asset_token'              => $pageAccessToken,
+                        'user_token'               => $userToken,
                         'is_token_valid'           => true,
                         ...GrantedScopes::attributes($grantedScopes),
                         'has_messaging_permission' => true,

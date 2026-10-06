@@ -187,8 +187,9 @@ class FacebookAdService
                         'likes_count'      => $page['fan_count'] ?? null,
                         'followers_count'  => $page['followers_count'] ?? null,
                         'business_id'      => $fbData['business']['id'] ?? null,
-                        'access_token'     => $page['access_token'] ?? null,
-                        ...GrantedScopes::attributes($grantedScopes),
+                        // No page token here: nothing reads platform_pages'
+                        // token, and Page tokens live on the social_accounts
+                        // page rows (docs/connection-hub-design.md §1c).
                         'picture'          => $page['picture']['data']['url'] ?? null,
                         'status'           => 'active',
                     ],

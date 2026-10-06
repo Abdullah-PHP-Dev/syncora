@@ -45,6 +45,11 @@ class SocialAccount extends Model
         'metadata',
         'access_token',
         'refresh_token',
+        // Page / Instagram token of this asset, and the Meta user token that
+        // issued it (consumed by the social_connections backfill) -
+        // docs/connection-hub-design.md §1c.
+        'asset_token',
+        'user_token',
         'token_type',
         'scopes',
         'expires_at',
@@ -60,6 +65,8 @@ class SocialAccount extends Model
         // --dry-run reports no plaintext (docs/connection-hub-design.md §1a).
         'access_token' => TolerantEncrypted::class,
         'refresh_token' => TolerantEncrypted::class,
+        'asset_token' => TolerantEncrypted::class,
+        'user_token' => TolerantEncrypted::class,
         'scopes' => 'array',
         'metadata' => 'array',
         'expires_at' => 'datetime',
@@ -72,6 +79,8 @@ class SocialAccount extends Model
     protected $hidden = [
         'access_token',
         'refresh_token',
+        'asset_token',
+        'user_token',
     ];
 
     protected static function booted(): void

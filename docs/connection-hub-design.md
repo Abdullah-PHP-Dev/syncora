@@ -45,9 +45,17 @@ Every callback stores what was actually **granted**, not what was requested, as 
 Capabilities (ads / posting / messaging / insights) are **derived** from the granted scopes by each driver's capability map (§3), replacing hand-set `has_*_permission` flags. The flags stay as computed columns during the transition.
 
 ### 1c. Page and asset tokens
-- Page / IG tokens move to the asset record (`connected_assets.asset_token`, encrypted).
-- `refresh_token` holds a real refresh token or null; this fixes #111 and #112.
-- Ad-account rows stop copying the user token. They read it through their parent connection.
+- Page / IG tokens move to the asset record (`social_accounts.asset_token`, encrypted).
+- The Meta user token that issued them moves to `social_accounts.user_token` (encrypted). The `social_connections` backfill (§9) consumes it and drops it, so a row like #21, whose `refresh_token` held the user token, needs no reconnect.
+- `refresh_token` holds a real refresh token or null (Meta issues none); this fixes #111 and #112.
+- `access_token` stays filled on page rows until modules read through `tokenFor()` (§9), so nothing breaks in between.
+- `platform_pages.access_token` (plaintext, never read) is no longer written and is cleared.
+- Ad-account rows stop copying the user token. They read it through their parent connection (from commit 4).
+
+**Implemented (Step 0):**
+- Migration `2026_10_07_100000` adds the two columns (schema only).
+- `connections:move-page-tokens {--dry-run}` moves existing data.
+- **Run order:** migrate → `move-page-tokens` → `encrypt-tokens` (that way, values copied into the new columns are encrypted in the same pass).
 
 ## 2. Data model (evolve, don't replace)
 
@@ -156,7 +164,7 @@ This resolves the audit's "Unclear" X row, so the X minimum becomes **1** Connec
 **Consequences:**
 - **App:** the surviving X app needs (a) Ads API access approved and (b) its permission level set to *Read, write and Direct Messages*. A permission change only applies to tokens issued **after** it, so set the level before users connect.
 - **Settings:** one set, `connections.x.consumer_key` / `consumer_secret`. The Hub migration reads the existing `ads.x.*` values, since `XAdService` already signs OAuth 1.0a. `posts.x.*` (the OAuth 2.0 client) is retired after cut-over.
-- **Tokens:** `social_connections.access_token` + `token_secret` (both encrypted). `expires_at` = null, and `refresh_token` is unused.
+- **Tokens:** `social_connections.access_token` + `token_secret` (both encrypted). `expires_at` = null, and `refresh_token` is unused. The current plaintext `metadata.legacy_token_secret` (X Ads) moves into `token_secret` and is removed from `metadata`.
 - **Modules:** `XPostService` and `XMessagingService` switch from Bearer (OAuth 2.0) to OAuth 1.0a signing, reusing `XAdService`'s signer. Their `refresh_token` / `ensureFreshToken` code is removed.
 - **Existing users:** today's OAuth 2.0 posting/DM rows (#79, #83 locally) can't be converted to OAuth 1.0a, so they need **one reconnect**. The Hub shows "Reconnect X (one-time upgrade)". Old rows keep working with their OAuth 2.0 tokens until then (dual-read, §9).
 - **Status:** X is skipped by the expiry pass; the daily validation pass calls `GET /2/users/me` signed with the token. 401 → `revoked`. A 403 on the DM/Ads probe → `needs_reauth`, with the hint "app permission level / Ads access".

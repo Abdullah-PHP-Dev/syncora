@@ -33,7 +33,7 @@ class EncryptSocialAccountTokens extends Command
 
     protected $description = 'Encrypt plaintext OAuth tokens in social_accounts and flag undecryptable ones for reconnect';
 
-    private const COLUMNS = ['access_token', 'refresh_token'];
+    private const COLUMNS = ['access_token', 'refresh_token', 'asset_token', 'user_token'];
 
     public function handle(): int
     {

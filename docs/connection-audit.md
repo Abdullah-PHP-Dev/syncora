@@ -34,6 +34,10 @@ Out of scope (not social platforms): the Slack, Discord, Google Chat, Zalo, Team
 
 **Token storage** is `social_accounts` (access_token, refresh_token, token_type, `scopes`, expires_at, is_token_valid, has_{posting,messaging,ads}_permission). The legacy `post_accounts` and `ad_accounts` tables were dropped (migration `2026_08_26_100005`).
 
+> *Correction found during Step 0 (2026-10-07):*
+> - `platform_pages.access_token` is a second, plaintext store of Facebook Page tokens, written by the Facebook Ads connect (#2) and **never read**. Step 0c stops writing it and clears it.
+> - X Ads (#18) keeps its OAuth 1.0a token secret in plaintext at `social_accounts.metadata.legacy_token_secret`. It moves to an encrypted `token_secret` in the X commit (design §6b).
+
 **Refresh** is on demand inside each service, and nothing on the schedule refreshes tokens or checks expiry:
 - Google: `YoutubePostService` (×2), `GoogleAdsApiTrait`
 - X: `XPostService`, `XMessagingService::ensureFreshToken`

@@ -23,6 +23,7 @@ class TokenEncryptionTest extends TestCase
             '2026_06_13_213124_create_permission_tables.php',
             '2026_08_26_100000_create_social_accounts_table.php',
             '2026_08_28_100000_create_social_account_post_details_table.php',
+            '2026_10_07_100000_add_asset_and_user_tokens_to_social_accounts_table.php',
         ] as $migration) {
             (require database_path('migrations/' . $migration))->up();
         }
@@ -101,7 +102,7 @@ class TokenEncryptionTest extends TestCase
             ->expectsOutputToContain('DRY RUN')
             ->expectsTable(
                 ['column', 'null', 'plaintext → encrypt', 'encrypted (ok)', 'undecryptable → clear'],
-                [['access_token', 0, 1, 1, 1], ['refresh_token', 2, 1, 0, 0]]
+                [['access_token', 0, 1, 1, 1], ['refresh_token', 2, 1, 0, 0], ['asset_token', 3, 0, 0, 0], ['user_token', 3, 0, 0, 0]]
             )
             ->assertSuccessful();
 

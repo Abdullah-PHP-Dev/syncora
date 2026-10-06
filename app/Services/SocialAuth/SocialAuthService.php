@@ -234,7 +234,12 @@ class SocialAuthService
                     'followers_count' => $page['followers_count'] ?? null,
                     'likes_count' => $page['fan_count'] ?? null,
                     'access_token' => $page['access_token'],
-                    'refresh_token' => $page['access_token'],
+                    // Meta issues no refresh tokens: the page token is the
+                    // asset's own token, the user token is kept for the
+                    // connection backfill (design doc §1c).
+                    'refresh_token' => null,
+                    'asset_token' => $page['access_token'],
+                    'user_token' => $userToken,
                     'token_type' => 'page',
                     'is_token_valid' => true,
                     ...GrantedScopes::attributes($grantedScopes),
@@ -297,7 +302,9 @@ class SocialAuthService
                         'account_type' => 'business_account',
                         'followers_count' => $ig['followers_count'] ?? null,
                         'access_token' => $page['access_token'],
-                        'refresh_token' => $page['access_token'],
+                        'refresh_token' => null,
+                        'asset_token' => $page['access_token'],
+                        'user_token' => $userToken,
                         'token_type' => 'page',
                         'is_token_valid' => true,
                         ...GrantedScopes::attributes($grantedScopes),

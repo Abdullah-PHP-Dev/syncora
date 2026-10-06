@@ -23,6 +23,7 @@ class GrantedScopesTest extends TestCase
             '2026_06_13_213124_create_permission_tables.php',
             '2026_08_26_100000_create_social_accounts_table.php',
             '2026_08_28_100000_create_social_account_post_details_table.php',
+            '2026_10_07_100000_add_asset_and_user_tokens_to_social_accounts_table.php',
         ] as $migration) {
             (require database_path('migrations/' . $migration))->up();
         }
@@ -144,5 +145,12 @@ class GrantedScopesTest extends TestCase
         $this->assertSame($expected, SocialAccount::where('platform_account_id', '111')->firstOrFail()->scopes);
         $this->assertSame($expected, SocialAccount::where('platform_account_id', 'act_9')->firstOrFail()->scopes);
         Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), 'me/permissions') && str_contains($r->url(), 'appsecret_proof'));
+
+        // Step 0c: page token on the asset, user token kept, no fake refresh token.
+        $page = SocialAccount::where('platform_account_id', '111')->firstOrFail();
+        $this->assertNull($page->refresh_token);
+        $this->assertSame('page-token', $page->asset_token);
+        $this->assertSame('page-token', $page->access_token);
+        $this->assertSame('user-token', $page->user_token);
     }
 }
