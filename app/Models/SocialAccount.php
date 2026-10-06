@@ -28,6 +28,7 @@ class SocialAccount extends Model
     protected $fillable = [
         'user_id',
         'workspace_id',
+        'social_connection_id',
         'platform',
         'platform_account_id',
         'name',
@@ -57,6 +58,7 @@ class SocialAccount extends Model
         'has_posting_permission',
         'has_messaging_permission',
         'has_ads_permission',
+        'enabled_capabilities',
     ];
 
     protected $casts = [
@@ -74,6 +76,7 @@ class SocialAccount extends Model
         'has_posting_permission' => 'boolean',
         'has_messaging_permission' => 'boolean',
         'has_ads_permission' => 'boolean',
+        'enabled_capabilities' => 'array',
     ];
 
     protected $hidden = [
@@ -243,6 +246,12 @@ class SocialAccount extends Model
     public function setMediaCountAttribute($value): void
     {
         $this->pendingPostDetails['media_count'] = $value;
+    }
+
+    /** The consent this asset came from (docs/connection-hub-design.md §2). */
+    public function connection(): BelongsTo
+    {
+        return $this->belongsTo(SocialConnection::class, 'social_connection_id');
     }
 
     public function scopeActive($query)
