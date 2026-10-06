@@ -16,6 +16,15 @@ interface ProviderDriver
     public function label(): string;
 
     /**
+     * How the Hub draws the card: subtitle, brand icons, primary button
+     * label, empty-state copy and which capabilities to pitch.
+     *
+     * @return array{subtitle: string, icons: array<int, array{icon: string, brand: string}>,
+     *               connect_label: string, empty_title: string, empty_text: string, benefits: string[]}
+     */
+    public function presentation(): array;
+
+    /**
      * The card's connect steps, built from feature flags.
      *
      * @return array<int, array{key: string, label: string, description: string,

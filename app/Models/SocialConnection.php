@@ -90,22 +90,42 @@ class SocialConnection extends Model
     }
 
     /**
-     * Status from the token alone (no provider call): what the hourly
-     * expiry pass and the backfill use. Revocation is only learned from the
-     * provider, by the validation pass.
+     * Status from the tokens alone (no provider call): what the hourly
+     * expiry pass, the backfill and the recorder use. Revocation is only
+     * learned from the provider, by the validation pass.
+     *
+     * With a refresh token, the access token's own expiry doesn't matter
+     * (Google's lasts an hour and is renewed on use) - the refresh token
+     * governs: always fine, or judged by its own expiry where the platform
+     * has one (TikTok, LinkedIn). Without one, the access token governs.
      */
-    public static function statusFor(?string $accessToken, ?Carbon $expiresAt, bool $refreshable): string
+    public static function statusFor(?string $accessToken, ?Carbon $expiresAt, bool $refreshable, ?Carbon $refreshExpiresAt = null): string
     {
+        if ($refreshable) {
+            return self::byExpiry($refreshExpiresAt);
+        }
+
         if ($accessToken === null || $accessToken === '') {
             return self::NEEDS_REAUTH;
         }
 
+        return self::byExpiry($expiresAt); // e.g. Meta: an expired token needs a fresh login
+    }
+
+    /** This connection's status from its own tokens (see statusFor()). */
+    public function timeStatus(): string
+    {
+        return self::statusFor($this->access_token, $this->expires_at, (bool) $this->refresh_token, $this->refresh_expires_at);
+    }
+
+    private static function byExpiry(?Carbon $expiresAt): string
+    {
         if ($expiresAt === null) {
-            return self::ACTIVE; // e.g. X OAuth 1.0a tokens never expire
+            return self::ACTIVE; // never expires (X OAuth 1.0a) or unknown
         }
 
         if ($expiresAt->isPast()) {
-            return $refreshable ? self::EXPIRED : self::NEEDS_REAUTH;
+            return self::NEEDS_REAUTH;
         }
 
         return $expiresAt->lte(now()->addDays(self::EXPIRING_WITHIN_DAYS)) ? self::EXPIRING : self::ACTIVE;

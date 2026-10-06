@@ -53,9 +53,21 @@ class ConnectionStatusJobTest extends TestCase
 
         $this->assertSame(SocialConnection::EXPIRING, $soon->fresh()->status);
         $this->assertSame(SocialConnection::NEEDS_REAUTH, $expired->fresh()->status);
-        $this->assertSame(SocialConnection::EXPIRED, $refreshable->fresh()->status);
+        // Refreshable: the access token's expiry doesn't matter (renewed on use).
+        $this->assertSame(SocialConnection::ACTIVE, $refreshable->fresh()->status);
         $this->assertSame(SocialConnection::ACTIVE, $fine->fresh()->status);
         $this->assertSame(SocialConnection::ACTIVE, $neverExpires->fresh()->status);
+    }
+
+    public function test_refresh_token_expiry_governs_refreshable_connections(): void
+    {
+        $soon = $this->connection(['expires_at' => now()->subHour(), 'refresh_token' => 'r', 'refresh_expires_at' => now()->addDays(2)]);
+        $gone = $this->connection(['expires_at' => now()->subHour(), 'refresh_token' => 'r', 'refresh_expires_at' => now()->subDay()]);
+
+        $this->artisan('connections:check-status')->assertSuccessful();
+
+        $this->assertSame(SocialConnection::EXPIRING, $soon->fresh()->status);
+        $this->assertSame(SocialConnection::NEEDS_REAUTH, $gone->fresh()->status);
     }
 
     public function test_provider_reported_problems_are_not_cleared_by_time_and_revoked_is_untouched(): void

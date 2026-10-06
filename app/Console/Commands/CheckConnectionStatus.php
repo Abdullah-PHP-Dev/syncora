@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\Log;
  * call providers. Runs hourly (bootstrap/app.php):
  *
  *  1. Expiry pass, every connection, no provider calls: time-based status
- *     (active / expiring within 7 days / expired / needs reauth). Problems
+ *     (active / expiring within 7 days / needs reauth - see
+ *     SocialConnection::statusFor() for refresh-token rules). Problems
  *     a provider reported (needs_reauth, error) are never cleared by time.
  *  2. Validation pass: asks the provider (driver->validate()) about
  *     connections not checked for 24h, oldest first, capped per run - so a
@@ -94,7 +95,7 @@ class CheckConnectionStatus extends Command
     /** Status from the token's expiry alone; provider-reported problems stick. */
     private function timeStatus(SocialConnection $connection): string
     {
-        $byTime = SocialConnection::statusFor($connection->access_token, $connection->expires_at, (bool) $connection->refresh_token);
+        $byTime = $connection->timeStatus();
 
         if (in_array($connection->status, [SocialConnection::NEEDS_REAUTH, SocialConnection::ERROR], true)) {
             return $byTime === SocialConnection::NEEDS_REAUTH ? SocialConnection::NEEDS_REAUTH : $connection->status;

@@ -3,11 +3,9 @@
 namespace App\Services\Connections\Drivers;
 
 use App\Models\SocialConnection;
-use App\Services\Connections\ProviderDriver;
 use App\Services\SocialAuth\SocialAuthService;
 use App\Support\Connections\ConnectionFlags;
 use App\Support\Connections\GrantedScopes;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
@@ -19,7 +17,7 @@ use Symfony\Component\HttpFoundation\Response;
  * asset discovery stay in SocialAuthService / PostAccountController - the
  * callback URLs registered in the Meta App Dashboard don't change.
  */
-class MetaDriver implements ProviderDriver
+class MetaDriver extends BaseDriver
 {
     public const LOGIN = 'meta.login';
     public const WHATSAPP = 'meta.whatsapp';
@@ -37,6 +35,18 @@ class MetaDriver implements ProviderDriver
     public function label(): string
     {
         return 'Meta';
+    }
+
+    public function presentation(): array
+    {
+        return [
+            'subtitle' => 'Facebook Pages · Instagram · Messenger · WhatsApp · Ads',
+            'icons' => [['icon' => 'bxl-facebook', 'brand' => 'facebook'], ['icon' => 'bxl-instagram', 'brand' => 'instagram'], ['icon' => 'bxl-whatsapp', 'brand' => 'whatsapp']],
+            'connect_label' => 'Connect with Facebook',
+            'empty_title' => 'One consent for everything Meta',
+            'empty_text' => 'Choose the Pages, Instagram accounts and ad accounts SocialEaz may use. You can change your choice at any time, here or in your Facebook settings.',
+            'benefits' => ['posting', 'messaging', 'ads', 'insights'],
+        ];
     }
 
     public function steps(): array
@@ -104,21 +114,9 @@ class MetaDriver implements ProviderDriver
         };
 
         if ($response->successful()) {
-            $scopes = $connection->step === self::LOGIN
-                ? (GrantedScopes::fromMetaPermissions($response->json()) ?? $connection->granted_scopes)
-                : $connection->granted_scopes;
-
-            $connection->fill([
-                'granted_scopes' => $scopes,
-                'capabilities' => $scopes
-                    ? SocialConnection::capabilitiesFrom($scopes, config('connections.capabilities.meta'))
-                    : $connection->capabilities,
-                'status' => SocialConnection::statusFor($connection->access_token, $connection->expires_at, false),
-                'last_error' => null,
-                'last_checked_at' => now(),
-            ])->save();
-
-            return $connection;
+            return $this->markHealthy($connection, $connection->step === self::LOGIN
+                ? GrantedScopes::fromMetaPermissions($response->json())
+                : null);
         }
 
         $error = $response->json('error') ?? [];
@@ -148,37 +146,9 @@ class MetaDriver implements ProviderDriver
             }
         }
 
-        DB::transaction(function () use ($connection) {
-            $connection->fill([
-                'access_token' => null,
-                'refresh_token' => null,
-                'status' => SocialConnection::REVOKED,
-                'revoked_at' => now(),
-                'last_error' => SocialConnection::DISCONNECTED_BY_USER,
-            ])->save();
-
-            // Assets stay (campaign/post history points at them) but can no
-            // longer act; reconnecting re-links and re-validates them.
-            DB::table('social_accounts')->where('social_connection_id', $connection->id)->update([
-                'is_token_valid' => false,
-                'access_token' => null,
-                'asset_token' => null,
-                'user_token' => null,
-            ]);
-        });
+        $this->disconnectLocally($connection);
     }
 
-    private function mark(SocialConnection $connection, string $status, string $error, bool $revoked = false): SocialConnection
-    {
-        $connection->fill([
-            'status' => $status,
-            'last_error' => $error,
-            'last_checked_at' => now(),
-            'revoked_at' => $revoked ? now() : $connection->revoked_at,
-        ])->save();
-
-        return $connection;
-    }
 
     private function graph(?string $path): string
     {

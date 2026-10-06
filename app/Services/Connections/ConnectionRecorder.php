@@ -47,7 +47,12 @@ class ConnectionRecorder
                 'expires_at' => $expiresAt,
                 'granted_scopes' => $scopes,
                 'capabilities' => self::capabilities($platform, $scopes, $assetIds),
-                'status' => SocialConnection::statusFor($attributes['access_token'] ?? null, $expiresAt, ! empty($attributes['refresh_token'])),
+                'status' => SocialConnection::statusFor(
+                    $attributes['access_token'] ?? null,
+                    $expiresAt,
+                    ! empty($attributes['refresh_token']),
+                    isset($attributes['refresh_expires_at']) ? Carbon::parse($attributes['refresh_expires_at']) : null,
+                ),
                 'last_error' => null,
                 'revoked_at' => null,
                 'last_checked_at' => now(),
