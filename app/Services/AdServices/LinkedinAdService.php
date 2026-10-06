@@ -3,6 +3,7 @@
 namespace App\Services\AdServices;
 
 use App\Models\SocialAccount;
+use App\Support\Connections\GrantedScopes;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdMedia;
@@ -217,6 +218,7 @@ class LinkedinAdService
 
         $data = $tokenResponse['data'];
         $accessToken = $data['access_token'];
+        $grantedScopes = GrantedScopes::fromTokenResponse($data);
         $expiresAt = Carbon::now()->addSeconds($data['expires_in'] ?? 3600);
 
         $headers = [
@@ -284,6 +286,7 @@ class LinkedinAdService
                     'name'          => $detail['name'] ?? "LinkedIn Ad Account {$accountId}",
                     'platform_account_id' => $accountId,
                     'access_token'  => $accessToken,
+                    ...GrantedScopes::attributes($grantedScopes),
                     'refresh_token' => $data['refresh_token'] ?? null,
                     'expires_at'    => $expiresAt,
                     'has_ads_permission' => true,

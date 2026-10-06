@@ -3,6 +3,7 @@
 namespace App\Services\AdServices\Concerns;
 
 use App\Models\SocialAccount;
+use App\Support\Connections\GrantedScopes;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
@@ -119,6 +120,7 @@ trait GoogleAdsApiTrait
 
         $token = $tokenResponse['data'];
         $accessToken = $token['access_token'] ?? null;
+        $grantedScopes = GrantedScopes::fromTokenResponse($token);
 
         if (!$accessToken) {
             return redirect()->route('admin.ads.dashboard')->with('error', 'Google returned no access token.');
@@ -234,6 +236,7 @@ trait GoogleAdsApiTrait
                     'avatar_url'    => $avatarUrl,
                     'platform_account_id' => $customerId,
                     'access_token'  => $accessToken,
+                    ...GrantedScopes::attributes($grantedScopes),
                     'refresh_token' => $token['refresh_token'] ?? null,
                     'expires_at'    => $expiresAt,
                     'has_ads_permission' => true,

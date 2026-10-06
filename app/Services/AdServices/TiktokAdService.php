@@ -3,6 +3,7 @@
 namespace App\Services\AdServices;
 
 use App\Models\SocialAccount;
+use App\Support\Connections\GrantedScopes;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdMedia;
@@ -120,6 +121,7 @@ class TiktokAdService
         }
 
         $accessToken = $token['data']['access_token'] ?? null;
+        $grantedScopes = GrantedScopes::fromTokenResponse($token['data'] ?? null);
         $advertiserIds = $token['data']['advertiser_ids'] ?? [];
 
         if (!$accessToken || empty($advertiserIds)) {
@@ -153,6 +155,7 @@ class TiktokAdService
                     'name'          => $details['name'] ?? "TikTok Advertiser {$advertiserId}",
                     'platform_account_id' => $advertiserId,
                     'access_token'  => $accessToken,
+                    ...GrantedScopes::attributes($grantedScopes),
                     'has_ads_permission' => true,
                     'metadata'      => array_filter(['currency' => $details['currency'] ?? null]),
                 ],

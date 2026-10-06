@@ -15,6 +15,7 @@ use App\Services\ApiService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
+use App\Support\Connections\GrantedScopes;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
@@ -82,6 +83,14 @@ class FacebookAdService
         }
 
         $accessToken = data_get($data, 'access_token');
+
+        // Granted (not requested) permissions, stored on every row this
+        // consent produces (docs/connection-hub-design.md §1b).
+        $permissionsResponse = $this->apiService->get(rtrim($this->config ?: 'https://graph.facebook.com/v25.0/', '/') . '/me/permissions', [], [
+            'access_token'    => $accessToken,
+            'appsecret_proof' => $this->appSecretProof($accessToken),
+        ]);
+        $grantedScopes = GrantedScopes::fromMetaPermissions($permissionsResponse['success'] ? $permissionsResponse['data'] : null);
         $expiresIn   = data_get($data, 'expires_in', 3600);
         $expiresAt   = Carbon::now()->addSeconds($expiresIn);
 
@@ -137,6 +146,7 @@ class FacebookAdService
                         'avatar_url'    => $avatarUrl,
                         'platform_account_id' => $rawAccountId,
                         'access_token'  => $accessToken,
+                        ...GrantedScopes::attributes($grantedScopes),
                         'refresh_token' => data_get($data, 'refresh_token'),
                         'expires_at'    => $expiresAt,
                         'has_ads_permission' => true,
@@ -178,6 +188,7 @@ class FacebookAdService
                         'followers_count'  => $page['followers_count'] ?? null,
                         'business_id'      => $fbData['business']['id'] ?? null,
                         'access_token'     => $page['access_token'] ?? null,
+                        ...GrantedScopes::attributes($grantedScopes),
                         'picture'          => $page['picture']['data']['url'] ?? null,
                         'status'           => 'active',
                     ],
@@ -211,6 +222,7 @@ class FacebookAdService
                         // showed with no photo anywhere this table is read.
                         'avatar_url'    => $igAccount['profile_pic'] ?? null,
                         'access_token'  => $accessToken,
+                        ...GrantedScopes::attributes($grantedScopes),
                         'refresh_token' => data_get($data, 'refresh_token'),
                         'expires_at'    => $expiresAt,
                         'has_ads_permission' => true,

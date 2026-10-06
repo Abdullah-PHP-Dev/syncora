@@ -3,6 +3,7 @@
 namespace App\Services\AdServices;
 
 use App\Models\SocialAccount;
+use App\Support\Connections\GrantedScopes;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdCreative;
@@ -271,6 +272,8 @@ class XAdService
                     'platform_account_id' => $acct['id'],
                     'access_token'        => $accessToken,
                     'is_token_valid'      => true,
+                    // OAuth 1.0a carries no scopes (design doc §1b, §6b).
+                    'scopes'              => GrantedScopes::OAUTH1,
                     'has_ads_permission'  => true,
                     'metadata'            => array_filter([
                         'legacy_token_secret' => $accessTokenSecret,

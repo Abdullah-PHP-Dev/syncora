@@ -6,6 +6,7 @@ use App\Jobs\Messaging\ProcessInboundMessage;
 use App\Models\Messaging\Conversation;
 use App\Models\Messaging\MessageChannel;
 use App\Models\SocialAccount;
+use App\Support\Connections\GrantedScopes;
 use App\Services\ApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -220,6 +221,7 @@ class TiktokMessagingService
                 'expires_at'               => Carbon::now()->addSeconds($data['expires_in'] ?? 86400),
                 'has_messaging_permission' => $canMessage,
                 'metadata'                 => ['scope' => $grantedScope],
+                ...GrantedScopes::attributes(GrantedScopes::fromTokenResponse($data)),
             ]
         );
 

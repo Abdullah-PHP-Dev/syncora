@@ -5,6 +5,7 @@ namespace App\Services\AdServices;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Auth;
 use App\Models\SocialAccount;
+use App\Support\Connections\GrantedScopes;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdMedia;
@@ -145,6 +146,7 @@ class SnapchatAdService
 
         $token = $tokenResponse['data'];
         $accessToken = $token['access_token'] ?? null;
+        $grantedScopes = GrantedScopes::fromTokenResponse($token);
         $refreshToken = $token['refresh_token'] ?? null;
         $expiresAt = now()->addSeconds($token['expires_in'] ?? 1800);
 
@@ -200,6 +202,7 @@ class SnapchatAdService
                         'name'                => $adAccount['name'] ?? "Snapchat Ad Account {$adAccountId}",
                         'platform_account_id' => $adAccountId,
                         'access_token'        => $accessToken,
+                        ...GrantedScopes::attributes($grantedScopes),
                         'refresh_token'       => $refreshToken,
                         'is_token_valid'      => true,
                         'expires_at'          => $expiresAt,

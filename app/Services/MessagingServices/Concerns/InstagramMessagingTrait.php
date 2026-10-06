@@ -4,6 +4,7 @@ namespace App\Services\MessagingServices\Concerns;
 
 use App\Models\Messaging\MessageChannel;
 use App\Models\SocialAccount;
+use App\Support\Connections\GrantedScopes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -138,6 +139,13 @@ trait InstagramMessagingTrait
         $userToken = $longLivedResponse['success'] ? ($longLivedResponse['data']['access_token'] ?? $shortLivedToken) : $shortLivedToken;
         $expiresIn = $longLivedResponse['success'] ? ($longLivedResponse['data']['expires_in'] ?? 5184000) : 3600;
 
+        // Granted (not requested) permissions (docs/connection-hub-design.md §1b).
+        $permissionsResponse = $this->apiService->get($this->graphApiUrl('me/permissions'), [], [
+            'access_token'    => $userToken,
+            'appsecret_proof' => $this->metaAppSecretProof($userToken),
+        ]);
+        $grantedScopes = GrantedScopes::fromMetaPermissions($permissionsResponse['success'] ? $permissionsResponse['data'] : null);
+
         // 3. Resolve Connected Instagram Business Accounts & Page Tokens
         $pagesResponse = $this->apiService->get($this->graphApiUrl('me/accounts'), [], [
             'access_token'    => $userToken,
@@ -165,6 +173,7 @@ trait InstagramMessagingTrait
                         'access_token'             => $pageAccessToken,
                         'refresh_token'            => $userToken,
                         'is_token_valid'           => true,
+                        ...GrantedScopes::attributes($grantedScopes),
                         'has_messaging_permission' => true,
                     ]
                 );

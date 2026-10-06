@@ -6,6 +6,7 @@ use App\Jobs\Messaging\ProcessInboundMessage;
 use App\Models\Messaging\Conversation;
 use App\Models\Messaging\MessageChannel;
 use App\Models\SocialAccount;
+use App\Support\Connections\GrantedScopes;
 use App\Services\ApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -168,6 +169,7 @@ class XMessagingService
         }
 
         $accessToken = $tokenResponse['data']['access_token'];
+        $grantedScopes = GrantedScopes::fromTokenResponse($tokenResponse['data']);
 
         $userResponse = $this->apiService->get($this->base . 'users/me', ['Authorization' => "Bearer {$accessToken}"], [
             'user.fields' => 'profile_image_url,username,name',
@@ -189,6 +191,7 @@ class XMessagingService
                 'refresh_token'            => $tokenResponse['data']['refresh_token'] ?? null,
                 'expires_at'               => Carbon::now()->addSeconds($tokenResponse['data']['expires_in'] ?? 7200),
                 'is_token_valid'           => true,
+                ...GrantedScopes::attributes($grantedScopes),
                 'has_messaging_permission' => true,
             ]
         );

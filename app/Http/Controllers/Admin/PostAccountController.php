@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\SocialAccount;
+use App\Support\Connections\GrantedScopes;
 use App\Services\PostServices\ApiPostService;
 use App\Services\PostServices\InstagramPostService;
 use Illuminate\Http\Request;
@@ -112,6 +113,12 @@ class PostAccountController extends Controller
 
         $accessToken = $tokenResponse->json()['access_token'];
 
+        // Best-effort: granted permissions for this Embedded Signup token
+        // (docs/connection-hub-design.md §1b). Left unset if Meta doesn't
+        // answer for this token type.
+        $permissionsResponse = $api->request('get', $baseUrl . 'me/permissions', [], ['access_token' => $accessToken]);
+        $grantedScopes = GrantedScopes::fromMetaPermissions($permissionsResponse->successful() ? $permissionsResponse->json() : null);
+
         $check = $api->request(
             'get',
             $baseUrl . $validated['phone_number_id'],
@@ -135,6 +142,7 @@ class PostAccountController extends Controller
                 'username'               => $data['display_phone_number'] ?? null,
                 'access_token'           => $accessToken,
                 'is_token_valid'         => true,
+                ...GrantedScopes::attributes($grantedScopes),
                 'has_posting_permission' => true,
                 'metadata'               => ['settings' => ['waba_id' => $validated['waba_id']]],
             ]
@@ -287,6 +295,7 @@ class PostAccountController extends Controller
         }
 
         $token = $tokenResponse->json();
+        $grantedScopes = GrantedScopes::fromTokenResponse($token);
         $baseUrl = adminSetting('posts.pinterest.base_url') ?: 'https://api.pinterest.com/v5/';
 
         $profile = $api->request('get', $baseUrl . 'user_account', [
@@ -315,6 +324,7 @@ class PostAccountController extends Controller
                 'refresh_token'          => $token['refresh_token'] ?? null,
                 'expires_at'             => Carbon::now()->addSeconds($token['expires_in'] ?? 2592000),
                 'is_token_valid'         => true,
+                ...GrantedScopes::attributes($grantedScopes),
                 'has_posting_permission' => true,
                 'metadata'               => ['settings' => ['board_id' => $boardId]],
             ]
@@ -424,6 +434,7 @@ class PostAccountController extends Controller
         }
 
         $token = $tokenResponse->json();
+        $grantedScopes = GrantedScopes::fromTokenResponse($token);
         $baseUrl = adminSetting('posts.x.base_url') ?: 'https://api.x.com/2/';
 
         $userResponse = $api->request('get', $baseUrl . 'users/me', [
@@ -450,6 +461,7 @@ class PostAccountController extends Controller
                 'refresh_token'          => $token['refresh_token'] ?? null,
                 'expires_at'             => Carbon::now()->addSeconds($token['expires_in'] ?? 7200),
                 'is_token_valid'         => true,
+                ...GrantedScopes::attributes($grantedScopes),
                 'has_posting_permission' => true,
             ]
         );
@@ -507,6 +519,8 @@ class PostAccountController extends Controller
         }
 
         $tokenData   = $tokenResponse->json();
+        // Instagram Login reports granted scopes as `permissions` (§1b).
+        $grantedScopes = GrantedScopes::fromTokenResponse($tokenData);
         $shortToken  = $tokenData['access_token'] ?? null;
         $igUserId    = $tokenData['user_id'] ?? null;
 
@@ -563,6 +577,7 @@ class PostAccountController extends Controller
                 'access_token'           => $accessToken,
                 'expires_at'             => Carbon::now()->addSeconds($expiresIn),
                 'is_token_valid'         => true,
+                ...GrantedScopes::attributes($grantedScopes),
                 'has_posting_permission' => true,
                 // Tags this account as a standalone Instagram Login token
                 // (graph.instagram.com), distinct from callbackMeta()'s

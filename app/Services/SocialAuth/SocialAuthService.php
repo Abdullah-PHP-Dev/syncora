@@ -4,6 +4,7 @@ namespace App\Services\SocialAuth;
 
 use App\Models\Messaging\MessageChannel;
 use App\Models\SocialAccount;
+use App\Support\Connections\GrantedScopes;
 use App\Services\ApiService;
 use App\Services\MessagingServices\FacebookMessengerService;
 use App\Services\MessagingServices\InstagramMessengerService;
@@ -204,6 +205,14 @@ class SocialAuthService
         $expiresAt = Carbon::now()->addDays(60);
         $userId = Auth::id();
 
+        // What the user actually granted (they can untick permissions in the
+        // dialog) - stored on every row this consent produced (§1b).
+        $permissionsResponse = $this->api->get($baseUrl . 'me/permissions', [], [
+            'access_token' => $userToken,
+            'appsecret_proof' => $this->metaAppSecretProof($userToken, $clientSecret),
+        ]);
+        $grantedScopes = GrantedScopes::fromMetaPermissions($permissionsResponse['success'] ? $permissionsResponse['data'] : null);
+
         $pagesConnected = 0;
         $instagramConnected = 0;
         $adAccountsConnected = 0;
@@ -228,6 +237,7 @@ class SocialAuthService
                     'refresh_token' => $page['access_token'],
                     'token_type' => 'page',
                     'is_token_valid' => true,
+                    ...GrantedScopes::attributes($grantedScopes),
                     'expires_at' => $expiresAt,
                     'has_posting_permission' => true,
                     'has_messaging_permission' => true,
@@ -290,6 +300,7 @@ class SocialAuthService
                         'refresh_token' => $page['access_token'],
                         'token_type' => 'page',
                         'is_token_valid' => true,
+                        ...GrantedScopes::attributes($grantedScopes),
                         'expires_at' => $expiresAt,
                         'has_posting_permission' => true,
                         'has_messaging_permission' => true,
@@ -349,6 +360,7 @@ class SocialAuthService
                     'account_type' => 'ad_account',
                     'access_token' => $userToken,
                     'is_token_valid' => true,
+                    ...GrantedScopes::attributes($grantedScopes),
                     'expires_at' => $expiresAt,
                     'has_ads_permission' => true,
                     'metadata' => [
@@ -444,9 +456,10 @@ class SocialAuthService
         $refreshToken = $token['refresh_token'] ?? null;
         $expiresAt = Carbon::now()->addSeconds($token['expires_in'] ?? 3600);
         $userId = Auth::id();
+        $grantedScopes = GrantedScopes::fromTokenResponse($token);
 
-        $youtubeConnected = $this->connectYoutubeChannels($accessToken, $refreshToken, $expiresAt, $userId);
-        $adAccountsConnected = $this->connectGoogleAdsCustomers($accessToken, $refreshToken, $expiresAt, $userId);
+        $youtubeConnected = $this->connectYoutubeChannels($accessToken, $refreshToken, $expiresAt, $userId, $grantedScopes);
+        $adAccountsConnected = $this->connectGoogleAdsCustomers($accessToken, $refreshToken, $expiresAt, $userId, $grantedScopes);
 
         return redirect()->route('admin.posts.create')->with(
             'success',
@@ -454,7 +467,7 @@ class SocialAuthService
         );
     }
 
-    private function connectYoutubeChannels(string $accessToken, ?string $refreshToken, Carbon $expiresAt, int $userId): int
+    private function connectYoutubeChannels(string $accessToken, ?string $refreshToken, Carbon $expiresAt, int $userId, ?array $grantedScopes = null): int
     {
         $response = $this->api->get('https://www.googleapis.com/youtube/v3/channels', [
             'Authorization' => 'Bearer ' . $accessToken,
@@ -475,6 +488,7 @@ class SocialAuthService
                     'access_token' => $accessToken,
                     'refresh_token' => $refreshToken,
                     'is_token_valid' => true,
+                    ...GrantedScopes::attributes($grantedScopes),
                     'expires_at' => $expiresAt,
                     'has_posting_permission' => true,
                 ]
@@ -506,7 +520,7 @@ class SocialAuthService
      * configured - without it every customer lookup below 401s, the same
      * prerequisite GoogleAdsApiTrait's own ads-only connect flow has.
      */
-    private function connectGoogleAdsCustomers(string $accessToken, ?string $refreshToken, Carbon $expiresAt, int $userId): int
+    private function connectGoogleAdsCustomers(string $accessToken, ?string $refreshToken, Carbon $expiresAt, int $userId, ?array $grantedScopes = null): int
     {
         $developerToken = adminSetting('ads.google.developer_token');
 
@@ -585,6 +599,7 @@ class SocialAuthService
                     'access_token' => $accessToken,
                     'refresh_token' => $refreshToken,
                     'is_token_valid' => true,
+                    ...GrantedScopes::attributes($grantedScopes),
                     'expires_at' => $expiresAt,
                     'has_ads_permission' => true,
                     'metadata' => ['currency' => $detail['currencyCode'] ?? null],
@@ -637,6 +652,7 @@ class SocialAuthService
 
         $token = $tokenResponse['data'];
         $accessToken = $token['access_token'];
+        $grantedScopes = GrantedScopes::fromTokenResponse($token);
         $expiresAt = Carbon::now()->addSeconds($token['expires_in'] ?? 5184000);
         $userId = Auth::id();
         $baseUrl = adminSetting('posts.linkedin.base_url') ?: 'https://api.linkedin.com/rest/';
@@ -689,6 +705,7 @@ class SocialAuthService
                     'account_type' => 'organization',
                     'access_token' => $accessToken,
                     'is_token_valid' => true,
+                    ...GrantedScopes::attributes($grantedScopes),
                     'expires_at' => $expiresAt,
                     'has_posting_permission' => true,
                 ]
@@ -735,6 +752,7 @@ class SocialAuthService
                     'account_type' => 'ad_account',
                     'access_token' => $accessToken,
                     'is_token_valid' => true,
+                    ...GrantedScopes::attributes($grantedScopes),
                     'expires_at' => $expiresAt,
                     'has_ads_permission' => true,
                     'metadata' => ['currency' => $account['currency'] ?? null],
@@ -817,6 +835,7 @@ class SocialAuthService
         }
 
         $token = $tokenResponse['data'];
+        $grantedScopes = GrantedScopes::fromTokenResponse($token);
 
         $profileResponse = $this->api->get('https://open.tiktokapis.com/v2/user/info/', [
             'Authorization' => 'Bearer ' . $token['access_token'],
@@ -838,6 +857,7 @@ class SocialAuthService
                 'access_token' => $token['access_token'],
                 'refresh_token' => $token['refresh_token'] ?? null,
                 'is_token_valid' => true,
+                ...GrantedScopes::attributes($grantedScopes),
                 'expires_at' => Carbon::now()->addSeconds($token['expires_in'] ?? 86400),
                 'has_posting_permission' => true,
                 'metadata' => [
