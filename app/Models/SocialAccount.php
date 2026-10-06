@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\TolerantEncrypted;
 use App\Models\Admin\AdCampaign;
 use App\Models\Messaging\Conversation;
 use App\Models\Messaging\MessageChannel;
@@ -54,8 +55,11 @@ class SocialAccount extends Model
     ];
 
     protected $casts = [
-        // 'access_token' => 'encrypted',
-        // 'refresh_token' => 'encrypted',
+        // Transitional: reads plaintext and encrypted values, always writes
+        // encrypted. Switch to 'encrypted' once connections:encrypt-tokens
+        // --dry-run reports no plaintext (docs/connection-hub-design.md §1a).
+        'access_token' => TolerantEncrypted::class,
+        'refresh_token' => TolerantEncrypted::class,
         'scopes' => 'array',
         'metadata' => 'array',
         'expires_at' => 'datetime',
