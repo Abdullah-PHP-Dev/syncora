@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\SocialAccount;
+use App\Services\Connections\ConnectionRecorder;
+use App\Services\Connections\Drivers\MetaDriver;
 use App\Support\Connections\GrantedScopes;
 use App\Services\PostServices\ApiPostService;
 use App\Services\PostServices\InstagramPostService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
@@ -52,7 +55,7 @@ class PostAccountController extends Controller
 
         $data = $check->json();
 
-        SocialAccount::updateOrCreate(
+        $account = SocialAccount::updateOrCreate(
             ['platform' => 'whatsapp', 'platform_account_id' => $validated['phone_number_id'], 'user_id' => Auth::id()],
             [
                 'name'                    => $validated['name'],
@@ -62,6 +65,11 @@ class PostAccountController extends Controller
                 'has_posting_permission'  => true,
             ]
         );
+
+        // Manual entry (pasted token, no OAuth app) - still one Meta step in the Hub.
+        ConnectionRecorder::record(Auth::id(), 'meta', MetaDriver::WHATSAPP, $validated['phone_number_id'], [
+            'access_token' => $validated['access_token'],
+        ], [$account->id]);
 
         return redirect()->route('admin.posts.create')->with('success', 'WhatsApp number connected - it now appears as a channel in the composer.');
     }
@@ -147,6 +155,12 @@ class PostAccountController extends Controller
                 'metadata'               => ['settings' => ['waba_id' => $validated['waba_id']]],
             ]
         );
+
+        ConnectionRecorder::record(Auth::id(), 'meta', MetaDriver::WHATSAPP, $validated['phone_number_id'], [
+            'provider_app' => 'posts.facebook',
+            'access_token' => $accessToken,
+            'granted_scopes' => $grantedScopes,
+        ], [$account->id]);
 
         return response()->json([
             'success' => true,
@@ -495,7 +509,7 @@ class PostAccountController extends Controller
     {
         // 1. Validate State and Authorization Code
         if (!$request->filled('code') || $request->query('state') !== session('instagram_oauth_state')) {
-            return redirect()->route('admin.posts.create')->with('error', 'Instagram connection failed or state mismatched.');
+            return redirect()->route($this->returnRoute())->with('error', 'Instagram connection failed or state mismatched.');
         }
 
         session()->forget('instagram_oauth_state');
@@ -515,7 +529,7 @@ class PostAccountController extends Controller
 
         if (!$tokenResponse->successful()) {
             $errorMsg = $tokenResponse->json()['error_message'] ?? 'Failed to obtain access token from Instagram.';
-            return redirect()->route('admin.posts.create')->with('error', $errorMsg);
+            return redirect()->route($this->returnRoute())->with('error', $errorMsg);
         }
 
         $tokenData   = $tokenResponse->json();
@@ -525,7 +539,7 @@ class PostAccountController extends Controller
         $igUserId    = $tokenData['user_id'] ?? null;
 
         if (!$shortToken) {
-            return redirect()->route('admin.posts.create')->with('error', 'Invalid token response received from Instagram.');
+            return redirect()->route($this->returnRoute())->with('error', 'Invalid token response received from Instagram.');
         }
 
         // 3. Exchange short-lived token for a 60-day long-lived access token
@@ -551,7 +565,7 @@ class PostAccountController extends Controller
         ]);
 
         if (!$userResponse->successful()) {
-            return redirect()->route('admin.posts.create')->with('error', 'Connected to Instagram, but failed to fetch profile details.');
+            return redirect()->route($this->returnRoute())->with('error', 'Connected to Instagram, but failed to fetch profile details.');
         }
 
         $igUser = $userResponse->json();
@@ -587,6 +601,15 @@ class PostAccountController extends Controller
             ]
         );
 
+        // The consent, for the Connection Hub (design doc §4: Instagram
+        // Login is a secondary step of the Meta card).
+        ConnectionRecorder::record(Auth::id(), 'meta', MetaDriver::INSTAGRAM_LOGIN, (string) $accId, [
+            'provider_app' => 'posts.instagram',
+            'access_token' => $accessToken,
+            'expires_at' => Carbon::now()->addSeconds($expiresIn),
+            'granted_scopes' => $grantedScopes,
+        ], [$instagramAccount->id]);
+
         // Each of these three is independently failure-tolerant - this
         // outer try/catch is a deliberate second safety net so the
         // account above stays saved even if a stats/subscribe/backfill
@@ -610,7 +633,15 @@ class PostAccountController extends Controller
             Log::warning('Instagram post backfill failed after connect.', ['account_id' => $instagramAccount->id, 'error' => $e->getMessage()]);
         }
 
-        return redirect()->route('admin.posts.create')->with('success', "Successfully connected Instagram account (@{$igUser['username']}).");
+        return redirect()->route($this->returnRoute())->with('success', "Successfully connected Instagram account (@{$igUser['username']}).");
+    }
+
+    /** Back to the Connection Hub when it started the flow (MetaDriver::connect). */
+    private function returnRoute(): string
+    {
+        return session()->pull('social_oauth_return_to') === 'hub' && Route::has('admin.connections.index')
+            ? 'admin.connections.index'
+            : 'admin.posts.create';
     }
 
     private function instagramCallbackUrl(): string

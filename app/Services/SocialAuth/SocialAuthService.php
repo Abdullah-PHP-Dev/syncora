@@ -4,6 +4,8 @@ namespace App\Services\SocialAuth;
 
 use App\Models\Messaging\MessageChannel;
 use App\Models\SocialAccount;
+use App\Services\Connections\ConnectionRecorder;
+use App\Services\Connections\Drivers\MetaDriver;
 use App\Support\Connections\GrantedScopes;
 use App\Services\ApiService;
 use App\Services\MessagingServices\FacebookMessengerService;
@@ -15,6 +17,7 @@ use App\Services\PostServices\YoutubePostService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
 
@@ -84,13 +87,13 @@ class SocialAuthService
         if ($providerError) {
             Log::warning(ucfirst($platform) . ' OAuth returned an error.', ['error' => $providerError]);
 
-            return redirect()->route('admin.posts.create')->with('error', ucfirst($platform) . ' connection failed: ' . $providerError);
+            return redirect()->route($this->returnRoute())->with('error', ucfirst($platform) . ' connection failed: ' . $providerError);
         }
 
         if (!$code || $state !== $expectedState) {
             Log::warning(ucfirst($platform) . ' OAuth callback rejected.', ['has_code' => (bool) $code, 'state_matches' => $state === $expectedState && $state !== null]);
 
-            return redirect()->route('admin.posts.create')->with('error', ucfirst($platform) . ' connection failed or was cancelled.');
+            return redirect()->route($this->returnRoute())->with('error', ucfirst($platform) . ' connection failed or was cancelled.');
         }
 
         return match ($platform) {
@@ -146,13 +149,41 @@ class SocialAuthService
      */
     private function returnRoute(): string
     {
-        return session()->pull('social_oauth_return_to') === 'dashboard' ? 'admin.chats.dashboard' : 'admin.posts.create';
+        return match (session()->pull('social_oauth_return_to')) {
+            'dashboard' => 'admin.chats.dashboard',
+            'hub' => Route::has('admin.connections.index') ? 'admin.connections.index' : 'admin.posts.create',
+            default => 'admin.posts.create',
+        };
     }
 
     // =====================================================================
     // Facebook / Instagram - posting + messaging + ads all genuinely share
     // one Graph API OAuth app.
     // =====================================================================
+
+    /**
+     * Facebook Login for Business: with a configuration (App Dashboard >
+     * Facebook Login for Business > Configurations) the dialog takes its
+     * config_id INSTEAD of scope, and the configuration carries the
+     * permissions. Until one is configured, the classic scope list - the
+     * App Review set in docs/connection-hub-design.md §4.
+     */
+    private function facebookPermissionParams(): array
+    {
+        $configId = adminSetting('connections.meta.login_config_id');
+
+        if ($configId) {
+            return ['config_id' => $configId];
+        }
+
+        return ['scope' => implode(',', [
+            'pages_show_list', 'pages_manage_posts', 'pages_read_engagement',
+            'pages_manage_metadata', 'pages_read_user_content', 'pages_manage_engagement',
+            'pages_messaging', 'read_insights', 'business_management',
+            'instagram_basic', 'instagram_content_publish', 'instagram_manage_comments',
+            'instagram_manage_insights', 'instagram_manage_messages', 'ads_management', 'ads_read',
+        ])];
+    }
 
     private function redirectFacebook(string $state)
     {
@@ -163,14 +194,7 @@ class SocialAuthService
             'redirect_uri' => $this->callbackUrl('facebook'),
             'state' => $state,
             'response_type' => 'code',
-            'scope' => implode(',', [
-                'pages_show_list', 'pages_manage_posts', 'pages_read_engagement',
-                'pages_manage_metadata', 'pages_read_user_content', 'pages_manage_engagement',
-                'pages_messaging', 'read_insights', 'business_management',
-                'instagram_basic', 'instagram_content_publish', 'instagram_manage_comments',
-                'instagram_manage_insights', 'ads_management', 'ads_read',
-            ]),
-        ]);
+        ] + $this->facebookPermissionParams());
 
         return Redirect::away($url);
     }
@@ -216,6 +240,7 @@ class SocialAuthService
         $pagesConnected = 0;
         $instagramConnected = 0;
         $adAccountsConnected = 0;
+        $assetIds = [];
 
         $pagesResponse = $this->api->get($baseUrl . 'me/accounts', [], [
             'access_token' => $userToken,
@@ -249,6 +274,7 @@ class SocialAuthService
                 ]
             );
             $pagesConnected++;
+            $assetIds[] = $pageAccount->id;
 
             $pageChannel = MessageChannel::updateOrCreate(
                 ['platform' => 'facebook', 'external_id' => $page['id']],
@@ -315,6 +341,7 @@ class SocialAuthService
                     ]
                 );
                 $instagramConnected++;
+                $assetIds[] = $igAccount->id;
 
                 $igChannel = MessageChannel::updateOrCreate(
                     ['platform' => 'instagram', 'external_id' => $ig['id']],
@@ -382,7 +409,22 @@ class SocialAuthService
                 'account_status' => (string) ($adAccount['account_status'] ?? null),
             ]);
             $adAccountsConnected++;
+            $assetIds[] = $fbAdAccount->id;
         }
+
+        // The consent itself, for the Connection Hub (design doc §2): Meta
+        // user id as the provider account, the user token, granted scopes.
+        $me = $this->api->get($baseUrl . 'me', [], [
+            'access_token' => $userToken,
+            'appsecret_proof' => $this->metaAppSecretProof($userToken, $clientSecret),
+            'fields' => 'id',
+        ]);
+        ConnectionRecorder::record($userId, 'meta', MetaDriver::LOGIN, $me['success'] ? ($me['data']['id'] ?? null) : null, [
+            'provider_app' => 'posts.facebook',
+            'access_token' => $userToken,
+            'expires_at' => $expiresAt,
+            'granted_scopes' => $grantedScopes,
+        ], $assetIds);
 
         return redirect()->route($this->returnRoute())->with(
             'success',

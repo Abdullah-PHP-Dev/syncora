@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Connections;
 
+use Illuminate\Support\Facades\Schema;
+
 /**
  * Runs only the migrations the Connection Hub touches - the full set
  * doesn't run on SQLite (same approach as the other feature tests here).
@@ -21,5 +23,33 @@ trait CreatesConnectionTables
         ] as $migration) {
             (require database_path('migrations/' . $migration))->up();
         }
+    }
+
+    /** admin_settings, so adminSetting() can be set via Settings::set(). */
+    protected function createSettingsTable(): void
+    {
+        Schema::create('admin_settings', function ($table) {
+            $table->id();
+            $table->string('key')->unique();
+            $table->longText('value')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    /** Minimal shape the Meta connect writes its Messenger/Instagram channels to. */
+    protected function createMessageChannelsTable(): void
+    {
+        Schema::create('message_channels', function ($table) {
+            $table->id();
+            $table->foreignId('social_account_id')->nullable();
+            $table->string('platform');
+            $table->string('external_id');
+            $table->string('verify_token')->nullable();
+            $table->json('meta')->nullable();
+            $table->boolean('webhook_subscribed')->default(false);
+            $table->timestamp('last_synced_at')->nullable();
+            $table->timestamp('expires_at')->nullable();
+            $table->timestamps();
+        });
     }
 }

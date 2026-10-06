@@ -9,24 +9,17 @@ use App\Support\Connections\GrantedScopes;
 use App\Support\Settings;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /** Step 0b: OAuth callbacks store what was granted, not what was requested. */
 class GrantedScopesTest extends TestCase
 {
+    use CreatesConnectionTables;
+
     protected function setUp(): void
     {
         parent::setUp();
-        foreach ([
-            '0001_01_01_000000_create_users_table.php',
-            '2026_06_13_213124_create_permission_tables.php',
-            '2026_08_26_100000_create_social_accounts_table.php',
-            '2026_08_28_100000_create_social_account_post_details_table.php',
-            '2026_10_07_100000_add_asset_and_user_tokens_to_social_accounts_table.php',
-        ] as $migration) {
-            (require database_path('migrations/' . $migration))->up();
-        }
+        $this->createConnectionTables();
         $this->actingAs(User::create(['name' => 'Seller', 'email' => 's@example.com', 'password' => bcrypt('x')]));
     }
 
@@ -100,26 +93,8 @@ class GrantedScopesTest extends TestCase
 
     public function test_facebook_callback_stores_granted_permissions_on_page_and_ad_rows(): void
     {
-        Schema::create('admin_settings', function ($table) {
-            $table->id();
-            $table->string('key')->unique();
-            $table->longText('value')->nullable();
-            $table->timestamps();
-        });
-        // Minimal shape the Facebook callback writes its Messenger channel to.
-        Schema::create('message_channels', function ($table) {
-            $table->id();
-            $table->foreignId('social_account_id')->nullable();
-            $table->string('platform');
-            $table->string('external_id');
-            $table->string('verify_token')->nullable();
-            $table->json('meta')->nullable();
-            $table->boolean('webhook_subscribed')->default(false);
-            $table->timestamp('last_synced_at')->nullable();
-            $table->timestamp('expires_at')->nullable();
-            $table->timestamps();
-        });
-        (require database_path('migrations/2026_08_28_100001_create_social_account_ad_details_table.php'))->up();
+        $this->createSettingsTable();
+        $this->createMessageChannelsTable();
         Settings::set('posts.facebook.client_id', 'app-1');
         Settings::set('posts.facebook.client_secret', 'app-secret');
         session(['social_oauth_state_facebook' => 'state-fb']);

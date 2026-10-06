@@ -4,6 +4,8 @@ namespace App\Services\MessagingServices\Concerns;
 
 use App\Models\Messaging\MessageChannel;
 use App\Models\SocialAccount;
+use App\Services\Connections\ConnectionRecorder;
+use App\Services\Connections\Drivers\MetaDriver;
 use App\Support\Connections\GrantedScopes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -158,6 +160,7 @@ trait InstagramMessagingTrait
         }
 
         $created = 0;
+        $assetIds = [];
 
         foreach ($pagesResponse['data']['data'] as $page) {
             if (!empty($page['instagram_business_account']['id'])) {
@@ -191,12 +194,26 @@ trait InstagramMessagingTrait
                 );
 
                 $created++;
+                $assetIds[] = $account->id;
 
                 try { $this->syncChannelDetails($channel); } catch (\Throwable $e) {}
                 try { $this->subscribeToWebhooks($channel); } catch (\Throwable $e) {}
                 try { $this->backfillRecentConversations($channel); } catch (\Throwable $e) {}
             }
         }
+
+        // Same Facebook Login consent as the main Meta connect (design doc §4).
+        $me = $this->apiService->get($this->graphApiUrl('me'), [], [
+            'access_token'    => $userToken,
+            'appsecret_proof' => $this->metaAppSecretProof($userToken),
+            'fields'          => 'id',
+        ]);
+        ConnectionRecorder::record((int) Auth::id(), 'meta', MetaDriver::LOGIN, $me['success'] ? ($me['data']['id'] ?? null) : null, [
+            'provider_app'   => 'posts.facebook',
+            'access_token'   => $userToken,
+            'expires_at'     => now()->addSeconds($expiresIn),
+            'granted_scopes' => $grantedScopes,
+        ], $assetIds);
 
         return ['success' => true, 'data' => ['instagram' => $created]];
     }

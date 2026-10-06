@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\AdController;
 use App\Http\Controllers\Admin\PostController;
 use App\Http\Controllers\Admin\PostAccountController;
 use App\Http\Controllers\Admin\SocialAccountController;
+use App\Http\Controllers\Admin\ConnectionHubController;
 use App\Http\Controllers\Admin\ChatController;
 use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\MessageChannelController;
@@ -476,6 +477,11 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				// option (TikTok Ads has its own separate OAuth app - see
 				// ads.redirect) or because it's a genuinely different
 				// product (Google Chat vs. YouTube/Business Profile).
+				// CONNECTION HUB - connect each platform once for every
+				// module (docs/connection-hub-design.md). Steps reuse the
+				// callback URLs already registered with each provider.
+				Route::get('connections/{platform}/connect/{step}', [ConnectionHubController::class, 'connect'])
+					->name('connections.connect');
 				Route::get('social-accounts/{platform}/redirect', [SocialAccountController::class, 'redirect'])
 					->name('social-accounts.redirect');
 				Route::get('social-accounts/{platform}/callback', [SocialAccountController::class, 'callback'])
