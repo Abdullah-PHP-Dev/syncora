@@ -30,7 +30,7 @@ class AdAccountSelection
     {
         return SocialAccount::where('user_id', $userId)
             ->where('platform', self::accountPlatform($platform))
-            ->where('has_ads_permission', true)
+            ->usableFor('ads')
             ->orderBy('id')
             ->get();
     }

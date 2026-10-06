@@ -266,17 +266,39 @@ class SocialAccount extends Model
 
     public function scopeWithPostingPermission($query)
     {
-        return $query->where('has_posting_permission', true);
+        return $query->usableFor('posting');
     }
 
     public function scopeWithMessagingPermission($query)
     {
-        return $query->where('has_messaging_permission', true);
+        return $query->usableFor('messaging');
     }
 
     public function scopeWithAdsPermission($query)
     {
-        return $query->where('has_ads_permission', true);
+        return $query->usableFor('ads');
+    }
+
+    /**
+     * The user's choice in the Connection Hub's asset picker
+     * (enabled_capabilities): null = everything the connection allows, a
+     * list = only those. docs/connection-hub-design.md §10.
+     */
+    public function scopeEnabledFor($query, string $capability)
+    {
+        return $query->where(fn ($q) => $q->whereNull('enabled_capabilities')
+            ->orWhereJsonContains('enabled_capabilities', $capability));
+    }
+
+    /** Has the permission AND the user hasn't switched it off in the Hub. */
+    public function scopeUsableFor($query, string $capability)
+    {
+        return $query->where("has_{$capability}_permission", true)->enabledFor($capability);
+    }
+
+    public function isEnabledFor(string $capability): bool
+    {
+        return $this->enabled_capabilities === null || in_array($capability, $this->enabled_capabilities, true);
     }
 
     public function hasValidToken(): bool

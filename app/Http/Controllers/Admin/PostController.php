@@ -327,12 +327,12 @@ class PostController extends Controller
         // platform picker - same has_posting_permission gate as the main
         // create page, so an ad-only account can't be selected here either.
         $postingAccounts = SocialAccount::where('user_id', $userId)
-            ->where('has_posting_permission', true)
+            ->usableFor('posting')
             ->get();
 
         // ---- Unread inbox count, for the header notification bell ----
         $totalUnreadMessages = Conversation::whereHas('channel', function ($q) use ($userId) {
-            $q->where('user_id', $userId);
+            $q->where('user_id', $userId)->enabledFor('messaging');
         })->sum('unread_count');
 
         // ---- Week-over-week reach/engagement trend (real previous-7-days
@@ -462,7 +462,7 @@ class PostController extends Controller
         // for the "Create post" modal's picker, so it shows the actual
         // Page/Profile you're posting as instead of a bare platform logo.
         $postingAccounts = SocialAccount::where('user_id', $userId)
-            ->where('has_posting_permission', true)
+            ->usableFor('posting')
             ->get(['id', 'platform', 'name', 'username', 'avatar_url'])
             ->values();
 
@@ -963,7 +963,7 @@ class PostController extends Controller
             ->orderBy('id', 'desc')
             ->get(['id', 'name']);
 
-        $accounts = SocialAccount::whereUserId($userId)->where('has_posting_permission', true)->get();
+        $accounts = SocialAccount::whereUserId($userId)->usableFor('posting')->get();
 
         return view('admin.posts.composer', compact('categories', 'accounts'));
     }
@@ -1212,7 +1212,7 @@ class PostController extends Controller
         // has_posting_permission excludes ad-account-only rows (eg. a
         // Facebook act_... Ad Account) - this list feeds the "select a
         // page to post to" picker below, which an ad account can never be.
-        $accounts = SocialAccount::whereUserId($userId)->where('has_posting_permission', true)->get();
+        $accounts = SocialAccount::whereUserId($userId)->usableFor('posting')->get();
 
         // Fetch scheduled posts (past and future) for this platform
         $scheduledPosts = Post::where('user_id', $userId)
@@ -1653,7 +1653,7 @@ class PostController extends Controller
             // post, so without this filter quickStore() would try to
             // publish to them too.
             $pages = SocialAccount::where(['user_id' => $userId, 'platform' => $platform])
-                ->where('has_posting_permission', true)
+                ->usableFor('posting')
                 ->get();
 
             if ($pages->isEmpty()) {

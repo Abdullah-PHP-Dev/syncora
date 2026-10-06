@@ -156,7 +156,7 @@ class AdCampaignController extends Controller
         // Facebook ad account in the whole table, i.e. possibly another
         // seller's.
         [$account, $adAccounts] = $this->selectedAdAccount('facebook');
-        $instagramAccount = $this->adAccountModel->where('has_ads_permission', true)->where('platform', 'instagram')->where('user_id', Auth::id())->first();
+        $instagramAccount = $this->adAccountModel->usableFor('ads')->where('platform', 'instagram')->where('user_id', Auth::id())->first();
 
         // Mapped to plain arrays here rather than inside the view's
         // @json() calls - an fn() => [...] arrow-closure array literal as
@@ -227,7 +227,7 @@ class AdCampaignController extends Controller
      */
     public function edit($platform, string $id)
     {
-        $account = $this->adAccountModel->where('user_id', Auth::id())->where('has_ads_permission', true)->where('platform', $platform === 'youtube' ? 'google' : $platform)->with('adDetails')->first();
+        $account = $this->adAccountModel->where('user_id', Auth::id())->usableFor('ads')->where('platform', $platform === 'youtube' ? 'google' : $platform)->with('adDetails')->first();
         $countries = $this->countryModel->all();
         $campaign = $this->adCampaignModel->with(['socialAccount', 'adGroups', 'adGroups.creatives', 'adGroups.creatives.media', 'ads'])->find($id);
         $platformPages = $this->platformPages($platform);

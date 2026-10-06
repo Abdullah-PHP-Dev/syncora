@@ -33,7 +33,7 @@ class NotificationController extends Controller
 
         $conversationsQuery = fn () => Conversation::whereHas(
             'channel',
-            fn ($q) => $q->where('user_id', $userId)
+            fn ($q) => $q->where('user_id', $userId)->enabledFor('messaging')
         );
 
         $unreadMessages = (int) $conversationsQuery()->sum('unread_count');

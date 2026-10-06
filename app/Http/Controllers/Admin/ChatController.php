@@ -33,7 +33,7 @@ class ChatController extends Controller
     public function dashboard(Request $request)
     {
         $conversations = Conversation::with('channel')
-            ->whereHas('channel', fn($q) => $q->where('user_id', Auth::id()))
+            ->whereHas('channel', fn($q) => $q->where('user_id', Auth::id())->enabledFor('messaging'))
             ->orderByDesc('last_message_at')
             ->get();
 
@@ -92,7 +92,7 @@ class ChatController extends Controller
             return collect([$conversation->platform]);
         }
 
-        return Conversation::whereHas('channel', fn($q) => $q->where('user_id', Auth::id()))
+        return Conversation::whereHas('channel', fn($q) => $q->where('user_id', Auth::id())->enabledFor('messaging'))
             ->where('customer_name', $conversation->customer_name)
             ->pluck('platform')
             ->unique()

@@ -54,7 +54,7 @@ class AdsDashboardService
 
         $accounts  = SocialAccount::query()
             ->where('user_id', $this->userId)
-            ->where('has_ads_permission', true)
+            ->usableFor('ads')
             ->where('platform', $platform === 'youtube' ? 'google' : $platform)
             ->with('adDetails')
             ->get();
@@ -174,7 +174,7 @@ class AdsDashboardService
     {
         return SocialAccount::query()
             ->where('user_id', $this->userId)
-            ->where('has_ads_permission', true)
+            ->usableFor('ads')
             ->with('adDetails')
             ->get()
             ->groupBy('platform');
