@@ -84,7 +84,7 @@ class XDriver extends MirroredTokenDriver
                 'label' => 'X Ads',
                 'description' => 'Promoted posts on your X Ads accounts.',
                 'primary' => false,
-                'available' => (bool) adminSetting('ads.x.client_id'),
+                'available' => XOAuth1::consumer()[0] !== '',
                 'note' => 'Separate X app until Ads API access is approved for the main one.',
             ];
         }
@@ -156,7 +156,9 @@ class XDriver extends MirroredTokenDriver
 
     private function adsHeader(string $method, string $url, SocialConnection $connection): string
     {
-        return XOAuth1::header($method, $url, [], (string) adminSetting('ads.x.client_id'), (string) adminSetting('ads.x.client_secret'), $connection->access_token, $connection->token_secret);
+        [$key, $secret] = XOAuth1::consumer();
+
+        return XOAuth1::header($method, $url, [], $key, $secret, $connection->access_token, $connection->token_secret);
     }
 
     private function latestAsset(SocialConnection $connection): ?SocialAccount

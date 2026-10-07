@@ -25,7 +25,7 @@ class XHubTest extends TestCase
         $this->createConnectionTables();
         $this->createSettingsTable();
         Settings::set('posts.x.client_id', 'x-client');
-        Settings::set('ads.x.client_id', 'ads-consumer');
+        Settings::set('posts.x.consumer_key', 'api-key');
         $this->user = User::create(['name' => 'Seller', 'email' => 's@example.com', 'password' => bcrypt('x')]);
         $this->actingAs($this->user);
     }

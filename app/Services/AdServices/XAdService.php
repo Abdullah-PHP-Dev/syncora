@@ -95,8 +95,10 @@ class XAdService
      */
     private function ensureCredentialsConfigured(): ?string
     {
-        if (!adminSetting('ads.x.client_id') || !adminSetting('ads.x.client_secret')) {
-            return 'X Ads is not configured yet - ads.x.client_id and ads.x.client_secret are missing from Admin Settings.';
+        [$key, $secret] = XOAuth1::consumer();
+
+        if ($key === '' || $secret === '') {
+            return 'X Ads is not configured yet - add the X app\'s API Key and Secret (posts.x.consumer_key / posts.x.consumer_secret) in Admin Settings.';
         }
 
         return null;
@@ -105,11 +107,10 @@ class XAdService
     public function redirect($platform, $state)
     {
         if ($error = $this->ensureCredentialsConfigured()) {
-            return redirect()->route('admin.ads.dashboard')->with('error', $error);
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', $error);
         }
 
-        $clientId = adminSetting('ads.x.client_id');
-        $clientSecret = adminSetting('ads.x.client_secret');
+        [$clientId, $clientSecret] = XOAuth1::consumer();
         // Reproduced live: this admin_setting row doesn't exist on
         // production, so adminSetting() returned null here and hit
         // signature()'s strict string $url type-hint before ever making a
@@ -136,13 +137,22 @@ class XAdService
         $response = $this->apiService->post($requestTokenUrl, ['Authorization' => $authHeader]);
 
         if (!$response['success']) {
-            return redirect()->route('admin.ads.dashboard')->with('error', 'X did not return a request token. The app may not have Ads API access, or ads.x.client_id/client_secret are wrong.');
+            // X answers 401 code 32 for a wrong API Key/Secret and 403 code
+            // 415 for a callback URL missing from the app's approved list.
+            $body = (string) ($response['body'] ?? '');
+            $reason = str_contains($body, '415')
+                ? 'X has not approved this callback URL: add ' . $this->getCallbackUrl() . ' to the X app\'s Callback URLs (developer.x.com > your app > User authentication settings).'
+                : (str_contains($body, '"code":32') || str_contains($body, 'Could not authenticate')
+                    ? 'X rejected the app credentials - check the API Key and Secret (posts.x.consumer_key / consumer_secret).'
+                    : 'X did not return a request token' . ($body !== '' ? ': ' . Str::limit(strip_tags($body), 160) : '.'));
+
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', $reason);
         }
 
         parse_str($response['body'], $tokens);
 
         if (!isset($tokens['oauth_token'])) {
-            return redirect()->route('admin.ads.dashboard')->with('error', 'X request-token response was missing oauth_token.');
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', 'X request-token response was missing oauth_token.');
         }
 
         session(['x_oauth_token_secret' => $tokens['oauth_token_secret'] ?? '', 'x_state' => $state]);
@@ -161,8 +171,8 @@ class XAdService
      * (via tokenSecret()) to sign every subsequent Ads API call.
      *
      * Note: this only succeeds if the developer app actually has X Ads API
-     * access AND ads.x.client_id/client_secret are the consumer key/secret
-     * of that same app. Neither can be verified from code - a failure here
+     * access AND XOAuth1::consumer() is that same app's API Key/Secret.
+     * Neither can be verified from code - a failure here
      * returns to the dashboard with the API's own error rather than a 500
      * (before this method existed at all, completing the X consent screen
      * hit "Call to undefined method XAdService::callback()").
@@ -173,15 +183,14 @@ class XAdService
         $oauthVerifier = request()->input('oauth_verifier');
 
         if (request()->filled('denied') || !$oauthToken || !$oauthVerifier) {
-            return redirect()->route('admin.ads.dashboard')->with('error', 'X authorization was cancelled or did not return a verifier.');
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', 'X authorization was cancelled or did not return a verifier.');
         }
 
         if ($error = $this->ensureCredentialsConfigured()) {
-            return redirect()->route('admin.ads.dashboard')->with('error', $error);
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', $error);
         }
 
-        $consumerKey    = adminSetting('ads.x.client_id');
-        $consumerSecret = adminSetting('ads.x.client_secret');
+        [$consumerKey, $consumerSecret] = XOAuth1::consumer();
         $accessTokenUrl = adminSetting('ads.x.access_token_url') ?: 'https://api.x.com/oauth/access_token';
         $requestSecret  = (string) session('x_oauth_token_secret', '');
 
@@ -204,13 +213,13 @@ class XAdService
         session()->forget(['x_oauth_token_secret', 'x_state']);
 
         if (!$tokenResponse['success']) {
-            return redirect()->route('admin.ads.dashboard')->with('error', 'X access-token exchange failed: ' . ($tokenResponse['body'] ?? 'unknown error'));
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', 'X access-token exchange failed: ' . ($tokenResponse['body'] ?? 'unknown error'));
         }
 
         parse_str((string) $tokenResponse['body'], $access);
 
         if (empty($access['oauth_token']) || empty($access['oauth_token_secret'])) {
-            return redirect()->route('admin.ads.dashboard')->with('error', 'X did not return an access token pair.');
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', 'X did not return an access token pair.');
         }
 
         $accessToken       = $access['oauth_token'];
@@ -257,7 +266,7 @@ class XAdService
             // through the real $payload parameter instead.
             $accountsResponse = $this->apiService->get($accountsUrl, ['Authorization' => $acctHeader], $apiParams);
             if (!$accountsResponse['success']) {
-                return redirect()->route('admin.ads.dashboard')->with('error', $accountsResponse['data']['errors'][0]['message'] ?? 'Connected to X, but could not fetch your Ads accounts (the app likely needs X Ads API access).');
+                return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', $accountsResponse['data']['errors'][0]['message'] ?? 'Connected to X, but could not fetch your Ads accounts (the app likely needs X Ads API access).');
             }
 
             $accounts = array_merge($accounts, $accountsResponse['data']['data'] ?? []);
@@ -268,7 +277,7 @@ class XAdService
         $assetIds = [];
      
         foreach ($accounts as $acct) {
-            if (empty($acct['id']) || $acct['approval_status'] == 'REJECTED') {
+            if (empty($acct['id']) || ($acct['approval_status'] ?? null) === 'REJECTED') {
                 continue;
             }
             $record = $this->apiService->success(
@@ -314,7 +323,7 @@ class XAdService
         }
 
         if ($connected === 0) {
-            return redirect()->route('admin.ads.dashboard')->with('error', 'Connected to X, but no Ads account was returned for this user.');
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', 'Connected to X, but no Ads account was returned for this user.');
         }
 
         // The consent, with its token secret encrypted on the connection -
@@ -358,12 +367,14 @@ class XAdService
 
     private function oauthHeader(string $method, string $url, array $params = []): string
     {
+        [$consumerKey, $consumerSecret] = XOAuth1::consumer();
+
         return XOAuth1::header(
             $method,
             $url,
             $params,
-            (string) adminSetting('ads.x.client_id'),
-            (string) adminSetting('ads.x.client_secret'),
+            $consumerKey,
+            $consumerSecret,
             $this->account->access_token,
             $this->tokenSecret(),
         );

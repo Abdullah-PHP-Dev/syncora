@@ -30,8 +30,11 @@ class XConnectionTest extends TestCase
         $this->createMessageChannelsTable();
         Settings::set('posts.x.client_id', 'x-oauth2-client');
         Settings::set('posts.x.client_secret', 'x-oauth2-secret');
-        Settings::set('ads.x.client_id', 'ads-consumer');
-        Settings::set('ads.x.client_secret', 'ads-consumer-secret');
+        // OAuth 1.0a signs with the app's API Key/Secret; the OAuth 2.0
+        // Client ID in ads.x.client_id is not a consumer key.
+        Settings::set('ads.x.client_id', 'x-oauth2-client');
+        Settings::set('posts.x.consumer_key', 'api-key');
+        Settings::set('posts.x.consumer_secret', 'api-key-secret');
         $this->user = User::create(['name' => 'Seller', 'email' => 's@example.com', 'password' => bcrypt('x')]);
         $this->actingAs($this->user);
     }
@@ -123,7 +126,7 @@ class XConnectionTest extends TestCase
 
         $this->assertSame(SocialConnection::NEEDS_REAUTH, app(XDriver::class)->validate($connection)->status);
         Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), 'ads-api.x.com/12/accounts')
-            && str_contains($r->header('Authorization')[0] ?? '', 'oauth_consumer_key="ads-consumer"')
+            && str_contains($r->header('Authorization')[0] ?? '', 'oauth_consumer_key="api-key"')
             && str_contains($r->header('Authorization')[0] ?? '', 'oauth_token="tok"'));
     }
 
