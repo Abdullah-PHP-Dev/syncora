@@ -73,7 +73,6 @@ class PostController extends Controller
 
         // ---- Accounts ----
         $accounts = SocialAccount::whereUserId($userId)->with('postDetails')->get();
-        $totalAccounts = $accounts->count();
         $accountsByPlatform = $accounts->groupBy('platform')->map->count();
         $totalFollowers = (int) $accounts->sum('followers_count');
         $totalAccountLikes = (int) $accounts->sum('likes_count');
@@ -164,21 +163,6 @@ class PostController extends Controller
         $totalMessages = Message::whereHas('conversation.channel', function ($q) use ($userId) {
             $q->where('user_id', $userId);
         })->count();
-
-        // ---- Connected accounts overview (followers/likes/media per account) ----
-        $accountsOverview = $accounts->map(function ($account) {
-            return [
-                'id'             => $account->id,
-                'platform'       => $account->platform,
-                'name'           => $account->name ?: $account->username,
-                'username'       => $account->username,
-                'image'          => $account->avatar_url,
-                'follower_count' => (int) $account->followers_count,
-                'likes_count'    => (int) $account->likes_count,
-                'media_count'    => (int) $account->media_count,
-                'views_count'    => (int) $account->views_count,
-            ];
-        })->sortByDesc('follower_count')->values();
 
         // ---- Engagement rate: (likes+comments+shares) / reach ----
         // Reach under 50 makes the ratio meaningless (a handful of test
@@ -321,6 +305,10 @@ class PostController extends Controller
         // Right-hand panel tabs: this month's scheduled (soonest first) and
         // published (latest first) posts.
         $calendarScheduled = $calendarMonthEntries->where('status', 'scheduled')->values();
+
+        // Hero chips: relative to today, not to the month the calendar shows.
+        $heroNextWeek = $calendarEntriesBetween(now(), now()->addDays(7))->where('status', 'scheduled')->count();
+        $heroFailed = $calendarEntriesBetween(now()->startOfMonth(), now()->endOfMonth())->where('status', 'failed')->count();
         $calendarPublished = $calendarMonthEntries->where('status', 'published')->sortByDesc('datetime')->values();
 
         // Posting-permitted accounts, for the calendar's "quick post" modal
@@ -352,16 +340,8 @@ class PostController extends Controller
             ? round((($currWeekEngagement - $prevWeekEngagement) / $prevWeekEngagement) * 100, 1)
             : null;
 
-        // ---- New accounts connected in the last 7 days, for the Connected
-        // Accounts card (real signal, since follower history isn't tracked) ----
-        $newAccountsThisWeek = SocialAccount::where('user_id', $userId)
-            ->where('created_at', '>=', now()->subDays(7))
-            ->count();
-            
         return view($this->_config['view'], compact(
-            'totalAccounts',
             'accountsByPlatform',
-            'accountsOverview',
             'totalFollowers',
             'totalAccountLikes',
             'totalMedia',
@@ -406,12 +386,13 @@ class PostController extends Controller
             'calendarStats',
             'calendarScheduled',
             'calendarPublished',
+            'heroNextWeek',
+            'heroFailed',
             'recentPosts',
             'topPosts',
             'totalUnreadMessages',
             'reachChangePercent',
             'engagementChangePercent',
-            'newAccountsThisWeek',
             'postingAccounts'
         ));
     }

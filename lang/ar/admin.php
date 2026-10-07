@@ -325,6 +325,12 @@ return [
     'dashboard_page' => [
         'welcome_back' => 'مرحبًا بعودتك، :name!',
         'welcome_subtitle' => 'إليك آخر مستجدات حضورك على وسائل التواصل الاجتماعي اليوم.',
+        'hero_next_week' => 'تُنشر خلال الأيام السبعة القادمة',
+        'hero_failed' => 'فشلت هذا الشهر - راجعها',
+        'hero_unread' => 'رسائل غير مقروءة',
+        'hero_all_posts' => 'كل المنشورات',
+        'hero_kpi_scheduled' => 'المنشورات المجدولة',
+        'hero_this_month' => 'هذا الشهر',
         'select_date_range' => 'اختر نطاق التاريخ',
         'create_post' => 'إنشاء منشور',
 

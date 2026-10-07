@@ -86,13 +86,24 @@
 
     <x-connection-alerts capability="posting" />
 
-    <!-- Header -->
-    <div class="dash-header d-flex flex-wrap align-items-start justify-content-between gap-4 mb-6">
-        <div>
-            <h4 class="dash-title mb-1">{{ __('admin.dashboard_page.welcome_back', ['name' => explode(' ', trim(auth()->user()->name ?? 'there'))[0]]) }} <span>👋</span></h4>
-            <p class="dash-subtitle mb-0">{{ __('admin.dashboard_page.welcome_subtitle') }}</p>
+    <!-- Hero: greeting, today at a glance, primary actions -->
+    @php
+        $heroScheduled = $calendarStats['scheduled']['value'] ?? 0;
+    @endphp
+    <section class="pd-hero mb-6">
+        <div class="pd-hero-main">
+            <span class="pd-hero-date"><i class="bx bx-sun"></i> {{ now()->translatedFormat('l, F j') }}</span>
+            <h4 class="dash-title">{{ __('admin.dashboard_page.welcome_back', ['name' => explode(' ', trim(auth()->user()->name ?? 'there'))[0]]) }}</h4>
+            <p class="dash-subtitle">{{ __('admin.dashboard_page.welcome_subtitle') }}</p>
+            <div class="pd-hero-chips">
+                <span class="pd-hero-chip"><i class="bx bx-time-five"></i><strong>{{ $heroNextWeek }}</strong> {{ __('admin.dashboard_page.hero_next_week') }}</span>
+                @if($heroFailed > 0)
+                <a href="{{ route('admin.posts.index') }}" class="pd-hero-chip is-link is-bad"><i class="bx bx-error-circle"></i><strong>{{ $heroFailed }}</strong> {{ __('admin.dashboard_page.hero_failed') }}</a>
+                @endif
+                <a href="{{ route('admin.chats.dashboard') }}" class="pd-hero-chip is-link"><i class="bx bx-message-rounded-dots"></i><strong>{{ $totalUnreadMessages }}</strong> {{ __('admin.dashboard_page.hero_unread') }}</a>
+            </div>
         </div>
-        <div class="d-flex align-items-center gap-2 flex-wrap">
+        <div class="pd-hero-actions">
             <form method="GET" action="{{ route('admin.posts.dashboard') }}" class="pd-range">
                 <i class="bx bx-calendar pd-range-icon"></i>
                 <input type="text" id="dashboardDateRange" name="date_range" class="dash-input" style="max-width:210px;" placeholder="{{ __('admin.dashboard_page.select_date_range') }}" autocomplete="off" value="{{ $dateFrom && $dateTo ? $dateFrom->format('M j').' - '.$dateTo->format('M j, Y') : '' }}" />
@@ -103,46 +114,39 @@
                 <a href="{{ route('admin.posts.dashboard') }}" class="pd-range-btn" title="Clear"><i class="bx bx-x"></i></a>
                 @endif
             </form>
-            <a href="{{ route('admin.chats.dashboard') }}" class="dash-btn dash-btn-ghost dash-bell" title="{{ __('admin.dashboard_page.messages') }}">
-                <i class="bx bx-bell"></i>
-                @if($totalUnreadMessages > 0)
-                <span class="dash-bell-badge">{{ $totalUnreadMessages > 9 ? '9+' : $totalUnreadMessages }}</span>
-                @endif
-            </a>
-            <a href="{{ route('admin.posts.index') }}" class="dash-btn dash-btn-primary">
-                <i class="bx bx-plus"></i> {{ __('admin.dashboard_page.view_all') }}
-            </a>
+            <div class="pd-hero-buttons">
+                <a href="{{ route('admin.posts.index') }}" class="dash-btn pd-btn-ghost">
+                    <i class="bx bx-grid-alt"></i> {{ __('admin.dashboard_page.hero_all_posts') }}
+                </a>
+                <a href="{{ route('admin.posts.create') }}" class="dash-btn dash-btn-primary">
+                    <i class="bx bx-plus"></i> {{ __('admin.dashboard_page.create_post') }}
+                </a>
+            </div>
         </div>
-    </div>
+    </section>
 
     <!-- ================================================================
-         Section order (top to bottom), deliberately sequenced by how a
-         user actually works through a dashboard: (1) at-a-glance KPIs,
-         (2) the actions those KPIs might prompt, (3) status of the
-         accounts everything else depends on, (4) trend analysis,
+         Section order (top to bottom), sequenced by how a user works
+         through a dashboard: (1) at-a-glance KPIs, (4) trend analysis,
          (5) the planning/production surface (calendar first, since it's
          the primary tool - then history), (6) secondary "what's next /
-         what's waiting" widgets in the sidebar.
+         what's waiting" widgets in the sidebar. Connecting accounts lives
+         in the Connection Hub, not here.
     ================================================================= -->
 
     <!-- 1. Overview KPIs -->
     <div class="row g-4 mb-6">
         <div class="col-6 col-lg-3">
-            <x-metric-card class="h-100" icon="bx-link-alt" tone="primary" :label="__('admin.dashboard_page.connected_accounts')" :value="$totalAccounts">
-                <x-slot:valueExtra>
-                    <div class="dash-mini-icons">
-                        @foreach($accountsByPlatform->keys()->take(4) as $p)
-                            @php $m = $platformMeta[$p] ?? null; @endphp
-                            @if($m)
-                            <x-platform-icon :icon="$m['icon']" :color="$platformBrandColors[$p] ?? '#7c5cff'" :fill="$platformBrand[$p]['fill'] ?? null" :ink="$platformBrand[$p]['ink'] ?? '#fff'" :glow="$platformBrand[$p]['glow'] ?? 'none'" />
-                            @endif
-                        @endforeach
-                    </div>
-                </x-slot:valueExtra>
+            <x-metric-card class="h-100" icon="bx-calendar-event" tone="primary" :label="__('admin.dashboard_page.hero_kpi_scheduled')" :value="$heroScheduled">
                 <x-slot:foot>
-                    {{ trans_choice('admin.dashboard_page.across_platforms', $accountsByPlatform->count(), ['count' => $accountsByPlatform->count()]) }}
-                    @if($newAccountsThisWeek > 0)
-                    <span class="dash-trend dash-trend-up">+{{ $newAccountsThisWeek }} {{ __('admin.dashboard_page.this_week') }}</span>
+                    @php $schedChange = $calendarStats['scheduled']['change'] ?? null; @endphp
+                    @if($schedChange === null)
+                        {{ __('admin.dashboard_page.hero_this_month') }}
+                    @else
+                        <span class="dash-trend {{ $schedChange >= 0 ? 'dash-trend-up' : 'dash-trend-down' }}">
+                            <i class="bx {{ $schedChange >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt' }}"></i>
+                            {{ abs($schedChange) }}%
+                        </span> {{ __('admin.dashboard_page.cal_vs_last_month') }}
                     @endif
                 </x-slot:foot>
             </x-metric-card>
@@ -181,67 +185,6 @@
                 </x-slot:foot>
                 <div id="reachSparkline" class="dash-sparkline"></div>
             </x-metric-card>
-        </div>
-    </div>
-
-    <!-- 3. Connected Accounts - moved up from below the performance chart:
-         knowing what's connected (and what's broken) is context the reader
-         needs before the analytics below mean anything. -->
-    <div class="dash-card mb-6">
-        <div class="dash-card-header">
-            <h6 class="mb-0">{{ __('admin.dashboard_page.connected_accounts') }}</h6>
-            <a href="{{ route('admin.posts.create') }}" class="dash-link">{{ __('admin.dashboard_page.manage_accounts') }}</a>
-        </div>
-        <div class="row g-3">
-            <div class="col-6 col-md-4 col-xl-2">
-                <button type="button" class="dash-add-account-card" data-bs-toggle="modal" data-bs-target="#addAccountModal">
-                    <span class="pd-add-icon"><i class="bx bx-plus"></i></span>
-                    <span>{{ __('admin.dashboard_page.add_account') }}</span>
-                </button>
-            </div>
-            @forelse($accountsOverview as $acct)
-            @php
-                $meta = $platformMeta[$acct['platform']] ?? ['icon' => 'bx-globe', 'class' => 'facebook', 'label' => ucfirst($acct['platform'] ?? 'Other'), 'tag' => 'Account'];
-                $color = $platformBrandColors[$acct['platform']] ?? '#7c5cff';
-                $isYoutube = Str::contains($meta['label'], 'YouTube');
-                // Second stat is whichever of likes/media/views this
-                // platform actually reports first - not every account has
-                // all four (eg. YouTube has no "likes" concept here).
-                $secondStat = $acct['likes_count'] ? ['value' => $acct['likes_count'], 'label' => __('admin.dashboard_page.likes')]
-                    : ($acct['media_count'] ? ['value' => $acct['media_count'], 'label' => __('admin.dashboard_page.posts')]
-                    : ['value' => $acct['views_count'], 'label' => __('admin.dashboard_page.views')]);
-            @endphp
-            <div class="col-6 col-md-4 col-xl-2">
-                <div class="dash-account-card">
-                    <span class="dash-account-avatar-wrap">
-                        @if($acct['image'])
-                            <img class="dash-account-avatar" src="{{ $acct['image'] }}">
-                        @else
-                            <span class="dash-account-avatar dash-account-avatar-fallback" style="background:{{ $color }}1a;color:{{ $color }};">
-                                <i class="bx {{ $meta['icon'] }}"></i>
-                            </span>
-                        @endif
-                        <span class="dash-account-badge" style="{{ $pfBadge($acct['platform']) }}"><i class="bx {{ $meta['icon'] }}"></i></span>
-                    </span>
-                    <div class="dash-account-name" title="{{ $acct['name'] ?: $meta['label'] }}">{{ $acct['name'] ?: $meta['label'] }}</div>
-                    <div class="dash-account-tag">{{ $meta['tag'] }}</div>
-                    <div class="dash-account-stats">
-                        <div>
-                            <strong>{{ dash_short($acct['follower_count']) }}</strong>
-                            <span>{{ $isYoutube ? __('admin.dashboard_page.subs') : __('admin.dashboard_page.followers') }}</span>
-                        </div>
-                        <div>
-                            <strong>{{ dash_short($secondStat['value']) }}</strong>
-                            <span>{{ $secondStat['label'] }}</span>
-                        </div>
-                    </div>
-                    <div class="dash-status-pill"><span class="dot"></span> {{ __('admin.dashboard_page.connected') }}</div>
-                </div>
-            </div>
-            @empty
-            <div class="col-12 col-md-8 col-xl-10 pd-empty pd-empty-inline"><span class="pd-empty-icon"><i class="bx bx-link-alt"></i></span><span>{{ __('admin.dashboard_page.no_accounts_connected') }}</span></div>
-            @endforelse
-            
         </div>
     </div>
 
@@ -351,7 +294,6 @@
                                 <i class="bx {{ $m['icon'] }}"></i>
                             </button>
                         @endforeach
-                        <button type="button" class="cal-filter cal-filter-icon cal-filter-add" data-bs-toggle="modal" data-bs-target="#addAccountModal" title="{{ __('admin.dashboard_page.cal_add_platform') }}"><i class="bx bx-plus"></i></button>
                     </div>
                     <div class="cal-views" id="calViewSwitch">
                         <button type="button" class="is-active" data-cal-view="month">{{ __('admin.dashboard_page.cal_month') }}</button>
@@ -852,42 +794,6 @@
     </div>
 </div>
 
-{{-- =========================================================
-     ADD ACCOUNT MODAL - opened from the "Add Account" tile on the
-     Connected Accounts row. Renders the same shared social-connect-
-     modal Blade component the Ads dashboard uses (see
-     resources/views/components/social-connect-modal.blade.php) -
-     posting only supplies its own platform list and OAuth redirect
-     routes (the same ones posts/create.blade.php already uses); the
-     markup/styling lives in exactly one place. WhatsApp is the one
-     exception: its connect flow is an embedded-signup JS widget that
-     only exists on the Create Post page, so it links there instead of
-     authorizing directly.
-========================================================= --}}
-@php
-    $postingConnectPlatforms = [
-        // Meta connects once in the Connection Hub (docs/connection-hub-design.md).
-        ['key' => 'facebook',  'class' => 'facebook',  'icon' => 'bxl-facebook',  'label' => 'Facebook',  'url' => \App\Support\Connections\HubLink::for('facebook'), 'note' => \App\Support\Connections\HubLink::note()],
-        ['key' => 'instagram', 'class' => 'instagram', 'icon' => 'bxl-instagram', 'label' => 'Instagram', 'url' => \App\Support\Connections\HubLink::for('instagram'), 'note' => \App\Support\Connections\HubLink::note()],
-        ['key' => 'threads',   'class' => 'threads',   'icon' => 'bx-at',         'label' => 'Threads',   'url' => \App\Support\Connections\HubLink::for('threads'), 'note' => \App\Support\Connections\HubLink::note()],
-        ['key' => 'pinterest', 'class' => 'pinterest', 'icon' => 'bx-share-alt',  'label' => 'Pinterest', 'url' => \App\Support\Connections\HubLink::for('pinterest'), 'note' => \App\Support\Connections\HubLink::note()],
-        ['key' => 'x',         'class' => 'twitter',   'icon' => 'bxl-twitter',   'label' => 'X',         'url' => \App\Support\Connections\HubLink::for('x'), 'note' => \App\Support\Connections\HubLink::note()],
-        ['key' => 'linkedin',  'class' => 'linkedin',  'icon' => 'bxl-linkedin',  'label' => 'LinkedIn',  'url' => \App\Support\Connections\HubLink::for('linkedin'), 'note' => \App\Support\Connections\HubLink::note()],
-        ['key' => 'tiktok',    'class' => 'tiktok',    'icon' => 'bxl-tiktok',    'label' => 'TikTok',    'url' => \App\Support\Connections\HubLink::for('tiktok'), 'note' => \App\Support\Connections\HubLink::note()],
-        ['key' => 'google',    'class' => 'google',    'icon' => 'bxl-google',    'label' => 'Google / YouTube', 'url' => \App\Support\Connections\HubLink::for('google'), 'note' => \App\Support\Connections\HubLink::note()],
-        ['key' => 'whatsapp',  'class' => 'whatsapp',  'icon' => 'bxl-whatsapp',  'label' => 'WhatsApp',  'url' => \App\Support\Connections\HubLink::for('whatsapp'), 'note' => \App\Support\Connections\HubLink::note()],
-        // Snapchat is deliberately NOT a real connect link - there's no
-        // posting API to authorize (the OAuth flow on the Ads dashboard
-        // only grants Marketing/Ads scopes, which can't publish organic
-        // posts either). Creative Kit's "Share to Snapchat" button (see
-        // the quick-post success handler below) needs no connected
-        // account at all, so this tile just explains that instead of
-        // starting an OAuth redirect that wouldn't actually enable
-        // anything - the click handler lives further down this file.
-        ['key' => 'snapchat',  'class' => 'snapchat',  'icon' => 'bxl-snapchat',  'label' => 'Snapchat',  'url' => '#', 'note' => 'No connection needed'],
-    ];
-@endphp
-<x-social-connect-modal id="addAccountModal" :platforms="$postingConnectPlatforms" />
 @endsection
 
 @push('styles')
@@ -911,38 +817,6 @@
    from $platformBrandColors instead, so there is exactly one place
    these values live. */
 .socialeaz-dash .social-icon-xs { width: 26px !important; height: 26px !important; font-size: 12px !important; border-radius: 7px !important; }
-
-.socialeaz-dash .dash-account-card {
-    background: var(--dash-card-hover); border: 1px solid var(--dash-border); border-radius: .7rem; padding: 1rem;
-    height: 100%; text-align: center;
-}
-.socialeaz-dash .dash-account-avatar-wrap { position: relative; display: inline-block; margin: 0 auto .6rem; width: 48px; height: 48px; }
-.socialeaz-dash .dash-account-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; display: block; }
-.socialeaz-dash .dash-account-avatar-fallback { display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
-.socialeaz-dash .dash-account-badge {
-    position: absolute; bottom: -2px; right: -2px; width: 20px; height: 20px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff;
-    border: 2px solid var(--dash-card-hover);
-}
-.socialeaz-dash .dash-account-name {
-    color: var(--dash-heading); font-weight: 600; font-size: .85rem;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.socialeaz-dash .dash-account-tag { color: var(--dash-muted); font-size: .7rem; margin-bottom: .6rem; }
-.socialeaz-dash .dash-account-stats {
-    display: flex; justify-content: center; gap: .9rem; margin-bottom: .6rem;
-    padding-bottom: .6rem; border-bottom: 1px solid var(--dash-border);
-}
-.socialeaz-dash .dash-account-stats > div { display: flex; flex-direction: column; }
-.socialeaz-dash .dash-account-stats strong { color: var(--dash-heading); font-size: .85rem; font-weight: 700; }
-.socialeaz-dash .dash-account-stats span { color: var(--dash-muted); font-size: .65rem; }
-.socialeaz-dash .dash-add-account-card {
-    width: 100%; height: 100%; min-height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    border: 1.5px dashed var(--dash-border); border-radius: .7rem; background: transparent;
-    color: var(--dash-muted); text-decoration: none; gap: .4rem; cursor: pointer; font: inherit;
-}
-.socialeaz-dash .dash-add-account-card:hover { color: var(--dash-primary); border-color: var(--dash-primary); }
-.socialeaz-dash .dash-add-account-card i { font-size: 1.5rem; }
 
 .socialeaz-dash .dash-chip { background: var(--dash-card-hover); color: var(--dash-muted); font-size: .7rem; padding: .25rem .6rem; border-radius: 1rem; }
 
@@ -1397,6 +1271,8 @@
    dash-styles used by other dashboards are unchanged.
 ========================================================= */
 .socialeaz-dash.pd { --pd-ln: #e7e9f0; --pd-ln-soft: #f1f3f7; --pd-ink: #161b2b; --pd-brand: #6d4aff; --pd-brand-2: #8f6bff; }
+/* Never wider than the content column (a flex child would otherwise grow to its widest row on phones). */
+.socialeaz-dash.pd { min-width: 0; max-width: 100%; }
 .pd .dash-title { font-size: 1.45rem; letter-spacing: -.01em; color: var(--pd-ink); }
 .pd .dash-card { border: 1px solid var(--pd-ln); border-radius: 16px; box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.03); }
 .pd .dash-card-header { margin-bottom: 1rem; }
@@ -1405,6 +1281,51 @@
 .pd .dash-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(109,74,255,.35); }
 .pd .dash-bell i { font-size: 1.2rem; }
 .pd .dash-bell { padding: 0; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--pd-ln); background: #fff; display: inline-flex; align-items: center; justify-content: center; position: relative; }
+
+/* Hero */
+.pd .pd-hero {
+    position: relative; overflow: hidden; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1.5rem;
+    padding: 1.75rem 1.9rem; border-radius: 20px; border: 1px solid #e4e0fb;
+    background:
+        radial-gradient(120% 140% at 100% 0%, rgba(143,107,255,.16) 0%, rgba(143,107,255,0) 55%),
+        radial-gradient(90% 120% at 0% 100%, rgba(21,112,239,.08) 0%, rgba(21,112,239,0) 60%),
+        linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);
+    box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 12px 32px rgba(76,52,190,.06);
+}
+.pd .pd-hero::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+    background-image: radial-gradient(rgba(109,74,255,.14) 1px, transparent 1px); background-size: 18px 18px;
+    -webkit-mask-image: linear-gradient(110deg, transparent 45%, #000 100%); mask-image: linear-gradient(110deg, transparent 45%, #000 100%);
+}
+.pd .pd-hero > * { position: relative; z-index: 1; }
+.pd .pd-hero-main { min-width: 0; flex: 1 1 380px; }
+.pd .pd-hero-date { display: inline-flex; align-items: center; gap: .35rem; font-size: .74rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #6b5bd6; margin-bottom: .55rem; }
+.pd .pd-hero-date i { font-size: .95rem; }
+.pd .pd-hero .dash-title { font-size: 1.75rem; font-weight: 700; letter-spacing: -.02em; margin: 0 0 .3rem; text-wrap: balance; }
+.pd .pd-hero .dash-subtitle { color: #6b7385; font-size: .92rem; margin: 0; max-width: 60ch; }
+.pd .pd-hero-chips { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.1rem; }
+.pd .pd-hero-chip {
+    display: inline-flex; align-items: center; gap: .4rem; height: 34px; padding: 0 .8rem; border-radius: 999px;
+    background: rgba(255,255,255,.85); border: 1px solid #e7e4f7; color: #4b5263; font-size: .8rem; text-decoration: none;
+    backdrop-filter: blur(4px); font-variant-numeric: tabular-nums; transition: border-color .15s, color .15s, transform .15s;
+}
+.pd .pd-hero-chip i { font-size: 1rem; color: var(--pd-brand); }
+.pd .pd-hero-chip strong { color: var(--pd-ink); font-weight: 700; }
+.pd .pd-hero-chip.is-bad { background: #fff5f5; border-color: #fbd5d5; color: #b42318; }
+.pd .pd-hero-chip.is-bad i, .pd .pd-hero-chip.is-bad strong { color: #b42318; }
+.pd .pd-hero-chip.is-link:hover { border-color: #cfc4ff; color: var(--pd-brand); transform: translateY(-1px); }
+.pd .pd-hero-actions { display: flex; flex-direction: column; align-items: flex-end; gap: .6rem; }
+.pd .pd-hero-buttons { display: flex; gap: .5rem; flex-wrap: wrap; justify-content: flex-end; }
+.pd .pd-btn-ghost { display: inline-flex; align-items: center; gap: .35rem; height: 40px; padding: 0 14px; border-radius: 10px; background: #fff; border: 1px solid var(--pd-ln); color: #3f4759; font-weight: 600; font-size: .85rem; text-decoration: none; }
+.pd .pd-btn-ghost:hover { border-color: #cfc4ff; color: var(--pd-brand); }
+.pd .pd-hero .dash-btn-primary { display: inline-flex; align-items: center; gap: .35rem; font-weight: 600; font-size: .85rem; }
+@media (max-width: 767.98px) {
+    .pd .pd-hero { padding: 1.25rem; }
+    .pd .pd-hero-actions { align-items: stretch; width: 100%; }
+    .pd .pd-hero-buttons { justify-content: stretch; }
+    .pd .pd-hero-buttons > a { flex: 1; justify-content: center; }
+    .pd .pd-range .dash-input { min-width: 0; }
+}
 
 /* Date range toolbar */
 .pd .pd-range { display: flex; align-items: center; height: 40px; border: 1px solid var(--pd-ln); border-radius: 10px; background: #fff; padding-inline-start: 10px; overflow: hidden; transition: border-color .15s, box-shadow .15s; }
@@ -1416,11 +1337,12 @@
 .pd .pd-range-btn:hover { background: #f6f7fa; color: var(--pd-brand); }
 
 /* KPI cards */
-.pd .dash-stat { display: flex; flex-direction: column; padding: 1.15rem 1.25rem; transition: box-shadow .2s, transform .2s; }
+.pd .dash-stat { display: flex; flex-direction: column; padding: 1.15rem 1.25rem; transition: box-shadow .2s, transform .2s; overflow: hidden; min-width: 0; }
+.pd .dash-stat .dash-sparkline { max-width: 100%; overflow: hidden; }
 .pd .dash-stat:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(16,24,40,.08); }
 .pd .dash-stat-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
 .pd .dash-stat-label { font-weight: 600; color: #8a92a3; font-size: .8rem; }
-.pd .dash-stat-value { font-size: 1.75rem; letter-spacing: -.02em; margin-top: .15rem; color: var(--pd-ink); }
+.pd .dash-stat-value { font-size: 1.9rem; font-weight: 700; letter-spacing: -.025em; margin-top: .35rem; color: var(--pd-ink); font-variant-numeric: tabular-nums; }
 .pd .dash-stat-foot { margin-top: auto; padding-top: .6rem; }
 .pd .dash-stat-icon { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 19px; flex-shrink: 0; }
 .pd .dash-stat-icon.is-primary { background: #f2eeff; color: var(--pd-brand); }
@@ -1429,13 +1351,6 @@
 .pd .dash-stat-icon.is-success { background: #ecfdf3; color: #079455; }
 
 /* Accounts */
-.pd .dash-account-card { background: #fff; border: 1px solid var(--pd-ln); border-radius: 14px; transition: border-color .15s, box-shadow .15s, transform .15s; }
-.pd .dash-account-card:hover { border-color: #d9d0ff; box-shadow: 0 10px 24px rgba(16,24,40,.07); transform: translateY(-2px); }
-.pd .dash-account-badge { border-color: #fff; }
-.pd .dash-add-account-card { border-radius: 14px; border-color: #d5d9e2; background: #fbfbfd; font-weight: 600; font-size: .84rem; }
-.pd .pd-add-icon { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: #f2eeff; color: var(--pd-brand); }
-.pd .pd-add-icon i { font-size: 1.35rem; }
-.pd .dash-add-account-card:hover { background: #fbfaff; }
 
 /* Chips */
 .pd .dash-chip { background: #f2eeff; color: #4f2fd6; font-weight: 600; font-size: .74rem; padding: .3rem .75rem; }
@@ -1745,27 +1660,6 @@
                 }
             }
             return null;
-        }
-
-        // The Snapchat tile in the Add Account modal (#addAccountModal,
-        // see the $postingConnectPlatforms array below) is a 'url' => '#'
-        // placeholder, not a real OAuth link - there's no posting API to
-        // connect to. Explain that instead of letting the '#' click do
-        // nothing silently.
-        var snapchatInfoTile = document.querySelector('.social-card-link-snapchat');
-        if (snapchatInfoTile) {
-            snapchatInfoTile.addEventListener('click', function (e) {
-                e.preventDefault();
-                if (window.Swal) {
-                    window.Swal.fire({
-                        icon: 'info',
-                        title: 'Snapchat',
-                        html: 'Snapchat has no API for connecting an account to auto-publish posts.' +
-                            '<br><br>Publish a post here as usual, then use the <strong>Share to Snapchat</strong> ' +
-                            'button that appears afterward to send it manually - no connection needed.'
-                    });
-                }
-            });
         }
 
         var quickPostModalEl = document.getElementById('calendarQuickPostModal');

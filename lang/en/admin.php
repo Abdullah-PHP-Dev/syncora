@@ -333,6 +333,12 @@ return [
     'dashboard_page' => [
         'welcome_back' => 'Welcome back, :name!',
         'welcome_subtitle' => 'Here\'s what\'s happening with your social media presence today.',
+        'hero_next_week' => 'going out in the next 7 days',
+        'hero_failed' => 'failed this month - review',
+        'hero_unread' => 'unread messages',
+        'hero_all_posts' => 'All posts',
+        'hero_kpi_scheduled' => 'Scheduled Posts',
+        'hero_this_month' => 'This month',
         'select_date_range' => 'Select date range',
         'create_post' => 'Create Post',
 
