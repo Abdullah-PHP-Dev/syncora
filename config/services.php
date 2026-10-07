@@ -70,40 +70,6 @@ return [
     // which would mismatch the redirect_uri registered with each OAuth
     // provider (Meta/X/Zalo/Slack/etc all require an exact match).
     'app_url' => 'https://socialeaz.com',
-    // 'posts' => [
-    //     'facebook' => [
-    //         'app_id' => '910004983387413',
-    //         'app_secret' => '641598ba8098464ff1b15d8e80c68d27'
-    //     ],
-    //     'instagram' => [
-    //         'app_id' => '910004983387413',
-    //         'app_secret' => '641598ba8098464ff1b15d8e80c68d27'
-    //     ],
-    //     'google' => [
-    //         'app_id' => '816293969961-ltb1on97624jlakpmq8vg0quhokklse4.apps.googleusercontent.com',
-    //         'app_secret' => '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'
-    //     ],
-    //     'youtube' => [
-    //         'app_id' => '816293969961-ltb1on97624jlakpmq8vg0quhokklse4.apps.googleusercontent.com',
-    //         'app_secret' => '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'
-    //     ],
-    //     'tiktok' => [
-    //         'app_id' => 'aw20yzb705kyz78h',
-    //         'app_secret' => 'FvNALEGWJNaxLITEWcdwGuyMfkMDCmtC'
-    //     ],
-    //     'snapchat' => [
-    //         'app_id' => '5a193846-d0e2-4da9-9429-bddafbc718b4',
-    //         'app_secret' => '623be262fee31a2b9798'
-    //     ],
-    //     'x' => [
-    //         'app_id' => 'b2VNVDczTVp0d3BwSEVRSkYtUXM6MTpjaQ',
-    //         'app_secret' => 'M0kv37Wykr6dAuEmk1Seekg1HaHEoR07JfjDF2e-RCPP6L1OxW'
-    //     ],
-    //     'linkedin' => [
-    //         'app_id' => '',
-    //         'app_secret' => ''
-    //     ],
-    // ],
 
     /*
     | Localhost X Chat worker (xchat-worker/, X's official Chat XDK) - decrypts
