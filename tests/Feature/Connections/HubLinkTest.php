@@ -21,7 +21,7 @@ class HubLinkTest extends TestCase
 
     public function test_other_platforms_keep_their_own_flow_for_now(): void
     {
-        foreach (['tiktok', 'snapchat', 'threads', 'pinterest'] as $platform) {
+        foreach (['snapchat', 'threads', 'pinterest'] as $platform) {
             $this->assertFalse(HubLink::managed($platform));
             $this->assertNull(HubLink::for($platform));
         }
@@ -30,10 +30,11 @@ class HubLinkTest extends TestCase
     public function test_ads_account_switcher_sends_meta_to_the_hub(): void
     {
         $facebook = view('admin.ads.partials.account-switcher', ['platform' => 'facebook', 'account' => null, 'adAccounts' => collect()])->render();
-        $tiktok = view('admin.ads.partials.account-switcher', ['platform' => 'tiktok', 'account' => null, 'adAccounts' => collect()])->render();
+        // A platform without a Hub card keeps its module's own connect flow.
+        $other = view('admin.ads.partials.account-switcher', ['platform' => 'reddit', 'account' => null, 'adAccounts' => collect()])->render();
 
         $this->assertStringContainsString('/connections#meta', $facebook);
-        $this->assertStringNotContainsString('/connections#meta', $tiktok);
-        $this->assertStringContainsString('/ads/tiktok/redirect', $tiktok);
+        $this->assertStringNotContainsString('/connections#', $other);
+        $this->assertStringContainsString('/ads/reddit/redirect', $other);
     }
 }

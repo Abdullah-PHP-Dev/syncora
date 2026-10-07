@@ -955,7 +955,7 @@
                             <a href="{{ \App\Support\Connections\HubLink::for('linkedin') }}" class="btn btn-outline-info btn-sm">
                                 <i class="fab fa-linkedin"></i> Connect LinkedIn
                             </a>
-                            <a href="{{ route('admin.social-accounts.redirect', ['platform' => 'tiktok']) }}" class="btn btn-outline-dark btn-sm">
+                            <a href="{{ \App\Support\Connections\HubLink::for('tiktok') }}" class="btn btn-outline-dark btn-sm">
                                 <i class="fab fa-tiktok"></i> Connect TikTok
                             </a>
                             <a href="{{ \App\Support\Connections\HubLink::for('google') }}" class="btn btn-outline-danger btn-sm">

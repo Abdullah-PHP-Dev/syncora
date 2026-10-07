@@ -6,13 +6,9 @@ use App\Jobs\Messaging\ProcessInboundMessage;
 use App\Models\Messaging\Conversation;
 use App\Models\Messaging\MessageChannel;
 use App\Models\SocialAccount;
-use App\Support\Connections\GrantedScopes;
 use App\Services\ApiService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Redirect;
-use Carbon\Carbon;
 
 /**
  * TikTok Business Messaging API.
@@ -76,210 +72,12 @@ class TiktokMessagingService
         return adminSetting('ads.tiktok.base_url') ?: 'https://business-api.tiktok.com/open_api/v1.3/';
     }
 
-    /**
-     * TikTok's account-holder redirect URL docs read as requiring a
-     * trailing "/" - the real registered "Advertiser redirect URLs" in
-     * the Developer Portal (confirmed against a live screenshot of this
-     * app's own app config) do NOT have one, and TikTok rejects the
-     * request ("redirect URI does not match") when this doesn't match
-     * one of those entries character-for-character. The portal, not the
-     * docs prose, is the source of truth here.
-     */
-    private function callbackUrl(): string
-    {
-        // oauthCallbackUrl() reverse-resolves the path from routes/web.php
-        // and strips the locale prefix a bare route() call would add (see
-        // app/Helpers/Helper.php).
-        return oauthCallbackUrl('admin.messaging.auth.tiktok.callback');
-    }
 
-    /**
-     * The "TikTok account holder authorization URL" - a THIRD, distinct
-     * authorize flow from both the Advertiser one (business-api.tiktok.
-     * com/portal/auth, used by TiktokAdService) and Login Kit (same
-     * www.tiktok.com/v2/auth/authorize domain SocialAuthService::
-     * redirectTiktok() uses for posting, but NOT the same flow) -
-     * confirmed via TikTok's own "Comparing authorization for different
-     * APIs" doc table: Accounts API/Mentions API (the "tt_user" family
-     * tt_user/oauth2/token/ belongs to) authorizes "via TikTok organic
-     * account" through this specific URL, shown pre-built on My Apps >
-     * Basic Information (right below "Advertiser authorization URL"),
-     * with a 10-minute/single-use code - exactly matching the "expired"
-     * failures every earlier attempt hit, because every earlier attempt
-     * used the wrong authorize flow.
-     *
-     * scope and the exact URL shape (no trailing "/" after "authorize",
-     * no PKCE code_challenge - unlike Login Kit's posting flow) are taken
-     * directly from this app's own real, portal-generated authorization
-     * URL rather than guessed: only client_key, redirect_uri, and state
-     * are substituted with this app's real values; the scope list is
-     * used verbatim since it's TikTok's own account of what's actually
-     * granted to this specific app, not assembled from a docs example.
-     */
-   public function redirect($state)
-    {
-        $url = 'https://www.tiktok.com/v2/auth/authorize?' . http_build_query([
-            'client_key'    => adminSetting('ads.tiktok.client_id'),
-            // Standard approved scope list without unapproved or invalid biz.dm.* strings
-            'scope'         => 'user.info.basic',
-            'response_type' => 'code',
-            'redirect_uri'  => $this->callbackUrl(),
-            'state'         => $state,
-        ]);
+    // The TikTok DM connect flow (redirect / handleCallback, audit flow #14)
+    // was removed: it never received a messaging scope. Connecting returns
+    // as a TikTok for Business step in the Connection Hub once Business
+    // Messaging is approved (flag tiktok.business_messaging).
 
-        return Redirect::away($url);
-    }
-
-    /**
-     * business_id (required on every Business Messaging call below) is
-     * literally the open_id this endpoint returns - confirmed verbatim on
-     * the "Get a list of conversations" doc page ("This value comes from
-     * the open_id field returned in the response from the
-     * /tt_user/oauth2/token/ endpoint"), not a separate lookup.
-     */
-    public function handleCallback(string $code): array
-    {
-        $tokenResponse = $this->apiService->post($this->base() . 'tt_user/oauth2/token/', ['Content-Type' => 'application/json'], [
-            'client_id'     => (string) adminSetting('ads.tiktok.client_id'),
-            'client_secret' => (string) adminSetting('ads.tiktok.client_secret'),
-            'grant_type'    => 'authorization_code',
-            'auth_code'     => $code,
-            'redirect_uri'  => $this->callbackUrl(),
-            // No code_verifier - redirect() no longer generates a PKCE
-            // pair, since this flow's own portal-generated authorize URL
-            // has no code_challenge either (confirmed: this is a
-            // different flow from the PKCE-based Login Kit one
-            // SocialAuthService::redirectTiktok() uses for posting), and
-            // this endpoint's own documented required fields never
-            // included it.
-        ], 'json');
-        if (!$tokenResponse['success'] || (int) ($tokenResponse['data']['code'] ?? -1) !== 0) {
-            // ApiService::sendRequest() returns two different shapes on
-            // failure: a real HTTP response (has 'data'/'body'/'status')
-            // for anything TikTok itself answered, even a 4xx, OR - only
-            // on a genuine connection-level exception (timeout, DNS, TLS)
-            // - just ['success' => false, 'error' => $e->getMessage()],
-            // no 'data' key at all. The original version of this method
-            // only ever read $tokenResponse['data']['message'], so any
-            // exception-path failure (or a TikTok error body without a
-            // 'message' field) silently fell through to the generic
-            // fallback below - hiding the real reason from both the user
-            // and this log. Logged in full either way so a real failure
-            // is diagnosable from storage/logs without needing to
-            // reproduce it live (auth codes are single-use, 10-minute
-            // validity - the exact request that failed can't be replayed).
-            $reason = $tokenResponse['data']['message'] ?? $tokenResponse['error'] ?? null;
-
-            Log::warning('TikTok Business Messaging token exchange failed.', [
-                'status' => $tokenResponse['status'] ?? null,
-                'body'   => $tokenResponse['body'] ?? ($tokenResponse['data'] ?? null),
-                'error'  => $tokenResponse['error'] ?? null,
-            ]);
-
-            return [
-                'success' => false,
-                'error' => $reason ?? 'Failed to exchange code for a TikTok access token.',
-            ];
-        }
-
-        $data = $tokenResponse['data']['data'] ?? [];
-        $accessToken = $data['access_token'] ?? null;
-        $businessId = $data['open_id'] ?? null;
-
-        if (!$accessToken || !$businessId) {
-            return ['success' => false, 'error' => 'TikTok did not return an access token or business account id.'];
-        }
-
-        // Only a token that was actually granted a direct-message scope can
-        // read/send DMs - TikTok returns whatever it granted in 'scope',
-        // which (until Business Messaging is approved for this app) holds
-        // no messaging scope at all. Marking every connect as messaging-
-        // capable showed the channel as Active while every DM call failed.
-        $grantedScope = $data['scope'] ?? null;
-        $canMessage = self::grantsMessaging($grantedScope);
-
-        if (!$canMessage) {
-            Log::warning('TikTok Business Messaging connected without a messaging scope - DMs will not work until TikTok approves Business Messaging for this app.', [
-                'granted_scope' => $grantedScope,
-            ]);
-        }
-
-        // Real display name / avatar / @username for the connected account
-        // (best-effort - the connect itself never fails on this).
-        $profile = $this->fetchBusinessProfile($accessToken, $businessId);
-
-        $account = SocialAccount::updateOrCreate(
-            ['platform' => 'tiktok', 'platform_account_id' => 'msg_' . $businessId, 'user_id' => Auth::id()],
-            [
-                'name'                     => $profile['display_name'] ?? $profile['username'] ?? 'TikTok Business Account',
-                'username'                 => $profile['username'] ?? null,
-                'avatar_url'               => $profile['profile_image'] ?? null,
-                'account_type'             => 'business_messaging',
-                'access_token'             => $accessToken,
-                'refresh_token'            => $data['refresh_token'] ?? null,
-                'is_token_valid'           => true,
-                'expires_at'               => Carbon::now()->addSeconds($data['expires_in'] ?? 86400),
-                'has_messaging_permission' => $canMessage,
-                'metadata'                 => ['scope' => $grantedScope],
-                ...GrantedScopes::attributes(GrantedScopes::fromTokenResponse($data)),
-            ]
-        );
-
-        $channel = MessageChannel::updateOrCreate(
-            ['platform' => 'tiktok', 'external_id' => $businessId],
-            ['social_account_id' => $account->id]
-        );
-
-        // Best-effort, same "don't let a secondary call block the primary
-        // connect" pattern used throughout SocialAuthService::
-        // callbackFacebook() - the channel/account above are already saved
-        // either way.
-        try {
-            $this->subscribeToWebhooks();
-        } catch (\Throwable $e) {
-            Log::warning('TikTok Business Messaging webhook subscribe failed after connect.', ['channel_id' => $channel->id, 'error' => $e->getMessage()]);
-        }
-        try {
-            $this->backfillRecentConversations($channel);
-        } catch (\Throwable $e) {
-            Log::warning('TikTok Business Messaging conversation backfill failed after connect.', ['channel_id' => $channel->id, 'error' => $e->getMessage()]);
-        }
-
-        return ['success' => true, 'data' => $channel];
-    }
-
-    /**
-     * business/webhook/update/ is app-level, not per-account (confirmed:
-     * it's authenticated with app_id/secret, no Access-Token/business_id
-     * involved) - one call covers every TikTok Business Account connected
-     * through this app, so it's safe (and cheap) to call again on every
-     * new connect rather than trying to track "already subscribed"
-     * per-app state. event_type: 'DIRECT_MESSAGE' is the only value this
-     * endpoint accepts (confirmed against TikTok's own doc page) - it's
-     * what actually turns on delivery of im_receive_msg/im_receive_msg_eu
-     * events (real user messages) to callback_url; without a successful
-     * call here, TiktokWebhookController::receive() never gets hit at
-     * all, no matter how correct its own handling is.
-     *
-     * This previously had zero response validation - a fire-and-forget
-     * call whose failure (wrong scope, wrong domain, TikTok-side error)
-     * would be completely invisible, the same blind spot handleCallback()
-     * had before it got the same treatment. The outer try/catch in
-     * handleCallback() only catches connection-level exceptions; a 200
-     * response carrying an error code needs its own check, same pattern
-     * as every other TikTok call in this class.
-     *
-     * DANGER - do not call this ad-hoc (eg. via tinker) from any
-     * environment other than the one that should own the live webhook
-     * right now: this is a single, app-wide TikTok-side setting keyed on
-     * app_id/event_type, not scoped per environment in any way TikTok
-     * can tell. route('messaging.webhook.tiktok.receive') resolves from
-     * whichever APP_URL the calling environment has - running this
-     * locally silently overwrites production's real webhook to point at
-     * an unreachable dev URL, breaking live inbound message delivery
-     * until someone notices and re-registers the right callback_url (this
-     * happened once already testing this method - see git history).
-     */
     /**
      * Whether TikTok's granted scope string (comma- or space-separated)
      * includes a direct-message scope. TikTok doesn't publish the

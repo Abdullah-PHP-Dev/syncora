@@ -553,10 +553,9 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('messaging.auth.x.redirect');
 				Route::get('messaging/auth/x/callback', [MessageChannelController::class, 'callbackX'])
 					->name('messaging.auth.x.callback');
-				Route::get('messaging/auth/tiktok/redirect', [MessageChannelController::class, 'redirectTiktok'])
-					->name('messaging.auth.tiktok.redirect');
-				Route::get('messaging/auth/tiktok/callback', [MessageChannelController::class, 'callbackTiktok'])
-					->name('messaging.auth.tiktok.callback');
+				// TikTok DM connect (audit flow #14) removed: it never received a
+				// messaging scope (docs/connection-hub-design.md §6). TikTok
+				// posting + ads connect through the Connection Hub.
 				Route::post('messaging/channels/telegram', [MessageChannelController::class, 'storeTelegram'])
 					->name('messaging.channels.telegram.store');
 				Route::post('messaging/channels/whatsapp', [MessageChannelController::class, 'storeWhatsApp'])

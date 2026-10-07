@@ -134,11 +134,12 @@ class BackfillConnectionsTest extends TestCase
 
     public function test_other_platforms_are_left_for_their_own_commits(): void
     {
-        $tiktok = $this->account(['platform' => 'tiktok', 'access_token' => 't']);
+        // A messaging channel platform that never has a Hub card.
+        $telegram = $this->account(['platform' => 'telegram', 'access_token' => 't']);
 
         $this->artisan('connections:backfill')->assertSuccessful();
 
         $this->assertSame(0, SocialConnection::count());
-        $this->assertNull($tiktok->fresh()->social_connection_id);
+        $this->assertNull($telegram->fresh()->social_connection_id);
     }
 }

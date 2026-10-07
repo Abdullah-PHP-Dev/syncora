@@ -17,6 +17,7 @@ return [
         'google' => App\Services\Connections\Drivers\GoogleDriver::class,
         'x' => App\Services\Connections\Drivers\XDriver::class,
         'linkedin' => App\Services\Connections\Drivers\LinkedInDriver::class,
+        'tiktok' => App\Services\Connections\Drivers\TikTokDriver::class,
     ],
 
     /*
@@ -60,6 +61,13 @@ return [
             'messaging' => [],
             'ads' => ['rw_ads', 'r_ads'],
             'insights' => ['r_organization_admin', 'r_organization_social', 'r_ads_reporting'],
+        ],
+
+        'tiktok' => [
+            'posting' => ['video.publish', 'video.upload'],
+            'messaging' => [],
+            'ads' => [],
+            'insights' => ['user.info.stats', 'video.list'],
         ],
 
         // Google grants full scope URLs.

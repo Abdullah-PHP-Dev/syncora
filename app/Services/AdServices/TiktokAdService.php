@@ -3,6 +3,9 @@
 namespace App\Services\AdServices;
 
 use App\Models\SocialAccount;
+use App\Services\Connections\ConnectionRecorder;
+use App\Services\Connections\Drivers\TikTokDriver;
+use App\Support\Connections\HubReturn;
 use App\Support\Connections\GrantedScopes;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
@@ -144,6 +147,7 @@ class TiktokAdService
             ->keyBy('advertiser_id');
 
         $connected = 0;
+        $assetIds = [];
 
         foreach ($advertiserIds as $advertiserId) {
             $details = $advertiserDetails->get($advertiserId, []);
@@ -168,9 +172,17 @@ class TiktokAdService
             ]);
 
             $connected++;
+            $assetIds[] = $result['data']->id;
         }
 
-        return redirect()->route('admin.ads.dashboard')->with('success', "Connected {$connected} TikTok advertiser account(s).");
+        // Long-term Business API token. Its `scope` holds numeric permission
+        // ids, so capabilities come from the accounts (no granted_scopes).
+        ConnectionRecorder::record((int) Auth::id(), 'tiktok', TikTokDriver::BUSINESS, null, [
+            'provider_app' => 'ads.tiktok',
+            'access_token' => $accessToken,
+        ], $assetIds);
+
+        return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('success', "Connected {$connected} TikTok advertiser account(s).");
     }
 
     public function store($platform, $request)

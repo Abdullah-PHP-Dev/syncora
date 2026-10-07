@@ -41,7 +41,7 @@ class BackfillSocialConnections extends Command
                             {--dry-run : Report what would be created/linked without writing anything}
                             {--force : Run in production without the confirmation prompt}';
 
-    protected $description = 'Create social_connections for existing social accounts (Meta, Google, X, LinkedIn) and link them';
+    protected $description = 'Create social_connections for existing social accounts (Meta, Google, X, LinkedIn, TikTok) and link them';
 
     private array $report = [];
 
@@ -55,7 +55,7 @@ class BackfillSocialConnections extends Command
 
         $rows = SocialAccount::query()
             ->whereNull('social_connection_id')
-            ->whereIn('platform', ['facebook', 'instagram', 'whatsapp', 'youtube', 'google', 'x', 'linkedin'])
+            ->whereIn('platform', ['facebook', 'instagram', 'whatsapp', 'youtube', 'google', 'x', 'linkedin', 'tiktok'])
             ->orderBy('id')
             ->get();
 
@@ -83,6 +83,17 @@ class BackfillSocialConnections extends Command
                 [$ads, $pages] = $linkedin->partition(fn ($a) => $a->has_ads_permission && ! $a->has_posting_permission);
                 $this->perConsent((int) $userId, 'linkedin', 'linkedin.pages', 'posts.linkedin', $pages, $dryRun);
                 $this->perConsent((int) $userId, 'linkedin', 'linkedin.ads', 'ads.linkedin', $ads, $dryRun);
+            }
+
+            // TikTok DM-only rows (removed flow #14) stay unlinked: nothing to
+            // connect them to until Business Messaging is approved.
+            $tiktok = $userRows->where('platform', 'tiktok')->where('account_type', '!=', 'business_messaging');
+            if ($tiktok->isNotEmpty()) {
+                [$ads, $profiles] = $tiktok->partition(fn ($a) => $a->has_ads_permission && ! $a->has_posting_permission);
+                foreach ($profiles as $profile) {
+                    $this->perConsent((int) $userId, 'tiktok', 'tiktok.login_kit', 'posts.tiktok', collect([$profile]), $dryRun, $profile->platform_account_id);
+                }
+                $this->perConsent((int) $userId, 'tiktok', 'tiktok.business', 'ads.tiktok', $ads, $dryRun);
             }
 
             foreach ($userRows as $account) {
@@ -221,7 +232,7 @@ class BackfillSocialConnections extends Command
      * One connection per user and step from the newest token among the
      * accounts that consent produced (they all carry the same token).
      */
-    private function perConsent(int $userId, string $platform, string $step, string $app, Collection $accounts, bool $dryRun): void
+    private function perConsent(int $userId, string $platform, string $step, string $app, Collection $accounts, bool $dryRun, ?string $providerAccountId = null): void
     {
         if ($accounts->isEmpty()) {
             return;
@@ -239,7 +250,7 @@ class BackfillSocialConnections extends Command
             'status' => SocialConnection::statusFor($source->access_token, $source->expires_at, (bool) $source->refresh_token),
         ];
 
-        $this->persist($userId, $platform, $step, null, $attributes, $accounts, '#' . $source->id . ($source->refresh_token ? ' refresh_token' : ' access_token'), $dryRun);
+        $this->persist($userId, $platform, $step, $providerAccountId, $attributes, $accounts, '#' . $source->id . ($source->refresh_token ? ' refresh_token' : ' access_token'), $dryRun);
     }
 
     /** The secret now lives encrypted on the connection - drop the plaintext copy. */

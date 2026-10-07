@@ -8,6 +8,7 @@ use App\Services\Connections\ConnectionRecorder;
 use App\Services\Connections\Drivers\MetaDriver;
 use App\Services\Connections\Drivers\GoogleDriver;
 use App\Services\Connections\Drivers\LinkedInDriver;
+use App\Services\Connections\Drivers\TikTokDriver;
 use App\Support\Connections\ConnectionFlags;
 use App\Support\Connections\GoogleClient;
 use App\Support\Connections\GrantedScopes;
@@ -889,7 +890,7 @@ class SocialAuthService
         session()->forget('social_tiktok_code_verifier');
 
         if (!$codeVerifier) {
-            return redirect()->route('admin.posts.create')->with('error', 'Missing PKCE code verifier - please restart the connection flow.');
+            return redirect()->route($this->returnRoute())->with('error', 'Missing PKCE code verifier - please restart the connection flow.');
         }
 
         $tokenResponse = $this->api->post('https://open.tiktokapis.com/v2/oauth/token/', [
@@ -904,7 +905,7 @@ class SocialAuthService
         ], 'form');
 
         if (!$tokenResponse['success'] || !empty($tokenResponse['data']['error'])) {
-            return redirect()->route('admin.posts.create')->with('error', $tokenResponse['data']['error_description'] ?? 'Failed to exchange code for a TikTok access token.');
+            return redirect()->route($this->returnRoute())->with('error', $tokenResponse['data']['error_description'] ?? 'Failed to exchange code for a TikTok access token.');
         }
 
         $token = $tokenResponse['data'];
@@ -916,7 +917,7 @@ class SocialAuthService
 
         $profile = $profileResponse['success'] ? ($profileResponse['data']['data']['user'] ?? []) : [];
 
-        SocialAccount::updateOrCreate(
+        $account = SocialAccount::updateOrCreate(
             ['platform' => 'tiktok', 'platform_account_id' => $token['open_id'], 'user_id' => Auth::id()],
             [
                 'name' => $profile['display_name'] ?? 'TikTok Account',
@@ -940,6 +941,16 @@ class SocialAuthService
             ]
         );
 
-        return redirect()->route('admin.posts.create')->with('success', 'TikTok account connected.');
+        // Login Kit refresh tokens last refresh_expires_in (TikTok for Developers).
+        ConnectionRecorder::record((int) Auth::id(), 'tiktok', TikTokDriver::LOGIN_KIT, $token['open_id'], [
+            'provider_app' => 'posts.tiktok',
+            'access_token' => $token['access_token'],
+            'refresh_token' => $token['refresh_token'] ?? null,
+            'expires_at' => Carbon::now()->addSeconds($token['expires_in'] ?? 86400),
+            'refresh_expires_at' => isset($token['refresh_expires_in']) ? Carbon::now()->addSeconds($token['refresh_expires_in']) : null,
+            'granted_scopes' => $grantedScopes,
+        ], [$account->id]);
+
+        return redirect()->route($this->returnRoute())->with('success', 'TikTok account connected.');
     }
 }
