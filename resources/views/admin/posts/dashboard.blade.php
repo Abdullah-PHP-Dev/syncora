@@ -118,7 +118,7 @@
                 <a href="{{ route('admin.posts.index') }}" class="dash-btn pd-btn-ghost">
                     <i class="bx bx-grid-alt"></i> {{ __('admin.dashboard_page.hero_all_posts') }}
                 </a>
-                <a href="{{ route('admin.posts.create') }}" class="dash-btn dash-btn-primary">
+                <a href="{{ route('admin.posts.composer') }}" class="dash-btn dash-btn-primary">
                     <i class="bx bx-plus"></i> {{ __('admin.dashboard_page.create_post') }}
                 </a>
             </div>
@@ -573,7 +573,7 @@
                     <li class="pd-empty pd-empty-sm">
                         <span class="pd-empty-icon"><i class="bx bx-calendar-plus"></i></span>
                         <strong>{{ __('admin.dashboard_page.nothing_scheduled') }}</strong>
-                        <a href="{{ route('admin.posts.index') }}" class="dash-link">{{ __('admin.dashboard_page.create_post') }} <i class="bx bx-right-arrow-alt"></i></a>
+                        <a href="{{ route('admin.posts.composer') }}" class="dash-link">{{ __('admin.dashboard_page.create_post') }} <i class="bx bx-right-arrow-alt"></i></a>
                     </li>
                     @endforelse
                 </ul>
@@ -709,7 +709,7 @@
                             </div>
                         @endforeach
                         @if(empty($seenPlatforms))
-                            <p class="text-muted small mb-0">{{ __('admin.dashboard_page.no_connected_posting_accounts') }} <a href="{{ route('admin.posts.create') }}">{{ __('admin.dashboard_page.connect_one') }}</a> {{ __('admin.dashboard_page.first') }}.</p>
+                            <p class="text-muted small mb-0">{{ __('admin.dashboard_page.no_connected_posting_accounts') }} <a href="{{ route('admin.connections.index') }}">{{ __('admin.dashboard_page.connect_one') }}</a> {{ __('admin.dashboard_page.first') }}.</p>
                         @endif
                     </div>
 
