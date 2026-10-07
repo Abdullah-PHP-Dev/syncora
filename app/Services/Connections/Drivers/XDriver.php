@@ -20,10 +20,10 @@ use Symfony\Component\HttpFoundation\Response;
  *    consent on posts.x.
  *
  * X rotates OAuth 2.0 refresh tokens on every use and the posting / DM
- * services refresh the account's tokens themselves, so this driver never
- * refreshes: it reads the account's latest token and mirrors it.
+ * services refresh the account's tokens themselves, so the OAuth 2.0 step
+ * validates as a MirroredTokenDriver (never refreshes).
  */
-class XDriver extends BaseDriver
+class XDriver extends MirroredTokenDriver
 {
     public const OAUTH2 = 'x.oauth2';
     public const ADS = 'x.ads';
@@ -47,7 +47,16 @@ class XDriver extends BaseDriver
             'empty_title' => 'Connect your X account once',
             'empty_text' => 'One sign-in covers publishing and your X inbox, including X Chat. You can remove access at any time, here or in your X settings.',
             'benefits' => ['posting', 'messaging', 'ads'],
+            'asset_groups' => [
+                'x_account' => ['label' => 'X accounts', 'icon' => 'bxl-x-logo', 'brand' => 'x', 'capabilities' => ['posting', 'messaging']],
+                'x_ads' => ['label' => 'X Ads accounts', 'icon' => 'bx-bullseye', 'brand' => 'x', 'capabilities' => ['ads']],
+            ],
         ];
+    }
+
+    public function assetKind(SocialAccount $asset): string
+    {
+        return $asset->has_ads_permission && ! $asset->has_posting_permission && ! $asset->has_messaging_permission ? 'x_ads' : 'x_account';
     }
 
     public function steps(): array
@@ -85,7 +94,7 @@ class XDriver extends BaseDriver
 
     public function validate(SocialConnection $connection): SocialConnection
     {
-        return $connection->step === self::ADS ? $this->validateAds($connection) : $this->validateOAuth2($connection);
+        return $connection->step === self::ADS ? $this->validateAds($connection) : parent::validate($connection);
     }
 
     public function disconnect(SocialConnection $connection): void
@@ -108,35 +117,12 @@ class XDriver extends BaseDriver
         $this->disconnectLocally($connection);
     }
 
-    private function validateOAuth2(SocialConnection $connection): SocialConnection
+    /** OAuth 2.0 step: GET /2/users/me with the account's current token. */
+    protected function probe(SocialConnection $connection, SocialAccount $asset): ?array
     {
-        $asset = $this->latestAsset($connection);
+        $response = Http::withToken($asset->access_token)->get('https://api.x.com/2/users/me');
 
-        if (! $asset || (! $asset->access_token && ! $asset->refresh_token)) {
-            return $this->mark($connection, SocialConnection::NEEDS_REAUTH, 'No X token stored - reconnect.');
-        }
-
-        // Mirror the account's current (possibly rotated) tokens.
-        $connection->fill([
-            'access_token' => $asset->access_token,
-            'refresh_token' => $asset->refresh_token,
-            'expires_at' => $asset->expires_at,
-        ]);
-
-        // Only a still-valid access token can be checked without refreshing.
-        if ($asset->access_token && $asset->expires_at && $asset->expires_at->isFuture()) {
-            $response = Http::withToken($asset->access_token)->get('https://api.x.com/2/users/me');
-
-            if ($response->status() === 401) {
-                return $this->mark($connection, SocialConnection::NEEDS_REAUTH, 'X no longer accepts this token.');
-            }
-
-            if (! $response->successful()) {
-                return $this->mark($connection, SocialConnection::ERROR, $response->json('detail') ?? $response->json('title') ?? 'HTTP ' . $response->status());
-            }
-        }
-
-        return $this->markHealthy($connection, null);
+        return $this->problemFromStatus($response->status(), $response->json('detail') ?? $response->json('title'));
     }
 
     private function validateAds(SocialConnection $connection): SocialConnection

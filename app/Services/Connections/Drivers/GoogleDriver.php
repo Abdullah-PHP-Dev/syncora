@@ -2,6 +2,7 @@
 
 namespace App\Services\Connections\Drivers;
 
+use App\Models\SocialAccount;
 use App\Models\SocialConnection;
 use App\Services\SocialAuth\SocialAuthService;
 use App\Support\Connections\GoogleClient;
@@ -49,6 +50,10 @@ class GoogleDriver extends BaseDriver
             'empty_title' => 'One Google consent for YouTube and Ads',
             'empty_text' => 'Connect the Google account that owns your YouTube channels and Google Ads accounts. You can remove access at any time, here or in your Google Account settings.',
             'benefits' => ['posting', 'ads', 'insights'],
+            'asset_groups' => [
+                'youtube' => ['label' => 'YouTube channels', 'icon' => 'bxl-youtube', 'brand' => 'youtube', 'capabilities' => ['posting', 'insights']],
+                'google_ads' => ['label' => 'Google Ads accounts', 'icon' => 'bx-bullseye', 'brand' => 'google', 'capabilities' => ['ads']],
+            ],
             'legacy_steps' => [
                 self::ADS_LEGACY => [
                     'label' => 'Google Ads (earlier connection)',
@@ -57,6 +62,11 @@ class GoogleDriver extends BaseDriver
                 ],
             ],
         ];
+    }
+
+    public function assetKind(SocialAccount $asset): string
+    {
+        return $asset->platform === 'youtube' ? 'youtube' : 'google_ads';
     }
 
     public function steps(): array

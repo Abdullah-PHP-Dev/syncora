@@ -2,6 +2,7 @@
 
 namespace App\Services\Connections\Drivers;
 
+use App\Models\SocialAccount;
 use App\Models\SocialConnection;
 use App\Services\SocialAuth\SocialAuthService;
 use App\Support\Connections\ConnectionFlags;
@@ -46,7 +47,23 @@ class MetaDriver extends BaseDriver
             'empty_title' => 'One consent for everything Meta',
             'empty_text' => 'Choose the Pages, Instagram accounts and ad accounts SocialEaz may use. You can change your choice at any time, here or in your Facebook settings.',
             'benefits' => ['posting', 'messaging', 'ads', 'insights'],
+            'asset_groups' => [
+                'page' => ['label' => 'Facebook Pages', 'icon' => 'bxl-facebook', 'brand' => 'facebook', 'capabilities' => ['posting', 'messaging', 'insights']],
+                'instagram' => ['label' => 'Instagram accounts', 'icon' => 'bxl-instagram', 'brand' => 'instagram', 'capabilities' => ['posting', 'messaging', 'insights']],
+                'ad_account' => ['label' => 'Ad accounts', 'icon' => 'bx-bullseye', 'brand' => 'meta', 'capabilities' => ['ads']],
+                'whatsapp' => ['label' => 'WhatsApp numbers', 'icon' => 'bxl-whatsapp', 'brand' => 'whatsapp', 'capabilities' => ['messaging', 'posting']],
+            ],
         ];
+    }
+
+    public function assetKind(SocialAccount $asset): string
+    {
+        return match (true) {
+            $asset->platform === 'whatsapp' => 'whatsapp',
+            $asset->platform === 'instagram' => 'instagram',
+            $asset->account_type === 'ad_account' || ($asset->has_ads_permission && ! $asset->has_posting_permission) => 'ad_account',
+            default => 'page',
+        };
     }
 
     public function steps(): array

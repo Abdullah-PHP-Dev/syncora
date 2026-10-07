@@ -13,18 +13,6 @@ use Illuminate\Support\Collection;
  */
 class HubPresenter
 {
-    /** Which capabilities make sense per asset kind (the asset picker's toggles). */
-    private const ASSET_CAPABILITIES = [
-        'page' => ['posting', 'messaging', 'insights'],
-        'instagram' => ['posting', 'messaging', 'insights'],
-        'ad_account' => ['ads'],
-        'whatsapp' => ['messaging', 'posting'],
-        'youtube' => ['posting', 'insights'],
-        'google_ads' => ['ads'],
-        'x_account' => ['posting', 'messaging'],
-        'x_ads' => ['ads'],
-    ];
-
     /** Platforms that move into the Hub in later commits (design §11). */
     private const UPCOMING = [
         ['key' => 'linkedin', 'label' => 'LinkedIn', 'detail' => 'Pages, Ads'],
@@ -108,15 +96,17 @@ class HubPresenter
             'last_checked_at' => $connection->last_checked_at?->toIso8601String(),
             'last_error' => $connection->last_error,
             'reconnect_url' => $reconnectUrl,
-            'assets' => $this->assets($connection, $connection->assets),
+            'assets' => $this->assets($driver, $connection, $connection->assets),
         ];
     }
 
-    private function assets(SocialConnection $connection, Collection $assets): array
+    private function assets(ProviderDriver $driver, SocialConnection $connection, Collection $assets): array
     {
-        return $assets->map(function (SocialAccount $asset) use ($connection) {
-            $kind = $this->kind($asset);
-            $available = array_values(array_intersect(self::ASSET_CAPABILITIES[$kind] ?? [], $connection->capabilities ?? []));
+        $groups = $driver->presentation()['asset_groups'] ?? [];
+
+        return $assets->map(function (SocialAccount $asset) use ($driver, $connection, $groups) {
+            $kind = $driver->assetKind($asset);
+            $available = array_values(array_intersect($groups[$kind]['capabilities'] ?? [], $connection->capabilities ?? []));
 
             return [
                 'id' => $asset->id,
@@ -136,16 +126,4 @@ class HubPresenter
         })->groupBy('kind')->map->values()->all();
     }
 
-    private function kind(SocialAccount $asset): string
-    {
-        return match (true) {
-            $asset->platform === 'youtube' => 'youtube',
-            $asset->platform === 'google' => 'google_ads',
-            $asset->platform === 'x' => $asset->has_ads_permission && ! $asset->has_posting_permission && ! $asset->has_messaging_permission ? 'x_ads' : 'x_account',
-            $asset->platform === 'whatsapp' => 'whatsapp',
-            $asset->platform === 'instagram' => 'instagram',
-            $asset->account_type === 'ad_account' || ($asset->has_ads_permission && ! $asset->has_posting_permission) => 'ad_account',
-            default => 'page',
-        };
-    }
 }

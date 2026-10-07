@@ -130,7 +130,7 @@
         </div>
 
         <!-- Asset picker -->
-        <div v-for="group in assetGroups(conn)" :key="group.kind" class="ch-group">
+        <div v-for="group in assetGroups(card, conn)" :key="group.kind" class="ch-group">
           <div class="ch-group-head">
             <h4><i class="bx" :class="group.icon"></i> {{ group.label }}</h4>
             <span class="ch-count">{{ group.items.length }}</span>
@@ -167,7 +167,7 @@
           </div>
         </div>
 
-        <p v-if="!assetGroups(conn).length" class="ch-muted ch-none">No accounts linked to this connection yet. Use “Add or change accounts” to choose them.</p>
+        <p v-if="!assetGroups(card, conn).length" class="ch-muted ch-none">No accounts linked to this connection yet. Use “Add or change accounts” to choose them.</p>
       </div>
     </section>
 
@@ -193,16 +193,6 @@ const CAPABILITIES = [
   { key: 'insights', label: 'Insights', icon: 'bx-bar-chart-alt-2', long: { meta: 'Read Page and Instagram insights for reports', google: 'Read Analytics data for reports', default: 'Read insights for reports' } }
 ];
 
-const GROUPS = [
-  { kind: 'page', label: 'Facebook Pages', icon: 'bxl-facebook', brand: 'facebook' },
-  { kind: 'instagram', label: 'Instagram accounts', icon: 'bxl-instagram', brand: 'instagram' },
-  { kind: 'ad_account', label: 'Ad accounts', icon: 'bx-bullseye', brand: 'meta' },
-  { kind: 'whatsapp', label: 'WhatsApp numbers', icon: 'bxl-whatsapp', brand: 'whatsapp' },
-  { kind: 'youtube', label: 'YouTube channels', icon: 'bxl-youtube', brand: 'youtube' },
-  { kind: 'google_ads', label: 'Google Ads accounts', icon: 'bx-bullseye', brand: 'google' },
-  { kind: 'x_account', label: 'X accounts', icon: 'bxl-x-logo', brand: 'x' },
-  { kind: 'x_ads', label: 'X Ads accounts', icon: 'bx-bullseye', brand: 'x' }
-];
 
 export default {
 
@@ -293,9 +283,11 @@ export default {
       return { google: 'bxl-google', x: 'bxl-x-logo', linkedin: 'bxl-linkedin', tiktok: 'bxl-tiktok', snapchat: 'bxl-snapchat', threads: 'bx-at', pinterest: 'bxl-pinterest' }[key] || 'bx-link';
     },
 
-    assetGroups(conn) {
-      return GROUPS
-        .map(g => ({ ...g, items: conn.assets[g.kind] || [] }))
+    // Groups and their order come from the platform's driver (presentation.asset_groups).
+    assetGroups(card, conn) {
+      const groups = (card.presentation && card.presentation.asset_groups) || {};
+      return Object.keys(groups)
+        .map(kind => ({ kind, ...groups[kind], items: conn.assets[kind] || [] }))
         .filter(g => g.items.length);
     },
 
