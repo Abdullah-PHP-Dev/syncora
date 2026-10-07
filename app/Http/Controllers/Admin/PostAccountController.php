@@ -625,7 +625,9 @@ class PostAccountController extends Controller
 
         // 4. Fetch Connected Instagram Business / Creator Account Profile
         $userResponse = $api->request('get', "https://graph.instagram.com/v20.0/me", [], [
-            'fields'       => 'id,username,name,profile_picture_url',
+            // user_id = the Instagram professional account ID, the same ID
+            // a Facebook-Page-linked connect stores (InstagramDuplicates).
+            'fields'       => 'id,user_id,username,name,profile_picture_url',
             'access_token' => $accessToken,
         ]);
 
@@ -662,7 +664,7 @@ class PostAccountController extends Controller
                 // (graph.instagram.com), distinct from callbackMeta()'s
                 // Facebook Page tokens (graph.facebook.com) - see
                 // InstagramPostService::resolveBaseUrl().
-                'metadata'               => ['settings' => ['auth_type' => 'instagram_login']],
+                'metadata'               => ['settings' => array_filter(['auth_type' => 'instagram_login', 'ig_user_id' => isset($igUser['user_id']) ? (string) $igUser['user_id'] : null])],
             ]
         );
 

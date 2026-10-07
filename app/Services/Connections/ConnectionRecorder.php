@@ -6,6 +6,8 @@ use App\Models\SocialAccount;
 use App\Models\SocialConnection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use App\Support\Connections\InstagramDuplicates;
 
 /**
  * Records a consent as a SocialConnection and links the assets it produced
@@ -33,7 +35,7 @@ class ConnectionRecorder
     ): SocialConnection {
         $assetIds = collect($assetIds)->filter()->unique()->values();
 
-        return DB::transaction(function () use ($userId, $platform, $step, $providerAccountId, $attributes, $assetIds) {
+        $connection = DB::transaction(function () use ($userId, $platform, $step, $providerAccountId, $attributes, $assetIds) {
             $connection = self::find($userId, $platform, $step, $providerAccountId);
 
             $scopes = array_key_exists('granted_scopes', $attributes) && $attributes['granted_scopes'] !== null
@@ -66,6 +68,18 @@ class ConnectionRecorder
 
             return $connection;
         });
+
+        // The same Instagram account through a Page and through Instagram
+        // Login must not be posted to twice. Never fails the connect.
+        if ($platform === 'meta') {
+            try {
+                InstagramDuplicates::resolve($userId);
+            } catch (\Throwable $e) {
+                Log::warning('Instagram duplicate check failed.', ['user_id' => $userId, 'error' => $e->getMessage()]);
+            }
+        }
+
+        return $connection;
     }
 
     /**

@@ -5,7 +5,9 @@ namespace App\Services\Connections;
 use App\Models\SocialAccount;
 use App\Models\SocialConnection;
 use App\Services\Connections\Drivers\MetaDriver;
+use App\Support\Connections\InstagramDuplicates;
 use Illuminate\Support\Collection;
+
 
 /**
  * Shapes the Connection Hub page data (docs/connection-hub-design.md §10):
@@ -111,6 +113,8 @@ class HubPresenter
                 'avatar_url' => $asset->avatar_url,
                 'external_id' => $asset->platform_account_id,
                 'token_ok' => (bool) $asset->is_token_valid,
+                // Same Instagram account as a Page-linked one (InstagramDuplicates).
+                'duplicate_of' => isset($asset->metadata['settings'][InstagramDuplicates::MARK]) ? 'the one linked to your Facebook Page' : null,
                 'available_capabilities' => $available,
                 // null = everything the connection allows is on
                 'enabled_capabilities' => $asset->enabled_capabilities === null

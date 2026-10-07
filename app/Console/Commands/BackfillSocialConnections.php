@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\SocialAccount;
 use App\Models\SocialConnection;
+use App\Support\Connections\InstagramDuplicates;
 use Illuminate\Console\Command;
 use Illuminate\Console\ConfirmableTrait;
 use Illuminate\Support\Collection;
@@ -35,6 +36,8 @@ use Illuminate\Support\Facades\DB;
  * Granted scopes are copied when known; otherwise capabilities fall back to
  * the legacy has_*_permission flags until the validation pass fills scopes.
  * Only rows with no social_connection_id are touched, so it is idempotent.
+ * Each run also resolves Instagram accounts connected twice (Page and
+ * Instagram Login) - see InstagramDuplicates.
  */
 class BackfillSocialConnections extends Command
 {
@@ -125,7 +128,30 @@ class BackfillSocialConnections extends Command
             $this->line('Nothing to backfill: every account on a Hub platform is already linked to a connection.');
         }
 
+        $this->instagramDuplicates($dryRun);
+
         return self::SUCCESS;
+    }
+
+    /** Same Instagram account via a Page and via Instagram Login (InstagramDuplicates). */
+    private function instagramDuplicates(bool $dryRun): void
+    {
+        $userIds = SocialAccount::where('platform', 'instagram')
+            ->where('metadata->settings->auth_type', 'instagram_login')
+            ->distinct()
+            ->pluck('user_id');
+
+        $rows = [];
+        foreach ($userIds as $userId) {
+            foreach (InstagramDuplicates::resolve((int) $userId, $dryRun) as $pair) {
+                $rows[] = [$userId, "#{$pair['login']->id} (Instagram Login)", "#{$pair['twin']->id} (via Facebook Page)", '@' . ($pair['login']->username ?? '?')];
+            }
+        }
+
+        if ($rows) {
+            $this->line(($dryRun ? 'Would turn off' : 'Turned off') . ' posting and inbox on these duplicate Instagram accounts:');
+            $this->table(['user', 'duplicate', 'kept', 'account'], $rows);
+        }
     }
 
     private function metaLogin(int $userId, Collection $accounts, bool $dryRun): void

@@ -61,14 +61,14 @@
       <nav class="pp-switcher" v-if="post.platforms.length > 1" aria-label="Platforms">
         <button
             v-for="p in post.platforms"
-            :key="p.key"
+            :key="p.post_id"
             type="button"
             class="pp-switch"
-            :class="{active: p.key === activeKey}"
+            :class="{active: p.post_id === activeId}"
             :style="brandVars(p.key)"
             @click="switchPlatform(p)">
           <span class="pp-switch-icon"><i :class="p.icon"></i></span>
-          <span class="pp-switch-name">{{ p.name }}</span>
+          <span class="pp-switch-name">{{ p.name }}<small v-if="repeatedKeys.includes(p.key)" class="pp-switch-acct">{{ p.handle || p.page }}</small></span>
           <span class="pp-dot" :class="'is-' + statusInfo(p).tone" :title="statusInfo(p).label"></span>
         </button>
       </nav>
@@ -227,10 +227,10 @@
             <div class="pp-dist">
               <button
                   v-for="p in post.platforms"
-                  :key="p.key"
+                  :key="p.post_id"
                   type="button"
                   class="pp-dist-item"
-                  :class="{active: p.key === activeKey}"
+                  :class="{active: p.post_id === activeId}"
                   :style="brandVars(p.key)"
                   @click="switchPlatform(p)">
                 <span class="pp-dist-avatar">
@@ -415,7 +415,9 @@ export default {
 
     return {
       post: null,
-      activeKey: '',
+      // The selected group member's Post id - a platform can appear more
+      // than once (two Instagram accounts), so selection is per post.
+      activeId: null,
       mediaIndex: 0,
       showComments: true,
       newCommentText: '',
@@ -433,9 +435,10 @@ export default {
 
     if (this.post) {
 
-      const requested = this.post.platforms.find(p => p.key === this.platform);
+      const requested = this.post.platforms.find(p => Number(p.post_id) === Number(this.postId))
+        || this.post.platforms.find(p => p.key === this.platform);
 
-      this.activeKey = requested ? requested.key : this.post.platforms[0].key;
+      this.activeId = (requested || this.post.platforms[0]).post_id;
 
     }
 
@@ -447,7 +450,25 @@ export default {
 
       if (!this.post) return {};
 
-      return this.post.platforms.find(p => p.key === this.activeKey) || platformMeta[this.activeKey] || {};
+      return this.post.platforms.find(p => p.post_id === this.activeId) || {};
+
+    },
+
+    activeKey() {
+
+      return this.activePlatform.key || '';
+
+    },
+
+    // Platforms with more than one account in this post - their tabs
+    // name the account so the two can be told apart.
+    repeatedKeys() {
+
+      if (!this.post) return [];
+
+      const keys = this.post.platforms.map(p => p.key);
+
+      return keys.filter((key, i) => keys.indexOf(key) !== i);
 
     },
 
@@ -456,7 +477,7 @@ export default {
 
       if (!this.post) return {};
 
-      return this.post.members[this.activeKey] || {};
+      return this.post.members[this.activeId] || {};
 
     },
 
@@ -470,7 +491,7 @@ export default {
 
       if (!this.post) return null;
 
-      return this.post.engagement[this.activeKey];
+      return this.post.engagement[this.activeId];
 
     },
 
@@ -478,7 +499,7 @@ export default {
 
       if (!this.post) return '#';
 
-      return this.post.platformUrls[this.activeKey] || '#';
+      return this.post.platformUrls[this.activeId] || '#';
 
     },
 
@@ -583,7 +604,7 @@ export default {
     // submission went to (empty for older/ungrouped posts, in which case
     // this just falls back to treating `raw` as a group of one - the
     // original single-platform behavior). platforms/engagement/
-    // platformUrls end up keyed/indexed by platform so switchPlatform()
+    // platformUrls end up keyed by member Post id so switchPlatform()
     // can flip activeKey with everything already loaded, no refetch.
     buildPost(raw, groupPosts) {
 
@@ -633,14 +654,14 @@ export default {
         const total = member.engagement.reactionsTotal;
         const reactions = kinds.map((kind, i) => ({ ...kind, count: i === 0 ? total : 0 }));
 
-        engagement[key] = {
+        engagement[member.id] = {
           ...member.engagement,
           reactions,
           comments: (member.engagement.comments || []).map(mapComment)
         };
 
-        platformUrls[key] = member.platform_url || '#';
-        membersByKey[key] = member;
+        platformUrls[member.id] = member.platform_url || '#';
+        membersByKey[member.id] = member;
 
       });
 
@@ -679,7 +700,7 @@ export default {
 
     switchPlatform(p) {
 
-      this.activeKey = p.key;
+      this.activeId = p.post_id;
       this.mediaIndex = 0;
       this.replyingToId = null;
 
@@ -975,6 +996,7 @@ export default {
   background:color-mix(in srgb, var(--pf) 12%, #fff);
   color:var(--pf); font-size:15px;
 }
+.pp-switch-acct{ display:block; font-size:11px; font-weight:500; opacity:.7; line-height:1.2; }
 .pp-switch.active{
   border-color:var(--pf);
   box-shadow:0 0 0 3px color-mix(in srgb, var(--pf) 14%, transparent), 0 8px 20px rgba(16,24,40,.06);

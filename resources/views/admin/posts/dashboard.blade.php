@@ -1238,6 +1238,7 @@
     transition: border-color .15s, background .15s, color .15s;
 }
 .cvm-tab i { font-size: 1.05rem; color: var(--pf); }
+.cvm-tab-acct { font-weight: 500; opacity: .7; margin-left: .15rem; }
 .cvm-tab:hover { border-color: var(--pf); }
 .cvm-tab.is-active { background: var(--pf-fill, var(--pf)); border-color: transparent; color: var(--pf-ink, #fff); box-shadow: 0 4px 12px color-mix(in srgb, var(--pf) 35%, transparent); }
 .cvm-tab.is-active i { color: var(--pf-ink, #fff); filter: var(--pf-glow, none); }
@@ -1793,6 +1794,18 @@
         var calSelectedId = null;
         var CAL_CELL_LIMIT = 2;
 
+        // A post can go to two accounts on one platform (two Instagram
+        // accounts): icons show each platform once, tabs name the account.
+        function uniqueByPlatform(list) {
+            var seen = {};
+            return list.filter(function (p) { return seen[p.platform] ? false : (seen[p.platform] = true); });
+        }
+        function repeatedPlatforms(list) {
+            var count = {};
+            list.forEach(function (p) { count[p.platform] = (count[p.platform] || 0) + 1; });
+            return Object.keys(count).filter(function (k) { return count[k] > 1; });
+        }
+
         function calEntryPlatforms(entry) {
             return (entry.platforms || []).map(function (p) { return p.platform === 'twitter' ? 'x' : p.platform; });
         }
@@ -2287,7 +2300,8 @@
             var platforms = post.platforms && post.platforms.length ? post.platforms : [];
             cvmReplyUrl = post.reply_url || '';
 
-            document.getElementById('calendarViewPostPlatformIcon').innerHTML = platforms.map(function (pl) {
+            var repeated = repeatedPlatforms(platforms);
+            document.getElementById('calendarViewPostPlatformIcon').innerHTML = uniqueByPlatform(platforms).map(function (pl) {
                 var meta = platformMeta[pl.platform] || { icon: 'bx-globe' };
                 return '<span class="cvm-pf" style="' + pfVars(pl.platform) + '"><i class="bx ' + meta.icon + '"></i></span>';
             }).join('');
@@ -2327,7 +2341,9 @@
                     var meta = platformMeta[pl.platform] || { icon: 'bx-globe', label: pl.platform };
                     var status = statusMeta[pl.status] || { class: 'muted' };
                     return '<button type="button" class="cvm-tab' + (i === 0 ? ' is-active' : '') + '" data-cvm-tab="' + i + '" style="' + pfVars(pl.platform) + '">' +
-                        '<i class="bx ' + meta.icon + '"></i><span>' + escapeHtml(meta.label) + '</span>' +
+                        '<i class="bx ' + meta.icon + '"></i><span>' + escapeHtml(meta.label) +
+                            (repeated.indexOf(pl.platform) !== -1 ? ' <small class="cvm-tab-acct">' + escapeHtml(pl.account_username ? '@' + pl.account_username : pl.account_name) + '</small>' : '') +
+                        '</span>' +
                         '<span class="cvm-tab-count">' + (pl.comments || []).length + '</span>' +
                         '<span class="cvm-tab-dot ' + status.class + '"></span>' +
                     '</button>';
@@ -2447,8 +2463,8 @@
                 // grouping via group_id) shows a stacked icon per platform
                 // instead of just the representative one, and its subtext
                 // lists every platform name rather than only the first.
-                var iconsHtml = groupPlatforms.length > 1
-                    ? groupPlatforms.map(function (gp) {
+                var iconsHtml = uniqueByPlatform(groupPlatforms).length > 1
+                    ? uniqueByPlatform(groupPlatforms).map(function (gp) {
                         var gpMeta = platformMeta[gp.platform] || { icon: 'bx-globe' };
                         var gpColor = platformBrandColors[gp.platform] || '#7c5cff';
                         return '<span class="cal-day-post-icon cal-day-post-icon-stacked" style="background:' + gpColor + '1a;">' +
@@ -2459,8 +2475,9 @@
                         '<i class="bx ' + meta.icon + '" style="color:' + color + '"></i>' +
                     '</span>';
 
-                var platformLabels = groupPlatforms.map(function (gp) {
-                    return (platformMeta[gp.platform] || { label: gp.platform }).label;
+                var platformLabels = uniqueByPlatform(groupPlatforms).map(function (gp) {
+                    var n = groupPlatforms.filter(function (x) { return x.platform === gp.platform; }).length;
+                    return (platformMeta[gp.platform] || { label: gp.platform }).label + (n > 1 ? ' ×' + n : '');
                 }).join(' + ');
 
                 var item = document.createElement('button');

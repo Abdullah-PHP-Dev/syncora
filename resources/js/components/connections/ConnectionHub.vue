@@ -191,6 +191,7 @@
               <span class="ch-asset-id">
                 <strong>{{ asset.name || asset.external_id }}</strong>
                 <small>{{ asset.username ? '@' + asset.username : asset.external_id }}<template v-if="!asset.token_ok"> · <span class="ch-warn-text">needs reconnect</span></template></small>
+                <small v-if="asset.duplicate_of" class="ch-dup-note"><i class="bx bx-copy"></i> Same account as {{ asset.duplicate_of }}. Publishing and inbox are off here so posts don't go out twice.</small>
               </span>
               <span class="ch-asset-caps">
                 <button
@@ -639,6 +640,7 @@ export default {
 .ch-asset-id { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ch-asset-id strong { font-size: 13.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ch-asset-id small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch-asset-id small.ch-dup-note { white-space: normal; color: #B45309; margin-top: 2px; display: flex; gap: 4px; align-items: flex-start; }
 .ch-asset-caps { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 .ch-toggle-pill { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; }
 .ch-toggle-pill i { font-size: 14px; }
