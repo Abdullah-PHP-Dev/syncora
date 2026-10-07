@@ -171,7 +171,7 @@
       </div>
     </section>
 
-    <section class="ch-upcoming">
+    <section v-if="hub.upcoming.length" class="ch-upcoming">
       <h3>Moving here next</h3>
       <p class="ch-sub">Until then, these connect from their module pages as before.</p>
       <div class="ch-up-grid">
@@ -478,6 +478,9 @@ export default {
 .is-google { background: #4285F4; }
 .is-x { background: #000000; }
 .is-linkedin { background: linear-gradient(180deg, #0A66C2 0%, #004182 100%); }
+.is-tiktok, .is-threads { background: #000000; }
+.is-pinterest { background: linear-gradient(180deg, #F0002A 0%, #BD001C 100%); }
+.is-snapchat { background: #FFFC00; color: #000000; }
 .is-youtube { background: linear-gradient(180deg, #FF3D3D 0%, #E60000 100%); }
 
 .ch-pill { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }

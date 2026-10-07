@@ -943,10 +943,10 @@
                             <a href="{{ \App\Support\Connections\HubLink::for('facebook') }}" class="btn btn-outline-primary btn-sm">
                                 <i class="fab fa-facebook"></i> {{ __('admin.connections.connect_meta') }}
                             </a>
-                            <a href="{{ route('admin.post-accounts.threads.redirect') }}" class="btn btn-outline-dark btn-sm">
+                            <a href="{{ \App\Support\Connections\HubLink::for('threads') }}" class="btn btn-outline-dark btn-sm">
                                 <i class="fab fa-threads"></i> Connect Threads
                             </a>
-                            <a href="{{ route('admin.post-accounts.pinterest.redirect') }}" class="btn btn-outline-danger btn-sm">
+                            <a href="{{ \App\Support\Connections\HubLink::for('pinterest') }}" class="btn btn-outline-danger btn-sm">
                                 <i class="fab fa-pinterest"></i> Connect Pinterest
                             </a>
                             <a href="{{ \App\Support\Connections\HubLink::for('x') }}" class="btn btn-outline-dark btn-sm">

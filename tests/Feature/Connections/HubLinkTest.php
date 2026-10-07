@@ -19,9 +19,13 @@ class HubLinkTest extends TestCase
         }
     }
 
-    public function test_other_platforms_keep_their_own_flow_for_now(): void
+    public function test_every_social_platform_is_managed_and_others_are_not(): void
     {
-        foreach (['snapchat', 'threads', 'pinterest'] as $platform) {
+        foreach (['linkedin', 'tiktok', 'snapchat', 'threads', 'pinterest'] as $platform) {
+            $this->assertStringEndsWith('/connections#' . $platform, HubLink::for($platform));
+        }
+        // Messaging channels and unknown platforms keep their own setup.
+        foreach (['telegram', 'discord', 'reddit'] as $platform) {
             $this->assertFalse(HubLink::managed($platform));
             $this->assertNull(HubLink::for($platform));
         }

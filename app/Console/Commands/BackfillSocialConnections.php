@@ -13,8 +13,7 @@ use Illuminate\Support\Facades\DB;
  * Creates social_connections for existing social_accounts and links them
  * (docs/connection-hub-design.md §9) - no user has to reconnect.
  *
- * Platforms with a Hub driver (Meta, Google); the rest are backfilled in
- * the commit that adds their driver. Grouping:
+ * Every Hub platform. Grouping:
  *  - every facebook row + Page-linked instagram rows (token_type = page)
  *      -> one `meta.login` connection per user, holding the newest Meta
  *         user token found (ad rows' access_token / page rows' user_token)
@@ -28,6 +27,10 @@ use Illuminate\Support\Facades\DB;
  *  - x Ads rows sharing a token -> one `x.ads` (ads.x); the plaintext
  *      metadata.legacy_token_secret moves into the encrypted token_secret
  *      and is removed from metadata (design doc §6b)
+ *  - linkedin -> `linkedin.pages` (posts.linkedin) / `linkedin.ads` (ads.linkedin)
+ *  - tiktok -> `tiktok.login_kit` per account / `tiktok.business`; DM-only
+ *      rows (removed flow #14) stay unlinked
+ *  - snapchat -> `snapchat.marketing`; threads / pinterest -> one per account
  *
  * Granted scopes are copied when known; otherwise capabilities fall back to
  * the legacy has_*_permission flags until the validation pass fills scopes.
@@ -41,7 +44,7 @@ class BackfillSocialConnections extends Command
                             {--dry-run : Report what would be created/linked without writing anything}
                             {--force : Run in production without the confirmation prompt}';
 
-    protected $description = 'Create social_connections for existing social accounts (Meta, Google, X, LinkedIn, TikTok) and link them';
+    protected $description = 'Create social_connections for existing social accounts (every Hub platform) and link them';
 
     private array $report = [];
 
@@ -55,7 +58,7 @@ class BackfillSocialConnections extends Command
 
         $rows = SocialAccount::query()
             ->whereNull('social_connection_id')
-            ->whereIn('platform', ['facebook', 'instagram', 'whatsapp', 'youtube', 'google', 'x', 'linkedin', 'tiktok'])
+            ->whereIn('platform', ['facebook', 'instagram', 'whatsapp', 'youtube', 'google', 'x', 'linkedin', 'tiktok', 'snapchat', 'threads', 'pinterest'])
             ->orderBy('id')
             ->get();
 
@@ -94,6 +97,15 @@ class BackfillSocialConnections extends Command
                     $this->perConsent((int) $userId, 'tiktok', 'tiktok.login_kit', 'posts.tiktok', collect([$profile]), $dryRun, $profile->platform_account_id);
                 }
                 $this->perConsent((int) $userId, 'tiktok', 'tiktok.business', 'ads.tiktok', $ads, $dryRun);
+            }
+
+            $this->perConsent((int) $userId, 'snapchat', 'snapchat.marketing', 'ads.snapchat', $userRows->where('platform', 'snapchat'), $dryRun);
+
+            // One sign-in per Threads / Pinterest account.
+            foreach (['threads' => ['threads.login', 'posts.threads'], 'pinterest' => ['pinterest.login', 'posts.pinterest']] as $platform => [$step, $app]) {
+                foreach ($userRows->where('platform', $platform) as $account) {
+                    $this->perConsent((int) $userId, $platform, $step, $app, collect([$account]), $dryRun, $account->platform_account_id);
+                }
             }
 
             foreach ($userRows as $account) {

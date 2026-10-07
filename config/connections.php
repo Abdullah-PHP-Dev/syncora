@@ -18,6 +18,9 @@ return [
         'x' => App\Services\Connections\Drivers\XDriver::class,
         'linkedin' => App\Services\Connections\Drivers\LinkedInDriver::class,
         'tiktok' => App\Services\Connections\Drivers\TikTokDriver::class,
+        'snapchat' => App\Services\Connections\Drivers\SnapchatDriver::class,
+        'threads' => App\Services\Connections\Drivers\ThreadsDriver::class,
+        'pinterest' => App\Services\Connections\Drivers\PinterestDriver::class,
     ],
 
     /*
@@ -68,6 +71,27 @@ return [
             'messaging' => [],
             'ads' => [],
             'insights' => ['user.info.stats', 'video.list'],
+        ],
+
+        'snapchat' => [
+            'posting' => [],
+            'messaging' => [],
+            'ads' => ['snapchat-marketing-api'],
+            'insights' => [],
+        ],
+
+        'threads' => [
+            'posting' => ['threads_content_publish'],
+            'messaging' => [],
+            'ads' => [],
+            'insights' => ['threads_manage_insights'],
+        ],
+
+        'pinterest' => [
+            'posting' => ['pins:write'],
+            'messaging' => [],
+            'ads' => [],
+            'insights' => ['user_accounts:read'],
         ],
 
         // Google grants full scope URLs.

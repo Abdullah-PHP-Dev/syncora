@@ -81,11 +81,14 @@ class GoogleHubTest extends TestCase
         $this->assertSame(['posting'], $new['assets']['youtube'][0]['available_capabilities']);
     }
 
-    public function test_google_left_the_upcoming_list(): void
+    public function test_every_platform_now_has_a_card(): void
     {
-        $upcoming = collect(app(HubPresenter::class)->forUser($this->user->id)['upcoming'])->pluck('key');
+        $hub = app(HubPresenter::class)->forUser($this->user->id);
 
-        $this->assertNotContains('google', $upcoming);
-        $this->assertContains('snapchat', $upcoming);
+        $this->assertSame([], $hub['upcoming']);
+        $this->assertSame(
+            ['meta', 'google', 'x', 'linkedin', 'tiktok', 'snapchat', 'threads', 'pinterest'],
+            collect($hub['cards'])->pluck('platform')->all()
+        );
     }
 }

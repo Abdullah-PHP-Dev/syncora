@@ -13,12 +13,8 @@ use Illuminate\Support\Collection;
  */
 class HubPresenter
 {
-    /** Platforms that move into the Hub in later commits (design §11). */
-    private const UPCOMING = [
-        ['key' => 'snapchat', 'label' => 'Snapchat', 'detail' => 'Ads'],
-        ['key' => 'threads', 'label' => 'Threads', 'detail' => 'Posting'],
-        ['key' => 'pinterest', 'label' => 'Pinterest', 'detail' => 'Posting'],
-    ];
+    /** Platforms not in the Hub yet (empty: every platform has a card). */
+    private const UPCOMING = [];
 
     public function __construct(private ConnectionService $connections)
     {

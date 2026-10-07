@@ -5,6 +5,9 @@ namespace App\Services\AdServices;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Auth;
 use App\Models\SocialAccount;
+use App\Services\Connections\ConnectionRecorder;
+use App\Services\Connections\Drivers\SnapchatDriver;
+use App\Support\Connections\HubReturn;
 use App\Support\Connections\GrantedScopes;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
@@ -170,6 +173,7 @@ class SnapchatAdService
             ->filter();
 
         $connected = 0;
+        $assetIds = [];
 
         foreach ($organizations as $organization) {
             $orgId = $organization['id'] ?? null;
@@ -227,6 +231,7 @@ class SnapchatAdService
                 ]);
 
                 $connected++;
+                $assetIds[] = $result['data']->id;
             }
         }
 
@@ -234,7 +239,15 @@ class SnapchatAdService
             return redirect()->route('admin.ads.dashboard')->with('error', 'Connected to Snapchat, but no usable Ad Account was found where you have a role.');
         }
 
-        return redirect()->route('admin.ads.dashboard')->with('success', "Connected {$connected} Snapchat Ad Account(s).");
+        ConnectionRecorder::record((int) Auth::id(), 'snapchat', SnapchatDriver::MARKETING, null, [
+            'provider_app' => 'ads.snapchat',
+            'access_token' => $accessToken,
+            'refresh_token' => $refreshToken,
+            'expires_at' => $expiresAt,
+            'granted_scopes' => $grantedScopes,
+        ], $assetIds);
+
+        return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('success', "Connected {$connected} Snapchat Ad Account(s).");
     }
 
     public function store($platform, $request)

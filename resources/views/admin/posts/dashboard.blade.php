@@ -867,8 +867,8 @@
         // Meta connects once in the Connection Hub (docs/connection-hub-design.md).
         ['key' => 'facebook',  'class' => 'facebook',  'icon' => 'bxl-facebook',  'label' => 'Facebook',  'url' => \App\Support\Connections\HubLink::for('facebook'), 'note' => \App\Support\Connections\HubLink::note()],
         ['key' => 'instagram', 'class' => 'instagram', 'icon' => 'bxl-instagram', 'label' => 'Instagram', 'url' => \App\Support\Connections\HubLink::for('instagram'), 'note' => \App\Support\Connections\HubLink::note()],
-        ['key' => 'threads',   'class' => 'threads',   'icon' => 'bx-at',         'label' => 'Threads',   'url' => route('admin.post-accounts.threads.redirect')],
-        ['key' => 'pinterest', 'class' => 'pinterest', 'icon' => 'bx-share-alt',  'label' => 'Pinterest', 'url' => route('admin.post-accounts.pinterest.redirect')],
+        ['key' => 'threads',   'class' => 'threads',   'icon' => 'bx-at',         'label' => 'Threads',   'url' => \App\Support\Connections\HubLink::for('threads'), 'note' => \App\Support\Connections\HubLink::note()],
+        ['key' => 'pinterest', 'class' => 'pinterest', 'icon' => 'bx-share-alt',  'label' => 'Pinterest', 'url' => \App\Support\Connections\HubLink::for('pinterest'), 'note' => \App\Support\Connections\HubLink::note()],
         ['key' => 'x',         'class' => 'twitter',   'icon' => 'bxl-twitter',   'label' => 'X',         'url' => \App\Support\Connections\HubLink::for('x'), 'note' => \App\Support\Connections\HubLink::note()],
         ['key' => 'linkedin',  'class' => 'linkedin',  'icon' => 'bxl-linkedin',  'label' => 'LinkedIn',  'url' => \App\Support\Connections\HubLink::for('linkedin'), 'note' => \App\Support\Connections\HubLink::note()],
         ['key' => 'tiktok',    'class' => 'tiktok',    'icon' => 'bxl-tiktok',    'label' => 'TikTok',    'url' => \App\Support\Connections\HubLink::for('tiktok'), 'note' => \App\Support\Connections\HubLink::note()],

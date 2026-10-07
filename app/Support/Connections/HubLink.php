@@ -20,6 +20,9 @@ class HubLink
         'x' => 'x',
         'linkedin' => 'linkedin',
         'tiktok' => 'tiktok',
+        'snapchat' => 'snapchat',
+        'threads' => 'threads',
+        'pinterest' => 'pinterest',
     ];
 
     public static function managed(string $platform): bool

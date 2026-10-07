@@ -7,6 +7,8 @@ use App\Models\SocialAccount;
 use App\Services\Connections\ConnectionRecorder;
 use App\Services\Connections\Drivers\MetaDriver;
 use App\Services\Connections\Drivers\XDriver;
+use App\Services\Connections\Drivers\ThreadsDriver;
+use App\Services\Connections\Drivers\PinterestDriver;
 use App\Support\Connections\GrantedScopes;
 use App\Services\PostServices\ApiPostService;
 use App\Services\PostServices\InstagramPostService;
@@ -203,7 +205,7 @@ class PostAccountController extends Controller
     public function callbackThreads(Request $request, ApiPostService $api)
     {
         if (!$request->filled('code') || $request->query('state') !== session('threads_oauth_state')) {
-            return redirect()->route('admin.posts.create')->with('error', 'Threads connection failed or was cancelled.');
+            return redirect()->route($this->returnRoute())->with('error', 'Threads connection failed or was cancelled.');
         }
 
         $tokenResponse = $api->request('post', adminSetting('posts.threads.token_url'), [], [
@@ -215,7 +217,7 @@ class PostAccountController extends Controller
         ], 'form');
 
         if (!$tokenResponse->successful()) {
-            return redirect()->route('admin.posts.create')->with('error', $tokenResponse->json()['error_message'] ?? 'Failed to connect Threads.');
+            return redirect()->route($this->returnRoute())->with('error', $tokenResponse->json()['error_message'] ?? 'Failed to connect Threads.');
         }
 
         $shortLived = $tokenResponse->json();
@@ -240,7 +242,7 @@ class PostAccountController extends Controller
 
         $profileData = $profile->successful() ? $profile->json() : [];
 
-        SocialAccount::updateOrCreate(
+        $account = SocialAccount::updateOrCreate(
             ['platform' => 'threads', 'platform_account_id' => $threadsUserId, 'user_id' => Auth::id()],
             [
                 'name'                   => $profileData['username'] ?? 'Threads Account',
@@ -253,7 +255,14 @@ class PostAccountController extends Controller
             ]
         );
 
-        return redirect()->route('admin.posts.create')->with('success', 'Threads account connected.');
+        // Long-lived token, no refresh token: status follows its expiry.
+        ConnectionRecorder::record(Auth::id(), 'threads', ThreadsDriver::LOGIN, (string) $threadsUserId, [
+            'provider_app' => 'posts.threads',
+            'access_token' => $accessToken,
+            'expires_at' => Carbon::now()->addSeconds($expiresIn),
+        ], [$account->id]);
+
+        return redirect()->route($this->returnRoute())->with('success', 'Threads account connected.');
     }
 
     private function threadsCallbackUrl(): string
@@ -296,7 +305,7 @@ class PostAccountController extends Controller
     public function callbackPinterest(Request $request, ApiPostService $api)
     {
         if (!$request->filled('code') || $request->query('state') !== session('pinterest_oauth_state')) {
-            return redirect()->route('admin.posts.create')->with('error', 'Pinterest connection failed or was cancelled.');
+            return redirect()->route($this->returnRoute())->with('error', 'Pinterest connection failed or was cancelled.');
         }
 
         $credentials = base64_encode(adminSetting('posts.pinterest.client_id') . ':' . adminSetting('posts.pinterest.client_secret'));
@@ -310,7 +319,7 @@ class PostAccountController extends Controller
         ], 'form');
 
         if (!$tokenResponse->successful()) {
-            return redirect()->route('admin.posts.create')->with('error', $tokenResponse->json()['message'] ?? 'Failed to connect Pinterest.');
+            return redirect()->route($this->returnRoute())->with('error', $tokenResponse->json()['message'] ?? 'Failed to connect Pinterest.');
         }
 
         $token = $tokenResponse->json();
@@ -326,10 +335,10 @@ class PostAccountController extends Controller
         $boardId = $this->resolveDefaultPinterestBoard($api, $baseUrl, $token['access_token'], $profileData['username'] ?? null);
 
         if (!$boardId) {
-            return redirect()->route('admin.posts.create')->with('error', 'Connected to Pinterest, but no board could be found or created for posting.');
+            return redirect()->route($this->returnRoute())->with('error', 'Connected to Pinterest, but no board could be found or created for posting.');
         }
 
-        SocialAccount::updateOrCreate(
+        $account = SocialAccount::updateOrCreate(
             ['platform' => 'pinterest', 'platform_account_id' => $profileData['username'] ?? $token['access_token'], 'user_id' => Auth::id()],
             [
                 'name'                   => $profileData['username'] ?? 'Pinterest Account',
@@ -349,7 +358,16 @@ class PostAccountController extends Controller
             ]
         );
 
-        return redirect()->route('admin.posts.create')->with('success', 'Pinterest account connected.');
+        ConnectionRecorder::record(Auth::id(), 'pinterest', PinterestDriver::LOGIN, $profileData['username'] ?? null, [
+            'provider_app' => 'posts.pinterest',
+            'access_token' => $token['access_token'],
+            'refresh_token' => $token['refresh_token'] ?? null,
+            'expires_at' => Carbon::now()->addSeconds($token['expires_in'] ?? 2592000),
+            'refresh_expires_at' => isset($token['refresh_token_expires_in']) ? Carbon::now()->addSeconds($token['refresh_token_expires_in']) : null,
+            'granted_scopes' => $grantedScopes,
+        ], [$account->id]);
+
+        return redirect()->route($this->returnRoute())->with('success', 'Pinterest account connected.');
     }
 
     /**
