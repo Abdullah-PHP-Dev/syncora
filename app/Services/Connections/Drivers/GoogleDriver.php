@@ -54,6 +54,10 @@ class GoogleDriver extends BaseDriver
                 'youtube' => ['label' => 'YouTube channels', 'icon' => 'bxl-youtube', 'brand' => 'youtube', 'capabilities' => ['posting', 'insights']],
                 'google_ads' => ['label' => 'Google Ads accounts', 'icon' => 'bx-bullseye', 'brand' => 'google', 'capabilities' => ['ads']],
             ],
+            'step_icons' => [
+                self::OAUTH => ['icon' => 'bxl-google', 'brand' => 'google'],
+                self::ADS_LEGACY => ['icon' => 'bx-bullseye', 'brand' => 'google'],
+            ],
             'legacy_steps' => [
                 self::ADS_LEGACY => [
                     'label' => 'Google Ads (earlier connection)',

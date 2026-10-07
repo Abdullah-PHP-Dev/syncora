@@ -41,7 +41,7 @@ class BackfillSocialConnections extends Command
                             {--dry-run : Report what would be created/linked without writing anything}
                             {--force : Run in production without the confirmation prompt}';
 
-    protected $description = 'Create social_connections for existing social accounts (Meta, Google, X) and link them';
+    protected $description = 'Create social_connections for existing social accounts (Meta, Google, X, LinkedIn) and link them';
 
     private array $report = [];
 
@@ -55,7 +55,7 @@ class BackfillSocialConnections extends Command
 
         $rows = SocialAccount::query()
             ->whereNull('social_connection_id')
-            ->whereIn('platform', ['facebook', 'instagram', 'whatsapp', 'youtube', 'google', 'x'])
+            ->whereIn('platform', ['facebook', 'instagram', 'whatsapp', 'youtube', 'google', 'x', 'linkedin'])
             ->orderBy('id')
             ->get();
 
@@ -77,6 +77,14 @@ class BackfillSocialConnections extends Command
                 $this->x((int) $userId, $x, $dryRun);
             }
 
+            $linkedin = $userRows->where('platform', 'linkedin');
+            if ($linkedin->isNotEmpty()) {
+                // Ad accounts come from the Ads app; Pages from the posting app.
+                [$ads, $pages] = $linkedin->partition(fn ($a) => $a->has_ads_permission && ! $a->has_posting_permission);
+                $this->perConsent((int) $userId, 'linkedin', 'linkedin.pages', 'posts.linkedin', $pages, $dryRun);
+                $this->perConsent((int) $userId, 'linkedin', 'linkedin.ads', 'ads.linkedin', $ads, $dryRun);
+            }
+
             foreach ($userRows as $account) {
                 if ($account->platform === 'instagram' && $account->token_type !== 'page') {
                     $this->single('meta.instagram_login', 'posts.instagram', $account, $dryRun);
@@ -91,7 +99,7 @@ class BackfillSocialConnections extends Command
         if ($this->report) {
             $this->table(['user', 'step', 'assets', 'token from', 'status', 'capabilities'], $this->report);
         } else {
-            $this->line('Nothing to backfill: every Meta, Google and X account is already linked to a connection.');
+            $this->line('Nothing to backfill: every account on a Hub platform is already linked to a connection.');
         }
 
         return self::SUCCESS;
@@ -207,6 +215,31 @@ class BackfillSocialConnections extends Command
 
             $this->persist($userId, 'x', 'x.oauth2', $account->platform_account_id, $attributes, collect([$account]), "#{$account->id} " . ($account->refresh_token ? 'refresh_token' : 'access_token'), $dryRun);
         }
+    }
+
+    /**
+     * One connection per user and step from the newest token among the
+     * accounts that consent produced (they all carry the same token).
+     */
+    private function perConsent(int $userId, string $platform, string $step, string $app, Collection $accounts, bool $dryRun): void
+    {
+        if ($accounts->isEmpty()) {
+            return;
+        }
+
+        $source = $accounts->sortByDesc(fn ($a) => [(bool) $a->refresh_token, (bool) $a->access_token, $a->updated_at])->first();
+
+        $attributes = [
+            'provider_app' => $app,
+            'access_token' => $source->access_token,
+            'refresh_token' => $source->refresh_token,
+            'expires_at' => $source->expires_at,
+            'granted_scopes' => $source->scopes,
+            'capabilities' => $this->capabilities($platform, $source->scopes, $accounts),
+            'status' => SocialConnection::statusFor($source->access_token, $source->expires_at, (bool) $source->refresh_token),
+        ];
+
+        $this->persist($userId, $platform, $step, null, $attributes, $accounts, '#' . $source->id . ($source->refresh_token ? ' refresh_token' : ' access_token'), $dryRun);
     }
 
     /** The secret now lives encrypted on the connection - drop the plaintext copy. */

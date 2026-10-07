@@ -7,6 +7,7 @@ use App\Models\SocialAccount;
 use App\Services\Connections\ConnectionRecorder;
 use App\Services\Connections\Drivers\MetaDriver;
 use App\Services\Connections\Drivers\GoogleDriver;
+use App\Services\Connections\Drivers\LinkedInDriver;
 use App\Support\Connections\ConnectionFlags;
 use App\Support\Connections\GoogleClient;
 use App\Support\Connections\GrantedScopes;
@@ -703,13 +704,14 @@ class SocialAuthService
         if (!$tokenResponse['success']) {
             Log::warning('LinkedIn token exchange failed.', ['status' => $tokenResponse['status'] ?? null, 'body' => $tokenResponse['data'] ?? ($tokenResponse['error'] ?? null)]);
 
-            return redirect()->route('admin.posts.create')->with('error', $tokenResponse['data']['error_description'] ?? 'Failed to exchange code for a LinkedIn access token.');
+            return redirect()->route($this->returnRoute())->with('error', $tokenResponse['data']['error_description'] ?? 'Failed to exchange code for a LinkedIn access token.');
         }
 
         $token = $tokenResponse['data'];
         $accessToken = $token['access_token'];
         $grantedScopes = GrantedScopes::fromTokenResponse($token);
         $expiresAt = Carbon::now()->addSeconds($token['expires_in'] ?? 5184000);
+        $assetIds = [];
         $userId = Auth::id();
         $baseUrl = adminSetting('posts.linkedin.base_url') ?: 'https://api.linkedin.com/rest/';
         $headers = [
@@ -767,6 +769,7 @@ class SocialAuthService
                 ]
             );
             $orgsConnected++;
+            $assetIds[] = $orgAccount->id;
 
             // subscribeToWebhooks() is a soft no-op on LinkedIn (it only
             // records a callback URL - LinkedIn doesn't push organic
@@ -818,6 +821,7 @@ class SocialAuthService
                 'currency' => $account['currency'] ?? null,
             ]);
             $adAccountsConnected++;
+            $assetIds[] = $linkedinAdAccount->id;
         }
 
         if (!$adAccountsResponse['success']) {
@@ -825,12 +829,25 @@ class SocialAuthService
         }
 
         if ($orgsConnected === 0 && $adAccountsConnected === 0) {
-            return redirect()->route('admin.posts.create')->with('error', $aclsError
+            return redirect()->route($this->returnRoute())->with('error', $aclsError
                 ? "LinkedIn didn't return your Company Pages ({$aclsError}). Check the app has the Community Management API product approved, then try again."
                 : 'No LinkedIn Company Pages found. Posting works for Pages where your LinkedIn user is a Super admin / Content admin - add yourself as an admin of the Page on LinkedIn, then connect again.');
         }
 
-        return redirect()->route('admin.posts.create')->with(
+        // The consent, for the Connection Hub (LinkedIn refresh tokens keep a
+        // fixed lifetime: refresh_token_expires_in).
+        if ($assetIds) {
+            ConnectionRecorder::record($userId, 'linkedin', LinkedInDriver::PAGES, null, [
+                'provider_app' => 'posts.linkedin',
+                'access_token' => $accessToken,
+                'refresh_token' => $token['refresh_token'] ?? null,
+                'expires_at' => $expiresAt,
+                'refresh_expires_at' => isset($token['refresh_token_expires_in']) ? Carbon::now()->addSeconds($token['refresh_token_expires_in']) : null,
+                'granted_scopes' => $grantedScopes,
+            ], $assetIds);
+        }
+
+        return redirect()->route($this->returnRoute())->with(
             'success',
             "Connected {$orgsConnected} LinkedIn Organization(s) and {$adAccountsConnected} ad account(s)."
         );

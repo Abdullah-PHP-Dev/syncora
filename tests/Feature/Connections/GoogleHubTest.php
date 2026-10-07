@@ -86,6 +86,6 @@ class GoogleHubTest extends TestCase
         $upcoming = collect(app(HubPresenter::class)->forUser($this->user->id)['upcoming'])->pluck('key');
 
         $this->assertNotContains('google', $upcoming);
-        $this->assertContains('linkedin', $upcoming);
+        $this->assertContains('tiktok', $upcoming);
     }
 }

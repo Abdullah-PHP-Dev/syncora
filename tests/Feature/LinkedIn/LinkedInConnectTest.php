@@ -28,6 +28,8 @@ class LinkedInConnectTest extends TestCase
             '2026_06_13_213124_create_permission_tables.php',
             '2026_08_26_100000_create_social_accounts_table.php',
             '2026_08_28_100000_create_social_account_post_details_table.php',
+            '2026_10_07_100000_add_asset_and_user_tokens_to_social_accounts_table.php',
+            '2026_10_07_110000_create_social_connections_table.php',
         ] as $migration) {
             (require database_path('migrations/' . $migration))->up();
         }

@@ -15,7 +15,6 @@ class HubPresenter
 {
     /** Platforms that move into the Hub in later commits (design §11). */
     private const UPCOMING = [
-        ['key' => 'linkedin', 'label' => 'LinkedIn', 'detail' => 'Pages, Ads'],
         ['key' => 'tiktok', 'label' => 'TikTok', 'detail' => 'Posting, Ads'],
         ['key' => 'snapchat', 'label' => 'Snapchat', 'detail' => 'Ads'],
         ['key' => 'threads', 'label' => 'Threads', 'detail' => 'Posting'],

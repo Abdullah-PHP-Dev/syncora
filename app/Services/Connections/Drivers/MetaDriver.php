@@ -53,6 +53,11 @@ class MetaDriver extends BaseDriver
                 'ad_account' => ['label' => 'Ad accounts', 'icon' => 'bx-bullseye', 'brand' => 'meta', 'capabilities' => ['ads']],
                 'whatsapp' => ['label' => 'WhatsApp numbers', 'icon' => 'bxl-whatsapp', 'brand' => 'whatsapp', 'capabilities' => ['messaging', 'posting']],
             ],
+            'step_icons' => [
+                self::LOGIN => ['icon' => 'bxl-facebook', 'brand' => 'facebook'],
+                self::WHATSAPP => ['icon' => 'bxl-whatsapp', 'brand' => 'whatsapp'],
+                self::INSTAGRAM_LOGIN => ['icon' => 'bxl-instagram', 'brand' => 'instagram'],
+            ],
         ];
     }
 

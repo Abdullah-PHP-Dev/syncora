@@ -18,6 +18,7 @@ class HubLink
         'google' => 'google',
         'youtube' => 'google',
         'x' => 'x',
+        'linkedin' => 'linkedin',
     ];
 
     public static function managed(string $platform): bool

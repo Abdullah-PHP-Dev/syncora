@@ -37,7 +37,7 @@
       <div class="ch-steps">
         <div v-for="step in card.steps" :key="step.key" class="ch-step" :class="{ 'is-primary': step.primary, 'is-off': !step.available }">
           <div class="ch-step-main">
-            <span class="ch-step-icon" :class="stepIcon(step.key).cls"><i class="bx" :class="stepIcon(step.key).icon"></i></span>
+            <span class="ch-step-icon" :class="stepIcon(card, step.key).cls"><i class="bx" :class="stepIcon(card, step.key).icon"></i></span>
             <div>
               <strong>{{ step.label }} <span v-if="step.connected" class="ch-mini-ok"><i class="bx bx-check"></i> Connected</span></strong>
               <span class="ch-step-desc">{{ step.description }}</span>
@@ -77,7 +77,7 @@
 
         <div class="ch-conn-head">
           <div class="ch-conn-id">
-            <span class="ch-step-icon sm" :class="stepIcon(conn.step).cls"><i class="bx" :class="stepIcon(conn.step).icon"></i></span>
+            <span class="ch-step-icon sm" :class="stepIcon(card, conn.step).cls"><i class="bx" :class="stepIcon(card, conn.step).icon"></i></span>
             <div>
               <strong>{{ conn.step_label }}</strong>
               <span class="ch-conn-meta">
@@ -266,16 +266,12 @@ export default {
       }[conn.status] || 'Needs attention';
     },
 
-    stepIcon(key) {
-      return {
-        'meta.login': { icon: 'bxl-facebook', cls: 'is-facebook' },
-        'meta.whatsapp': { icon: 'bxl-whatsapp', cls: 'is-whatsapp' },
-        'meta.instagram_login': { icon: 'bxl-instagram', cls: 'is-instagram' },
-        'google.oauth': { icon: 'bxl-google', cls: 'is-google' },
-        'google.ads_legacy': { icon: 'bx-bullseye', cls: 'is-google' },
-        'x.oauth2': { icon: 'bxl-x-logo', cls: 'is-x' },
-        'x.ads': { icon: 'bx-bullseye', cls: 'is-x' }
-      }[key] || { icon: 'bx-link', cls: 'is-meta' };
+    // Icons come from the platform's driver (presentation.step_icons).
+    stepIcon(card, key) {
+      const icons = (card.presentation && card.presentation.step_icons) || {};
+      const fallback = (card.presentation && card.presentation.icons && card.presentation.icons[0]) || { icon: 'bx-link', brand: 'meta' };
+      const found = icons[key] || fallback;
+      return { icon: found.icon, cls: 'is-' + found.brand };
     },
 
 
@@ -481,6 +477,7 @@ export default {
 .is-meta { background: var(--meta); }
 .is-google { background: #4285F4; }
 .is-x { background: #000000; }
+.is-linkedin { background: linear-gradient(180deg, #0A66C2 0%, #004182 100%); }
 .is-youtube { background: linear-gradient(180deg, #FF3D3D 0%, #E60000 100%); }
 
 .ch-pill { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }

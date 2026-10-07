@@ -16,6 +16,7 @@ return [
         'meta' => App\Services\Connections\Drivers\MetaDriver::class,
         'google' => App\Services\Connections\Drivers\GoogleDriver::class,
         'x' => App\Services\Connections\Drivers\XDriver::class,
+        'linkedin' => App\Services\Connections\Drivers\LinkedInDriver::class,
     ],
 
     /*
@@ -52,6 +53,13 @@ return [
             'messaging' => ['dm.write', 'dm.read'],
             'ads' => ['oauth1'],
             'insights' => [],
+        ],
+
+        'linkedin' => [
+            'posting' => ['w_organization_social', 'w_member_social'],
+            'messaging' => [],
+            'ads' => ['rw_ads', 'r_ads'],
+            'insights' => ['r_organization_admin', 'r_organization_social', 'r_ads_reporting'],
         ],
 
         // Google grants full scope URLs.

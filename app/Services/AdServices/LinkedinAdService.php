@@ -3,6 +3,9 @@
 namespace App\Services\AdServices;
 
 use App\Models\SocialAccount;
+use App\Services\Connections\ConnectionRecorder;
+use App\Services\Connections\Drivers\LinkedInDriver;
+use App\Support\Connections\HubReturn;
 use App\Support\Connections\GrantedScopes;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
@@ -220,6 +223,7 @@ class LinkedinAdService
         $accessToken = $data['access_token'];
         $grantedScopes = GrantedScopes::fromTokenResponse($data);
         $expiresAt = Carbon::now()->addSeconds($data['expires_in'] ?? 3600);
+        $assetIds = [];
 
         $headers = [
             'Authorization'             => 'Bearer ' . $accessToken,
@@ -305,6 +309,7 @@ class LinkedinAdService
             ]);
 
             $connected++;
+            $assetIds[] = $result['data']->id;
 
             try {
                 $this->registerAdEventsCallback($result['data']);
@@ -317,7 +322,16 @@ class LinkedinAdService
             return redirect()->route('admin.ads.dashboard')->with('error', 'Connected to LinkedIn, but no usable Ad Account was found where you have a role.');
         }
 
-        return redirect()->route('admin.ads.dashboard')->with('success', "Connected {$connected} LinkedIn Ad Account(s).");
+        ConnectionRecorder::record((int) Auth::id(), 'linkedin', LinkedInDriver::ADS, null, [
+            'provider_app' => 'ads.linkedin',
+            'access_token' => $accessToken,
+            'refresh_token' => $data['refresh_token'] ?? null,
+            'expires_at' => $expiresAt,
+            'refresh_expires_at' => isset($data['refresh_token_expires_in']) ? Carbon::now()->addSeconds($data['refresh_token_expires_in']) : null,
+            'granted_scopes' => $grantedScopes,
+        ], $assetIds);
+
+        return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('success', "Connected {$connected} LinkedIn Ad Account(s).");
     }
 
     /**

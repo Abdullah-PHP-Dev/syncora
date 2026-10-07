@@ -51,6 +51,10 @@ class XDriver extends MirroredTokenDriver
                 'x_account' => ['label' => 'X accounts', 'icon' => 'bxl-x-logo', 'brand' => 'x', 'capabilities' => ['posting', 'messaging']],
                 'x_ads' => ['label' => 'X Ads accounts', 'icon' => 'bx-bullseye', 'brand' => 'x', 'capabilities' => ['ads']],
             ],
+            'step_icons' => [
+                self::OAUTH2 => ['icon' => 'bxl-x-logo', 'brand' => 'x'],
+                self::ADS => ['icon' => 'bx-bullseye', 'brand' => 'x'],
+            ],
         ];
     }
 

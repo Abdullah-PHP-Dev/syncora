@@ -870,7 +870,7 @@
         ['key' => 'threads',   'class' => 'threads',   'icon' => 'bx-at',         'label' => 'Threads',   'url' => route('admin.post-accounts.threads.redirect')],
         ['key' => 'pinterest', 'class' => 'pinterest', 'icon' => 'bx-share-alt',  'label' => 'Pinterest', 'url' => route('admin.post-accounts.pinterest.redirect')],
         ['key' => 'x',         'class' => 'twitter',   'icon' => 'bxl-twitter',   'label' => 'X',         'url' => \App\Support\Connections\HubLink::for('x'), 'note' => \App\Support\Connections\HubLink::note()],
-        ['key' => 'linkedin',  'class' => 'linkedin',  'icon' => 'bxl-linkedin',  'label' => 'LinkedIn',  'url' => route('admin.social-accounts.redirect', ['platform' => 'linkedin'])],
+        ['key' => 'linkedin',  'class' => 'linkedin',  'icon' => 'bxl-linkedin',  'label' => 'LinkedIn',  'url' => \App\Support\Connections\HubLink::for('linkedin'), 'note' => \App\Support\Connections\HubLink::note()],
         ['key' => 'tiktok',    'class' => 'tiktok',    'icon' => 'bxl-tiktok',    'label' => 'TikTok',    'url' => route('admin.social-accounts.redirect', ['platform' => 'tiktok'])],
         ['key' => 'google',    'class' => 'google',    'icon' => 'bxl-google',    'label' => 'Google / YouTube', 'url' => \App\Support\Connections\HubLink::for('google'), 'note' => \App\Support\Connections\HubLink::note()],
         ['key' => 'whatsapp',  'class' => 'whatsapp',  'icon' => 'bxl-whatsapp',  'label' => 'WhatsApp',  'url' => \App\Support\Connections\HubLink::for('whatsapp'), 'note' => \App\Support\Connections\HubLink::note()],
