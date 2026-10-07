@@ -1228,7 +1228,7 @@ class PostController extends Controller
         // no changes needed there, it already treats group_id as the
         // source of truth wherever it's set.
         $validated['group_id'] = (string) Str::uuid();
-
+        dd($validated);
         // Same "upload once, every platform reuses it" fix already built
         // for quickStore() (see uploadQuickPostMedia()'s docblock) - until
         // now store() left $data['uploaded_media'] unset, so every
