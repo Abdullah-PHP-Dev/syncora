@@ -18,6 +18,7 @@ use App\Services\ApiService;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
@@ -323,7 +324,19 @@ class XAdService
         }
 
         if ($connected === 0) {
-            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', 'Connected to X, but no Ads account was returned for this user.');
+            // GET accounts lists only the Ads accounts the signed-in X user
+            // can manage; an app without Ads API access gets an error above,
+            // not an empty list - so this is about the X account itself.
+            $who = isset($access['screen_name']) ? '@' . $access['screen_name'] : 'the X account you signed in with';
+            $rejected = collect($accounts)->where('approval_status', 'REJECTED')->count();
+
+            Log::info('X Ads connect returned no usable Ads accounts.', ['user_id' => Auth::id(), 'x_user' => $access['screen_name'] ?? null, 'returned' => count($accounts), 'rejected' => $rejected]);
+
+            $message = $rejected > 0
+                ? "X returned {$rejected} Ads account(s) for {$who}, but X has rejected them. Resolve this in ads.x.com, then connect again."
+                : "X has no Ads accounts for {$who}. Open ads.x.com signed in as {$who} and finish setting up an Ads account (with billing), or have the account owner give {$who} access under Account access. Then connect again.";
+
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', $message);
         }
 
         // The consent, with its token secret encrypted on the connection -

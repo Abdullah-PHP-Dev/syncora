@@ -97,4 +97,25 @@ class XAdsConnectTest extends TestCase
         $this->assertEqualsCanonicalizing(['ads-1', 'ads-3'], SocialAccount::where('social_connection_id', $connection->id)->pluck('platform_account_id')->all());
         Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), 'oauth/access_token') && str_contains($r->header('Authorization')[0] ?? '', 'oauth_consumer_key="api-key"'));
     }
+
+    public function test_no_ads_accounts_names_the_x_account_and_what_to_do(): void
+    {
+        HubReturn::mark();
+        session(['x_oauth_token_secret' => 'req-secret']);
+        request()->merge(['oauth_token' => 'req', 'oauth_verifier' => 'v']);
+        Http::fake([
+            'api.x.com/oauth/access_token' => Http::response('oauth_token=acc&oauth_token_secret=acc-secret&user_id=42&screen_name=socialeaz'),
+            '*/accounts*' => Http::sequence()->push(['data' => []])->push(['data' => [['id' => 'a', 'name' => 'R', 'approval_status' => 'REJECTED']]]),
+        ]);
+
+        $response = app(SocialAdManagerService::class)->callback('x');
+
+        $this->assertStringEndsWith('/connections', $response->headers->get('Location'));
+        $this->assertStringContainsString('X has no Ads accounts for @socialeaz', session('error'));
+        $this->assertSame(0, SocialConnection::count());
+
+        session(['x_oauth_token_secret' => 'req-secret']);
+        app(SocialAdManagerService::class)->callback('x');
+        $this->assertStringContainsString('X has rejected them', session('error'));
+    }
 }
