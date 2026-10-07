@@ -37,7 +37,7 @@
 
         <label class="composer-field-label mt-3" for="composerCategory">Category</label>
         <div class="composer-category">
-          <select v-if="!addingCategory" id="composerCategory" v-model="categoryId" class="form-select">
+          <select v-if="!addingCategory" id="composerCategory" v-model="categoryId" class="form-control">
             <option v-if="!categoryOptions.length" :value="null" disabled>No categories yet</option>
             <option v-for="category in categoryOptions" :key="category.id" :value="category.id">{{ category.name }}</option>
           </select>
@@ -533,6 +533,20 @@ async function submit(mode) {
   padding-top: 0;
   padding-bottom: 0;
   font-size: .9rem;
+}
+
+/* form-control drops a select's native arrow (appearance: none) - draw one. */
+.composer-category select.form-control {
+  padding-inline-end: 2.25rem;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%238a92a3' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right .85rem center;
+  background-size: 12px 10px;
+  cursor: pointer;
+}
+
+[dir="rtl"] .composer-category select.form-control {
+  background-position: left .85rem center;
 }
 
 .composer-category-btn {
