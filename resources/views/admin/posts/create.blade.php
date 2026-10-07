@@ -958,7 +958,7 @@
                             <a href="{{ route('admin.social-accounts.redirect', ['platform' => 'tiktok']) }}" class="btn btn-outline-dark btn-sm">
                                 <i class="fab fa-tiktok"></i> Connect TikTok
                             </a>
-                            <a href="{{ route('admin.social-accounts.redirect', ['platform' => 'google']) }}" class="btn btn-outline-danger btn-sm">
+                            <a href="{{ \App\Support\Connections\HubLink::for('google') }}" class="btn btn-outline-danger btn-sm">
                                 <i class="fab fa-google"></i> Connect Google / YouTube
                             </a>
                             <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#connectWhatsappModal">

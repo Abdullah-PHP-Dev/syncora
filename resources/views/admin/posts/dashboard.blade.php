@@ -872,7 +872,7 @@
         ['key' => 'x',         'class' => 'twitter',   'icon' => 'bxl-twitter',   'label' => 'X',         'url' => route('admin.post-accounts.x.redirect')],
         ['key' => 'linkedin',  'class' => 'linkedin',  'icon' => 'bxl-linkedin',  'label' => 'LinkedIn',  'url' => route('admin.social-accounts.redirect', ['platform' => 'linkedin'])],
         ['key' => 'tiktok',    'class' => 'tiktok',    'icon' => 'bxl-tiktok',    'label' => 'TikTok',    'url' => route('admin.social-accounts.redirect', ['platform' => 'tiktok'])],
-        ['key' => 'google',    'class' => 'google',    'icon' => 'bxl-google',    'label' => 'Google / YouTube', 'url' => route('admin.social-accounts.redirect', ['platform' => 'google'])],
+        ['key' => 'google',    'class' => 'google',    'icon' => 'bxl-google',    'label' => 'Google / YouTube', 'url' => \App\Support\Connections\HubLink::for('google'), 'note' => \App\Support\Connections\HubLink::note()],
         ['key' => 'whatsapp',  'class' => 'whatsapp',  'icon' => 'bxl-whatsapp',  'label' => 'WhatsApp',  'url' => \App\Support\Connections\HubLink::for('whatsapp'), 'note' => \App\Support\Connections\HubLink::note()],
         // Snapchat is deliberately NOT a real connect link - there's no
         // posting API to authorize (the OAuth flow on the Ads dashboard

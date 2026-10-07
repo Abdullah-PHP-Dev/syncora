@@ -23,13 +23,11 @@
       <div class="ch-card-head">
         <div class="ch-brand">
           <span class="ch-brand-stack">
-            <span class="ch-badge is-facebook"><i class="bx bxl-facebook"></i></span>
-            <span class="ch-badge is-instagram"><i class="bx bxl-instagram"></i></span>
-            <span class="ch-badge is-whatsapp"><i class="bx bxl-whatsapp"></i></span>
+            <span v-for="b in card.presentation.icons" :key="b.icon" class="ch-badge" :class="'is-' + b.brand"><i class="bx" :class="b.icon"></i></span>
           </span>
           <div>
             <h2>{{ card.label }}</h2>
-            <p>Facebook Pages · Instagram · Messenger · WhatsApp · Ads</p>
+            <p>{{ card.presentation.subtitle }}</p>
           </div>
         </div>
         <span class="ch-pill" :class="cardStatus(card).tone"><i class="bx" :class="cardStatus(card).icon"></i> {{ cardStatus(card).label }}</span>
@@ -58,7 +56,7 @@
           </button>
           <a v-else-if="step.available" :href="step.connect_url" class="ch-btn" :class="step.primary ? 'ch-btn-primary' : 'ch-btn-ghost'">
             <i class="bx" :class="step.connected ? 'bx-refresh' : 'bx-link'"></i>
-            {{ step.connected ? (step.primary ? 'Add or change accounts' : 'Reconnect') : (step.primary ? 'Connect with Facebook' : 'Connect') }}
+            {{ step.connected ? (step.primary ? 'Add or change accounts' : 'Reconnect') : (step.primary ? card.presentation.connect_label : 'Connect') }}
           </a>
           <span v-else class="ch-btn ch-btn-disabled">Not available</span>
         </div>
@@ -67,10 +65,10 @@
       <!-- Not connected yet -->
       <div v-if="!card.connections.length" class="ch-empty">
         <div class="ch-empty-art"><i class="bx bx-plug"></i></div>
-        <h3>One consent for everything Meta</h3>
-        <p>Choose the Pages, Instagram accounts and ad accounts SocialEaz may use. You can change your choice at any time, here or in your Facebook settings.</p>
+        <h3>{{ card.presentation.empty_title }}</h3>
+        <p>{{ card.presentation.empty_text }}</p>
         <ul class="ch-gets">
-          <li v-for="cap in capabilityList" :key="cap.key"><i class="bx" :class="cap.icon"></i> {{ cap.long }}</li>
+          <li v-for="cap in cardCapabilities(card)" :key="cap.key"><i class="bx" :class="cap.icon"></i> {{ cap.long[card.platform] || cap.long.default }}</li>
         </ul>
       </div>
 
@@ -81,7 +79,7 @@
           <div class="ch-conn-id">
             <span class="ch-step-icon sm" :class="stepIcon(conn.step).cls"><i class="bx" :class="stepIcon(conn.step).icon"></i></span>
             <div>
-              <strong>{{ stepLabel(card, conn.step) }}</strong>
+              <strong>{{ conn.step_label }}</strong>
               <span class="ch-conn-meta">
                 <span class="ch-status" :class="statusInfo(conn.status).tone"><i class="ch-dot"></i>{{ statusInfo(conn.status).label }}</span>
                 <span v-if="conn.expires_in_days !== null"><i class="bx bx-time-five"></i> {{ expiryLabel(conn) }}</span>
@@ -116,12 +114,18 @@
           <a :href="conn.reconnect_url" class="ch-btn ch-btn-primary sm"><i class="bx bx-refresh"></i> Reconnect</a>
         </div>
 
+        <div v-if="conn.upgrade && conn.status !== 'revoked'" class="ch-alert is-info">
+          <i class="bx bx-up-arrow-circle"></i>
+          <div><strong>One-time upgrade available</strong><span>{{ conn.upgrade.note }}</span></div>
+          <a :href="conn.upgrade.url" class="ch-btn ch-btn-primary sm"><i class="bx bx-up-arrow-alt"></i> Upgrade</a>
+        </div>
+
         <!-- Capabilities of this consent -->
         <div class="ch-caps">
-          <span v-for="cap in capabilityList" :key="cap.key" class="ch-cap" :class="{ 'is-on': conn.capabilities.includes(cap.key) }">
+          <span v-for="cap in cardCapabilities(card)" :key="cap.key" class="ch-cap" :class="{ 'is-on': conn.capabilities.includes(cap.key) }">
             <i class="bx" :class="conn.capabilities.includes(cap.key) ? cap.icon : 'bx-lock-alt'"></i>
             {{ cap.label }}
-            <a v-if="!conn.capabilities.includes(cap.key) && conn.step === 'meta.login'" :href="conn.reconnect_url" class="ch-cap-up">Upgrade</a>
+            <a v-if="!conn.capabilities.includes(cap.key) && conn.upgradable" :href="conn.reconnect_url" class="ch-cap-up">Upgrade</a>
           </span>
         </div>
 
@@ -183,17 +187,19 @@
 
 <script>
 const CAPABILITIES = [
-  { key: 'posting', label: 'Publishing', long: 'Publish and schedule posts to Pages and Instagram', icon: 'bx-send' },
-  { key: 'messaging', label: 'Inbox', long: 'Answer Messenger, Instagram and WhatsApp messages', icon: 'bx-message-rounded-dots' },
-  { key: 'ads', label: 'Ads', long: 'Create and manage campaigns on your ad accounts', icon: 'bx-bullseye' },
-  { key: 'insights', label: 'Insights', long: 'Read Page and Instagram insights for reports', icon: 'bx-bar-chart-alt-2' }
+  { key: 'posting', label: 'Publishing', icon: 'bx-send', long: { meta: 'Publish and schedule posts to Pages and Instagram', google: 'Upload and schedule videos to your YouTube channels', default: 'Publish and schedule posts' } },
+  { key: 'messaging', label: 'Inbox', icon: 'bx-message-rounded-dots', long: { meta: 'Answer Messenger, Instagram and WhatsApp messages', default: 'Answer direct messages' } },
+  { key: 'ads', label: 'Ads', icon: 'bx-bullseye', long: { meta: 'Create and manage campaigns on your ad accounts', google: 'Create and manage Google Ads and YouTube campaigns', default: 'Create and manage ad campaigns' } },
+  { key: 'insights', label: 'Insights', icon: 'bx-bar-chart-alt-2', long: { meta: 'Read Page and Instagram insights for reports', google: 'Read Analytics data for reports', default: 'Read insights for reports' } }
 ];
 
 const GROUPS = [
   { kind: 'page', label: 'Facebook Pages', icon: 'bxl-facebook', brand: 'facebook' },
   { kind: 'instagram', label: 'Instagram accounts', icon: 'bxl-instagram', brand: 'instagram' },
   { kind: 'ad_account', label: 'Ad accounts', icon: 'bx-bullseye', brand: 'meta' },
-  { kind: 'whatsapp', label: 'WhatsApp numbers', icon: 'bxl-whatsapp', brand: 'whatsapp' }
+  { kind: 'whatsapp', label: 'WhatsApp numbers', icon: 'bxl-whatsapp', brand: 'whatsapp' },
+  { kind: 'youtube', label: 'YouTube channels', icon: 'bxl-youtube', brand: 'youtube' },
+  { kind: 'google_ads', label: 'Google Ads accounts', icon: 'bx-bullseye', brand: 'google' }
 ];
 
 export default {
@@ -231,6 +237,12 @@ export default {
 
   methods: {
 
+    // Only the capabilities this platform offers (Google has no inbox).
+    cardCapabilities(card) {
+      const offered = (card.presentation && card.presentation.benefits) || CAPABILITIES.map(c => c.key);
+      return CAPABILITIES.filter(c => offered.includes(c.key));
+    },
+
     capability(key) {
       return CAPABILITIES.find(c => c.key === key) || { label: key, icon: 'bx-check' };
     },
@@ -266,14 +278,12 @@ export default {
       return {
         'meta.login': { icon: 'bxl-facebook', cls: 'is-facebook' },
         'meta.whatsapp': { icon: 'bxl-whatsapp', cls: 'is-whatsapp' },
-        'meta.instagram_login': { icon: 'bxl-instagram', cls: 'is-instagram' }
+        'meta.instagram_login': { icon: 'bxl-instagram', cls: 'is-instagram' },
+        'google.oauth': { icon: 'bxl-google', cls: 'is-google' },
+        'google.ads_legacy': { icon: 'bx-bullseye', cls: 'is-google' }
       }[key] || { icon: 'bx-link', cls: 'is-meta' };
     },
 
-    stepLabel(card, key) {
-      const step = card.steps.find(s => s.key === key);
-      return step ? step.label : key;
-    },
 
     upcomingIcon(key) {
       return { google: 'bxl-google', x: 'bxl-x-logo', linkedin: 'bxl-linkedin', tiktok: 'bxl-tiktok', snapchat: 'bxl-snapchat', threads: 'bx-at', pinterest: 'bxl-pinterest' }[key] || 'bx-link';
@@ -473,6 +483,8 @@ export default {
 .is-instagram { background: var(--ig); }
 .is-whatsapp { background: var(--wa); }
 .is-meta { background: var(--meta); }
+.is-google { background: #4285F4; }
+.is-youtube { background: linear-gradient(180deg, #FF3D3D 0%, #E60000 100%); }
 
 .ch-pill { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }
 .ch-pill.is-ok { background: #E8F8EE; color: #16A34A; }
@@ -531,6 +543,7 @@ export default {
 .ch-alert div { flex: 1; display: flex; flex-direction: column; gap: 2px; }
 .ch-alert.is-warn { background: #FFF8EB; color: #92400E; }
 .ch-alert.is-bad, .ch-alert.is-muted { background: #FDECEC; color: #991B1B; }
+.ch-alert.is-info { background: #EEF4FF; color: #1E3A8A; }
 
 .ch-caps { display: flex; flex-wrap: wrap; gap: 8px; }
 .ch-cap { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 10px; background: #F4F5F9; color: var(--muted); font-size: 12.5px; font-weight: 600; }

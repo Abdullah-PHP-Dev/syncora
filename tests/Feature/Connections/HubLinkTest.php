@@ -14,11 +14,14 @@ class HubLinkTest extends TestCase
             $this->assertTrue(HubLink::managed($platform));
             $this->assertStringEndsWith('/connections#meta', HubLink::for($platform));
         }
+        foreach (['google', 'youtube'] as $platform) {
+            $this->assertStringEndsWith('/connections#google', HubLink::for($platform));
+        }
     }
 
     public function test_other_platforms_keep_their_own_flow_for_now(): void
     {
-        foreach (['tiktok', 'x', 'google', 'youtube', 'linkedin', 'snapchat'] as $platform) {
+        foreach (['tiktok', 'x', 'linkedin', 'snapchat', 'threads', 'pinterest'] as $platform) {
             $this->assertFalse(HubLink::managed($platform));
             $this->assertNull(HubLink::for($platform));
         }

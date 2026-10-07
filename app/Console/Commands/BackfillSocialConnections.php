@@ -13,13 +13,17 @@ use Illuminate\Support\Facades\DB;
  * Creates social_connections for existing social_accounts and links them
  * (docs/connection-hub-design.md §9) - no user has to reconnect.
  *
- * Meta only for now; every other platform is backfilled in the commit that
- * adds its driver. Grouping:
+ * Platforms with a Hub driver (Meta, Google); the rest are backfilled in
+ * the commit that adds their driver. Grouping:
  *  - every facebook row + Page-linked instagram rows (token_type = page)
  *      -> one `meta.login` connection per user, holding the newest Meta
  *         user token found (ad rows' access_token / page rows' user_token)
  *  - instagram rows from Instagram Login -> `meta.instagram_login`, per account
  *  - whatsapp rows                        -> `meta.whatsapp`, per number
+ *  - youtube rows + google (Ads) rows sharing their refresh token
+ *      -> one `google.oauth` connection per user (posts.google)
+ *  - other google (Ads) rows -> one `google.ads_legacy` per user (ads.google,
+ *      the Ads module's own client - kept so their refreshes keep working)
  *
  * Granted scopes are copied when known; otherwise capabilities fall back to
  * the legacy has_*_permission flags until the validation pass fills scopes.
@@ -33,7 +37,7 @@ class BackfillSocialConnections extends Command
                             {--dry-run : Report what would be created/linked without writing anything}
                             {--force : Run in production without the confirmation prompt}';
 
-    protected $description = 'Create social_connections for existing social accounts (Meta) and link them';
+    protected $description = 'Create social_connections for existing social accounts (Meta, Google) and link them';
 
     private array $report = [];
 
@@ -47,7 +51,7 @@ class BackfillSocialConnections extends Command
 
         $rows = SocialAccount::query()
             ->whereNull('social_connection_id')
-            ->whereIn('platform', ['facebook', 'instagram', 'whatsapp'])
+            ->whereIn('platform', ['facebook', 'instagram', 'whatsapp', 'youtube', 'google'])
             ->orderBy('id')
             ->get();
 
@@ -57,6 +61,11 @@ class BackfillSocialConnections extends Command
 
             if ($login->isNotEmpty()) {
                 $this->metaLogin((int) $userId, $login, $dryRun);
+            }
+
+            $google = $userRows->whereIn('platform', ['youtube', 'google']);
+            if ($google->isNotEmpty()) {
+                $this->google((int) $userId, $google, $dryRun);
             }
 
             foreach ($userRows as $account) {
@@ -73,7 +82,7 @@ class BackfillSocialConnections extends Command
         if ($this->report) {
             $this->table(['user', 'step', 'assets', 'token from', 'status', 'capabilities'], $this->report);
         } else {
-            $this->line('Nothing to backfill: every Meta account is already linked to a connection.');
+            $this->line('Nothing to backfill: every Meta and Google account is already linked to a connection.');
         }
 
         return self::SUCCESS;
@@ -98,7 +107,7 @@ class BackfillSocialConnections extends Command
             'access_token' => $token,
             'expires_at' => $expiresAt,
             'granted_scopes' => $scopes,
-            'capabilities' => $this->capabilities($scopes, $accounts),
+            'capabilities' => $this->capabilities('meta', $scopes, $accounts),
             // Meta issues no refresh tokens: an expired user token needs a reconnect.
             'status' => SocialConnection::statusFor($token, $expiresAt, false),
         ];
@@ -107,7 +116,45 @@ class BackfillSocialConnections extends Command
             ? '#' . $source['account']->id . ' ' . ($source['account']->token_type === 'page' ? 'user_token' : 'access_token')
             : 'none';
 
-        $this->persist($userId, 'meta.login', null, $attributes, $accounts, $tokenFrom, $dryRun);
+        $this->persist($userId, 'meta', 'meta.login', null, $attributes, $accounts, $tokenFrom, $dryRun);
+    }
+
+    private function google(int $userId, Collection $accounts, bool $dryRun): void
+    {
+        $youtube = $accounts->where('platform', 'youtube');
+        $unifiedTokens = $youtube->pluck('refresh_token')->filter()->unique()->all();
+
+        // Ads rows minted by the same unified consent share the channel's refresh token.
+        [$unifiedAds, $legacyAds] = $accounts->where('platform', 'google')
+            ->partition(fn ($a) => $a->refresh_token && in_array($a->refresh_token, $unifiedTokens, true));
+
+        $groups = [
+            'google.oauth' => ['app' => 'posts.google', 'accounts' => $youtube->merge($unifiedAds)],
+            'google.ads_legacy' => ['app' => 'ads.google', 'accounts' => $legacyAds],
+        ];
+
+        foreach ($groups as $step => $group) {
+            if ($group['accounts']->isEmpty()) {
+                continue;
+            }
+
+            // Newest row with a refresh token, else newest with any token.
+            $source = $group['accounts']->sortByDesc(fn ($a) => [(bool) $a->refresh_token, $a->updated_at])->first();
+
+            $attributes = [
+                'provider_app' => $group['app'],
+                'access_token' => $source->access_token,
+                'refresh_token' => $source->refresh_token,
+                'expires_at' => $source->expires_at,
+                'granted_scopes' => $source->scopes,
+                'capabilities' => $this->capabilities('google', $source->scopes, $group['accounts']),
+                'status' => SocialConnection::statusFor($source->access_token, $source->expires_at, (bool) $source->refresh_token),
+            ];
+
+            $tokenFrom = '#' . $source->id . ($source->refresh_token ? ' refresh_token' : ' access_token');
+
+            $this->persist($userId, 'google', $step, null, $attributes, $group['accounts'], $tokenFrom, $dryRun);
+        }
     }
 
     private function single(string $step, string $app, SocialAccount $account, bool $dryRun): void
@@ -120,14 +167,14 @@ class BackfillSocialConnections extends Command
             'refresh_token' => $account->refresh_token,
             'expires_at' => $account->expires_at,
             'granted_scopes' => $account->scopes,
-            'capabilities' => $this->capabilities($account->scopes, collect([$account])),
+            'capabilities' => $this->capabilities('meta', $account->scopes, collect([$account])),
             'status' => SocialConnection::statusFor($token, $account->expires_at, (bool) $account->refresh_token),
         ];
 
-        $this->persist((int) $account->user_id, $step, $account->platform_account_id, $attributes, collect([$account]), $token ? "#{$account->id} access_token" : 'none', $dryRun);
+        $this->persist((int) $account->user_id, 'meta', $step, $account->platform_account_id, $attributes, collect([$account]), $token ? "#{$account->id} access_token" : 'none', $dryRun);
     }
 
-    private function persist(int $userId, string $step, ?string $providerAccountId, array $attributes, Collection $accounts, string $tokenFrom, bool $dryRun): void
+    private function persist(int $userId, string $platform, string $step, ?string $providerAccountId, array $attributes, Collection $accounts, string $tokenFrom, bool $dryRun): void
     {
         $this->report[] = [$userId, $step, $accounts->pluck('id')->map(fn ($id) => "#{$id}")->implode(' '), $tokenFrom, $attributes['status'], implode(', ', $attributes['capabilities']) ?: '-'];
 
@@ -135,10 +182,10 @@ class BackfillSocialConnections extends Command
             return;
         }
 
-        DB::transaction(function () use ($userId, $step, $providerAccountId, $attributes, $accounts) {
+        DB::transaction(function () use ($userId, $platform, $step, $providerAccountId, $attributes, $accounts) {
             $connection = SocialConnection::firstOrNew([
                 'user_id' => $userId,
-                'platform' => 'meta',
+                'platform' => $platform,
                 'step' => $step,
                 'provider_account_id' => $providerAccountId,
             ]);
@@ -159,10 +206,10 @@ class BackfillSocialConnections extends Command
     }
 
     /** From granted scopes when known, else the legacy permission flags. */
-    private function capabilities(?array $scopes, Collection $accounts): array
+    private function capabilities(string $platform, ?array $scopes, Collection $accounts): array
     {
         if ($scopes) {
-            return SocialConnection::capabilitiesFrom($scopes, config('connections.capabilities.meta'));
+            return SocialConnection::capabilitiesFrom($scopes, config("connections.capabilities.{$platform}"));
         }
 
         return array_values(array_filter([

@@ -14,6 +14,7 @@ return [
     // Platform key => ProviderDriver. Platforms are added as their drivers land.
     'drivers' => [
         'meta' => App\Services\Connections\Drivers\MetaDriver::class,
+        'google' => App\Services\Connections\Drivers\GoogleDriver::class,
     ],
 
     /*
