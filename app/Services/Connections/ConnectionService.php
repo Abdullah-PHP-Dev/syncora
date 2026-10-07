@@ -71,31 +71,38 @@ class ConnectionService
      * result says why and where to send them - an inline "Connect",
      * "Reconnect" or "Upgrade access" prompt, never a separate flow.
      *
+     * Looks at every connection the user has on the platform (an older
+     * consent, e.g. google.ads_legacy, still counts); the link always points
+     * at the step whose consent grants the capability.
+     *
      * @return array{ok: bool, reason: ?string, url: ?string, connection: ?SocialConnection}
      */
-    public function ensure(int $userId, string $platform, string $capability, string $step = 'meta.login'): array
+    public function ensure(int $userId, string $platform, string $capability): array
     {
-        $connection = SocialConnection::where(['user_id' => $userId, 'platform' => $platform, 'step' => $step])
+        $driver = $this->driver($platform);
+        $url = route('admin.connections.connect', ['platform' => $platform, 'step' => $driver->stepFor($capability)]);
+
+        $connections = SocialConnection::where(['user_id' => $userId, 'platform' => $platform])
             ->latest('updated_at')
-            ->first();
+            ->get()
+            ->reject(fn ($c) => $c->status === SocialConnection::REVOKED && $c->last_error === SocialConnection::DISCONNECTED_BY_USER);
 
-        $connectUrl = route('admin.connections.connect', ['platform' => $platform, 'step' => $step]);
-
-        if (! $connection) {
-            return ['ok' => false, 'reason' => 'not_connected', 'url' => $connectUrl, 'connection' => null];
+        if ($ok = $connections->first(fn ($c) => $c->isUsable() && $c->hasCapability($capability))) {
+            return ['ok' => true, 'reason' => null, 'url' => null, 'connection' => $ok];
         }
 
-        if (! $connection->isUsable()) {
-            return ['ok' => false, 'reason' => 'reconnect', 'url' => $connectUrl, 'connection' => $connection];
+        if ($connections->isEmpty()) {
+            return ['ok' => false, 'reason' => 'not_connected', 'url' => $url, 'connection' => null];
         }
 
-        if (! $connection->hasCapability($capability)) {
-            // Re-running the same consent requests the missing permissions
-            // (Meta re-runs the config; Google adds include_granted_scopes).
-            return ['ok' => false, 'reason' => 'upgrade', 'url' => $connectUrl, 'connection' => $connection];
-        }
+        // Had the capability but the consent stopped working -> reconnect;
+        // connected without it -> request it (Meta re-runs the config,
+        // Google adds include_granted_scopes).
+        $broken = $connections->first(fn ($c) => $c->hasCapability($capability));
 
-        return ['ok' => true, 'reason' => null, 'url' => null, 'connection' => $connection];
+        return $broken
+            ? ['ok' => false, 'reason' => 'reconnect', 'url' => $url, 'connection' => $broken]
+            : ['ok' => false, 'reason' => 'upgrade', 'url' => $url, 'connection' => $connections->first()];
     }
 
     public function validate(SocialConnection $connection): SocialConnection

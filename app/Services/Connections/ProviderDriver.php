@@ -29,6 +29,9 @@ interface ProviderDriver
      */
     public function presentation(): array;
 
+    /** The step whose consent grants a capability (connect / upgrade target). */
+    public function stepFor(string $capability): string;
+
     /** Which asset_groups entry an asset belongs to. */
     public function assetKind(SocialAccount $asset): string;
 

@@ -68,6 +68,11 @@ class LinkedInDriver extends BaseDriver
         return $asset->has_ads_permission && ! $asset->has_posting_permission ? 'linkedin_ads' : 'linkedin_page';
     }
 
+    public function stepFor(string $capability): string
+    {
+        return $capability === 'ads' ? self::ADS : self::PAGES;
+    }
+
     public function steps(): array
     {
         return [

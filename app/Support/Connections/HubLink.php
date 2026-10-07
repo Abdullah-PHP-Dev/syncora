@@ -30,6 +30,12 @@ class HubLink
         return isset(self::MANAGED[$platform]);
     }
 
+    /** The Hub card (= driver platform) for a module platform key, e.g. instagram -> meta. */
+    public static function card(string $platform): ?string
+    {
+        return self::MANAGED[$platform] ?? null;
+    }
+
     /** The Hub card URL for a platform, or null when it isn't managed there yet. */
     public static function for(string $platform): ?string
     {

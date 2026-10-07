@@ -12,6 +12,14 @@ use Illuminate\Support\Facades\DB;
  */
 abstract class BaseDriver implements ProviderDriver
 {
+    /** Default: the card's primary step grants everything. */
+    public function stepFor(string $capability): string
+    {
+        $steps = collect($this->steps());
+
+        return ($steps->firstWhere('primary', true) ?? $steps->first())['key'];
+    }
+
     /** Record a validation outcome that isn't "fine". */
     protected function mark(SocialConnection $connection, string $status, string $error, bool $revoked = false): SocialConnection
     {

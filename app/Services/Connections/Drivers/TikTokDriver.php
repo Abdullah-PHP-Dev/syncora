@@ -65,6 +65,11 @@ class TikTokDriver extends MirroredTokenDriver
         return $asset->has_ads_permission && ! $asset->has_posting_permission ? 'tiktok_ads' : 'tiktok_account';
     }
 
+    public function stepFor(string $capability): string
+    {
+        return $capability === 'ads' ? self::BUSINESS : self::LOGIN_KIT;
+    }
+
     public function steps(): array
     {
         return [

@@ -306,6 +306,15 @@ return [
     'connections' => [
         'title' => 'الاتصالات',
         'managed_in_hub' => 'تُدار من صفحة الاتصالات',
+        'capability' => ['posting' => 'النشر', 'messaging' => 'صندوق الرسائل', 'ads' => 'الإعلانات', 'insights' => 'الإحصاءات'],
+        'alert' => [
+            'reconnect' => 'يجب إعادة ربط :platform لاستمرار عمل :capability.',
+            'upgrade' => ':platform مربوط دون صلاحية :capability.',
+            'not_connected' => 'اربط :platform لاستخدام :capability.',
+            'reconnect_cta' => 'إعادة الربط',
+            'upgrade_cta' => 'ترقية الصلاحيات',
+            'connect_cta' => 'ربط',
+        ],
         'connect_meta' => 'إدارة فيسبوك وإنستغرام وواتساب من صفحة الاتصالات',
     ],
 

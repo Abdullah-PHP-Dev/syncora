@@ -84,6 +84,8 @@
 
 <div class="socialeaz-dash pd">
 
+    <x-connection-alerts capability="posting" />
+
     <!-- Header -->
     <div class="dash-header d-flex flex-wrap align-items-start justify-content-between gap-4 mb-6">
         <div>

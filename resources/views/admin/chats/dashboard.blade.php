@@ -1341,6 +1341,8 @@
             <div class="inbox-alert inbox-alert-err"><i class="bx bx-error-circle"></i> {{ session('error') }}</div>
         @endif
 
+        <x-connection-alerts capability="messaging" />
+
         @php
             $unreadTotal = $conversations->sum('unread_count');
             $openTotal = $conversations->where('status', 'open')->count();

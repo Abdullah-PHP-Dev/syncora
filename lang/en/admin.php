@@ -314,6 +314,15 @@ return [
     'connections' => [
         'title' => 'Connections',
         'managed_in_hub' => 'Managed in Connections',
+        'capability' => ['posting' => 'publishing', 'messaging' => 'the inbox', 'ads' => 'ads', 'insights' => 'insights'],
+        'alert' => [
+            'reconnect' => ':platform needs you to reconnect to keep :capability working.',
+            'upgrade' => ':platform is connected without permission for :capability.',
+            'not_connected' => 'Connect :platform to use :capability.',
+            'reconnect_cta' => 'Reconnect',
+            'upgrade_cta' => 'Upgrade access',
+            'connect_cta' => 'Connect',
+        ],
         'connect_meta' => 'Manage Facebook, Instagram & WhatsApp in Connections',
     ],
 

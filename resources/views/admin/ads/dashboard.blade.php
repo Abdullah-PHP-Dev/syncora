@@ -10,6 +10,8 @@
 
 @section('content')
 
+    <x-connection-alerts capability="ads" />
+
     <div v-cloak>
         <ads-dashboard :data='@json($data)'>
             <x-connect-social-media id="adsConnectSocialMediaModal" />

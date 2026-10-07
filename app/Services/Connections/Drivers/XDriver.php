@@ -63,6 +63,11 @@ class XDriver extends MirroredTokenDriver
         return $asset->has_ads_permission && ! $asset->has_posting_permission && ! $asset->has_messaging_permission ? 'x_ads' : 'x_account';
     }
 
+    public function stepFor(string $capability): string
+    {
+        return $capability === 'ads' ? self::ADS : self::OAUTH2;
+    }
+
     public function steps(): array
     {
         $steps = [[

@@ -48,6 +48,10 @@
         <a href="{{ $connectUrl }}" class="ads-acct-btn is-primary ms-auto"><i class="bx bx-link"></i> Connect {{ $platformName }}</a>
     @endif
 </div>
+{{-- Account exists but its connection lost access: point at the Hub's reconnect. --}}
+@if ($account)
+    <x-connection-alerts capability="ads" :platform="$platform" />
+@endif
 @include('admin.ads.partials.promote-banner')
 {{-- In the head stack: inline <style> inside the Vue #app root is stripped by Vue's template compiler. --}}
 @once
