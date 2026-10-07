@@ -43,6 +43,14 @@ return [
             'insights' => ['read_insights', 'instagram_manage_insights', 'instagram_business_manage_insights'],
         ],
 
+        // Google grants full scope URLs.
+        'google' => [
+            'posting' => ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube'],
+            'messaging' => [],
+            'ads' => ['https://www.googleapis.com/auth/adwords'],
+            'insights' => ['https://www.googleapis.com/auth/analytics.readonly', 'https://www.googleapis.com/auth/yt-analytics.readonly', 'https://www.googleapis.com/auth/business.manage'],
+        ],
+
     ],
 
 ];

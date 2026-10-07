@@ -3,6 +3,9 @@
 namespace App\Services\AdServices\Concerns;
 
 use App\Models\SocialAccount;
+use App\Services\Connections\ConnectionRecorder;
+use App\Services\Connections\Drivers\GoogleDriver;
+use App\Support\Connections\GoogleClient;
 use App\Support\Connections\GrantedScopes;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -134,23 +137,8 @@ trait GoogleAdsApiTrait
             Log::warning('Google Ads token exchange returned no refresh_token.', ['platform' => $platform]);
         }
 
-        $developerToken = adminSetting('ads.google.developer_token');
-
-        if (empty($developerToken)) {
-            return redirect()->route('admin.ads.dashboard')->with('error', 'No Google Ads developer token is configured (ads.google.developer_token). Get one from the Google Ads API Center on your manager account.');
-        }
-
-        $headers = [
-            'Authorization'   => 'Bearer ' . $accessToken,
-            'developer-token' => $developerToken,
-            'Content-Type'    => 'application/json',
-        ];
-
-        $loginCustomerId = adminSetting('ads.google.login_customer_id');
-
-        if (!empty($loginCustomerId)) {
-            $headers['login-customer-id'] = str_replace('-', '', $loginCustomerId);
-        }
+        // Developer token no longer required (sunset 2026-09-09) - see GoogleClient::adsHeaders().
+        $headers = GoogleClient::adsHeaders($accessToken);
 
         $base = adminSetting('ads.google.base_url') ?: 'https://googleads.googleapis.com/v24/';
 
@@ -174,6 +162,7 @@ trait GoogleAdsApiTrait
         $expiresAt = Carbon::now()->addSeconds($token['expires_in'] ?? 3600);
         $connected = 0;
         $skippedManagers = 0;
+        $assetIds = [];
 
         // Google Ads' Customer resource has no logo/photo field at all
         // (confirmed against Google's own API reference - it exposes
@@ -218,7 +207,7 @@ trait GoogleAdsApiTrait
                 continue;
             }
 
-            $this->apiService->success(
+            $saved = $this->apiService->success(
                 [
                     // Always 'google', regardless of which tile (Google
                     // Ads or YouTube) triggered this connect - YouTube ads
@@ -251,6 +240,7 @@ trait GoogleAdsApiTrait
             );
 
             $connected++;
+            $assetIds[] = $saved['data']->id;
         }
 
         if ($connected === 0) {
@@ -260,6 +250,17 @@ trait GoogleAdsApiTrait
 
             return redirect()->route('admin.ads.dashboard')->with('error', 'Connected to Google, but no usable Google Ads account was found.' . $hint);
         }
+
+        // This Ads-module flow uses the separate ads.google client; the Hub
+        // shows it as an earlier connection with a one-time upgrade to the
+        // single Google consent (design doc §5).
+        ConnectionRecorder::record((int) Auth::id(), 'google', GoogleDriver::ADS_LEGACY, null, [
+            'provider_app' => 'ads.google',
+            'access_token' => $accessToken,
+            'refresh_token' => $token['refresh_token'] ?? null,
+            'expires_at' => $expiresAt,
+            'granted_scopes' => $grantedScopes,
+        ], $assetIds);
 
         return redirect()->route('admin.ads.dashboard')->with('success', "Connected {$connected} Google Ads account(s).");
     }
@@ -326,19 +327,7 @@ trait GoogleAdsApiTrait
             $accessToken = $response['data'];
         }
 
-        $headers = [
-            'Authorization'   => "Bearer $accessToken",
-            'developer-token' => adminSetting('ads.google.developer_token'),
-            'Content-Type'    => 'application/json',
-        ];
-
-        $loginCustomerId = adminSetting('ads.google.login_customer_id');
-
-        if (!empty($loginCustomerId)) {
-            $headers['login-customer-id'] = str_replace('-', '', $loginCustomerId);
-        }
-
-        return $headers;
+        return GoogleClient::adsHeaders($accessToken);
     }
 
     /**
@@ -380,11 +369,13 @@ trait GoogleAdsApiTrait
 
     public function refreshToken($account)
     {
-        $endpoint = adminSetting('ads.google.access_token');
-        
+        $endpoint = adminSetting('ads.google.access_token') ?: 'https://oauth2.googleapis.com/token';
+        // The client that issued this token (Hub consents may use posts.google).
+        $client = GoogleClient::credentials(GoogleClient::forAccount($account, 'ads.google'));
+
         $response = $this->apiService->post($endpoint, [], [
-            'client_id'     => adminSetting('ads.google.client_id'),
-            'client_secret' => adminSetting('ads.google.client_secret'),
+            'client_id'     => $client['client_id'],
+            'client_secret' => $client['client_secret'],
             'refresh_token' => $account->refresh_token,
             'grant_type'    => 'refresh_token',
         ], 'form');

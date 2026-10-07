@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use getID3;
 use App\Models\PostComment;
+use App\Support\Connections\GoogleClient;
+
 
 
 class YoutubePostService
@@ -47,8 +49,10 @@ class YoutubePostService
             return false;
         }
 
-        $clientId = adminSetting('posts.google.client_id');
-        $clientSecret = adminSetting('posts.google.client_secret');
+        // The client that issued this token (design doc §5).
+        $client = GoogleClient::credentials(GoogleClient::forAccount($account, 'posts.google'));
+        $clientId = $client['client_id'];
+        $clientSecret = $client['client_secret'];
 
         $response = Http::post('https://oauth2.googleapis.com/token', [
             'grant_type'    => 'refresh_token',
@@ -94,8 +98,8 @@ class YoutubePostService
 
         $response = Http::asForm()->post('https://oauth2.googleapis.com/token', [
             'grant_type'    => 'refresh_token',
-            'client_id'     => adminSetting('posts.google.client_id'),
-            'client_secret' => adminSetting('posts.google.client_secret'),
+            'client_id'     => GoogleClient::credentials(GoogleClient::forAccount($account, 'posts.google'))['client_id'],
+            'client_secret' => GoogleClient::credentials(GoogleClient::forAccount($account, 'posts.google'))['client_secret'],
             'refresh_token' => $account->refresh_token,
         ]);
 

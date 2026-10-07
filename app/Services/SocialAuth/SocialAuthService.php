@@ -6,6 +6,9 @@ use App\Models\Messaging\MessageChannel;
 use App\Models\SocialAccount;
 use App\Services\Connections\ConnectionRecorder;
 use App\Services\Connections\Drivers\MetaDriver;
+use App\Services\Connections\Drivers\GoogleDriver;
+use App\Support\Connections\ConnectionFlags;
+use App\Support\Connections\GoogleClient;
 use App\Support\Connections\GrantedScopes;
 use App\Services\ApiService;
 use App\Services\MessagingServices\FacebookMessengerService;
@@ -440,11 +443,14 @@ class SocialAuthService
     private function redirectGoogle(string $state)
     {
         $url = 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query([
-            'client_id' => adminSetting('posts.google.client_id'),
+            // Chosen by the google.oauth_client flag (design doc §5).
+            'client_id' => GoogleClient::credentials()['client_id'],
             'redirect_uri' => $this->callbackUrl('google'),
             'response_type' => 'code',
             'access_type' => 'offline',
             'prompt' => 'consent',
+            // Incremental authorization: a later consent keeps earlier grants.
+            'include_granted_scopes' => 'true',
             // Matched to exactly what's configured/submitted in Google
             // Cloud Console for verification (per Google's Data Safety
             // team feedback) - this app must request only these four,
@@ -479,6 +485,9 @@ class SocialAuthService
                 'https://www.googleapis.com/auth/youtube',
                 'https://www.googleapis.com/auth/adwords',
                 'https://www.googleapis.com/auth/analytics.readonly',
+                // Only once the Business Profile API access request is
+                // approved (and the scope added to the verified consent screen).
+                ...(ConnectionFlags::on('google.business_profile') ? ['https://www.googleapis.com/auth/business.manage'] : []),
             ]),
             'state' => $state,
         ]);
@@ -490,14 +499,14 @@ class SocialAuthService
     {
         $tokenResponse = $this->api->post('https://oauth2.googleapis.com/token', [], [
             'code' => $code,
-            'client_id' => adminSetting('posts.google.client_id'),
-            'client_secret' => adminSetting('posts.google.client_secret'),
+            'client_id' => GoogleClient::credentials()['client_id'],
+            'client_secret' => GoogleClient::credentials()['client_secret'],
             'redirect_uri' => $this->callbackUrl('google'),
             'grant_type' => 'authorization_code',
         ], 'form');
 
         if (!$tokenResponse['success']) {
-            return redirect()->route('admin.posts.create')->with('error', $tokenResponse['data']['error_description'] ?? 'Failed to exchange code for a Google access token.');
+            return redirect()->route($this->returnRoute())->with('error', $tokenResponse['data']['error_description'] ?? 'Failed to exchange code for a Google access token.');
         }
 
         $token = $tokenResponse['data'];
@@ -507,16 +516,26 @@ class SocialAuthService
         $userId = Auth::id();
         $grantedScopes = GrantedScopes::fromTokenResponse($token);
 
-        $youtubeConnected = $this->connectYoutubeChannels($accessToken, $refreshToken, $expiresAt, $userId, $grantedScopes);
-        $adAccountsConnected = $this->connectGoogleAdsCustomers($accessToken, $refreshToken, $expiresAt, $userId, $grantedScopes);
+        $assetIds = [];
+        $youtubeConnected = $this->connectYoutubeChannels($accessToken, $refreshToken, $expiresAt, $userId, $grantedScopes, $assetIds);
+        $adAccountsConnected = $this->connectGoogleAdsCustomers($accessToken, $refreshToken, $expiresAt, $userId, $grantedScopes, $assetIds);
 
-        return redirect()->route('admin.posts.create')->with(
+        // The consent itself, for the Connection Hub (design doc §5).
+        ConnectionRecorder::record($userId, 'google', GoogleDriver::OAUTH, null, [
+            'provider_app' => GoogleClient::current(),
+            'access_token' => $accessToken,
+            'refresh_token' => $refreshToken,
+            'expires_at' => $expiresAt,
+            'granted_scopes' => $grantedScopes,
+        ], $assetIds);
+
+        return redirect()->route($this->returnRoute())->with(
             'success',
             "Connected {$youtubeConnected} YouTube channel(s) and {$adAccountsConnected} Google Ads account(s)."
         );
     }
 
-    private function connectYoutubeChannels(string $accessToken, ?string $refreshToken, Carbon $expiresAt, int $userId, ?array $grantedScopes = null): int
+    private function connectYoutubeChannels(string $accessToken, ?string $refreshToken, Carbon $expiresAt, int $userId, ?array $grantedScopes = null, array &$assetIds = []): int
     {
         $response = $this->api->get('https://www.googleapis.com/youtube/v3/channels', [
             'Authorization' => 'Bearer ' . $accessToken,
@@ -543,6 +562,7 @@ class SocialAuthService
                 ]
             );
             $connected++;
+            $assetIds[] = $channelAccount->id;
 
             // WebSub (PubSubHubbub) subscription for new-upload push
             // notifications, and a one-time pull of recent videos/comments -
@@ -569,14 +589,8 @@ class SocialAuthService
      * configured - without it every customer lookup below 401s, the same
      * prerequisite GoogleAdsApiTrait's own ads-only connect flow has.
      */
-    private function connectGoogleAdsCustomers(string $accessToken, ?string $refreshToken, Carbon $expiresAt, int $userId, ?array $grantedScopes = null): int
+    private function connectGoogleAdsCustomers(string $accessToken, ?string $refreshToken, Carbon $expiresAt, int $userId, ?array $grantedScopes = null, array &$assetIds = []): int
     {
-        $developerToken = adminSetting('ads.google.developer_token');
-
-        if (empty($developerToken)) {
-            return 0;
-        }
-
         $avatarUrl = null;
 
         try {
@@ -589,16 +603,8 @@ class SocialAuthService
         }
 
         $base = adminSetting('ads.google.base_url') ?: 'https://googleads.googleapis.com/v24/';
-        $headers = [
-            'Authorization' => 'Bearer ' . $accessToken,
-            'developer-token' => $developerToken,
-            'Content-Type' => 'application/json',
-        ];
-
-        $loginCustomerId = adminSetting('ads.google.login_customer_id');
-        if (!empty($loginCustomerId)) {
-            $headers['login-customer-id'] = str_replace('-', '', $loginCustomerId);
-        }
+        // Developer token no longer required (sunset 2026-09-09) - see GoogleClient::adsHeaders().
+        $headers = GoogleClient::adsHeaders($accessToken);
 
         $listResponse = $this->api->get($base . 'customers:listAccessibleCustomers', $headers);
 
@@ -658,6 +664,7 @@ class SocialAuthService
                 'currency' => $detail['currencyCode'] ?? null,
             ]);
             $connected++;
+            $assetIds[] = $googleAdAccount->id;
         }
 
         return $connected;
