@@ -7,6 +7,7 @@ use App\Models\SocialConnection;
 use App\Models\User;
 use App\Services\AdServices\SocialAdManagerService;
 use App\Services\Connections\Drivers\XDriver;
+use App\Services\Connections\HubPresenter;
 use App\Support\Connections\HubReturn;
 use App\Support\Connections\XOAuth1;
 use App\Support\Settings;
@@ -82,7 +83,7 @@ class XAdsConnectTest extends TestCase
             'api.x.com/oauth/access_token' => Http::response('oauth_token=acc&oauth_token_secret=acc-secret&user_id=42&screen_name=socialeaz'),
             '*/accounts*' => Http::response(['data' => [
                 ['id' => 'ads-1', 'name' => 'Socialeaz Ads', 'approval_status' => 'ACCEPTED', 'timezone' => 'Asia/Riyadh'],
-                ['id' => 'ads-2', 'name' => 'Rejected', 'approval_status' => 'REJECTED'],
+                ['id' => 'ads-2', 'name' => 'Deleted', 'approval_status' => 'ACCEPTED', 'deleted' => true],
                 ['id' => 'ads-3', 'name' => 'No status'],
             ]]),
         ]);
@@ -105,7 +106,7 @@ class XAdsConnectTest extends TestCase
         request()->merge(['oauth_token' => 'req', 'oauth_verifier' => 'v']);
         Http::fake([
             'api.x.com/oauth/access_token' => Http::response('oauth_token=acc&oauth_token_secret=acc-secret&user_id=42&screen_name=socialeaz'),
-            '*/accounts*' => Http::sequence()->push(['data' => []])->push(['data' => [['id' => 'a', 'name' => 'R', 'approval_status' => 'REJECTED']]]),
+            '*/accounts*' => Http::response(['data' => []]),
         ]);
 
         $response = app(SocialAdManagerService::class)->callback('x');
@@ -114,8 +115,32 @@ class XAdsConnectTest extends TestCase
         $this->assertStringContainsString('X has no Ads accounts for @socialeaz', session('error'));
         $this->assertSame(0, SocialConnection::count());
 
+    }
+
+    public function test_a_rejected_account_connects_with_its_status_shown_until_x_approves_it(): void
+    {
+        HubReturn::mark();
         session(['x_oauth_token_secret' => 'req-secret']);
+        request()->merge(['oauth_token' => 'req', 'oauth_verifier' => 'v']);
+        Http::fake([
+            'api.x.com/oauth/access_token' => Http::response('oauth_token=acc&oauth_token_secret=acc-secret&user_id=42&screen_name=Socialeaz'),
+            '*/accounts*' => Http::sequence()
+                ->push(['data' => [['id' => '18ce55wm0so', 'name' => 'Socialeaz', 'approval_status' => 'REJECTED']]])
+                ->push(['data' => [['id' => '18ce55wm0so', 'name' => 'Socialeaz', 'approval_status' => 'ACCEPTED']]]),
+        ]);
+
         app(SocialAdManagerService::class)->callback('x');
-        $this->assertStringContainsString('X has rejected them', session('error'));
+
+        $this->assertStringContainsString('X has not approved "Socialeaz" (rejected)', session('error'));
+        $connection = SocialConnection::where('step', XDriver::ADS)->sole();
+        $asset = SocialAccount::where('platform_account_id', '18ce55wm0so')->sole();
+        $this->assertSame($connection->id, $asset->social_connection_id);
+        $hubAsset = fn () => app(HubPresenter::class)->card($this->user->id, 'x')['connections'][0]['assets']['x_ads'][0];
+        $this->assertSame('Rejected by X', $hubAsset()['provider_status']);
+
+        // X approves it: the Hub's check picks that up without reconnecting.
+        app(XDriver::class)->validate($connection);
+        $this->assertNull($hubAsset()['provider_status']);
+        $this->assertSame('ACCEPTED', $asset->fresh()->adDetails->account_status);
     }
 }

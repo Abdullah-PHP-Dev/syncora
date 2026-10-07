@@ -151,6 +151,15 @@ class XDriver extends MirroredTokenDriver
             return $this->mark($connection, SocialConnection::ERROR, $response->json('errors.0.message') ?? 'HTTP ' . $response->status());
         }
 
+        // X's approval status per Ads account (ACCEPTED / REJECTED / ...),
+        // so an account X approves later shows as such without reconnecting.
+        $statuses = collect($response->json('data') ?? [])->keyBy('id');
+        foreach ($connection->assets()->get() as $asset) {
+            if ($acct = $statuses->get($asset->platform_account_id)) {
+                $asset->syncAdDetails(['account_status' => ($acct['deleted'] ?? false) ? 'deleted' : ($acct['approval_status'] ?? null)]);
+            }
+        }
+
         return $this->markHealthy($connection, null);
     }
 

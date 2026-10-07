@@ -278,7 +278,10 @@ class XAdService
         $assetIds = [];
      
         foreach ($accounts as $acct) {
-            if (empty($acct['id']) || ($acct['approval_status'] ?? null) === 'REJECTED') {
+            // Rejected accounts are connected too, with X's status shown in
+            // the Hub - dropping them hid why nothing connected. X refreshes
+            // the status on the Hub's checks once it approves the account.
+            if (empty($acct['id']) || ($acct['deleted'] ?? false)) {
                 continue;
             }
             $record = $this->apiService->success(
@@ -328,15 +331,10 @@ class XAdService
             // can manage; an app without Ads API access gets an error above,
             // not an empty list - so this is about the X account itself.
             $who = isset($access['screen_name']) ? '@' . $access['screen_name'] : 'the X account you signed in with';
-            $rejected = collect($accounts)->where('approval_status', 'REJECTED')->count();
 
-            Log::info('X Ads connect returned no usable Ads accounts.', ['user_id' => Auth::id(), 'x_user' => $access['screen_name'] ?? null, 'returned' => count($accounts), 'rejected' => $rejected]);
+            Log::info('X Ads connect returned no usable Ads accounts.', ['user_id' => Auth::id(), 'x_user' => $access['screen_name'] ?? null, 'returned' => count($accounts)]);
 
-            $message = $rejected > 0
-                ? "X returned {$rejected} Ads account(s) for {$who}, but X has rejected them. Resolve this in ads.x.com, then connect again."
-                : "X has no Ads accounts for {$who}. Open ads.x.com signed in as {$who} and finish setting up an Ads account (with billing), or have the account owner give {$who} access under Account access. Then connect again.";
-
-            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', $message);
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', "X has no Ads accounts for {$who}. Open ads.x.com signed in as {$who} and finish setting up an Ads account (with billing), or have the account owner give {$who} access under Account access. Then connect again.");
         }
 
         // The consent, with its token secret encrypted on the connection -
@@ -347,6 +345,16 @@ class XAdService
             'token_secret' => $accessTokenSecret,
             'granted_scopes' => GrantedScopes::OAUTH1,
         ], $assetIds);
+
+        $notApproved = collect($accounts)
+            ->filter(fn ($a) => ! empty($a['id']) && ! ($a['deleted'] ?? false) && ($a['approval_status'] ?? 'ACCEPTED') !== 'ACCEPTED')
+            ->map(fn ($a) => '"' . ($a['name'] ?? $a['id']) . '" (' . strtolower(str_replace('_', ' ', $a['approval_status'])) . ')');
+
+        if ($notApproved->isNotEmpty()) {
+            Log::info('X Ads accounts connected without X approval.', ['user_id' => Auth::id(), 'accounts' => $notApproved->values()->all()]);
+
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', "Connected {$connected} X Ads account(s), but X has not approved " . $notApproved->implode(', ') . '. Campaigns cannot run until it does - check the notice in ads.x.com (often billing or business verification).');
+        }
 
         return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('success', "Connected {$connected} X Ads account(s).");
     }

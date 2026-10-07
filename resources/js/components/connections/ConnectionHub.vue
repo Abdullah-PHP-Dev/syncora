@@ -190,7 +190,7 @@
               </span>
               <span class="ch-asset-id">
                 <strong>{{ asset.name || asset.external_id }}</strong>
-                <small>{{ asset.username ? '@' + asset.username : asset.external_id }}<template v-if="!asset.token_ok"> · <span class="ch-warn-text">needs reconnect</span></template></small>
+                <small>{{ asset.username ? '@' + asset.username : asset.external_id }}<template v-if="!asset.token_ok"> · <span class="ch-warn-text">needs reconnect</span></template><template v-if="asset.provider_status"> · <span class="ch-warn-text">{{ asset.provider_status }}</span></template></small>
                 <small v-if="asset.duplicate_of" class="ch-dup-note"><i class="bx bx-copy"></i> Same account as {{ asset.duplicate_of }}. Publishing and inbox are off here so posts don't go out twice.</small>
               </span>
               <span class="ch-asset-caps">

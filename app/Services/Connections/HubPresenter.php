@@ -114,6 +114,13 @@ class HubPresenter
                 'external_id' => $asset->platform_account_id,
                 'token_ok' => (bool) $asset->is_token_valid,
                 // Same Instagram account as a Page-linked one (InstagramDuplicates).
+                // X Ads approval (social_account_ad_details.account_status).
+                'provider_status' => $asset->platform === 'x' ? match ($asset->adDetails?->account_status) {
+                    'REJECTED' => 'Rejected by X',
+                    'PENDING', 'UNDER_REVIEW' => 'Under review at X',
+                    'deleted' => 'Deleted in X',
+                    default => null,
+                } : null,
                 'duplicate_of' => isset($asset->metadata['settings'][InstagramDuplicates::MARK]) ? 'the one linked to your Facebook Page' : null,
                 'available_capabilities' => $available,
                 // null = everything the connection allows is on
