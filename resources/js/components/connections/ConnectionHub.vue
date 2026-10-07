@@ -7,6 +7,10 @@
         <p class="ch-sub">Connect each platform once. Ads, Publishing and Inbox all use the same connection.</p>
       </div>
       <div class="ch-summary">
+        <form v-if="wizard.available && !wizardState" method="POST" :action="urls.wizard_start" class="ch-inline-form">
+          <input type="hidden" name="_token" :value="csrf">
+          <button type="submit" class="ch-btn ch-btn-primary"><i class="bx bx-rocket"></i> Connect all recommended</button>
+        </form>
         <span class="ch-sum"><i class="bx bx-check-shield"></i> {{ summary.connected }} connected</span>
         <span class="ch-sum" :class="{ 'is-warn': summary.attention }"><i class="bx bx-error-circle"></i> {{ summary.attention }} need attention</span>
       </div>
@@ -16,6 +20,33 @@
       <i class="bx" :class="flashMessage.tone === 'is-error' ? 'bx-error-circle' : 'bx-check-circle'"></i>
       <span>{{ flashMessage.text }}</span>
       <button type="button" class="ch-flash-x" @click="flashMessage = null" aria-label="Dismiss"><i class="bx bx-x"></i></button>
+    </div>
+
+    <!-- "Connect all recommended": one consent per step, back here between them. -->
+    <div v-if="wizardState" class="ch-wizard" :class="{ 'is-done': !wizardState.next }">
+      <span class="ch-wizard-icon"><i class="bx" :class="wizardState.next ? 'bx-rocket' : 'bx-check-double'"></i></span>
+      <div class="ch-wizard-text">
+        <template v-if="wizardState.next">
+          <strong>Setup {{ wizardState.done + 1 }} of {{ wizardState.total }}: {{ wizardState.next.label }}</strong>
+          <span>Next, sign in with {{ wizardState.next.label }}. You'll come straight back here afterwards.</span>
+        </template>
+        <template v-else>
+          <strong>Setup finished</strong>
+          <span>{{ wizardState.skipped ? wizardState.skipped + ' skipped - connect them from their cards whenever you like.' : 'All recommended platforms are connected.' }}</span>
+        </template>
+        <div class="ch-wizard-bar"><span :style="{ width: (100 * wizardState.done / wizardState.total) + '%' }"></span></div>
+      </div>
+      <div v-if="wizardState.next" class="ch-wizard-actions">
+        <form method="POST" :action="urls.wizard_finish" class="ch-inline-form">
+          <input type="hidden" name="_token" :value="csrf"><input type="hidden" name="_method" value="DELETE">
+          <button type="submit" class="ch-btn ch-btn-ghost sm">Finish later</button>
+        </form>
+        <form method="POST" :action="urls.wizard_skip" class="ch-inline-form">
+          <input type="hidden" name="_token" :value="csrf">
+          <button type="submit" class="ch-btn ch-btn-ghost sm">Skip</button>
+        </form>
+        <a :href="wizardState.next.url" class="ch-btn ch-btn-primary sm">Continue <i class="bx bx-right-arrow-alt"></i></a>
+      </div>
     </div>
 
     <section v-for="card in cards" :key="card.platform" class="ch-card" :id="card.platform">
@@ -199,7 +230,8 @@ export default {
   props: {
     hub: { type: Object, required: true },
     urls: { type: Object, required: true },
-    flash: { type: [Object, Array], default: () => ({}) }
+    flash: { type: [Object, Array], default: () => ({}) },
+    wizard: { type: Object, default: () => ({ state: null, available: false }) }
   },
 
   data() {
@@ -214,7 +246,9 @@ export default {
       flashMessage: flash.error
         ? { tone: 'is-error', text: flash.error }
         : (flash.success ? { tone: 'is-success', text: flash.success } : null),
-      capabilityList: CAPABILITIES
+      capabilityList: CAPABILITIES,
+      wizardState: this.wizard.state,
+      csrf: (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
     };
   },
 
@@ -461,6 +495,19 @@ export default {
 .ch-flash.is-success { background: #E8F8EE; color: #166534; }
 .ch-flash.is-error { background: #FDECEC; color: #B42318; }
 .ch-flash-x { margin-left: auto; border: none; background: none; color: inherit; font-size: 18px; cursor: pointer; }
+
+.ch-inline-form { display: inline-flex; margin: 0; }
+.ch-wizard { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 16px 18px; border-radius: 16px; background: linear-gradient(135deg, #EEF4FF 0%, #F3F8FF 100%); border: 1px solid #D6E4FF; }
+.ch-wizard.is-done { background: #E8F8EE; border-color: #C9EDD6; }
+.ch-wizard-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--meta); color: #fff; font-size: 20px; flex-shrink: 0; }
+.ch-wizard.is-done .ch-wizard-icon { background: #16A34A; }
+.ch-wizard-text { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; }
+.ch-wizard-text strong { color: var(--ink); font-size: 14.5px; }
+.ch-wizard-text span { color: var(--text); font-size: 13px; }
+.ch-wizard-bar { margin-top: 8px; height: 6px; border-radius: 6px; background: rgba(8, 102, 255, .14); overflow: hidden; }
+.ch-wizard-bar span { display: block; height: 100%; background: #0866FF; border-radius: 6px; transition: width .3s; }
+.ch-wizard.is-done .ch-wizard-bar { display: none; }
+.ch-wizard-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
 .ch-card { background: #fff; border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.04); padding: 22px 24px; display: flex; flex-direction: column; gap: 18px; }
 .ch-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }

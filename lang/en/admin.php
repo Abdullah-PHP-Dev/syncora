@@ -323,6 +323,9 @@ return [
             'upgrade_cta' => 'Upgrade access',
             'connect_cta' => 'Connect',
         ],
+        'wizard' => [
+            'nothing_needed' => 'Everything recommended is already connected.',
+        ],
         'connect_meta' => 'Manage Facebook, Instagram & WhatsApp in Connections',
     ],
 

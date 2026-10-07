@@ -8,6 +8,7 @@
     <connection-hub
         :hub='@json($hub)'
         :urls='@json($urls)'
+        :wizard='@json($wizard)'
         :flash='@json(array_filter(['success' => session('success'), 'error' => session('error')]))'
     ></connection-hub>
 @endsection

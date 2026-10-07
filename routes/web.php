@@ -482,6 +482,12 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				// callback URLs already registered with each provider.
 				Route::get('connections', [ConnectionHubController::class, 'index'])
 					->name('connections.index');
+				Route::post('connections/wizard', [ConnectionHubController::class, 'startWizard'])
+					->name('connections.wizard.start');
+				Route::post('connections/wizard/skip', [ConnectionHubController::class, 'skipWizard'])
+					->name('connections.wizard.skip');
+				Route::delete('connections/wizard', [ConnectionHubController::class, 'finishWizard'])
+					->name('connections.wizard.finish');
 				Route::get('connections/{platform}/connect/{step}', [ConnectionHubController::class, 'connect'])
 					->name('connections.connect');
 				Route::patch('connections/assets/{socialAccount}', [ConnectionHubController::class, 'updateAsset'])
