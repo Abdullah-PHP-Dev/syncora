@@ -3,6 +3,7 @@
 namespace Tests\Feature\Connections;
 
 use App\Http\Controllers\Admin\PostAccountController;
+use App\Models\Messaging\MessageChannel;
 use App\Models\SocialAccount;
 use App\Models\SocialConnection;
 use App\Models\User;
@@ -27,6 +28,7 @@ class WhatsappSignupTest extends TestCase
         parent::setUp();
         $this->createConnectionTables();
         $this->createSettingsTable();
+        $this->createMessageChannelsTable();
         Settings::set('posts.facebook.client_id', 'meta-app');
         Settings::set('posts.facebook.client_secret', 'meta-secret');
         $this->user = User::create(['name' => 'Seller', 'email' => 's@example.com', 'password' => bcrypt('x')]);
@@ -77,6 +79,45 @@ class WhatsappSignupTest extends TestCase
         $this->assertSame('phone-1', $connection->provider_account_id);
         $this->assertSame(['posting', 'messaging'], $connection->capabilities); // whatsapp_business_messaging
         $this->assertSame($connection->id, SocialAccount::where('platform', 'whatsapp')->sole()->social_connection_id);
+        // One connect serves the inbox too.
+        $this->assertSame('phone-1', MessageChannel::where('platform', 'whatsapp')->sole()->external_id);
+    }
+
+    public function test_manual_entry_from_the_hub_serves_publishing_and_inbox(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*/phone-2*' => Http::response(['verified_name' => 'Shop', 'display_phone_number' => '+966 6']),
+            '*' => Http::response([], 404),
+        ]);
+
+        $response = app()->call([app(PostAccountController::class), 'storeWhatsApp'], [
+            'request' => new Request(['name' => 'Support', 'phone_number_id' => 'phone-2', 'access_token' => 'system-user-token']),
+        ]);
+
+        $this->assertSame(route('admin.connections.index'), $response->getTargetUrl());
+        $account = SocialAccount::where('platform', 'whatsapp')->sole();
+        $this->assertTrue($account->has_posting_permission && $account->has_messaging_permission);
+        $this->assertSame(['posting', 'messaging'], $account->connection->capabilities);
+        $this->assertSame($account->id, MessageChannel::where('external_id', 'phone-2')->sole()->social_account_id);
+    }
+
+    public function test_manual_entry_rejects_credentials_meta_does_not_accept(): void
+    {
+        Http::fake(['*' => Http::response(['error' => ['message' => 'Invalid OAuth access token']], 400)]);
+
+        $response = app()->call([app(PostAccountController::class), 'storeWhatsApp'], [
+            'request' => new Request(['name' => 'X', 'phone_number_id' => 'p', 'access_token' => 'bad']),
+        ]);
+
+        $this->assertSame(route('admin.connections.index'), $response->getTargetUrl());
+        $this->assertNotNull(session('error'));
+        $this->assertSame(0, SocialAccount::count());
+    }
+
+    public function test_old_whatsapp_forms_are_gone(): void
+    {
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('admin.messaging.channels.whatsapp.store'));
+        $this->assertFalse(view()->exists('components.whatsapp-connect-modal'));
     }
 
     public function test_whatsapp_connect_route_lands_on_the_hub(): void

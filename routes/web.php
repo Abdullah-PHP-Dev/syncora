@@ -564,8 +564,6 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				// posting + ads connect through the Connection Hub.
 				Route::post('messaging/channels/telegram', [MessageChannelController::class, 'storeTelegram'])
 					->name('messaging.channels.telegram.store');
-				Route::post('messaging/channels/whatsapp', [MessageChannelController::class, 'storeWhatsApp'])
-					->name('messaging.channels.whatsapp.store');
 				Route::post('messaging/channels/line', [MessageChannelController::class, 'storeLine'])
 					->name('messaging.channels.line.store');
 				Route::post('messaging/channels/discord', [MessageChannelController::class, 'storeDiscord'])

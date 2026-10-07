@@ -459,7 +459,6 @@
     </div>
 
     <!-- WhatsApp Modal -->
-    <x-whatsapp-connect-modal id="whatsappModal" />
 
     <!-- LINE Modal -->
     <div class="modal fade" id="lineModal" tabindex="-1">

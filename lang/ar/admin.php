@@ -306,6 +306,7 @@ return [
     'connections' => [
         'title' => 'الاتصالات',
         'managed_in_hub' => 'تُدار من صفحة الاتصالات',
+        'manage' => 'إدارة الاتصالات',
         'capability' => ['posting' => 'النشر', 'messaging' => 'صندوق الرسائل', 'ads' => 'الإعلانات', 'insights' => 'الإحصاءات'],
         'alert' => [
             'reconnect' => 'يجب إعادة ربط :platform لاستمرار عمل :capability.',

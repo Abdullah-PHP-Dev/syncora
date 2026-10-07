@@ -938,33 +938,10 @@
                 <div class="card mb-4">
                     <div class="card-header bg-light fw-semibold d-flex justify-content-between align-items-center">
                         <span>{{ __('admin.marketing_tools.posts.select_platforms') }}</span>
-                        <div class="d-flex gap-2 flex-wrap">
-                            {{-- Meta connects once in the Connection Hub. --}}
-                            <a href="{{ \App\Support\Connections\HubLink::for('facebook') }}" class="btn btn-outline-primary btn-sm">
-                                <i class="fab fa-facebook"></i> {{ __('admin.connections.connect_meta') }}
-                            </a>
-                            <a href="{{ \App\Support\Connections\HubLink::for('threads') }}" class="btn btn-outline-dark btn-sm">
-                                <i class="fab fa-threads"></i> Connect Threads
-                            </a>
-                            <a href="{{ \App\Support\Connections\HubLink::for('pinterest') }}" class="btn btn-outline-danger btn-sm">
-                                <i class="fab fa-pinterest"></i> Connect Pinterest
-                            </a>
-                            <a href="{{ \App\Support\Connections\HubLink::for('x') }}" class="btn btn-outline-dark btn-sm">
-                                <i class="fab fa-x-twitter"></i> Connect X
-                            </a>
-                            <a href="{{ \App\Support\Connections\HubLink::for('linkedin') }}" class="btn btn-outline-info btn-sm">
-                                <i class="fab fa-linkedin"></i> Connect LinkedIn
-                            </a>
-                            <a href="{{ \App\Support\Connections\HubLink::for('tiktok') }}" class="btn btn-outline-dark btn-sm">
-                                <i class="fab fa-tiktok"></i> Connect TikTok
-                            </a>
-                            <a href="{{ \App\Support\Connections\HubLink::for('google') }}" class="btn btn-outline-danger btn-sm">
-                                <i class="fab fa-google"></i> Connect Google / YouTube
-                            </a>
-                            <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#connectWhatsappModal">
-                                <i class="fab fa-whatsapp"></i> Connect WhatsApp
-                            </button>
-                        </div>
+                        {{-- Every platform connects once in the Connection Hub. --}}
+                        <a href="{{ route('admin.connections.index') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="bx bx-plug"></i> {{ __('admin.connections.manage') }}
+                        </a>
                     </div>
                     <div class="card-body">
                         @php
@@ -1152,49 +1129,6 @@
     </div>
 </div>
 
-{{-- Connect WhatsApp Modal --}}
-<div class="modal fade" id="connectWhatsappModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fab fa-whatsapp text-success"></i> Connect WhatsApp Number</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                @if (\App\Services\Connections\Drivers\MetaDriver::whatsappSignup())
-                    <button type="button" id="whatsappEmbeddedSignupBtn" class="btn btn-success w-100 mb-2">
-                        <i class="fab fa-facebook"></i> Connect with Facebook
-                    </button>
-                    <p class="text-muted small text-center mb-3">Verifies your number and creates the WhatsApp Business Account automatically.</p>
-                    <div class="text-center mb-3"><span class="text-muted small">— or enter credentials manually —</span></div>
-                @else
-                    <p class="text-muted small">"Connect with Facebook" isn't configured yet (needs a WhatsApp Embedded Signup config_id from your Meta App Dashboard). Enter credentials manually for now:</p>
-                @endif
-
-                <form action="{{ route('admin.post-accounts.whatsapp.store') }}" method="POST">
-                    @csrf
-                    <p class="text-muted small">Paste the Phone Number ID and a permanent access token from your Meta Business System User - the same credentials used for the WhatsApp Business Cloud API.</p>
-                    <div class="mb-3">
-                        <label class="form-label">Display Name *</label>
-                        <input type="text" name="name" class="form-control" required>
-                        @error('name')<p class="text-danger small">{{ $message }}</p>@enderror
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Phone Number ID *</label>
-                        <input type="text" name="phone_number_id" class="form-control" required>
-                        @error('phone_number_id')<p class="text-danger small">{{ $message }}</p>@enderror
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Permanent Access Token *</label>
-                        <input type="text" name="access_token" class="form-control" required>
-                        @error('access_token')<p class="text-danger small">{{ $message }}</p>@enderror
-                    </div>
-                    <button type="submit" class="btn btn-outline-success w-100">Connect Manually</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
 @endsection
 
 @push('scripts')
@@ -1203,11 +1137,9 @@
 
     {{-- JavaScript – unchanged logic with enhanced media preview --}}
     <script>
-        // The WhatsApp account connect form is a plain server-rendered
-        // POST/redirect (unlike the rest of this page's AJAX flow), so its
-        // outcome arrives as a session flash rather than an AJAX response -
-        // bridge it into the same SweetAlert2 feedback the rest of the page
-        // uses.
+        // Server-side redirects back to this page (unlike the rest of its
+        // AJAX flow) carry their outcome as a session flash - bridge it into
+        // the same SweetAlert2 feedback the rest of the page uses.
         @if (session('success'))
             document.addEventListener('DOMContentLoaded', function() {
                 Swal.fire({ icon: 'success', title: 'Success', text: @json(session('success')) });
@@ -1216,96 +1148,6 @@
         @if (session('error'))
             document.addEventListener('DOMContentLoaded', function() {
                 Swal.fire({ icon: 'error', title: 'Error', text: @json(session('error')) });
-            });
-        @endif
-
-        // ============================================
-        // WHATSAPP EMBEDDED SIGNUP
-        // ("Connect with Facebook" - see PostAccountController::
-        // storeWhatsappEmbedded for the backend half of this flow)
-        // ============================================
-        @php $waSignup = \App\Services\Connections\Drivers\MetaDriver::whatsappSignup(); @endphp
-        @if ($waSignup)
-            window.fbAsyncInit = function() {
-                FB.init({
-                    appId: '{{ $waSignup['app_id'] }}',
-                    cookie: true,
-                    xfbml: true,
-                    version: '{{ $waSignup['graph_version'] }}'
-                });
-            };
-
-            (function(d, s, id) {
-                var js, fjs = d.getElementsByTagName(s)[0];
-                if (d.getElementById(id)) return;
-                js = d.createElement(s); js.id = id;
-                js.src = "https://connect.facebook.net/en_US/sdk.js";
-                fjs.parentNode.insertBefore(js, fjs);
-            }(document, 'script', 'facebook-jssdk'));
-
-            // Embedded Signup returns the newly created WABA ID and phone
-            // number ID via postMessage to this window - not through the
-            // FB.login() callback itself, which only carries the
-            // exchangeable authorization code.
-            let waEmbeddedSessionInfo = {};
-
-            window.addEventListener('message', function(event) {
-                if (!event.origin.endsWith('facebook.com')) return;
-
-                try {
-                    var data = JSON.parse(event.data);
-                    if (data.type === 'WA_EMBEDDED_SIGNUP' && data.event === 'FINISH') {
-                        waEmbeddedSessionInfo = {
-                            phone_number_id: data.data.phone_number_id,
-                            waba_id: data.data.waba_id,
-                        };
-                    }
-                } catch (e) {
-                    // Non-JSON postMessage from elsewhere on facebook.com - ignore.
-                }
-            });
-
-            document.getElementById('whatsappEmbeddedSignupBtn')?.addEventListener('click', function() {
-                waEmbeddedSessionInfo = {};
-
-                FB.login(function(response) {
-                    if (!response.authResponse || !response.authResponse.code) {
-                        return; // user closed the popup or denied access
-                    }
-
-                    if (!waEmbeddedSessionInfo.phone_number_id) {
-                        Swal.fire('Error', 'Signup completed but no phone number was returned. Please try again.', 'error');
-                        return;
-                    }
-
-                    $.ajax({
-                        url: "{{ route('admin.post-accounts.whatsapp.embedded') }}",
-                        type: 'POST',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}'
-                        },
-                        data: {
-                            code: response.authResponse.code,
-                            phone_number_id: waEmbeddedSessionInfo.phone_number_id,
-                            waba_id: waEmbeddedSessionInfo.waba_id,
-                        },
-                        success: function(res) {
-                            Swal.fire('Success', res.message, 'success').then(() => location.reload());
-                        },
-                        error: function(xhr) {
-                            Swal.fire('Error', xhr.responseJSON?.message || 'Failed to connect WhatsApp.', 'error');
-                        }
-                    });
-                }, {
-                    config_id: '{{ $waSignup['config_id'] }}',
-                    response_type: 'code',
-                    override_default_response_type: true,
-                    extras: {
-                        setup: {},
-                        featureType: '',
-                        sessionInfoVersion: '3',
-                    }
-                });
             });
         @endif
 

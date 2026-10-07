@@ -173,51 +173,6 @@ class MessageChannelController extends Controller
     }
 
     /**
-     * WhatsApp Cloud API numbers are provisioned through Meta's Embedded
-     * Signup JS SDK or a permanent System User token from Business
-     * Settings - not a plain OAuth redirect - so this is a verified
-     * manual entry rather than a connect button, which matches how
-     * WhatsApp is actually set up even in production integrations.
-     */
-    public function storeWhatsApp(Request $request, ApiService $apiService)
-    {
-        $validated = $request->validate([
-            'name'             => ['required', 'string', 'max:255'],
-            'phone_number_id'  => ['required', 'string'],
-            'access_token'     => ['required', 'string'],
-        ]);
-
-        $version = adminSetting('messaging.meta.graph_version') ?: 'v21.0';
-        $check = $apiService->get(
-            "https://graph.facebook.com/{$version}/{$validated['phone_number_id']}",
-            ['Authorization' => "Bearer {$validated['access_token']}"],
-            ['fields' => 'display_phone_number,verified_name']
-        );
-
-        if (!$check['success']) {
-            return back()->withErrors(['phone_number_id' => 'Could not verify this phone number ID/token with Meta.']);
-        }
-
-        $account = SocialAccount::updateOrCreate(
-            ['platform' => 'whatsapp', 'platform_account_id' => $validated['phone_number_id'], 'user_id' => Auth::id()],
-            [
-                'name'                     => $validated['name'],
-                'username'                 => $check['data']['display_phone_number'] ?? null,
-                'access_token'             => $validated['access_token'],
-                'is_token_valid'           => true,
-                'has_messaging_permission' => true,
-            ]
-        );
-
-        MessageChannel::updateOrCreate(
-            ['platform' => 'whatsapp', 'external_id' => $validated['phone_number_id']],
-            ['social_account_id' => $account->id]
-        );
-
-        return redirect()->route('admin.chats.channels')->with('success', 'WhatsApp number connected.');
-    }
-
-    /**
      * No OAuth for LINE either - a Channel Access Token + Channel Secret
      * from the LINE Developers Console (Messaging API channel settings)
      * is the entire credential, verified live via the bot info endpoint.

@@ -314,6 +314,7 @@ return [
     'connections' => [
         'title' => 'Connections',
         'managed_in_hub' => 'Managed in Connections',
+        'manage' => 'Manage connections',
         'capability' => ['posting' => 'publishing', 'messaging' => 'the inbox', 'ads' => 'ads', 'insights' => 'insights'],
         'alert' => [
             'reconnect' => ':platform needs you to reconnect to keep :capability working.',

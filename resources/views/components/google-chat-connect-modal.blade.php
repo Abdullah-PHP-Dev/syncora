@@ -1,8 +1,7 @@
 {{--
     Shared "Connect Google Chat" form - extracted out of
-    admin/chats/channels.blade.php for the same reason as
-    whatsapp-connect-modal.blade.php: reused as-is by the new Manage
-    Channels quick-modal on admin/chats/dashboard.blade.php.
+    admin/chats/channels.blade.php so the Manage Channels quick-modal on
+    admin/chats/dashboard.blade.php reuses it as-is.
 
     Google Chat has two real connect paths (see channels.blade.php's
     surrounding platform-card): this service-account-JSON form, which is

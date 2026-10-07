@@ -66,7 +66,7 @@
 
       <!-- Steps -->
       <div class="ch-steps">
-        <div v-for="step in card.steps" :key="step.key" class="ch-step" :class="{ 'is-primary': step.primary, 'is-off': !step.available }">
+        <div v-for="step in card.steps" :key="step.key" class="ch-step" :class="{ 'is-primary': step.primary, 'is-off': !step.available && step.key !== 'meta.whatsapp', 'has-form': step.key === 'meta.whatsapp' && waManual }">
           <div class="ch-step-main">
             <span class="ch-step-icon" :class="stepIcon(card, step.key).cls"><i class="bx" :class="stepIcon(card, step.key).icon"></i></span>
             <div>
@@ -75,21 +75,37 @@
               <span v-if="!step.available && step.note" class="ch-step-note"><i class="bx bx-info-circle"></i> {{ step.note }}</span>
             </div>
           </div>
-          <!-- WhatsApp Embedded Signup runs right here (FB JS SDK popup). -->
-          <button
-              v-if="step.key === 'meta.whatsapp' && step.available && card.whatsapp_signup"
-              type="button"
-              class="ch-btn ch-btn-ghost"
-              :disabled="waBusy"
-              @click="startWhatsappSignup(card.whatsapp_signup)">
-            <i class="bx" :class="waBusy ? 'bx-loader-alt bx-spin' : (step.connected ? 'bx-plus' : 'bx-link')"></i>
-            {{ step.connected ? 'Add a number' : 'Connect' }}
-          </button>
-          <a v-else-if="step.available" :href="step.connect_url" class="ch-btn" :class="step.primary ? 'ch-btn-primary' : 'ch-btn-ghost'">
-            <i class="bx" :class="step.connected ? 'bx-refresh' : 'bx-link'"></i>
-            {{ step.connected ? (step.primary ? 'Add or change accounts' : 'Reconnect') : (step.primary ? card.presentation.connect_label : 'Connect') }}
-          </a>
-          <span v-else class="ch-btn ch-btn-disabled">Not available</span>
+          <div class="ch-step-actions">
+            <!-- WhatsApp Embedded Signup runs right here (FB JS SDK popup). -->
+            <button
+                v-if="step.key === 'meta.whatsapp' && step.available && card.whatsapp_signup"
+                type="button"
+                class="ch-btn ch-btn-ghost"
+                :disabled="waBusy"
+                @click="startWhatsappSignup(card.whatsapp_signup)">
+              <i class="bx" :class="waBusy ? 'bx-loader-alt bx-spin' : (step.connected ? 'bx-plus' : 'bx-link')"></i>
+              {{ step.connected ? 'Add a number' : 'Connect' }}
+            </button>
+            <a v-else-if="step.available" :href="step.connect_url" class="ch-btn" :class="step.primary ? 'ch-btn-primary' : 'ch-btn-ghost'">
+              <i class="bx" :class="step.connected ? 'bx-refresh' : 'bx-link'"></i>
+              {{ step.connected ? (step.primary ? 'Add or change accounts' : 'Reconnect') : (step.primary ? card.presentation.connect_label : 'Connect') }}
+            </a>
+            <span v-else-if="step.key !== 'meta.whatsapp'" class="ch-btn ch-btn-disabled">Not available</span>
+            <!-- WhatsApp: a System User token works with or without Embedded Signup. -->
+            <button v-if="step.key === 'meta.whatsapp'" type="button" class="ch-btn ch-btn-ghost" @click="waManual = !waManual">
+              <i class="bx" :class="waManual ? 'bx-x' : 'bx-key'"></i> {{ waManual ? 'Cancel' : 'Enter manually' }}
+            </button>
+          </div>
+          <form v-if="step.key === 'meta.whatsapp' && waManual" method="POST" :action="urls.whatsapp_manual" class="ch-wa-form">
+            <input type="hidden" name="_token" :value="csrf">
+            <p>Paste the Phone Number ID and a permanent access token from a Meta Business System User. We verify them with Meta before saving.</p>
+            <div class="ch-wa-fields">
+              <label>Display name<input type="text" name="name" required maxlength="255" placeholder="e.g. Support line"></label>
+              <label>Phone Number ID<input type="text" name="phone_number_id" required inputmode="numeric"></label>
+              <label class="is-wide">Permanent access token<input type="password" name="access_token" required autocomplete="off"></label>
+            </div>
+            <button type="submit" class="ch-btn ch-btn-primary sm"><i class="bx bx-check"></i> Verify and connect</button>
+          </form>
         </div>
       </div>
 
@@ -248,6 +264,7 @@ export default {
         : (flash.success ? { tone: 'is-success', text: flash.success } : null),
       capabilityList: CAPABILITIES,
       wizardState: this.wizard.state,
+      waManual: false,
       csrf: (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
     };
   },
@@ -497,6 +514,17 @@ export default {
 .ch-flash-x { margin-left: auto; border: none; background: none; color: inherit; font-size: 18px; cursor: pointer; }
 
 .ch-inline-form { display: inline-flex; margin: 0; }
+.ch-step-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.ch-step.has-form { flex-wrap: wrap; }
+.ch-wa-form { flex-basis: 100%; display: flex; flex-direction: column; gap: 12px; padding-top: 14px; margin-top: 4px; border-top: 1px dashed var(--line); }
+.ch-wa-form p { margin: 0; font-size: 12.5px; color: var(--muted); }
+.ch-wa-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ch-wa-fields label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; color: var(--text); }
+.ch-wa-fields label.is-wide { grid-column: 1 / -1; }
+.ch-wa-fields input { height: 38px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 13px; color: var(--ink); background: #fff; }
+.ch-wa-fields input:focus { outline: none; border-color: #0866FF; box-shadow: 0 0 0 3px rgba(8, 102, 255, .12); }
+.ch-wa-form .ch-btn { align-self: flex-start; }
+@media (max-width: 575px) { .ch-wa-fields { grid-template-columns: 1fr; } }
 .ch-wizard { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 16px 18px; border-radius: 16px; background: linear-gradient(135deg, #EEF4FF 0%, #F3F8FF 100%); border: 1px solid #D6E4FF; }
 .ch-wizard.is-done { background: #E8F8EE; border-color: #C9EDD6; }
 .ch-wizard-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--meta); color: #fff; font-size: 20px; flex-shrink: 0; }

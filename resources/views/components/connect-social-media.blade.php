@@ -11,24 +11,22 @@
         // of inventing a new style, so every "connect a platform" surface
         // in the app looks and behaves the same way.
         $connectPlatforms = [
-            'facebook' => ['label' => 'Facebook', 'icon' => 'bxl-facebook', 'class' => 'facebook', 'route' => 'admin.social-accounts.redirect', 'tag' => 'Posting + Ads + Messaging'],
-            'google'   => ['label' => 'Google / YouTube', 'icon' => 'bxl-google', 'class' => 'google', 'route' => 'admin.social-accounts.redirect', 'tag' => 'Posting + Ads'],
-            'linkedin' => ['label' => 'LinkedIn', 'icon' => 'bxl-linkedin', 'class' => 'linkedin', 'route' => 'admin.social-accounts.redirect', 'tag' => 'Posting + Ads'],
-            'tiktok'   => ['label' => 'TikTok', 'icon' => 'bxl-tiktok', 'class' => 'tiktok', 'route' => 'admin.social-accounts.redirect', 'tag' => 'Posting'],
-            'instagram'=> ['label' => 'Instagram', 'icon' => 'bxl-instagram', 'class' => 'instagram', 'route' => 'admin.post-accounts.instagram.redirect', 'tag' => 'Posting'],
-            'x'        => ['label' => 'X', 'icon' => 'bxl-x-logo', 'class' => 'twitter', 'route' => 'admin.post-accounts.x.redirect', 'tag' => 'Posting'],
-            'threads'  => ['label' => 'Threads', 'icon' => 'bx-at', 'class' => 'threads', 'route' => 'admin.post-accounts.threads.redirect', 'tag' => 'Posting'],
-            'pinterest'=> ['label' => 'Pinterest', 'icon' => 'bx-share-alt', 'class' => 'pinterest', 'route' => 'admin.post-accounts.pinterest.redirect', 'tag' => 'Posting'],
+            'facebook' => ['label' => 'Facebook', 'icon' => 'bxl-facebook', 'class' => 'facebook', 'tag' => 'Posting + Ads + Messaging'],
+            'google'   => ['label' => 'Google / YouTube', 'icon' => 'bxl-google', 'class' => 'google', 'tag' => 'Posting + Ads'],
+            'linkedin' => ['label' => 'LinkedIn', 'icon' => 'bxl-linkedin', 'class' => 'linkedin', 'tag' => 'Posting + Ads'],
+            'tiktok'   => ['label' => 'TikTok', 'icon' => 'bxl-tiktok', 'class' => 'tiktok', 'tag' => 'Posting'],
+            'instagram'=> ['label' => 'Instagram', 'icon' => 'bxl-instagram', 'class' => 'instagram', 'tag' => 'Posting'],
+            'x'        => ['label' => 'X', 'icon' => 'bxl-x-logo', 'class' => 'twitter', 'tag' => 'Posting'],
+            'threads'  => ['label' => 'Threads', 'icon' => 'bx-at', 'class' => 'threads', 'tag' => 'Posting'],
+            'pinterest'=> ['label' => 'Pinterest', 'icon' => 'bx-share-alt', 'class' => 'pinterest', 'tag' => 'Posting'],
         ];
     @endphp
 
-    {{-- Connect Social Media Modal - the four platforms whose OAuth model
-         supports it get one combined redirect for posting + ads + messaging
-         consent (see SocialAuthService); the rest use their existing
-         posting-only redirect. Platforms that need manual credential entry
-         instead of an OAuth redirect (WhatsApp, Telegram, Discord, Slack,
-         LINE, Teams, Matrix, Zalo, Google Chat) are managed from
-         Messaging > Channels instead of duplicating those forms here. --}}
+    {{-- Connect Social Media Modal - every tile opens that platform's card
+         in the Connection Hub, where it connects once for posting, ads and
+         messaging (docs/connection-hub-design.md). Inbox-only channels
+         (Telegram, Discord, Slack, LINE, Teams, Matrix, Zalo, Google Chat)
+         stay in Messaging > Channels. --}}
     <div class="modal fade" id="{{ $id }}" aria-labelledby="{{ $id }}-title" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg social-modal">
@@ -45,7 +43,7 @@
                             @php $isConnected = in_array($platform, $connectedPlatforms); @endphp
                             <div class="col-6 col-md-3 mb-3">
                                 <div class="social-card-mini">
-                                    <a href="{{ $isConnected ? route('admin.posts.create') : route($meta['route'], $meta['route'] === 'admin.social-accounts.redirect' ? ['platform' => $platform] : []) }}">
+                                    <a href="{{ \App\Support\Connections\HubLink::for($platform) }}">
                                         <div class="social-icon-mini {{ $meta['class'] }}">
                                             <i class="bx {{ $meta['icon'] }}"></i>
                                         </div>
@@ -63,7 +61,7 @@
                     </div>
 
                     <p class="text-body-secondary small mb-0 mt-2">
-                        Need WhatsApp, Telegram, Discord, Slack, or another messaging channel?
+                        WhatsApp is on the <a href="{{ \App\Support\Connections\HubLink::for('whatsapp') }}">Meta card</a>. Need Telegram, Discord, Slack, or another messaging channel?
                         <a href="{{ route('admin.chats.channels') }}">Manage channels</a>.
                     </p>
                 </div>

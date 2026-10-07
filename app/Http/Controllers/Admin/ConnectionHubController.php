@@ -32,6 +32,7 @@ class ConnectionHubController extends Controller
             'hub' => $this->presenter->forUser((int) Auth::id()),
             'wizard' => $this->wizardPayload(),
             'urls' => [
+                'whatsapp_manual' => route('admin.post-accounts.whatsapp.store'),
                 'wizard_start' => route('admin.connections.wizard.start'),
                 'wizard_skip' => route('admin.connections.wizard.skip'),
                 'wizard_finish' => route('admin.connections.wizard.finish'),

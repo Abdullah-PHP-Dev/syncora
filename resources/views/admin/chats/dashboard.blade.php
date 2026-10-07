@@ -1551,7 +1551,7 @@
             ['key' => 'facebook',    'class' => 'facebook',    'icon' => 'bxl-facebook',  'label' => __('Meta Messenger'),    'url' => \App\Support\Connections\HubLink::for('facebook'), 'note' => \App\Support\Connections\HubLink::note()],
             ['key' => 'instagram',   'class' => 'instagram',   'icon' => 'bxl-instagram', 'label' => __('Instagram Messenger'), 'url' => \App\Support\Connections\HubLink::for('instagram'), 'note' => \App\Support\Connections\HubLink::note()],
             ['key' => 'x',           'class' => 'twitter',     'icon' => 'bxl-x-logo',   'label' => __('X Messenger'),       'url' => \App\Support\Connections\HubLink::for('x'), 'note' => \App\Support\Connections\HubLink::note()],
-            ['key' => 'whatsapp-hub', 'class' => 'whatsapp',    'icon' => 'bxl-whatsapp',  'label' => 'WhatsApp',          'url' => \App\Support\Connections\HubLink::for('whatsapp'), 'note' => \App\Support\Connections\HubLink::note()],
+            ['key' => 'whatsapp',    'class' => 'whatsapp',    'icon' => 'bxl-whatsapp',  'label' => 'WhatsApp',          'url' => \App\Support\Connections\HubLink::for('whatsapp'), 'note' => \App\Support\Connections\HubLink::note()],
             ['key' => 'google_chat', 'class' => 'google_chat', 'icon' => 'bx-message-rounded-dots', 'label' => 'Google Chat', 'url' => '#', 'note' => __('Paste a service account key')],
         ];
     @endphp
@@ -1561,7 +1561,6 @@
         :subtitle="__('Connect an account and it\'s ready in your inbox above - no page reload.')"
         :platforms="$manageChannelsPlatforms"
     />
-    <x-whatsapp-connect-modal id="whatsappQuickModal" />
     <x-google-chat-connect-modal id="googleChatQuickModal" />
 @endsection
 
@@ -2372,8 +2371,8 @@
     </script>
 
     <script>
-        // WhatsApp/Google Chat's tiles in #manageChannelsModal are '#'
-        // placeholders, not OAuth links (see the platforms array building
+        // Google Chat's tile in #manageChannelsModal is a '#'
+        // placeholder, not an OAuth link (see the platforms array building
         // that modal, further up this file) - clicking one closes this
         // modal and opens the real credential-form modal instead, matching
         // the exact forms admin/chats/channels.blade.php uses.
@@ -2382,7 +2381,6 @@
             if (!manageChannelsModalEl) return;
 
             var formModalTargets = {
-                whatsapp: 'whatsappQuickModal',
                 google_chat: 'googleChatQuickModal',
             };
 

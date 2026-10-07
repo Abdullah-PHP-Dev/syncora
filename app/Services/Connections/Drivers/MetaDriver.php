@@ -92,7 +92,7 @@ class MetaDriver extends BaseDriver
                 'description' => 'Embedded Signup: pick or create a WhatsApp Business number.',
                 'primary' => false,
                 'available' => (bool) $this->whatsappConfigId(),
-                'note' => $this->whatsappConfigId() ? null : 'Needs a WhatsApp Embedded Signup configuration in the Meta app.',
+                'note' => $this->whatsappConfigId() ? null : 'Embedded Signup needs a configuration in the Meta app - until then, enter a number manually.',
             ];
         }
 

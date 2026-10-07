@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Messaging\MessageChannel;
 use App\Models\SocialAccount;
 use App\Services\Connections\ConnectionRecorder;
 use App\Services\Connections\Drivers\MetaDriver;
@@ -31,9 +32,10 @@ use Carbon\Carbon;
 class PostAccountController extends Controller
 {
     /**
-     * Verifies the phone number ID/token live against the Graph API
-     * before saving, same pattern as the Messaging module's WhatsApp
-     * connect flow (MessageChannelController::storeWhatsApp).
+     * Manual WhatsApp entry on the Connection Hub's Meta card: a Phone
+     * Number ID + permanent System User token, verified live against the
+     * Graph API before saving. The one WhatsApp manual-entry path (the
+     * Inbox's separate form, which skipped the Hub, is gone).
      */
     public function storeWhatsApp(Request $request, ApiPostService $api)
     {
@@ -53,7 +55,7 @@ class PostAccountController extends Controller
         );
 
         if (!$check->successful()) {
-            return back()->withErrors(['phone_number_id' => 'Could not verify this phone number ID/token with Meta.'])->withInput();
+            return redirect()->route('admin.connections.index')->with('error', 'Could not verify this Phone Number ID and token with Meta.');
         }
 
         $data = $check->json();
@@ -68,13 +70,29 @@ class PostAccountController extends Controller
                 'has_posting_permission'  => true,
             ]
         );
+        $this->linkWhatsappInbox($account);
 
         // Manual entry (pasted token, no OAuth app) - still one Meta step in the Hub.
         ConnectionRecorder::record(Auth::id(), 'meta', MetaDriver::WHATSAPP, $validated['phone_number_id'], [
             'access_token' => $validated['access_token'],
         ], [$account->id]);
 
-        return redirect()->route('admin.posts.create')->with('success', 'WhatsApp number connected - it now appears as a channel in the composer.');
+        return redirect()->route('admin.connections.index')->with('success', 'WhatsApp number connected for publishing and the inbox.');
+    }
+
+    /**
+     * One WhatsApp connect serves Publishing and the Inbox
+     * (docs/connection-hub-design.md §3): the number becomes an inbox
+     * channel too, as MessageChannelController::storeWhatsApp used to do.
+     */
+    private function linkWhatsappInbox(SocialAccount $account): void
+    {
+        $account->forceFill(['has_messaging_permission' => true])->save();
+
+        MessageChannel::updateOrCreate(
+            ['platform' => 'whatsapp', 'external_id' => $account->platform_account_id],
+            ['social_account_id' => $account->id]
+        );
     }
 
     /**
@@ -162,6 +180,7 @@ class PostAccountController extends Controller
                 'metadata'               => ['settings' => ['waba_id' => $validated['waba_id']]],
             ]
         );
+        $this->linkWhatsappInbox($account);
 
         ConnectionRecorder::record(Auth::id(), 'meta', MetaDriver::WHATSAPP, $validated['phone_number_id'], [
             'provider_app' => 'posts.facebook',
