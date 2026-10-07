@@ -66,6 +66,7 @@ class WhatsappSignupTest extends TestCase
             'graph.facebook.com/*/oauth/access_token*' => Http::response(['access_token' => 'wa-token']),
             'graph.facebook.com/*/me/permissions*' => Http::response(['data' => [['permission' => 'whatsapp_business_messaging', 'status' => 'granted']]]),
             'graph.facebook.com/*/phone-1*' => Http::response(['verified_name' => 'Shop', 'display_phone_number' => '+966 5']),
+            'graph.facebook.com/*/waba-1/subscribed_apps' => Http::response(['success' => true]),
             '*' => Http::response([], 404),
         ]);
 
@@ -80,7 +81,11 @@ class WhatsappSignupTest extends TestCase
         $this->assertSame(['posting', 'messaging'], $connection->capabilities); // whatsapp_business_messaging
         $this->assertSame($connection->id, SocialAccount::where('platform', 'whatsapp')->sole()->social_connection_id);
         // One connect serves the inbox too.
-        $this->assertSame('phone-1', MessageChannel::where('platform', 'whatsapp')->sole()->external_id);
+        $channel = MessageChannel::where('platform', 'whatsapp')->sole();
+        $this->assertSame('phone-1', $channel->external_id);
+        // The customer's WABA is subscribed so inbound messages reach our webhook.
+        Http::assertSent(fn (HttpRequest $r) => $r->method() === 'POST' && str_ends_with($r->url(), 'waba-1/subscribed_apps') && $r->hasHeader('Authorization', 'Bearer wa-token'));
+        $this->assertTrue($channel->webhook_subscribed);
     }
 
     public function test_manual_entry_from_the_hub_serves_publishing_and_inbox(): void

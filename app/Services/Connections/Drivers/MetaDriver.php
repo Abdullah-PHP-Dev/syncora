@@ -153,7 +153,35 @@ class MetaDriver extends BaseDriver
                 : $this->mark($connection, SocialConnection::NEEDS_REAUTH, $message);
         }
 
+        if (str_contains($message, 'appsecret_proof')) {
+            return $this->appMismatch($connection, $message);
+        }
+
         return $this->mark($connection, SocialConnection::ERROR, $message);
+    }
+
+    /**
+     * "Invalid appsecret_proof": either the token was issued by another
+     * Meta app (e.g. one retired by the one-app consolidation) - the user
+     * must reconnect - or our own app secret setting is wrong, which must
+     * not flip every connection to needs_reauth. debug_token with our app
+     * credentials tells the two apart.
+     */
+    private function appMismatch(SocialConnection $connection, string $message): SocialConnection
+    {
+        $appId = (string) adminSetting('posts.facebook.client_id');
+        $debug = Http::get($this->graph('debug_token'), [
+            'input_token' => $connection->access_token,
+            'access_token' => $appId . '|' . adminSetting('posts.facebook.client_secret'),
+        ]);
+
+        $otherApp = $debug->successful()
+            ? (string) $debug->json('data.app_id') !== $appId
+            : str_contains((string) $debug->json('error.message'), 'did not match');
+
+        return $otherApp
+            ? $this->mark($connection, SocialConnection::NEEDS_REAUTH, 'Connected through a different Meta app than the one configured now - reconnect.')
+            : $this->mark($connection, SocialConnection::ERROR, $message . ' - check the Meta app secret in settings (posts.facebook).');
     }
 
     public function disconnect(SocialConnection $connection): void

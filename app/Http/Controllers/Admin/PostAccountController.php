@@ -85,13 +85,13 @@ class PostAccountController extends Controller
      * (docs/connection-hub-design.md §3): the number becomes an inbox
      * channel too, as MessageChannelController::storeWhatsApp used to do.
      */
-    private function linkWhatsappInbox(SocialAccount $account): void
+    private function linkWhatsappInbox(SocialAccount $account, ?bool $webhookSubscribed = null): void
     {
         $account->forceFill(['has_messaging_permission' => true])->save();
 
         MessageChannel::updateOrCreate(
             ['platform' => 'whatsapp', 'external_id' => $account->platform_account_id],
-            ['social_account_id' => $account->id]
+            array_filter(['social_account_id' => $account->id, 'webhook_subscribed' => $webhookSubscribed], fn ($v) => $v !== null)
         );
     }
 
@@ -180,7 +180,21 @@ class PostAccountController extends Controller
                 'metadata'               => ['settings' => ['waba_id' => $validated['waba_id']]],
             ]
         );
-        $this->linkWhatsappInbox($account);
+
+        // Embedded Signup onboards the customer's own WhatsApp Business
+        // Account; inbound messages only reach this app's webhook once
+        // that WABA subscribes the app (Meta: Embedded Signup >
+        // onboarding, POST /{waba-id}/subscribed_apps). Best-effort - the
+        // number still works for sending if this fails.
+        $subscribe = $api->request('post', $baseUrl . $validated['waba_id'] . '/subscribed_apps', ['Authorization' => 'Bearer ' . $accessToken]);
+        if (!$subscribe->successful() || !$subscribe->json('success')) {
+            Log::warning('WhatsApp WABA webhook subscription failed.', [
+                'waba_id' => $validated['waba_id'],
+                'error'   => $subscribe->json('error.message') ?? $subscribe->status(),
+            ]);
+        }
+
+        $this->linkWhatsappInbox($account, (bool) ($subscribe->successful() && $subscribe->json('success')));
 
         ConnectionRecorder::record(Auth::id(), 'meta', MetaDriver::WHATSAPP, $validated['phone_number_id'], [
             'provider_app' => 'posts.facebook',

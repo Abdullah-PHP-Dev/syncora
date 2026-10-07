@@ -226,6 +226,30 @@ class MetaConnectionTest extends TestCase
         $this->assertSame('Rate limited', $result->last_error);
     }
 
+    public function test_invalid_appsecret_proof_tells_a_foreign_token_from_a_bad_secret(): void
+    {
+        $proofError = ['error' => ['message' => 'Invalid appsecret_proof provided in the API argument', 'code' => 100]];
+
+        // Token issued by another Meta app: our credentials work, the token isn't ours -> reconnect.
+        Http::fake(['*/me/permissions*' => Http::response($proofError, 400), '*/debug_token*' => Http::response(['error' => ['message' => '(#100) The App_id in the input_token did not match the Viewing App', 'code' => 100]], 400)]);
+        $result = $this->service()->validate($this->connection());
+        $this->assertSame(SocialConnection::NEEDS_REAUTH, $result->status);
+        $this->assertStringContainsString('different Meta app', $result->last_error);
+    }
+
+    public function test_invalid_appsecret_proof_with_our_own_bad_secret_stays_a_config_error(): void
+    {
+        Http::fake([
+            '*/me/permissions*' => Http::response(['error' => ['message' => 'Invalid appsecret_proof provided in the API argument', 'code' => 100]], 400),
+            '*/debug_token*' => Http::response(['error' => ['message' => 'Invalid OAuth access token - Cannot parse access token', 'code' => 190]], 400),
+        ]);
+
+        $result = $this->service()->validate($this->connection());
+
+        $this->assertSame(SocialConnection::ERROR, $result->status);
+        $this->assertStringContainsString('check the Meta app secret', $result->last_error);
+    }
+
     public function test_disconnect_revokes_at_meta_and_locally(): void
     {
         $connection = $this->connection();
