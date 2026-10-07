@@ -3,6 +3,10 @@
 namespace App\Services\AdServices;
 
 use App\Models\SocialAccount;
+use App\Services\Connections\ConnectionRecorder;
+use App\Services\Connections\Drivers\XDriver;
+use App\Support\Connections\HubReturn;
+use App\Support\Connections\XOAuth1;
 use App\Support\Connections\GrantedScopes;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
@@ -31,8 +35,10 @@ use Carbon\Carbon;
  * token secret, alongside `access_token` for the token itself and
  * `client_id`/`client_secret` for the consumer key/secret. Now that this
  * module reads from the unified `social_accounts` table, the OAuth 1.0a
- * token secret lives at `metadata['legacy_token_secret']` and the numeric
- * X user ID at `metadata['profile_id']` (see storeTweet()/oauthHeader()).
+ * token secret lives encrypted on the account's connection
+ * (`social_connections.token_secret`; older rows: plaintext
+ * `metadata['legacy_token_secret']` until connections:backfill moves it)
+ * and the numeric X user ID at `metadata['profile_id']`.
  *
  * Hierarchy: Campaign (budget, funding_instrument_id) -> Line Item (the
  * ad-group equivalent: objective, placements, bid) -> a nullcast
@@ -150,9 +156,9 @@ class XAdService
      * OAuth 1.0a step 3 - exchange the verifier for a long-lived access
      * token pair, then resolve the Ads accounts this user can manage.
      * X Ads has no Bearer token: the (token, token_secret) pair is stored
-     * per account - the token on access_token, the secret in
-     * metadata.legacy_token_secret, which is exactly what oauthHeader()
-     * reads back to sign every subsequent Ads API call.
+     * per consent - the token on each account's access_token, the secret
+     * encrypted on the SocialConnection, which oauthHeader() reads back
+     * (via tokenSecret()) to sign every subsequent Ads API call.
      *
      * Note: this only succeeds if the developer app actually has X Ads API
      * access AND ads.x.client_id/client_secret are the consumer key/secret
@@ -259,6 +265,7 @@ class XAdService
         } while ($cursor && ++$pages < 20);
 
         $connected = 0;
+        $assetIds = [];
      
         foreach ($accounts as $acct) {
             if (empty($acct['id']) || $acct['approval_status'] == 'REJECTED') {
@@ -276,7 +283,6 @@ class XAdService
                     'scopes'              => GrantedScopes::OAUTH1,
                     'has_ads_permission'  => true,
                     'metadata'            => array_filter([
-                        'legacy_token_secret' => $accessTokenSecret,
                         // storeTweet() needs the numeric X user id as
                         // as_user_id - kept under both keys for older rows.
                         'profile_id'          => $access['user_id'] ?? null,
@@ -304,13 +310,23 @@ class XAdService
             ]));
 
             $connected++;
+            $assetIds[] = $record['data']->id;
         }
 
         if ($connected === 0) {
             return redirect()->route('admin.ads.dashboard')->with('error', 'Connected to X, but no Ads account was returned for this user.');
         }
 
-        return redirect()->route('admin.ads.dashboard')->with('success', "Connected {$connected} X Ads account(s).");
+        // The consent, with its token secret encrypted on the connection -
+        // never in plaintext metadata (design doc §6b).
+        ConnectionRecorder::record((int) Auth::id(), 'x', XDriver::ADS, $access['user_id'] ?? null, [
+            'provider_app' => 'ads.x',
+            'access_token' => $accessToken,
+            'token_secret' => $accessTokenSecret,
+            'granted_scopes' => GrantedScopes::OAUTH1,
+        ], $assetIds);
+
+        return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('success', "Connected {$connected} X Ads account(s).");
     }
 
     /**
@@ -337,42 +353,30 @@ class XAdService
 
     private function signature(string $method, string $url, array $params, string $consumerSecret, string $tokenSecret): string
     {
-        $encoded = [];
-
-        foreach ($params as $key => $value) {
-            $encoded[rawurlencode($key)] = rawurlencode($value);
-        }
-
-        ksort($encoded);
-
-        $paramString = collect($encoded)->map(fn($v, $k) => "$k=$v")->implode('&');
-        $baseString = strtoupper($method) . '&' . rawurlencode($url) . '&' . rawurlencode($paramString);
-        $signingKey = rawurlencode($consumerSecret) . '&' . rawurlencode($tokenSecret);
-
-        return base64_encode(hash_hmac('sha1', $baseString, $signingKey, true));
+        return XOAuth1::signature($method, $url, $params, $consumerSecret, $tokenSecret);
     }
 
     private function oauthHeader(string $method, string $url, array $params = []): string
     {
-        $oauthParams = [
-            'oauth_consumer_key'     => adminSetting('ads.x.client_id'),
-            'oauth_nonce'            => Str::random(32),
-            'oauth_signature_method' => 'HMAC-SHA1',
-            'oauth_timestamp'        => time(),
-            'oauth_token'            => $this->account->access_token,
-            'oauth_version'          => '1.0',
-        ];
-
-        $allParams = array_merge($params, $oauthParams);
-        $oauthParams['oauth_signature'] = $this->signature(
+        return XOAuth1::header(
             $method,
             $url,
-            $allParams,
-            adminSetting('ads.x.client_secret'),
-            $this->account->metadata['legacy_token_secret'] ?? ''
+            $params,
+            (string) adminSetting('ads.x.client_id'),
+            (string) adminSetting('ads.x.client_secret'),
+            $this->account->access_token,
+            $this->tokenSecret(),
         );
+    }
 
-        return 'OAuth ' . collect($oauthParams)->map(fn($v, $k) => rawurlencode($k) . '="' . rawurlencode($v) . '"')->implode(', ');
+    /**
+     * OAuth 1.0a token secret: encrypted on the account's connection
+     * (docs/connection-hub-design.md §6b); older rows still carry it in
+     * plaintext metadata until connections:backfill moves it.
+     */
+    private function tokenSecret(): string
+    {
+        return (string) ($this->account->connection?->token_secret ?? $this->account->metadata['legacy_token_secret'] ?? '');
     }
 
     /**

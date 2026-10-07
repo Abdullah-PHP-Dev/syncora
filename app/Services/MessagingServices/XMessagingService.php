@@ -6,6 +6,8 @@ use App\Jobs\Messaging\ProcessInboundMessage;
 use App\Models\Messaging\Conversation;
 use App\Models\Messaging\MessageChannel;
 use App\Models\SocialAccount;
+use App\Services\Connections\ConnectionRecorder;
+use App\Services\Connections\Drivers\XDriver;
 use App\Support\Connections\GrantedScopes;
 use App\Services\ApiService;
 use Illuminate\Http\Request;
@@ -193,8 +195,19 @@ class XMessagingService
                 'is_token_valid'           => true,
                 ...GrantedScopes::attributes($grantedScopes),
                 'has_messaging_permission' => true,
+                // Same posts.x app and scopes as the Publishing X connect, so
+                // this one consent covers posting too (design doc §6b).
+                ...(in_array('tweet.write', $grantedScopes ?? [], true) ? ['has_posting_permission' => true] : []),
             ]
         );
+
+        ConnectionRecorder::record((int) \Illuminate\Support\Facades\Auth::id(), 'x', XDriver::OAUTH2, $user['id'], [
+            'provider_app'   => 'posts.x',
+            'access_token'   => $accessToken,
+            'refresh_token'  => $tokenResponse['data']['refresh_token'] ?? null,
+            'expires_at'     => Carbon::now()->addSeconds($tokenResponse['data']['expires_in'] ?? 7200),
+            'granted_scopes' => $grantedScopes,
+        ], [$account->id]);
 
         $channel = MessageChannel::updateOrCreate(
             ['platform' => 'x', 'external_id' => $user['id']],

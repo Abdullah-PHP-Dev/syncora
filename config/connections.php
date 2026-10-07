@@ -15,6 +15,7 @@ return [
     'drivers' => [
         'meta' => App\Services\Connections\Drivers\MetaDriver::class,
         'google' => App\Services\Connections\Drivers\GoogleDriver::class,
+        'x' => App\Services\Connections\Drivers\XDriver::class,
     ],
 
     /*
@@ -42,6 +43,15 @@ return [
             'messaging' => ['pages_messaging', 'instagram_manage_messages', 'instagram_business_manage_messages', 'whatsapp_business_messaging'],
             'ads' => ['ads_management', 'ads_read'],
             'insights' => ['read_insights', 'instagram_manage_insights', 'instagram_business_manage_insights'],
+        ],
+
+        // X: posts.x OAuth 2.0 scopes; the OAuth 1.0a Ads consent is the
+        // GrantedScopes::OAUTH1 marker (no scopes in OAuth 1.0a).
+        'x' => [
+            'posting' => ['tweet.write'],
+            'messaging' => ['dm.write', 'dm.read'],
+            'ads' => ['oauth1'],
+            'insights' => [],
         ],
 
         // Google grants full scope URLs.

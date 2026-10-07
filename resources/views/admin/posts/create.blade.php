@@ -949,7 +949,7 @@
                             <a href="{{ route('admin.post-accounts.pinterest.redirect') }}" class="btn btn-outline-danger btn-sm">
                                 <i class="fab fa-pinterest"></i> Connect Pinterest
                             </a>
-                            <a href="{{ route('admin.post-accounts.x.redirect') }}" class="btn btn-outline-dark btn-sm">
+                            <a href="{{ \App\Support\Connections\HubLink::for('x') }}" class="btn btn-outline-dark btn-sm">
                                 <i class="fab fa-x-twitter"></i> Connect X
                             </a>
                             <a href="{{ route('admin.social-accounts.redirect', ['platform' => 'linkedin']) }}" class="btn btn-outline-info btn-sm">

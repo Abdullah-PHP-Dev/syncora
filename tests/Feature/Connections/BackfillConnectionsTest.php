@@ -134,11 +134,11 @@ class BackfillConnectionsTest extends TestCase
 
     public function test_other_platforms_are_left_for_their_own_commits(): void
     {
-        $x = $this->account(['platform' => 'x', 'access_token' => 't']);
+        $tiktok = $this->account(['platform' => 'tiktok', 'access_token' => 't']);
 
         $this->artisan('connections:backfill')->assertSuccessful();
 
         $this->assertSame(0, SocialConnection::count());
-        $this->assertNull($x->fresh()->social_connection_id);
+        $this->assertNull($tiktok->fresh()->social_connection_id);
     }
 }

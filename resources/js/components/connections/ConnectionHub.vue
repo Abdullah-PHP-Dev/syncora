@@ -187,9 +187,9 @@
 
 <script>
 const CAPABILITIES = [
-  { key: 'posting', label: 'Publishing', icon: 'bx-send', long: { meta: 'Publish and schedule posts to Pages and Instagram', google: 'Upload and schedule videos to your YouTube channels', default: 'Publish and schedule posts' } },
-  { key: 'messaging', label: 'Inbox', icon: 'bx-message-rounded-dots', long: { meta: 'Answer Messenger, Instagram and WhatsApp messages', default: 'Answer direct messages' } },
-  { key: 'ads', label: 'Ads', icon: 'bx-bullseye', long: { meta: 'Create and manage campaigns on your ad accounts', google: 'Create and manage Google Ads and YouTube campaigns', default: 'Create and manage ad campaigns' } },
+  { key: 'posting', label: 'Publishing', icon: 'bx-send', long: { meta: 'Publish and schedule posts to Pages and Instagram', google: 'Upload and schedule videos to your YouTube channels', x: 'Publish and schedule posts on X', default: 'Publish and schedule posts' } },
+  { key: 'messaging', label: 'Inbox', icon: 'bx-message-rounded-dots', long: { meta: 'Answer Messenger, Instagram and WhatsApp messages', x: 'Answer Direct Messages and X Chat', default: 'Answer direct messages' } },
+  { key: 'ads', label: 'Ads', icon: 'bx-bullseye', long: { meta: 'Create and manage campaigns on your ad accounts', google: 'Create and manage Google Ads and YouTube campaigns', x: 'Promote posts on your X Ads accounts', default: 'Create and manage ad campaigns' } },
   { key: 'insights', label: 'Insights', icon: 'bx-bar-chart-alt-2', long: { meta: 'Read Page and Instagram insights for reports', google: 'Read Analytics data for reports', default: 'Read insights for reports' } }
 ];
 
@@ -199,7 +199,9 @@ const GROUPS = [
   { kind: 'ad_account', label: 'Ad accounts', icon: 'bx-bullseye', brand: 'meta' },
   { kind: 'whatsapp', label: 'WhatsApp numbers', icon: 'bxl-whatsapp', brand: 'whatsapp' },
   { kind: 'youtube', label: 'YouTube channels', icon: 'bxl-youtube', brand: 'youtube' },
-  { kind: 'google_ads', label: 'Google Ads accounts', icon: 'bx-bullseye', brand: 'google' }
+  { kind: 'google_ads', label: 'Google Ads accounts', icon: 'bx-bullseye', brand: 'google' },
+  { kind: 'x_account', label: 'X accounts', icon: 'bxl-x-logo', brand: 'x' },
+  { kind: 'x_ads', label: 'X Ads accounts', icon: 'bx-bullseye', brand: 'x' }
 ];
 
 export default {
@@ -280,7 +282,9 @@ export default {
         'meta.whatsapp': { icon: 'bxl-whatsapp', cls: 'is-whatsapp' },
         'meta.instagram_login': { icon: 'bxl-instagram', cls: 'is-instagram' },
         'google.oauth': { icon: 'bxl-google', cls: 'is-google' },
-        'google.ads_legacy': { icon: 'bx-bullseye', cls: 'is-google' }
+        'google.ads_legacy': { icon: 'bx-bullseye', cls: 'is-google' },
+        'x.oauth2': { icon: 'bxl-x-logo', cls: 'is-x' },
+        'x.ads': { icon: 'bx-bullseye', cls: 'is-x' }
       }[key] || { icon: 'bx-link', cls: 'is-meta' };
     },
 
@@ -484,6 +488,7 @@ export default {
 .is-whatsapp { background: var(--wa); }
 .is-meta { background: var(--meta); }
 .is-google { background: #4285F4; }
+.is-x { background: #000000; }
 .is-youtube { background: linear-gradient(180deg, #FF3D3D 0%, #E60000 100%); }
 
 .ch-pill { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }

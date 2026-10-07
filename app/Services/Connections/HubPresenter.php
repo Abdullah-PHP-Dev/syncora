@@ -21,11 +21,12 @@ class HubPresenter
         'whatsapp' => ['messaging', 'posting'],
         'youtube' => ['posting', 'insights'],
         'google_ads' => ['ads'],
+        'x_account' => ['posting', 'messaging'],
+        'x_ads' => ['ads'],
     ];
 
     /** Platforms that move into the Hub in later commits (design §11). */
     private const UPCOMING = [
-        ['key' => 'x', 'label' => 'X', 'detail' => 'Posts, DMs, Ads'],
         ['key' => 'linkedin', 'label' => 'LinkedIn', 'detail' => 'Pages, Ads'],
         ['key' => 'tiktok', 'label' => 'TikTok', 'detail' => 'Posting, Ads'],
         ['key' => 'snapchat', 'label' => 'Snapchat', 'detail' => 'Ads'],
@@ -140,6 +141,7 @@ class HubPresenter
         return match (true) {
             $asset->platform === 'youtube' => 'youtube',
             $asset->platform === 'google' => 'google_ads',
+            $asset->platform === 'x' => $asset->has_ads_permission && ! $asset->has_posting_permission && ! $asset->has_messaging_permission ? 'x_ads' : 'x_account',
             $asset->platform === 'whatsapp' => 'whatsapp',
             $asset->platform === 'instagram' => 'instagram',
             $asset->account_type === 'ad_account' || ($asset->has_ads_permission && ! $asset->has_posting_permission) => 'ad_account',

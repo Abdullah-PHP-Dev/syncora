@@ -157,15 +157,17 @@ class MetaConnectionTest extends TestCase
 
     // ---- tokenFor / ensure ---------------------------------------------
 
-    public function test_token_for_picks_asset_then_connection_then_legacy(): void
+    public function test_token_for_picks_asset_token_then_own_token_then_connection(): void
     {
         $connection = $this->connection();
         $page = SocialAccount::create(['user_id' => $this->user->id, 'platform' => 'facebook', 'platform_account_id' => 'p', 'name' => 'P', 'access_token' => 'page-legacy', 'asset_token' => 'page-token', 'social_connection_id' => $connection->id]);
-        $ad = SocialAccount::create(['user_id' => $this->user->id, 'platform' => 'facebook', 'platform_account_id' => 'a', 'name' => 'A', 'access_token' => 'ad-legacy', 'social_connection_id' => $connection->id]);
+        $ad = SocialAccount::create(['user_id' => $this->user->id, 'platform' => 'facebook', 'platform_account_id' => 'a', 'name' => 'A', 'access_token' => 'ad-own', 'social_connection_id' => $connection->id]);
+        $tokenless = SocialAccount::create(['user_id' => $this->user->id, 'platform' => 'facebook', 'platform_account_id' => 't', 'name' => 'T', 'social_connection_id' => $connection->id]);
         $unlinked = SocialAccount::create(['user_id' => $this->user->id, 'platform' => 'x', 'platform_account_id' => 'x', 'name' => 'X', 'access_token' => 'x-legacy']);
 
         $this->assertSame('page-token', $this->service()->tokenFor($page, 'posting'));
-        $this->assertSame('user-token', $this->service()->tokenFor($ad, 'ads'));
+        $this->assertSame('ad-own', $this->service()->tokenFor($ad, 'ads'));
+        $this->assertSame('user-token', $this->service()->tokenFor($tokenless, 'ads'));
         $this->assertSame('x-legacy', $this->service()->tokenFor($unlinked, 'posting'));
 
         $page->update(['enabled_capabilities' => ['messaging']]);

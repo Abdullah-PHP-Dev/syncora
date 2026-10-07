@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Messaging\MessageChannel;
 use App\Models\SocialAccount;
+use App\Support\Connections\HubReturn;
 use App\Services\ApiService;
 use App\Services\MessagingServices\DiscordMessagingService;
 use App\Services\MessagingServices\GoogleChatMessagingService;
@@ -60,7 +61,10 @@ class MessageChannelController extends Controller
 
     private function returnRoute(): string
     {
-        return session()->pull('messaging_return_to') === 'dashboard' ? 'admin.chats.dashboard' : 'admin.chats.channels';
+        $module = session()->pull('messaging_return_to') === 'dashboard' ? 'admin.chats.dashboard' : 'admin.chats.channels';
+
+        // Back to the Connection Hub when it started this flow.
+        return HubReturn::route($module);
     }
 
     /**

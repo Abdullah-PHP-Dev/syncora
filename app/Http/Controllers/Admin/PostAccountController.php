@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SocialAccount;
 use App\Services\Connections\ConnectionRecorder;
 use App\Services\Connections\Drivers\MetaDriver;
+use App\Services\Connections\Drivers\XDriver;
 use App\Support\Connections\GrantedScopes;
 use App\Services\PostServices\ApiPostService;
 use App\Services\PostServices\InstagramPostService;
@@ -466,7 +467,7 @@ class PostAccountController extends Controller
         $user = $userResponse->json()['data'];
         $metrics = $user['public_metrics'] ?? [];
 
-        SocialAccount::updateOrCreate(
+        $account = SocialAccount::updateOrCreate(
             ['platform' => 'x', 'platform_account_id' => $user['id'], 'user_id' => Auth::id()],
             [
                 'name'                   => $user['name'] ?? $user['username'],
@@ -484,7 +485,16 @@ class PostAccountController extends Controller
             ]
         );
 
-        return redirect()->route('admin.posts.create')->with('success', 'X account connected.');
+        // Same posts.x consent as the Inbox's X connect (design doc §6b).
+        ConnectionRecorder::record(Auth::id(), 'x', XDriver::OAUTH2, $user['id'], [
+            'provider_app' => 'posts.x',
+            'access_token' => $token['access_token'],
+            'refresh_token' => $token['refresh_token'] ?? null,
+            'expires_at' => Carbon::now()->addSeconds($token['expires_in'] ?? 7200),
+            'granted_scopes' => $grantedScopes,
+        ], [$account->id]);
+
+        return redirect()->route($this->returnRoute())->with('success', 'X account connected.');
     }
 
     private function xCallbackUrl(): string

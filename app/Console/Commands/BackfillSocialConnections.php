@@ -24,6 +24,10 @@ use Illuminate\Support\Facades\DB;
  *      -> one `google.oauth` connection per user (posts.google)
  *  - other google (Ads) rows -> one `google.ads_legacy` per user (ads.google,
  *      the Ads module's own client - kept so their refreshes keep working)
+ *  - x posting / DM rows -> `x.oauth2` per account (posts.x)
+ *  - x Ads rows sharing a token -> one `x.ads` (ads.x); the plaintext
+ *      metadata.legacy_token_secret moves into the encrypted token_secret
+ *      and is removed from metadata (design doc §6b)
  *
  * Granted scopes are copied when known; otherwise capabilities fall back to
  * the legacy has_*_permission flags until the validation pass fills scopes.
@@ -37,7 +41,7 @@ class BackfillSocialConnections extends Command
                             {--dry-run : Report what would be created/linked without writing anything}
                             {--force : Run in production without the confirmation prompt}';
 
-    protected $description = 'Create social_connections for existing social accounts (Meta, Google) and link them';
+    protected $description = 'Create social_connections for existing social accounts (Meta, Google, X) and link them';
 
     private array $report = [];
 
@@ -51,7 +55,7 @@ class BackfillSocialConnections extends Command
 
         $rows = SocialAccount::query()
             ->whereNull('social_connection_id')
-            ->whereIn('platform', ['facebook', 'instagram', 'whatsapp', 'youtube', 'google'])
+            ->whereIn('platform', ['facebook', 'instagram', 'whatsapp', 'youtube', 'google', 'x'])
             ->orderBy('id')
             ->get();
 
@@ -68,6 +72,11 @@ class BackfillSocialConnections extends Command
                 $this->google((int) $userId, $google, $dryRun);
             }
 
+            $x = $userRows->where('platform', 'x');
+            if ($x->isNotEmpty()) {
+                $this->x((int) $userId, $x, $dryRun);
+            }
+
             foreach ($userRows as $account) {
                 if ($account->platform === 'instagram' && $account->token_type !== 'page') {
                     $this->single('meta.instagram_login', 'posts.instagram', $account, $dryRun);
@@ -82,7 +91,7 @@ class BackfillSocialConnections extends Command
         if ($this->report) {
             $this->table(['user', 'step', 'assets', 'token from', 'status', 'capabilities'], $this->report);
         } else {
-            $this->line('Nothing to backfill: every Meta and Google account is already linked to a connection.');
+            $this->line('Nothing to backfill: every Meta, Google and X account is already linked to a connection.');
         }
 
         return self::SUCCESS;
@@ -154,6 +163,60 @@ class BackfillSocialConnections extends Command
             $tokenFrom = '#' . $source->id . ($source->refresh_token ? ' refresh_token' : ' access_token');
 
             $this->persist($userId, 'google', $step, null, $attributes, $group['accounts'], $tokenFrom, $dryRun);
+        }
+    }
+
+    private function x(int $userId, Collection $accounts, bool $dryRun): void
+    {
+        [$ads, $oauth2] = $accounts->partition(fn ($a) => $a->has_ads_permission
+            && (isset($a->metadata['legacy_token_secret']) || (! $a->has_posting_permission && ! $a->has_messaging_permission)));
+
+        // One OAuth 1.0a consent mints one token for every Ads account it returned.
+        foreach ($ads->groupBy(fn ($a) => (string) $a->access_token) as $group) {
+            $source = $group->first();
+            $secret = $group->map(fn ($a) => $a->metadata['legacy_token_secret'] ?? null)->filter()->first();
+
+            $attributes = [
+                'provider_app' => 'ads.x',
+                'access_token' => $source->access_token,
+                'token_secret' => $secret,
+                'granted_scopes' => ['oauth1'],
+                'capabilities' => ['ads'],
+                // OAuth 1.0a tokens never expire; without a secret it can't sign.
+                'status' => $source->access_token && $secret ? SocialConnection::ACTIVE : SocialConnection::NEEDS_REAUTH,
+            ];
+
+            $userIdOnX = $source->metadata['x_user_id'] ?? $source->metadata['profile_id'] ?? null;
+            $this->persist($userId, 'x', 'x.ads', $userIdOnX ? (string) $userIdOnX : null, $attributes, $group, '#' . $source->id . ($secret ? ' token + secret' : ' token, no secret'), $dryRun);
+
+            if (! $dryRun && $secret) {
+                $this->forgetPlaintextSecret($group);
+            }
+        }
+
+        foreach ($oauth2 as $account) {
+            $attributes = [
+                'provider_app' => 'posts.x',
+                'access_token' => $account->access_token,
+                'refresh_token' => $account->refresh_token,
+                'expires_at' => $account->expires_at,
+                'granted_scopes' => $account->scopes,
+                'capabilities' => $this->capabilities('x', $account->scopes, collect([$account])),
+                'status' => SocialConnection::statusFor($account->access_token, $account->expires_at, (bool) $account->refresh_token),
+            ];
+
+            $this->persist($userId, 'x', 'x.oauth2', $account->platform_account_id, $attributes, collect([$account]), "#{$account->id} " . ($account->refresh_token ? 'refresh_token' : 'access_token'), $dryRun);
+        }
+    }
+
+    /** The secret now lives encrypted on the connection - drop the plaintext copy. */
+    private function forgetPlaintextSecret(Collection $accounts): void
+    {
+        foreach ($accounts as $account) {
+            $metadata = $account->metadata ?? [];
+            unset($metadata['legacy_token_secret']);
+
+            DB::table('social_accounts')->where('id', $account->id)->update(['metadata' => json_encode($metadata)]);
         }
     }
 

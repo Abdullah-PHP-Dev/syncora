@@ -170,6 +170,29 @@ This resolves the audit's "Unclear" X row, so the X minimum becomes **1** Connec
 - **Status:** X is skipped by the expiry pass; the daily validation pass calls `GET /2/users/me` signed with the token. 401 → `revoked`. A 403 on the DM/Ads probe → `needs_reauth`, with the hint "app permission level / Ads access".
 - **To verify during implementation:** media upload (`media.write`) under OAuth 1.0a. If it isn't supported, posting media falls back to the v1.1 media upload, which is OAuth 1.0a-native.
 
+### 6b-update (2026-10-07): two X apps, `posts.x` survives
+
+Checked during implementation: `posts.x` and `ads.x` are **different X apps**. Their consumer keys differ, and X once rejected a mix-up of them.
+- `posts.x` owns the DM webhook / Account Activity subscription and X Chat (CRC and signature use `posts.x.consumer_secret`).
+- `ads.x` has the Ads API access.
+- **Decision (user, 2026-10-07):** `posts.x` becomes the single X app.
+
+**Now (commit 10):**
+- **`x.oauth2`:** `posts.x` OAuth 2.0 for posts + DMs + X Chat. One consent replaces the separate Publishing and Inbox buttons; the Inbox flow now also grants posting when `tweet.write` is granted. No service changes, so no reconnects.
+- **`x.ads`:** `ads.x` OAuth 1.0a for Ads, as a second step (flag `x.ads`). Its token secret is now encrypted in `social_connections.token_secret`; the backfill moves and removes the plaintext `metadata.legacy_token_secret`.
+- **Validation never refreshes X OAuth 2.0 tokens.** X rotates refresh tokens on every use, and the posting/DM services refresh them; the driver mirrors the account's latest token instead.
+
+**Later (its own commit), once all three hold:**
+1. X approves Ads API access for `posts.x` (Ads API Access Form, per app).
+2. `posts.x`'s permission level is *Read, write and Direct Messages*.
+3. Every X Chat endpoint the app calls (`chat/conversations/*`, `users/{id}/public_keys`, `dm_events/{id}`, media download) is verified to accept OAuth 1.0a.
+
+Then:
+- switch `x.oauth2` to an OAuth 1.0a step on `posts.x`, signing posting/DM/X Chat calls with `XOAuth1`
+- fold Ads in, and retire `ads.x`
+
+Existing X users reconnect once at that point, via an upgrade banner.
+
 ## 7. Scheduled status job
 
 `connections:check-status` in `bootstrap/app.php` → `withSchedule`:

@@ -24,7 +24,7 @@
          'href' => \App\Support\Connections\HubLink::for('instagram')],
         ['key' => 'x', 'name' => 'X Direct Messages', 'icon' => 'bxl-x-logo', 'color' => '#0f1419', 'group' => 'social', 'setup' => 'oauth',
          'desc' => 'Real-time DMs through X webhooks, including end-to-end encrypted X Chat.',
-         'href' => route('admin.messaging.auth.x.redirect')],
+         'href' => \App\Support\Connections\HubLink::for('x')],
         ['key' => 'tiktok', 'name' => 'TikTok Messenger', 'icon' => 'bxl-tiktok', 'color' => '#111111', 'group' => 'social', 'setup' => 'oauth',
          'desc' => 'TikTok Business Messaging for Business Accounts. Requires TikTok\'s Business Messaging approval.',
          'href' => route('admin.messaging.auth.tiktok.redirect')],

@@ -17,6 +17,7 @@ class HubLink
         'whatsapp' => 'meta',
         'google' => 'google',
         'youtube' => 'google',
+        'x' => 'x',
     ];
 
     public static function managed(string $platform): bool

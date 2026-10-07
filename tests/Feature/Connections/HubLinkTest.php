@@ -21,7 +21,7 @@ class HubLinkTest extends TestCase
 
     public function test_other_platforms_keep_their_own_flow_for_now(): void
     {
-        foreach (['tiktok', 'x', 'linkedin', 'snapchat', 'threads', 'pinterest'] as $platform) {
+        foreach (['tiktok', 'linkedin', 'snapchat', 'threads', 'pinterest'] as $platform) {
             $this->assertFalse(HubLink::managed($platform));
             $this->assertNull(HubLink::for($platform));
         }

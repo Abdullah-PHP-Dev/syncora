@@ -39,9 +39,11 @@ class ConnectionService
 
     /**
      * Token a module should use to act on an asset, or null when it may not:
-     *  - the asset's own token (Page / Instagram) when it has one,
-     *  - else the connection's token (ad accounts act with the user token),
-     *  - else the legacy column, for assets not linked to a connection yet.
+     *  - the asset's Page / Instagram token (asset_token) when it has one,
+     *  - else the asset's own access_token - every connect and refresh path
+     *    keeps it current, and some platforms (X) rotate tokens on the asset
+     *    itself, which leaves the connection's copy behind,
+     *  - else the connection's token.
      * Null when the capability is switched off for this asset in the Hub or
      * the connection isn't usable.
      */
@@ -61,7 +63,7 @@ class ConnectionService
             return null;
         }
 
-        return $asset->asset_token ?: ($connection->access_token ?: $asset->access_token);
+        return $asset->asset_token ?: ($asset->access_token ?: $connection->access_token);
     }
 
     /**

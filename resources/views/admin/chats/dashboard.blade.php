@@ -1548,7 +1548,7 @@
             // Meta connects once in the Connection Hub.
             ['key' => 'facebook',    'class' => 'facebook',    'icon' => 'bxl-facebook',  'label' => __('Meta Messenger'),    'url' => \App\Support\Connections\HubLink::for('facebook'), 'note' => \App\Support\Connections\HubLink::note()],
             ['key' => 'instagram',   'class' => 'instagram',   'icon' => 'bxl-instagram', 'label' => __('Instagram Messenger'), 'url' => \App\Support\Connections\HubLink::for('instagram'), 'note' => \App\Support\Connections\HubLink::note()],
-            ['key' => 'x',           'class' => 'twitter',     'icon' => 'bxl-x-logo',   'label' => __('X Messenger'),       'url' => route('admin.messaging.auth.x.redirect') . '?return_to=dashboard'],
+            ['key' => 'x',           'class' => 'twitter',     'icon' => 'bxl-x-logo',   'label' => __('X Messenger'),       'url' => \App\Support\Connections\HubLink::for('x'), 'note' => \App\Support\Connections\HubLink::note()],
             // No posting-permission gate here (unlike the Posts dashboard's
             // Add Account tiles) - has_messaging_permission is what actually
             // matters for the inbox.
