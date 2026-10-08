@@ -71,6 +71,13 @@ return [
 	        'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', true),
 	        'url' => env('CDN_URL'),
 	        'throw' => false,
+	        // The AWS SDK waits forever by default: an unreachable endpoint or
+	        // wrong credentials left uploads (and the request) pending with no
+	        // error. Fail instead - upload callers report the failure.
+	        'http' => [
+	            'connect_timeout' => (int) env('R2_CONNECT_TIMEOUT', 10),
+	            'timeout' => (int) env('R2_TIMEOUT', 120),
+	        ],
         ],
 
     ],

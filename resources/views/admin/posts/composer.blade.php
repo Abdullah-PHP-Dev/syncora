@@ -13,7 +13,7 @@
             :categories='@json($categories)'
             store-url="{{ route('admin.posts.store') }}"
             category-store-url="{{ route('admin.categories.store') }}"
-            manage-accounts-url="{{ route('admin.posts.create') }}"
+            manage-accounts-url="{{ route('admin.connections.index') }}"
             redirect-url="{{ route('admin.posts.dashboard') }}"
             :gallery-urls='@json(['index' => route('admin.media-gallery.index'), 'store' => route('admin.media-gallery.store')])'
             :ai-urls='@json(['content' => route('admin.posts.generate-ai-content'), 'image' => route('admin.posts.generate-ai-image')])'
