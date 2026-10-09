@@ -110,7 +110,7 @@
               <div v-if="captionFirst" class="mk-text">{{ post.content }}</div>
 
               <!-- Media / carousel -->
-              <div v-if="mediaList.length" class="mk-media" :class="{'is-square': activeKey === 'instagram', 'is-rounded': activeKey === 'x'}">
+              <div v-if="mediaList.length" class="mk-media" :class="{'is-rounded': activeKey === 'x'}">
                 <template v-for="(m, i) in mediaList" :key="i">
                   <img v-if="i === mediaIndex && m.type === 'image'" :src="m.url" alt="">
                   <video v-else-if="i === mediaIndex" :src="m.url" :poster="m.poster || undefined" controls playsinline></video>
@@ -1167,8 +1167,9 @@ export default {
   box-shadow:0 1px 2px rgba(16,24,40,.05), 0 6px 16px rgba(16,24,40,.06);
   isolation:isolate;
 }
-.mk-media img, .mk-media video{ width:100%; display:block; max-height:460px; object-fit:cover; }
-.mk-media.is-square img, .mk-media.is-square video{ aspect-ratio:1 / 1; object-fit:cover; }
+/* Natural proportions, never cropped: a very tall image is scaled down to
+   fit (contain) instead of being cut by a fixed height + cover. */
+.mk-media img, .mk-media video{ width:100%; height:auto; display:block; max-height:min(680px, 75vh); object-fit:contain; margin:0 auto; }
 .mk-media.is-rounded{ border-radius:16px; }
 
 .mk-nav{
