@@ -875,6 +875,8 @@ class PostController extends Controller
             'timeAgo' => optional($comment->posted_at ?? $comment->created_at)->diffForHumans(),
             'likes' => (int) ($comment->likes ?? 0),
             'isOwn' => $comment->sender_type === 'support',
+            // Only a real score earns a pill; unscored comments show none.
+            'sentiment' => $comment->getRawOriginal('sentiment_score') !== null ? $comment->sentiment_label : null,
             'replies' => $comment->replies->map(fn ($reply) => [
                 'author' => $reply->user_name ?: ($reply->user->name ?? 'User'),
                 'avatar' => $reply->user_avatar_url,
@@ -946,7 +948,13 @@ class PostController extends Controller
 
         $accounts = SocialAccount::whereUserId($userId)->usableFor('posting')->get();
 
-        return view('admin.posts.composer', compact('categories', 'accounts'));
+        // ?duplicate={post}: start from one of the user's own posts.
+        $prefill = request()->filled('duplicate')
+            ? Post::where('user_id', $userId)->find((int) request('duplicate'), ['title', 'content', 'post_category_id'])
+            : null;
+        $prefill = $prefill ? ['title' => $prefill->title, 'content' => $prefill->content, 'category_id' => $prefill->post_category_id] : null;
+
+        return view('admin.posts.composer', compact('categories', 'accounts', 'prefill'));
     }
 
     /**

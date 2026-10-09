@@ -169,6 +169,12 @@ const props = defineProps({
     default: () => []
   },
 
+  // Prefill from an existing post ("Duplicate" on the preview page).
+  prefill: {
+    type: Object,
+    default: null
+  },
+
   categoryStoreUrl: {
     type: String,
     default: ''
@@ -215,8 +221,8 @@ const selectedAccountIds = ref(
     ? [connectedId]
     : props.accounts.map(account => account.id)
 );
-const title = ref('');
-const description = ref('');
+const title = ref(props.prefill?.title || '');
+const description = ref(props.prefill?.content || '');
 const mediaItems = ref([]);
 const selectedPlatforms = computed(() => [...new Set(
   props.accounts.filter(account => selectedAccountIds.value.includes(account.id)).map(account => account.platform)
@@ -254,7 +260,9 @@ const scheduleAt = ref('');
 // first - PostController::composer() guarantees at least a "General" one.
 // "+ New" creates another inline via admin.categories.store.
 const categoryOptions = ref([...props.categories]);
-const categoryId = ref(props.categories[0]?.id ?? null);
+const categoryId = ref(
+  props.categories.some(c => c.id === props.prefill?.category_id) ? props.prefill.category_id : (props.categories[0]?.id ?? null)
+);
 const defaultCategoryId = computed(() => categoryId.value);
 const addingCategory = ref(false);
 const newCategoryName = ref('');

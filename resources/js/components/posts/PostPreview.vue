@@ -12,81 +12,79 @@
 
     <template v-else>
 
-      <!-- Hero: title, status/meta chips, primary actions -->
-      <header class="pp-card pp-hero">
-
-        <div class="pp-hero-main">
-
-          <a :href="backUrl" class="pp-back" title="Back to Posts"><i class="fas fa-arrow-left"></i></a>
-
-          <div class="pp-hero-text">
-
-            <div class="pp-crumbs">
-              <a :href="backUrl">Posts</a>
-              <i class="fas fa-chevron-right"></i>
-              <span>Preview</span>
-            </div>
-
-            <h1 class="pp-title">{{ post.title }}</h1>
-
-            <div class="pp-chips">
-              <span class="pp-badge" :class="'is-' + activeStatus.tone">{{ activeStatus.label }}</span>
-              <span class="pp-chip"><i :class="typeIcon"></i> {{ typeLabel }}</span>
-              <span class="pp-chip" v-if="activeMember.scheduled_label"><i class="far fa-clock"></i> Scheduled for {{ activeMember.scheduled_label }}</span>
-              <span class="pp-chip" v-else-if="activeMember.created_label"><i class="far fa-calendar"></i> {{ activeMember.created_label }}</span>
-              <span class="pp-chip"><i class="fas fa-layer-group"></i> {{ post.platforms.length }} {{ post.platforms.length === 1 ? 'platform' : 'platforms' }}</span>
-            </div>
-
-          </div>
-
-        </div>
-
-        <div class="pp-hero-actions">
-          <a :href="backUrl" class="pp-btn pp-btn-ghost"><i class="fas fa-th-large"></i> All posts</a>
-          <a
-              v-if="hasPlatformUrl"
-              :href="platformUrl"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="pp-btn pp-btn-primary"
-              :style="brandVars(activeKey)">
-            <i :class="activePlatform.icon"></i> View on {{ activePlatform.name }}
-            <i class="fas fa-external-link-alt pp-btn-trail"></i>
-          </a>
-        </div>
-
-      </header>
-
-      <!-- Platform switcher -->
-      <nav class="pp-switcher" v-if="post.platforms.length > 1" aria-label="Platforms">
-        <button
-            v-for="p in post.platforms"
-            :key="p.post_id"
-            type="button"
-            class="pp-switch"
-            :class="{active: p.post_id === activeId}"
-            :style="brandVars(p.key)"
-            @click="switchPlatform(p)">
-          <span class="pp-switch-icon"><i :class="p.icon"></i></span>
-          <span class="pp-switch-name">{{ p.name }}<small v-if="repeatedKeys.includes(p.key)" class="pp-switch-acct">{{ p.handle || p.page }}</small></span>
-          <span class="pp-dot" :class="'is-' + statusInfo(p).tone" :title="statusInfo(p).label"></span>
-        </button>
-      </nav>
-
       <div class="pp-grid">
 
-        <!-- Left: device stage with the platform-native mock -->
-        <section class="pp-card pp-stage-card">
+        <!-- ============ Left: header + the post as it appears ============ -->
+        <div class="pp-main">
 
-          <div class="pp-card-head">
-            <div>
-              <h2>Live preview</h2>
-              <p>How your post appears on {{ activePlatform.name }}</p>
+          <header class="pp-card pp-hero">
+
+            <div class="pp-hero-text">
+              <div class="pp-crumbs">
+                <a :href="backUrl" class="pp-crumb-back" title="Back to Posts"><i class="fas fa-arrow-left"></i></a>
+                <a :href="backUrl">Posts</a>
+                <i class="fas fa-chevron-right"></i>
+                <span>Preview</span>
+              </div>
+
+              <h1 class="pp-title">{{ post.title }}</h1>
+
+              <div class="pp-chips">
+                <span class="pp-badge" :class="'is-' + activeStatus.tone">{{ activeStatus.label }}</span>
+                <span class="pp-chip" v-if="activeMember.scheduled_label"><i class="far fa-clock"></i> {{ activeMember.scheduled_label }}</span>
+                <span class="pp-chip" v-else-if="activeMember.created_label"><i class="far fa-calendar"></i> {{ activeMember.created_label }}</span>
+                <span class="pp-chip"><i class="fas fa-layer-group"></i> {{ post.platforms.length }} {{ post.platforms.length === 1 ? 'platform' : 'platforms' }}</span>
+              </div>
             </div>
-            <span class="pp-platform-pill" :style="brandVars(activeKey)"><i :class="activePlatform.icon"></i></span>
-          </div>
 
-          <div class="pp-stage" :style="brandVars(activeKey)">
+            <div class="pp-hero-actions">
+              <a v-if="hasPlatformUrl" :href="platformUrl" target="_blank" rel="noopener noreferrer" class="pp-btn pp-btn-ghost">
+                <i class="fas fa-external-link-alt"></i> View on {{ activePlatform.name }}
+              </a>
+              <a v-if="duplicateUrl" :href="duplicateUrl.replace('__POST__', activePlatform.post_id || post.id)" class="pp-btn pp-btn-ghost">
+                <i class="far fa-copy"></i> Duplicate
+              </a>
+              <div ref="menu" class="pp-menu">
+                <button type="button" class="pp-btn pp-btn-ghost pp-btn-icon" :aria-expanded="showMenu" aria-label="More actions" @click="showMenu = !showMenu">
+                  <i class="fas fa-ellipsis-v"></i>
+                </button>
+                <div v-if="showMenu" class="pp-menu-list" role="menu">
+                  <a :href="backUrl" role="menuitem"><i class="fas fa-th-large"></i> All posts</a>
+                  <button type="button" role="menuitem" @click="copyCaption"><i class="far fa-clipboard"></i> {{ copied ? 'Caption copied' : 'Copy caption' }}</button>
+                </div>
+              </div>
+            </div>
+
+          </header>
+
+          <section class="pp-card pp-stage-card">
+
+            <!-- Platform bar: the one on show, then the rest of the group -->
+            <div class="pp-pf-bar">
+              <div class="pp-pf-current" :style="brandVars(activeKey)">
+                <span class="pp-pf-tile"><i :class="activePlatform.icon"></i></span>
+                <div class="pp-pf-current-text">
+                  <strong>{{ activePlatform.name }}</strong>
+                  <span class="pp-live" :class="'is-' + activeStatus.tone">{{ activeStatus.tone === 'success' ? 'Live' : activeStatus.label }}</span>
+                  <small v-if="repeatedKeys.includes(activeKey)">{{ activePlatform.handle || activePlatform.page }}</small>
+                </div>
+              </div>
+              <div v-if="otherPlatforms.length" class="pp-pf-others" aria-label="Other platforms">
+                <button
+                    v-for="p in visibleOtherPlatforms"
+                    :key="p.post_id"
+                    type="button"
+                    class="pp-pf-dot"
+                    :style="brandVars(p.key)"
+                    :title="p.name + (repeatedKeys.includes(p.key) ? ' · ' + (p.handle || p.page) : '') + ' - ' + statusInfo(p).label"
+                    @click="switchPlatform(p)">
+                  <i :class="p.icon"></i>
+                </button>
+                <button v-if="hiddenPlatformCount" type="button" class="pp-pf-dot pp-pf-more" @click="showAllPlatforms = true">+{{ hiddenPlatformCount }}</button>
+              </div>
+            </div>
+
+            <div class="pp-stage" :style="brandVars(activeKey)">
 
             <div class="pp-device">
 
@@ -187,27 +185,16 @@
 
             </div>
 
-          </div>
-
-        </section>
-
-        <!-- Right: insights, distribution, comments -->
-        <div class="pp-side">
-
-          <section class="pp-card">
-            <div class="pp-card-head">
-              <div>
-                <h2>Performance</h2>
-                <p>{{ activePlatform.name }} · {{ activePlatform.page }}</p>
-              </div>
             </div>
+
             <div class="pp-kpis">
               <div v-for="kpi in kpis" :key="kpi.label" class="pp-kpi" :style="{'--tone': kpi.color}">
-                <span class="pp-kpi-icon"><i :class="kpi.icon"></i></span>
+                <i :class="kpi.icon"></i>
                 <strong>{{ fmt(kpi.value) }}</strong>
                 <small>{{ kpi.label }}</small>
               </div>
             </div>
+
             <div v-if="activeMember.error_message" class="pp-alert">
               <i class="fas fa-exclamation-circle"></i>
               <div>
@@ -215,7 +202,13 @@
                 <span>{{ activeMember.error_message }}</span>
               </div>
             </div>
+
           </section>
+
+        </div>
+
+        <!-- ============ Right: where it went + the conversation ============ -->
+        <div class="pp-side">
 
           <section class="pp-card">
             <div class="pp-card-head">
@@ -223,6 +216,7 @@
                 <h2>Published to</h2>
                 <p>The same post across your connected accounts</p>
               </div>
+              <a :href="backUrl" class="pp-btn pp-btn-ghost pp-btn-sm"><i class="far fa-eye"></i> View all</a>
             </div>
             <div class="pp-dist">
               <button
@@ -233,16 +227,14 @@
                   :class="{active: p.post_id === activeId}"
                   :style="brandVars(p.key)"
                   @click="switchPlatform(p)">
-                <span class="pp-dist-avatar">
-                  <img v-if="p.avatar" :src="p.avatar" alt="" @error="p.avatar = null">
-                  <i v-else :class="p.icon"></i>
-                  <span class="pp-dist-badge"><i :class="p.icon"></i></span>
-                </span>
+                <span class="pp-dist-logo"><i :class="p.icon"></i></span>
                 <span class="pp-dist-info">
-                  <strong>{{ p.page }}</strong>
-                  <small>{{ p.name }}<template v-if="p.handle && p.handle !== p.page"> · {{ p.handle }}</template></small>
+                  <strong>{{ p.name }}</strong>
+                  <small>{{ p.handle || p.page }}</small>
                 </span>
-                <span class="pp-badge pp-badge-sm" :class="'is-' + statusInfo(p).tone">{{ statusInfo(p).label }}</span>
+                <span class="pp-status" :class="'is-' + statusInfo(p).tone">
+                  <i class="fas" :class="statusIcon(statusInfo(p).tone)"></i> {{ statusInfo(p).label }}
+                </span>
                 <i class="fas fa-chevron-right pp-dist-arrow"></i>
               </button>
             </div>
@@ -251,25 +243,25 @@
           <!-- Comments & replies for the active platform -->
           <section class="pp-card pp-comments" id="comments">
 
-            <div class="pp-card-head comments-toggle" @click="showComments = !showComments">
+            <div class="pp-card-head">
               <div>
                 <h2>Comments <span class="pp-count">{{ engagement.comments.length }}</span></h2>
                 <p>Conversation on {{ activePlatform.name }}</p>
               </div>
-              <i class="fas pp-collapse" :class="showComments ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+              <button v-if="engagement.comments.length > commentPreviewCount" type="button" class="pp-btn pp-btn-ghost pp-btn-sm" @click="showAllComments = !showAllComments">
+                <i class="far fa-eye"></i> {{ showAllComments ? 'Show fewer' : 'View all comments' }}
+              </button>
             </div>
 
-            <template v-if="showComments">
+            <div v-if="!engagement.comments.length" class="pp-empty">
+              <span class="pp-empty-icon"><i class="far fa-comments"></i></span>
+              <strong>No comments yet</strong>
+              <span>Comments from {{ activePlatform.name }} will appear here. Start the conversation below.</span>
+            </div>
 
-              <div v-if="!engagement.comments.length" class="pp-empty">
-                <span class="pp-empty-icon"><i class="far fa-comments"></i></span>
-                <strong>No comments yet</strong>
-                <span>Comments from {{ activePlatform.name }} will appear here. Start the conversation below.</span>
-              </div>
+            <div v-else class="pp-thread-list">
 
-              <div v-else class="pp-thread-list">
-
-                <div v-for="comment in engagement.comments" :key="comment.id" class="pp-thread">
+                <div v-for="comment in visibleComments" :key="comment.id" class="pp-thread">
 
                   <div class="pp-comment" :class="{own: comment.isOwn}">
 
@@ -281,7 +273,13 @@
                     <div class="pp-comment-body">
 
                       <div class="pp-bubble">
-                        <strong>{{ comment.author }} <span v-if="comment.isOwn" class="pp-you">You</span></strong>
+                        <strong>
+                          {{ comment.author }} <span v-if="comment.isOwn" class="pp-you">You</span>
+                          <span v-if="comment.sentiment" class="pp-sentiment" :class="'is-' + comment.sentiment">
+                            <i class="far" :class="{ positive: 'fa-smile', negative: 'fa-frown', neutral: 'fa-meh' }[comment.sentiment] || 'fa-meh'"></i>
+                            {{ comment.sentiment.charAt(0).toUpperCase() + comment.sentiment.slice(1) }}
+                          </span>
+                        </strong>
                         <div>{{ comment.content }}</div>
                       </div>
 
@@ -328,17 +326,17 @@
 
               </div>
 
-              <div class="pp-composer">
-                <div class="pp-avatar pp-avatar-own">{{ userInitials }}</div>
-                <div class="pp-input-row">
-                  <input type="text" v-model="newCommentText" :placeholder="commentPlaceholder" @keyup.enter="addComment">
-                  <button type="button" class="pp-send" :disabled="!newCommentText.trim() || submittingComment" @click="addComment">
-                    <i class="fas" :class="submittingComment ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
-                  </button>
-                </div>
-              </div>
+            </div>
 
-            </template>
+            <div class="pp-composer">
+              <div class="pp-avatar pp-avatar-own">{{ userInitials }}</div>
+              <div class="pp-input-row">
+                <input type="text" v-model="newCommentText" :placeholder="commentPlaceholder" @keyup.enter="addComment">
+              </div>
+              <button type="button" class="pp-send" :disabled="!newCommentText.trim() || submittingComment" @click="addComment" aria-label="Send comment">
+                <i class="fas" :class="submittingComment ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
+              </button>
+            </div>
 
           </section>
 
@@ -407,6 +405,12 @@ export default {
     groupPosts: {
       type: Array,
       default: () => []
+    },
+
+    // Composer URL with __POST__ for "Duplicate" (empty hides the button).
+    duplicateUrl: {
+      type: String,
+      default: ''
     }
 
   },
@@ -415,6 +419,11 @@ export default {
 
     return {
       post: null,
+      showMenu: false,
+      copied: false,
+      showAllPlatforms: false,
+      showAllComments: false,
+      commentPreviewCount: 3,
       // The selected group member's Post id - a platform can appear more
       // than once (two Instagram accounts), so selection is per post.
       activeId: null,
@@ -457,6 +466,33 @@ export default {
     activeKey() {
 
       return this.activePlatform.key || '';
+
+    },
+
+    // The platform bar: every group member except the one on show.
+    otherPlatforms() {
+
+      return this.post ? this.post.platforms.filter(p => p.post_id !== this.activeId) : [];
+
+    },
+
+    visibleOtherPlatforms() {
+
+      return this.showAllPlatforms ? this.otherPlatforms : this.otherPlatforms.slice(0, 6);
+
+    },
+
+    hiddenPlatformCount() {
+
+      return this.otherPlatforms.length - this.visibleOtherPlatforms.length;
+
+    },
+
+    visibleComments() {
+
+      const all = this.engagement.comments;
+
+      return this.showAllComments ? all : all.slice(0, this.commentPreviewCount);
 
     },
 
@@ -594,8 +630,14 @@ export default {
   // the preview.
   mounted() {
     if (window.location.hash === '#comments') {
+      this.showAllComments = true;
       this.openComments();
     }
+    document.addEventListener('click', this.closeMenuOnOutsideClick);
+  },
+
+  beforeDestroy() {
+    document.removeEventListener('click', this.closeMenuOnOutsideClick);
   },
 
   methods: {
@@ -698,10 +740,38 @@ export default {
 
     },
 
+    statusIcon(tone) {
+
+      return { success: 'fa-check', danger: 'fa-times', warning: 'fa-clock', info: 'fa-clock' }[tone] || 'fa-circle';
+
+    },
+
+    copyCaption() {
+
+      const done = () => {
+        this.copied = true;
+        setTimeout(() => { this.copied = false; this.showMenu = false; }, 1200);
+      };
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(this.post.content || '').then(done).catch(() => {});
+      }
+
+    },
+
+    closeMenuOnOutsideClick(event) {
+
+      if (this.showMenu && this.$refs.menu && !this.$refs.menu.contains(event.target)) {
+        this.showMenu = false;
+      }
+
+    },
+
     switchPlatform(p) {
 
       this.activeId = p.post_id;
       this.mediaIndex = 0;
+      this.showAllComments = false;
       this.replyingToId = null;
 
       if (window.history && window.history.replaceState) {
@@ -892,19 +962,10 @@ export default {
     linear-gradient(180deg, #fff, #fbfaff);
 }
 
-.pp-hero-main{ display:flex; align-items:flex-start; gap:16px; min-width:0; flex:1; }
 
-.pp-back{
-  width:42px; height:42px; flex-shrink:0;
-  display:grid; place-items:center;
-  border-radius:12px;
-  border:1px solid var(--line);
-  background:#fff;
-  color:var(--text);
-  text-decoration:none;
-  transition:all .15s;
-}
-.pp-back:hover{ color:var(--brand); border-color:#cfc4ff; background:var(--brand-soft); }
+
+
+
 
 .pp-hero-text{ min-width:0; }
 
@@ -974,39 +1035,17 @@ export default {
 .pp-btn-trail{ font-size:11px; opacity:.8; }
 
 /* Platform switcher */
-.pp-switcher{
-  display:flex; gap:10px; flex-wrap:wrap;
-}
-.pp-switch{
-  position:relative;
-  display:inline-flex; align-items:center; gap:10px;
-  height:48px; padding:0 18px 0 8px;
-  border-radius:14px;
-  border:1px solid var(--line);
-  background:#fff;
-  color:var(--text);
-  font-size:13.5px; font-weight:600;
-  cursor:pointer;
-  transition:all .15s;
-}
-.pp-switch:hover{ border-color:var(--pf); transform:translateY(-1px); box-shadow:0 6px 16px rgba(16,24,40,.06); }
-.pp-switch-icon{
-  width:32px; height:32px; border-radius:10px;
-  display:grid; place-items:center;
-  background:color-mix(in srgb, var(--pf) 12%, #fff);
-  color:var(--pf); font-size:15px;
-}
-.pp-switch-acct{ display:block; font-size:11px; font-weight:500; opacity:.7; line-height:1.2; }
-.pp-switch.active{
-  border-color:var(--pf);
-  box-shadow:0 0 0 3px color-mix(in srgb, var(--pf) 14%, transparent), 0 8px 20px rgba(16,24,40,.06);
-  color:var(--ink);
-}
-.pp-switch.active .pp-switch-icon{ background:var(--pf-fill); color:var(--pf-ink); }
-.pp-switch.active .pp-switch-icon i{ filter:var(--pf-glow); }
 
-.pp-dot{ width:8px; height:8px; border-radius:50%; background:#94A3B8; }
-.pp-dot.is-success{ background:#16A34A; }
+
+
+
+
+
+
+
+
+
+
 .pp-dot.is-info{ background:#3B82F6; }
 .pp-dot.is-warning{ background:#F59E0B; }
 .pp-dot.is-danger{ background:#EF4444; }
@@ -1026,15 +1065,9 @@ export default {
 
 /* Stage */
 .pp-stage-card{ position:sticky; top:90px; }
-@media (max-width: 1100px){ .pp-stage-card{ position:static; } }
 
-.pp-platform-pill{
-  width:38px; height:38px; border-radius:12px;
-  display:grid; place-items:center;
-  background:var(--pf-fill); color:var(--pf-ink); font-size:17px;
-  box-shadow:0 6px 14px color-mix(in srgb, var(--pf) 35%, transparent);
-}
-.pp-platform-pill i, .mk-avatar > i, .pp-dist-badge i{ filter:var(--pf-glow); }
+
+.mk-avatar > i, .pp-pf-tile i, .pp-dist-logo i, .pp-pf-dot i{ filter:var(--pf-glow); }
 
 .pp-stage{
   border-radius:16px;
@@ -1152,12 +1185,7 @@ export default {
   transition:transform .15s, box-shadow .15s;
 }
 .pp-kpi:hover{ transform:translateY(-2px); box-shadow:0 8px 18px rgba(16,24,40,.06); }
-.pp-kpi-icon{
-  width:30px; height:30px; border-radius:9px; margin-bottom:8px;
-  display:grid; place-items:center;
-  background:color-mix(in srgb, var(--tone) 16%, #fff);
-  color:var(--tone); font-size:13px;
-}
+
 .pp-kpi strong{ font-size:20px; font-weight:700; color:var(--ink); line-height:1.1; }
 .pp-kpi small{ font-size:12px; color:var(--muted); }
 
@@ -1187,21 +1215,9 @@ export default {
   background:color-mix(in srgb, var(--pf) 5%, #fff);
   box-shadow:0 0 0 3px color-mix(in srgb, var(--pf) 12%, transparent);
 }
-.pp-dist-avatar{
-  position:relative; width:40px; height:40px; flex-shrink:0;
-  border-radius:50%;
-  display:grid; place-items:center;
-  background:color-mix(in srgb, var(--pf) 12%, #fff);
-  color:var(--pf); font-size:16px;
-}
-.pp-dist-avatar img{ width:100%; height:100%; border-radius:50%; object-fit:cover; }
-.pp-dist-badge{
-  position:absolute; right:-3px; bottom:-3px;
-  width:18px; height:18px; border-radius:50%;
-  display:grid; place-items:center;
-  background:var(--pf-fill); color:var(--pf-ink); font-size:9px;
-  border:2px solid #fff;
-}
+
+
+
 .pp-dist-info{ display:flex; flex-direction:column; min-width:0; flex:1; }
 .pp-dist-info strong{ font-size:13.5px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .pp-dist-info small{ font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1216,7 +1232,7 @@ export default {
   background:var(--brand-soft); color:var(--brand);
   padding:2px 8px; border-radius:7px;
 }
-.pp-collapse{ color:var(--muted); font-size:12px; margin-top:6px; }
+
 
 .pp-empty{
   display:flex; flex-direction:column; align-items:center; text-align:center; gap:4px;
@@ -1314,4 +1330,138 @@ export default {
   .pp-kpis{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
 }
 
+
+/* =========================================================
+   Redesign: header + platform bar + post on the left,
+   distribution + conversation on the right.
+========================================================= */
+.pp-grid{ grid-template-columns:minmax(0, 1.35fr) minmax(0, 1fr); gap:22px; }
+.pp-main{ display:flex; flex-direction:column; gap:20px; min-width:0; }
+.pp-stage-card{ position:static; padding:18px; }
+
+.pp-hero{ align-items:flex-start; flex-wrap:nowrap; padding:20px 22px; }
+.pp-hero-text{ flex:1 1 auto; min-width:0; }
+.pp-hero-actions{ flex-shrink:0; flex-wrap:nowrap; }
+.pp-crumbs{ gap:10px; font-size:12.5px; margin-bottom:8px; }
+.pp-crumbs span{ color:var(--brand); font-weight:600; }
+.pp-crumb-back{ color:var(--text) !important; font-size:12px; display:inline-flex; }
+.pp-crumb-back:hover{ color:var(--brand) !important; }
+.pp-title{ margin:0 0 12px; }
+.pp-hero-actions{ align-items:center; gap:8px; }
+.pp-btn-icon{ width:40px; padding:0; justify-content:center; }
+.pp-btn-sm{ height:34px; padding:0 12px; font-size:12.5px; border-radius:10px; }
+.pp-btn i{ font-size:13px; }
+
+.pp-menu{ position:relative; }
+.pp-menu-list{
+  position:absolute; right:0; top:calc(100% + 6px); z-index:20; min-width:190px; padding:6px;
+  background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 16px 36px rgba(16,24,40,.14);
+  display:flex; flex-direction:column;
+}
+.pp-menu-list a, .pp-menu-list button{
+  display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:8px; border:none; background:none;
+  color:var(--text); font-size:13px; font-weight:500; text-decoration:none; text-align:left; cursor:pointer; width:100%;
+}
+.pp-menu-list a:hover, .pp-menu-list button:hover{ background:var(--brand-soft); color:var(--brand); }
+.pp-menu-list i{ width:16px; text-align:center; color:var(--muted); }
+
+/* Platform bar */
+.pp-pf-bar{ display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; padding:2px 2px 16px; }
+.pp-pf-current{ display:flex; align-items:center; gap:12px; min-width:0; }
+.pp-pf-tile{
+  width:52px; height:52px; border-radius:15px; display:grid; place-items:center; flex-shrink:0;
+  background:var(--pf-fill); color:var(--pf-ink); font-size:24px;
+  box-shadow:0 0 0 3px #fff, 0 0 0 5px color-mix(in srgb, var(--pf) 35%, transparent), 0 10px 22px color-mix(in srgb, var(--pf) 30%, transparent);
+}
+.pp-pf-current-text{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; min-width:0; }
+.pp-pf-current-text strong{ font-size:15px; color:var(--ink); }
+.pp-pf-current-text small{ flex-basis:100%; font-size:12px; color:var(--muted); margin-top:-6px; }
+.pp-live{ display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; }
+.pp-live::before{ content:""; width:7px; height:7px; border-radius:50%; background:currentColor; box-shadow:0 0 0 3px color-mix(in srgb, currentColor 18%, transparent); }
+.pp-live.is-success{ color:#16A34A; }
+.pp-live.is-info{ color:#2563EB; }
+.pp-live.is-warning{ color:#D97706; }
+.pp-live.is-danger{ color:#DC2626; }
+.pp-live.is-muted{ color:#64748B; }
+.pp-pf-others{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.pp-pf-dot{
+  width:40px; height:40px; border-radius:50%; display:grid; place-items:center; cursor:pointer;
+  background:#fff; border:1px solid var(--line); color:var(--pf); font-size:16px;
+  transition:transform .15s, border-color .15s, box-shadow .15s;
+}
+.pp-pf-dot:hover{ transform:translateY(-2px); border-color:color-mix(in srgb, var(--pf) 45%, #fff); box-shadow:0 8px 16px rgba(16,24,40,.08); }
+.pp-pf-more{ color:var(--text); font-size:12.5px; font-weight:700; }
+
+.pp-stage{ padding:22px; }
+.pp-device{ max-width:560px; }
+
+/* KPI strip under the post */
+.pp-stage-card .pp-kpis{ grid-template-columns:repeat(6, minmax(0, 1fr)); gap:8px; margin-top:16px; }
+.pp-stage-card .pp-kpi{ padding:10px 8px; align-items:center; text-align:center; gap:2px; }
+.pp-stage-card .pp-kpi > i{ color:var(--tone); font-size:13px; }
+.pp-stage-card .pp-kpi strong{ font-size:16px; font-variant-numeric:tabular-nums; }
+.pp-stage-card .pp-kpi small{ font-size:11px; }
+.pp-stage-card .pp-alert{ margin-top:14px; }
+
+/* Published to */
+.pp-dist-item{ padding:12px 14px; gap:14px; border-radius:14px; }
+.pp-dist-item.active{
+  border-color:color-mix(in srgb, var(--pf) 35%, #fff);
+  background:linear-gradient(90deg, color-mix(in srgb, var(--pf) 9%, #fff), #fff 70%);
+  box-shadow:0 6px 16px color-mix(in srgb, var(--pf) 12%, transparent);
+}
+.pp-dist-logo{
+  width:44px; height:44px; border-radius:50%; flex-shrink:0; display:grid; place-items:center;
+  background:var(--pf-fill); color:var(--pf-ink); font-size:20px;
+}
+.pp-dist-info strong{ font-size:14px; }
+.pp-status{
+  display:inline-flex; align-items:center; gap:5px; height:26px; padding:0 10px; border-radius:999px;
+  font-size:11.5px; font-weight:600; white-space:nowrap;
+}
+.pp-status i{ font-size:9px; }
+.pp-status.is-success{ background:#E8F8EE; color:#15803D; }
+.pp-status.is-info{ background:#EAF2FF; color:#2563EB; }
+.pp-status.is-warning{ background:#FFF6E5; color:#B45309; }
+.pp-status.is-danger{ background:#FDECEC; color:#DC2626; }
+.pp-status.is-muted{ background:#F1F3F7; color:#64748B; }
+
+/* Comments: one card per thread */
+.pp-count{ background:var(--brand-soft); color:var(--brand); }
+.pp-thread-list{ gap:10px; max-height:560px; }
+.pp-thread{ border:1px solid var(--line); border-radius:14px; padding:12px 14px; background:#fff; transition:border-color .15s, box-shadow .15s; }
+.pp-thread:hover{ border-color:#dcd6fb; box-shadow:0 6px 16px rgba(16,24,40,.05); }
+.pp-thread .pp-avatar{ width:38px; height:38px; }
+.pp-thread .pp-bubble{ background:none; padding:0; border-radius:0; }
+.pp-thread .pp-bubble strong{ font-size:13.5px; justify-content:flex-start; }
+.pp-thread .pp-bubble > div{ color:var(--text); font-size:13.5px; margin-top:2px; }
+.pp-thread .pp-meta{ padding:6px 0 0; }
+.pp-sentiment{
+  margin-left:auto; display:inline-flex; align-items:center; gap:4px; height:22px; padding:0 8px; border-radius:999px;
+  font-size:11px; font-weight:600;
+}
+.pp-sentiment.is-positive{ background:#E8F8EE; color:#15803D; }
+.pp-sentiment.is-neutral{ background:#EAF2FF; color:#2563EB; }
+.pp-sentiment.is-negative{ background:#FDECEC; color:#DC2626; }
+.pp-thread .pp-replies .pp-bubble{ background:#F7F8FB; padding:8px 10px; border-radius:10px; }
+
+.pp-composer{ align-items:center; gap:10px; }
+.pp-composer .pp-input-row{ flex:1; height:46px; border-radius:14px; padding:0 14px; }
+.pp-comments > .pp-composer .pp-send{
+  width:46px; height:46px; border-radius:50%; flex-shrink:0; font-size:16px;
+  background:linear-gradient(135deg, var(--brand), var(--brand-2)); color:#fff; border:none;
+  box-shadow:0 8px 18px rgba(109,74,255,.32);
+}
+
+@media (max-width: 1199.98px){
+  .pp-grid{ grid-template-columns:minmax(0, 1fr); }
+}
+@media (max-width: 575.98px){
+  .pp-stage-card .pp-kpis{ grid-template-columns:repeat(3, minmax(0, 1fr)); }
+  .pp-stage{ padding:12px; }
+  .pp-hero-actions{ width:100%; flex-wrap:wrap; }
+}
+@media (max-width: 767.98px){
+  .pp-hero{ flex-wrap:wrap; }
+}
 </style>

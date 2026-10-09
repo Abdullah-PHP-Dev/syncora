@@ -17,6 +17,7 @@
     platform="{{ $platform }}"
     back-url="{{ url('posts/listing') }}"
     preview-url-template="{{ route('admin.posts.preview', ['post' => '__POST__', 'platform' => '__PLATFORM__']) }}"
+    duplicate-url="{{ route('admin.posts.composer') }}?duplicate=__POST__"
     user-name="{{ auth()->user()->name ?? 'Admin' }}"></post-preview>
 
 @stop

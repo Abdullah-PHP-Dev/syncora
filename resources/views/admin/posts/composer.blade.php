@@ -11,6 +11,7 @@
     <post-composer
             :accounts='@json($accounts)'
             :categories='@json($categories)'
+            :prefill='@json($prefill)'
             store-url="{{ route('admin.posts.store') }}"
             category-store-url="{{ route('admin.categories.store') }}"
             manage-accounts-url="{{ route('admin.connections.index') }}"

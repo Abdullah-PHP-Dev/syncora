@@ -407,6 +407,12 @@ class PostComment extends Model
      */
     public function getSentimentLabelAttribute(): string
     {
+        // No score yet is neutral - a bare null < -0.5 is true in PHP and
+        // used to label every unscored comment "negative".
+        if ($this->sentiment_score === null) {
+            return 'neutral';
+        }
+
         if ($this->sentiment_score > 0.5) {
             return 'positive';
         } elseif ($this->sentiment_score < -0.5) {
