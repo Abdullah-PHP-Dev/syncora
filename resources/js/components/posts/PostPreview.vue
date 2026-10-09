@@ -1159,18 +1159,22 @@ export default {
 }
 .mk-text strong{ margin-right:4px; }
 
-/* Media sits inside the card with rounded corners and a hairline border. */
+/* Media sits inside the card. The rounded corners, hairline border and
+   shadow belong to the image/video itself, so its edges stay rounded at
+   any aspect ratio - including a tall image scaled to fit (never cropped). */
 .mk-media{
-  position:relative; background:#F1F3F8;
-  margin:2px 14px 10px; border-radius:14px; overflow:hidden;
-  border:1px solid #E7E9F0;
-  box-shadow:0 1px 2px rgba(16,24,40,.05), 0 6px 16px rgba(16,24,40,.06);
-  isolation:isolate;
+  position:relative; margin:2px 14px 10px;
+  display:flex; justify-content:center; align-items:center;
 }
-/* Natural proportions, never cropped: a very tall image is scaled down to
-   fit (contain) instead of being cut by a fixed height + cover. */
-.mk-media img, .mk-media video{ width:100%; height:auto; display:block; max-height:min(680px, 75vh); object-fit:contain; margin:0 auto; }
-.mk-media.is-rounded{ border-radius:16px; }
+.mk-media img, .mk-media video{
+  display:block; max-width:100%; height:auto;
+  max-height:min(680px, 75vh); object-fit:contain;
+  border-radius:14px; border:1px solid #E7E9F0; background:#F1F3F8;
+  box-shadow:0 1px 2px rgba(16,24,40,.05), 0 6px 16px rgba(16,24,40,.06);
+}
+.mk-media img{ width:auto; }
+.mk-media video{ width:100%; }
+.mk-media.is-rounded img, .mk-media.is-rounded video{ border-radius:16px; }
 
 .mk-nav{
   position:absolute; top:50%; transform:translateY(-50%);
