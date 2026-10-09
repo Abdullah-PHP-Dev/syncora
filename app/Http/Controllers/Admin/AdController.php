@@ -10,7 +10,6 @@ use Carbon\Carbon;
 
 use App\Services\AdServices\AdsDashboardService;
 use App\Services\AdServices\SocialAdManagerService;
-use App\Support\Connections\HubLink;
 
 class AdController extends Controller
 {
@@ -25,34 +24,19 @@ class AdController extends Controller
     {
         $data = (new AdsDashboardService(Auth::id()))->build();
 
-        // Per-platform connect URLs - route() can't be called inside the
-        // service without pulling the container in, and the connect target
-        // differs by whether the platform is already connected.
+        // Campaign links per connected platform (route() can't run inside
+        // the service). Connecting accounts lives in the Connection Hub, so
+        // the dashboard only links there when nothing is connected yet.
         $data['platforms'] = collect($data['platforms'])->map(function (array $p) {
-            // Meta (Facebook / Instagram) connects once in the Connection
-            // Hub; other platforms keep their own OAuth entry point.
-            $hub = HubLink::for($p['platform']);
-
-            $p['connect_url'] = $p['connected']
-                ? route('admin.ads.campaigns.index', ['platform' => $p['platform']])
-                : ($hub ?? route('admin.ads.redirect', $p['platform']));
-
-            // Same OAuth entry point as a first connect - the callback
-            // upserts the existing social_accounts row, so re-running it
-            // just refreshes the token / re-grants scopes.
-            $p['reconnect_url'] = $hub ?? route('admin.ads.redirect', $p['platform']);
+            $p['campaigns_url'] = $p['connected'] ? route('admin.ads.campaigns.index', ['platform' => $p['platform']]) : null;
+            $p['create_url'] = $p['connected'] ? route('admin.ads.campaigns.create_new', ['platform' => $p['platform']]) : null;
 
             return $p;
         })->all();
 
-        // $connected kept for the shared <x-social-connect-modal> the view
-        // still renders (1 = connected, 0 = not) - same shape dashboard()
-        // passed before this became a Vue page.
-        $connected = collect($data['platforms'])
-            ->mapWithKeys(fn ($p) => [$p['platform'] => $p['connected'] ? 1 : 0])
-            ->all();
+        $data['connections_url'] = route('admin.connections.index');
 
-        return view('admin.ads.dashboard', compact('data', 'connected'));
+        return view('admin.ads.dashboard', compact('data'));
     }
     
     /**
