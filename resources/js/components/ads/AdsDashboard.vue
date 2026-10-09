@@ -360,7 +360,9 @@ onBeforeUnmount(() => document.removeEventListener('click', closeCreate));
 
 /* Hero */
 .ad-hero {
-  position: relative; overflow: hidden; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1.25rem;
+  /* No overflow: hidden - the Create campaign menu drops out of the hero.
+     z-index keeps that menu above the platform switcher below. */
+  position: relative; z-index: 5; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1.25rem;
   padding: 1.6rem 1.8rem; border-radius: 20px; border: 1px solid #E4E0FB;
   background:
     radial-gradient(120% 140% at 100% 0%, rgba(143,107,255,.16) 0%, rgba(143,107,255,0) 55%),
@@ -369,7 +371,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeCreate));
   box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 12px 32px rgba(76,52,190,.06);
 }
 .ad-hero::after {
-  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: .5;
   background-image: radial-gradient(rgba(109,74,255,.14) 1px, transparent 1px); background-size: 18px 18px;
   -webkit-mask-image: linear-gradient(110deg, transparent 45%, #000 100%); mask-image: linear-gradient(110deg, transparent 45%, #000 100%);
 }
