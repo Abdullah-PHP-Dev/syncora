@@ -1117,10 +1117,17 @@ export default {
 }
 .mk-text strong{ margin-right:4px; }
 
-.mk-media{ position:relative; background:#0F1020; }
+/* Media sits inside the card with rounded corners and a hairline border. */
+.mk-media{
+  position:relative; background:#F1F3F8;
+  margin:2px 14px 10px; border-radius:14px; overflow:hidden;
+  border:1px solid #E7E9F0;
+  box-shadow:0 1px 2px rgba(16,24,40,.05), 0 6px 16px rgba(16,24,40,.06);
+  isolation:isolate;
+}
 .mk-media img, .mk-media video{ width:100%; display:block; max-height:460px; object-fit:cover; }
 .mk-media.is-square img, .mk-media.is-square video{ aspect-ratio:1 / 1; object-fit:cover; }
-.mk-media.is-rounded{ margin:0 14px 10px; border-radius:16px; overflow:hidden; }
+.mk-media.is-rounded{ border-radius:16px; }
 
 .mk-nav{
   position:absolute; top:50%; transform:translateY(-50%);
