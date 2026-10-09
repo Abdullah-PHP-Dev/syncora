@@ -2,17 +2,10 @@
   <div class="ch">
 
     <header class="ch-head">
+      <span class="ch-head-icon"><i class="bx bx-link-alt"></i></span>
       <div>
         <h1 class="ch-title">Connections</h1>
-        <p class="ch-sub">Connect each platform once. Ads, Publishing and Inbox all use the same connection.</p>
-      </div>
-      <div class="ch-summary">
-        <form v-if="wizard.available && !wizardState" method="POST" :action="urls.wizard_start" class="ch-inline-form">
-          <input type="hidden" name="_token" :value="csrf">
-          <button type="submit" class="ch-btn ch-btn-primary"><i class="bx bx-rocket"></i> Connect all recommended</button>
-        </form>
-        <span class="ch-sum"><i class="bx bx-check-shield"></i> {{ summary.connected }} connected</span>
-        <span class="ch-sum" :class="{ 'is-warn': summary.attention }"><i class="bx bx-error-circle"></i> {{ summary.attention }} need attention</span>
+        <p class="ch-sub">Manage your social media accounts, ad accounts and chat connections all in one place.</p>
       </div>
     </header>
 
@@ -48,6 +41,90 @@
         <a :href="wizardState.next.url" class="ch-btn ch-btn-primary sm">Continue <i class="bx bx-right-arrow-alt"></i></a>
       </div>
     </div>
+
+    <div class="ch-layout">
+      <div class="ch-main">
+
+        <!-- Summary -->
+        <section class="ch-hero">
+          <span class="ch-hero-icon"><i class="bx bx-link"></i></span>
+          <div class="ch-hero-text">
+            <h2>Your Connected Platforms</h2>
+            <p>Manage all your social accounts, ad accounts and messaging connections from one central place. Connect a platform once and Publishing, Ads and Inbox all use it.</p>
+          </div>
+          <div class="ch-hero-stats">
+            <button v-for="s in heroStats" :key="s.key" type="button" class="ch-hero-stat" @click="setTab(s.key)">
+              <span class="ch-hero-stat-top"><span class="ch-hero-stat-icon" :class="'is-' + s.tone"><i class="bx" :class="s.icon"></i></span><strong>{{ s.count }}</strong></span>
+              <small>{{ s.label }}</small>
+            </button>
+          </div>
+        </section>
+
+        <!-- Tabs -->
+        <nav class="ch-tabs" role="tablist">
+          <button v-for="t in tabs" :key="t.key" type="button" role="tab" class="ch-tab" :class="{ 'is-active': tab === t.key }" :aria-selected="tab === t.key" @click="setTab(t.key)">
+            <i class="bx" :class="t.icon"></i> {{ t.label }} <span class="ch-tab-count">{{ t.count }}</span>
+          </button>
+        </nav>
+
+        <!-- Account sections -->
+        <template v-if="tab !== 'platforms'">
+          <section v-for="section in visibleSections" :key="section.key" class="ch-section">
+            <div class="ch-section-head">
+              <div>
+                <h3>{{ section.title }}</h3>
+                <p>{{ section.subtitle }}</p>
+              </div>
+              <button v-if="tab === 'all' && section.rows.length" type="button" class="ch-section-link" @click="setTab(section.key)">
+                {{ section.rows.length }} {{ section.rows.length === 1 ? 'account' : 'accounts' }} <i class="bx bx-chevron-right"></i>
+              </button>
+            </div>
+
+            <div class="ch-acct-grid">
+              <article v-for="row in section.rows" :key="section.key + row.asset.id" class="ch-acct" :class="{ 'is-dim': row.state.key === 'paused' || row.state.key === 'off' }">
+                <div class="ch-acct-top">
+                  <span class="ch-acct-logo ch-badge" :class="'is-' + row.view.brand"><i class="bx" :class="row.view.icon"></i></span>
+                  <div class="ch-acct-type">
+                    <strong>{{ row.view.title }}</strong>
+                    <small>{{ row.view.subtitle }}</small>
+                  </div>
+                  <span class="ch-state" :class="'is-' + row.state.tone">{{ row.state.label }}</span>
+                </div>
+                <div class="ch-acct-bottom">
+                  <span class="ch-acct-avatar">
+                    <img v-if="row.asset.avatar_url" :src="row.asset.avatar_url" alt="" @error="row.asset.avatar_url = null">
+                    <i v-else class="bx" :class="row.view.icon"></i>
+                  </span>
+                  <div class="ch-acct-id">
+                    <strong :title="row.asset.name">{{ row.asset.name || row.asset.external_id }}</strong>
+                    <small :title="row.asset.external_id">{{ row.asset.username && section.key === 'social' ? '@' + row.asset.username : row.view.idLabel + ': ' + row.asset.external_id }}</small>
+                  </div>
+                  <div class="ch-menu" @click.stop>
+                    <button type="button" class="ch-kebab" :aria-expanded="openMenu === section.key + row.asset.id" aria-label="Account actions" @click="toggleMenu(section.key + row.asset.id)"><i class="bx bx-dots-vertical-rounded"></i></button>
+                    <div v-if="openMenu === section.key + row.asset.id" class="ch-menu-list" role="menu">
+                      <a v-if="row.state.key === 'reconnect' || row.state.key === 'expiring'" :href="row.conn.reconnect_url" role="menuitem"><i class="bx bx-refresh"></i> Reconnect</a>
+                      <button v-if="row.asset.available_capabilities.includes(section.capability)" type="button" role="menuitem" :disabled="saving[row.asset.id]" @click="toggleCapability(row.conn, row.asset, section.capability); openMenu = null">
+                        <i class="bx" :class="row.asset.enabled_capabilities.includes(section.capability) ? 'bx-pause-circle' : 'bx-play-circle'"></i>
+                        {{ row.asset.enabled_capabilities.includes(section.capability) ? 'Pause' : 'Resume' }} {{ capability(section.capability).label.toLowerCase() }}
+                      </button>
+                      <button type="button" role="menuitem" :disabled="busy[row.conn.id]" @click="check(row.card, row.conn); openMenu = null"><i class="bx bx-check-shield"></i> Check connection</button>
+                      <button type="button" role="menuitem" @click="managePlatform(row.card.platform)"><i class="bx bx-slider-alt"></i> Manage permissions</button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              <button type="button" class="ch-acct ch-acct-add" @click="setTab('platforms')">
+                <span class="ch-acct-add-icon"><i class="bx bx-plus"></i></span>
+                <strong>{{ section.rows.length ? 'Connect More Accounts' : section.emptyTitle }}</strong>
+                <small>{{ section.addText }}</small>
+              </button>
+            </div>
+          </section>
+        </template>
+
+        <!-- Manage platforms: connect, permissions, check, disconnect -->
+        <div v-show="tab === 'platforms'" class="ch-platforms">
 
     <section v-for="card in cards" :key="card.platform" class="ch-card" :id="card.platform">
 
@@ -230,6 +307,66 @@
       </div>
     </section>
 
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <aside class="ch-side">
+
+        <section class="ch-panel">
+          <h3><i class="bx bxs-zap"></i> Quick Actions</h3>
+          <form v-if="wizard.available && !wizardState" method="POST" :action="urls.wizard_start" class="ch-quick-form">
+            <input type="hidden" name="_token" :value="csrf">
+            <button type="submit" class="ch-quick">
+              <span class="ch-quick-icon is-violet"><i class="bx bx-rocket"></i></span>
+              <span><strong>Connect all recommended</strong><small>Meta, Google, LinkedIn, X and TikTok in a row</small></span>
+              <i class="bx bx-chevron-right"></i>
+            </button>
+          </form>
+          <button type="button" class="ch-quick" @click="setTab('platforms')">
+            <span class="ch-quick-icon is-blue"><i class="bx bx-link"></i></span>
+            <span><strong>Connect New Account</strong><small>Add a social, ad or messaging account</small></span>
+            <i class="bx bx-chevron-right"></i>
+          </button>
+          <a v-if="urls.ads" :href="urls.ads" class="ch-quick">
+            <span class="ch-quick-icon is-purple"><i class="bx bxs-megaphone"></i></span>
+            <span><strong>Create Ad Campaign</strong><small>Launch your next campaign</small></span>
+            <i class="bx bx-chevron-right"></i>
+          </a>
+          <a v-if="urls.composer" :href="urls.composer" class="ch-quick">
+            <span class="ch-quick-icon is-green"><i class="bx bx-calendar-plus"></i></span>
+            <span><strong>Schedule a Post</strong><small>Plan your content in advance</small></span>
+            <i class="bx bx-chevron-right"></i>
+          </a>
+        </section>
+
+        <section class="ch-panel">
+          <h3><i class="bx bx-pulse"></i> Connection Status</h3>
+          <div class="ch-donut-wrap">
+            <svg class="ch-donut" viewBox="0 0 120 120" role="img" :aria-label="statusTotals.total + ' connections'">
+              <circle cx="60" cy="60" r="48" class="ch-donut-track"></circle>
+              <circle v-for="seg in donutSegments" :key="seg.key" cx="60" cy="60" r="48" class="ch-donut-seg" :stroke="seg.color"
+                      :stroke-dasharray="seg.length + ' ' + (donutCircumference - seg.length)" :stroke-dashoffset="-seg.offset"></circle>
+            </svg>
+            <div class="ch-donut-label"><strong>{{ statusTotals.total }}</strong><small>Total<br>connections</small></div>
+          </div>
+          <ul class="ch-legend">
+            <li><span class="dot is-ok"></span> Connected <strong>{{ statusTotals.ok }}</strong></li>
+            <li><span class="dot is-warn"></span> Expiring soon <strong>{{ statusTotals.warn }}</strong></li>
+            <li><span class="dot is-bad"></span> Needs reconnect <strong>{{ statusTotals.bad }}</strong></li>
+          </ul>
+        </section>
+
+        <section class="ch-panel ch-help">
+          <h3><i class="bx bx-bulb"></i> Need Help?</h3>
+          <p>Check our documentation or contact our support team for help with connections.</p>
+          <a v-if="urls.help" :href="urls.help" class="ch-help-btn">View Help Center <i class="bx bx-right-arrow-alt"></i></a>
+          <span class="ch-help-art" aria-hidden="true"><i class="bx bx-support"></i></span>
+        </section>
+
+      </aside>
+    </div>
+
   </div>
 </template>
 
@@ -241,6 +378,38 @@ const CAPABILITIES = [
   { key: 'insights', label: 'Insights', icon: 'bx-bar-chart-alt-2', long: { meta: 'Read Page and Instagram insights for reports', google: 'Read Analytics data for reports', default: 'Read insights for reports' } }
 ];
 
+
+// How each account kind (driver asset_groups key) appears in the overview.
+const ACCOUNT_VIEWS = {
+  page: { section: 'social', title: 'Facebook', subtitle: 'Business Page', idLabel: 'Page ID', brand: 'facebook', icon: 'bxl-facebook' },
+  instagram: { section: 'social', title: 'Instagram', subtitle: 'Business Account', idLabel: 'Account ID', brand: 'instagram', icon: 'bxl-instagram' },
+  youtube: { section: 'social', title: 'YouTube', subtitle: 'Channel', idLabel: 'Channel ID', brand: 'youtube', icon: 'bxl-youtube' },
+  x_account: { section: 'social', title: 'X', subtitle: 'Account', idLabel: 'Account ID', brand: 'x', icon: 'bxl-x-logo' },
+  linkedin_page: { section: 'social', title: 'LinkedIn', subtitle: 'Company Page', idLabel: 'Page ID', brand: 'linkedin', icon: 'bxl-linkedin' },
+  tiktok_account: { section: 'social', title: 'TikTok', subtitle: 'Account', idLabel: 'Account ID', brand: 'tiktok', icon: 'bxl-tiktok' },
+  threads_profile: { section: 'social', title: 'Threads', subtitle: 'Profile', idLabel: 'Profile ID', brand: 'threads', icon: 'bx-at' },
+  pinterest_account: { section: 'social', title: 'Pinterest', subtitle: 'Account', idLabel: 'Account ID', brand: 'pinterest', icon: 'bxl-pinterest' },
+  ad_account: { section: 'ads', title: 'Meta Ads', subtitle: 'Ad Account', idLabel: 'Account ID', brand: 'meta', icon: 'bxl-meta' },
+  google_ads: { section: 'ads', title: 'Google Ads', subtitle: 'Ad Account', idLabel: 'Customer ID', brand: 'google', icon: 'bxl-google' },
+  x_ads: { section: 'ads', title: 'X Ads', subtitle: 'Ad Account', idLabel: 'Account ID', brand: 'x', icon: 'bxl-x-logo' },
+  linkedin_ads: { section: 'ads', title: 'LinkedIn Ads', subtitle: 'Ad Account', idLabel: 'Account ID', brand: 'linkedin', icon: 'bxl-linkedin' },
+  tiktok_ads: { section: 'ads', title: 'TikTok Ads', subtitle: 'Advertiser Account', idLabel: 'Advertiser ID', brand: 'tiktok', icon: 'bxl-tiktok' },
+  snapchat_ads: { section: 'ads', title: 'Snapchat Ads', subtitle: 'Ad Account', idLabel: 'Account ID', brand: 'snapchat', icon: 'bxl-snapchat' },
+  whatsapp: { section: 'messaging', title: 'WhatsApp', subtitle: 'Business Number', idLabel: 'Phone ID', brand: 'whatsapp', icon: 'bxl-whatsapp' }
+};
+
+// The inbox side of social accounts that also take messages.
+const INBOX_VIEWS = {
+  page: { title: 'Messenger', subtitle: 'Facebook Page inbox', idLabel: 'Page ID', brand: 'facebook', icon: 'bxl-messenger' },
+  instagram: { title: 'Instagram Direct', subtitle: 'Instagram inbox', idLabel: 'Account ID', brand: 'instagram', icon: 'bxl-instagram' },
+  x_account: { title: 'X Messages', subtitle: 'DMs and X Chat', idLabel: 'Account ID', brand: 'x', icon: 'bxl-x-logo' }
+};
+
+const SECTIONS = [
+  { key: 'social', capability: 'posting', title: 'Social Media Accounts', subtitle: 'Profiles and pages you publish to.', emptyTitle: 'Connect a social account', addText: 'Add more social media platforms to expand your reach and engagement.', label: 'Social Media', icon: 'bx-share-alt', tone: 'blue' },
+  { key: 'ads', capability: 'ads', title: 'Ad Accounts', subtitle: 'Advertising accounts for your campaigns.', emptyTitle: 'Connect an ad account', addText: 'Add Meta, Google, TikTok, X, LinkedIn or Snapchat ad accounts.', label: 'Ads Manager', icon: 'bx-bullseye', tone: 'purple' },
+  { key: 'messaging', capability: 'messaging', title: 'Messaging Accounts', subtitle: 'Inboxes your team answers from.', emptyTitle: 'Connect a messaging account', addText: 'Add Messenger, Instagram Direct, X or WhatsApp to your inbox.', label: 'Messaging', icon: 'bx-message-rounded-dots', tone: 'green' }
+];
 
 export default {
 
@@ -266,11 +435,93 @@ export default {
       capabilityList: CAPABILITIES,
       wizardState: this.wizard.state,
       waManual: false,
+      tab: 'all',
+      openMenu: null,
       csrf: (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
     };
   },
 
   computed: {
+    // Every linked account once per section it belongs to.
+    accountRows() {
+      const rows = [];
+      this.cards.forEach(card => {
+        card.connections.forEach(conn => {
+          Object.keys(conn.assets || {}).forEach(kind => {
+            (conn.assets[kind] || []).forEach(asset => {
+              const view = ACCOUNT_VIEWS[kind];
+              if (view) rows.push({ section: view.section, kind, card, conn, asset, view });
+              if (INBOX_VIEWS[kind] && asset.available_capabilities.includes('messaging')) {
+                rows.push({ section: 'messaging', kind, card, conn, asset, view: INBOX_VIEWS[kind] });
+              }
+            });
+          });
+        });
+      });
+      return rows.map(row => ({ ...row, state: this.rowState(row) }));
+    },
+
+    sections() {
+      return SECTIONS.map(section => ({ ...section, rows: this.accountRows.filter(r => r.section === section.key) }));
+    },
+
+    visibleSections() {
+      return this.tab === 'all' ? this.sections : this.sections.filter(s => s.key === this.tab);
+    },
+
+    uniqueAccountCount() {
+      return new Set(this.accountRows.map(r => r.asset.id)).size;
+    },
+
+    heroStats() {
+      return this.sections.map(s => ({ key: s.key, label: s.label === 'Ads Manager' ? 'Ad Accounts' : s.label + ' Accounts', count: s.rows.length, icon: s.icon, tone: s.tone }));
+    },
+
+    tabs() {
+      return [
+        { key: 'all', label: 'All Connections', icon: 'bx-grid-alt', count: this.uniqueAccountCount },
+        ...this.sections.map(s => ({ key: s.key, label: s.label, icon: s.icon, count: s.rows.length })),
+        { key: 'platforms', label: 'Manage platforms', icon: 'bx-slider-alt', count: this.cards.filter(c => c.connected).length + '/' + this.cards.length }
+      ];
+    },
+
+    // Per account (not per section row), worst state wins.
+    statusTotals() {
+      const byAsset = {};
+      const rank = { ok: 0, warn: 1, bad: 2 };
+      this.accountRows.forEach(r => {
+        const tone = r.state.tone === 'ok' || r.state.tone === 'muted' ? 'ok' : r.state.tone;
+        if (byAsset[r.asset.id] === undefined || rank[tone] > rank[byAsset[r.asset.id]]) byAsset[r.asset.id] = tone;
+      });
+      const values = Object.values(byAsset);
+      return {
+        total: values.length,
+        ok: values.filter(v => v === 'ok').length,
+        warn: values.filter(v => v === 'warn').length,
+        bad: values.filter(v => v === 'bad').length
+      };
+    },
+
+    donutCircumference() {
+      return 2 * Math.PI * 48;
+    },
+
+    donutSegments() {
+      const t = this.statusTotals;
+      if (!t.total) return [];
+      let offset = 0;
+      return [
+        { key: 'ok', value: t.ok, color: '#16A34A' },
+        { key: 'warn', value: t.warn, color: '#F59E0B' },
+        { key: 'bad', value: t.bad, color: '#EF4444' }
+      ].filter(s => s.value > 0).map(s => {
+        const length = (s.value / t.total) * this.donutCircumference;
+        const seg = { ...s, length, offset };
+        offset += length;
+        return seg;
+      });
+    },
+
     summary() {
       return {
         connected: this.cards.filter(c => c.connected).length,
@@ -279,7 +530,53 @@ export default {
     }
   },
 
+  mounted() {
+    // Module links point at a card (#meta, #google ...): open it.
+    const hash = window.location.hash.replace('#', '');
+    if (hash && this.cards.some(c => c.platform === hash)) this.managePlatform(hash);
+    document.addEventListener('click', this.closeMenus);
+  },
+
+  beforeDestroy() {
+    document.removeEventListener('click', this.closeMenus);
+  },
+
   methods: {
+
+    rowState(row) {
+      const { conn, asset, section } = row;
+      const cap = (SECTIONS.find(s => s.key === section) || {}).capability;
+      if (conn.status === 'revoked') return { key: 'reconnect', label: 'Disconnected', tone: 'bad' };
+      if (conn.needs_attention && conn.status === 'expiring') return { key: 'expiring', label: 'Expiring soon', tone: 'warn' };
+      if (conn.needs_attention || !asset.token_ok) return { key: 'reconnect', label: 'Reconnect', tone: 'bad' };
+      if (asset.provider_status) return { key: 'provider', label: asset.provider_status, tone: 'warn' };
+      if (!asset.enabled_capabilities.length) return { key: 'off', label: 'Off', tone: 'muted' };
+      if (cap && asset.available_capabilities.includes(cap) && !asset.enabled_capabilities.includes(cap)) return { key: 'paused', label: 'Paused', tone: 'muted' };
+      return { key: 'ok', label: 'Connected', tone: 'ok' };
+    },
+
+    setTab(key) {
+      this.tab = key;
+      this.openMenu = null;
+    },
+
+    toggleMenu(key) {
+      this.openMenu = this.openMenu === key ? null : key;
+    },
+
+    closeMenus(event) {
+      if (this.openMenu && !event.target.closest('.ch-menu')) this.openMenu = null;
+    },
+
+    // Opens the platform's card in "Manage platforms" (also #meta links).
+    managePlatform(platform) {
+      this.openMenu = null;
+      this.tab = 'platforms';
+      this.$nextTick(() => {
+        const el = document.getElementById(platform);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    },
 
     // Only the capabilities this platform offers (Google has no inbox).
     cardCapabilities(card) {
@@ -499,14 +796,10 @@ export default {
   padding: 24px; display: flex; flex-direction: column; gap: 20px;
 }
 
-.ch-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
-.ch-title { margin: 0 0 4px; font-size: 24px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); line-height: 1.25; }
+.ch-head { display: flex; align-items: center; gap: 14px; }
+.ch-head-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; color: var(--brand); background: linear-gradient(135deg, #F2EEFF, #E8F0FF); flex-shrink: 0; }
+.ch-title { margin: 0 0 2px; font-size: 26px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); line-height: 1.25; }
 .ch-sub { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
-.ch-summary { display: flex; gap: 8px; flex-wrap: wrap; }
-.ch-sum { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 10px; background: #fff; border: 1px solid var(--line); color: var(--text); font-size: 13px; font-weight: 600; }
-.ch-sum i { font-size: 16px; color: #16A34A; }
-.ch-sum.is-warn i { color: #D97706; }
-.ch-sum:not(.is-warn):nth-child(2) i { color: var(--muted); }
 
 .ch-flash { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px; font-size: 13.5px; }
 .ch-flash i { font-size: 18px; }
@@ -683,5 +976,134 @@ export default {
   .ch-asset { flex-wrap: wrap; }
   .ch-asset-caps { width: 100%; justify-content: flex-start; padding-left: 50px; }
   .ch-gets { grid-template-columns: 1fr; }
+}
+
+/* =========================================================
+   Overview: summary, tabs, account grid, sidebar
+========================================================= */
+.ch-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; align-items: start; }
+.ch-main { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.ch-side { display: flex; flex-direction: column; gap: 18px; position: sticky; top: 90px; }
+
+.ch-hero {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 22px 24px; border-radius: 18px;
+  border: 1px solid #DCE5FB;
+  background: radial-gradient(120% 160% at 0% 0%, #E9F0FF 0%, rgba(233,240,255,0) 60%), linear-gradient(180deg, #F7F9FF 0%, #F3F6FE 100%);
+}
+.ch-hero-icon { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; font-size: 28px; color: #fff; flex-shrink: 0;
+  background: linear-gradient(135deg, #3B82F6, #2563EB); box-shadow: 0 10px 24px rgba(37,99,235,.3); }
+.ch-hero-text { flex: 1 1 260px; min-width: 0; }
+.ch-hero-text h2 { margin: 0 0 4px; font-size: 17px; font-weight: 700; color: var(--ink); }
+.ch-hero-text p { margin: 0; font-size: 13px; color: var(--text); line-height: 1.55; max-width: 52ch; }
+.ch-hero-stats { display: flex; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 6px; }
+.ch-hero-stat { display: flex; flex-direction: column; gap: 4px; min-width: 112px; padding: 8px 14px; border: none; background: none; text-align: left; cursor: pointer; border-radius: 10px; }
+.ch-hero-stat + .ch-hero-stat { border-left: 1px solid var(--line-soft); border-radius: 0 10px 10px 0; }
+.ch-hero-stat:hover { background: #F7F9FF; }
+.ch-hero-stat-top { display: flex; align-items: center; gap: 8px; }
+.ch-hero-stat-top strong { font-size: 24px; font-weight: 700; color: var(--ink); line-height: 1; font-variant-numeric: tabular-nums; }
+.ch-hero-stat small { font-size: 11.5px; color: var(--muted); }
+.ch-hero-stat-icon { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; }
+.ch-hero-stat-icon.is-blue, .ch-quick-icon.is-blue { background: #E8F0FF; color: #2563EB; }
+.ch-hero-stat-icon.is-purple, .ch-quick-icon.is-purple { background: #F3E8FF; color: #9333EA; }
+.ch-hero-stat-icon.is-green, .ch-quick-icon.is-green { background: #E7F7EE; color: #16A34A; }
+.ch-quick-icon.is-violet { background: #F2EEFF; color: var(--brand); }
+
+.ch-tabs { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 4px; padding: 5px; background: #fff; border: 1px solid var(--line); border-radius: 14px; width: fit-content; max-width: 100%; }
+.ch-tab { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 12px; border: 1px solid transparent; border-radius: 10px; background: none; color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.ch-tab i { font-size: 15px; color: var(--muted); }
+.ch-tab:hover { background: #F7F8FB; }
+.ch-tab.is-active { background: #EEF4FF; border-color: #D6E4FF; color: #1D4ED8; }
+.ch-tab.is-active i { color: #2563EB; }
+.ch-tab-count { min-width: 22px; height: 20px; padding: 0 6px; border-radius: 999px; background: #F1F3F7; color: var(--muted); font-size: 11px; display: inline-grid; place-items: center; }
+.ch-tab.is-active .ch-tab-count { background: #DCE8FF; color: #1D4ED8; }
+
+.ch-section { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 20px 20px 22px; box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.03); }
+.ch-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.ch-section-head h3 { margin: 0 0 3px; font-size: 16px; font-weight: 700; color: var(--ink); }
+.ch-section-head p { margin: 0; font-size: 12.5px; color: #3B6FD8; }
+.ch-section-link { display: inline-flex; align-items: center; gap: 2px; border: none; background: none; color: #2563EB; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+
+.ch-acct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.ch-acct { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; background: #fff; transition: border-color .15s, box-shadow .15s, transform .15s; min-width: 0; }
+.ch-acct:hover { border-color: #D6DDF0; box-shadow: 0 10px 24px rgba(16,24,40,.07); transform: translateY(-1px); }
+.ch-acct.is-dim .ch-acct-top, .ch-acct.is-dim .ch-acct-avatar, .ch-acct.is-dim .ch-acct-id { opacity: .6; }
+.ch-acct-top { display: flex; align-items: flex-start; gap: 12px; padding: 16px 14px 14px; min-width: 0; }
+.ch-acct-logo.ch-badge { width: 44px; height: 44px; border-radius: 50%; font-size: 22px; border: none; box-shadow: 0 6px 14px rgba(16,24,40,.12); flex-shrink: 0; }
+.ch-acct-type { flex: 1; min-width: 0; display: flex; flex-direction: column; padding-top: 2px; }
+.ch-acct-type strong { font-size: 14.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch-acct-type small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch-state { flex-shrink: 0; height: 22px; padding: 0 8px; border-radius: 6px; display: inline-flex; align-items: center; font-size: 11px; font-weight: 600; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+.ch-state.is-ok { background: #E7F7EE; color: #15803D; }
+.ch-state.is-warn { background: #FFF6E5; color: #B45309; }
+.ch-state.is-bad { background: #FDECEC; color: #DC2626; }
+.ch-state.is-muted { background: #F1F3F7; color: #64748B; }
+.ch-acct-bottom { display: flex; align-items: center; gap: 10px; padding: 12px 8px 12px 14px; border-top: 1px solid var(--line-soft); margin-top: auto; }
+.ch-acct-avatar { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex-shrink: 0; overflow: hidden; background: #F3F5FA; border: 1px solid var(--line); color: var(--text); font-size: 17px; }
+.ch-acct-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ch-acct-id { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ch-acct-id strong { font-size: 13px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch-acct-id small { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+
+.ch-menu { position: relative; }
+.ch-kebab { width: 30px; height: 30px; border-radius: 8px; border: none; background: none; color: #98A0B3; font-size: 18px; display: grid; place-items: center; cursor: pointer; }
+.ch-kebab:hover, .ch-kebab[aria-expanded="true"] { background: #F1F3F8; color: var(--ink); }
+.ch-menu-list { position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 30; min-width: 210px; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 18px 40px rgba(16,24,40,.16); display: flex; flex-direction: column; }
+.ch-menu-list a, .ch-menu-list button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border: none; border-radius: 8px; background: none; color: var(--text); font-size: 13px; font-weight: 500; text-align: left; text-decoration: none; cursor: pointer; }
+.ch-menu-list a:hover, .ch-menu-list button:hover:not(:disabled) { background: #F2EEFF; color: var(--brand); }
+.ch-menu-list button:disabled { opacity: .5; cursor: default; }
+.ch-menu-list i { font-size: 16px; color: var(--muted); }
+
+.ch-acct-add { align-items: center; justify-content: center; text-align: center; gap: 6px; min-height: 148px; padding: 18px; border: 1.5px dashed #CFD6E6; background: #FBFCFF; cursor: pointer; font: inherit; }
+.ch-acct-add:hover { border-color: #93B4F5; background: #F5F8FF; }
+.ch-acct-add-icon { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; color: #2563EB; background: #E8F0FF; }
+.ch-acct-add strong { font-size: 13.5px; color: var(--ink); }
+.ch-acct-add small { font-size: 12px; color: var(--muted); line-height: 1.45; max-width: 30ch; }
+
+.ch-platforms { display: flex; flex-direction: column; gap: 20px; }
+
+.ch-panel { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 18px; box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.03); position: relative; overflow: hidden; }
+.ch-panel h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 15px; font-weight: 700; color: var(--ink); }
+.ch-panel h3 i { font-size: 18px; color: var(--brand); }
+.ch-quick-form { margin: 0; }
+.ch-quick { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: inherit; text-decoration: none; text-align: left; cursor: pointer; font: inherit; transition: border-color .15s, box-shadow .15s; }
+.ch-quick + .ch-quick, .ch-quick-form + .ch-quick, .ch-quick + .ch-quick-form { margin-top: 10px; }
+.ch-quick:hover { border-color: #CFC4FF; box-shadow: 0 6px 16px rgba(16,24,40,.06); color: inherit; }
+.ch-quick > span:nth-child(2) { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ch-quick strong { font-size: 13px; color: var(--ink); }
+.ch-quick small { font-size: 11.5px; color: var(--muted); }
+.ch-quick > .bx-chevron-right { color: #B4BBCB; font-size: 18px; }
+.ch-quick-icon { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; font-size: 20px; flex-shrink: 0; }
+
+.ch-donut-wrap { position: relative; width: 150px; height: 150px; margin: 4px auto 14px; }
+.ch-donut { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ch-donut circle { fill: none; stroke-width: 12; }
+.ch-donut-track { stroke: #EEF1F6; }
+.ch-donut-seg { stroke-linecap: butt; transition: stroke-dasharray .4s; }
+.ch-donut-label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.ch-donut-label strong { font-size: 28px; font-weight: 700; color: var(--ink); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.ch-donut-label small { font-size: 11px; color: var(--muted); line-height: 1.3; }
+.ch-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.ch-legend li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
+.ch-legend strong { margin-left: auto; color: var(--ink); font-variant-numeric: tabular-nums; }
+.ch-legend .dot { width: 9px; height: 9px; border-radius: 50%; }
+.ch-legend .dot.is-ok { background: #16A34A; }
+.ch-legend .dot.is-warn { background: #F59E0B; }
+.ch-legend .dot.is-bad { background: #EF4444; }
+
+.ch-help { background: linear-gradient(160deg, #fff 55%, #F2F6FF 100%); }
+.ch-help h3 i { color: #F59E0B; }
+.ch-help p { margin: 0 0 14px; font-size: 12.5px; color: var(--text); line-height: 1.55; max-width: 24ch; }
+.ch-help-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 999px; background: #E8F0FF; color: #1D4ED8; font-size: 12.5px; font-weight: 600; text-decoration: none; position: relative; z-index: 1; }
+.ch-help-btn:hover { background: #DCE8FF; color: #1D4ED8; }
+.ch-help-art { position: absolute; right: -6px; bottom: -6px; width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center; font-size: 42px; color: #3B82F6; background: radial-gradient(circle, #DCE8FF 0%, rgba(220,232,255,0) 70%); }
+
+@media (max-width: 1199.98px) {
+  .ch-layout { grid-template-columns: minmax(0, 1fr); }
+  .ch-side { position: static; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+}
+@media (max-width: 575.98px) {
+  .ch-hero-stats { width: 100%; }
+  .ch-hero-stat { min-width: 0; flex: 1; padding: 8px 10px; }
+  .ch-tabs { width: 100%; }
 }
 </style>

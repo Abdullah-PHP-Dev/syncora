@@ -33,6 +33,9 @@ class ConnectionHubController extends Controller
             'wizard' => $this->wizardPayload(),
             'urls' => [
                 'whatsapp_manual' => route('admin.post-accounts.whatsapp.store'),
+                'composer' => route('admin.posts.composer'),
+                'ads' => route('admin.ads.dashboard'),
+                'help' => route('admin.help-center.index'),
                 'wizard_start' => route('admin.connections.wizard.start'),
                 'wizard_skip' => route('admin.connections.wizard.skip'),
                 'wizard_finish' => route('admin.connections.wizard.finish'),
