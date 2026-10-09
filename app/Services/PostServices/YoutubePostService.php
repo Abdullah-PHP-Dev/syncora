@@ -367,6 +367,14 @@ class YoutubePostService
                 throw new \Exception('No media found for this post.');
             }
 
+            // YouTube only takes videos (an image here fails at YouTube with
+            // "Media type 'image/png' is not supported").
+            $videos = $post->media->filter(fn ($m) => $m->media_type === 'video')->values();
+
+            if ($videos->isEmpty()) {
+                throw new \Exception('YouTube only accepts videos - this post has no video attached. Remove YouTube from the post or add a video.');
+            }
+
             $tempDir = storage_path('app/temp');
             if (!is_dir($tempDir)) {
                 mkdir($tempDir, 0777, true);
@@ -378,7 +386,7 @@ class YoutubePostService
             // ==========================================
             // LOOP THROUGH EACH ATTACHED VIDEO
             // ==========================================
-            foreach ($post->media as $index => $mediaItem) {
+            foreach ($videos as $index => $mediaItem) {
                 $mediaUrl = $mediaItem->media_url;
          
                 $fileExtension = strtolower(pathinfo(parse_url($mediaUrl, PHP_URL_PATH), PATHINFO_EXTENSION));
@@ -414,7 +422,7 @@ class YoutubePostService
                 }
 
                 // If uploading multiple videos, append a part number so they don't look identical
-                $title = count($post->media) > 1 ? "{$baseTitle} (Part " . ($index + 1) . ")" : $baseTitle;
+                $title = count($videos) > 1 ? "{$baseTitle} (Part " . ($index + 1) . ")" : $baseTitle;
 
                 $categoryId = '22'; // Default: People & Blogs
                 try {
@@ -453,7 +461,7 @@ class YoutubePostService
                     
                 if (!$sessionResponse->successful()) {
                     if (file_exists($tempPath)) { unlink($tempPath); }
-                    $errorBody = $sessionResponse->body();
+                    $errorBody = $sessionResponse->json('error.message') ?: $sessionResponse->body();
                     throw new \Exception('YouTube session creation failed: ' . $errorBody);
                 }
 

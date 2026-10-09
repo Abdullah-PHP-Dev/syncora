@@ -11,6 +11,31 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Post extends Model
 {
+    /**
+     * Provider errors can be whole JSON documents. Keep the provider's own
+     * message when there is one, collapse whitespace and cap the length.
+     */
+    public static function cleanErrorMessage(?string $message): ?string
+    {
+        if ($message === null || $message === '') {
+            return $message;
+        }
+
+        if (preg_match('/^(.*?)(\{.*\})\s*$/s', $message, $m) && ($json = json_decode($m[2], true))) {
+            $inner = $json['error']['message'] ?? $json['message'] ?? $json['error_description'] ?? null;
+            if (is_string($inner) && $inner !== '') {
+                $message = trim($m[1]) . ' ' . $inner;
+            }
+        }
+
+        return \Illuminate\Support\Str::limit(trim(preg_replace('/\s+/', ' ', $message)), 1000);
+    }
+
+    public function setErrorMessageAttribute($value): void
+    {
+        $this->attributes['error_message'] = self::cleanErrorMessage($value);
+    }
+
    // use SoftDeletes;
 
     /**

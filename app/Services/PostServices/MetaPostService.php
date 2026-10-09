@@ -319,7 +319,7 @@ class MetaPostService
                     'error_message' => 'Failed to refresh access token'
                 ]);
 
-                return ['success' => false];
+                return ['success' => false, 'message' => 'Failed to refresh access token - reconnect Facebook in Connections.'];
             }
 
             // publishPostOnMeta() already persists the post's final state
@@ -339,7 +339,13 @@ class MetaPostService
             // line threw and made the command report "Post N failed."
             $result = $this->publishPostOnMeta($post, $account);
 
-            return ['success' => (bool) ($result['success'] ?? false)];
+            if (! ($result['success'] ?? false)) {
+                // publishPostOnMeta() saved the reason on the post - surface
+                // it (the command used to print "unknown error").
+                return ['success' => false, 'message' => $post->fresh()->error_message ?: ($result['message'] ?? $result['error'] ?? 'Facebook rejected the post.')];
+            }
+
+            return ['success' => true];
         } catch (DecryptException $e) {
             // Catches decrypt failures from BOTH ensureValidToken() (reads
             // access_token to refresh it) and publishPostOnMeta() (reads it

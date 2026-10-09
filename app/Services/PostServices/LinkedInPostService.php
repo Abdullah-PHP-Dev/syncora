@@ -321,11 +321,17 @@ class LinkedInPostService
     {
         $this->ensureValidToken($post);
         $account = $post->socialAccount;
+        $this->lastUploadError = null;
         // Build post payload handles multiple media processing
         $payload = $this->buildLinkedinPostPayload($account, $post);
 
         if (empty($payload)) {
-            return ['success' => false, 'message' => 'Failed to generate post payload or media upload failed'];
+            // Mark it failed (left pending it was retried every run) with
+            // LinkedIn's own reason rather than a generic one.
+            $message = 'LinkedIn media upload failed: ' . ($this->lastUploadError ?: 'no reason returned');
+            $post->update(['status' => 'failed', 'error_message' => $message]);
+
+            return ['success' => false, 'message' => $message];
         }
 
         $response = Http::withHeaders([
@@ -400,6 +406,7 @@ class LinkedInPostService
                     $uploadedUrns[] = $uploadResult['urns'][0]; 
                 } else {
                     // Fail early if an asset fails uploading
+                    $this->lastUploadError ??= $uploadResult['message'] ?? null;
                     return []; 
                 }
             }
@@ -436,6 +443,17 @@ class LinkedInPostService
     /**
      * Upload image/video to LinkedIn
      */
+    /** LinkedIn's reason for the last failed media upload (see publishPost()). */
+    protected ?string $lastUploadError = null;
+
+    /** "403 - Not enough permissions to access ..." from a LinkedIn error response. */
+    private function linkedinError($response, string $what): string
+    {
+        $detail = $response->json('message') ?? $response->json('error_description') ?? \Illuminate\Support\Str::limit(trim($response->body()), 200);
+
+        return "{$what} (HTTP {$response->status()}" . ($detail ? ": {$detail}" : '') . ')';
+    }
+
     protected function uploadMediaToLinkedIn($account, $mediaResult, $post): array
     {
         try {
@@ -505,6 +523,7 @@ class LinkedInPostService
                Log::error('LinkedIn image init failed', [
                    'response' => $initResponse->body()
                ]);
+               $this->lastUploadError = $this->linkedinError($initResponse, 'image upload could not start');
                return null;
            }
 
@@ -521,6 +540,7 @@ class LinkedInPostService
                Log::error('LinkedIn image upload failed', [
                    'response' => $uploadFileResponse->body()
                ]);
+               $this->lastUploadError = $this->linkedinError($uploadFileResponse, 'image upload was rejected');
                return null;
            }
 
@@ -556,6 +576,7 @@ class LinkedInPostService
                Log::error('LinkedIn video init failed', [
                    'response' => $initResponse->body()
                ]);
+               $this->lastUploadError = $this->linkedinError($initResponse, 'video upload could not start');
                return null;
            }
 

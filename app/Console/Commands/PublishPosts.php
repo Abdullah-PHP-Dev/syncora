@@ -57,8 +57,10 @@ class PublishPosts extends Command
     {
         $this->info('Publishing scheduled posts...');
 
+        // Only posts waiting to go out. "!= completed" also picked up failed
+        // posts (retried every run, forever) and drafts (never meant to post).
         Post::with(['socialAccount', 'media'])
-            ->where('status', '!=', 'completed')
+            ->where('status', 'pending')
             ->orderBy('id')
             ->chunkById(50, function ($posts) {
            
@@ -78,8 +80,10 @@ class PublishPosts extends Command
                         $response = $this->services[$post->platform]->publishPost($post);
 
                         if (!($response['success'] ?? false)) {
-                            Log::error("Post {$post->id} failed", $response);
-                            $this->error("Post #{$post->id} failed: " . ($response['message'] ?? 'unknown error'));
+                            // Services save the reason on the post; not all return it.
+                            $reason = $response['message'] ?? $response['error'] ?? $post->fresh()->error_message ?? 'no reason given by the platform';
+                            Log::error("Post {$post->id} failed", $response + ['reason' => $reason]);
+                            $this->error("Post #{$post->id} failed: " . (is_string($reason) ? $reason : json_encode($reason)));
 
                             continue;
                         }
@@ -94,7 +98,13 @@ class PublishPosts extends Command
                                 'trace' => $e->getTraceAsString()
                             ]
                         );
-                        $this->error("Post {$post->id} failed: {$e->getMessage()}");
+                        $this->error("Post #{$post->id} failed: {$e->getMessage()}");
+
+                        // Never leave a crashed post pending - it would be retried every run.
+                        Post::whereKey($post->id)->where('status', 'pending')->update([
+                            'status' => 'failed',
+                            'error_message' => Post::cleanErrorMessage($e->getMessage()),
+                        ]);
                     }
                 }
             });

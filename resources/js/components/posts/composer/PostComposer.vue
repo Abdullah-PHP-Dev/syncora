@@ -439,6 +439,12 @@ async function submit(mode) {
     return;
   }
 
+  // YouTube only publishes videos - catch it here instead of at publish time.
+  if (selectedPlatforms.value.includes('youtube') && !mediaItems.value.some(item => item.type === 'video')) {
+    submitError.value = 'YouTube only accepts videos. Add a video, or unselect your YouTube channel.';
+    return;
+  }
+
   if (mode === 'schedule' && !scheduleAt.value) {
     submitError.value = 'Pick a date/time to schedule for.';
     return;
