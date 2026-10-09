@@ -219,24 +219,35 @@
               <a :href="backUrl" class="pp-btn pp-btn-ghost pp-btn-sm"><i class="far fa-eye"></i> View all</a>
             </div>
             <div class="pp-dist">
-              <button
+              <div
                   v-for="p in post.platforms"
                   :key="p.post_id"
-                  type="button"
                   class="pp-dist-item"
                   :class="{active: p.post_id === activeId}"
                   :style="brandVars(p.key)"
-                  @click="switchPlatform(p)">
+                  role="button"
+                  tabindex="0"
+                  @click="switchPlatform(p)"
+                  @keydown.enter="switchPlatform(p)">
                 <span class="pp-dist-logo"><i :class="p.icon"></i></span>
                 <span class="pp-dist-info">
                   <strong>{{ p.name }}</strong>
-                  <small>{{ p.handle || p.page }}</small>
+                  <small>{{ p.handle ? (p.handle.startsWith('@') ? p.handle : '@' + p.handle) : p.page }}</small>
                 </span>
                 <span class="pp-status" :class="'is-' + statusInfo(p).tone">
                   <i class="fas" :class="statusIcon(statusInfo(p).tone)"></i> {{ statusInfo(p).label }}
                 </span>
-                <i class="fas fa-chevron-right pp-dist-arrow"></i>
-              </button>
+                <div class="pp-menu" @click.stop>
+                  <button type="button" class="pp-kebab" :aria-expanded="openMenu === 'p' + p.post_id" :aria-label="'Actions for ' + p.name" @click="toggleMenu('p' + p.post_id)">
+                    <i class="fas fa-ellipsis-v"></i>
+                  </button>
+                  <div v-if="openMenu === 'p' + p.post_id" class="pp-menu-list" role="menu">
+                    <button type="button" role="menuitem" @click="switchPlatform(p); openMenu = null"><i class="far fa-eye"></i> Preview here</button>
+                    <a v-if="post.platformUrls[p.post_id] && post.platformUrls[p.post_id] !== '#'" :href="post.platformUrls[p.post_id]" target="_blank" rel="noopener noreferrer" role="menuitem"><i class="fas fa-external-link-alt"></i> Open on {{ p.name }}</a>
+                    <a v-if="duplicateUrl" :href="duplicateUrl.replace('__POST__', p.post_id)" role="menuitem"><i class="far fa-copy"></i> Duplicate</a>
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
 
@@ -272,20 +283,28 @@
 
                     <div class="pp-comment-body">
 
-                      <div class="pp-bubble">
-                        <strong>
-                          {{ comment.author }} <span v-if="comment.isOwn" class="pp-you">You</span>
-                          <span v-if="comment.sentiment" class="pp-sentiment" :class="'is-' + comment.sentiment">
-                            <i class="far" :class="{ positive: 'fa-smile', negative: 'fa-frown', neutral: 'fa-meh' }[comment.sentiment] || 'fa-meh'"></i>
-                            {{ comment.sentiment.charAt(0).toUpperCase() + comment.sentiment.slice(1) }}
-                          </span>
-                        </strong>
-                        <div>{{ comment.content }}</div>
+                      <div class="pp-comment-head">
+                        <strong class="pp-comment-author">{{ comment.author }} <span v-if="comment.isOwn" class="pp-you">You</span></strong>
+                        <span v-if="comment.sentiment" class="pp-sentiment" :class="'is-' + comment.sentiment">
+                          <i class="far" :class="{ positive: 'fa-check-circle', negative: 'fa-times-circle', neutral: 'fa-dot-circle' }[comment.sentiment] || 'fa-dot-circle'"></i>
+                          {{ comment.sentiment.charAt(0).toUpperCase() + comment.sentiment.slice(1) }}
+                        </span>
+                        <div class="pp-menu" @click.stop>
+                          <button type="button" class="pp-kebab pp-kebab-sm" :aria-expanded="openMenu === 'c' + comment.id" aria-label="Comment actions" @click="toggleMenu('c' + comment.id)">
+                            <i class="fas fa-ellipsis-v"></i>
+                          </button>
+                          <div v-if="openMenu === 'c' + comment.id" class="pp-menu-list" role="menu">
+                            <button type="button" role="menuitem" @click="toggleReply(comment.id); openMenu = null"><i class="fas fa-reply"></i> Reply</button>
+                            <button type="button" role="menuitem" @click="copyText(comment.content)"><i class="far fa-clipboard"></i> Copy text</button>
+                          </div>
+                        </div>
                       </div>
+
+                      <p class="pp-comment-text">{{ comment.content }}</p>
 
                       <div class="pp-meta">
                         <span>{{ comment.timeAgo }}</span>
-                        <span v-if="comment.likes"><i class="fas fa-heart"></i> {{ comment.likes }}</span>
+                        <span v-if="comment.likes">{{ comment.likes }} {{ comment.likes === 1 ? 'like' : 'likes' }}</span>
                         <button type="button" class="pp-link" @click="toggleReply(comment.id)">Reply</button>
                       </div>
 
@@ -324,12 +343,13 @@
 
                 </div>
 
-              </div>
-
             </div>
 
             <div class="pp-composer">
-              <div class="pp-avatar pp-avatar-own">{{ userInitials }}</div>
+              <div class="pp-avatar pp-avatar-own pp-avatar-account" :title="'Commenting as ' + activePlatform.page">
+                <img v-if="activeMember.account_avatar" :src="activeMember.account_avatar" alt="" @error="activeMember.account_avatar = null">
+                <template v-else>{{ initials(activePlatform.page || userName) }}</template>
+              </div>
               <div class="pp-input-row">
                 <input type="text" v-model="newCommentText" :placeholder="commentPlaceholder" @keyup.enter="addComment">
               </div>
@@ -420,6 +440,8 @@ export default {
     return {
       post: null,
       showMenu: false,
+      // Row / comment menus: 'p{postId}' or 'c{commentId}', one open at a time.
+      openMenu: null,
       copied: false,
       showAllPlatforms: false,
       showAllComments: false,
@@ -764,6 +786,26 @@ export default {
       if (this.showMenu && this.$refs.menu && !this.$refs.menu.contains(event.target)) {
         this.showMenu = false;
       }
+
+      if (this.openMenu && !event.target.closest('.pp-menu')) {
+        this.openMenu = null;
+      }
+
+    },
+
+    toggleMenu(key) {
+
+      this.openMenu = this.openMenu === key ? null : key;
+
+    },
+
+    copyText(text) {
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text || '').catch(() => {});
+      }
+
+      this.openMenu = null;
 
     },
 
@@ -1410,49 +1452,70 @@ export default {
 .pp-stage-card .pp-kpi small{ font-size:11px; }
 .pp-stage-card .pp-alert{ margin-top:14px; }
 
-/* Published to */
-.pp-dist-item{ padding:12px 14px; gap:14px; border-radius:14px; }
+/* Published to - compact brand rows */
+.pp-dist{ gap:8px; }
+.pp-dist-item{
+  display:flex; align-items:center; gap:12px; width:100%; cursor:pointer; text-align:left;
+  padding:10px 10px 10px 12px; border-radius:14px; border:1px solid var(--line);
+  background:linear-gradient(90deg, color-mix(in srgb, var(--pf) 5%, #fff) 0%, #fff 55%);
+  transition:border-color .15s, box-shadow .15s, transform .15s;
+}
+.pp-dist-item:hover{ border-color:color-mix(in srgb, var(--pf) 35%, #fff); box-shadow:0 6px 14px rgba(16,24,40,.05); }
+.pp-dist-item:focus-visible{ outline:2px solid var(--brand); outline-offset:2px; }
 .pp-dist-item.active{
-  border-color:color-mix(in srgb, var(--pf) 35%, #fff);
-  background:linear-gradient(90deg, color-mix(in srgb, var(--pf) 9%, #fff), #fff 70%);
-  box-shadow:0 6px 16px color-mix(in srgb, var(--pf) 12%, transparent);
+  border-color:color-mix(in srgb, var(--pf) 45%, #fff);
+  background:linear-gradient(90deg, color-mix(in srgb, var(--pf) 11%, #fff) 0%, #fff 70%);
+  box-shadow:0 6px 16px color-mix(in srgb, var(--pf) 14%, transparent);
 }
 .pp-dist-logo{
-  width:44px; height:44px; border-radius:50%; flex-shrink:0; display:grid; place-items:center;
-  background:var(--pf-fill); color:var(--pf-ink); font-size:20px;
+  width:38px; height:38px; border-radius:50%; flex-shrink:0; display:grid; place-items:center;
+  background:var(--pf-fill); color:var(--pf-ink); font-size:17px;
 }
-.pp-dist-info strong{ font-size:14px; }
+.pp-dist-info strong{ font-size:13.5px; font-weight:700; }
+.pp-dist-info small{ font-size:12px; }
 .pp-status{
-  display:inline-flex; align-items:center; gap:5px; height:26px; padding:0 10px; border-radius:999px;
-  font-size:11.5px; font-weight:600; white-space:nowrap;
+  display:inline-flex; align-items:center; gap:5px; height:24px; padding:0 9px; border-radius:999px;
+  font-size:11px; font-weight:600; white-space:nowrap;
 }
 .pp-status i{ font-size:9px; }
-.pp-status.is-success{ background:#E8F8EE; color:#15803D; }
+.pp-status.is-success{ background:#E7F7EE; color:#15803D; }
 .pp-status.is-info{ background:#EAF2FF; color:#2563EB; }
 .pp-status.is-warning{ background:#FFF6E5; color:#B45309; }
 .pp-status.is-danger{ background:#FDECEC; color:#DC2626; }
 .pp-status.is-muted{ background:#F1F3F7; color:#64748B; }
 
-/* Comments: one card per thread */
+.pp-kebab{
+  width:30px; height:30px; border-radius:8px; border:none; background:transparent; color:#98A0B3;
+  display:grid; place-items:center; cursor:pointer; font-size:13px; transition:background .15s, color .15s;
+}
+.pp-kebab:hover, .pp-kebab[aria-expanded="true"]{ background:#F1F3F8; color:var(--ink); }
+.pp-kebab-sm{ width:26px; height:26px; font-size:12px; }
+
+/* Comments - one card per thread */
 .pp-count{ background:var(--brand-soft); color:var(--brand); }
-.pp-thread-list{ gap:10px; max-height:560px; }
-.pp-thread{ border:1px solid var(--line); border-radius:14px; padding:12px 14px; background:#fff; transition:border-color .15s, box-shadow .15s; }
+.pp-thread-list{ gap:10px; max-height:560px; padding-right:2px; }
+.pp-thread{ border:1px solid var(--line); border-radius:14px; padding:12px 12px 12px 14px; background:#fff; transition:border-color .15s, box-shadow .15s; }
 .pp-thread:hover{ border-color:#dcd6fb; box-shadow:0 6px 16px rgba(16,24,40,.05); }
-.pp-thread .pp-avatar{ width:38px; height:38px; }
-.pp-thread .pp-bubble{ background:none; padding:0; border-radius:0; }
-.pp-thread .pp-bubble strong{ font-size:13.5px; justify-content:flex-start; }
-.pp-thread .pp-bubble > div{ color:var(--text); font-size:13.5px; margin-top:2px; }
-.pp-thread .pp-meta{ padding:6px 0 0; }
+.pp-thread > .pp-comment > .pp-avatar{ width:40px; height:40px; font-size:13px; }
+.pp-comment-head{ display:flex; align-items:center; gap:8px; min-height:26px; }
+.pp-comment-author{ font-size:13.5px; color:var(--ink); display:flex; align-items:center; gap:6px; min-width:0; }
+.pp-comment-head .pp-menu{ margin-left:auto; }
 .pp-sentiment{
   margin-left:auto; display:inline-flex; align-items:center; gap:4px; height:22px; padding:0 8px; border-radius:999px;
-  font-size:11px; font-weight:600;
+  font-size:11px; font-weight:600; white-space:nowrap;
 }
-.pp-sentiment.is-positive{ background:#E8F8EE; color:#15803D; }
+.pp-sentiment + .pp-menu{ margin-left:0; }
+.pp-sentiment.is-positive{ background:#E7F7EE; color:#15803D; }
 .pp-sentiment.is-neutral{ background:#EAF2FF; color:#2563EB; }
 .pp-sentiment.is-negative{ background:#FDECEC; color:#DC2626; }
+.pp-comment-text{ margin:2px 0 0; color:var(--text); font-size:13.5px; line-height:1.5; word-break:break-word; }
+.pp-thread .pp-meta{ padding:6px 0 0; gap:0; }
+.pp-thread .pp-meta > * + *::before{ content:"·"; margin:0 7px; color:#C4C9D4; }
+.pp-thread .pp-meta .pp-link{ font-weight:600; }
 .pp-thread .pp-replies .pp-bubble{ background:#F7F8FB; padding:8px 10px; border-radius:10px; }
 
 .pp-composer{ align-items:center; gap:10px; }
+.pp-avatar-account{ background:#fff; border:1px solid var(--line); color:var(--brand); width:42px; height:42px; }
 .pp-composer .pp-input-row{ flex:1; height:46px; border-radius:14px; padding:0 14px; }
 .pp-comments > .pp-composer .pp-send{
   width:46px; height:46px; border-radius:50%; flex-shrink:0; font-size:16px;
