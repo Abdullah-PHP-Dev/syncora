@@ -918,12 +918,14 @@ protected function publishPostOnMeta($post, $account)
     public function verifySignature(Request $request): bool
     {
         $signatureHeader = $request->header('X-Hub-Signature-256', '');
+        $secret = (string) adminSetting('posts.facebook.client_secret');
 
-        if (!str_starts_with($signatureHeader, 'sha256=')) {
+        // No secret configured: never accept a body signed with an empty key.
+        if ($secret === '' || !str_starts_with($signatureHeader, 'sha256=')) {
             return false;
         }
 
-        $expected = hash_hmac('sha256', $request->getContent(), adminSetting('posts.facebook.client_secret'));
+        $expected = hash_hmac('sha256', $request->getContent(), $secret);
 
         return hash_equals($expected, substr($signatureHeader, 7));
     }
@@ -968,16 +970,37 @@ protected function publishPostOnMeta($post, $account)
         $value = $change['value'] ?? [];
         $isInstagram = $platform === 'instagram';
 
+        $verb = $isInstagram ? 'add' : ($value['verb'] ?? null);
+
         if ($isInstagram) {
             if (($change['field'] ?? null) !== 'comments') {
                 return;
             }
-        } elseif (($change['field'] ?? null) !== 'feed' || ($value['item'] ?? null) !== 'comment' || ($value['verb'] ?? null) !== 'add') {
+        } elseif (($change['field'] ?? null) !== 'feed' || ($value['item'] ?? null) !== 'comment' || !in_array($verb, ['add', 'edited', 'remove'], true)) {
             return;
         }
 
         $commentId = $value['comment_id'] ?? $value['id'] ?? null;
         $commentText = $value['message'] ?? $value['text'] ?? '';
+
+        // Deleted on Facebook: remove it (and replies to it) here too.
+        if ($verb === 'remove') {
+            if ($commentId && ($existing = PostComment::where('platform', $platform)->where('comment_id', $commentId)->first())) {
+                PostComment::where('parent_comment_id', $existing->id)->delete();
+                $existing->delete();
+            }
+
+            return;
+        }
+
+        // Edited on Facebook: update the text of a comment we already have.
+        if ($verb === 'edited') {
+            if ($commentId && $commentText !== '') {
+                PostComment::where('platform', $platform)->where('comment_id', $commentId)->update(['content' => $commentText]);
+            }
+
+            return;
+        }
 
         if (!$commentId || $commentText === '') {
             return;
@@ -993,9 +1016,17 @@ protected function publishPostOnMeta($post, $account)
 
         $nativePostId = $isInstagram ? ($value['media']['id'] ?? null) : ($value['post_id'] ?? null);
 
+        // Feed posts are stored as "{pageId}_{postId}" (what the webhook
+        // sends); video posts as the bare video id - try both.
         $post = $nativePostId
-            ? Post::where('social_account_id', $socialAccount->id)->where('post_id', $nativePostId)->first()
+            ? Post::where('social_account_id', $socialAccount->id)
+                ->whereIn('post_id', array_unique([$nativePostId, \Illuminate\Support\Str::afterLast($nativePostId, '_')]))
+                ->first()
             : null;
+
+        // The Page (or IG account) replying from Facebook/Instagram itself
+        // is the business, not a customer.
+        $isOwn = (string) ($value['from']['id'] ?? '') === (string) $socialAccount->platform_account_id;
 
         $parentId = $value['parent_id'] ?? null;
         $parentComment = $parentId
@@ -1010,8 +1041,10 @@ protected function publishPostOnMeta($post, $account)
             ['platform' => $platform, 'comment_id' => $commentId],
             [
                 'content'           => $commentText,
-                'sender_type'       => 'customer',
-                'user_id'           => $post?->user_id,
+                'sender_type'       => $isOwn ? 'support' : 'customer',
+                // The account owner even when the post wasn't made through
+                // the app, so notifications and counts include it.
+                'user_id'           => $post?->user_id ?? $socialAccount->user_id,
                 'user_name'         => $value['from']['username'] ?? $value['from']['name'] ?? 'Anonymous',
                 'post_id'           => $post?->id,
                 'social_account_id' => $socialAccount->id,

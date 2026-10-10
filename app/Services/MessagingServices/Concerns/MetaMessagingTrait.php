@@ -21,8 +21,14 @@ trait MetaMessagingTrait
      * the raw hub.challenge value if hub.verify_token matches what this
      * channel was configured with, otherwise reject.
      */
-    protected function verifyMetaWebhook(Request $request, string $expectedVerifyToken): ?string
+    protected function verifyMetaWebhook(Request $request, ?string $expectedVerifyToken): ?string
     {
+        // Not configured = nobody verifies (an empty token would match an
+        // empty hub.verify_token).
+        if ($expectedVerifyToken === null || $expectedVerifyToken === '') {
+            return null;
+        }
+
         if (
             $request->query('hub_mode') === 'subscribe'
             && hash_equals($expectedVerifyToken, (string) $request->query('hub_verify_token'))
@@ -40,8 +46,13 @@ trait MetaMessagingTrait
      * inbox. Meta signs every webhook POST body with the App Secret via
      * the X-Hub-Signature-256 header.
      */
-    protected function verifyMetaSignature(Request $request, string $appSecret): bool
+    protected function verifyMetaSignature(Request $request, ?string $appSecret): bool
     {
+        // No secret = no way to verify; never accept a body signed with an empty key.
+        if ($appSecret === null || $appSecret === '') {
+            return false;
+        }
+
         $signatureHeader = $request->header('X-Hub-Signature-256', '');
 
         if (!str_starts_with($signatureHeader, 'sha256=')) {
