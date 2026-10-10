@@ -26,6 +26,7 @@ class SocialAdManagerService
         'snapchat'  => SnapchatAdService::class,
         'x'         => XAdService::class,
         'linkedin'  => LinkedinAdService::class,
+        'openai'    => OpenAiAdService::class,
     ];
 
     /**

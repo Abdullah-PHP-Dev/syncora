@@ -36,6 +36,7 @@ class AdsDashboardService
         'snapchat'  => ['label' => 'Snapchat',        'icon' => 'bxl-snapchat',        'color' => '#FFFC00'],
         'x'         => ['label' => 'X',               'icon' => 'bxl-twitter',         'color' => '#111827'],
         'linkedin'  => ['label' => 'LinkedIn',        'icon' => 'bxl-linkedin',        'color' => '#0A66C2'],
+        'openai'    => ['label' => 'ChatGPT Ads',     'icon' => 'bx-bot',              'color' => '#111827'],
     ];
 
     public function __construct(private int $userId)

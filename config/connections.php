@@ -21,6 +21,7 @@ return [
         'snapchat' => App\Services\Connections\Drivers\SnapchatDriver::class,
         'threads' => App\Services\Connections\Drivers\ThreadsDriver::class,
         'pinterest' => App\Services\Connections\Drivers\PinterestDriver::class,
+        'openai' => App\Services\Connections\Drivers\OpenAiDriver::class,
     ],
 
     /*

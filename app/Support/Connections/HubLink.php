@@ -23,6 +23,7 @@ class HubLink
         'snapchat' => 'snapchat',
         'threads' => 'threads',
         'pinterest' => 'pinterest',
+        'openai' => 'openai',
     ];
 
     public static function managed(string $platform): bool

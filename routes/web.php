@@ -488,6 +488,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('connections.wizard.skip');
 				Route::delete('connections/wizard', [ConnectionHubController::class, 'finishWizard'])
 					->name('connections.wizard.finish');
+				Route::post('connections/openai/key', [ConnectionHubController::class, 'connectOpenAi'])
+					->name('connections.openai.key');
 				Route::get('connections/{platform}/connect/{step}', [ConnectionHubController::class, 'connect'])
 					->name('connections.connect');
 				Route::patch('connections/assets/{socialAccount}', [ConnectionHubController::class, 'updateAsset'])

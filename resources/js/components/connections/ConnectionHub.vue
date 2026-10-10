@@ -252,7 +252,7 @@
 
       <!-- Steps -->
       <div class="ch-steps">
-        <div v-for="step in card.steps" :key="step.key" class="ch-step" :class="{ 'is-primary': step.primary, 'is-off': !step.available && step.key !== 'meta.whatsapp', 'has-form': step.key === 'meta.whatsapp' && waManual }">
+        <div v-for="step in card.steps" :key="step.key" class="ch-step" :class="{ 'is-primary': step.primary, 'is-off': !step.available && step.key !== 'meta.whatsapp', 'has-form': (step.key === 'meta.whatsapp' && waManual) || (step.input === 'api_key' && apiKeyOpen) }">
           <div class="ch-step-main">
             <span class="ch-step-icon" :class="stepIcon(card, step.key).cls"><i class="bx" :class="stepIcon(card, step.key).icon"></i></span>
             <div>
@@ -272,6 +272,11 @@
               <i class="bx" :class="waBusy ? 'bx-loader-alt bx-spin' : (step.connected ? 'bx-plus' : 'bx-link')"></i>
               {{ step.connected ? 'Add a number' : 'Connect' }}
             </button>
+            <!-- API-key platforms (ChatGPT Ads): a form here, no sign-in page. -->
+            <button v-else-if="step.input === 'api_key'" type="button" class="ch-btn" :class="apiKeyOpen ? 'ch-btn-ghost' : 'ch-btn-primary'" @click="apiKeyOpen = !apiKeyOpen">
+              <i class="bx" :class="apiKeyOpen ? 'bx-x' : (step.connected ? 'bx-plus' : 'bx-key')"></i>
+              {{ apiKeyOpen ? 'Cancel' : (step.connected ? 'Add another key' : card.presentation.connect_label) }}
+            </button>
             <a v-else-if="step.available" :href="step.connect_url" class="ch-btn" :class="step.primary ? 'ch-btn-primary' : 'ch-btn-ghost'">
               <i class="bx" :class="step.connected ? 'bx-refresh' : 'bx-link'"></i>
               {{ step.connected ? (step.primary ? 'Add or change accounts' : 'Reconnect') : (step.primary ? card.presentation.connect_label : 'Connect') }}
@@ -282,6 +287,17 @@
               <i class="bx" :class="waManual ? 'bx-x' : 'bx-key'"></i> {{ waManual ? 'Cancel' : 'Enter manually' }}
             </button>
           </div>
+          <form v-if="step.input === 'api_key' && apiKeyOpen" method="POST" :action="urls.openai_key" class="ch-wa-form">
+            <input type="hidden" name="_token" :value="csrf">
+            <p>In OpenAI Ads Manager open <strong>Settings &rsaquo; API keys</strong>, create a key and paste it below. We check it with OpenAI before saving, and store it encrypted.</p>
+            <div class="ch-wa-fields">
+              <label class="is-wide">Ads API key<input type="password" name="api_key" required minlength="20" autocomplete="off" spellcheck="false" placeholder="Paste the key from ads.openai.com"></label>
+            </div>
+            <div class="ch-key-actions">
+              <button type="submit" class="ch-btn ch-btn-primary sm"><i class="bx bx-check"></i> Verify and connect</button>
+              <a href="https://ads.openai.com" target="_blank" rel="noopener noreferrer" class="ch-btn ch-btn-ghost sm"><i class="bx bx-link-external"></i> Open Ads Manager</a>
+            </div>
+          </form>
           <form v-if="step.key === 'meta.whatsapp' && waManual" method="POST" :action="urls.whatsapp_manual" class="ch-wa-form">
             <input type="hidden" name="_token" :value="csrf">
             <p>Paste the Phone Number ID and a permanent access token from a Meta Business System User. We verify them with Meta before saving.</p>
@@ -435,6 +451,7 @@ const ACCOUNT_VIEWS = {
   x_ads: { section: 'ads', title: 'X Ads', subtitle: 'Ad Account', idLabel: 'Account ID', brand: 'x', icon: 'bxl-x-logo' },
   linkedin_ads: { section: 'ads', title: 'LinkedIn Ads', subtitle: 'Ad Account', idLabel: 'Account ID', brand: 'linkedin', icon: 'bxl-linkedin' },
   tiktok_ads: { section: 'ads', title: 'TikTok Ads', subtitle: 'Advertiser Account', idLabel: 'Advertiser ID', brand: 'tiktok', icon: 'bxl-tiktok' },
+  openai_ads: { section: 'ads', title: 'ChatGPT Ads', subtitle: 'Ad Account', idLabel: 'Account ID', brand: 'openai', icon: 'bx-bot' },
   snapchat_ads: { section: 'ads', title: 'Snapchat Ads', subtitle: 'Ad Account', idLabel: 'Account ID', brand: 'snapchat', icon: 'bxl-snapchat' },
   whatsapp: { section: 'messaging', title: 'WhatsApp', subtitle: 'Business Number', idLabel: 'Phone ID', brand: 'whatsapp', icon: 'bxl-whatsapp' }
 };
@@ -448,7 +465,7 @@ const INBOX_VIEWS = {
 
 const SECTIONS = [
   { key: 'social', capability: 'posting', title: 'Social Media Accounts', subtitle: 'Profiles and pages you publish to.', emptyTitle: 'Connect a social account', addText: 'Add more social media platforms to expand your reach and engagement.', label: 'Social Media', icon: 'bx-share-alt', tone: 'blue' },
-  { key: 'ads', capability: 'ads', title: 'Ad Accounts', subtitle: 'Advertising accounts for your campaigns.', emptyTitle: 'Connect an ad account', addText: 'Add Meta, Google, TikTok, X, LinkedIn or Snapchat ad accounts.', label: 'Ads Manager', icon: 'bx-bullseye', tone: 'purple' },
+  { key: 'ads', capability: 'ads', title: 'Ad Accounts', subtitle: 'Advertising accounts for your campaigns.', emptyTitle: 'Connect an ad account', addText: 'Add Meta, Google, TikTok, X, LinkedIn, Snapchat or ChatGPT ad accounts.', label: 'Ads Manager', icon: 'bx-bullseye', tone: 'purple' },
   { key: 'messaging', capability: 'messaging', title: 'Messaging Accounts', subtitle: 'Inboxes your team answers from.', emptyTitle: 'Connect a messaging account', addText: 'Add Messenger, Instagram Direct, X or WhatsApp to your inbox.', label: 'Messaging', icon: 'bx-message-rounded-dots', tone: 'green' }
 ];
 
@@ -476,6 +493,7 @@ export default {
       capabilityList: CAPABILITIES,
       wizardState: this.wizard.state,
       waManual: false,
+      apiKeyOpen: false,
       tab: 'all',
       // Side panel: null (closed), 'picker', or a platform key.
       drawer: null,
@@ -677,6 +695,7 @@ export default {
     openPlatform(platform) {
       this.openMenu = null;
       this.waManual = false;
+      this.apiKeyOpen = false;
       this.confirming = null;
       this.drawer = platform;
     },
@@ -979,6 +998,8 @@ export default {
 .is-tiktok, .is-threads { background: #000000; }
 .is-pinterest { background: linear-gradient(180deg, #F0002A 0%, #BD001C 100%); }
 .is-snapchat { background: #FFFC00; color: #000000; }
+.is-openai { background: linear-gradient(180deg, #1F1F1F 0%, #000000 100%); color: #fff; }
+.ch-key-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .is-youtube { background: linear-gradient(180deg, #FF3D3D 0%, #E60000 100%); }
 
 .ch-pill { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }
