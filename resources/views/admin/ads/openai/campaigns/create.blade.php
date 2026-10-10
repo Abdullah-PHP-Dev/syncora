@@ -97,6 +97,18 @@
     .oa-file button { border: 0; background: var(--bg); width: 34px; height: 34px; border-radius: 10px; color: var(--muted); font-size: 18px; display: grid; place-items: center; }
     .oa-file button:hover { background: #fee2e2; color: var(--danger); }
 
+    /* media gallery (MediaInputAttach) restyled to this page; its own
+       strip is hidden because the file card above already shows the pick */
+    .oa-or { display: flex; align-items: center; gap: 10px; margin: 12px 0 0; color: var(--soft); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+    .oa-or::before, .oa-or::after { content: ''; flex: 1; height: 1px; background: var(--ln); }
+    .oa-media .mia { margin-top: 10px; }
+    .oa-media .mia .mia-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .oa-media .mia .mia-btn { height: 46px; justify-content: center; border: 1.5px solid var(--ln); border-radius: 12px; color: var(--ink); background: #fff; font-size: .85rem; transition: .15s; }
+    .oa-media .mia .mia-btn i { font-size: 18px; color: var(--brand); }
+    .oa-media .mia .mia-btn:hover:not(:disabled) { border-color: var(--brand); background: var(--brand-soft); }
+    .oa-media .mia .mia-strip { display: none; }
+    .oa-file small b { color: var(--brand); font-weight: 600; }
+
     /* side */
     .oa-side { position: sticky; top: 148px; }
     .oa-panel { background: #fff; border: 1px solid var(--ln); border-radius: 18px; box-shadow: 0 1px 2px rgba(16,24,40,.04); margin-bottom: 16px; overflow: hidden; }
@@ -306,6 +318,7 @@
                         </div>
                         <div class="col-12">
                             <label class="form-label">Image</label>
+                            <div class="oa-media">
                             <div class="oa-drop" id="oaDrop" role="button" tabindex="0">
                                 <span class="up"><i class="bx bx-cloud-upload"></i></span>
                                 <strong>Drop an image here or <u>browse</u></strong>
@@ -317,6 +330,9 @@
                                 <button type="button" id="oaFileRemove" title="Remove image"><i class="bx bx-trash"></i></button>
                             </div>
                             <input type="file" id="image" name="image" accept="image/jpeg,image/png,image/webp" hidden>
+                            <div class="oa-or"><span>or</span></div>
+                            @include('admin.media-gallery.partials.attach', ['platform' => 'openai', 'target' => '#image'])
+                            </div>
                             <div class="oa-err" data-err="image"></div>
                         </div>
                     </div>
@@ -440,7 +456,12 @@
             const url = URL.createObjectURL(file);
             $('oaFileImg').src = url;
             $('oaFileName').textContent = file.name;
-            $('oaFileSize').textContent = (file.size / 1048576).toFixed(2) + ' MB' + (file.size > 5 * 1048576 ? ' · too large (max 5 MB)' : '');
+            $('oaFileSize').textContent = (file.size / 1048576).toFixed(2) + ' MB' + (file.size > 5 * 1048576 ? ' · too large (max 5 MB)' : '')
+                + (/^image\/(jpeg|png|webp)$/.test(file.type) ? '' : ' · use a JPG, PNG or WebP');
+            // MediaInputAttach renders its hidden media_asset_ids[] right after this change event.
+            setTimeout(() => {
+                if (form.querySelector('input[name="media_asset_ids[]"]')) $('oaFileSize').insertAdjacentHTML('beforeend', ' · <b>From Media Gallery</b>');
+            }, 50);
             $('oaFile').classList.add('show');
             drop.style.display = 'none';
             const img = document.createElement('img');
@@ -459,7 +480,7 @@
             showFile(file);
         });
         input.addEventListener('change', () => showFile(input.files[0]));
-        $('oaFileRemove').addEventListener('click', () => { input.value = ''; showFile(null); });
+        $('oaFileRemove').addEventListener('click', () => { input.value = ''; input.dispatchEvent(new Event('change', { bubbles: true })); });
 
         // ---- summary, checklist, step state -------------------------------
         $('billing_event').addEventListener('change', function () {
