@@ -5,6 +5,7 @@ namespace App\Services\AdServices\Concerns;
 use App\Models\SocialAccount;
 use App\Services\Connections\ConnectionRecorder;
 use App\Services\Connections\Drivers\GoogleDriver;
+use App\Support\Connections\GoogleAdsCustomers;
 use App\Support\Connections\GoogleClient;
 use App\Support\Connections\GrantedScopes;
 use Illuminate\Support\Facades\Auth;
@@ -161,16 +162,8 @@ trait GoogleAdsApiTrait
 
         $expiresAt = Carbon::now()->addSeconds($token['expires_in'] ?? 3600);
         $connected = 0;
-        $skippedManagers = 0;
+        $skipped = [];
         $assetIds = [];
-
-        // Google Ads' Customer resource has no logo/photo field at all
-        // (confirmed against Google's own API reference - it exposes
-        // descriptive_name/currency_code/time_zone/manager/etc, nothing
-        // image-related). The connecting Google account's own profile
-        // photo is the closest real, non-fabricated identity available -
-        // one lightweight extra call, not per customer.
-        $avatarUrl = $this->fetchGoogleProfilePicture($accessToken);
 
         foreach ($listResponse['data']['resourceNames'] ?? [] as $resourceName) {
             if (!preg_match('#customers/(\d+)#', $resourceName, $matches)) {
@@ -188,22 +181,27 @@ trait GoogleAdsApiTrait
             $detailResponse = $this->apiService->post(
                 $base . 'customers/' . $customerId . '/googleAds:search',
                 $headers,
-                ['query' => 'SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.manager, customer.test_account FROM customer LIMIT 1']
+                ['query' => GoogleAdsCustomers::QUERY]
             );
 
             if ($detailResponse['success']) {
                 $detail = $detailResponse['data']['results'][0]['customer'] ?? [];
             } else {
-                Log::info('Google Ads customer detail lookup failed; saving with defaults.', [
+                Log::info('Google Ads customer detail lookup failed; skipping it.', [
                     'customer_id' => $customerId,
                     'body'        => $detailResponse['body'] ?? null,
                 ]);
             }
 
-            // Manager (MCC) accounts cannot host campaigns themselves -
-            // they're the thing you'd put in login_customer_id instead.
-            if (!empty($detail['manager'])) {
-                $skippedManagers++;
+            // Enabled client accounts only (GoogleAdsCustomers): managers
+            // (MCC) can't host campaigns, and cancelled / suspended / test /
+            // unreadable accounts can't run them. Ones saved earlier stop
+            // being offered to Ads and the Hub (kept for campaign history).
+            if ($reason = GoogleAdsCustomers::exclusionReason($detail)) {
+                $skipped[$reason] = ($skipped[$reason] ?? 0) + 1;
+                SocialAccount::where(['platform' => 'google', 'platform_account_id' => $customerId, 'user_id' => Auth::id()])
+                    ->update(['has_ads_permission' => false, 'social_connection_id' => null]);
+
                 continue;
             }
 
@@ -222,7 +220,8 @@ trait GoogleAdsApiTrait
                     'platform'      => 'google',
                     'user_id'       => Auth::id(),
                     'name'          => $detail['descriptiveName'] ?? ('Google Ads ' . $customerId),
-                    'avatar_url'    => $avatarUrl,
+                    // No personal profile photo: the Google logo is shown instead.
+                    'avatar_url'    => null,
                     'platform_account_id' => $customerId,
                     'access_token'  => $accessToken,
                     ...GrantedScopes::attributes($grantedScopes),
@@ -244,9 +243,9 @@ trait GoogleAdsApiTrait
         }
 
         if ($connected === 0) {
-            $hint = $skippedManagers > 0
-                ? " Only manager (MCC) accounts were returned - put the manager ID in the ads.google.login_customer_id setting and connect a client account under it."
-                : ' Make sure the Google Account you authorized has access to a Google Ads account.';
+            $hint = ($skipped['manager'] ?? 0) > 0 && count($skipped) === 1
+                ? ' Only manager (MCC) accounts were returned - put the manager ID in the ads.google.login_customer_id setting and connect a client account under it.'
+                : ' ' . (GoogleAdsCustomers::skippedSummary($skipped) ?: 'Make sure the Google Account you authorized has access to an enabled Google Ads account.');
 
             return redirect()->route('admin.ads.dashboard')->with('error', 'Connected to Google, but no usable Google Ads account was found.' . $hint);
         }
@@ -262,35 +261,9 @@ trait GoogleAdsApiTrait
             'granted_scopes' => $grantedScopes,
         ], $assetIds);
 
-        return redirect()->route('admin.ads.dashboard')->with('success', "Connected {$connected} Google Ads account(s).");
+        return redirect()->route('admin.ads.dashboard')->with('success', trim("Connected {$connected} Google Ads account(s). " . GoogleAdsCustomers::skippedSummary($skipped)));
     }
 
-    /**
-     * The Google Ads Customer resource has no photo/logo field, confirmed
-     * against Google's own API reference. This is the connecting user's own
-     * Google account photo - a real photo, not a fabricated one, but a
-     * person's face rather than a business asset; best-effort only, a
-     * failure here must not block the connect.
-     */
-    protected function fetchGoogleProfilePicture(string $accessToken): ?string
-    {
-        try {
-            $response = $this->apiService->get('https://www.googleapis.com/oauth2/v2/userinfo', [
-                'Authorization' => "Bearer {$accessToken}",
-            ]);
-
-            return $response['success'] ? ($response['data']['picture'] ?? null) : null;
-        } catch (\Throwable $e) {
-            Log::warning('Google userinfo picture lookup failed.', ['error' => $e->getMessage()]);
-
-            return null;
-        }
-    }
-
-    /**
-     * The numeric Google Ads customer ID, without the dashes it's usually
-     * displayed with (eg. "123-456-7890" in the UI, "1234567890" in URLs).
-     */
     protected function customerId(): string
     {
         return str_replace('-', '', $this->account->platform_account_id);

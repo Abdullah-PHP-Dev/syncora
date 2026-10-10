@@ -10,6 +10,7 @@ use App\Services\Connections\Drivers\GoogleDriver;
 use App\Services\Connections\Drivers\LinkedInDriver;
 use App\Services\Connections\Drivers\TikTokDriver;
 use App\Support\Connections\ConnectionFlags;
+use App\Support\Connections\GoogleAdsCustomers;
 use App\Support\Connections\GoogleClient;
 use App\Support\Connections\GrantedScopes;
 use App\Support\Connections\MetaAdAccounts;
@@ -541,7 +542,8 @@ class SocialAuthService
 
         $assetIds = [];
         $youtubeConnected = $this->connectYoutubeChannels($accessToken, $refreshToken, $expiresAt, $userId, $grantedScopes, $assetIds);
-        $adAccountsConnected = $this->connectGoogleAdsCustomers($accessToken, $refreshToken, $expiresAt, $userId, $grantedScopes, $assetIds);
+        $skippedCustomers = [];
+        $adAccountsConnected = $this->connectGoogleAdsCustomers($accessToken, $refreshToken, $expiresAt, $userId, $grantedScopes, $assetIds, $skippedCustomers);
 
         // The consent itself, for the Connection Hub (design doc §5).
         ConnectionRecorder::record($userId, 'google', GoogleDriver::OAUTH, null, [
@@ -554,7 +556,7 @@ class SocialAuthService
 
         return redirect()->route($this->returnRoute())->with(
             'success',
-            "Connected {$youtubeConnected} YouTube channel(s) and {$adAccountsConnected} Google Ads account(s)."
+            trim("Connected {$youtubeConnected} YouTube channel(s) and {$adAccountsConnected} Google Ads account(s). " . GoogleAdsCustomers::skippedSummary($skippedCustomers))
         );
     }
 
@@ -612,19 +614,8 @@ class SocialAuthService
      * configured - without it every customer lookup below 401s, the same
      * prerequisite GoogleAdsApiTrait's own ads-only connect flow has.
      */
-    private function connectGoogleAdsCustomers(string $accessToken, ?string $refreshToken, Carbon $expiresAt, int $userId, ?array $grantedScopes = null, array &$assetIds = []): int
+    private function connectGoogleAdsCustomers(string $accessToken, ?string $refreshToken, Carbon $expiresAt, int $userId, ?array $grantedScopes = null, array &$assetIds = [], array &$skipped = []): int
     {
-        $avatarUrl = null;
-
-        try {
-            $userinfo = $this->api->get('https://www.googleapis.com/oauth2/v2/userinfo', [
-                'Authorization' => "Bearer {$accessToken}",
-            ]);
-            $avatarUrl = $userinfo['success'] ? ($userinfo['data']['picture'] ?? null) : null;
-        } catch (\Throwable $e) {
-            Log::warning('Google userinfo picture lookup failed during unified connect.', ['error' => $e->getMessage()]);
-        }
-
         $base = adminSetting('ads.google.base_url') ?: 'https://googleads.googleapis.com/v24/';
         // Developer token no longer required (sunset 2026-09-09) - see GoogleClient::adsHeaders().
         $headers = GoogleClient::adsHeaders($accessToken);
@@ -651,14 +642,20 @@ class SocialAuthService
             $detailResponse = $this->api->post(
                 $base . 'customers/' . $customerId . '/googleAds:search',
                 $headers,
-                ['query' => 'SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.manager FROM customer LIMIT 1']
+                ['query' => GoogleAdsCustomers::QUERY]
             );
 
             if ($detailResponse['success']) {
                 $detail = $detailResponse['data']['results'][0]['customer'] ?? [];
             }
 
-            if (!empty($detail['manager'])) {
+            // Enabled client accounts only (GoogleAdsCustomers); skipped ones
+            // saved by an earlier connect stop being offered to Ads / the Hub.
+            if ($reason = GoogleAdsCustomers::exclusionReason($detail)) {
+                $skipped[$reason] = ($skipped[$reason] ?? 0) + 1;
+                SocialAccount::where(['platform' => 'google', 'platform_account_id' => $customerId, 'user_id' => $userId])
+                    ->update(['has_ads_permission' => false, 'social_connection_id' => null]);
+
                 continue;
             }
 
@@ -666,13 +663,10 @@ class SocialAuthService
                 ['platform' => 'google', 'platform_account_id' => $customerId, 'user_id' => $userId],
                 [
                     'name' => $detail['descriptiveName'] ?? "Google Ads Customer {$customerId}",
-                    // Google Ads' Customer resource has no photo/logo field
-                    // at all (confirmed against Google's own API reference)
-                    // - the connecting Google account's own profile photo
-                    // is the closest real identity available, same choice
-                    // GoogleAdsApiTrait::callback() makes for the dedicated
-                    // Ads-dashboard connect flow.
-                    'avatar_url' => $avatarUrl,
+                    // Google Ads customers have no logo; the person's own
+                    // profile photo made ad accounts look like personal
+                    // profiles - the Google logo is shown instead.
+                    'avatar_url' => null,
                     'account_type' => 'ad_account',
                     'access_token' => $accessToken,
                     'refresh_token' => $refreshToken,
