@@ -6,6 +6,7 @@ use App\Models\SocialAccount;
 use App\Services\Connections\ConnectionRecorder;
 use App\Services\Connections\Drivers\LinkedInDriver;
 use App\Support\Connections\HubReturn;
+use App\Support\Connections\LinkedInAdAccounts;
 use App\Support\Connections\GrantedScopes;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdAdGroup;
@@ -253,6 +254,7 @@ class LinkedinAdService
         }
 
         $connected = 0;
+        $skipped = [];
 
         foreach ($accountsResponse['data']['elements'] ?? [] as $entry) {
             $accountUrn = $entry['account'] ?? null;
@@ -266,9 +268,16 @@ class LinkedinAdService
             $detailResponse = $this->apiService->get($this->config . 'adAccounts/' . $accountId, $headers);
             $detail = $detailResponse['success'] ? $detailResponse['data'] : [];
 
-            // Skip accounts that aren't usable (eg. REMOVED/CANCELED) - the
-            // same active-only filter FacebookAdService applies to Pages.
-            if (!empty($detail['status']) && !in_array($detail['status'], ['ACTIVE', 'DRAFT'], true)) {
+            // Active Company Page ad accounts you manage only
+            // (LinkedInAdAccounts): draft / cancelled, person-owned, test,
+            // view-only and unreadable accounts can't run campaigns here.
+            // Ones saved by an earlier connect stop being offered.
+            if ($reason = LinkedInAdAccounts::exclusionReason($detail, $entry['role'] ?? null)) {
+                $skipped[$reason] = ($skipped[$reason] ?? 0) + 1;
+                SocialAccount::where(['platform' => 'linkedin', 'platform_account_id' => $accountId, 'user_id' => Auth::id()])
+                    ->where('has_posting_permission', false)
+                    ->update(['has_ads_permission' => false, 'social_connection_id' => null]);
+
                 continue;
             }
 
@@ -278,10 +287,7 @@ class LinkedinAdService
             // SnapchatAdService uses for its own account->profile
             // relationship) so createSponsoredPost() knows which
             // Organization to author as.
-            $orgId = null;
-            if (!empty($detail['reference']) && preg_match('#urn:li:organization:(\d+)#', $detail['reference'], $orgMatch)) {
-                $orgId = $orgMatch[1];
-            }
+            $orgId = LinkedInAdAccounts::organizationId($detail);
 
             $result = $this->apiService->success(
                 [
@@ -319,7 +325,7 @@ class LinkedinAdService
         }
 
         if ($connected === 0) {
-            return redirect()->route('admin.ads.dashboard')->with('error', 'Connected to LinkedIn, but no usable Ad Account was found where you have a role.');
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', trim('Connected to LinkedIn, but no usable Ad Account was found. ' . (LinkedInAdAccounts::skippedSummary($skipped) ?: 'Make sure you have a manager role on an active LinkedIn ad account.')));
         }
 
         ConnectionRecorder::record((int) Auth::id(), 'linkedin', LinkedInDriver::ADS, null, [
@@ -331,7 +337,7 @@ class LinkedinAdService
             'granted_scopes' => $grantedScopes,
         ], $assetIds);
 
-        return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('success', "Connected {$connected} LinkedIn Ad Account(s).");
+        return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('success', trim("Connected {$connected} LinkedIn Ad Account(s). " . LinkedInAdAccounts::skippedSummary($skipped)));
     }
 
     /**

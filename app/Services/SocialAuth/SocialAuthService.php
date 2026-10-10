@@ -13,6 +13,7 @@ use App\Support\Connections\ConnectionFlags;
 use App\Support\Connections\GoogleAdsCustomers;
 use App\Support\Connections\GoogleClient;
 use App\Support\Connections\GrantedScopes;
+use App\Support\Connections\LinkedInAdAccounts;
 use App\Support\Connections\MetaAdAccounts;
 use App\Services\ApiService;
 use App\Services\MessagingServices\FacebookMessengerService;
@@ -808,6 +809,7 @@ class SocialAuthService
         $adAccountsResponse = $this->api->get($baseUrl . 'adAccountUsers', $headers, [
             'q' => 'authenticatedUser',
         ]);
+        $skippedLinkedinAds = [];
 
         foreach ($adAccountsResponse['data']['elements'] ?? [] as $entry) {
             $accountUrn = $entry['account'] ?? null;
@@ -820,6 +822,16 @@ class SocialAuthService
             $accountResponse = $this->api->get($baseUrl . 'adAccounts/' . $accountId, $headers);
             $account = $accountResponse['success'] ? $accountResponse['data'] : [];
 
+            // Active Company Page ad accounts you manage only
+            // (LinkedInAdAccounts); ones saved earlier stop being offered.
+            if ($reason = LinkedInAdAccounts::exclusionReason($account, $entry['role'] ?? null)) {
+                $skippedLinkedinAds[$reason] = ($skippedLinkedinAds[$reason] ?? 0) + 1;
+                SocialAccount::where(['platform' => 'linkedin', 'platform_account_id' => $accountId, 'user_id' => $userId, 'account_type' => 'ad_account'])
+                    ->update(['has_ads_permission' => false, 'social_connection_id' => null]);
+
+                continue;
+            }
+
             $linkedinAdAccount = SocialAccount::updateOrCreate(
                 ['platform' => 'linkedin', 'platform_account_id' => $accountId, 'user_id' => $userId],
                 [
@@ -830,7 +842,8 @@ class SocialAuthService
                     ...GrantedScopes::attributes($grantedScopes),
                     'expires_at' => $expiresAt,
                     'has_ads_permission' => true,
-                    'metadata' => ['currency' => $account['currency'] ?? null],
+                    // profile_id: the Company Page sponsored posts are authored as.
+                    'metadata' => array_filter(['currency' => $account['currency'] ?? null, 'profile_id' => LinkedInAdAccounts::organizationId($account)]),
                 ]
             );
             $linkedinAdAccount->syncAdDetails([
@@ -865,7 +878,7 @@ class SocialAuthService
 
         return redirect()->route($this->returnRoute())->with(
             'success',
-            "Connected {$orgsConnected} LinkedIn Organization(s) and {$adAccountsConnected} ad account(s)."
+            trim("Connected {$orgsConnected} LinkedIn Organization(s) and {$adAccountsConnected} ad account(s). " . LinkedInAdAccounts::skippedSummary($skippedLinkedinAds))
         );
     }
 
