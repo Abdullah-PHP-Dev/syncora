@@ -65,6 +65,11 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	*/
 
 	Route::view('/', 'front.pages.home_modern')->name('home');
+	Route::view('/yellow', 'front.pages.home_yellow')->name('home.yellow');
+	Route::view('/studio', 'front.pages.home_amber')->name('home.studio');
+	Route::get('/amber', function () {
+		return redirect()->route('home.studio', [], 301);
+	})->name('home.amber');
 
 	Route::get('/product', function () {
 		return view('front.pages.product');

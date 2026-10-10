@@ -1,0 +1,55 @@
+/* Third homepage option: Noon-inspired yellow and charcoal; colors only. */
+.marketing-home.amber-home {
+    --theme-ink: #404553;
+    --theme-muted: #687080;
+    --theme-blue: #feee00;
+    --theme-purple: #feee00;
+    --theme-gradient: linear-gradient(#feee00, #feee00);
+    background: #fff;
+}
+.amber-home .theme-hero-art { background: #fff; }
+.amber-home .theme-hero-art img {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 5%, #000 95%, transparent), linear-gradient(to bottom, transparent, #000 5%, #000 95%, transparent);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(to right, transparent, #000 5%, #000 95%, transparent), linear-gradient(to bottom, transparent, #000 5%, #000 95%, transparent);
+    mask-composite: intersect;
+}
+.amber-home a:focus-visible { outline-color: #404553; }
+.amber-home .theme-header { background: #fff; border-bottom-color: #e7e8ed; }
+.amber-home .theme-button:hover { box-shadow: 0 5px 14px #40455320; }
+.amber-home .theme-button-primary { border-color: #e3d400; color: #404553 !important; }
+.amber-home .theme-nav-actions .theme-button-primary { background: #404553; border-color: #404553; color: #fff !important; }
+.amber-home .theme-button-outline { border-color: #dadce2; background: #fff; }
+.amber-home .theme-button-outline svg { color: #404553; }
+.amber-home .theme-hero h1 span, .amber-home .theme-copilot h2 span {
+    color: #404553;
+    background: #feee00;
+    -webkit-background-clip: border-box;
+    background-clip: border-box;
+}
+.amber-home .theme-stars { color: #9a8400; }
+.amber-home .theme-feature-strip { background: #fff; border-color: #e7e8ed; box-shadow: 0 8px 28px #4045530d; }
+.amber-home .theme-feature-pill { border-right-color: #e7e8ed; }
+.amber-home .theme-icon-purple, .amber-home .theme-icon-blue,
+.amber-home .theme-icon-pink, .amber-home .theme-icon-green { color: #404553; background: #fff7b3; }
+.amber-home .theme-copilot {
+    background: radial-gradient(ellipse at 20% 90%, #feee001a, transparent 50%), radial-gradient(ellipse at 90% 90%, #feee001a, transparent 55%), linear-gradient(125deg, #fffef5, #fffad9);
+}
+.amber-home .theme-label { color: #404553; background: #feee00; }
+.amber-home .theme-copilot-art .theme-post-image { box-shadow: 0 6px 18px #40455312; }
+.amber-home .theme-copilot-note span { color: #404553; }
+.amber-home .theme-product-card { background: #fff; border-color: #e7e8ed; box-shadow: 0 5px 20px #40455309; }
+.amber-home .theme-learn { color: #3866df !important; }
+.amber-home .theme-collaboration { background: #fff; border-color: #e7e8ed; box-shadow: 0 4px 20px #40455309; }
+.amber-home .theme-check-list li::before { border-color: #404553; color: #404553; background: #feee00; }
+.amber-home .theme-heading-spark { color: #9a8400; }
+.amber-home .theme-testimonial { background: #fff; border-color: #e7e8ed; }
+.amber-home .theme-final-cta { background: #feee00; color: #404553; }
+.amber-home .theme-final-cta p { color: #404553; }
+.amber-home .theme-button-white { color: #fff !important; background: #404553; }
+.amber-home .theme-button-ghost { border-color: #40455366; color: #404553 !important; }
+.amber-home .theme-copyright { border-top-color: #e7e8ed; }
+.amber-home .theme-brand img, .amber-home .theme-footer-brand img { filter: url(#studio-logo-filter); mix-blend-mode: multiply; }
+
+
+.studio-logo-filters { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
