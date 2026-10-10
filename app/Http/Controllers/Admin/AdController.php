@@ -29,7 +29,7 @@ class AdController extends Controller
         // the dashboard only links there when nothing is connected yet.
         $data['platforms'] = collect($data['platforms'])->map(function (array $p) {
             $p['campaigns_url'] = $p['connected'] ? route('admin.ads.campaigns.index', ['platform' => $p['platform']]) : null;
-            $p['create_url'] = $p['connected'] ? route('admin.ads.campaigns.create_new', ['platform' => $p['platform']]) : null;
+            $p['create_url'] = $p['connected'] ? route('admin.ads.campaigns.create', ['platform' => $p['platform']]) : null;
 
             return $p;
         })->all();

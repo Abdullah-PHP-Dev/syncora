@@ -37,7 +37,7 @@ class ConnectionHubController extends Controller
                 'ads' => route('admin.ads.dashboard'),
                 'help' => route('admin.help-center.index'),
                 'inbox' => route('admin.chats.dashboard'),
-                'ads_create' => route('admin.ads.campaigns.create_new', ['platform' => '__PLATFORM__']),
+                'ads_create' => route('admin.ads.campaigns.create', ['platform' => '__PLATFORM__']),
                 'wizard_start' => route('admin.connections.wizard.start'),
                 'wizard_skip' => route('admin.connections.wizard.skip'),
                 'wizard_finish' => route('admin.connections.wizard.finish'),
