@@ -12,6 +12,7 @@ use App\Services\Connections\Drivers\TikTokDriver;
 use App\Support\Connections\ConnectionFlags;
 use App\Support\Connections\GoogleClient;
 use App\Support\Connections\GrantedScopes;
+use App\Support\Connections\MetaAdAccounts;
 use App\Services\ApiService;
 use App\Services\MessagingServices\FacebookMessengerService;
 use App\Services\MessagingServices\InstagramMessengerService;
@@ -384,17 +385,37 @@ class SocialAuthService
         $adAccountsResponse = $this->api->get($baseUrl . 'me/adaccounts', [], [
             'access_token' => $userToken,
             'appsecret_proof' => $this->metaAppSecretProof($userToken, $clientSecret),
-            'fields' => 'id,name,account_id,account_status,currency,business',
+            'fields' => MetaAdAccounts::FIELDS,
         ]);
 
+        // Only active Business ad accounts in good standing (MetaAdAccounts);
+        // personal, disabled and closed ones are skipped and reported.
+        $skippedAdAccounts = [];
+
         foreach ($adAccountsResponse['data']['data'] ?? [] as $adAccount) {
-            if ((int) ($adAccount['account_status'] ?? 0) !== 1) {
+            $bareId = MetaAdAccounts::bareId($adAccount);
+
+            if ($reason = MetaAdAccounts::exclusionReason($adAccount)) {
+                $skippedAdAccounts[$reason] = ($skippedAdAccounts[$reason] ?? 0) + 1;
+
+                // Saved by an earlier connect: stop offering it to Ads and the Hub
+                // (kept, not deleted - campaigns may still point at it).
+                SocialAccount::where(['platform' => 'facebook', 'user_id' => $userId, 'account_type' => 'ad_account'])
+                    ->whereIn('platform_account_id', [$bareId, 'act_' . $bareId])
+                    ->update(['has_ads_permission' => false, 'social_connection_id' => null]);
+
                 continue;
             }
 
-            $fbAdAccount = SocialAccount::updateOrCreate(
-                ['platform' => 'facebook', 'platform_account_id' => $adAccount['id'], 'user_id' => $userId],
+            // The Ads API builds act_{accountId} from the bare id; rows saved
+            // as "act_..." by older connects are updated in place.
+            $fbAdAccount = SocialAccount::where(['platform' => 'facebook', 'user_id' => $userId])
+                ->whereIn('platform_account_id', [$bareId, 'act_' . $bareId])
+                ->first() ?? new SocialAccount(['platform' => 'facebook', 'user_id' => $userId]);
+
+            $fbAdAccount->fill(
                 [
+                    'platform_account_id' => $bareId,
                     'name' => $adAccount['name'] ?? 'Facebook Ad Account',
                     'account_type' => 'ad_account',
                     'access_token' => $userToken,
@@ -407,7 +428,7 @@ class SocialAuthService
                         'business_id' => $adAccount['business']['id'] ?? null,
                     ],
                 ]
-            );
+            )->save();
             $fbAdAccount->syncAdDetails([
                 'currency' => $adAccount['currency'] ?? null,
                 'business_id' => $adAccount['business']['id'] ?? null,
@@ -433,7 +454,7 @@ class SocialAuthService
 
         return redirect()->route($this->returnRoute())->with(
             'success',
-            "Connected {$pagesConnected} Facebook Page(s), {$instagramConnected} Instagram account(s), and {$adAccountsConnected} ad account(s)."
+            trim("Connected {$pagesConnected} Facebook Page(s), {$instagramConnected} Instagram account(s), and {$adAccountsConnected} ad account(s). " . MetaAdAccounts::skippedSummary($skippedAdAccounts))
         );
     }
 

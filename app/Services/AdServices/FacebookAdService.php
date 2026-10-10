@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 use App\Support\Connections\GrantedScopes;
+use App\Support\Connections\MetaAdAccounts;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
@@ -244,7 +245,7 @@ class FacebookAdService
             }
         }
 
-        $message = "Connected {$connected} Facebook ad account(s), {$pagesSaved} page(s)." . ($instagramSaved ? ' Instagram account linked.' : '');
+        $message = trim("Connected {$connected} Facebook ad account(s), {$pagesSaved} page(s)." . ($instagramSaved ? ' Instagram account linked.' : '') . ' ' . MetaAdAccounts::skippedSummary($this->skippedAdAccounts));
 
         return redirect()->route('admin.ads.dashboard')->with('success', $message);
     }
@@ -292,12 +293,15 @@ class FacebookAdService
         return $response->json()['profile_picture_uri'] ?? null;
     }
 
+    /** reason => count of ad accounts the last getFBAdAccount() skipped. */
+    protected array $skippedAdAccounts = [];
+
     protected function getFBAdAccount($accessToken)
     {
         $endpoint = adminSetting('ads.facebook.account.endpoint', 'https://graph.facebook.com/v22.0/me/adaccounts');
 
         $response = $this->httpClient::get($endpoint, [
-            'fields'          => 'id,name,account_id,account_status,currency,business',
+            'fields'          => MetaAdAccounts::FIELDS,
             'access_token'    => $accessToken,
             'appsecret_proof' => $this->appSecretProof($accessToken),
         ]);
@@ -308,13 +312,20 @@ class FacebookAdService
             return $this->errorResponse($result['error']['error_user_title'] ?? $result['error']['message']);
         }
 
-        $activeAccounts = array_values(array_filter(
-            $result['data'] ?? [],
-            fn($account) => (int) ($account['account_status'] ?? 0) === 1 && !empty($account['business'])
-        ));
+        // Active Business ad accounts in good standing only (MetaAdAccounts).
+        $skipped = [];
+        $activeAccounts = array_values(array_filter($result['data'] ?? [], function ($account) use (&$skipped) {
+            $reason = MetaAdAccounts::exclusionReason($account);
+            if ($reason) {
+                $skipped[$reason] = ($skipped[$reason] ?? 0) + 1;
+            }
+
+            return $reason === null;
+        }));
+        $this->skippedAdAccounts = $skipped;
 
         if (empty($activeAccounts)) {
-            return $this->errorResponse('No active Facebook Business ad account was found for this user. Personal ad accounts are not supported.');
+            return $this->errorResponse(trim('No active Business ad account was found for this Facebook user. ' . MetaAdAccounts::skippedSummary($skipped)));
         }
 
         $accounts = array_map(function ($account) use ($accessToken) {

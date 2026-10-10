@@ -109,7 +109,7 @@ class GrantedScopesTest extends TestCase
                 ['id' => '111', 'name' => 'Page One', 'access_token' => 'page-token', 'category' => 'Brand'],
             ]]),
             'graph.facebook.com/*/me/adaccounts*' => Http::response(['data' => [
-                ['id' => 'act_9', 'name' => 'Ads One', 'account_status' => 1, 'currency' => 'SAR'],
+                ['id' => 'act_9', 'account_id' => '9', 'name' => 'Ads One', 'account_status' => 1, 'disable_reason' => 0, 'currency' => 'SAR', 'business' => ['id' => 'b1']],
             ]]),
             '*' => Http::response([], 404),
         ]);
@@ -118,7 +118,7 @@ class GrantedScopesTest extends TestCase
 
         $expected = ['ads_management', 'pages_show_list'];
         $this->assertSame($expected, SocialAccount::where('platform_account_id', '111')->firstOrFail()->scopes);
-        $this->assertSame($expected, SocialAccount::where('platform_account_id', 'act_9')->firstOrFail()->scopes);
+        $this->assertSame($expected, SocialAccount::where('platform_account_id', '9')->firstOrFail()->scopes);
         Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), 'me/permissions') && str_contains($r->url(), 'appsecret_proof'));
 
         // Step 0c: page token on the asset, user token kept, no fake refresh token.

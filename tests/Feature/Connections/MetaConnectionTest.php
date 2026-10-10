@@ -118,7 +118,7 @@ class MetaConnectionTest extends TestCase
                 ['permission' => 'ads_read', 'status' => 'granted'],
             ]]),
             'graph.facebook.com/*/me/accounts*' => Http::response(['data' => [['id' => '111', 'name' => 'Page One', 'access_token' => 'page-token']]]),
-            'graph.facebook.com/*/me/adaccounts*' => Http::response(['data' => [['id' => 'act_9', 'name' => 'Ads', 'account_status' => 1]]]),
+            'graph.facebook.com/*/me/adaccounts*' => Http::response(['data' => [['id' => 'act_9', 'account_id' => '9', 'name' => 'Ads', 'account_status' => 1, 'business' => ['id' => 'b1']]]]),
             'graph.facebook.com/*/me?*' => Http::response(['id' => 'fb-user-77']),
             '*' => Http::response([], 404),
         ]);
