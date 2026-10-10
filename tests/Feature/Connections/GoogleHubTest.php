@@ -87,7 +87,7 @@ class GoogleHubTest extends TestCase
 
         $this->assertSame([], $hub['upcoming']);
         $this->assertSame(
-            ['meta', 'google', 'x', 'linkedin', 'tiktok', 'snapchat', 'threads', 'pinterest'],
+            ['meta', 'google', 'x', 'linkedin', 'tiktok', 'snapchat', 'threads', 'pinterest', 'openai'],
             collect($hub['cards'])->pluck('platform')->all()
         );
     }
