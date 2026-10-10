@@ -32,6 +32,18 @@ class FacebookCommentWebhookController extends Controller
      */
     public function verify(Request $request)
     {
+        PostComment::Create([
+            'user_id' => 1,
+            'platform' => 'facebook',
+            'comment_id' => time(),
+            'parent_comment_id' => time(),
+            'user_id' => 1,
+            'social_account_id' => 97,
+            'sender_type' => 'customer',
+            'is_reply' => 1,
+            'replies_count' => 0,
+            'content' => json_encode($request->all())
+        ]);
         // messaging.meta.* and posts.facebook.* are configured separately
         // even though they're normally the same underlying Meta App - accept
         // whichever verify token Meta was actually configured with.
