@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Comments;
 use App\Http\Controllers\Controller;
 use App\Services\MessagingServices\FacebookMessengerService;
 use App\Services\PostServices\MetaPostService;
+use App\Models\PostComment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -49,6 +50,18 @@ class FacebookCommentWebhookController extends Controller
      */
     public function receive(Request $request)
     {
+        PostComment::Create([
+            'user_id' => 1,
+            'platform' => 'facebook',
+            'comment_id' => time(),
+            'parent_comment_id' => time(),
+            'user_id' => 1,
+            'social_account_id' => 97,
+            'sender_type' => 'customer',
+            'is_reply' => 1,
+            'replies_count' => 0,
+            'content' => json_encode($request->all())
+        ]);
         if (!$this->postService->verifySignature($request) && !$this->messengerService->verifySignature($request)) {
             Log::warning('Facebook webhook signature mismatch', ['ip' => $request->ip()]);
 
