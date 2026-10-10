@@ -67,8 +67,27 @@
           </button>
         </nav>
 
+        <!-- First run: pick a platform right here -->
+        <section v-if="!accountRows.length" class="ch-section ch-start">
+          <div class="ch-section-head">
+            <div>
+              <h3>Connect your first platform</h3>
+              <p>Sign in once - Publishing, Ads and Inbox all use the same connection.</p>
+            </div>
+          </div>
+          <div class="ch-pick-grid">
+            <button v-for="card in cards" :key="card.platform" type="button" class="ch-pick" @click="openPlatform(card.platform)">
+              <span class="ch-pick-logos"><span v-for="b in card.presentation.icons" :key="b.icon" class="ch-badge" :class="'is-' + b.brand"><i class="bx" :class="b.icon"></i></span></span>
+              <strong>{{ card.label }}</strong>
+              <small>{{ card.presentation.subtitle }}</small>
+              <span class="ch-pick-caps"><span v-for="cap in cardCapabilities(card)" :key="cap.key"><i class="bx" :class="cap.icon"></i> {{ cap.label }}</span></span>
+              <span class="ch-pick-cta">Connect <i class="bx bx-right-arrow-alt"></i></span>
+            </button>
+          </div>
+        </section>
+
         <!-- Account sections -->
-        <template v-if="tab !== 'platforms'">
+        <template v-else>
           <section v-for="section in visibleSections" :key="section.key" class="ch-section">
             <div class="ch-section-head">
               <div>
@@ -108,13 +127,13 @@
                         {{ row.asset.enabled_capabilities.includes(section.capability) ? 'Pause' : 'Resume' }} {{ capability(section.capability).label.toLowerCase() }}
                       </button>
                       <button type="button" role="menuitem" :disabled="busy[row.conn.id]" @click="check(row.card, row.conn); openMenu = null"><i class="bx bx-check-shield"></i> Check connection</button>
-                      <button type="button" role="menuitem" @click="managePlatform(row.card.platform)"><i class="bx bx-slider-alt"></i> Manage permissions</button>
+                      <button type="button" role="menuitem" @click="openPlatform(row.card.platform)"><i class="bx bx-slider-alt"></i> Manage connection</button>
                     </div>
                   </div>
                 </div>
               </article>
 
-              <button type="button" class="ch-acct ch-acct-add" @click="setTab('platforms')">
+              <button type="button" class="ch-acct ch-acct-add" @click="openPicker()">
                 <span class="ch-acct-add-icon"><i class="bx bx-plus"></i></span>
                 <strong>{{ section.rows.length ? 'Connect More Accounts' : section.emptyTitle }}</strong>
                 <small>{{ section.addText }}</small>
@@ -123,10 +142,96 @@
           </section>
         </template>
 
-        <!-- Manage platforms: connect, permissions, check, disconnect -->
-        <div v-show="tab === 'platforms'" class="ch-platforms">
+      </div>
 
-    <section v-for="card in cards" :key="card.platform" class="ch-card" :id="card.platform">
+      <!-- Sidebar -->
+      <aside class="ch-side">
+
+        <section class="ch-panel">
+          <h3><i class="bx bxs-zap"></i> Quick Actions</h3>
+          <form v-if="wizard.available && !wizardState" method="POST" :action="urls.wizard_start" class="ch-quick-form">
+            <input type="hidden" name="_token" :value="csrf">
+            <button type="submit" class="ch-quick">
+              <span class="ch-quick-icon is-violet"><i class="bx bx-rocket"></i></span>
+              <span><strong>Connect all recommended</strong><small>Meta, Google, LinkedIn, X and TikTok in a row</small></span>
+              <i class="bx bx-chevron-right"></i>
+            </button>
+          </form>
+          <button type="button" class="ch-quick" @click="openPicker()">
+            <span class="ch-quick-icon is-blue"><i class="bx bx-link"></i></span>
+            <span><strong>Connect New Account</strong><small>Add a social, ad or messaging account</small></span>
+            <i class="bx bx-chevron-right"></i>
+          </button>
+          <a v-if="urls.ads" :href="urls.ads" class="ch-quick">
+            <span class="ch-quick-icon is-purple"><i class="bx bxs-megaphone"></i></span>
+            <span><strong>Create Ad Campaign</strong><small>Launch your next campaign</small></span>
+            <i class="bx bx-chevron-right"></i>
+          </a>
+          <a v-if="urls.composer" :href="urls.composer" class="ch-quick">
+            <span class="ch-quick-icon is-green"><i class="bx bx-calendar-plus"></i></span>
+            <span><strong>Schedule a Post</strong><small>Plan your content in advance</small></span>
+            <i class="bx bx-chevron-right"></i>
+          </a>
+        </section>
+
+        <section class="ch-panel">
+          <h3><i class="bx bx-pulse"></i> Connection Status</h3>
+          <div class="ch-donut-wrap">
+            <svg class="ch-donut" viewBox="0 0 120 120" role="img" :aria-label="statusTotals.total + ' connections'">
+              <circle cx="60" cy="60" r="48" class="ch-donut-track"></circle>
+              <circle v-for="seg in donutSegments" :key="seg.key" cx="60" cy="60" r="48" class="ch-donut-seg" :stroke="seg.color"
+                      :stroke-dasharray="seg.length + ' ' + (donutCircumference - seg.length)" :stroke-dashoffset="-seg.offset"></circle>
+            </svg>
+            <div class="ch-donut-label"><strong>{{ statusTotals.total }}</strong><small>Total<br>connections</small></div>
+          </div>
+          <ul class="ch-legend">
+            <li><span class="dot is-ok"></span> Connected <strong>{{ statusTotals.ok }}</strong></li>
+            <li><span class="dot is-warn"></span> Expiring soon <strong>{{ statusTotals.warn }}</strong></li>
+            <li><span class="dot is-bad"></span> Needs reconnect <strong>{{ statusTotals.bad }}</strong></li>
+          </ul>
+        </section>
+
+        <section class="ch-panel ch-help">
+          <h3><i class="bx bx-bulb"></i> Need Help?</h3>
+          <p>Check our documentation or contact our support team for help with connections.</p>
+          <a v-if="urls.help" :href="urls.help" class="ch-help-btn">View Help Center <i class="bx bx-right-arrow-alt"></i></a>
+          <span class="ch-help-art" aria-hidden="true"><i class="bx bx-support"></i></span>
+        </section>
+
+      </aside>
+    </div>
+
+    <!-- Side panel: pick a platform, then connect / manage it -->
+    <transition name="ch-fade">
+      <div v-if="drawer" class="ch-drawer-backdrop" @click.self="closeDrawer"></div>
+    </transition>
+    <transition name="ch-slide">
+      <aside v-if="drawer" class="ch-drawer" role="dialog" aria-modal="true" :aria-label="drawerTitle" @keydown.esc="closeDrawer">
+        <header class="ch-drawer-head">
+          <button v-if="drawer !== 'picker'" type="button" class="ch-drawer-icon-btn" aria-label="All platforms" @click="openPicker()"><i class="bx bx-arrow-back"></i></button>
+          <span v-if="drawerCard" class="ch-drawer-logos"><span v-for="b in drawerCard.presentation.icons" :key="b.icon" class="ch-badge" :class="'is-' + b.brand"><i class="bx" :class="b.icon"></i></span></span>
+          <div class="ch-drawer-title">
+            <h2>{{ drawerTitle }}</h2>
+            <p>{{ drawerCard ? drawerCard.presentation.subtitle : 'Choose a platform to connect or manage.' }}</p>
+          </div>
+          <span v-if="drawerCard" class="ch-pill" :class="cardStatus(drawerCard).tone"><i class="bx" :class="cardStatus(drawerCard).icon"></i> {{ cardStatus(drawerCard).label }}</span>
+          <button type="button" class="ch-drawer-icon-btn" aria-label="Close" @click="closeDrawer"><i class="bx bx-x"></i></button>
+        </header>
+
+        <div class="ch-drawer-body">
+          <div v-if="drawer === 'picker'" class="ch-pick-list">
+            <button v-for="card in cards" :key="card.platform" type="button" class="ch-pick-row" @click="openPlatform(card.platform)">
+              <span class="ch-pick-logos"><span v-for="b in card.presentation.icons" :key="b.icon" class="ch-badge" :class="'is-' + b.brand"><i class="bx" :class="b.icon"></i></span></span>
+              <span class="ch-pick-row-text">
+                <strong>{{ card.label }}</strong>
+                <small>{{ card.presentation.subtitle }}</small>
+              </span>
+              <span class="ch-state" :class="'is-' + pickState(card).tone">{{ pickState(card).label }}</span>
+              <i class="bx bx-chevron-right"></i>
+            </button>
+          </div>
+
+    <section v-for="card in drawerCards" :key="card.platform" class="ch-card ch-card-drawer" :id="card.platform">
 
       <div class="ch-card-head">
         <div class="ch-brand">
@@ -295,77 +400,9 @@
         <p v-if="!assetGroups(card, conn).length" class="ch-muted ch-none">No accounts linked to this connection yet. Use “Add or change accounts” to choose them.</p>
       </div>
     </section>
-
-    <section v-if="hub.upcoming.length" class="ch-upcoming">
-      <h3>Moving here next</h3>
-      <p class="ch-sub">Until then, these connect from their module pages as before.</p>
-      <div class="ch-up-grid">
-        <div v-for="p in hub.upcoming" :key="p.key" class="ch-up">
-          <span class="ch-up-icon" :class="'is-' + p.key"><i class="bx" :class="upcomingIcon(p.key)"></i></span>
-          <span><strong>{{ p.label }}</strong><small>{{ p.detail }}</small></span>
         </div>
-      </div>
-    </section>
-
-        </div>
-      </div>
-
-      <!-- Sidebar -->
-      <aside class="ch-side">
-
-        <section class="ch-panel">
-          <h3><i class="bx bxs-zap"></i> Quick Actions</h3>
-          <form v-if="wizard.available && !wizardState" method="POST" :action="urls.wizard_start" class="ch-quick-form">
-            <input type="hidden" name="_token" :value="csrf">
-            <button type="submit" class="ch-quick">
-              <span class="ch-quick-icon is-violet"><i class="bx bx-rocket"></i></span>
-              <span><strong>Connect all recommended</strong><small>Meta, Google, LinkedIn, X and TikTok in a row</small></span>
-              <i class="bx bx-chevron-right"></i>
-            </button>
-          </form>
-          <button type="button" class="ch-quick" @click="setTab('platforms')">
-            <span class="ch-quick-icon is-blue"><i class="bx bx-link"></i></span>
-            <span><strong>Connect New Account</strong><small>Add a social, ad or messaging account</small></span>
-            <i class="bx bx-chevron-right"></i>
-          </button>
-          <a v-if="urls.ads" :href="urls.ads" class="ch-quick">
-            <span class="ch-quick-icon is-purple"><i class="bx bxs-megaphone"></i></span>
-            <span><strong>Create Ad Campaign</strong><small>Launch your next campaign</small></span>
-            <i class="bx bx-chevron-right"></i>
-          </a>
-          <a v-if="urls.composer" :href="urls.composer" class="ch-quick">
-            <span class="ch-quick-icon is-green"><i class="bx bx-calendar-plus"></i></span>
-            <span><strong>Schedule a Post</strong><small>Plan your content in advance</small></span>
-            <i class="bx bx-chevron-right"></i>
-          </a>
-        </section>
-
-        <section class="ch-panel">
-          <h3><i class="bx bx-pulse"></i> Connection Status</h3>
-          <div class="ch-donut-wrap">
-            <svg class="ch-donut" viewBox="0 0 120 120" role="img" :aria-label="statusTotals.total + ' connections'">
-              <circle cx="60" cy="60" r="48" class="ch-donut-track"></circle>
-              <circle v-for="seg in donutSegments" :key="seg.key" cx="60" cy="60" r="48" class="ch-donut-seg" :stroke="seg.color"
-                      :stroke-dasharray="seg.length + ' ' + (donutCircumference - seg.length)" :stroke-dashoffset="-seg.offset"></circle>
-            </svg>
-            <div class="ch-donut-label"><strong>{{ statusTotals.total }}</strong><small>Total<br>connections</small></div>
-          </div>
-          <ul class="ch-legend">
-            <li><span class="dot is-ok"></span> Connected <strong>{{ statusTotals.ok }}</strong></li>
-            <li><span class="dot is-warn"></span> Expiring soon <strong>{{ statusTotals.warn }}</strong></li>
-            <li><span class="dot is-bad"></span> Needs reconnect <strong>{{ statusTotals.bad }}</strong></li>
-          </ul>
-        </section>
-
-        <section class="ch-panel ch-help">
-          <h3><i class="bx bx-bulb"></i> Need Help?</h3>
-          <p>Check our documentation or contact our support team for help with connections.</p>
-          <a v-if="urls.help" :href="urls.help" class="ch-help-btn">View Help Center <i class="bx bx-right-arrow-alt"></i></a>
-          <span class="ch-help-art" aria-hidden="true"><i class="bx bx-support"></i></span>
-        </section>
-
       </aside>
-    </div>
+    </transition>
 
   </div>
 </template>
@@ -436,6 +473,8 @@ export default {
       wizardState: this.wizard.state,
       waManual: false,
       tab: 'all',
+      // Side panel: null (closed), 'picker', or a platform key.
+      drawer: null,
       openMenu: null,
       csrf: (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
     };
@@ -480,8 +519,7 @@ export default {
     tabs() {
       return [
         { key: 'all', label: 'All Connections', icon: 'bx-grid-alt', count: this.uniqueAccountCount },
-        ...this.sections.map(s => ({ key: s.key, label: s.label, icon: s.icon, count: s.rows.length })),
-        { key: 'platforms', label: 'Manage platforms', icon: 'bx-slider-alt', count: this.cards.filter(c => c.connected).length + '/' + this.cards.length }
+        ...this.sections.map(s => ({ key: s.key, label: s.label, icon: s.icon, count: s.rows.length }))
       ];
     },
 
@@ -500,6 +538,18 @@ export default {
         warn: values.filter(v => v === 'warn').length,
         bad: values.filter(v => v === 'bad').length
       };
+    },
+
+    drawerCard() {
+      return this.drawer && this.drawer !== 'picker' ? this.cards.find(c => c.platform === this.drawer) || null : null;
+    },
+
+    drawerCards() {
+      return this.drawerCard ? [this.drawerCard] : [];
+    },
+
+    drawerTitle() {
+      return this.drawerCard ? this.drawerCard.label : 'Connect a platform';
     },
 
     donutCircumference() {
@@ -533,12 +583,22 @@ export default {
   mounted() {
     // Module links point at a card (#meta, #google ...): open it.
     const hash = window.location.hash.replace('#', '');
-    if (hash && this.cards.some(c => c.platform === hash)) this.managePlatform(hash);
+    if (hash && this.cards.some(c => c.platform === hash)) this.openPlatform(hash);
     document.addEventListener('click', this.closeMenus);
+    document.addEventListener('keydown', this.onKeydown);
   },
 
   beforeDestroy() {
     document.removeEventListener('click', this.closeMenus);
+    document.removeEventListener('keydown', this.onKeydown);
+    document.body.style.overflow = '';
+  },
+
+  watch: {
+    // The page behind the panel doesn't scroll while it's open.
+    drawer(value) {
+      document.body.style.overflow = value ? 'hidden' : '';
+    }
   },
 
   methods: {
@@ -568,14 +628,35 @@ export default {
       if (this.openMenu && !event.target.closest('.ch-menu')) this.openMenu = null;
     },
 
-    // Opens the platform's card in "Manage platforms" (also #meta links).
-    managePlatform(platform) {
+    openPicker() {
       this.openMenu = null;
-      this.tab = 'platforms';
-      this.$nextTick(() => {
-        const el = document.getElementById(platform);
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
+      this.drawer = 'picker';
+    },
+
+    // Also what #meta / #google ... links from other pages open.
+    openPlatform(platform) {
+      this.openMenu = null;
+      this.waManual = false;
+      this.confirming = null;
+      this.drawer = platform;
+    },
+
+    closeDrawer() {
+      this.drawer = null;
+      if (window.location.hash) history.replaceState(null, '', window.location.pathname + window.location.search);
+    },
+
+    onKeydown(event) {
+      if (event.key === 'Escape' && this.drawer) this.closeDrawer();
+    },
+
+    // Picker row status: what the user has there today.
+    pickState(card) {
+      if (card.connections.some(c => c.needs_attention && c.status !== 'revoked')) return { label: 'Needs attention', tone: 'warn' };
+      const accounts = card.connections.reduce((n, c) => n + Object.values(c.assets || {}).reduce((m, list) => m + list.length, 0), 0);
+      if (card.connected) return { label: accounts + (accounts === 1 ? ' account' : ' accounts'), tone: 'ok' };
+      if (!card.steps.some(st => st.available) && card.platform !== 'meta') return { label: 'Not available', tone: 'muted' };
+      return { label: 'Connect', tone: 'brand' };
     },
 
     // Only the capabilities this platform offers (Google has no inbox).
@@ -624,9 +705,6 @@ export default {
     },
 
 
-    upcomingIcon(key) {
-      return { google: 'bxl-google', x: 'bxl-x-logo', linkedin: 'bxl-linkedin', tiktok: 'bxl-tiktok', snapchat: 'bxl-snapchat', threads: 'bx-at', pinterest: 'bxl-pinterest' }[key] || 'bx-link';
-    },
 
     // Groups and their order come from the platform's driver (presentation.asset_groups).
     assetGroups(card, conn) {
@@ -950,19 +1028,6 @@ export default {
 .ch-switch input:disabled + span { opacity: .5; cursor: not-allowed; }
 .ch-none { margin: 0; }
 
-.ch-upcoming { background: #fff; border: 1px dashed #D5D9E2; border-radius: 18px; padding: 20px 24px; }
-.ch-upcoming h3 { margin: 0 0 2px; padding: 0; font-size: 15px; font-weight: 700; line-height: 1.35; color: var(--ink); }
-.ch-up-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 14px; }
-.ch-up { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: #F8F9FB; }
-.ch-up span:last-child { display: flex; flex-direction: column; }
-.ch-up strong { font-size: 13px; color: var(--ink); }
-.ch-up small { font-size: 11.5px; color: var(--muted); }
-.ch-up-icon { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; color: #fff; font-size: 16px; flex-shrink: 0; }
-.ch-up-icon.is-google { background: #4285F4; }
-.ch-up-icon.is-x, .ch-up-icon.is-tiktok, .ch-up-icon.is-threads { background: #000; }
-.ch-up-icon.is-linkedin { background: linear-gradient(180deg, #0A66C2 0%, #004182 100%); }
-.ch-up-icon.is-snapchat { background: #FFFC00; color: #000; }
-.ch-up-icon.is-pinterest { background: linear-gradient(180deg, #F0002A 0%, #BD001C 100%); }
 
 [dir="rtl"] .ch-brand-stack .ch-badge + .ch-badge { margin-left: 0; margin-right: -10px; }
 [dir="rtl"] .ch-flash-x { margin-left: 0; margin-right: auto; }
@@ -1059,7 +1124,6 @@ export default {
 .ch-acct-add strong { font-size: 13.5px; color: var(--ink); }
 .ch-acct-add small { font-size: 12px; color: var(--muted); line-height: 1.45; max-width: 30ch; }
 
-.ch-platforms { display: flex; flex-direction: column; gap: 20px; }
 
 .ch-panel { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 18px; box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.03); position: relative; overflow: hidden; }
 .ch-panel h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 15px; font-weight: 700; color: var(--ink); }
@@ -1105,5 +1169,78 @@ export default {
   .ch-hero-stats { width: 100%; }
   .ch-hero-stat { min-width: 0; flex: 1; padding: 8px 10px; }
   .ch-tabs { width: 100%; }
+}
+
+/* =========================================================
+   Side panel: platform picker + platform detail
+========================================================= */
+.ch-drawer-backdrop { position: fixed; inset: 0; z-index: 1090; background: rgba(15, 18, 34, .42); backdrop-filter: blur(2px); }
+.ch-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 1091; width: min(620px, 100vw);
+  display: flex; flex-direction: column; background: #F7F8FC;
+  box-shadow: -24px 0 60px rgba(16, 24, 40, .22); border-radius: 20px 0 0 20px; overflow: hidden;
+}
+[dir="rtl"] .ch-drawer { right: auto; left: 0; border-radius: 0 20px 20px 0; }
+.ch-drawer-head {
+  display: flex; align-items: center; gap: 12px; padding: 18px 20px; background: #fff; border-bottom: 1px solid var(--line);
+  padding-top: calc(18px + env(safe-area-inset-top, 0px));
+}
+.ch-drawer-title { flex: 1; min-width: 0; }
+.ch-drawer-title h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--ink); line-height: 1.3; }
+.ch-drawer-title p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch-drawer-icon-btn { width: 38px; height: 38px; flex-shrink: 0; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--text); font-size: 20px; display: grid; place-items: center; cursor: pointer; }
+.ch-drawer-icon-btn:hover { border-color: #CFC4FF; color: var(--brand); }
+.ch-drawer-logos, .ch-pick-logos { display: inline-flex; flex-shrink: 0; }
+.ch-drawer-logos .ch-badge, .ch-pick-logos .ch-badge { width: 38px; height: 38px; border-radius: 12px; font-size: 19px; }
+.ch-drawer-logos .ch-badge + .ch-badge, .ch-pick-logos .ch-badge + .ch-badge { margin-left: -12px; }
+.ch-drawer-body { flex: 1; overflow-y: auto; padding: 18px 20px calc(24px + env(safe-area-inset-bottom, 0px)); }
+
+.ch-fade-enter-active, .ch-fade-leave-active { transition: opacity .2s ease; }
+.ch-fade-enter, .ch-fade-leave-to { opacity: 0; }
+.ch-slide-enter-active, .ch-slide-leave-active { transition: transform .26s cubic-bezier(.2, .8, .2, 1); }
+.ch-slide-enter, .ch-slide-leave-to { transform: translateX(104%); }
+[dir="rtl"] .ch-slide-enter, [dir="rtl"] .ch-slide-leave-to { transform: translateX(-104%); }
+@media (prefers-reduced-motion: reduce) { .ch-slide-enter-active, .ch-slide-leave-active, .ch-fade-enter-active, .ch-fade-leave-active { transition: none; } }
+
+/* Picker list (panel) */
+.ch-pick-list { display: flex; flex-direction: column; gap: 10px; }
+.ch-pick-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; text-align: left; cursor: pointer; font: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.ch-pick-row:hover { border-color: #CFC4FF; box-shadow: 0 8px 20px rgba(16,24,40,.07); transform: translateY(-1px); }
+.ch-pick-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ch-pick-row-text strong { font-size: 14.5px; color: var(--ink); }
+.ch-pick-row-text small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch-pick-row > .bx-chevron-right { font-size: 20px; color: #B4BBCB; }
+.ch-state.is-brand { background: var(--brand-soft); color: var(--brand); }
+
+/* Picker grid (first run, on the page) */
+.ch-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+.ch-pick { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: #fff; text-align: left; cursor: pointer; font: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.ch-pick:hover { border-color: #CFC4FF; box-shadow: 0 12px 28px rgba(16,24,40,.08); transform: translateY(-2px); }
+.ch-pick .ch-pick-logos { margin-bottom: 6px; }
+.ch-pick strong { font-size: 15px; color: var(--ink); }
+.ch-pick small { font-size: 12px; color: var(--muted); line-height: 1.45; }
+.ch-pick-caps { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.ch-pick-caps span { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 999px; background: #F4F5F9; color: var(--text); font-size: 11px; font-weight: 600; }
+.ch-pick-cta { margin-top: auto; padding-top: 10px; display: inline-flex; align-items: center; gap: 4px; color: var(--brand); font-size: 13px; font-weight: 700; }
+
+/* The platform card inside the panel: lighter, card-in-panel look */
+.ch-card-drawer { background: transparent; border: none; box-shadow: none; padding: 0; gap: 14px; }
+.ch-card-drawer > .ch-card-head { display: none; }
+.ch-card-drawer .ch-steps { gap: 10px; }
+.ch-card-drawer .ch-step { border-radius: 14px; padding: 14px; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+.ch-card-drawer .ch-step.is-primary { background: #fff; border-color: #D6DDF0; box-shadow: 0 6px 18px rgba(16,24,40,.06); }
+.ch-card-drawer .ch-step-actions { flex-shrink: 0; }
+.ch-card-drawer .ch-btn-primary { background: linear-gradient(135deg, var(--brand), var(--brand-2)); box-shadow: 0 6px 16px rgba(109,74,255,.28); }
+.ch-card-drawer .ch-btn-primary:hover { box-shadow: 0 10px 22px rgba(109,74,255,.34); }
+.ch-card-drawer .ch-empty { background: #fff; border: 1px dashed #D6DDF0; border-radius: 14px; padding: 18px; }
+.ch-card-drawer .ch-gets { grid-template-columns: minmax(0, 1fr); }
+.ch-card-drawer .ch-conn { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+.ch-card-drawer .ch-conn-head { align-items: flex-start; }
+.ch-card-drawer .ch-asset-caps { justify-content: flex-start; }
+@media (max-width: 575.98px) {
+  .ch-drawer { border-radius: 0; }
+  .ch-card-drawer .ch-step { flex-wrap: wrap; }
+  .ch-card-drawer .ch-step-actions { width: 100%; justify-content: flex-start; }
+  .ch-card-drawer .ch-asset { flex-wrap: wrap; }
 }
 </style>
