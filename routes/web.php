@@ -346,6 +346,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				// the platform campaigns dashboard.
 				Route::post('ads/{platform}/campaigns/sync', [AdCampaignController::class, 'sync'])
 					->name('ads.campaigns.sync');
+				Route::get('ads/{platform}/campaigns/insights', [AdCampaignController::class, 'insights'])
+					->name('ads.campaigns.insights');
 
 				Route::resource('ads/{platform}/campaigns', AdCampaignController::class)
 					->names('ads.campaigns');

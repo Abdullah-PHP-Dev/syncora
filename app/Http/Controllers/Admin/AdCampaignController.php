@@ -96,7 +96,15 @@ class AdCampaignController extends Controller
             'edit'      => route('admin.ads.campaigns.edit', ['platform' => $platform, 'campaign' => 'CAMPAIGN_ID']),
             'destroy'   => route('admin.ads.campaigns.destroy', ['platform' => $platform, 'campaign' => 'CAMPAIGN_ID']),
         ];
-        $data['can_sync'] = $platform === 'facebook';
+        $data['can_sync'] = in_array($platform, ['facebook', 'openai'], true);
+
+        // ChatGPT Ads: live reporting, and no in-app edit form yet
+        // (pause / activate / archive cover it - see OpenAiAdService).
+        if ($platform === 'openai') {
+            $data['urls']['insights'] = route('admin.ads.campaigns.insights', ['platform' => $platform]);
+            $data['urls']['status'] = route('admin.ads.campaigns.status', ['platform' => $platform, 'id' => 'CAMPAIGN_ID']);
+            $data['urls']['edit'] = null;
+        }
 
         return view('admin.ads.campaigns.dashboard', compact('data', 'platform'));
     }
@@ -110,6 +118,20 @@ class AdCampaignController extends Controller
     public function sync($platform)
     {
         $result = $this->socialAdManager->syncCampaigns($platform);
+
+        return response()->json($result, ($result['success'] ?? false) ? 200 : 422);
+    }
+
+    /** Performance for the campaigns page (platforms whose service reports it). */
+    public function insights($platform)
+    {
+        $service = $this->socialAdManager->service($platform);
+
+        if (! method_exists($service, 'insights')) {
+            return response()->json(['success' => false, 'error' => 'Reporting is not available for this platform yet.'], 404);
+        }
+
+        $result = $service->insights();
 
         return response()->json($result, ($result['success'] ?? false) ? 200 : 422);
     }

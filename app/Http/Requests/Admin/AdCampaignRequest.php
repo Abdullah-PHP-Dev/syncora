@@ -43,9 +43,36 @@ class AdCampaignRequest extends FormRequest
             $validations = $this->getXRules($requiredIfPost);
         } else if ($platform === 'linkedin') {
             $validations = $this->getLinkedinRules($requiredIfPost);
+        } else if ($platform === 'openai') {
+            $validations = $this->getOpenAiRules();
         }
 
         return $validations;
+    }
+
+    /**
+     * ChatGPT Ads - limits from OpenAI's Ads API reference: campaign / ad
+     * group names 3-1000 chars, lifetime budget >= 1,000,000 micros (1.00),
+     * max bid >= 1 micro, chat_card title 3-50 chars, body <= 100 chars.
+     */
+    private function getOpenAiRules(): array
+    {
+        return [
+            'name' => ['required', 'string', 'min:3', 'max:1000'],
+            'budget' => ['required', 'numeric', 'min:1'],
+            'start_time' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:today'],
+            'end_time' => ['nullable', 'date_format:Y-m-d', 'after:start_time'],
+            'bidding_type' => ['required', 'in:impressions,clicks'],
+            'ad_group_name' => ['nullable', 'string', 'min:3', 'max:1000'],
+            'billing_event' => ['required', 'in:impression,click'],
+            'max_bid' => ['required', 'numeric', 'min:0.01'],
+            'title' => ['required', 'string', 'min:3', 'max:50'],
+            'body' => ['required', 'string', 'max:100'],
+            'target_link' => ['required', 'url', 'max:2048'],
+            'image' => ['required_without:image_url', 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'image_url' => ['nullable', 'url'],
+            'launch' => ['nullable', 'in:active,paused'],
+        ];
     }
 
     private function getFacebookRules(array $requiredIfPost): array

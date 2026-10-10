@@ -78,8 +78,29 @@
 
       <div class="row">
         <div class="col-xl-8">
+          <!-- live reporting (platforms that provide it, e.g. ChatGPT Ads) -->
+          <div v-if="data.urls.insights" class="pc-card mb-4">
+            <div class="pc-card-h">
+              <span class="t"><i class="bx bx-line-chart"></i> Performance</span>
+              <span class="text-muted small">Last {{ insights ? insights.days : 30 }} days</span>
+            </div>
+            <div class="pc-card-b">
+              <div v-if="insightsLoading" class="pc-perf-loading"><i class="bx bx-loader-alt bx-spin"></i> Loading performance from {{ data.label }}…</div>
+              <div v-else-if="insightsError" class="pc-perf-empty">
+                <i class="bx bx-error-circle"></i>
+                <div><strong>Couldn't load performance</strong><p>{{ insightsError }}</p></div>
+              </div>
+              <div v-else-if="insights" class="pc-metrics">
+                <div v-for="m in metricTiles" :key="m.label" class="pc-metric">
+                  <span class="lbl">{{ m.label }}</span>
+                  <strong>{{ m.value }}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- performance not available -->
-          <div class="pc-card mb-4">
+          <div v-else class="pc-card mb-4">
             <div class="pc-card-h"><span class="t"><i class="bx bx-line-chart"></i> Performance overview</span></div>
             <div class="pc-card-b">
               <div class="pc-perf-empty">
@@ -114,6 +135,8 @@
                       <th>Objective</th>
                       <th>Status</th>
                       <th class="text-end">Budget</th>
+                      <th v-if="insights" class="text-end">Spend</th>
+                      <th v-if="insights" class="text-end">Clicks</th>
                       <th class="text-end">Start</th>
                       <th class="text-end">End</th>
                       <th></th>
@@ -128,6 +151,8 @@
                       <td class="text-capitalize">{{ prettyObjective(c.objective) }}</td>
                       <td><span class="pc-pill" :class="statusClass(c.status)">{{ c.status || 'unknown' }}</span></td>
                       <td class="text-end">{{ budgetLabel(c) }}</td>
+                      <td v-if="insights" class="text-end">{{ campaignMetric(c, 'spend') }}</td>
+                      <td v-if="insights" class="text-end">{{ campaignMetric(c, 'clicks') }}</td>
                       <td class="text-end text-muted">{{ shortDate(c.start_time) }}</td>
                       <td class="text-end text-muted">{{ shortDate(c.end_time) }}</td>
                       <td class="text-end">
@@ -136,7 +161,13 @@
                             <i class="bx bx-dots-vertical-rounded"></i>
                           </button>
                           <div class="dropdown-menu dropdown-menu-end">
-                            <a class="dropdown-item" :href="editUrl(c.id)"><i class="bx bx-edit-alt me-1"></i> Edit</a>
+                            <a v-if="data.urls.edit" class="dropdown-item" :href="editUrl(c.id)"><i class="bx bx-edit-alt me-1"></i> Edit</a>
+                            <button v-if="data.urls.status && String(c.status).toUpperCase() === 'ACTIVE'" class="dropdown-item" type="button" :disabled="busyId === c.id" @click="setStatus(c, 'PAUSED')">
+                              <i class="bx bx-pause-circle me-1"></i> Pause
+                            </button>
+                            <button v-else-if="data.urls.status && String(c.status).toUpperCase() !== 'ARCHIVED'" class="dropdown-item" type="button" :disabled="busyId === c.id" @click="setStatus(c, 'ACTIVE')">
+                              <i class="bx bx-play-circle me-1"></i> Activate
+                            </button>
                             <button class="dropdown-item text-danger" type="button" @click="destroy(c)">
                               <i class="bx bx-trash me-1"></i> Delete
                             </button>
@@ -197,7 +228,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import AccountAvatarBadge from '../posts/AccountAvatarBadge.vue';
 
 const props = defineProps({
@@ -206,6 +237,10 @@ const props = defineProps({
 });
 
 const syncing = ref(false);
+const insights = ref(null);
+const insightsLoading = ref(false);
+const insightsError = ref('');
+const busyId = ref(null);
 const syncMsg = ref('');
 const syncOk = ref(false);
 
@@ -259,6 +294,52 @@ const tiles = computed(() => {
   ];
 });
 
+const metricTiles = computed(() => {
+  const t = insights.value ? insights.value.totals : {};
+  const cur = (insights.value && insights.value.currency) || currency.value;
+  const m = (v) => (cur ? cur + ' ' : '') + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return [
+    { label: 'Spend', value: m(t.spend) },
+    { label: 'Impressions', value: int(t.impressions) },
+    { label: 'Clicks', value: int(t.clicks) },
+    { label: 'CTR', value: t.ctr == null ? '—' : (t.ctr * 100).toFixed(2) + '%' },
+    { label: 'CPC', value: t.cpc == null ? '—' : m(t.cpc) },
+  ];
+});
+
+function campaignMetric(c, key) {
+  const row = insights.value && insights.value.campaigns ? insights.value.campaigns[String(c.id)] : null;
+  if (!row) return '—';
+  return key === 'spend' ? money(row.spend) : int(row[key]);
+}
+
+async function loadInsights() {
+  if (!props.data.urls.insights || !props.data.connected) return;
+  insightsLoading.value = true;
+  try {
+    const { data } = await window.axios.get(props.data.urls.insights);
+    insights.value = data;
+  } catch (e) {
+    insightsError.value = e?.response?.data?.error || 'Please try again in a moment.';
+  } finally {
+    insightsLoading.value = false;
+  }
+}
+
+async function setStatus(c, status) {
+  busyId.value = c.id;
+  try {
+    await window.axios.patch(props.data.urls.status.replace('CAMPAIGN_ID', c.id), { status }, { headers: { 'X-CSRF-TOKEN': props.csrf, Accept: 'application/json' } });
+    c.status = status;
+  } catch (e) {
+    window.alert(e?.response?.data?.message || 'Could not change the campaign status.');
+  } finally {
+    busyId.value = null;
+  }
+}
+
+onMounted(loadInsights);
+
 async function syncNow() {
   if (syncing.value) return;
   syncing.value = true;
@@ -295,6 +376,12 @@ function destroy(c) {
 <style scoped>
 .pc-dash { --ln: #e0e2e7; --ln-soft: #eef1f5; --ink: #192126; --ink2: #5b6675; --muted: #7f7f7f; --brand: #6366f1; --radius: 14px; }
 
+.pc-metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .75rem; }
+.pc-metric { border: 1px solid var(--ln); border-radius: 12px; padding: .8rem .9rem; display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+.pc-metric .lbl { font-size: .74rem; color: var(--muted); font-weight: 600; }
+.pc-metric strong { font-size: 1.15rem; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-perf-loading { display: flex; align-items: center; gap: .5rem; color: var(--ink2); font-size: .86rem; padding: .5rem 0; }
+@media (max-width: 991.98px) { .pc-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .pc-back { font-size: .82rem; font-weight: 600; color: var(--ink2); display: inline-flex; align-items: center; gap: .3rem; margin-bottom: 1rem; text-decoration: none; }
 .pc-back:hover { color: var(--brand); }
 

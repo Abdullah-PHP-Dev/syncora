@@ -55,8 +55,11 @@ class SocialAdManagerService
     /**
      * Get service instance
      */
-    private function service(string $platform)
+    public function service(string $platform)
     {
+        $platform = $this->resolvePlatform($platform);
+        $this->validatePlatform($platform);
+
         return app($this->platformMap[$platform]);
     }
 
