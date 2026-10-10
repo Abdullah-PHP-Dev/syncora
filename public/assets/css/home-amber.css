@@ -30,8 +30,6 @@
 .amber-home .theme-stars { color: #9a8400; }
 .amber-home .theme-feature-strip { background: #fff; border-color: #e7e8ed; box-shadow: 0 8px 28px #4045530d; }
 .amber-home .theme-feature-pill { border-right-color: #e7e8ed; }
-.amber-home .theme-icon-purple, .amber-home .theme-icon-blue,
-.amber-home .theme-icon-pink, .amber-home .theme-icon-green { color: #404553; background: #fff7b3; }
 .amber-home .theme-copilot {
     background: radial-gradient(ellipse at 20% 90%, #feee001a, transparent 50%), radial-gradient(ellipse at 90% 90%, #feee001a, transparent 55%), linear-gradient(125deg, #fffef5, #fffad9);
 }

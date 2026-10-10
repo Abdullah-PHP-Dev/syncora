@@ -15,12 +15,12 @@
                 <a href="#copilot" class="theme-button theme-button-outline">@include('front.partials.home-icon', ['icon' => 'play']) Watch demo</a>
             </div>
             <div class="theme-proof">
-                <img src="{{ asset('assets/images/home-theme/avatars.png') }}" width="137" height="45" alt="Creators using Socialeaz">
+                <img src="{{ asset('assets/images/home-theme/avatars-studio.png') }}" width="137" height="45" alt="Creators using Socialeaz">
                 <div><span class="theme-stars" aria-label="5 stars">★★★★★</span><p>10K+ creators and teams<br>already growing with Socialeaz</p></div>
             </div>
         </div>
         <div class="theme-hero-art">
-            <img src="{{ asset('assets/images/home-theme/hero.png') }}" width="546" height="309" alt="Creator surrounded by social platforms, engagement and follower growth" fetchpriority="high">
+            <img src="{{ asset('assets/images/home-theme/hero-studio.png') }}" width="546" height="309" alt="Creator surrounded by social platforms, engagement and follower growth" fetchpriority="high">
         </div>
     </section>
 
@@ -42,8 +42,8 @@
         </div>
         <div class="theme-copilot-art">
             <span class="theme-copilot-note" aria-hidden="true">Create amazing<br>content in seconds <span>⤵</span></span>
-            <img class="theme-composer-image" src="{{ asset('assets/images/home-theme/copilot-composer.png') }}" width="438" height="113" alt="AI Copilot composer with Generate, Rewrite, Social ideas and Hashtags tools" loading="lazy">
-            <img class="theme-post-image" src="{{ asset('assets/images/home-theme/copilot-post.png') }}" width="509" height="131" alt="Generated product post with a caption and social platform icons" loading="lazy">
+            <img class="theme-composer-image" src="{{ asset('assets/images/home-theme/copilot-composer-studio.png') }}" width="438" height="113" alt="AI Copilot composer with Generate, Rewrite, Social ideas and Hashtags tools" loading="lazy">
+            <img class="theme-post-image" src="{{ asset('assets/images/home-theme/copilot-post-studio.png') }}" width="509" height="131" alt="Generated product post with a caption and social platform icons" loading="lazy">
         </div>
     </section>
 
@@ -54,7 +54,7 @@
                 <div><h2>Plan. Schedule. Stay consistent.</h2><p>Organize your content, schedule across all platforms<br class="theme-desktop-break"> and never miss a post again.</p></div>
                 <a href="{{ route('register') }}" class="theme-learn">Learn more <span>→</span></a>
             </div>
-            <img src="{{ asset('assets/images/home-theme/planner.png') }}" width="496" height="226" alt="Content planner with a monthly calendar of Instagram, TikTok and LinkedIn posts" loading="lazy">
+            <img src="{{ asset('assets/images/home-theme/planner-studio.png') }}" width="496" height="226" alt="Content planner with a monthly calendar of Instagram, TikTok and LinkedIn posts" loading="lazy">
         </article>
         <article class="theme-product-card" id="analytics">
             <div class="theme-card-heading">
@@ -62,7 +62,7 @@
                 <div><h2>Analytics that drive growth.</h2><p>Track performance, understand your audience,<br class="theme-desktop-break"> and make better decisions.</p></div>
                 <a href="{{ route('register') }}" class="theme-learn">Learn more <span>→</span></a>
             </div>
-            <img src="{{ asset('assets/images/home-theme/analytics.png') }}" width="420" height="226" alt="Analytics showing 125K followers, 8.4 percent engagement and an audience growth chart" loading="lazy">
+            <img src="{{ asset('assets/images/home-theme/analytics-studio.png') }}" width="420" height="226" alt="Analytics showing 125K followers, 8.4 percent engagement and an audience growth chart" loading="lazy">
         </article>
     </section>
 
@@ -80,7 +80,7 @@
             </ul>
             <a href="{{ route('register') }}" class="theme-learn">Learn more <span>→</span></a>
         </div>
-        <img src="{{ asset('assets/images/home-theme/approvals.png') }}" width="516" height="155" alt="Team workspace showing content approvals and review requests" loading="lazy">
+        <img src="{{ asset('assets/images/home-theme/approvals-studio.png') }}" width="516" height="155" alt="Team workspace showing content approvals and review requests" loading="lazy">
     </section>
 
     <section class="theme-testimonials" aria-labelledby="testimonials-title">
@@ -92,7 +92,7 @@
         <div class="theme-testimonial-grid">
             @foreach ([['sarah', 'Sarah Kim', 'Content Creator', 'Socialeaz has completely changed the way we manage our social media. The AI tools save us hours every week!'], ['james', 'James Carter', 'Marketing Agency', 'The best social media tool we’ve used. Super easy to collaborate with our team and the results speak for themselves.'], ['emma', 'Emma Rodriguez', 'Small Business Owner', 'AI Copilot is a game changer! It helps me create better content and grow my audience faster than ever.']] as [$photo, $name, $role, $quote])
                 <figure class="theme-testimonial">
-                    <img src="{{ asset('assets/images/home-theme/'.$photo.'.png') }}" width="72" height="72" alt="{{ $name }}" loading="lazy">
+                    <img src="{{ asset('assets/images/home-theme/'.$photo.'-studio.png') }}" width="72" height="72" alt="{{ $name }}" loading="lazy">
                     <div><blockquote>“{{ $quote }}”</blockquote><figcaption><strong>{{ $name }}</strong><small>{{ $role }}</small></figcaption></div>
                     <span class="theme-stars" aria-label="5 stars">★★★★★</span>
                 </figure>

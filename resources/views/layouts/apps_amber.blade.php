@@ -14,7 +14,7 @@
 
     <link rel="stylesheet" href="{{ asset('assets/css/home-assets.css') }}">
     @vite(['resources/css/apps.css', 'resources/js/apps.js'])
-    <link rel="stylesheet" href="{{ asset('assets/css/home-amber.css') }}?v=charcoal-gold-logo-2">
+    <link rel="stylesheet" href="{{ asset('assets/css/home-amber.css') }}?v=studio-images-icons-3">
     @stack('styles')
 </head>
 <body class="marketing-home amber-home">
