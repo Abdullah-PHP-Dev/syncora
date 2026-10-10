@@ -9,7 +9,7 @@
       </div>
     </header>
 
-    <div v-if="flashMessage" class="ch-flash" :class="flashMessage.tone">
+    <div v-if="flashMessage" class="ch-flash" :class="flashMessage.tone" role="status" aria-live="polite">
       <i class="bx" :class="flashMessage.tone === 'is-error' ? 'bx-error-circle' : 'bx-check-circle'"></i>
       <span>{{ flashMessage.text }}</span>
       <button type="button" class="ch-flash-x" @click="flashMessage = null" aria-label="Dismiss"><i class="bx bx-x"></i></button>
@@ -107,7 +107,8 @@
                     <strong>{{ row.view.title }}</strong>
                     <small>{{ row.view.subtitle }}</small>
                   </div>
-                  <span class="ch-state" :class="'is-' + row.state.tone">{{ row.state.label }}</span>
+                  <span v-if="busy[row.conn.id] === 'check'" class="ch-state is-muted"><i class="bx bx-loader-alt bx-spin"></i> Checking…</span>
+                  <span v-else class="ch-state" :class="'is-' + row.state.tone">{{ row.state.label }}</span>
                 </div>
                 <div class="ch-acct-bottom">
                   <span class="ch-acct-avatar">
@@ -121,12 +122,15 @@
                   <div class="ch-menu" @click.stop>
                     <button type="button" class="ch-kebab" :aria-expanded="openMenu === section.key + row.asset.id" aria-label="Account actions" @click="toggleMenu(section.key + row.asset.id)"><i class="bx bx-dots-vertical-rounded"></i></button>
                     <div v-if="openMenu === section.key + row.asset.id" class="ch-menu-list" role="menu">
-                      <a v-if="row.state.key === 'reconnect' || row.state.key === 'expiring'" :href="row.conn.reconnect_url" role="menuitem"><i class="bx bx-refresh"></i> Reconnect</a>
-                      <button v-if="row.asset.available_capabilities.includes(section.capability)" type="button" role="menuitem" :disabled="saving[row.asset.id]" @click="toggleCapability(row.conn, row.asset, section.capability); openMenu = null">
+                      <a v-if="row.state.key === 'reconnect' || row.state.key === 'expiring'" :href="row.conn.reconnect_url" role="menuitem" class="is-accent"><i class="bx bx-refresh"></i> Reconnect</a>
+                      <a v-if="sectionLink(section.key, row)" :href="sectionLink(section.key, row).url" role="menuitem"><i class="bx" :class="sectionLink(section.key, row).icon"></i> {{ sectionLink(section.key, row).label }}</a>
+                      <button v-if="row.asset.available_capabilities.includes(section.capability)" type="button" role="menuitem" :disabled="saving[row.asset.id]" @click="toggleSection(row, section)">
                         <i class="bx" :class="row.asset.enabled_capabilities.includes(section.capability) ? 'bx-pause-circle' : 'bx-play-circle'"></i>
                         {{ row.asset.enabled_capabilities.includes(section.capability) ? 'Pause' : 'Resume' }} {{ capability(section.capability).label.toLowerCase() }}
                       </button>
-                      <button type="button" role="menuitem" :disabled="busy[row.conn.id]" @click="check(row.card, row.conn); openMenu = null"><i class="bx bx-check-shield"></i> Check connection</button>
+                      <button type="button" role="menuitem" :disabled="!!busy[row.conn.id]" @click="openMenu = null; check(row.card, row.conn)"><i class="bx bx-check-shield"></i> Check connection</button>
+                      <button type="button" role="menuitem" @click="copyId(row)"><i class="bx bx-copy"></i> Copy {{ row.view.idLabel }}</button>
+                      <span class="ch-menu-sep" role="separator"></span>
                       <button type="button" role="menuitem" @click="openPlatform(row.card.platform)"><i class="bx bx-slider-alt"></i> Manage connection</button>
                     </div>
                   </div>
@@ -595,6 +599,11 @@ export default {
   },
 
   watch: {
+    flashMessage(value) {
+      clearTimeout(this.flashTimer);
+      if (value) this.flashTimer = setTimeout(() => { this.flashMessage = null; }, value.tone === 'is-error' ? 9000 : 4500);
+    },
+
     // The page behind the panel doesn't scroll while it's open.
     drawer(value) {
       document.body.style.overflow = value ? 'hidden' : '';
@@ -626,6 +635,37 @@ export default {
 
     closeMenus(event) {
       if (this.openMenu && !event.target.closest('.ch-menu')) this.openMenu = null;
+    },
+
+    // Section shortcut in an account's menu.
+    sectionLink(sectionKey, row) {
+      if (sectionKey === 'social' && this.urls.composer) return { url: this.urls.composer, label: 'Create a post', icon: 'bx-edit-alt' };
+      if (sectionKey === 'messaging' && this.urls.inbox) return { url: this.urls.inbox, label: 'Open inbox', icon: 'bx-message-rounded-dots' };
+      if (sectionKey === 'ads' && this.urls.ads_create) {
+        const platform = { meta: 'facebook' }[row.card.platform] || row.card.platform;
+        return { url: this.urls.ads_create.replace('__PLATFORM__', platform), label: 'Create campaign', icon: 'bx-rocket' };
+      }
+      return null;
+    },
+
+    toggleSection(row, section) {
+      this.openMenu = null;
+      const on = row.asset.enabled_capabilities.includes(section.capability);
+      const label = this.capability(section.capability).label.toLowerCase();
+      this.toggleCapability(row.conn, row.asset, section.capability,
+        (on ? 'Paused ' : 'Resumed ') + label + ' for ' + (row.asset.name || row.view.title) + '.');
+    },
+
+    copyId(row) {
+      this.openMenu = null;
+      const done = () => { this.flashMessage = { tone: 'is-success', text: row.view.idLabel + ' copied: ' + row.asset.external_id }; };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(String(row.asset.external_id)).then(done).catch(() => {
+          this.flashMessage = { tone: 'is-error', text: 'Couldn’t copy. ' + row.view.idLabel + ': ' + row.asset.external_id };
+        });
+      } else {
+        this.flashMessage = { tone: 'is-success', text: row.view.idLabel + ': ' + row.asset.external_id };
+      }
     },
 
     openPicker() {
@@ -743,21 +783,24 @@ export default {
       this.save(conn, asset, next);
     },
 
-    toggleCapability(conn, asset, cap) {
+    toggleCapability(conn, asset, cap, successText) {
       const on = asset.enabled_capabilities.includes(cap);
       const next = on ? asset.enabled_capabilities.filter(c => c !== cap) : asset.enabled_capabilities.concat(cap);
-      this.save(conn, asset, next);
+      this.save(conn, asset, next, successText);
     },
 
     // Optimistic: flip now, put it back if the server says no.
-    save(conn, asset, next) {
+    save(conn, asset, next, successText) {
       const card = this.cards.find(c => c.connections.includes(conn));
       const previous = asset.enabled_capabilities;
       asset.enabled_capabilities = next;
       this.$set(this.saving, asset.id, true);
 
       window.axios.patch(this.url('asset', asset.id), { enabled_capabilities: next })
-        .then(({ data }) => this.replaceConnection(card, data.connection))
+        .then(({ data }) => {
+          this.replaceConnection(card, data.connection);
+          if (successText) this.flashMessage = { tone: 'is-success', text: successText };
+        })
         .catch(() => {
           asset.enabled_capabilities = previous;
           this.flashMessage = { tone: 'is-error', text: 'Couldn’t save that change. Please try again.' };
@@ -773,7 +816,7 @@ export default {
           this.replaceConnection(card, data.connection);
           this.flashMessage = data.connection.needs_attention
             ? { tone: 'is-error', text: this.attentionTitle(data.connection) }
-            : { tone: 'is-success', text: 'Connection checked: everything works.' };
+            : { tone: 'is-success', text: card.label + ' checked: everything works.' };
         })
         .catch(() => { this.flashMessage = { tone: 'is-error', text: 'The check didn’t complete. Please try again.' }; })
         .finally(() => this.$delete(this.busy, conn.id));
@@ -879,7 +922,15 @@ export default {
 .ch-title { margin: 0 0 2px; font-size: 26px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); line-height: 1.25; }
 .ch-sub { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
 
-.ch-flash { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px; font-size: 13.5px; }
+.ch-flash {
+  position: fixed; right: 24px; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 1100; max-width: min(440px, calc(100vw - 32px));
+  display: flex; align-items: center; gap: 10px; padding: 13px 14px 13px 16px; border-radius: 14px; font-size: 13.5px; font-weight: 500;
+  box-shadow: 0 18px 40px rgba(16,24,40,.18); animation: ch-toast-in .22s ease-out;
+}
+[dir="rtl"] .ch-flash { right: auto; left: 24px; }
+@keyframes ch-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ch-flash { animation: none; } }
+@media (max-width: 575.98px) { .ch-flash { right: 16px; left: 16px; bottom: 16px; max-width: none; } }
 .ch-flash i { font-size: 18px; }
 .ch-flash.is-success { background: #E8F8EE; color: #166534; }
 .ch-flash.is-error { background: #FDECEC; color: #B42318; }
@@ -1117,6 +1168,9 @@ export default {
 .ch-menu-list a:hover, .ch-menu-list button:hover:not(:disabled) { background: #F2EEFF; color: var(--brand); }
 .ch-menu-list button:disabled { opacity: .5; cursor: default; }
 .ch-menu-list i { font-size: 16px; color: var(--muted); }
+.ch-menu-list .is-accent, .ch-menu-list .is-accent i { color: #DC2626; }
+.ch-menu-sep { height: 1px; margin: 4px 6px; background: var(--line-soft); }
+.ch-state .bx-spin { font-size: 13px; margin-right: 4px; }
 
 .ch-acct-add { align-items: center; justify-content: center; text-align: center; gap: 6px; min-height: 148px; padding: 18px; border: 1.5px dashed #CFD6E6; background: #FBFCFF; cursor: pointer; font: inherit; }
 .ch-acct-add:hover { border-color: #93B4F5; background: #F5F8FF; }
