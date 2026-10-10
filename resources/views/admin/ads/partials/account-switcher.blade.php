@@ -8,7 +8,7 @@
 --}}
 @php
     $adAccounts = $adAccounts ?? collect();
-    $platformName = ['x' => 'X', 'youtube' => 'YouTube', 'linkedin' => 'LinkedIn', 'tiktok' => 'TikTok'][$platform] ?? ucfirst($platform);
+    $platformName = ['x' => 'X', 'youtube' => 'YouTube', 'linkedin' => 'LinkedIn', 'tiktok' => 'TikTok', 'openai' => 'ChatGPT'][$platform] ?? ucfirst($platform);
     $connectUrl = \App\Support\Connections\HubLink::for($platform)
         ?? route('admin.ads.redirect', $platform === 'youtube' ? 'google' : $platform) . '?' . http_build_query(['return_to' => request()->getRequestUri()]);
     $switchUrl = fn ($id) => request()->fullUrlWithQuery(['account' => $id, 'connected' => null]);
