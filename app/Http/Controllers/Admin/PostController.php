@@ -774,7 +774,7 @@ class PostController extends Controller
             'posted_at' => now(),
         ]);
 
-         $service = $this->resolvePlatformService($comment->platform);
+        $service = $this->resolvePlatformService($comment->platform);
 
         if (!$service) {
             return response()->json([
@@ -784,7 +784,7 @@ class PostController extends Controller
         }
 
         $result = $service->publishComment(['body' => $request->input('content')], $comment);
-
+        dd($service, $result);
         if (!($result['success'] ?? false)) {
             return response()->json([
                 'success' => false,
