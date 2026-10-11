@@ -774,9 +774,27 @@ class PostController extends Controller
             'posted_at' => now(),
         ]);
 
+         $service = $this->resolvePlatformService($comment->platform);
+
+        if (!$service) {
+            return response()->json([
+                'success' => false,
+                'message' => "Unsupported platform: {$comment->platform}",
+            ], 422);
+        }
+
+        $result = $service->publishComment(['body' => $request->input('content')], $comment);
+
+        if (!($result['success'] ?? false)) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'] ?? 'Failed to publish reply.',
+            ], 422);
+        }
+
         return response()->json([
             'success' => true,
-            'comment' => $this->formatCommentNode($comment),
+            'reply' => $this->formatCommentNode($result['data']),
         ]);
     }
 
