@@ -794,7 +794,7 @@ class PostController extends Controller
 
         return response()->json([
             'success' => true,
-            'reply' => $this->formatCommentNode($result['data']),
+            'message' => $result['message'] ?? 'success.',
         ]);
     }
 
