@@ -663,7 +663,7 @@ class XPostService
 /**
      * Publish a comment/reply to X (Twitter)
      */
-    public function publishComment($data, $comment)
+    public function publishComment($data, $comment, $type)
     {
         $this->ensureValidToken($comment->post);
         

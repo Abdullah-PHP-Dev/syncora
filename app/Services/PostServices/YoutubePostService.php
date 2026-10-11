@@ -986,7 +986,7 @@ class YoutubePostService
     /**
      * Publish a comment reply to YouTube
      */
-    public function publishComment($comment, $data)
+    public function publishComment($comment, $data, $type)
     {
         $account = $comment->socialAccount;
 

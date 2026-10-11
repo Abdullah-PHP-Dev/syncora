@@ -843,11 +843,13 @@ protected function publishPostOnMeta($post, $account)
         ];
     }
 
-    public function publishComment($data, $comment)
+    public function publishComment($data, $comment, $type)
     {   
-        dd($data);
         $this->ensureValidToken($comment->post);
-        $endpoint =  $this->baseUrl . $comment->comment_id . "/comments";
+        
+        $id = ($type === 'reply') ? $comment->comment_id : $comment->post->post_id;
+
+        $endpoint = $this->baseUrl . $id . "/comments";
 
         $payload = [
             "message" => $data['body'] . ' --. '

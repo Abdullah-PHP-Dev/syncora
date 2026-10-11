@@ -729,7 +729,7 @@ class PostController extends Controller
             ], 422);
         }
 
-        $result = $service->publishComment(['body' => $request->input('content')], $comment);
+        $result = $service->publishComment(['body' => $request->input('content')], $comment, 'reply');
 
         if (!($result['success'] ?? false)) {
             return response()->json([
@@ -759,31 +759,31 @@ class PostController extends Controller
             abort(403);
         }
 
-        $comment = PostComment::create([
-            'platform' => $post->platform,
-            'comment_id' => 'seed_' . Str::random(12),
-            'parent_comment_id' => null,
-            'social_account_id' => $post->social_account_id,
-            'post_id' => $post->id,
-            'user_id' => Auth::id(),
-            'user_name' => Auth::user()->name ?? 'Support',
-            'content' => $request->input('content'),
-            'is_reply' => false,
-            'sender_type' => 'support',
-            'status' => 'approved',
-            'posted_at' => now(),
-        ]);
+        // $comment = PostComment::create([
+        //     'platform' => $post->platform,
+        //     'comment_id' => 'seed_' . Str::random(12),
+        //     'parent_comment_id' => null,
+        //     'social_account_id' => $post->social_account_id,
+        //     'post_id' => $post->id,
+        //     'user_id' => Auth::id(),
+        //     'user_name' => Auth::user()->name ?? 'Support',
+        //     'content' => $request->input('content'),
+        //     'is_reply' => false,
+        //     'sender_type' => 'support',
+        //     'status' => 'approved',
+        //     'posted_at' => now(),
+        // ]);
 
-        $service = $this->resolvePlatformService($comment->platform);
+        $service = $this->resolvePlatformService($post->platform);
 
         if (!$service) {
             return response()->json([
                 'success' => false,
-                'message' => "Unsupported platform: {$comment->platform}",
+                'message' => "Unsupported platform: {$post->platform}",
             ], 422);
         }
 
-        $result = $service->publishComment(['body' => $request->input('content')], $comment);
+        $result = $service->publishComment(['body' => $request->input('content')], $post, 'comment');
 
         if (!($result['success'] ?? false)) {
             return response()->json([

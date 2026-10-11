@@ -116,31 +116,31 @@ class PostCommentController extends Controller
                 switch ($comment->platform) {
 
                     case 'facebook':
-                        $response = $this->metaService->publishComment($validated, $comment);
+                        $response = $this->metaService->publishComment($validated, $comment, 'comment');
                         break;
 
                     case 'instagram':
-                        $response = $this->instagramService->publishComment($validated, $comment);
+                        $response = $this->instagramService->publishComment($validated, $comment, 'comment');
                         break;
 
                     case 'google':
-                        $response = $this->googleService->publishComment($validated, $comment);
+                        $response = $this->googleService->publishComment($validated, $comment, 'comment');
                         break;
 
                     case 'youtube':
-                        $response = $this->youtubeService->publishComment($validated, $comment);
+                        $response = $this->youtubeService->publishComment($validated, $comment, 'comment');
                         break;
 
                     case 'x':
-                        $response = $this->xService->publishComment($validated, $comment);
+                        $response = $this->xService->publishComment($validated, $comment, 'comment');
                         break;
 
                     case 'linkedin':
-                        $response = $this->linkedinService->publishComment($validated, $comment);
+                        $response = $this->linkedinService->publishComment($validated, $comment, 'comment');
                         break;
 
                     case 'tiktok':
-                        $response = $this->tiktokService->publishComment($validated, $comment);
+                        $response = $this->tiktokService->publishComment($validated, $comment, 'comment');
                         break;
 
                     default:
