@@ -784,7 +784,7 @@ class PostController extends Controller
         }
 
         $result = $service->publishComment(['body' => $request->input('content')], $comment);
-        dd($service, $result);
+
         if (!($result['success'] ?? false)) {
             return response()->json([
                 'success' => false,

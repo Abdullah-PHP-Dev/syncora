@@ -859,7 +859,11 @@ protected function publishPostOnMeta($post, $account)
             $payload,
             'form'
         );
-
+        dd($response,  'post',
+            $endpoint . "?access_token={$comment->socialAccount->access_token}",
+            [],
+            $payload,
+            'form');
         if (!$response->successful()) {
             return $this->errorResponse($comment, $response);
         }
