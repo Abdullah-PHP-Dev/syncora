@@ -60,7 +60,7 @@ class PublishPosts extends Command
         // Only posts waiting to go out. "!= completed" also picked up failed
         // posts (retried every run, forever) and drafts (never meant to post).
         Post::with(['socialAccount', 'media'])
-            ->where('status', 'pending')
+            ->where('status', '!=', 'completed')
             ->orderBy('id')
             ->chunkById(50, function ($posts) {
            
