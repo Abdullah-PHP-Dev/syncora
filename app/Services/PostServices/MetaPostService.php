@@ -846,8 +846,8 @@ protected function publishPostOnMeta($post, $account)
     public function publishComment($data, $comment)
     {
         $this->ensureValidToken($comment->post);
-        $endpoint =  $this->baseUrl . $comment->comment_id . "/comments";
-
+       // $endpoint =  $this->baseUrl . $comment->comment_id . "/comments";
+        $endpoint =  $this->baseUrl . '1265919733267400_122121129213435843/comments';
         $payload = [
             "message" => $data['body'] . ' --. '
         ];
