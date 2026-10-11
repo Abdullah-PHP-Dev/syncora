@@ -843,12 +843,16 @@ protected function publishPostOnMeta($post, $account)
         ];
     }
 
-    public function publishComment($data, $comment, $type)
+    public function publishComment($data, $toReply, $type)
     {   
-        $this->ensureValidToken($comment->post);
+        // Determine the target model for token verification (Post or PostComment's related Post)   
+        $targetModel = ($type === 'reply') ? $toReply->post : $toReply;
         
-        $id = ($type === 'reply') ? $comment->comment_id : $comment->post->post_id;
+        // Ensure valid token (assuming socialAccount is a relationship on both Post and PostComment)
+        $this->ensureValidToken($targetModel);
 
+        // Get the platform-specific ID (comment_id for replies, post_id for top-level comments)
+        $id = ($type === 'reply') ? $toReply->comment_id : $toReply->post_id; // If post_id is stored directly on $toReply when $type is 'comment'
         $endpoint = $this->baseUrl . $id . "/comments";
 
         $payload = [
@@ -857,17 +861,17 @@ protected function publishPostOnMeta($post, $account)
 
         $response = $this->api->request(
             'post',
-            $endpoint . "?access_token={$comment->socialAccount->access_token}",
+            $endpoint . "?access_token={$toReply->socialAccount->access_token}",
             [],
             $payload,
             'form'
         );
         
         if (!$response->successful()) {
-            return $this->errorResponse($comment, $response);
+            return $this->errorResponse($toReply, $response);
         }
 
-        return $this->storeComment($comment, $data, $response->json()['id']);
+        return $this->storeComment($toReply, $data, $response->json()['id']);
     }
 
     private function storeComment($comment, $data, $commentId)

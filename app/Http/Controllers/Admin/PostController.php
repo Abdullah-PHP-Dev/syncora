@@ -751,7 +751,6 @@ class PostController extends Controller
      */
     public function storeComment(Request $request, Post $post)
     {
-        dd($post->socialAccount);
         $request->validate([
             'content' => 'required|string|max:2000',
         ]);
