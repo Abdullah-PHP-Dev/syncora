@@ -44,7 +44,6 @@ class NotificationController extends Controller
             ->take(10)
             ->get()
             ->map(function (PostComment $comment) {
-                dd($comment);
                 return [
                     'type' => 'comment',
                     'id' => $comment->id,
