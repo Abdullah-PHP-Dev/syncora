@@ -156,7 +156,7 @@ class InstagramMessengerService
 
     public function subscribeToWebhooks(MessageChannel $channel): void
     {
-        $result = $this->graphApiCall('POST', $channel->external_id . '/subscribed_apps', ['subscribed_fields' => 'messages'], $channel->socialAccount->access_token);
+        $result = $this->graphApiCall('POST', $channel->external_id . '/subscribed_apps', ['subscribed_fields' => \App\Services\PostServices\InstagramPostService::ACCOUNT_WEBHOOK_FIELDS], $channel->socialAccount->access_token);
 
         if ($result['success'] && ($result['data']['success'] ?? false)) {
             $channel->update(['webhook_subscribed' => true]);

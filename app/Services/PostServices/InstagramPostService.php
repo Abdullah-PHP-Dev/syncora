@@ -15,6 +15,14 @@ use App\Models\PostComment;
 
 class InstagramPostService
 {
+    /**
+     * Everything this app handles from an Instagram account, in ONE list:
+     * /subscribed_apps replaces the account's field list, so the posts
+     * side (comments, mentions) and the DM side (messages) must subscribe
+     * together - see MetaPostService::PAGE_WEBHOOK_FIELDS for the Page.
+     */
+    public const ACCOUNT_WEBHOOK_FIELDS = 'comments,mentions,messages';
+
     protected $api, $baseUrl, $post, $media;
 
     public function __construct(ApiPostService $api, Post $post, PostMedia $media)
@@ -766,7 +774,7 @@ class InstagramPostService
                 'post',
                 $this->resolveBaseUrl($account) . $account->platform_account_id . '/subscribed_apps',
                 [],
-                ['subscribed_fields' => 'comments,mentions', 'access_token' => $account->access_token]
+                ['subscribed_fields' => self::ACCOUNT_WEBHOOK_FIELDS, 'access_token' => $account->access_token]
                     + $this->metaAuthExtra($account, $account->access_token)
             );
 
