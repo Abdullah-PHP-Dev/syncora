@@ -36,6 +36,10 @@ class FacebookPublishCommentTest extends TestCase
             $t->string('status')->nullable();
             $t->text('error_message')->nullable();
             $t->string('visibility')->nullable();
+            $t->integer('likes')->default(0);
+            $t->integer('shares')->default(0);
+            $t->integer('comments')->default(0);
+            $t->json('platform_metadata')->nullable();
             $t->timestamps();
         });
         Schema::create('post_comments', function ($t) {
@@ -122,5 +126,37 @@ class FacebookPublishCommentTest extends TestCase
         $this->assertSame(422, $response->getStatusCode());
         $this->assertStringContainsString("isn't on Facebook yet", $response->getData(true)['message']);
         Http::assertNothingSent();
+    }
+
+    public function test_engagement_sync_reads_shares_likes_and_comments(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['shares' => ['count' => 4], 'reactions' => ['summary' => ['total_count' => 12]], 'comments' => ['summary' => ['total_count' => 3]]])]);
+
+        $this->assertTrue(app(\App\Services\PostServices\MetaPostService::class)->syncEngagement($this->post));
+
+        $post = $this->post->fresh();
+        $this->assertSame([12, 4, 3], [(int) $post->likes, (int) $post->shares, (int) $post->comments]);
+        $this->assertArrayHasKey('engagement_synced_at', $post->platform_metadata);
+        Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), '/PAGE1_555?') && str_contains(urldecode($r->url()), 'shares,reactions.summary(total_count)'));
+    }
+
+    public function test_video_posts_have_no_share_count_to_read(): void
+    {
+        $this->post->forceFill(['post_id' => '777', 'shares' => 2])->save();
+        Http::fake(['graph.facebook.com/*' => Http::response(['likes' => ['summary' => ['total_count' => 5]], 'comments' => ['summary' => ['total_count' => 1]]])]);
+
+        app(\App\Services\PostServices\MetaPostService::class)->syncEngagement($this->post);
+
+        $post = $this->post->fresh();
+        $this->assertSame([5, 2, 1], [(int) $post->likes, (int) $post->shares, (int) $post->comments]);
+    }
+
+    public function test_a_failed_sync_keeps_the_counts(): void
+    {
+        $this->post->forceFill(['likes' => 9, 'shares' => 1])->save();
+        Http::fake(['graph.facebook.com/*' => Http::response(['error' => ['message' => 'Unsupported get request']], 400)]);
+
+        $this->assertFalse(app(\App\Services\PostServices\MetaPostService::class)->syncEngagement($this->post));
+        $this->assertSame([9, 1], [(int) $this->post->fresh()->likes, (int) $this->post->fresh()->shares]);
     }
 }

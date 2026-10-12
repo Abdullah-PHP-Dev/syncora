@@ -112,8 +112,17 @@
               <!-- Media / carousel -->
               <div v-if="mediaList.length" class="mk-media" :class="{'is-rounded': activeKey === 'x'}">
                 <template v-for="(m, i) in mediaList" :key="i">
-                  <img v-if="i === mediaIndex && m.type === 'image'" :src="m.url" alt="">
-                  <video v-else-if="i === mediaIndex" :src="m.url" :poster="m.poster || undefined" controls playsinline></video>
+                  <!-- Only real videos get a player: a GIF (or any other image type) is an <img>. -->
+                  <img v-if="i === mediaIndex && m.type !== 'video'" :src="m.url" alt="">
+                  <template v-else-if="i === mediaIndex">
+                    <video v-if="!m.failed" :src="m.url" :poster="m.poster || undefined" controls playsinline preload="metadata" @error="$set(m, 'failed', true)"></video>
+                    <div v-else class="mk-video-failed">
+                      <i class="fas fa-video-slash"></i>
+                      <strong>This video can't be played here</strong>
+                      <span>The file may be missing or in a format your browser doesn't support.</span>
+                      <a :href="m.url" target="_blank" rel="noopener">Open the video file</a>
+                    </div>
+                  </template>
                 </template>
                 <template v-if="mediaList.length > 1">
                   <button type="button" class="mk-nav mk-prev" :disabled="mediaIndex === 0" @click="mediaIndex--" aria-label="Previous"><i class="fas fa-chevron-left"></i></button>
@@ -1175,6 +1184,14 @@ export default {
 .mk-media img{ width:auto; }
 .mk-media video{ width:100%; }
 .mk-media.is-rounded img, .mk-media.is-rounded video{ border-radius:16px; }
+.mk-video-failed{
+  width:100%; min-height:220px; border-radius:14px; border:1px dashed #D5D9E3; background:#F7F8FB;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+  padding:24px; text-align:center; color:#5B6475; font-size:13px;
+}
+.mk-video-failed i{ font-size:26px; color:#98A2B3; }
+.mk-video-failed strong{ color:#1B2130; font-size:14px; }
+.mk-video-failed a{ color:#4F46E5; font-weight:600; }
 
 .mk-nav{
   position:absolute; top:50%; transform:translateY(-50%);

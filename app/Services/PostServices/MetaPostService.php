@@ -614,6 +614,51 @@ protected function publishPostOnMeta($post, $account)
     }
 
     /**
+     * Current likes (all reactions), shares and comments for a published
+     * post, straight from Facebook. Shares have to be read this way:
+     * Facebook sends no webhook when someone shares a Page's post to
+     * their own timeline (only when the Page itself shares). Feed posts
+     * are "{page}_{post}" ids; video posts are stored as the bare video
+     * id, which has no share count.
+     */
+    public function syncEngagement(Post $post): bool
+    {
+        $account = $post->socialAccount;
+        if (! $post->post_id || ! $account?->access_token) {
+            return false;
+        }
+
+        $isFeedPost = str_contains((string) $post->post_id, '_');
+        $fields = $isFeedPost
+            ? 'shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)'
+            : 'likes.summary(total_count).limit(0),comments.summary(total_count).limit(0)';
+
+        try {
+            $response = $this->api->request('get', $this->baseUrl . $post->post_id, [], ['fields' => $fields, 'access_token' => $account->access_token]);
+        } catch (\Throwable $e) {
+            Log::info('Facebook engagement sync threw.', ['post_id' => $post->id, 'error' => $e->getMessage()]);
+
+            return false;
+        }
+
+        if (! $response->successful()) {
+            Log::info('Facebook engagement sync failed.', ['post_id' => $post->id, 'error' => $response->json('error.message') ?? $response->body()]);
+
+            return false;
+        }
+
+        $post->forceFill(array_filter([
+            'likes'    => $response->json($isFeedPost ? 'reactions.summary.total_count' : 'likes.summary.total_count'),
+            'shares'   => $isFeedPost ? (int) ($response->json('shares.count') ?? 0) : null,
+            'comments' => $response->json('comments.summary.total_count'),
+        ], fn ($v) => $v !== null) + [
+            'platform_metadata' => array_merge($post->platform_metadata ?? [], ['engagement_synced_at' => now()->toIso8601String()]),
+        ])->save();
+
+        return true;
+    }
+
+    /**
      * What Facebook has this Page subscribed to for this app (GET
      * /{page}/subscribed_apps): ['fields' => [...]] when subscribed,
      * ['fields' => []] when the app isn't subscribed at all, or

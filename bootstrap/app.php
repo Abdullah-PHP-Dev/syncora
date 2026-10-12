@@ -79,6 +79,10 @@ return tap(
             // the Hub's warnings and the notification bell - see
             // CheckConnectionStatus.
             $schedule->command('connections:check-status')->hourly()->withoutOverlapping();
+
+            // Facebook sends no webhook for shares to people's own
+            // timelines - re-read recent posts' counts (SyncPostEngagement).
+            $schedule->command('posts:sync-engagement')->everyThirtyMinutes()->withoutOverlapping();
         })
         ->withExceptions(function (Exceptions $exceptions) {
             //

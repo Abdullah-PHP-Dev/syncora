@@ -138,9 +138,9 @@ class ConnectionStatusJobTest extends TestCase
 
     public function test_is_scheduled_hourly(): void
     {
-        $this->artisan('schedule:list')
-            ->expectsOutputToContain('0   * * * *  php artisan connections:check-status')
-            ->assertSuccessful();
+        // Column widths depend on the other scheduled commands - match the expression, not the spacing.
+        \Illuminate\Support\Facades\Artisan::call('schedule:list');
+        $this->assertMatchesRegularExpression('/^\s*0\s+\*\s+\*\s+\*\s+\*\s+php artisan connections:check-status/m', \Illuminate\Support\Facades\Artisan::output());
     }
 
     public function test_needs_attention_excludes_user_disconnects(): void
