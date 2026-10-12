@@ -738,7 +738,7 @@ protected function publishPostOnMeta($post, $account)
                 'get',
                 $this->baseUrl . $post->post_id . '/comments',
                 [],
-                ['fields' => 'id,message,from,created_time,like_count', 'limit' => 25, 'access_token' => $account->access_token]
+                ['fields' => 'id,message,from{id,name,picture.type(large)},created_time,like_count', 'limit' => 25, 'access_token' => $account->access_token]
             );
 
             if (!$response->successful()) {
@@ -755,9 +755,10 @@ protected function publishPostOnMeta($post, $account)
                         'platform'        => 'facebook',
                         'content'         => $comment['message'] ?? '',
                         'user_name'       => $comment['from']['name'] ?? 'Facebook user',
+                        'user_avatar_url' => $comment['from']['picture']['data']['url'] ?? null,
                         'likes'           => $comment['like_count'] ?? 0,
                         'posted_at'       => $comment['created_time'] ?? now(),
-                        'sender_type'     => 'customer',
+                        'sender_type'     => (string) ($comment['from']['id'] ?? '') === (string) $account->platform_account_id ? 'support' : 'customer',
                         'is_reply'        => false,
                         'social_account_id' => $account->id,
                     ]
@@ -1106,20 +1107,64 @@ protected function publishPostOnMeta($post, $account)
                 // The account owner even when the post wasn't made through
                 // the app, so notifications and counts include it.
                 'user_id'           => $post?->user_id ?? $socialAccount->user_id,
-                'user_name'         => $value['from']['username'] ?? $value['from']['name'] ?? 'Anonymous',
                 'post_id'           => $post?->id,
                 'social_account_id' => $socialAccount->id,
                 'parent_comment_id' => $parentComment?->id,
                 'is_reply'          => (bool) $parentComment,
                 'status'            => 'approved',
-            ] + (isset($value['created_time']) ? ['posted_at' => \Carbon\Carbon::createFromTimestamp((int) $value['created_time'])] : [])
+            ]
+            // Only when Facebook sent a name - a retry without one must not
+            // wipe a name we already have (eg. from commenterProfile()).
+            + (($fromName = $value['from']['username'] ?? $value['from']['name'] ?? null) ? ['user_name' => $fromName] : [])
+            + (isset($value['created_time']) ? ['posted_at' => \Carbon\Carbon::createFromTimestamp((int) $value['created_time'])] : [])
         );
 
         if ($comment->wasRecentlyCreated) {
-            if (!$comment->posted_at) {
-                $comment->update(['posted_at' => now()]);
-            }
+            $comment->update(array_filter([
+                'posted_at' => $comment->posted_at ? null : now(),
+                'user_name' => $comment->user_name ? null : 'Anonymous',
+            ]));
             $this->bumpPostCounter($post, 'comments', 1);
+        }
+
+        // The webhook only carries the commenter's id and name - look the
+        // picture up once (like Messenger's fetchUserProfile()), not on
+        // every edit or Meta retry.
+        if (!$isInstagram && !$comment->user_avatar_url) {
+            $profile = $isOwn ? ['avatar' => $socialAccount->avatar_url] : $this->commenterProfile($commentId, $socialAccount);
+            $comment->update(array_filter([
+                'user_avatar_url' => $profile['avatar'] ?? null,
+                'user_name'       => $comment->user_name === 'Anonymous' ? ($profile['name'] ?? null) : null,
+            ]));
+        }
+    }
+
+    /**
+     * Who wrote a Facebook comment: ['name' => ..., 'avatar' => ...] from
+     * GET /{comment-id}?fields=from{name,picture} with the Page token.
+     * Best-effort - [] when Facebook doesn't share it (eg. the commenter's
+     * privacy settings, or pages_read_user_content not granted), and the
+     * preview falls back to initials.
+     */
+    public function commenterProfile(string $commentId, SocialAccount $account): array
+    {
+        try {
+            $response = $this->api->request('get', $this->baseUrl . $commentId, [], [
+                'fields' => 'from{id,name,picture.type(large)}',
+                'access_token' => $account->access_token,
+            ]);
+            if (!$response->successful()) {
+                return [];
+            }
+
+            return array_filter([
+                'name'   => $response->json('from.name'),
+                'avatar' => $response->json('from.picture.data.url'),
+            ]);
+        } catch (\Throwable $e) {
+            Log::info('Facebook commenter profile lookup failed.', ['comment_id' => $commentId, 'error' => $e->getMessage()]);
+
+            return [];
         }
     }
 

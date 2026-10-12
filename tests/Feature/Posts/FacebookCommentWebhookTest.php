@@ -46,6 +46,7 @@ class FacebookCommentWebhookTest extends TestCase
             $t->string('sender_type')->nullable();
             $t->boolean('is_reply')->default(false);
             $t->string('user_name')->nullable();
+            $t->text('user_avatar_url')->nullable();
             $t->text('content')->nullable();
             $t->string('status')->nullable();
             $t->integer('likes')->default(0);
@@ -198,5 +199,32 @@ class FacebookCommentWebhookTest extends TestCase
         });
         $this->assertCount(2, $sent); // the read receipt and our own echo are skipped
         $this->assertSame(['Hello', 'Track my order'], $sent->map(fn ($job) => (new \ReflectionProperty($job, 'body'))->getValue($job))->all());
+    }
+
+    public function test_commenter_avatars_are_looked_up_once(): void
+    {
+        Settings::set('posts.facebook.base_url', 'https://graph.facebook.com/v25.0/');
+        DB::table('social_accounts')->where('id', $this->accountId)->update(['avatar_url' => 'https://cdn.example/page.jpg']);
+        \Illuminate\Support\Facades\Http::fake(['graph.facebook.com/v25.0/C1*' => \Illuminate\Support\Facades\Http::response(['from' => ['id' => 'U1', 'name' => 'Sara Ali', 'picture' => ['data' => ['url' => 'https://cdn.example/sara.jpg']]]])]);
+
+        $this->deliver(['verb' => 'add', 'comment_id' => 'C1', 'post_id' => 'PAGE1_555', 'message' => 'Hi', 'from' => ['id' => 'U1']]); // no name sent
+        $this->deliver(['verb' => 'add', 'comment_id' => 'C1', 'post_id' => 'PAGE1_555', 'message' => 'Hi', 'from' => ['id' => 'U1']]); // Meta retry
+        $this->deliver(['verb' => 'edited', 'comment_id' => 'C1', 'post_id' => 'PAGE1_555', 'message' => 'Hi!', 'from' => ['id' => 'U1']]);
+        $this->deliver(['verb' => 'add', 'comment_id' => 'C2', 'post_id' => 'PAGE1_555', 'parent_id' => 'C1', 'message' => 'Hello', 'from' => ['id' => 'PAGE1', 'name' => 'Page']]);
+
+        $this->assertSame(['https://cdn.example/sara.jpg', 'Sara Ali'], [$this->comment('C1')->user_avatar_url, $this->comment('C1')->user_name]);
+        $this->assertSame('https://cdn.example/page.jpg', $this->comment('C2')->user_avatar_url); // the Page's own reply: its own picture, no lookup
+        \Illuminate\Support\Facades\Http::assertSentCount(1);
+        \Illuminate\Support\Facades\Http::assertSent(fn ($r) => str_contains(urldecode($r->url()), 'fields=from{id,name,picture.type(large)}'));
+    }
+
+    public function test_a_private_profile_falls_back_to_initials(): void
+    {
+        Settings::set('posts.facebook.base_url', 'https://graph.facebook.com/v25.0/');
+        \Illuminate\Support\Facades\Http::fake(['*' => \Illuminate\Support\Facades\Http::response(['error' => ['message' => 'Unsupported get request']], 400)]);
+
+        $this->deliver(['verb' => 'add', 'comment_id' => 'C1', 'post_id' => 'PAGE1_555', 'message' => 'Hi', 'from' => ['id' => 'U1', 'name' => 'Sara']])->assertOk();
+
+        $this->assertSame(['Sara', null], [$this->comment('C1')->user_name, $this->comment('C1')->user_avatar_url]);
     }
 }
