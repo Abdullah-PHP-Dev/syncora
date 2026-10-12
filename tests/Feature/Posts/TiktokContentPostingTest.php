@@ -520,4 +520,33 @@ class TiktokContentPostingTest extends TestCase
         $post->refresh();
         $this->assertSame(['99', 'v_pub_url~new'], [$post->post_id, $post->platform_metadata['publish_id']]);
     }
+
+    public function test_republish_resends_a_post_tiktok_failed(): void
+    {
+        $post = $this->makePost($this->account(), [['video', 'https://cdn.socialeaz.com/v.mp4']], ['status' => 'failed', 'post_id' => 'v_pub_url~old', 'platform_metadata' => ['publish_id' => 'v_pub_url~old']]);
+        Http::fake([
+            self::API . '/post/publish/status/fetch/' => Http::sequence()
+                ->push(['data' => ['status' => 'FAILED', 'fail_reason' => 'internal'], 'error' => ['code' => 'ok']])
+                ->push(['data' => ['status' => 'PUBLISH_COMPLETE', 'publicaly_available_post_id' => [77]], 'error' => ['code' => 'ok']]),
+            self::API . '/post/publish/creator_info/query/' => Http::response(['data' => ['privacy_level_options' => ['SELF_ONLY', 'PUBLIC_TO_EVERYONE']], 'error' => ['code' => 'ok']]),
+            self::API . '/post/publish/video/init/' => Http::response(['data' => ['publish_id' => 'v_pub_url~new', 'upload_url' => 'https://open-upload.tiktokapis.com/video/?upload_id=4'], 'error' => ['code' => 'ok']]),
+            'open-upload.tiktokapis.com/*' => Http::response('', 201),
+            'cdn.socialeaz.com/*' => Http::response('video-bytes'),
+        ]);
+
+        $this->artisan('tiktok:post-status', ['post' => $post->id, '--republish' => true])->assertSuccessful();
+
+        $post->refresh();
+        $this->assertSame(['completed', '77', 'v_pub_url~new'], [$post->status, $post->post_id, $post->platform_metadata['publish_id']]);
+    }
+
+    public function test_status_check_alone_never_resends(): void
+    {
+        $post = $this->makePost($this->account(), [['video', 'https://cdn.socialeaz.com/v.mp4']], ['status' => 'completed', 'post_id' => 'v_pub_url~old', 'platform_metadata' => ['publish_id' => 'v_pub_url~old']]);
+        Http::fake([self::API . '/post/publish/status/fetch/' => Http::response(['data' => ['status' => 'FAILED', 'fail_reason' => 'internal'], 'error' => ['code' => 'ok']])]);
+
+        $this->artisan('tiktok:post-status', ['post' => $post->id])->expectsOutputToContain('--republish')->assertSuccessful();
+
+        Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), '/video/init/'));
+    }
 }

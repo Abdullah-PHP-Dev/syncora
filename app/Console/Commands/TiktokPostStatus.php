@@ -58,6 +58,15 @@ class TiktokPostStatus extends Command
         if ($update) {
             $post->update($update);
             $this->info('Post updated: ' . ($update['error_message'] ?? $update['post_url']));
+        }
+
+        // Finished on TikTok (public or private) - nothing to re-send.
+        if (! empty($result['video_id']) || ($result['status'] ?? null) === 'PUBLISH_COMPLETE') {
+            return self::SUCCESS;
+        }
+
+        if ($update && ! $this->option('republish')) {
+            $this->warn('Re-send it with --republish.');
 
             return self::SUCCESS;
         }
