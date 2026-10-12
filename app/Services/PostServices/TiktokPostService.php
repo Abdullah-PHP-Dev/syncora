@@ -597,16 +597,20 @@ class TiktokPostService
             ->acceptJson()
             ->post("{$this->baseUrl}/post/publish/status/fetch/", ['publish_id' => $publishId]);
 
-        if (!$response->successful()) {
-            return ['status' => null, 'video_id' => null];
+        if (!$response->successful() || !$this->isOk($response)) {
+            // Kept so a post that never resolves says why (expired token,
+            // unknown publish_id, ...) instead of a generic timeout.
+            return ['status' => null, 'video_id' => null, 'error' => $this->tiktokError($response, 'status check failed (HTTP ' . $response->status() . ')')];
         }
 
         $data = $response->json()['data'] ?? [];
         $status = $data['status'] ?? null;
 
         return [
-            'status'   => $status,
-            'video_id' => $status === 'PUBLISH_COMPLETE' ? ($data['publicaly_available_post_id'][0] ?? null) : null,
+            'status'      => $status,
+            'video_id'    => $status === 'PUBLISH_COMPLETE' ? ($data['publicaly_available_post_id'][0] ?? null) : null,
+            'fail_reason' => $data['fail_reason'] ?? null,
+            'downloaded'  => $data['downloaded_bytes'] ?? null,
         ];
     }
 

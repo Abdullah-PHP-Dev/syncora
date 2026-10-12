@@ -435,4 +435,49 @@ class TiktokContentPostingTest extends TestCase
 
         $this->artisan('posts:sync-engagement')->expectsOutputToContain('Synced 1 of 1 post(s).')->assertSuccessful();
     }
+
+    // ---- checking a stuck post -------------------------------------------
+
+    public function test_post_status_command_marks_a_private_post_published(): void
+    {
+        $post = $this->makePost($this->account(), [['video', 'https://cdn.socialeaz.com/v.mp4']], ['status' => 'completed', 'post_id' => 'v_pub_url~9', 'platform_metadata' => ['publish_id' => 'v_pub_url~9']]);
+        Http::fake([self::API . '/post/publish/status/fetch/' => Http::response(['data' => ['status' => 'PUBLISH_COMPLETE'], 'error' => ['code' => 'ok']])]);
+
+        $this->artisan('tiktok:post-status', ['post' => $post->id])->assertSuccessful();
+
+        $this->assertStringContainsString('private (only you can see it)', $post->fresh()->error_message);
+    }
+
+    public function test_post_status_command_shows_tiktoks_fail_reason(): void
+    {
+        $post = $this->makePost($this->account(), [['video', 'https://cdn.socialeaz.com/v.mp4']], ['status' => 'completed', 'post_id' => 'v_pub_url~9', 'platform_metadata' => ['publish_id' => 'v_pub_url~9']]);
+        Http::fake([self::API . '/post/publish/status/fetch/' => Http::response(['data' => ['status' => 'FAILED', 'fail_reason' => 'video_pull_failed'], 'error' => ['code' => 'ok']])]);
+
+        $this->artisan('tiktok:post-status', ['post' => $post->id])->expectsOutputToContain('video_pull_failed')->assertSuccessful();
+
+        $this->assertSame('failed', $post->fresh()->status);
+        $this->assertStringContainsString('video_pull_failed', $post->fresh()->error_message);
+    }
+
+    public function test_background_check_gives_the_real_reason_when_it_gives_up(): void
+    {
+        $post = $this->makePost($this->account(), [['video', 'https://cdn.socialeaz.com/v.mp4']], ['status' => 'completed', 'post_id' => 'v_pub_url~9']);
+        Http::fake([self::API . '/post/publish/status/fetch/' => Http::response(['error' => ['code' => 'access_token_invalid', 'message' => 'The access token is invalid or not found in the request.']], 401)]);
+
+        (new \App\Jobs\Posts\ResolveTiktokPublishStatus($post->id, 'v_pub_url~9', 20))->handle(app(TiktokPostService::class));
+
+        $this->assertStringContainsString('access token is invalid', $post->fresh()->error_message);
+        $this->assertStringContainsString('tiktok:post-status ' . $post->id, $post->fresh()->error_message);
+    }
+
+    public function test_background_check_marks_a_failed_publish_failed(): void
+    {
+        $post = $this->makePost($this->account(), [['video', 'https://cdn.socialeaz.com/v.mp4']], ['status' => 'completed', 'post_id' => 'v_pub_url~9']);
+        Http::fake([self::API . '/post/publish/status/fetch/' => Http::response(['data' => ['status' => 'FAILED', 'fail_reason' => 'file_format_check_failed'], 'error' => ['code' => 'ok']])]);
+
+        (new \App\Jobs\Posts\ResolveTiktokPublishStatus($post->id, 'v_pub_url~9'))->handle(app(TiktokPostService::class));
+
+        $this->assertSame('failed', $post->fresh()->status);
+        $this->assertStringContainsString('file_format_check_failed', $post->fresh()->error_message);
+    }
 }

@@ -65,7 +65,10 @@ class ResolveTiktokPublishStatus implements ShouldQueue
         }
 
         if (($result['status'] ?? null) === 'FAILED') {
-            $post->update(['error_message' => 'TikTok reported the upload failed after publishing.']);
+            $post->update([
+                'status' => 'failed',
+                'error_message' => 'TikTok could not publish this post' . (!empty($result['fail_reason']) ? " ({$result['fail_reason']})" : '') . '.',
+            ]);
 
             return;
         }
@@ -84,7 +87,8 @@ class ResolveTiktokPublishStatus implements ShouldQueue
         }
 
         if ($this->attempt >= 20) {
-            $post->update(['error_message' => "Published to TikTok, but its public URL never became available after several minutes - check the account directly."]);
+            $last = $result['error'] ?? ($result['status'] ? "TikTok status: {$result['status']}" : 'no status from TikTok');
+            $post->update(['error_message' => "Sent to TikTok, but it hadn't finished after several minutes ({$last}). Run php artisan tiktok:post-status {$post->id} to check again."]);
 
             return;
         }
