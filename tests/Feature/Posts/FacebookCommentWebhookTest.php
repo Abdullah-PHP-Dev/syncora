@@ -33,6 +33,7 @@ class FacebookCommentWebhookTest extends TestCase
             $t->integer('likes')->default(0);
             $t->integer('shares')->default(0);
             $t->integer('comments')->default(0);
+            $t->json('platform_metadata')->nullable();
             $t->timestamps();
         });
         Schema::create('post_comments', function ($t) {
@@ -226,5 +227,53 @@ class FacebookCommentWebhookTest extends TestCase
         $this->deliver(['verb' => 'add', 'comment_id' => 'C1', 'post_id' => 'PAGE1_555', 'message' => 'Hi', 'from' => ['id' => 'U1', 'name' => 'Sara']])->assertOk();
 
         $this->assertSame(['Sara', null], [$this->comment('C1')->user_name, $this->comment('C1')->user_avatar_url]);
+    }
+
+    public function test_comments_on_video_posts_find_their_post(): void
+    {
+        // Published through /{page}/videos: saved with the VIDEO id, while
+        // comment webhooks carry the feed post id.
+        Settings::set('posts.facebook.base_url', 'https://graph.facebook.com/v25.0/');
+        $video = DB::table('posts')->insertGetId(['user_id' => 7, 'platform' => 'facebook', 'social_account_id' => $this->accountId, 'post_id' => '4455667788', 'status' => 'completed']);
+        \Illuminate\Support\Facades\Http::fake([
+            'graph.facebook.com/v25.0/PAGE1_9001*' => \Illuminate\Support\Facades\Http::response(['attachments' => ['data' => [['media_type' => 'video', 'target' => ['id' => '4455667788']]]], 'id' => 'PAGE1_9001']),
+            '*' => \Illuminate\Support\Facades\Http::response([]),
+        ]);
+
+        $this->deliver(['verb' => 'add', 'comment_id' => '9001_1', 'post_id' => 'PAGE1_9001', 'message' => 'Great video', 'from' => ['id' => 'U1', 'name' => 'Sara']]);
+        $this->deliver(['verb' => 'add', 'comment_id' => '9001_2', 'post_id' => 'PAGE1_9001', 'message' => 'Agreed', 'from' => ['id' => 'U2', 'name' => 'Ali']]);
+
+        $this->assertSame([$video, $video], [(int) $this->comment('9001_1')->post_id, (int) $this->comment('9001_2')->post_id]);
+        $this->assertSame('PAGE1_9001', json_decode(DB::table('posts')->where('id', $video)->value('platform_metadata'), true)['feed_post_id']);
+        // Asked Facebook once; the second comment matched the remembered id.
+        \Illuminate\Support\Facades\Http::assertSentCount(1 + 2); // + one avatar lookup per comment
+        \Illuminate\Support\Facades\Http::assertSent(fn ($r) => str_contains(urldecode($r->url()), 'fields=attachments{target{id},media_type}'));
+    }
+
+    public function test_a_page_connected_twice_still_finds_the_post(): void
+    {
+        // The same Page connected by a second user (another team member) -
+        // the webhook resolves the first row, but the post belongs to the second.
+        DB::table('users')->insert(['id' => 8, 'name' => 'Teammate', 'email' => 't@example.com', 'password' => 'x', 'created_at' => now(), 'updated_at' => now()]);
+        $second = DB::table('social_accounts')->insertGetId(['user_id' => 8, 'platform' => 'facebook', 'platform_account_id' => 'PAGE1', 'name' => 'Page', 'access_token' => 't', 'is_token_valid' => true, 'created_at' => now(), 'updated_at' => now()]);
+        $post = DB::table('posts')->insertGetId(['user_id' => 8, 'platform' => 'facebook', 'social_account_id' => $second, 'post_id' => 'PAGE1_321', 'status' => 'completed']);
+
+        $this->deliver(['verb' => 'add', 'comment_id' => '321_1', 'post_id' => 'PAGE1_321', 'message' => 'Hi', 'from' => ['id' => 'U1', 'name' => 'Sara']]);
+
+        $this->assertSame($post, (int) $this->comment('321_1')->post_id);
+    }
+
+    public function test_relink_command_links_existing_comments(): void
+    {
+        Settings::set('posts.facebook.base_url', 'https://graph.facebook.com/v25.0/');
+        $video = DB::table('posts')->insertGetId(['user_id' => 7, 'platform' => 'facebook', 'social_account_id' => $this->accountId, 'post_id' => '4455667788', 'status' => 'completed']);
+        $parent = DB::table('post_comments')->insertGetId(['platform' => 'facebook', 'comment_id' => '9001_1', 'social_account_id' => $this->accountId, 'content' => 'Hi', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('post_comments')->insert(['platform' => 'facebook', 'comment_id' => '9001_5', 'parent_comment_id' => $parent, 'is_reply' => true, 'social_account_id' => $this->accountId, 'content' => 'Reply', 'created_at' => now(), 'updated_at' => now()]);
+        \Illuminate\Support\Facades\Http::fake(['graph.facebook.com/v25.0/PAGE1_9001*' => \Illuminate\Support\Facades\Http::response(['attachments' => ['data' => [['target' => ['id' => '4455667788']]]]])]);
+
+        $this->artisan('comments:facebook-relink')->assertSuccessful();
+
+        $this->assertSame(0, DB::table('post_comments')->whereNull('post_id')->count());
+        $this->assertSame([$video], DB::table('post_comments')->distinct()->pluck('post_id')->map(fn ($id) => (int) $id)->all());
     }
 }

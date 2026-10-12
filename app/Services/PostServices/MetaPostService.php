@@ -1167,12 +1167,10 @@ protected function publishPostOnMeta($post, $account)
 
         $nativePostId = $isInstagram ? ($value['media']['id'] ?? null) : ($value['post_id'] ?? null);
 
-        // Feed posts are stored as "{pageId}_{postId}" (what the webhook
-        // sends); video posts as the bare video id - try both.
         $post = $nativePostId
-            ? Post::where('social_account_id', $socialAccount->id)
-                ->whereIn('post_id', array_unique([$nativePostId, \Illuminate\Support\Str::afterLast($nativePostId, '_')]))
-                ->first()
+            ? ($isInstagram
+                ? Post::where('social_account_id', $socialAccount->id)->where('post_id', $nativePostId)->first()
+                : $this->findWebhookPost($socialAccount, $nativePostId))
             : null;
 
         // The Page (or IG account) replying from Facebook/Instagram itself
@@ -1288,13 +1286,60 @@ protected function publishPostOnMeta($post, $account)
         }
 
         $nativePostId = $value['post_id'] ?? null;
-        $post = $nativePostId
-            ? Post::where('social_account_id', $socialAccount->id)
-                ->whereIn('post_id', array_unique([$nativePostId, \Illuminate\Support\Str::afterLast($nativePostId, '_')]))
-                ->first()
-            : null;
+        $post = $nativePostId ? $this->findWebhookPost($socialAccount, $nativePostId) : null;
 
         $this->bumpPostCounter($post, ($value['item'] ?? null) === 'share' ? 'shares' : 'likes', $delta);
+    }
+
+    /**
+     * The app's Post for a Facebook webhook's post_id ("{page}_{story}").
+     *
+     * Feed/photo posts are saved with that same id. Video posts are not:
+     * /{page}/videos returns the VIDEO id, a different number from the
+     * id of the feed post the video appears in - which is what comment
+     * and reaction webhooks send. So when nothing matches, Facebook is
+     * asked which video the post carries (attachments.target.id), and the
+     * feed post id is remembered on the Post (platform_metadata) so later
+     * events match without asking again. Searches every connected account
+     * for the Page, not just the first one.
+     */
+    public function findWebhookPost(SocialAccount $account, string $nativePostId): ?Post
+    {
+        $accountIds = SocialAccount::where('platform', 'facebook')
+            ->where('platform_account_id', $account->platform_account_id)
+            ->pluck('id');
+        $posts = fn () => Post::whereIn('social_account_id', $accountIds)->where('platform', 'facebook');
+
+        $post = $posts()->where(fn ($q) => $q
+            ->whereIn('post_id', array_unique([$nativePostId, \Illuminate\Support\Str::afterLast($nativePostId, '_')]))
+            ->orWhere('platform_metadata->feed_post_id', $nativePostId))
+            ->latest('id')->first();
+
+        if ($post || ! $account->access_token) {
+            return $post;
+        }
+
+        try {
+            $response = $this->api->request('get', $this->baseUrl . $nativePostId, [], [
+                'fields' => 'attachments{target{id},media_type}',
+                'access_token' => $account->access_token,
+            ]);
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        $targetIds = collect($response->successful() ? ($response->json('attachments.data') ?? []) : [])
+            ->pluck('target.id')->filter()->map(fn ($id) => (string) $id)->all();
+        if (! $targetIds) {
+            return null;
+        }
+
+        $post = $posts()->whereIn('post_id', $targetIds)->latest('id')->first();
+        if ($post) {
+            $post->forceFill(['platform_metadata' => array_merge($post->platform_metadata ?? [], ['feed_post_id' => $nativePostId])])->save();
+        }
+
+        return $post;
     }
 
     private function bumpPostCounter(?Post $post, string $column, int $delta): void
