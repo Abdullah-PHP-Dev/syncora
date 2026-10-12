@@ -39,10 +39,15 @@ class FacebookPublishCommentTest extends TestCase
             $t->integer('likes')->default(0);
             $t->integer('shares')->default(0);
             $t->integer('comments')->default(0);
+            $t->integer('views')->default(0);
+            $t->integer('impressions')->default(0);
+            $t->integer('reach')->default(0);
+            $t->integer('clicks')->default(0);
             $t->json('platform_metadata')->nullable();
             $t->timestamps();
         });
-        Schema::create('post_comments', function ($t) {
+Schema::create('post_media', fn ($t) => [$t->id(), $t->unsignedBigInteger('post_id'), $t->string('media_type')->nullable(), $t->text('media_url')->nullable(), $t->timestamps()]);
+                Schema::create('post_comments', function ($t) {
             $t->id();
             $t->string('platform')->nullable();
             $t->string('comment_id')->nullable();
@@ -158,5 +163,45 @@ class FacebookPublishCommentTest extends TestCase
 
         $this->assertFalse(app(\App\Services\PostServices\MetaPostService::class)->syncEngagement($this->post));
         $this->assertSame([9, 1], [(int) $this->post->fresh()->likes, (int) $this->post->fresh()->shares]);
+    }
+
+    public function test_views_reach_and_clicks_come_from_insights(): void
+    {
+        Http::fake([
+            'graph.facebook.com/v23.0/PAGE1_555/insights*' => Http::response(['data' => [
+                ['name' => 'post_media_view', 'period' => 'lifetime', 'values' => [['value' => 840]]],
+                ['name' => 'post_total_media_view_unique', 'period' => 'lifetime', 'values' => [['value' => 610]]],
+                ['name' => 'post_clicks', 'period' => 'lifetime', 'values' => [['value' => 37]]],
+            ]]),
+            'graph.facebook.com/*' => Http::response(['shares' => ['count' => 1], 'reactions' => ['summary' => ['total_count' => 2]], 'comments' => ['summary' => ['total_count' => 0]]]),
+        ]);
+
+        app(\App\Services\PostServices\MetaPostService::class)->syncEngagement($this->post);
+
+        $post = $this->post->fresh();
+        $this->assertSame([840, 840, 610, 37], [(int) $post->views, (int) $post->impressions, (int) $post->reach, (int) $post->clicks]);
+        Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), '/insights') && str_contains(urldecode($r->url()), 'metric=post_media_view,post_total_media_view_unique,post_clicks') && str_contains($r->url(), 'period=lifetime'));
+    }
+
+    public function test_one_unavailable_metric_does_not_lose_the_others(): void
+    {
+        $this->post->forceFill(['clicks' => 5])->save();
+        Http::fake(function (HttpRequest $r) {
+            if (! str_contains($r->url(), '/insights')) {
+                return Http::response(['reactions' => ['summary' => ['total_count' => 0]], 'comments' => ['summary' => ['total_count' => 0]]]);
+            }
+            $metric = urldecode(\Illuminate\Support\Str::betweenFirst($r->url(), 'metric=', '&'));
+
+            return match ($metric) {
+                'post_media_view' => Http::response(['data' => [['name' => 'post_media_view', 'values' => [['value' => 90]]]]]),
+                'post_total_media_view_unique' => Http::response(['data' => [['name' => 'post_total_media_view_unique', 'values' => [['value' => 70]]]]]),
+                default => Http::response(['error' => ['message' => '(#100) The value must be a valid insights metric']], 400),
+            };
+        });
+
+        app(\App\Services\PostServices\MetaPostService::class)->syncEngagement($this->post);
+
+        $post = $this->post->fresh();
+        $this->assertSame([90, 70, 5], [(int) $post->views, (int) $post->reach, (int) $post->clicks]); // clicks kept
     }
 }

@@ -580,6 +580,19 @@ export default {
 
       const e = this.engagement;
 
+      // Facebook reports Views (its replacement for impressions), Reach and
+      // Clicks - it has no impressions or saves figures any more.
+      if (this.activeKey === 'facebook') {
+        return [
+          { label: 'Likes', value: e.reactionsTotal, icon: 'fas fa-heart', color: '#EF4444' },
+          { label: 'Comments', value: e.commentsCount, icon: 'fas fa-comment', color: '#6D4AFF' },
+          { label: 'Shares', value: e.sharesCount, icon: 'fas fa-share', color: '#10B981' },
+          { label: 'Views', value: e.viewsCount, icon: 'fas fa-eye', color: '#3B82F6' },
+          { label: 'Reach', value: e.reach || 0, icon: 'fas fa-users', color: '#F59E0B' },
+          { label: 'Clicks', value: e.clicks || 0, icon: 'fas fa-mouse-pointer', color: '#EC4899' }
+        ];
+      }
+
       return [
         { label: 'Likes', value: e.reactionsTotal, icon: 'fas fa-heart', color: '#EF4444' },
         { label: 'Comments', value: e.commentsCount, icon: 'fas fa-comment', color: '#6D4AFF' },

@@ -651,11 +651,77 @@ protected function publishPostOnMeta($post, $account)
             'likes'    => $response->json($isFeedPost ? 'reactions.summary.total_count' : 'likes.summary.total_count'),
             'shares'   => $isFeedPost ? (int) ($response->json('shares.count') ?? 0) : null,
             'comments' => $response->json('comments.summary.total_count'),
-        ], fn ($v) => $v !== null) + [
+        ], fn ($v) => $v !== null) + $this->postInsights($post, $account, $isFeedPost) + [
             'platform_metadata' => array_merge($post->platform_metadata ?? [], ['engagement_synced_at' => now()->toIso8601String()]),
         ])->save();
 
         return true;
+    }
+
+    /**
+     * Views, reach and clicks from the Insights API - Facebook sends no
+     * webhook for any of them. Meta retired post_impressions* in Nov
+     * 2025; post_media_view ("Views") is its replacement, so it fills
+     * both views and impressions (dashboards sum impressions). There is
+     * no Facebook metric for saves. Only the columns Facebook returned
+     * are included, so a Page too small for Insights keeps what it had.
+     */
+    private function postInsights(Post $post, SocialAccount $account, bool $isFeedPost): array
+    {
+        if (! $isFeedPost) {
+            // Video posts are stored as the bare video id.
+            $plays = $this->insightValues($post->post_id . '/video_insights', ['total_video_views'], $account)['total_video_views'] ?? null;
+
+            return $plays === null ? [] : ['views' => $plays, 'impressions' => $plays];
+        }
+
+        $values = $this->insightValues($post->post_id . '/insights', ['post_media_view', 'post_total_media_view_unique', 'post_clicks'], $account);
+        $isVideo = $post->relationLoaded('media') ? $post->media->contains('media_type', 'video') : $post->media()->where('media_type', 'video')->exists();
+        $plays = $isVideo ? ($this->insightValues($post->post_id . '/insights', ['post_video_views'], $account)['post_video_views'] ?? null) : null;
+
+        return array_filter([
+            'views'       => $plays ?? $values['post_media_view'] ?? null,
+            'impressions' => $values['post_media_view'] ?? null,
+            'reach'       => $values['post_total_media_view_unique'] ?? null,
+            'clicks'      => $values['post_clicks'] ?? null,
+        ], fn ($v) => $v !== null);
+    }
+
+    /**
+     * metric => lifetime value. Asked together first; if Facebook rejects
+     * the batch (one metric unavailable for this post rejects them all),
+     * each metric is asked on its own so the others still come through.
+     */
+    private function insightValues(string $path, array $metrics, SocialAccount $account): array
+    {
+        $fetch = function (array $names) use ($path, $account) {
+            try {
+                $response = $this->api->request('get', $this->baseUrl . $path, [], [
+                    'metric' => implode(',', $names), 'period' => 'lifetime', 'access_token' => $account->access_token,
+                ]);
+            } catch (\Throwable $e) {
+                return null;
+            }
+            if (! $response->successful()) {
+                Log::info('Facebook insights request failed.', ['path' => $path, 'metrics' => $names, 'error' => $response->json('error.message')]);
+
+                return null;
+            }
+
+            return collect($response->json('data') ?? [])->mapWithKeys(fn ($row) => [
+                $row['name'] => is_numeric($value = $row['values'][0]['value'] ?? null) ? (int) $value : null,
+            ])->filter(fn ($v) => $v !== null)->all();
+        };
+
+        $values = $fetch($metrics);
+        if ($values === null && count($metrics) > 1) {
+            $values = [];
+            foreach ($metrics as $metric) {
+                $values += $fetch([$metric]) ?? [];
+            }
+        }
+
+        return $values ?? [];
     }
 
     /**
@@ -751,29 +817,10 @@ protected function publishPostOnMeta($post, $account)
 
     private function backfillPostInsights(Post $post, SocialAccount $account): void
     {
-        try {
-            $response = $this->api->request(
-                'get',
-                $this->baseUrl . $post->post_id . '/insights',
-                [],
-                ['metric' => 'post_impressions,post_engaged_users', 'period' => 'lifetime', 'access_token' => $account->access_token]
-            );
-
-            if (!$response->successful()) {
-                Log::warning('Facebook post insights fetch failed.', ['post_id' => $post->id, 'error' => $response->json()['error']['message'] ?? $response->body()]);
-                return;
-            }
-
-            $metrics = collect($response->json()['data'] ?? [])->keyBy('name');
-            $impressions = $metrics->get('post_impressions')['values'][0]['value'] ?? null;
-
-            $post->update([
-                'impressions'    => $impressions ?? $post->impressions,
-                'analytics_data' => $response->json()['data'] ?? [],
-            ]);
-        } catch (\Throwable $e) {
-            Log::warning('Facebook post insights fetch threw.', ['post_id' => $post->id, 'error' => $e->getMessage()]);
-        }
+        // post_impressions / post_engaged_users were retired by Meta -
+        // syncEngagement() reads the current Views/reach/clicks metrics.
+        $post->setRelation('socialAccount', $account);
+        $this->syncEngagement($post);
     }
 
     private function backfillPostComments(Post $post, SocialAccount $account): void

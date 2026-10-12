@@ -958,6 +958,8 @@ class PostController extends Controller
             'sharesCount' => (int) ($post->shares ?? 0),
             'viewsCount' => (int) ($post->views ?? 0),
             'impressions' => (int) ($post->impressions ?? 0),
+            'reach' => (int) ($post->reach ?? 0),
+            'clicks' => (int) ($post->clicks ?? 0),
             'bookmarks' => (int) ($post->saves ?? 0),
             'comments' => $post->postComments->map(fn ($comment) => $this->formatCommentNode($comment))->values(),
         ];
