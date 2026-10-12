@@ -745,9 +745,8 @@ class PostController extends Controller
     }
 
     /**
-     * Store a new top-level comment on a post, authored by the business.
-     * Saved locally only — no platform has a "comment on a post" API wired
-     * up yet (only replying to an existing comment is supported).
+     * Publish a new top-level comment on a post, as the business, through
+     * the platform's service (publishComment(..., 'comment')).
      */
     public function storeComment(Request $request, Post $post)
     {
@@ -788,13 +787,14 @@ class PostController extends Controller
         if (!($result['success'] ?? false)) {
             return response()->json([
                 'success' => false,
-                'message' => $result['message'] ?? 'Failed to publish reply.',
+                'message' => $result['message'] ?? 'Failed to publish comment.',
             ], 422);
         }
 
         return response()->json([
             'success' => true,
-            'message' => $result['message'] ?? 'success.',
+            'message' => $result['message'] ?? 'Comment published.',
+            'comment' => $this->formatCommentNode($result['data']->load('replies')),
         ]);
     }
 

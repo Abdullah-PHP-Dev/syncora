@@ -28,7 +28,7 @@ class MetaPostService
         $this->baseUrl = adminSetting('posts.facebook.base_url');
     }
 
-    protected function ensureValidToken($post)
+    protected function ensureValidToken($post, bool $markFailed = true)
     {
         $account = $post->socialAccount;
         if (
@@ -52,7 +52,7 @@ class MetaPostService
         $response = $this->api->request('get', $endpoint, [], $payload);
 
         if (!$response->successful()) {
-            return $this->errorResponse($post, $response);
+            return $this->errorResponse($post, $response, $markFailed);
         }
 
         $tokenData = $response->json();
@@ -843,58 +843,74 @@ protected function publishPostOnMeta($post, $account)
         ];
     }
 
+    /**
+     * Publish a comment as the Page: $type 'comment' = a new top-level
+     * comment on $toReply (a Post), 'reply' = a reply to $toReply (a
+     * PostComment). A failure never touches the post's own status - the
+     * post is still published, only the comment didn't go out.
+     */
     public function publishComment($data, $toReply, $type)
-    {   
-        // Determine the target model for token verification (Post or PostComment's related Post)   
-        $targetModel = ($type === 'reply') ? $toReply->post : $toReply;
-        
-        // Ensure valid token (assuming socialAccount is a relationship on both Post and PostComment)
-        $this->ensureValidToken($targetModel);
+    {
+        $post = $type === 'reply' ? $toReply->post : $toReply;
+        $account = $toReply->socialAccount ?? $post?->socialAccount;
+        $targetId = $type === 'reply' ? $toReply->comment_id : $post?->post_id;
 
-        // Get the platform-specific ID (comment_id for replies, post_id for top-level comments)
-        $id = ($type === 'reply') ? $toReply->comment_id : $toReply->post_id; // If post_id is stored directly on $toReply when $type is 'comment'
-        $endpoint = $this->baseUrl . $id . "/comments";
+        if (! $targetId) {
+            return ['success' => false, 'message' => $type === 'reply'
+                ? 'This comment has no Facebook id, so it can\'t be replied to.'
+                : 'This post isn\'t on Facebook yet (it was not published), so it can\'t be commented on.'];
+        }
 
-        $payload = [
-            "message" => $data['body'] . ' --. '
-        ];
+        if (! $account || ! $account->access_token) {
+            return ['success' => false, 'message' => 'The Facebook Page connection needs to be reconnected before you can comment.'];
+        }
+
+        $token = $this->ensureValidToken($post, false);
+        if (is_array($token)) {
+            return $token;
+        }
 
         $response = $this->api->request(
             'post',
-            $endpoint . "?access_token={$toReply->socialAccount->access_token}",
+            $this->baseUrl . $targetId . '/comments?access_token=' . $account->access_token,
             [],
-            $payload,
+            ['message' => $data['body']],
             'form'
         );
-        
-        if (!$response->successful()) {
-            return $this->errorResponse($toReply, $response);
+
+        if (! $response->successful() || empty($response->json('id'))) {
+            return $this->errorResponse($toReply, $response, false);
         }
 
-        return $this->storeComment($toReply, $data, $response->json()['id']);
+        return $this->storeComment($toReply, $type, $data, $response->json('id'));
     }
 
-    private function storeComment($comment, $data, $commentId)
+    /** Save the comment/reply just published so it shows at once (the webhook may echo it later). */
+    private function storeComment($target, string $type, $data, $commentId)
     {
-        $comment = PostComment::create([
-            'content'            => $data['body'] ?? '',
-            'sender_type'     => 'support',
-            'platform'        => 'facebook',
-            'parent_comment_id' => $comment->id,
-            'user_id'         => Auth::user()->id,
-            'sender_name'     => Auth::user()->name,
-            'post_id'   => $comment->post?->id,
-            'is_read'         => 0,
-            'is_reply' => true,
-            'user_name'            => 'support',
-            'comment_id' => $commentId,
-            'social_account_id'  => $comment->socialAccount?->id
+        $isReply = $type === 'reply';
+        $post = $isReply ? $target->post : $target;
+        $account = $target->socialAccount ?? $post?->socialAccount;
+
+        $comment = PostComment::firstOrCreate(['comment_id' => $commentId, 'platform' => 'facebook'], [
+            'content'           => $data['body'] ?? '',
+            'sender_type'       => 'support',
+            'parent_comment_id' => $isReply ? $target->id : null,
+            'user_id'           => Auth::id(),
+            'post_id'           => $post?->id,
+            'is_read'           => 1,
+            'is_reply'          => $isReply,
+            'user_name'         => $account?->name ?: (Auth::user()->name ?? 'Page'),
+            'user_avatar_url'   => $account?->avatar_url,
+            'social_account_id' => $account?->id,
+            'status'            => 'approved',
+            'posted_at'         => now(),
         ]);
 
         return [
-            'message' => '',
+            'message' => $isReply ? 'Reply published.' : 'Comment published.',
             'success' => true,
-            'data'    => $comment
+            'data'    => $comment,
         ];
     }
 
@@ -1085,11 +1101,13 @@ protected function publishPostOnMeta($post, $account)
         ];
     }
 
-    private function errorResponse($model, $response)
+    private function errorResponse($model, $response, bool $markFailed = true)
     {
-        $model->status = 'failed';
-        $model->error_message = $response->json()['error']['message'] ?? 'Unknown error';
-        $model->save();
+        if ($markFailed) {
+            $model->status = 'failed';
+            $model->error_message = $response->json()['error']['message'] ?? 'Unknown error';
+            $model->save();
+        }
 
         return [
             'success' => false,
