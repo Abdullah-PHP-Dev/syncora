@@ -47,16 +47,24 @@ class TiktokPostService
             'refresh_token' => $account->refresh_token,
         ]);
 
-        if (!$response->successful()) {
-            return $this->errorResponse($post, $response);
-        }
+        $tokenData = $response->json() ?? [];
 
-        $tokenData = $response->json();
+        // A rejected refresh (expired/revoked refresh token) comes back as
+        // HTTP 200 with {"error": "invalid_grant", ...} and no access_token.
+        if (!$response->successful() || empty($tokenData['access_token'])) {
+            $account->update(['is_token_valid' => false]);
+            $post->forceFill([
+                'status' => 'failed',
+                'error_message' => 'TikTok connection expired - reconnect the TikTok account in Connections. (' . ($tokenData['error_description'] ?? $tokenData['error'] ?? 'token refresh failed') . ')',
+            ])->save();
+
+            return false;
+        }
 
         $account->update([
             'access_token'      => $tokenData['access_token'],
             'refresh_token'     => $tokenData['refresh_token'] ?? $account->refresh_token,
-            'expires_at'   => now()->addSeconds($tokenData['expires_in']),
+            'expires_at'   => now()->addSeconds($tokenData['expires_in'] ?? 86400),
         ]);
 
         $account->refresh();
@@ -79,10 +87,12 @@ class TiktokPostService
             // uploadQuickPostMedia()'s docblock.
             $uploadResult = ['success' => true, 'media' => $data['uploaded_media']];
         } elseif (!empty($data['ai_image_url'])) {
-            $mediaExtension = strtolower(pathinfo(
-                parse_url($data['ai_image_url'], PHP_URL_PATH),
-                PATHINFO_EXTENSION
-            ));
+            $uploadResult = ['success' => true, 'media' => [[
+                'url' => $data['ai_image_url'],
+                'media_type' => 'image',
+                'file_name' => basename(parse_url($data['ai_image_url'], PHP_URL_PATH) ?: 'image.jpg'),
+                'file_size' => null, 'width' => null, 'height' => null, 'alt_text' => null,
+            ]]];
         } else {
             $uploadResult = $this->uploadMediaToS3($data['media'] ?? []);
 
@@ -128,7 +138,7 @@ class TiktokPostService
                             'visibility' => 'public',
                             'user_id' => Auth::user()->id,
                             'social_account_id' => $page->id,
-                            'post_category_id' => $data['category_id'],
+                            'post_category_id' => $data['category_id'] ?? 1,
                             'media_url' => $media['url'],
                             'media_type' => $media['media_type'],
                             'file_name' => $media['file_name'],
@@ -137,8 +147,7 @@ class TiktokPostService
                             'height' => $media['height'],
                             'duration_seconds' => $media['duration_seconds'] ?? null,
                             'thumbnail_url' => $media['thumbnail_url'] ?? null,
-                            'alt_text' => $media['alt_text'],
-                            'width' => $media['width'],
+                            'alt_text' => $media['alt_text'] ?? null,
                         ]);
                     }
                 }
@@ -309,14 +318,11 @@ class TiktokPostService
     {
         try {
             $account = $post->socialAccount;
-            if (!$this->ensureValidToken($post)) {
-                $post->update([
-                    'status' => 'failed',
-                    'error_message' => 'Failed to refresh access token'
-                ]);
-
-                return ['success' => false];
+            if ($this->ensureValidToken($post) !== true) {
+                // ensureValidToken() already saved the reason on the post.
+                return ['success' => false, 'message' => $post->error_message ?: 'TikTok connection expired - reconnect the TikTok account.'];
             }
+            $account->refresh();
 
             // Fetch current creator configuration limits
             $creatorResponse = Http::withToken($account->access_token)
@@ -324,7 +330,7 @@ class TiktokPostService
                 ->withBody('{}', 'application/json')
                 ->post("{$this->baseUrl}/post/publish/creator_info/query/");
 
-            if (!$creatorResponse->successful()) {
+            if (!$creatorResponse->successful() || !$this->isOk($creatorResponse)) {
                 return $this->errorResponse($post, $creatorResponse);
             }
 
@@ -366,6 +372,9 @@ class TiktokPostService
 
             $post->update([
                 'status'        => 'completed',
+                // post.publish.* webhooks identify the post by publish_id,
+                // which post_id stops holding once the real id is known.
+                'platform_metadata' => array_merge($post->platform_metadata ?? [], ['publish_id' => $result['publish_id']]),
                 'post_id'       => $resolved['video_id'] ?? $result['publish_id'],
                 'post_url'      => $resolved['video_id']
                     ? 'https://www.tiktok.com/@' . $account->username . '/' . $permalinkType . '/' . $resolved['video_id']
@@ -412,6 +421,13 @@ class TiktokPostService
         // Photo processing track (Handles single or multiple photos seamlessly)
         $photoUrls = $post->media->pluck('media_url')->toArray();
 
+        // TikTok photo posts accept JPEG and WebP only - a PNG fails later
+        // at TikTok with a vague download error.
+        $unsupported = array_filter($photoUrls, fn ($url) => !in_array(strtolower(pathinfo(parse_url($url, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'webp'], true));
+        if ($unsupported) {
+            return ['success' => false, 'message' => 'TikTok photo posts accept JPG or WebP images only - convert ' . basename(parse_url(reset($unsupported), PHP_URL_PATH)) . ' and post again.'];
+        }
+
         if (count($photoUrls) > 35) {
             return ['success' => false, 'message' => 'TikTok allows a maximum of 35 photos per post.'];
         }
@@ -451,11 +467,14 @@ class TiktokPostService
                 ? mb_substr($contentWithoutHashtags, 0, $dotPosition + 1)
                 : mb_substr($contentWithoutHashtags, 0, 85);
 
+            // The post's own "title" defaults to the seller's name - TikTok's
+            // title is the short headline shown on the photo post, so it's
+            // taken from the caption instead.
             $payload = [
                 'post_info' => [
-                    'title' => $post->title,
-                    'description' => $post->content ?? '',
-                    'privacy_level' => 'SELF_ONLY',//$creatorResponseData['privacy_level_options'][0] ?? 'PUBLIC',
+                    'title' => mb_substr($title, 0, 90),
+                    'description' => mb_substr($content, 0, 4000),
+                    'privacy_level' => $this->privacyLevel($creatorResponseData),
                     'disable_comment' => false,
                     'auto_add_music' => false,
                 ],
@@ -472,8 +491,8 @@ class TiktokPostService
                 ->acceptJson()
                 ->post("{$this->baseUrl}/post/publish/content/init/", $payload);
             
-            if (!$response->successful()) {
-                return ['success' => false, 'message' => $response->json()['error']['message'] ?? 'Failed initialization for photo upload.'];
+            if (!$response->successful() || !$this->isOk($response)) {
+                return ['success' => false, 'message' => $this->tiktokError($response, 'Failed initialization for photo upload.')];
             }
 
             return [
@@ -496,7 +515,10 @@ class TiktokPostService
         try {
             $payload = [
                 'post_info' => [
-                    'title' => $post->title, // Title string field setup
+                    // A video's "title" IS its caption on TikTok (up to 2200
+                    // characters, hashtags included) - this used to send the
+                    // post's title, which defaults to the seller's name.
+                    'title' => mb_substr(trim($post->content ?? ''), 0, 2200),
                     // Was hardcoded to SELF_ONLY (private, visible only to
                     // the poster) regardless of what the account is
                     // actually allowed to post as - TikTok never returns a
@@ -511,7 +533,7 @@ class TiktokPostService
                     // already does this correctly below - matching that
                     // here so video posts behave the same as photo posts,
                     // which do get a real public URL on this same account.
-                    'privacy_level' => 'SELF_ONLY',
+                    'privacy_level' => $this->privacyLevel($creatorResponseData),
                     'disable_duet' => false,
                     'disable_comment' => false,
                     'disable_stitch' => false,
@@ -526,8 +548,8 @@ class TiktokPostService
                 ->acceptJson()
                 ->post("{$this->baseUrl}/post/publish/video/init/", $payload);
             
-            if (!$response->successful()) {
-                return ['success' => false, 'message' => $response->json()['error']['message'] ?? 'Failed initialization for video upload.'];
+            if (!$response->successful() || !$this->isOk($response)) {
+                return ['success' => false, 'message' => $this->tiktokError($response, 'Failed initialization for video upload.')];
             }
 
             return [
@@ -741,6 +763,43 @@ class TiktokPostService
             'success' => true,
             'data' => $data['items']
         ];
+    }
+
+    /**
+     * Who can see the post. TikTok only lets apps that haven't passed its
+     * Content Posting audit post as SELF_ONLY, so that stays the default;
+     * once audited, set posts.tiktok.privacy_level (eg. PUBLIC_TO_EVERYONE).
+     * Either way it must be one the creator is allowed right now
+     * (creator_info's privacy_level_options).
+     */
+    protected function privacyLevel(array $creatorInfo): string
+    {
+        $wanted = (string) (adminSetting('posts.tiktok.privacy_level') ?: 'SELF_ONLY');
+        $allowed = $creatorInfo['privacy_level_options'] ?? [];
+
+        return !$allowed || in_array($wanted, $allowed, true) ? $wanted : 'SELF_ONLY';
+    }
+
+    /** TikTok v2 APIs report errors in the body: {"error": {"code": "ok"}} means success. */
+    protected function isOk($response): bool
+    {
+        $code = $response->json('error.code');
+
+        return $code === null || $code === 'ok';
+    }
+
+    protected function tiktokError($response, string $fallback): string
+    {
+        $message = $response->json('error.message') ?: $fallback;
+        $code = $response->json('error.code');
+
+        // The most common setup problem: PULL_FROM_URL needs the media
+        // domain verified in the TikTok developer portal.
+        if ($code === 'url_ownership_unverified') {
+            $message = 'TikTok can\'t fetch the media: verify the media domain (' . parse_url((string) config('filesystems.disks.r2.url'), PHP_URL_HOST) . ') under URL properties in the TikTok developer portal.';
+        }
+
+        return $code && $code !== 'ok' && !str_contains($message, $code) ? "{$message} ({$code})" : $message;
     }
 
     /**

@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Post;
 use App\Models\SocialAccount;
+use App\Services\PostServices\TiktokPostService;
 use App\Models\WebhookLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -41,11 +43,15 @@ use Illuminate\Support\Facades\Log;
  * - portability.download.ready: Data Portability API - unrelated to
  *   anything this app integrates with. Logged only.
  *
- * There is deliberately no event handled here for Content Posting
- * publish completion itself - TikTok's own Content Posting API guide
- * states polling post/publish/status/fetch/ is the only way to track
- * that, which is exactly what ResolveTiktokPublishStatus already does.
- * TikTok does not offer a webhook for it.
+ * Content Posting events (developers.tiktok.com/doc/content-posting-
+ * api-reference-get-video-status), matched to a post by publish_id
+ * (kept in posts.platform_metadata.publish_id by TiktokPostService):
+ * - post.publish.publicly_available: carries the real post_id - fills in
+ *   post_id/post_url (ResolveTiktokPublishStatus polls for the same).
+ * - post.publish.complete / post.publish.inbox_delivered: processing done.
+ * - post.publish.failed: marks the post failed with TikTok's reason.
+ * - post.publish.no_longer_publicaly_available (TikTok's spelling): the
+ *   post was made private or removed on TikTok.
  */
 class TiktokContentWebhookController extends Controller
 {
@@ -75,23 +81,37 @@ class TiktokContentWebhookController extends Controller
         $event = $payload['event'] ?? null;
         $note = null;
 
+        $processed = true;
+
         switch ($event) {
             case 'authorization.removed':
                 $note = $this->handleAuthorizationRemoved($payload);
                 break;
 
+            case 'post.publish.complete':
+            case 'post.publish.inbox_delivered':
+            case 'post.publish.failed':
+            case 'post.publish.publicly_available':
+            case 'post.publish.no_longer_publicaly_available':
+            case 'post.publish.no_longer_publicly_available':
+                $note = $this->handlePublishEvent($event, $payload);
+                break;
+
             case 'video.upload.failed':
             case 'video.publish.completed':
+                $processed = false;
                 $note = "{$event} is a Video Kit event - this app's Content Posting integration never triggers a Video Kit upload, so this shouldn't be reachable. Logged only.";
                 Log::info("TikTok content-posting webhook received a {$event} event.", ['payload' => $payload]);
                 break;
 
             case 'portability.download.ready':
+                $processed = false;
                 $note = 'Data Portability API event - unrelated to this app\'s TikTok integration. Logged only.';
                 Log::info('TikTok content-posting webhook received a portability.download.ready event.', ['payload' => $payload]);
                 break;
 
             default:
+                $processed = false;
                 $note = 'Unrecognized event type.';
                 Log::info('TikTok content-posting webhook received an unrecognized event.', ['event' => $event, 'payload' => $payload]);
         }
@@ -100,7 +120,7 @@ class TiktokContentWebhookController extends Controller
             'platform'        => 'tiktok_content',
             'event_type'      => $event,
             'signature_valid' => true,
-            'processed'       => $event === 'authorization.removed',
+            'processed'       => $processed,
             'note'            => $note,
             'payload'         => $payload,
             'ip'              => $request->ip(),
@@ -137,6 +157,58 @@ class TiktokContentWebhookController extends Controller
         $expected = hash_hmac('sha256', $parts['t'] . '.' . $request->getContent(), (string) adminSetting('posts.tiktok.client_secret'));
 
         return hash_equals($expected, $parts['s']);
+    }
+
+    private function handlePublishEvent(string $event, array $payload): string
+    {
+        $content = json_decode($payload['content'] ?? '{}', true) ?? [];
+        $publishId = $content['publish_id'] ?? null;
+
+        $post = $publishId ? Post::with('socialAccount', 'media')
+            ->where('platform', 'tiktok')
+            ->where(fn ($q) => $q->where('post_id', $publishId)->orWhere('platform_metadata->publish_id', $publishId))
+            ->latest('id')
+            ->first() : null;
+
+        if (!$post) {
+            return "No post found for publish_id {$publishId} - nothing to update.";
+        }
+
+        switch ($event) {
+            case 'post.publish.publicly_available':
+                $videoId = (string) ($content['post_id'] ?? '');
+                if ($videoId === '') {
+                    return "Post #{$post->id}: publicly_available without a post_id - nothing to update.";
+                }
+                $type = app(TiktokPostService::class)->isVideoPost($post) ? 'video' : 'photo';
+                $post->update([
+                    'status' => 'completed',
+                    'post_id' => $videoId,
+                    'post_url' => $post->socialAccount?->username ? "https://www.tiktok.com/@{$post->socialAccount->username}/{$type}/{$videoId}" : $post->post_url,
+                    'error_message' => null,
+                ]);
+
+                return "Post #{$post->id} is public on TikTok as {$videoId}.";
+
+            case 'post.publish.failed':
+                $reason = $content['reason'] ?? 'unknown reason';
+                $post->update(['status' => 'failed', 'error_message' => "TikTok couldn't publish this post ({$reason})."]);
+
+                return "Post #{$post->id} marked failed: {$reason}.";
+
+            case 'post.publish.complete':
+            case 'post.publish.inbox_delivered':
+                if (strtolower((string) $post->status) !== 'completed') {
+                    $post->update(['status' => 'completed']);
+                }
+
+                return "Post #{$post->id}: {$event}.";
+
+            default: // no_longer_publicly_available
+                $post->update(['error_message' => 'This post is no longer public on TikTok - it was made private or removed there.']);
+
+                return "Post #{$post->id} is no longer public on TikTok.";
+        }
     }
 
     /**
