@@ -18,7 +18,8 @@ class SubscribeMetaPages extends Command
 {
     protected $signature = 'meta:subscribe-pages
                             {--user= : Only this user\'s Pages}
-                            {--dry-run : List the Pages without calling Facebook}';
+                            {--dry-run : List the Pages without calling Facebook}
+                            {--check : Only show which fields each Page is subscribed to now}';
 
     protected $description = 'Subscribe connected Facebook Pages to the app webhook (feed + Messenger fields)';
 
@@ -44,6 +45,13 @@ class SubscribeMetaPages extends Command
             if (! $page->access_token) {
                 $result = 'skipped - no readable token (reconnect the Page)';
                 $failed++;
+            } elseif ($this->option('check')) {
+                $sub = $meta->pageSubscription($page);
+                $missing = array_diff(explode(',', MetaPostService::PAGE_WEBHOOK_FIELDS), $sub['fields'] ?? []);
+                $result = isset($sub['error'])
+                    ? 'ERROR - ' . $sub['error']
+                    : (empty($sub['fields']) ? 'NOT subscribed to this app' : implode(',', $sub['fields']) . ($missing ? '  | missing: ' . implode(',', $missing) : '  | OK'));
+                $failed += (isset($sub['error']) || $missing) ? 1 : 0;
             } elseif ($this->option('dry-run')) {
                 $result = 'would subscribe';
             } elseif ($meta->subscribeToWebhooks($page)) {

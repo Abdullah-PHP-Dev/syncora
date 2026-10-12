@@ -614,6 +614,27 @@ protected function publishPostOnMeta($post, $account)
     }
 
     /**
+     * What Facebook has this Page subscribed to for this app (GET
+     * /{page}/subscribed_apps): ['fields' => [...]] when subscribed,
+     * ['fields' => []] when the app isn't subscribed at all, or
+     * ['error' => ...] when the call fails.
+     */
+    public function pageSubscription(SocialAccount $account): array
+    {
+        $response = $this->api->request('get', $this->baseUrl . $account->platform_account_id . '/subscribed_apps', [], ['access_token' => $account->access_token]);
+
+        if (! $response->successful()) {
+            return ['error' => $response->json('error.message') ?? $response->body()];
+        }
+
+        $appId = (string) adminSetting('posts.facebook.client_id');
+        $apps = collect($response->json('data') ?? []);
+        $ours = $apps->first(fn ($app) => (string) ($app['id'] ?? '') === $appId) ?? ($apps->count() === 1 ? $apps->first() : null);
+
+        return ['fields' => $ours['subscribed_fields'] ?? [], 'app' => $ours['name'] ?? null];
+    }
+
+    /**
      * On connect, backfills the Page's most recent posts (default 4)
      * along with each post's insights and comments, so a newly connected
      * account isn't empty until the customer publishes something new
