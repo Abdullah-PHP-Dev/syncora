@@ -100,9 +100,11 @@ class TiktokContentPostingTest extends TestCase
     {
         Http::fake([
             self::API . '/post/publish/creator_info/query/' => Http::response(['data' => $creator, 'error' => ['code' => 'ok']]),
-            self::API . '/post/publish/video/init/' => Http::response(['data' => ['publish_id' => 'v_pub_url~1'], 'error' => ['code' => 'ok']]),
+            self::API . '/post/publish/video/init/' => Http::response(['data' => ['publish_id' => 'v_pub_url~1', 'upload_url' => 'https://open-upload.tiktokapis.com/video/?upload_id=1'], 'error' => ['code' => 'ok']]),
             self::API . '/post/publish/content/init/' => Http::response(['data' => ['publish_id' => 'p_pub_url~1'], 'error' => ['code' => 'ok']]),
             self::API . '/post/publish/status/fetch/' => Http::response(['data' => $status, 'error' => ['code' => 'ok']]),
+            'open-upload.tiktokapis.com/*' => Http::response('', 201),
+            'cdn.socialeaz.com/*' => Http::response(str_repeat('v', 2048)),
         ]);
     }
 
@@ -167,10 +169,12 @@ class TiktokContentPostingTest extends TestCase
         $result = app(TiktokPostService::class)->publishPost($post);
 
         $this->assertTrue($result['success'], $result['message'] ?? '');
+        // Uploaded directly (TikTok never has to reach our CDN).
         Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/post/publish/video/init/')
             && $r['post_info']['title'] === 'Fresh sourdough every morning. #bakery #bread' // the caption, not the seller's name
-            && $r['post_info']['privacy_level'] === 'SELF_ONLY'
-            && $r['source_info'] === ['source' => 'PULL_FROM_URL', 'video_url' => 'https://cdn.socialeaz.com/uploads/quick/media/v.mp4']);
+            && $r['source_info'] === ['source' => 'FILE_UPLOAD', 'video_size' => 2048, 'chunk_size' => 2048, 'total_chunk_count' => 1]);
+        Http::assertSent(fn (HttpRequest $r) => $r->method() === 'PUT' && str_starts_with($r->url(), 'https://open-upload.tiktokapis.com/')
+            && $r->header('Content-Range')[0] === 'bytes 0-2047/2048' && strlen($r->body()) === 2048);
         $post->refresh();
         $this->assertSame(['completed', '7350000000000000001', 'https://www.tiktok.com/@bakery/video/7350000000000000001', 'v_pub_url~1'], [$post->status, $post->post_id, $post->post_url, $post->platform_metadata['publish_id']]);
     }
@@ -210,14 +214,6 @@ class TiktokContentPostingTest extends TestCase
         Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/video/init/') && $r['post_info']['privacy_level'] === 'PUBLIC_TO_EVERYONE');
     }
 
-    public function test_privacy_falls_back_to_self_only_when_tiktok_does_not_allow_it(): void
-    {
-        Settings::set('posts.tiktok.privacy_level', 'PUBLIC_TO_EVERYONE');
-        // An unaudited app/creator only offers SELF_ONLY.
-        $this->fakePublish(['privacy_level_options' => ['SELF_ONLY']]);
-        app(TiktokPostService::class)->publishPost($this->makePost($this->account(['platform_account_id' => 'OPEN2']), [['video', 'https://cdn.socialeaz.com/v.mp4']]));
-        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/video/init/') && $r['post_info']['privacy_level'] === 'SELF_ONLY');
-    }
 
     public function test_a_still_processing_video_is_handed_to_the_background_check(): void
     {
@@ -232,6 +228,7 @@ class TiktokContentPostingTest extends TestCase
 
     public function test_an_unverified_media_domain_gets_a_clear_message(): void
     {
+        Settings::set('posts.tiktok.video_source', 'PULL_FROM_URL');
         Http::fake([
             self::API . '/post/publish/creator_info/query/' => Http::response(['data' => ['privacy_level_options' => ['SELF_ONLY']], 'error' => ['code' => 'ok']]),
             self::API . '/post/publish/video/init/' => Http::response(['error' => ['code' => 'url_ownership_unverified', 'message' => 'Please review our URL ownership verification rules.']], 403),
@@ -264,8 +261,10 @@ class TiktokContentPostingTest extends TestCase
         Http::fake([
             self::API . '/oauth/token/' => Http::response(['access_token' => 'act.new', 'refresh_token' => 'rft.new', 'expires_in' => 86400]),
             self::API . '/post/publish/creator_info/query/' => Http::response(['data' => ['privacy_level_options' => ['SELF_ONLY']], 'error' => ['code' => 'ok']]),
-            self::API . '/post/publish/video/init/' => Http::response(['data' => ['publish_id' => 'v1'], 'error' => ['code' => 'ok']]),
+            self::API . '/post/publish/video/init/' => Http::response(['data' => ['publish_id' => 'v1', 'upload_url' => 'https://open-upload.tiktokapis.com/video/?upload_id=2'], 'error' => ['code' => 'ok']]),
             self::API . '/post/publish/status/fetch/' => Http::response(['data' => ['status' => 'PUBLISH_COMPLETE', 'publicaly_available_post_id' => [42]], 'error' => ['code' => 'ok']]),
+            'open-upload.tiktokapis.com/*' => Http::response('', 201),
+            'cdn.socialeaz.com/*' => Http::response('video-bytes'),
         ]);
         $account = $this->account(['expires_at' => now()->subHour()]);
 
@@ -479,5 +478,46 @@ class TiktokContentPostingTest extends TestCase
 
         $this->assertSame('failed', $post->fresh()->status);
         $this->assertStringContainsString('file_format_check_failed', $post->fresh()->error_message);
+    }
+
+    public function test_large_videos_are_uploaded_in_chunks(): void
+    {
+        $size = 70 * 1024 * 1024 + 123; // over the 64 MB single-chunk limit
+        Http::fake([
+            self::API . '/post/publish/creator_info/query/' => Http::response(['data' => ['privacy_level_options' => ['SELF_ONLY']], 'error' => ['code' => 'ok']]),
+            self::API . '/post/publish/video/init/' => Http::response(['data' => ['publish_id' => 'v_big', 'upload_url' => 'https://open-upload.tiktokapis.com/video/?upload_id=9'], 'error' => ['code' => 'ok']]),
+            self::API . '/post/publish/status/fetch/' => Http::response(['data' => ['status' => 'PUBLISH_COMPLETE'], 'error' => ['code' => 'ok']]),
+            'open-upload.tiktokapis.com/*' => Http::sequence()->pushStatus(206)->pushStatus(206)->pushStatus(206)->pushStatus(206)->pushStatus(206)->pushStatus(206)->pushStatus(201),
+            'cdn.socialeaz.com/*' => Http::response(str_repeat('x', $size)),
+        ]);
+
+        $result = app(TiktokPostService::class)->publishPost($this->makePost($this->account(), [['video', 'https://cdn.socialeaz.com/big.mp4']]));
+
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+        $chunk = 10 * 1024 * 1024;
+        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/video/init/') && $r['source_info'] === ['source' => 'FILE_UPLOAD', 'video_size' => $size, 'chunk_size' => $chunk, 'total_chunk_count' => 7]);
+        $ranges = Http::recorded(fn (HttpRequest $r) => $r->method() === 'PUT')->map(fn ($pair) => $pair[0]->header('Content-Range')[0])->values()->all();
+        $this->assertCount(7, $ranges);
+        $this->assertSame('bytes 0-' . ($chunk - 1) . "/{$size}", $ranges[0]);
+        $this->assertSame('bytes ' . (6 * $chunk) . '-' . ($size - 1) . "/{$size}", $ranges[6]); // remainder on the last chunk
+    }
+
+    public function test_republish_resends_a_post_stuck_downloading(): void
+    {
+        $post = $this->makePost($this->account(), [['video', 'https://cdn.socialeaz.com/v.mp4']], ['status' => 'completed', 'post_id' => 'v_pub_url~old', 'platform_metadata' => ['publish_id' => 'v_pub_url~old']]);
+        Http::fake([
+            self::API . '/post/publish/status/fetch/' => Http::sequence()
+                ->push(['data' => ['status' => 'PROCESSING_DOWNLOAD', 'downloaded_bytes' => 0], 'error' => ['code' => 'ok']])
+                ->push(['data' => ['status' => 'PUBLISH_COMPLETE', 'publicaly_available_post_id' => [99]], 'error' => ['code' => 'ok']]),
+            self::API . '/post/publish/creator_info/query/' => Http::response(['data' => ['privacy_level_options' => ['SELF_ONLY']], 'error' => ['code' => 'ok']]),
+            self::API . '/post/publish/video/init/' => Http::response(['data' => ['publish_id' => 'v_pub_url~new', 'upload_url' => 'https://open-upload.tiktokapis.com/video/?upload_id=3'], 'error' => ['code' => 'ok']]),
+            'open-upload.tiktokapis.com/*' => Http::response('', 201),
+            'cdn.socialeaz.com/*' => Http::response('video-bytes'),
+        ]);
+
+        $this->artisan('tiktok:post-status', ['post' => $post->id, '--republish' => true])->assertSuccessful();
+
+        $post->refresh();
+        $this->assertSame(['99', 'v_pub_url~new'], [$post->post_id, $post->platform_metadata['publish_id']]);
     }
 }

@@ -13,7 +13,8 @@ use Illuminate\Console\Command;
  */
 class TiktokPostStatus extends Command
 {
-    protected $signature = 'tiktok:post-status {post : App post id}';
+    protected $signature = 'tiktok:post-status {post : App post id}
+                            {--republish : Send the post to TikTok again (eg. stuck at PROCESSING_DOWNLOAD)}';
 
     protected $description = 'Check a TikTok post\'s publish status with TikTok and update it';
 
@@ -57,10 +58,26 @@ class TiktokPostStatus extends Command
         if ($update) {
             $post->update($update);
             $this->info('Post updated: ' . ($update['error_message'] ?? $update['post_url']));
-        } else {
-            $this->warn('Not finished yet - TikTok is still processing it. Run this again in a few minutes.');
+
+            return self::SUCCESS;
         }
 
-        return self::SUCCESS;
+        if (! $this->option('republish')) {
+            $this->warn('Not finished yet - TikTok is still processing it. Run this again in a few minutes.');
+            if (($result['status'] ?? null) === 'PROCESSING_DOWNLOAD' && (int) ($result['downloaded'] ?? 0) === 0) {
+                $this->warn('TikTok has downloaded 0 bytes - it probably can\'t reach the media URL. Re-send it with --republish (videos are now uploaded directly).');
+            }
+
+            return self::SUCCESS;
+        }
+
+        $this->line('Sending the post to TikTok again...');
+        $sent = $tiktok->publishPost($post->fresh(['media', 'socialAccount']));
+        $post->refresh();
+        $sent['success'] ?? false
+            ? $this->info("Sent. New publish_id: {$post->platform_metadata['publish_id']} | " . ($post->post_url ?: ($post->error_message ?: 'processing')))
+            : $this->error('TikTok refused it: ' . ($sent['message'] ?? $post->error_message));
+
+        return ($sent['success'] ?? false) ? self::SUCCESS : self::FAILURE;
     }
 }

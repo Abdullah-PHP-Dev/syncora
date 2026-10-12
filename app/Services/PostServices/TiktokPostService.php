@@ -556,29 +556,84 @@ class TiktokPostService
                     'disable_comment' => false,
                     'disable_stitch' => false,
                 ],
-                'source_info' => [
-                    'source' => 'PULL_FROM_URL',
-                    'video_url' => $videoUrl,
-                ],
             ];
 
-            $response = Http::withToken($token)
-                ->acceptJson()
-                ->post("{$this->baseUrl}/post/publish/video/init/", $payload);
-            
-            if (!$response->successful() || !$this->isOk($response)) {
-                return ['success' => false, 'message' => $this->tiktokError($response, 'Failed initialization for video upload.')];
+            // FILE_UPLOAD (default): this app sends the bytes itself. With
+            // PULL_FROM_URL TikTok's servers fetch the file from our CDN -
+            // which can sit at PROCESSING_DOWNLOAD with 0 bytes forever when
+            // the CDN (Cloudflare) blocks TikTok's datacenter IPs.
+            if (strtoupper((string) (adminSetting('posts.tiktok.video_source') ?: 'FILE_UPLOAD')) === 'PULL_FROM_URL') {
+                $payload['source_info'] = ['source' => 'PULL_FROM_URL', 'video_url' => $videoUrl];
+
+                $response = Http::withToken($token)->acceptJson()->post("{$this->baseUrl}/post/publish/video/init/", $payload);
+                if (!$response->successful() || !$this->isOk($response)) {
+                    return ['success' => false, 'message' => $this->tiktokError($response, 'Failed initialization for video upload.')];
+                }
+
+                return ['success' => true, 'publish_id' => data_get($response->json(), 'data.publish_id')];
             }
 
-            return [
-                'success' => true,
-                'publish_id' => data_get($response->json(), 'data.publish_id'),
-            ];
+            return $this->uploadVideoFile($token, $payload, $videoUrl);
         } catch (\Exception $e) {
             return [
                 'success' => false,
                 'message' => $e->getMessage()
             ];
+        }
+    }
+
+    /**
+     * FILE_UPLOAD: init with the file's size and chunking, then PUT the
+     * bytes to TikTok's upload_url (developers.tiktok.com/doc/content-
+     * posting-api-media-transfer-guide). Up to 64 MB goes in one chunk;
+     * larger files in 10 MB chunks, the remainder joining the last one.
+     */
+    protected function uploadVideoFile(string $token, array $payload, string $videoUrl): array
+    {
+        $file = tempnam(sys_get_temp_dir(), 'tiktok_');
+
+        try {
+            $download = Http::timeout(300)->sink($file)->get($videoUrl);
+            $size = filesize($file);
+            if (!$download->successful() || !$size) {
+                return ['success' => false, 'message' => "Couldn't read the video file to send to TikTok (HTTP {$download->status()})."];
+            }
+
+            $single = 64 * 1024 * 1024;
+            $chunkSize = $size <= $single ? $size : 10 * 1024 * 1024;
+            $chunks = max(1, intdiv($size, $chunkSize));
+
+            $payload['source_info'] = ['source' => 'FILE_UPLOAD', 'video_size' => $size, 'chunk_size' => $chunkSize, 'total_chunk_count' => $chunks];
+            $init = Http::withToken($token)->acceptJson()->post("{$this->baseUrl}/post/publish/video/init/", $payload);
+            $uploadUrl = $init->json('data.upload_url');
+            if (!$init->successful() || !$this->isOk($init) || !$uploadUrl) {
+                return ['success' => false, 'message' => $this->tiktokError($init, 'Failed initialization for video upload.')];
+            }
+
+            $handle = fopen($file, 'rb');
+            try {
+                for ($i = 0; $i < $chunks; $i++) {
+                    $first = $i * $chunkSize;
+                    $length = $i === $chunks - 1 ? $size - $first : $chunkSize; // remainder rides on the last chunk
+                    fseek($handle, $first);
+                    $bytes = fread($handle, $length);
+
+                    $put = Http::timeout(300)->withHeaders([
+                        'Content-Type' => 'video/mp4',
+                        'Content-Range' => 'bytes ' . $first . '-' . ($first + $length - 1) . '/' . $size,
+                    ])->withBody($bytes, 'video/mp4')->put($uploadUrl);
+
+                    if (!in_array($put->status(), [200, 201, 206], true)) {
+                        return ['success' => false, 'message' => 'TikTok rejected the video upload (HTTP ' . $put->status() . ($put->json('error.message') ? ': ' . $put->json('error.message') : '') . ').'];
+                    }
+                }
+            } finally {
+                fclose($handle);
+            }
+
+            return ['success' => true, 'publish_id' => $init->json('data.publish_id')];
+        } finally {
+            @unlink($file);
         }
     }
 
