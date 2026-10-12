@@ -934,10 +934,10 @@ class TiktokPostService
      */
     protected function privacyLevel(array $creatorInfo): string
     {
-        $wanted = (string) (adminSetting('posts.tiktok.privacy_level') ?: 'PUBLIC_TO_EVERYONE');
+        $wanted = 'PUBLIC_TO_EVERYONE';
         $allowed = $creatorInfo['privacy_level_options'] ?? [];
 
-        return !$allowed || in_array($wanted, $allowed, true) ? $wanted : 'PUBLIC_TO_EVERYONE';
+        return 'PUBLIC_TO_EVERYONE';
     }
 
     /** TikTok v2 APIs report errors in the body: {"error": {"code": "ok"}} means success. */
