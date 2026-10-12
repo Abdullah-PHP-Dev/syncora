@@ -37,6 +37,23 @@ class SyncPostEngagement extends Command
             ->orderByDesc('id')
             ->get();
 
+        // TikTok posts still waiting for their public id (TikTok gives it
+        // only after its review) - pick it up even without the webhook.
+        $resolved = 0;
+        foreach ($posts->filter(fn (Post $post) => $post->platform === 'tiktok' && preg_match('/^[vp]_pub/', (string) $post->post_id)) as $post) {
+            $result = $post->socialAccount && $tiktok->refreshAccountToken($post->socialAccount)
+                ? $tiktok->checkPublishStatus($post->socialAccount->access_token, $post->post_id)
+                : [];
+            if (! empty($result['video_id'])) {
+                $type = $tiktok->isVideoPost($post->loadMissing('media')) ? 'video' : 'photo';
+                $post->update(['post_id' => (string) $result['video_id'], 'post_url' => "https://www.tiktok.com/@{$post->socialAccount->username}/{$type}/{$result['video_id']}", 'error_message' => null]);
+                $resolved++;
+            }
+        }
+        if ($resolved) {
+            $this->info("TikTok: {$resolved} post(s) became public.");
+        }
+
         $synced = $posts->filter(fn (Post $post) => $services[$post->platform]->syncEngagement($post))->count();
         $this->info("Synced {$synced} of {$posts->count()} post(s).");
 

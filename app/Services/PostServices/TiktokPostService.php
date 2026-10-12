@@ -387,19 +387,26 @@ class TiktokPostService
             // full 5-minute retry budget for a status that will never
             // change.
             $isPrivateComplete = ($resolved['status'] ?? null) === 'PUBLISH_COMPLETE' && !$resolved['video_id'];
+            $metadata = array_merge($post->platform_metadata ?? [], [
+                // post.publish.* webhooks identify the post by publish_id,
+                // which post_id stops holding once the real id is known.
+                'publish_id' => $result['publish_id'],
+                // What was asked for and what TikTok allowed this creator -
+                // shown by tiktok:post-status when a post isn't public.
+                'privacy_level' => $this->privacyLevel($creatorResponseData),
+                'privacy_options' => $creatorResponseData['privacy_level_options'] ?? [],
+            ]);
 
             $post->update([
                 'status'        => 'completed',
-                // post.publish.* webhooks identify the post by publish_id,
-                // which post_id stops holding once the real id is known.
-                'platform_metadata' => array_merge($post->platform_metadata ?? [], ['publish_id' => $result['publish_id']]),
+                'platform_metadata' => $metadata,
                 'post_id'       => $resolved['video_id'] ?? $result['publish_id'],
                 'post_url'      => $resolved['video_id']
                     ? 'https://www.tiktok.com/@' . $account->username . '/' . $permalinkType . '/' . $resolved['video_id']
                     : null,
                 'error_message' => match (true) {
                     (bool) $resolved['video_id'] => null,
-                    $isPrivateComplete => "Published to TikTok, but it's private - the account's current allowed visibility level has no public page. Only the connected account can view this post on TikTok.",
+                    $isPrivateComplete => self::notPublicYetMessage($metadata),
                     default => 'Published - TikTok is still processing the video, its public URL will be filled in automatically once ready.',
                 },
             ]);
@@ -978,6 +985,22 @@ class TiktokPostService
         }
 
         return $post;
+    }
+
+    /**
+     * PUBLISH_COMPLETE without a post id: TikTok only gives the id once a
+     * post is public AND has passed its moderation review, so this is
+     * either a post sent as private, or a public post still in review.
+     */
+    public static function notPublicYetMessage(array $metadata): string
+    {
+        $level = $metadata['privacy_level'] ?? null;
+
+        if ($level === 'SELF_ONLY' || $level === null) {
+            return "Published to TikTok as private (only the account can see it) - TikTok gives private posts no public link.";
+        }
+
+        return "Published to TikTok ({$level}). TikTok shows it publicly once its review finishes - the link is added automatically. If it stays private on TikTok, the app hasn't passed TikTok's Direct Post audit yet.";
     }
 
     /**

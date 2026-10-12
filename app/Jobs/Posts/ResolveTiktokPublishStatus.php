@@ -80,7 +80,7 @@ class ResolveTiktokPublishStatus implements ShouldQueue
         // for a status that will never gain a video_id.
         if (($result['status'] ?? null) === 'PUBLISH_COMPLETE') {
             $post->update([
-                'error_message' => "Published to TikTok, but it's private - the account's current allowed visibility level has no public page. Only the connected account can view this post on TikTok.",
+                'error_message' => TiktokPostService::notPublicYetMessage($post->platform_metadata ?? []),
             ]);
 
             return;

@@ -30,6 +30,9 @@ class TiktokPostStatus extends Command
         $publishId = $post->platform_metadata['publish_id'] ?? (str_starts_with((string) $post->post_id, 'v_pub') || str_starts_with((string) $post->post_id, 'p_pub') ? $post->post_id : null);
         $account = $post->socialAccount;
         $this->line("Post #{$post->id} | status: {$post->status} | post_id: {$post->post_id} | publish_id: " . ($publishId ?? '-'));
+        if (isset($post->platform_metadata['privacy_level'])) {
+            $this->line('Privacy sent: ' . $post->platform_metadata['privacy_level'] . ' | TikTok allowed this account: ' . (implode(', ', $post->platform_metadata['privacy_options'] ?? []) ?: '-'));
+        }
 
         if (! $publishId) {
             $this->warn('No publish id saved - this post was never sent to TikTok, or is already resolved.');
@@ -50,7 +53,7 @@ class TiktokPostStatus extends Command
         $type = $tiktok->isVideoPost($post) ? 'video' : 'photo';
         $update = match (true) {
             ! empty($result['video_id']) => ['status' => 'completed', 'post_id' => (string) $result['video_id'], 'post_url' => "https://www.tiktok.com/@{$account->username}/{$type}/{$result['video_id']}", 'error_message' => null],
-            ($result['status'] ?? null) === 'PUBLISH_COMPLETE' => ['status' => 'completed', 'error_message' => "Published to TikTok as private (only you can see it) - TikTok gives private posts no public link."],
+            ($result['status'] ?? null) === 'PUBLISH_COMPLETE' => ['status' => 'completed', 'error_message' => TiktokPostService::notPublicYetMessage($post->platform_metadata ?? [])],
             ($result['status'] ?? null) === 'FAILED' => ['status' => 'failed', 'error_message' => 'TikTok could not publish this post' . (! empty($result['fail_reason']) ? " ({$result['fail_reason']})" : '') . '.'],
             default => null,
         };

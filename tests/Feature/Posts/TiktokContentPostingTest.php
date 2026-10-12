@@ -444,7 +444,7 @@ class TiktokContentPostingTest extends TestCase
 
         $this->artisan('tiktok:post-status', ['post' => $post->id])->assertSuccessful();
 
-        $this->assertStringContainsString('private (only you can see it)', $post->fresh()->error_message);
+        $this->assertStringContainsString('as private', $post->fresh()->error_message);
     }
 
     public function test_post_status_command_shows_tiktoks_fail_reason(): void
@@ -548,5 +548,33 @@ class TiktokContentPostingTest extends TestCase
         $this->artisan('tiktok:post-status', ['post' => $post->id])->expectsOutputToContain('--republish')->assertSuccessful();
 
         Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), '/video/init/'));
+    }
+
+    public function test_a_public_post_in_review_is_not_called_private(): void
+    {
+        $this->fakePublish(['privacy_level_options' => ['PUBLIC_TO_EVERYONE', 'SELF_ONLY']], ['status' => 'PUBLISH_COMPLETE']); // no post id yet
+        $post = $this->makePost($this->account(), [['video', 'https://cdn.socialeaz.com/v.mp4']]);
+
+        app(TiktokPostService::class)->publishPost($post);
+
+        $post->refresh();
+        $this->assertSame(['PUBLIC_TO_EVERYONE', ['PUBLIC_TO_EVERYONE', 'SELF_ONLY']], [$post->platform_metadata['privacy_level'], $post->platform_metadata['privacy_options']]);
+        $this->assertStringContainsString('once its review finishes', $post->error_message);
+        $this->assertStringNotContainsString('as private', $post->error_message);
+    }
+
+    public function test_scheduled_sync_fills_in_the_link_once_tiktok_makes_it_public(): void
+    {
+        $post = $this->makePost($this->account(), [['video', 'https://cdn.socialeaz.com/v.mp4']], ['status' => 'completed', 'post_id' => 'v_pub_file~5', 'platform_metadata' => ['publish_id' => 'v_pub_file~5']]);
+        Http::fake([
+            self::API . '/post/publish/status/fetch/' => Http::response(['data' => ['status' => 'PUBLISH_COMPLETE', 'publicaly_available_post_id' => [7355]], 'error' => ['code' => 'ok']]),
+            self::API . '/video/query/*' => Http::response(['data' => ['videos' => [$this->video('7355')]], 'error' => ['code' => 'ok']]),
+            self::API . '/user/info/*' => Http::response(['data' => ['user' => []], 'error' => ['code' => 'ok']]),
+        ]);
+
+        $this->artisan('posts:sync-engagement')->expectsOutputToContain('1 post(s) became public')->assertSuccessful();
+
+        $post->refresh();
+        $this->assertSame(['7355', 'https://www.tiktok.com/@bakery/video/7355', 120], [$post->post_id, $post->post_url, (int) $post->likes]);
     }
 }
