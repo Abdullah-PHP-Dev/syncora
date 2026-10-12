@@ -1,0 +1,1 @@
+Built-in image_gen; logo.png used as edit target. Extract the existing left graphic mark only, preserve its cyan-blue-purple gradients, loop shape and central star, remove all wordmark lettering, center in a square with equal small padding and transparent background. No redesign.

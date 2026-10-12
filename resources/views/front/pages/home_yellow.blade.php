@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('assets/css/home-yellow.css') }}?v=3">
+    <link rel="stylesheet" href="{{ asset('assets/css/hero-illustrations.css') }}?v={{ filemtime(public_path('assets/css/hero-illustrations.css')) }}">
 </head>
 <body>
 <svg class="brand-filter-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><defs>
@@ -34,7 +35,7 @@
             <div class="visual-orbit orbit-one" aria-hidden="true"></div><div class="visual-orbit orbit-two" aria-hidden="true"></div>
             <span class="hero-spark spark-one" aria-hidden="true">✦</span><span class="hero-spark spark-two" aria-hidden="true">✧</span>
             <div class="floating-tag"><span class="status-dot"></span> Your next big idea starts here</div>
-            <div class="visual-image"><img src="{{ asset('assets/images/home-theme/hero.png') }}" width="1672" height="941" alt="Creator surrounded by social platforms and engagement insights" fetchpriority="high"></div>
+            <div class="visual-image"><img class="hero-illustration" src="{{ asset('assets/images/home-theme/hero.png') }}" width="1672" height="941" alt="Creator surrounded by social platforms and engagement insights" fetchpriority="high"></div>
             <div class="idea-card"><span class="icon">@include('front.partials.home-icon', ['icon' => 'spark'])</span><div><span class="mini-label">YOUR CREATIVE SIDEKICK</span><strong>Goodbye, blank canvas.</strong><p>Say hello to your AI Copilot.</p></div><span class="card-check">✓</span></div>
             <div class="channel-badge"><span class="stacked-icons"><b>◎</b><b>♪</b><b>in</b></span><div><strong>One space. Every channel.</strong><small>Everything works better together.</small></div></div>
         </div>

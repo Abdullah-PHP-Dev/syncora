@@ -16,6 +16,7 @@
     @vite(['resources/css/apps.css', 'resources/js/apps.js'])
     <link rel="stylesheet" href="{{ asset('assets/css/home-amber.css') }}?v=studio-images-icons-3">
     @stack('styles')
+    <link rel="stylesheet" href="{{ asset('assets/css/hero-illustrations.css') }}?v={{ filemtime(public_path('assets/css/hero-illustrations.css')) }}">
 </head>
 <body class="marketing-home amber-home">
 <svg class="studio-logo-filters" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><defs>

@@ -20,7 +20,7 @@
             </div>
         </div>
         <div class="theme-hero-art">
-            <img src="{{ asset('assets/images/home-theme/hero-studio.png') }}" width="546" height="309" alt="Creator surrounded by social platforms, engagement and follower growth" fetchpriority="high">
+            <img class="hero-illustration" src="{{ asset('assets/images/home-theme/hero-studio.png') }}" width="546" height="309" alt="Creator surrounded by social platforms, engagement and follower growth" fetchpriority="high">
         </div>
     </section>
 

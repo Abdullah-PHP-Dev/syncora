@@ -1,0 +1,14 @@
+/* Evenly aligned brand-colored icons below the footer description. */
+.theme-footer-brand { min-width: 0; }
+.theme-footer-social { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); align-items: center; gap: 8px; width: min(100%,256px); margin-top: 18px; }
+.marketing-home .theme-footer-social-icon { display: grid; place-items: center; width: 100%; max-width: 36px; aspect-ratio: 1; padding: 0; margin: 0; border: 0; border-radius: 10px; line-height: 1; }
+.marketing-home .theme-footer-social-icon svg { display: block; width: 18px; height: 18px; max-width: 65%; max-height: 65%; }
+.marketing-home .theme-footer-social-instagram { background: linear-gradient(135deg,#7538ed,#ed2e84,#ffb445); color: #fff; }
+.marketing-home .theme-footer-social-facebook { background: #0866ff; color: #fff; }
+.marketing-home .theme-footer-social-linkedin { background: #0a66c2; color: #fff; }
+.marketing-home .theme-footer-social-youtube { background: #ff0033; color: #fff; }
+.marketing-home .theme-footer-social-tiktok { background: #111; color: #fff; }
+.marketing-home .theme-footer-social-snapchat { background: #fffc00; color: #111; }
+.marketing-home a.theme-footer-social-icon:hover { transform: translateY(-2px); box-shadow: 0 4px 10px #09072d18; }
+@media(prefers-reduced-motion:no-preference) { .theme-footer-social-icon { transition: transform .15s,box-shadow .15s; } }
+@media(prefers-reduced-motion:reduce) { .marketing-home a.theme-footer-social-icon:hover { transform: none; } }

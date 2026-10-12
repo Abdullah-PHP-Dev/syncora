@@ -1,0 +1,2 @@
+Built-in image_gen, homepage hero.png used as style reference.
+Create a premium payment illustration matching glossy 3D objects, blue-purple-cyan palette, white rounded floating tiles, pastel swirls and sparkles. Large wallet with coins and credit card, surrounded by symbolic payment tiles and recurring billing calendar. No people, text, numbers or logos. Landscape 3:2 with white edges and generous margins. Real payment logos rendered separately in HTML.
