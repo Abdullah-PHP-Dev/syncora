@@ -1,0 +1,167 @@
+.feature-hero { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.05fr); align-items: center; gap: 48px; padding: 64px 0 48px; }
+.feature-hero .theme-label { background: #f1eaff; }
+.marketing-home .feature-hero h1 { font-size: clamp(36px,4vw,54px); line-height: 1.12; letter-spacing: -1.8px; margin: 24px 0 20px; }
+.feature-hero h1 > span { background: var(--theme-gradient); background-clip: text; -webkit-background-clip: text; color: transparent; }
+.feature-hero-copy > p { color: var(--theme-muted); font-size: 17px; line-height: 1.8; }
+.feature-hero .theme-actions { margin-top: 28px; }
+.feature-preview { min-width: 0; padding: 28px; border: 1px solid #e4e5f5; border-radius: 28px; background: radial-gradient(ellipse at 10% 100%,#e0eaff,transparent 60%),linear-gradient(125deg,#f4efff,#eff8ff); box-shadow: 0 20px 50px #6690dc12; }
+.feature-preview > img { width: 100%; height: auto; margin-top: 20px; border-radius: 14px; box-shadow: 0 8px 24px #6690dc12; }
+.feature-preview-heading { display: flex; align-items: center; gap: 14px; }
+.feature-preview-heading strong { font-size: 16px; line-height: 1.5; }
+.feature-preview-heading small { display: block; margin-top: 5px; color: var(--theme-muted); font-size: 12px; line-height: 1.7; }
+.feature-benefits { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 24px; }
+.feature-benefits article { padding: 28px; border: 1px solid #edf1fb; border-radius: 24px; box-shadow: 0 8px 28px #6690dc09; }
+.marketing-home .feature-benefits h2 { margin: 20px 0 12px; font-size: 21px; line-height: 1.35; letter-spacing: -.5px; }
+.feature-benefits p,.feature-steps p { color: var(--theme-muted); font-size: 14px; line-height: 1.8; }
+.feature-workflow { margin-top: 56px; padding: 40px; border-radius: 28px; background: linear-gradient(125deg,#f1edff,#eff5ff); }
+.feature-section-heading .theme-eyebrow { color: var(--theme-purple); font-size: 11px; }
+.marketing-home .feature-section-heading h2 { font-size: clamp(28px,3vw,36px); line-height: 1.2; letter-spacing: -1px; margin-top: 14px; }
+.feature-steps { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 32px; margin-top: 32px; }
+.feature-step-number { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--theme-gradient); color: #fff; font-size: 16px; font-weight: 700; }
+.feature-steps h3 { font-size: 18px; line-height: 1.5; margin: 18px 0 10px; }
+.feature-faq { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.3fr); gap: 48px; margin-top: 64px; }
+.feature-faq details { border-bottom: 1px solid #e4e5f5; }
+.feature-faq summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 0; font-size: 14px; font-weight: 600; cursor: pointer; }
+.feature-faq summary::-webkit-details-marker { display: none; }
+.feature-faq summary span { font-size: 24px; color: var(--theme-purple); }
+.feature-faq details[open] summary span { transform: rotate(45deg); }
+.marketing-home .feature-faq details p { margin-bottom: 20px; color: var(--theme-muted); font-size: 14px; line-height: 1.8; }
+.feature-page .theme-final-cta { margin-top: 56px; }
+.feature-ai-orb { display: grid; place-items: center; width: 96px; height: 96px; margin: 12px auto 24px; border-radius: 28px; background: var(--theme-gradient); color: #fff; box-shadow: 0 12px 30px #710aff33; transform: rotate(-6deg); }
+.feature-ai-orb svg { width: 52px; height: 52px; }
+.feature-ai-prompt { text-align: center; }
+.feature-ai-prompt strong { font-size: 20px; }
+.marketing-home .feature-ai-prompt p { font-size: 13px; margin-top: 10px; color: var(--theme-muted); }
+.feature-team-row { display: flex; align-items: center; gap: 8px; margin-top: 24px; font-size: 12px; color: var(--theme-muted); }
+.feature-team-row img { width: 40px; height: 40px; border-radius: 50%; }
+.feature-team-row span { margin-inline-start: 8px; }
+.feature-inbox-tabs { display: flex; gap: 24px; margin-top: 24px; padding-bottom: 14px; border-bottom: 1px solid #d9d9f5; font-size: 12px; font-weight: 600; color: var(--theme-purple); }
+.feature-message { display: flex; align-items: center; gap: 12px; padding: 16px; margin-top: 12px; border-radius: 16px; background: #fff; }
+.feature-message > img { width: 44px; height: 44px; border-radius: 50%; }
+.feature-message > div { flex: 1; }
+.feature-message strong { font-size: 12px; }
+.marketing-home .feature-message p { font-size: 12px; color: var(--theme-muted); margin-top: 6px; line-height: 1.6; }
+.feature-message-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--theme-purple); }
+.feature-integration-hub { width: 110px; height: 110px; display: grid; place-items: center; background: #fff; border-radius: 28px; margin: 28px auto; box-shadow: 0 8px 30px #710aff15; }
+.feature-integration-hub img { width: 80px; height: 80px; }
+.feature-platform-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.feature-platform-grid span { padding: 16px 8px; text-align: center; border-radius: 14px; background: #fff; font-size: 12px; font-weight: 600; }
+.marketing-home .feature-preview-note { text-align: center; margin-top: 20px; font-size: 12px; color: var(--theme-muted); line-height: 1.7; }
+.feature-faq summary:focus-visible { outline: 3px solid var(--theme-purple); outline-offset: 4px; }
+@media(max-width:900px) { .feature-hero { gap: 28px; } .feature-benefits article { padding: 24px; } }
+@media(max-width:700px) {
+ .feature-hero { grid-template-columns: minmax(0,1fr); padding: 40px 0 36px; }
+ .marketing-home .feature-hero h1 { font-size: 38px; }
+ .feature-hero-copy > p { font-size: 15px; }
+ .feature-preview { padding: 24px 20px; }
+ .feature-benefits,.feature-steps,.feature-faq { grid-template-columns: minmax(0,1fr); }
+ .feature-workflow { padding: 28px 20px; margin-top: 40px; }
+ .feature-steps { gap: 24px; }
+ .feature-faq { gap: 20px; margin-top: 44px; }
+ .feature-platform-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+
+/* Recognizable platform marks in the integrations preview. */
+.feature-platform-grid .feature-platform-icon { display: grid; place-items: center; min-height: 76px; padding: 16px; border: 1px solid #edf1fb; border-radius: 18px; box-shadow: 0 5px 15px #6690dc09; }
+.marketing-home .feature-platform-icon svg { width: 36px; height: 36px; }
+.feature-platform-instagram { color: #e1306c; }
+.feature-platform-facebook { color: #0866ff; }
+.feature-platform-linkedin { color: #0a66c2; }
+.feature-platform-youtube { color: #ff0000; }
+.feature-platform-tiktok { color: #111; }
+.feature-platform-pinterest { color: #e60023; }
+
+/* Integration network: a central brand hub with six connected channels. */
+.feature-page-integrations .feature-preview { overflow: hidden; background: radial-gradient(ellipse at 50% 55%,#e6deff,transparent 55%),radial-gradient(ellipse at 0% 15%,#ddf8ff,transparent 55%),#fafaff; }
+.feature-connection-scene { position: relative; width: 100%; aspect-ratio: 400 / 360; margin-top: 12px; isolation: isolate; }
+.feature-connection-ring { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); border: 1px solid #bdb4f633; border-radius: 50%; z-index: -1; }
+.feature-connection-ring-outer { width: 88%; height: 88%; }
+.feature-connection-ring-inner { width: 62%; height: 62%; border-style: dashed; }
+.marketing-home .feature-connection-lines { position: absolute; inset: 0; width: 100%; height: 100%; }
+.feature-connection-lines path { fill: none; stroke: url(#connection-gradient); stroke-width: 2; stroke-dasharray: 5 6; opacity: .6; vector-effect: non-scaling-stroke; }
+.feature-connection-lines circle { fill: #8364ff; }
+.feature-connection-scene .feature-integration-hub { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 118px; height: 118px; margin: 0; padding: 12px; border: 1px solid #fff; border-radius: 32px; background: linear-gradient(145deg,#fff,#f6f1ff); box-shadow: 0 16px 32px #6e41ff25,0 0 0 10px #ffffff70; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.feature-connection-scene .feature-integration-hub img { width: 70px; height: 70px; }
+.feature-integration-hub > span { font-size: 11px; font-weight: 700; letter-spacing: -.2px; color: var(--theme-ink); }
+.feature-orbit-node { position: absolute; display: grid; place-items: center; width: 64px; height: 64px; border-radius: 20px; transform: translate(-50%,-50%); box-shadow: 0 12px 24px #30208420,inset 0 1px 2px #ffffff70; border: 1px solid #ffffff80; }
+.marketing-home .feature-orbit-node svg { width: 32px; height: 32px; }
+.feature-orbit-node-1 { left: 20%; top: 18%; }
+.feature-orbit-node-2 { left: 80%; top: 18%; }
+.feature-orbit-node-3 { left: 12%; top: 50%; }
+.feature-orbit-node-4 { left: 88%; top: 50%; }
+.feature-orbit-node-5 { left: 20%; top: 82%; }
+.feature-orbit-node-6 { left: 80%; top: 82%; }
+.feature-orbit-node.feature-platform-instagram { background: linear-gradient(145deg,#7538ed,#ed2e84,#ffb445); color: #fff; }
+.feature-orbit-node.feature-platform-facebook { background: linear-gradient(145deg,#259cff,#0866ff); color: #fff; }
+.feature-orbit-node.feature-platform-linkedin { background: linear-gradient(145deg,#25a1d6,#0a66c2); color: #fff; }
+.feature-orbit-node.feature-platform-youtube { background: linear-gradient(145deg,#ff4848,#ef001f); color: #fff; }
+.feature-orbit-node.feature-platform-tiktok { background: linear-gradient(145deg,#2c2d46,#08091a); color: #fff; }
+
+.feature-orbit-node.feature-platform-pinterest { background: linear-gradient(145deg,#ff3455,#ce0026); color: #fff; }
+.feature-connection-spark { position: absolute; color: #8d5eff; }
+.feature-connection-spark-one { left: 46%; top: 6%; transform: rotate(12deg); }
+.feature-connection-spark-two { left: 48%; top: 88%; color: #00b6e8; }
+.marketing-home .feature-connection-spark svg { width: 20px; height: 20px; }
+@media(max-width:900px) and (min-width:701px) { .feature-orbit-node { width: 52px; height: 52px; border-radius: 16px; } .feature-connection-scene .feature-integration-hub { width: 92px; height: 92px; border-radius: 24px; } .feature-connection-scene .feature-integration-hub img { width: 52px; height: 52px; } }
+@media(max-width:380px) { .feature-orbit-node { width: 52px; height: 52px; border-radius: 16px; } .feature-connection-scene .feature-integration-hub { width: 94px; height: 94px; border-radius: 24px; } .feature-connection-scene .feature-integration-hub img { width: 52px; height: 52px; } }
+
+.feature-page-integrations .feature-preview { background: none; border: 0; box-shadow: none; }
+.feature-orbit-node.feature-platform-snapchat { background: #fffc00; color: #111; }
+
+/* A clearer visual sequence for each product workflow. */
+.feature-workflow { padding: 40px; background: linear-gradient(125deg,#f8f6ff,#f2f8ff); border: 1px solid #edf1fb; }
+.feature-workflow > .feature-section-heading { text-align: center; max-width: 720px; margin-inline: auto; }
+.feature-workflow .theme-eyebrow { display: inline-block; padding: 7px 14px; border-radius: 999px; background: #ece5ff; letter-spacing: 1.5px; }
+.feature-steps { gap: 28px; margin-top: 36px; }
+.feature-step-card { position: relative; min-width: 0; padding: 28px; border: 1px solid #e7e8f6; border-radius: 22px; background: #fff; box-shadow: 0 8px 24px #6690dc09; }
+.feature-step-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.feature-step-top .theme-icon { width: 56px; height: 56px; flex-basis: 56px; border-radius: 16px; }
+.feature-step-top .theme-icon svg { width: 28px; height: 28px; }
+.feature-step-top .feature-step-number { width: auto; height: auto; border-radius: 0; background: none; color: #c9c8e7; font-size: 30px; font-weight: 800; line-height: 1; letter-spacing: -1px; }
+.feature-step-card h3 { margin-top: 24px; font-size: 18px; line-height: 1.4; }
+.feature-step-card p { font-size: 13px; }
+.feature-step-connector { position: absolute; inset-inline-end: -29px; top: 40px; z-index: 1; width: 28px; text-align: center; color: #9381e7; font-size: 24px; line-height: 32px; }
+.marketing-home:dir(rtl) .feature-step-connector { transform: scaleX(-1); }
+@media(max-width:1000px) and (min-width:701px) { .feature-workflow { padding: 28px; } .feature-step-card { padding: 22px 18px; } }
+@media(max-width:700px) {
+ .feature-workflow { padding: 28px 20px; }
+ .feature-steps { gap: 28px; }
+ .feature-step-card { padding: 24px; }
+ .feature-step-connector { inset-inline-end: auto; left: 50%; top: auto; bottom: -30px; transform: translateX(-50%) rotate(90deg); }
+ .marketing-home:dir(rtl) .feature-step-connector { transform: translateX(-50%) rotate(90deg); }
+}
+
+
+.marketing-home .feature-workflow-description { max-width: 620px; margin: 16px auto 0; color: var(--theme-muted); font-size: 15px; line-height: 1.8; }
+
+/* Render local brand vectors at a clear, consistent size without blur filters. */
+.marketing-home .feature-orbit-node svg { width: 36px; height: 36px; filter: none; opacity: 1; overflow: visible; }
+.feature-orbit-node { box-shadow: 0 6px 14px #30208416; }
+.feature-orbit-node.feature-platform-facebook { background: #0866ff; }
+.feature-orbit-node.feature-platform-linkedin { background: #0a66c2; }
+.feature-orbit-node.feature-platform-youtube { background: #ff0033; }
+.feature-orbit-node.feature-platform-tiktok { background: #111; }
+@media(max-width:900px) and (min-width:701px) { .marketing-home .feature-orbit-node svg { width: 30px; height: 30px; } }
+@media(max-width:380px) { .marketing-home .feature-orbit-node svg { width: 30px; height: 30px; } }
+
+/* Moving dashes show the flow between the workspace and connected channels. */
+.feature-connection-lines path { animation: feature-connection-flow 2.4s linear infinite; }
+.feature-connection-lines circle { animation: feature-connection-pulse 2.4s ease-in-out infinite; }
+.feature-connection-lines circle:nth-child(even) { animation-delay: -1.2s; }
+@keyframes feature-connection-flow { to { stroke-dashoffset: -44; } }
+@keyframes feature-connection-pulse { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
+@media(prefers-reduced-motion:reduce) { .feature-connection-lines path, .feature-connection-lines circle { animation: none; } }
+
+/* Eight channels and services around the shared connection hub. */
+.feature-orbit-node-1 { left: 20%; top: 20%; }
+.feature-orbit-node-2 { left: 50%; top: 10%; }
+.feature-orbit-node-3 { left: 80%; top: 20%; }
+.feature-orbit-node-4 { left: 90%; top: 50%; }
+.feature-orbit-node-5 { left: 80%; top: 80%; }
+.feature-orbit-node-6 { left: 50%; top: 90%; }
+.feature-orbit-node-7 { left: 20%; top: 80%; }
+.feature-orbit-node-8 { left: 10%; top: 50%; }
+.feature-orbit-node.feature-platform-whatsapp { background: #25d366; color: #fff; }
+.feature-orbit-node.feature-platform-email-marketing { background: #720aff; color: #fff; }
+.feature-connection-spark-one { left: 40%; top: 27%; }
+.feature-connection-spark-two { left: 58%; top: 73%; }

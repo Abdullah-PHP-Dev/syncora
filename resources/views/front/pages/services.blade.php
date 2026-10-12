@@ -1,57 +1,31 @@
-@extends('layouts.front')
-
+@extends('layouts.apps')
+@section('title', __('Services') . ' — Socialeaz')
+@section('meta_description', __('Explore creative and marketing services for your content, campaigns and website.'))
+@push('styles')
+<link rel="stylesheet" href="{{ asset('assets/css/services.css') }}?v={{ filemtime(public_path('assets/css/services.css')) }}">
+@endpush
 @section('content')
-
-    <div class="container py-5">
-
-        <h1 class="fw-bold mb-4">Our Services</h1>
-
-        <div class="row g-4">
-
-            <div class="col-md-4">
-                <div class="card shadow-sm p-3">
-                    <h5>Marketplace Ads</h5>
-                    <p class="text-muted">Post and manage ads easily.</p>
-                </div>
-            </div>
-
-            <div class="col-md-4">
-                <div class="card shadow-sm p-3">
-                    <h5>CRM System</h5>
-                    <p class="text-muted">Manage leads and customers.</p>
-                </div>
-            </div>
-
-            <div class="col-md-4">
-                <div class="card shadow-sm p-3">
-                    <h5>Boost & Promotion</h5>
-                    <p class="text-muted">Increase visibility of your ads.</p>
-                </div>
-            </div>
-
-            <div class="col-md-4">
-                <div class="card shadow-sm p-3">
-                    <h5>Wallet System</h5>
-                    <p class="text-muted">Secure payments and withdrawals.</p>
-                </div>
-            </div>
-
-            <div class="col-md-4">
-                <div class="card shadow-sm p-3">
-                    <h5>Subscriptions</h5>
-                    <p class="text-muted">Premium plans for sellers.</p>
-                </div>
-            </div>
-
-            <div class="col-md-4">
-                <div class="card shadow-sm p-3">
-                    <h5>Chat System</h5>
-                    <p class="text-muted">Direct buyer-seller communication.</p>
-                </div>
-            </div>
-
-        </div>
-
+@php
+    $services = config('marketing-services');
+    $copy = fn ($value) => $value[app()->getLocale()] ?? $value['en'];
+@endphp
+<div class="theme-page services-page">
+    <section class="services-hero" aria-labelledby="services-title">
+        <div><span class="theme-label">@include('front.partials.home-icon', ['icon' => 'team']) {{ __('SOCIALEAZ SERVICES') }}</span><h1 id="services-title">{{ __('Big ideas.') }}<br><span>{{ __('A little extra help.') }}</span></h1><p>{{ __('Explore creative and marketing support for the work behind your brand. Tell us what you want to achieve and shape a service brief around your goals.') }}</p><div class="theme-actions"><a href="{{ route('contact') }}" class="theme-button theme-button-primary">{{ __('Discuss your project') }} <span aria-hidden="true">→</span></a><a href="#service-categories" class="theme-button theme-button-outline">{{ __('Explore services') }} <span aria-hidden="true">↓</span></a></div></div>
+        <div class="services-hero-art"><img class="hero-illustration" src="{{ asset('assets/images/home-theme/services-hero.jpg') }}" width="1536" height="1024" alt="{{ __('Illustration of a creative team planning content, campaigns and a website') }}" fetchpriority="high"></div>
+    </section>
+    <nav class="services-category-nav" id="service-categories" aria-label="{{ __('Service categories') }}">@foreach($services as $slug => $service)<a href="#{{ $slug }}">@include('front.partials.home-icon', ['icon' => $service['icon']])<span>{{ $copy($service['title']) }}</span></a>@endforeach</nav>
+    <div class="services-sections">
+        @foreach($services as $slug => $service)
+        <section class="service-detail service-detail-{{ $service['color'] }}" id="{{ $slug }}" aria-labelledby="{{ $slug }}-title">
+            <div class="service-detail-copy"><span class="theme-label">{{ $copy($service['title']) }}</span><h2 id="{{ $slug }}-title">{{ $copy($service['headline']) }}</h2><p>{{ $copy($service['description']) }}</p><ul>@foreach($service['items'] as $item)<li>{{ $copy($item) }}</li>@endforeach</ul><a href="mailto:support@socialeaz.com?subject={{ rawurlencode($copy($service['title'])) }}" class="theme-button theme-button-primary">{{ __('Ask about this service') }} <span aria-hidden="true">→</span></a></div>
+            <div class="service-detail-visual" aria-hidden="true"><span class="service-visual-orbit"></span><span class="service-visual-main theme-icon theme-icon-{{ $service['color'] }}">@include('front.partials.home-icon', ['icon' => $service['icon']])</span><div class="service-visual-cards">@foreach($service['visual'] as $icon)<div><span class="theme-icon theme-icon-{{ ['blue','purple','green'][$loop->index] }}">@include('front.partials.home-icon', ['icon' => $icon])</span><strong>{{ $copy($service['visual_labels'][$loop->index]) }}</strong></div>@endforeach</div><span class="service-visual-spark">@include('front.partials.home-icon', ['icon' => 'spark'])</span></div>
+        </section>
+        @endforeach
     </div>
-
+    <section class="services-process" aria-labelledby="services-process-title"><div class="services-section-heading"><p class="theme-eyebrow">{{ __('FROM IDEA TO A CLEAR BRIEF') }}</p><h2 id="services-process-title">{{ __('Start with a conversation.') }}</h2><p>{{ __('A good project starts with shared expectations.') }}</p></div><div class="services-process-grid">@foreach([['team','blue','Tell us your goal','Share your audience, your channels and what you would like help with.'],['document','purple','Agree the scope','Discuss deliverables, timing and pricing before the work begins.'],['check','green','Create and review','Keep feedback, approvals and the next steps clear throughout the project.']] as [$icon,$color,$title,$description])<article><div><span class="theme-icon theme-icon-{{ $color }}">@include('front.partials.home-icon', ['icon' => $icon])</span><span>{{ str_pad($loop->iteration,2,'0',STR_PAD_LEFT) }}</span></div><h3>{{ __($title) }}</h3><p>{{ __($description) }}</p></article>@endforeach</div></section>
+    <section class="services-brief"><div><span class="theme-label">{{ __('HAVE SOMETHING IN MIND?') }}</span><h2>{{ __('Tell us about your next project.') }}</h2><p>{{ __('Share your goals, examples you like and the kind of support you need. We can start from there.') }}</p></div><a href="mailto:support@socialeaz.com?subject={{ rawurlencode(__('Service project enquiry')) }}" class="theme-button theme-button-primary">{{ __('Send your brief') }} <span aria-hidden="true">→</span></a></section>
+    <section class="services-faq" aria-labelledby="services-faq-title"><div class="services-section-heading"><p class="theme-eyebrow">{{ __('THE SMALL DETAILS') }}</p><h2 id="services-faq-title">{{ __('Your questions, answered.') }}</h2><a href="{{ route('contact') }}" class="theme-learn">{{ __('Contact & support') }} <span aria-hidden="true">→</span></a></div><div>@foreach([['How do I request a service?','Choose a category and contact our team with your goals. Include your audience, channels, timeline and any examples that help explain the project.'],['Where can I see service pricing?','Service scope and pricing are discussed for your project. The pricing page lists workspace subscription plans.'],['Can I request more than one service?','Describe the combination of support you need so the scope and next steps can be discussed together.'],['Can I review work before it is published?','Include your review and approval requirements in the project brief so they can be agreed before work starts.']] as [$question,$answer])<details @if($loop->first) open @endif><summary>{{ __($question) }}<span aria-hidden="true">+</span></summary><p>{{ __($answer) }}</p></details>@endforeach</div></section>
+    <section class="theme-final-cta"><div><h2>{{ __('Make room for your next big idea.') }}</h2><p>{{ __('Find the right workspace and the support that fits your goals.') }}</p></div><div class="theme-actions"><a href="{{ route('contact') }}" class="theme-button theme-button-white">{{ __('Discuss your project') }} <span aria-hidden="true">→</span></a><a href="{{ route('pricing') }}" class="theme-button theme-button-ghost">{{ __('Compare plans') }}</a></div></section>
+</div>
 @endsection

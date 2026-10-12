@@ -1,0 +1,19 @@
+/* A shared edge treatment blends illustrations into their page background. */
+html body img.hero-illustration {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    filter: none;
+    mix-blend-mode: multiply;
+    -webkit-mask-image: linear-gradient(to right,transparent,#000 7%,#000 93%,transparent),linear-gradient(to bottom,transparent,#000 7%,#000 91%,transparent);
+    mask-image: linear-gradient(to right,transparent,#000 7%,#000 93%,transparent),linear-gradient(to bottom,transparent,#000 7%,#000 91%,transparent);
+    -webkit-mask-composite: source-in;
+    mask-composite: intersect;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+}
+/* Keep the pricing illustration sections on the same white canvas as the page. */
+.marketing-home .pricing-scale,.marketing-home .pricing-payments { background: #fff; border: 0; box-shadow: none; }
+.marketing-home .about-hero-art,.marketing-home .pricing-payments-art,.marketing-home .theme-hero-art { background: none; border: 0; box-shadow: none; }

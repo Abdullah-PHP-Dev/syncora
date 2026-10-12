@@ -41,6 +41,9 @@ use App\Http\Controllers\Admin\BusinessProfileController;
 use App\Http\Controllers\Admin\KnowledgeGapController;
 use App\Http\Controllers\Admin\AiCopilotAnalyticsController;
 
+Route::get('/sitemap.xml', [\App\Http\Controllers\SeoController::class, 'sitemap'])->name('seo.sitemap');
+Route::get('/robots.txt', [\App\Http\Controllers\SeoController::class, 'robots'])->name('seo.robots');
+
 Route::get('/payments/tamara/return/{order}', [\App\Http\Controllers\Payments\TamaraController::class, 'returned'])
     ->middleware(['auth', 'signed:orderId,status'])->name('payments.tamara.return');
 
@@ -65,11 +68,22 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	*/
 
 	Route::view('/', 'front.pages.home_modern')->name('home');
+    Route::view('/services', 'front.pages.services')->name('services');
 	Route::view('/yellow', 'front.pages.home_yellow')->name('home.yellow');
 	Route::view('/studio', 'front.pages.home_amber')->name('home.studio');
 	Route::get('/amber', function () {
 		return redirect()->route('home.studio', [], 301);
 	})->name('home.amber');
+
+    foreach (array_keys(config('marketing-solutions')) as $solutionKey) {
+        Route::view('/solutions/'.$solutionKey, 'front.pages.solutions.show', ['solutionKey' => $solutionKey])
+            ->name('solutions.'.$solutionKey);
+    }
+
+    foreach (array_keys(config('marketing-products')) as $productKey) {
+        Route::view('/product/'.$productKey, 'front.pages.products.show', ['productKey' => $productKey])
+            ->name('product.'.$productKey);
+    }
 
 	Route::get('/product', function () {
 		return view('front.pages.product');
@@ -112,12 +126,12 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	*/
 
 	Route::get('/about', function () {
-		return view('about');
+		return view('front.pages.about');
 	})->name('about');
 
 
 	Route::get('/contact', function () {
-		return view('contact');
+		return view('front.pages.contact');
 	})->name('contact');
 
 
@@ -133,7 +147,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 
 	Route::get('/help', function () {
-		return view('help');
+		return redirect(route('contact') . '#support-faq');
 	})->name('help');
 
 

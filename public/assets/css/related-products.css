@@ -1,0 +1,30 @@
+/* Shared related-product component styles. */
+.feature-related { margin-top: 64px; }
+.feature-related-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); margin-top: 28px; }
+.feature-related .feature-section-heading .theme-eyebrow { color: var(--theme-purple); font-size: 11px; }
+.marketing-home .feature-related .feature-section-heading h2 { font-size: clamp(28px,3vw,36px); line-height: 1.2; letter-spacing: -1px; margin-top: 14px; }
+@media(max-width:700px) { .feature-related { margin-top: 44px; } .feature-related-grid { grid-template-columns: minmax(0,1fr); } }
+/* Related products: individual accents and a quieter navigation affordance. */
+.feature-related { padding: 36px; border-radius: 28px; border: 1px solid #edf0fa; background: linear-gradient(125deg,#fcfaff,#f8fbff); }
+.feature-related > .feature-section-heading { max-width: 650px; }
+.feature-related-grid { gap: 18px; }
+.feature-related-grid > .feature-related-card { position: relative; display: grid; grid-template-columns: 52px minmax(0,1fr) 34px; gap: 14px; align-items: center; padding: 24px 20px; border: 1px solid #e9eaf6; border-radius: 20px; background: #fff; box-shadow: 0 4px 16px #6690dc05; transition: transform .18s,box-shadow .18s,border-color .18s; }
+.feature-related-card .theme-icon { width: 52px; height: 52px; border-radius: 16px; }
+.feature-related-card .theme-icon svg { width: 26px; height: 26px; }
+.feature-related-card .theme-icon-amber { background: #fff2dc; color: #cc8200; }
+.feature-related-card .theme-icon-cyan { background: #dff8fb; color: #0096a5; }
+.feature-related-card .theme-icon-violet { background: #eeeaff; color: #6652da; }
+.feature-related-grid .feature-related-card strong { font-size: 14px; line-height: 1.5; letter-spacing: -.15px; }
+.feature-related-grid > .feature-related-card > .feature-related-arrow { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid #e7e7f3; border-radius: 50%; background: #fafaff; color: #8582ad; transition: background .18s,color .18s,border-color .18s; }
+.marketing-home .feature-related-arrow svg { width: 17px; height: 17px; }
+.feature-related-grid > .feature-related-card:hover { transform: translateY(-3px); border-color: #d6cef3; box-shadow: 0 12px 28px #6690dc14; background: #fff; }
+.feature-related-card:hover .feature-related-arrow, .feature-related-card:focus-visible .feature-related-arrow { background: var(--theme-gradient); border-color: #710aff; color: #fff !important; }
+.marketing-home:dir(rtl) .feature-related-arrow svg { transform: rotate(180deg); }
+@media(max-width:1100px) and (min-width:701px) { .feature-related-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media(max-width:700px) {
+ .feature-related { padding: 28px 20px; }
+ .feature-related-grid { gap: 12px; }
+ .feature-related-grid > .feature-related-card { grid-template-columns: 48px minmax(0,1fr) 34px; padding: 18px 14px; gap: 12px; }
+ .feature-related-card .theme-icon { width: 48px; height: 48px; border-radius: 14px; }
+}
+@media(prefers-reduced-motion:reduce) { .feature-related-grid > .feature-related-card, .feature-related-arrow { transition: none !important; } .feature-related-grid > .feature-related-card:hover { transform: none; } }
