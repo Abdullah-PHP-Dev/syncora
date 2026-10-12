@@ -50,11 +50,19 @@ class TiktokContentPostingTest extends TestCase
             $t->string('post_url')->nullable();
             $t->string('visibility')->nullable();
             $t->json('platform_metadata')->nullable();
+            $t->integer('likes')->default(0);
+            $t->integer('comments')->default(0);
+            $t->integer('shares')->default(0);
+            $t->integer('views')->default(0);
             $t->timestamps();
         });
         Schema::create('post_media', function ($t) {
             $t->id();
             $t->unsignedBigInteger('post_id');
+            $t->string('platform')->nullable();
+            $t->unsignedBigInteger('user_id')->nullable();
+            $t->unsignedBigInteger('social_account_id')->nullable();
+            $t->string('file_name')->nullable();
             $t->string('media_type')->nullable();
             $t->text('media_url')->nullable();
             $t->timestamps();
@@ -107,7 +115,7 @@ class TiktokContentPostingTest extends TestCase
 
         $this->assertStringStartsWith('https://www.tiktok.com/v2/auth/authorize/', $url);
         $this->assertSame('tt-client', $q['client_key']);
-        $this->assertSame('user.info.basic,video.upload,video.publish,user.info.profile,user.info.stats', $q['scope']);
+        $this->assertSame('user.info.basic,video.upload,video.publish,user.info.profile,user.info.stats,video.list', $q['scope']);
         $this->assertSame(hash('sha256', session('social_tiktok_code_verifier')), $q['code_challenge']);
         $this->assertSame(session('social_oauth_state_tiktok'), $q['state']);
         $this->assertStringEndsWith('/post-accounts/tiktok/callback', $q['redirect_uri']);
@@ -118,13 +126,16 @@ class TiktokContentPostingTest extends TestCase
         Http::fake([
             self::API . '/oauth/token/' => Http::response(['open_id' => 'OPEN1', 'access_token' => 'act.1', 'refresh_token' => 'rft.1', 'expires_in' => 86400, 'refresh_expires_in' => 31536000, 'scope' => 'user.info.basic,video.upload,video.publish,user.info.profile,user.info.stats']),
             self::API . '/user/info/*' => Http::response(['data' => ['user' => ['open_id' => 'OPEN1', 'display_name' => 'The Bakery', 'username' => 'bakery', 'avatar_url' => 'https://p16.tiktokcdn.com/a.jpg', 'follower_count' => 1200, 'following_count' => 10, 'likes_count' => 5400, 'video_count' => 33, 'bio_description' => 'Bread', 'profile_deep_link' => 'https://vm.tiktok.com/x']]]),
+            self::API . '/video/list/*' => Http::response(['data' => ['videos' => [$this->video('7001'), $this->video('7002', ['view_count' => 90])], 'has_more' => true], 'error' => ['code' => 'ok']]),
         ]);
         $service = app(SocialAuthService::class);
         $service->redirect('tiktok');
 
         $response = $service->callback('tiktok', 'auth-code', session('social_oauth_state_tiktok'));
 
-        $this->assertSame('TikTok account connected.', session('success'), (string) session('error'));
+        $this->assertSame('TikTok account connected. Imported your latest 2 video(s).', session('success'), (string) session('error'));
+        $this->assertSame(['7001', '7002'], Post::where('platform', 'tiktok')->orderBy('post_id')->pluck('post_id')->all());
+        Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), '/video/list/?fields=') && $r['max_count'] === 5);
         $account = SocialAccount::where('platform', 'tiktok')->sole();
         $this->assertSame(['OPEN1', 'The Bakery', 'bakery', 1200, 5400, 33, true], [$account->platform_account_id, $account->name, $account->username, (int) $account->followers_count, (int) $account->likes_count, (int) $account->media_count, (bool) $account->has_posting_permission]);
         $this->assertSame(['act.1', 'rft.1'], [$account->access_token, $account->refresh_token]);
@@ -319,5 +330,109 @@ class TiktokContentPostingTest extends TestCase
         $this->deliver('authorization.removed', ['reason' => 1])->assertOk();
 
         $this->assertSame([false, false], [(bool) $account->fresh()->is_token_valid, (bool) $account->fresh()->has_posting_permission]);
+    }
+
+    // ---- existing videos and counts ----------------------------------------
+
+    private function video(string $id, array $overrides = []): array
+    {
+        return $overrides + [
+            'id' => $id, 'title' => '', 'video_description' => "Morning bake #{$id} #bread", 'create_time' => 1790000000,
+            'cover_image_url' => "https://p16.tiktokcdn.com/cover-{$id}.jpg", 'share_url' => "https://www.tiktok.com/@bakery/video/{$id}",
+            'embed_link' => "https://www.tiktok.com/player/v1/{$id}", 'duration' => 15,
+            'like_count' => 120, 'comment_count' => 8, 'share_count' => 5, 'view_count' => 3400,
+        ];
+    }
+
+    public function test_import_creates_posts_with_counts_and_covers(): void
+    {
+        Http::fake([self::API . '/video/list/*' => Http::response(['data' => ['videos' => [$this->video('7001')]], 'error' => ['code' => 'ok']])]);
+        $account = $this->account();
+
+        $this->assertSame(1, app(TiktokPostService::class)->backfillRecentPosts($account, 5));
+
+        $post = Post::where('post_id', '7001')->sole();
+        $this->assertSame(
+            ['completed', $account->id, 'Morning bake #7001 #bread', 'https://www.tiktok.com/@bakery/video/7001', 120, 8, 5, 3400, 1790000000],
+            [$post->status, (int) $post->social_account_id, $post->content, $post->post_url, (int) $post->likes, (int) $post->comments, (int) $post->shares, (int) $post->views, $post->created_at->timestamp]
+        );
+        $this->assertSame(['image', 'https://p16.tiktokcdn.com/cover-7001.jpg'], [DB::table('post_media')->value('media_type'), DB::table('post_media')->value('media_url')]);
+        Http::assertSent(fn (HttpRequest $r) => str_contains(urldecode($r->url()), 'fields=' . TiktokPostService::VIDEO_FIELDS) && $r->hasHeader('Authorization', 'Bearer tt-access'));
+    }
+
+    public function test_import_updates_videos_already_on_file(): void
+    {
+        $account = $this->account();
+        $existing = $this->makePost($account, [], ['post_id' => '7001', 'status' => 'completed']); // published from the app
+        Http::fake([self::API . '/video/list/*' => Http::response(['data' => ['videos' => [$this->video('7001', ['like_count' => 999])]], 'error' => ['code' => 'ok']])]);
+
+        app(TiktokPostService::class)->backfillRecentPosts($account);
+
+        $this->assertSame(1, Post::count());
+        $this->assertSame([999, 'Fresh sourdough every morning. #bakery #bread'], [(int) $existing->fresh()->likes, $existing->fresh()->content]); // counts updated, text kept
+    }
+
+    public function test_a_refused_import_still_connects_the_account(): void
+    {
+        Http::fake([
+            self::API . '/oauth/token/' => Http::response(['open_id' => 'OPEN1', 'access_token' => 'act.1', 'refresh_token' => 'rft.1', 'expires_in' => 86400]),
+            self::API . '/user/info/*' => Http::response(['data' => ['user' => ['display_name' => 'The Bakery']]]),
+            self::API . '/video/list/*' => Http::response(['error' => ['code' => 'scope_not_authorized', 'message' => 'The user did not authorize the scope required for completing this request.']], 401),
+        ]);
+        $service = app(SocialAuthService::class);
+        $service->redirect('tiktok');
+
+        $service->callback('tiktok', 'auth-code', session('social_oauth_state_tiktok'));
+
+        $this->assertSame('TikTok account connected.', session('success'));
+        $this->assertSame(1, SocialAccount::count());
+        $this->assertSame(0, Post::count());
+    }
+
+    public function test_engagement_sync_refreshes_counts_and_the_cover(): void
+    {
+        $account = $this->account();
+        $post = $this->makePost($account, [], ['post_id' => '7001', 'status' => 'completed']);
+        Http::fake([self::API . '/video/query/*' => Http::response(['data' => ['videos' => [$this->video('7001', ['like_count' => 150, 'share_count' => 9, 'view_count' => 5000, 'cover_image_url' => 'https://p16.tiktokcdn.com/new.jpg'])]], 'error' => ['code' => 'ok']])]);
+
+        $this->assertTrue(app(TiktokPostService::class)->syncEngagement($post));
+
+        $post->refresh();
+        $this->assertSame([150, 8, 9, 5000], [(int) $post->likes, (int) $post->comments, (int) $post->shares, (int) $post->views]);
+        $this->assertArrayHasKey('engagement_synced_at', $post->platform_metadata);
+        $this->assertSame('https://p16.tiktokcdn.com/new.jpg', DB::table('post_media')->where('post_id', $post->id)->value('media_url'));
+        Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), '/video/query/') && $r['filters'] === ['video_ids' => ['7001']]);
+    }
+
+    public function test_engagement_sync_skips_posts_still_processing(): void
+    {
+        Http::fake();
+        $post = $this->makePost($this->account(), [], ['post_id' => 'v_pub_url~1', 'status' => 'completed']);
+
+        $this->assertFalse(app(TiktokPostService::class)->syncEngagement($post));
+        Http::assertNothingSent();
+    }
+
+    public function test_account_stats_are_refreshed(): void
+    {
+        $account = $this->account();
+        Http::fake([self::API . '/user/info/*' => Http::response(['data' => ['user' => ['display_name' => 'The Bakery', 'follower_count' => 1500, 'following_count' => 12, 'likes_count' => 7000, 'video_count' => 40]], 'error' => ['code' => 'ok']])]);
+
+        $this->assertTrue(app(TiktokPostService::class)->syncAccountStats($account));
+
+        $account->refresh();
+        $this->assertSame([1500, 12, 7000, 40], [(int) $account->followers_count, (int) $account->following_count, (int) $account->likes_count, (int) $account->media_count]);
+    }
+
+    public function test_scheduled_sync_covers_tiktok_posts(): void
+    {
+        $account = $this->account();
+        $this->makePost($account, [], ['post_id' => '7001', 'status' => 'completed']);
+        Http::fake([
+            self::API . '/video/query/*' => Http::response(['data' => ['videos' => [$this->video('7001')]], 'error' => ['code' => 'ok']]),
+            self::API . '/user/info/*' => Http::response(['data' => ['user' => ['follower_count' => 1]], 'error' => ['code' => 'ok']]),
+        ]);
+
+        $this->artisan('posts:sync-engagement')->expectsOutputToContain('Synced 1 of 1 post(s).')->assertSuccessful();
     }
 }

@@ -11,10 +11,15 @@ use App\Models\PostMedia;
 use getID3;
 use App\Models\PostComment;
 use App\Jobs\Posts\ResolveTiktokPublishStatus;
+use App\Models\SocialAccount;
+use Illuminate\Support\Facades\Log;
 
 class TiktokPostService
 {
     protected $api, $post, $media, $baseUrl;
+
+    /** Why the last token refresh was rejected (for the post's error message). */
+    protected ?string $lastRefreshError = null;
 
     public function __construct(ApiPostService $api, Post $post, PostMedia $media)
     {
@@ -29,6 +34,22 @@ class TiktokPostService
     protected function ensureValidToken($post)
     {
         $account = $post->socialAccount;
+
+        if ($this->refreshAccountToken($account)) {
+            return true;
+        }
+
+        $post->forceFill([
+            'status' => 'failed',
+            'error_message' => 'TikTok connection expired - reconnect the TikTok account in Connections. (' . ($this->lastRefreshError ?? 'token refresh failed') . ')',
+        ])->save();
+
+        return false;
+    }
+
+    /** Refresh the account's Login Kit token when it's about to expire. False = reconnect needed. */
+    public function refreshAccountToken(SocialAccount $account): bool
+    {
         // Token still valid
         if (
             !empty($account->expires_at)
@@ -53,10 +74,7 @@ class TiktokPostService
         // HTTP 200 with {"error": "invalid_grant", ...} and no access_token.
         if (!$response->successful() || empty($tokenData['access_token'])) {
             $account->update(['is_token_valid' => false]);
-            $post->forceFill([
-                'status' => 'failed',
-                'error_message' => 'TikTok connection expired - reconnect the TikTok account in Connections. (' . ($tokenData['error_description'] ?? $tokenData['error'] ?? 'token refresh failed') . ')',
-            ])->save();
+            $this->lastRefreshError = $tokenData['error_description'] ?? $tokenData['error'] ?? 'token refresh failed';
 
             return false;
         }
@@ -763,6 +781,144 @@ class TiktokPostService
             'success' => true,
             'data' => $data['items']
         ];
+    }
+
+    /** Every field TikTok's video list/query APIs return (scope video.list). */
+    public const VIDEO_FIELDS = 'id,title,video_description,create_time,cover_image_url,share_url,embed_link,duration,like_count,comment_count,share_count,view_count';
+
+    /**
+     * After connect: the account's latest videos (POST /v2/video/list/)
+     * as posts, with likes, comments, shares and views. TikTok's Display
+     * API has no reach, impressions, clicks or saves - those exist only in
+     * the separate TikTok for Business API. Videos already on file are
+     * refreshed rather than duplicated. Needs the video.list scope;
+     * accounts connected before it was requested must reconnect.
+     */
+    public function backfillRecentPosts(SocialAccount $account, int $limit = 5): int
+    {
+        if (!$this->refreshAccountToken($account)) {
+            return 0;
+        }
+
+        $response = Http::withToken($account->access_token)->acceptJson()
+            ->post("{$this->baseUrl}/video/list/?fields=" . self::VIDEO_FIELDS, ['max_count' => min($limit, 20)]);
+
+        if (!$response->successful() || !$this->isOk($response)) {
+            Log::warning('TikTok video list failed.', ['account_id' => $account->id, 'error' => $this->tiktokError($response, 'video list failed')]);
+
+            return 0;
+        }
+
+        $videos = $response->json('data.videos') ?? [];
+        foreach ($videos as $video) {
+            $this->saveVideo($account, $video);
+        }
+
+        return count($videos);
+    }
+
+    /**
+     * Current likes, comments, shares and views for app posts that are on
+     * TikTok (POST /v2/video/query/, up to 20 videos per call). Also
+     * refreshes each cover image - TikTok's cover URLs expire.
+     */
+    public function syncEngagement(Post $post): bool
+    {
+        $account = $post->socialAccount;
+        if (!$account || !ctype_digit((string) $post->post_id) || !$this->refreshAccountToken($account)) {
+            return false; // not on TikTok yet (still a publish_id) or connection expired
+        }
+
+        $response = Http::withToken($account->access_token)->acceptJson()
+            ->post("{$this->baseUrl}/video/query/?fields=" . self::VIDEO_FIELDS, ['filters' => ['video_ids' => [(string) $post->post_id]]]);
+
+        $video = collect($response->json('data.videos') ?? [])->firstWhere('id', (string) $post->post_id);
+        if (!$response->successful() || !$this->isOk($response) || !$video) {
+            Log::info('TikTok video query failed.', ['post_id' => $post->id, 'error' => $this->tiktokError($response, 'video not returned')]);
+
+            return false;
+        }
+
+        $this->saveVideo($account, $video, $post);
+
+        return true;
+    }
+
+    /** Followers, following, likes and video count for the account (user/info). */
+    public function syncAccountStats(SocialAccount $account): bool
+    {
+        if (!$this->refreshAccountToken($account)) {
+            return false;
+        }
+
+        $response = Http::withToken($account->access_token)->acceptJson()
+            ->get("{$this->baseUrl}/user/info/", ['fields' => 'open_id,display_name,avatar_url,username,bio_description,profile_deep_link,follower_count,following_count,likes_count,video_count']);
+        $user = $response->json('data.user');
+        if (!$response->successful() || !$this->isOk($response) || !$user) {
+            return false;
+        }
+
+        $account->update(array_filter([
+            'name' => $user['display_name'] ?? null,
+            'username' => $user['username'] ?? null,
+            'avatar_url' => $user['avatar_url'] ?? null,
+            'followers_count' => $user['follower_count'] ?? null,
+            'following_count' => $user['following_count'] ?? null,
+            'likes_count' => $user['likes_count'] ?? null,
+            'media_count' => $user['video_count'] ?? null,
+        ], fn ($v) => $v !== null));
+
+        return true;
+    }
+
+    /** Create or update the Post (and its cover) for a TikTok video object. */
+    private function saveVideo(SocialAccount $account, array $video, ?Post $post = null): Post
+    {
+        $videoId = (string) $video['id'];
+        $post ??= $this->post::where('platform', 'tiktok')->where('social_account_id', $account->id)->where('post_id', $videoId)->first();
+        $description = trim($video['video_description'] ?? '');
+
+        $counts = [
+            'likes'    => (int) ($video['like_count'] ?? 0),
+            'comments' => (int) ($video['comment_count'] ?? 0),
+            'shares'   => (int) ($video['share_count'] ?? 0),
+            'views'    => (int) ($video['view_count'] ?? 0),
+            'post_url' => $video['share_url'] ?? $post?->post_url,
+            'platform_metadata' => array_merge($post?->platform_metadata ?? [], array_filter([
+                'engagement_synced_at' => now()->toIso8601String(),
+                'duration' => $video['duration'] ?? null,
+                'embed_link' => $video['embed_link'] ?? null,
+            ])),
+        ];
+
+        if ($post) {
+            $post->forceFill($counts)->save();
+        } else {
+            $created = isset($video['create_time']) ? Carbon::createFromTimestamp((int) $video['create_time']) : now();
+            $post = $this->post::forceCreate($counts + [
+                'platform' => 'tiktok',
+                'user_id' => $account->user_id,
+                'social_account_id' => $account->id,
+                'post_id' => $videoId,
+                'title' => mb_substr(($video['title'] ?? '') ?: ($description ?: 'TikTok video'), 0, 190),
+                'content' => $description,
+                'visibility' => 'public',
+                'status' => 'completed',
+                'created_at' => $created,
+                'updated_at' => now(),
+            ]);
+        }
+
+        // Shown as the cover image: TikTok's video file itself can't be
+        // played outside TikTok (embed_link opens its player).
+        if (!empty($video['cover_image_url'])) {
+            $this->media::updateOrCreate(
+                ['post_id' => $post->id, 'platform' => 'tiktok'],
+                ['user_id' => $account->user_id, 'social_account_id' => $account->id, 'media_url' => $video['cover_image_url'], 'media_type' => 'image', 'file_name' => "tiktok-{$videoId}.jpg"]
+            );
+        }
+
+        return $post;
     }
 
     /**

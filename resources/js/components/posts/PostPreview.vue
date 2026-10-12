@@ -196,7 +196,7 @@
 
             </div>
 
-            <div class="pp-kpis">
+            <div class="pp-kpis" :style="{'--kpi-cols': kpis.length}">
               <div v-for="kpi in kpis" :key="kpi.label" class="pp-kpi" :style="{'--tone': kpi.color}">
                 <i :class="kpi.icon"></i>
                 <strong>{{ fmt(kpi.value) }}</strong>
@@ -590,6 +590,16 @@ export default {
           { label: 'Views', value: e.viewsCount, icon: 'fas fa-eye', color: '#3B82F6' },
           { label: 'Reach', value: e.reach || 0, icon: 'fas fa-users', color: '#F59E0B' },
           { label: 'Clicks', value: e.clicks || 0, icon: 'fas fa-mouse-pointer', color: '#EC4899' }
+        ];
+      }
+
+      // TikTok's API reports likes, comments, shares and views only.
+      if (this.activeKey === 'tiktok') {
+        return [
+          { label: 'Likes', value: e.reactionsTotal, icon: 'fas fa-heart', color: '#EF4444' },
+          { label: 'Comments', value: e.commentsCount, icon: 'fas fa-comment', color: '#6D4AFF' },
+          { label: 'Shares', value: e.sharesCount, icon: 'fas fa-share', color: '#10B981' },
+          { label: 'Views', value: e.viewsCount, icon: 'fas fa-play', color: '#3B82F6' }
         ];
       }
 
@@ -1258,7 +1268,7 @@ export default {
 .mk-actions .comments-toggle:hover, .mk-link.comments-toggle:hover{ color:var(--brand); }
 
 /* KPIs */
-.pp-kpis{ display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:10px; }
+.pp-kpis{ display:grid; grid-template-columns:repeat(var(--kpi-cols, 6), minmax(0, 1fr)); gap:10px; }
 @media (max-width: 1400px){ .pp-kpis{ grid-template-columns:repeat(3, minmax(0, 1fr)); } }
 .pp-kpi{
   display:flex; flex-direction:column; gap:2px;

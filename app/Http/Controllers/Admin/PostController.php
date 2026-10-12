@@ -672,21 +672,29 @@ class PostController extends Controller
      * the first time a given Instagram post is actually opened.
      */
     /**
-     * Facebook sends no webhook for shares to people's own timelines, so
-     * opening a published post's preview re-reads its counts - at most
-     * every 5 minutes per post (posts:sync-engagement covers the rest).
+     * Facebook sends no webhook for shares to people's own timelines and
+     * TikTok none for counts at all, so opening a published post's preview
+     * re-reads its counts - at most every 5 minutes per post
+     * (posts:sync-engagement covers the rest).
      */
     private function refreshFacebookEngagementIfNeeded(Post $post): void
     {
         $syncedAt = $post->platform_metadata['engagement_synced_at'] ?? null;
 
+        $service = match (strtolower($post->platform)) {
+            'facebook' => $this->metaService,
+            'tiktok' => $this->tiktokService,
+            default => null,
+        };
+
         if (
-            strtolower($post->platform) === 'facebook'
+            $service
             && $post->post_id
             && in_array(strtolower((string) $post->status), ['completed', 'published'], true)
             && (! $syncedAt || \Carbon\Carbon::parse($syncedAt)->lt(now()->subMinutes(5)))
         ) {
-            $this->metaService->syncEngagement($post);
+            $service->syncEngagement($post);
+            $post->load('media');
         }
     }
 

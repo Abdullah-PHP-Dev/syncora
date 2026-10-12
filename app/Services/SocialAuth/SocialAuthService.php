@@ -901,7 +901,9 @@ class SocialAuthService
         $url = 'https://www.tiktok.com/v2/auth/authorize/?' . http_build_query([
             'client_key' => adminSetting('posts.tiktok.client_id'),
             'response_type' => 'code',
-            'scope' => 'user.info.basic,video.upload,video.publish,user.info.profile,user.info.stats',
+            // video.list: the account's existing videos and their counts
+            // (TiktokPostService::backfillRecentPosts / syncEngagement).
+            'scope' => 'user.info.basic,video.upload,video.publish,user.info.profile,user.info.stats,video.list',
             'redirect_uri' => $this->callbackUrl('tiktok'),
             'disable_auto_auth' => 1,
             'state' => $state,
@@ -979,6 +981,16 @@ class SocialAuthService
             'granted_scopes' => $grantedScopes,
         ], [$account->id]);
 
-        return redirect()->route($this->returnRoute())->with('success', 'TikTok account connected.');
+        // Latest videos with their likes/comments/shares/views - best
+        // effort: the account is connected even if TikTok refuses this
+        // (eg. video.list not approved for the app yet).
+        $imported = 0;
+        try {
+            $imported = app(\App\Services\PostServices\TiktokPostService::class)->backfillRecentPosts($account, 5);
+        } catch (\Throwable $e) {
+            Log::warning('TikTok video import failed after connect.', ['account_id' => $account->id, 'error' => $e->getMessage()]);
+        }
+
+        return redirect()->route($this->returnRoute())->with('success', 'TikTok account connected.' . ($imported ? " Imported your latest {$imported} video(s)." : ''));
     }
 }
