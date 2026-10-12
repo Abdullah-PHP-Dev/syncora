@@ -18,6 +18,17 @@ use App\Models\Messaging\Conversation;
 
 class MetaPostService
 {
+    /**
+     * Everything this app handles from a Facebook Page, in ONE list: the
+     * Page's POST /subscribed_apps call replaces its field list rather
+     * than adding to it, so the posts side (feed) and the Messenger side
+     * (messages, postbacks, receipts) must always subscribe together -
+     * otherwise whichever runs last silently turns the other's events off.
+     * All of them arrive on the app's one Page callback URL
+     * (/api/comments/facebook -> FacebookCommentWebhookController).
+     */
+    public const PAGE_WEBHOOK_FIELDS = 'feed,messages,messaging_postbacks,message_deliveries,message_reads';
+
     protected $api, $baseUrl, $post, $media;
 
     public function __construct(ApiPostService $api, Post $post, PostMedia $media)
@@ -575,27 +586,31 @@ protected function publishPostOnMeta($post, $account)
      * 'feed' matches exactly what processCommentChange() expects for
      * Facebook comment events.
      */
-    public function subscribeToWebhooks(SocialAccount $account): void
+    public function subscribeToWebhooks(SocialAccount $account): bool
     {
         try {
             $response = $this->api->request(
                 'post',
                 $this->baseUrl . $account->platform_account_id . '/subscribed_apps',
                 [],
-                ['subscribed_fields' => 'feed', 'access_token' => $account->access_token]
+                ['subscribed_fields' => self::PAGE_WEBHOOK_FIELDS, 'access_token' => $account->access_token]
             );
 
             if ($response->successful() && ($response->json()['success'] ?? false)) {
                 $account->update(['metadata' => array_merge($account->metadata ?? [], ['webhook_subscriptions' => true])]);
-            } else {
-                Log::warning('Failed to subscribe Facebook Page to webhooks.', [
-                    'account_id' => $account->id,
-                    'error'      => $response->json()['error']['message'] ?? $response->body(),
-                ]);
+
+                return true;
             }
+
+            Log::warning('Failed to subscribe Facebook Page to webhooks.', [
+                'account_id' => $account->id,
+                'error'      => $response->json()['error']['message'] ?? $response->body(),
+            ]);
         } catch (\Throwable $e) {
             Log::warning('Facebook Page webhook subscription threw.', ['account_id' => $account->id, 'error' => $e->getMessage()]);
         }
+
+        return false;
     }
 
     /**
@@ -999,7 +1014,13 @@ protected function publishPostOnMeta($post, $account)
             if (($change['field'] ?? null) !== 'comments') {
                 return;
             }
-        } elseif (($change['field'] ?? null) !== 'feed' || ($value['item'] ?? null) !== 'comment' || !in_array($verb, ['add', 'edited', 'remove'], true)) {
+        } elseif (($change['field'] ?? null) !== 'feed') {
+            return;
+        } elseif (in_array($value['item'] ?? null, ['reaction', 'like', 'share'], true)) {
+            $this->processEngagementChange($value, $platform, $socialAccount);
+
+            return;
+        } elseif (($value['item'] ?? null) !== 'comment' || !in_array($verb, ['add', 'edited', 'remove'], true)) {
             return;
         }
 
@@ -1009,8 +1030,9 @@ protected function publishPostOnMeta($post, $account)
         // Deleted on Facebook: remove it (and replies to it) here too.
         if ($verb === 'remove') {
             if ($commentId && ($existing = PostComment::where('platform', $platform)->where('comment_id', $commentId)->first())) {
-                PostComment::where('parent_comment_id', $existing->id)->delete();
+                $removed = 1 + PostComment::where('parent_comment_id', $existing->id)->delete();
                 $existing->delete();
+                $this->bumpPostCounter($existing->post_id ? Post::find($existing->post_id) : null, 'comments', -$removed);
             }
 
             return;
@@ -1026,14 +1048,6 @@ protected function publishPostOnMeta($post, $account)
         }
 
         if (!$commentId || $commentText === '') {
-            return;
-        }
-
-        // Comments this app itself posted via publishComment() echo back
-        // through this same webhook - the ' --. ' marker it appends lets us
-        // recognize and skip our own replies instead of re-importing them
-        // as new customer comments.
-        if (str_contains($commentText, '--.')) {
             return;
         }
 
@@ -1060,7 +1074,10 @@ protected function publishPostOnMeta($post, $account)
         // $fillable lists several (user_platform_id, is_read, ...) that
         // were never added as real columns, so writing them throws a
         // "Column not found" SQL error rather than being silently dropped.
-        PostComment::updateOrCreate(
+        // Comments this app posted itself (publishComment()) echo back here
+        // with the same comment_id: updateOrCreate refreshes that row
+        // rather than adding a duplicate, and from.id marks it as ours.
+        $comment = PostComment::updateOrCreate(
             ['platform' => $platform, 'comment_id' => $commentId],
             [
                 'content'           => $commentText,
@@ -1073,8 +1090,60 @@ protected function publishPostOnMeta($post, $account)
                 'social_account_id' => $socialAccount->id,
                 'parent_comment_id' => $parentComment?->id,
                 'is_reply'          => (bool) $parentComment,
-            ]
+                'status'            => 'approved',
+            ] + (isset($value['created_time']) ? ['posted_at' => \Carbon\Carbon::createFromTimestamp((int) $value['created_time'])] : [])
         );
+
+        if ($comment->wasRecentlyCreated) {
+            if (!$comment->posted_at) {
+                $comment->update(['posted_at' => now()]);
+            }
+            $this->bumpPostCounter($post, 'comments', 1);
+        }
+    }
+
+    /**
+     * Likes/reactions and shares from the Page's feed: keep the post's
+     * (or, for a reaction on a comment, the comment's) counters current
+     * between analytics syncs, which overwrite them with Facebook's own
+     * totals. A changed reaction type ("edited") doesn't change the count.
+     */
+    private function processEngagementChange(array $value, string $platform, SocialAccount $socialAccount): void
+    {
+        $delta = match ($value['verb'] ?? null) {
+            'add' => 1,
+            'remove' => -1,
+            default => 0,
+        };
+        if ($delta === 0) {
+            return;
+        }
+
+        // A reaction on a comment carries that comment's id.
+        if (($value['item'] ?? null) !== 'share' && !empty($value['comment_id'])) {
+            $comment = PostComment::where('platform', $platform)->where('comment_id', $value['comment_id'])->first();
+            if ($comment) {
+                $comment->update(['likes' => max(0, (int) $comment->likes + $delta)]);
+            }
+
+            return;
+        }
+
+        $nativePostId = $value['post_id'] ?? null;
+        $post = $nativePostId
+            ? Post::where('social_account_id', $socialAccount->id)
+                ->whereIn('post_id', array_unique([$nativePostId, \Illuminate\Support\Str::afterLast($nativePostId, '_')]))
+                ->first()
+            : null;
+
+        $this->bumpPostCounter($post, ($value['item'] ?? null) === 'share' ? 'shares' : 'likes', $delta);
+    }
+
+    private function bumpPostCounter(?Post $post, string $column, int $delta): void
+    {
+        if ($post && $delta !== 0) {
+            $post->forceFill([$column => max(0, (int) $post->{$column} + $delta)])->save();
+        }
     }
 
     public function destroyComment($chat)

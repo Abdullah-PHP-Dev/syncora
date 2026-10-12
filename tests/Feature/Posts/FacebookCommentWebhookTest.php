@@ -30,6 +30,9 @@ class FacebookCommentWebhookTest extends TestCase
             $t->string('post_id')->nullable();
             $t->text('content')->nullable();
             $t->string('status')->nullable();
+            $t->integer('likes')->default(0);
+            $t->integer('shares')->default(0);
+            $t->integer('comments')->default(0);
             $t->timestamps();
         });
         Schema::create('post_comments', function ($t) {
@@ -45,6 +48,7 @@ class FacebookCommentWebhookTest extends TestCase
             $t->string('user_name')->nullable();
             $t->text('content')->nullable();
             $t->string('status')->nullable();
+            $t->integer('likes')->default(0);
             $t->timestamp('posted_at')->nullable();
             $t->timestamp('imported_at')->nullable();
             $t->timestamp('read_at')->nullable();
@@ -125,5 +129,74 @@ class FacebookCommentWebhookTest extends TestCase
         $this->assertSame($video, (int) $this->comment('V1')->post_id);
         $this->assertNull($this->comment('E1')->post_id);
         $this->assertSame(7, (int) $this->comment('E1')->user_id);
+    }
+
+    public function test_new_comments_keep_the_post_count_current(): void
+    {
+        $from = ['id' => 'U1', 'name' => 'Sara'];
+        $this->deliver(['verb' => 'add', 'comment_id' => 'C1', 'post_id' => 'PAGE1_555', 'message' => 'Hi', 'from' => $from, 'created_time' => 1760000000]);
+        $this->deliver(['verb' => 'add', 'comment_id' => 'C1', 'post_id' => 'PAGE1_555', 'message' => 'Hi', 'from' => $from]); // Meta retry
+        $this->deliver(['verb' => 'add', 'comment_id' => 'C2', 'post_id' => 'PAGE1_555', 'parent_id' => 'C1', 'message' => 'Thanks', 'from' => $from]);
+        $this->assertSame(2, (int) DB::table('posts')->where('id', $this->postId)->value('comments'));
+        $this->assertSame(1760000000, \Carbon\Carbon::parse($this->comment('C1')->posted_at)->timestamp);
+
+        $this->deliver(['verb' => 'remove', 'comment_id' => 'C1', 'post_id' => 'PAGE1_555', 'from' => $from]);
+        $this->assertSame(0, (int) DB::table('posts')->where('id', $this->postId)->value('comments'));
+    }
+
+    public function test_the_pages_own_comment_echo_updates_the_saved_row(): void
+    {
+        // Saved by publishComment() when the seller commented from the preview.
+        DB::table('post_comments')->insert(['platform' => 'facebook', 'comment_id' => 'C5', 'post_id' => $this->postId, 'sender_type' => 'support', 'user_name' => 'Page', 'content' => 'Thanks --. all', 'created_at' => now(), 'updated_at' => now()]);
+
+        $this->deliver(['verb' => 'add', 'comment_id' => 'C5', 'post_id' => 'PAGE1_555', 'message' => 'Thanks --. all', 'from' => ['id' => 'PAGE1', 'name' => 'Page']]);
+        // A customer's comment that happens to contain "--." is still imported.
+        $this->deliver(['verb' => 'add', 'comment_id' => 'C6', 'post_id' => 'PAGE1_555', 'message' => 'Price --. ?', 'from' => ['id' => 'U1', 'name' => 'Sara']]);
+
+        $this->assertSame(1, DB::table('post_comments')->where('comment_id', 'C5')->count());
+        $this->assertSame('support', $this->comment('C5')->sender_type);
+        $this->assertSame('customer', $this->comment('C6')->sender_type);
+    }
+
+    public function test_reactions_and_shares_update_the_post_and_comment_counts(): void
+    {
+        DB::table('post_comments')->insert(['platform' => 'facebook', 'comment_id' => 'C1', 'post_id' => $this->postId, 'content' => 'Hi', 'likes' => 0, 'created_at' => now(), 'updated_at' => now()]);
+        $react = fn (string $verb, array $extra = []) => $this->deliver(['item' => 'reaction', 'verb' => $verb, 'reaction_type' => 'like', 'post_id' => 'PAGE1_555', 'from' => ['id' => 'U1']] + $extra)->assertOk();
+
+        $react('add');
+        $react('add');
+        $react('edited'); // like -> love: same count
+        $react('remove');
+        $this->deliver(['item' => 'share', 'verb' => 'add', 'post_id' => 'PAGE1_555', 'share_id' => 'S1'])->assertOk();
+        $react('add', ['comment_id' => 'C1']);
+
+        $post = DB::table('posts')->find($this->postId);
+        $this->assertSame([1, 1], [(int) $post->likes, (int) $post->shares]);
+        $this->assertSame(1, (int) $this->comment('C1')->likes);
+        $this->assertSame(1, DB::table('post_comments')->count()); // reactions never become comments
+    }
+
+    public function test_messenger_messages_and_button_taps_reach_the_inbox(): void
+    {
+        \Illuminate\Support\Facades\Bus::fake();
+        \Illuminate\Support\Facades\Http::fake(['*' => \Illuminate\Support\Facades\Http::response(['first_name' => 'Sara', 'last_name' => 'Ali'])]);
+        DB::table('message_channels')->insert(['social_account_id' => $this->accountId, 'platform' => 'facebook', 'external_id' => 'PAGE1', 'created_at' => now(), 'updated_at' => now()]);
+
+        $body = json_encode(['object' => 'page', 'entry' => [['id' => 'PAGE1', 'time' => time(), 'messaging' => [
+            ['sender' => ['id' => 'PSID1'], 'recipient' => ['id' => 'PAGE1'], 'message' => ['mid' => 'm1', 'text' => 'Hello']],
+            ['sender' => ['id' => 'PSID1'], 'recipient' => ['id' => 'PAGE1'], 'postback' => ['mid' => 'm2', 'title' => 'Track my order', 'payload' => 'TRACK']],
+            ['sender' => ['id' => 'PSID1'], 'recipient' => ['id' => 'PAGE1'], 'read' => ['watermark' => 1]],
+            ['sender' => ['id' => 'PAGE1'], 'recipient' => ['id' => 'PSID1'], 'message' => ['mid' => 'm3', 'text' => 'Hi!', 'is_echo' => true]],
+        ]]]]);
+        $this->call('POST', '/api/comments/facebook', [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_X_HUB_SIGNATURE_256' => 'sha256=' . hash_hmac('sha256', $body, 'app-secret')], $body)->assertOk();
+
+        $sent = collect();
+        \Illuminate\Support\Facades\Bus::assertDispatched(\App\Jobs\Messaging\ProcessInboundMessage::class, function ($job) use ($sent) {
+            $sent->push($job);
+
+            return true;
+        });
+        $this->assertCount(2, $sent); // the read receipt and our own echo are skipped
+        $this->assertSame(['Hello', 'Track my order'], $sent->map(fn ($job) => (new \ReflectionProperty($job, 'body'))->getValue($job))->all());
     }
 }

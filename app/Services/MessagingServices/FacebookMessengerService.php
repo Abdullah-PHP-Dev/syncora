@@ -85,6 +85,16 @@ class FacebookMessengerService
             }
 
             foreach ($entry['messaging'] ?? [] as $event) {
+                // A tap on a button/quick menu (messaging_postbacks) is the
+                // customer "saying" that button's title - keep it in the
+                // conversation like a typed message.
+                if (empty($event['message']) && !empty($event['postback'])) {
+                    $event['message'] = [
+                        'mid'  => $event['postback']['mid'] ?? null,
+                        'text' => $event['postback']['title'] ?? $event['postback']['payload'] ?? null,
+                    ];
+                }
+
                 // Delivery/read receipts and echoes of our own outbound
                 // sends also arrive here - only genuine inbound customer
                 // messages (with actual content) should create a Message.
@@ -169,7 +179,7 @@ class FacebookMessengerService
      */
     public function subscribeToWebhooks(MessageChannel $channel): void
     {
-        $result = $this->graphApiCall('POST', $channel->external_id . '/subscribed_apps', ['subscribed_fields' => 'messages,messaging_postbacks,message_deliveries'], $channel->socialAccount->access_token);
+        $result = $this->graphApiCall('POST', $channel->external_id . '/subscribed_apps', ['subscribed_fields' => \App\Services\PostServices\MetaPostService::PAGE_WEBHOOK_FIELDS], $channel->socialAccount->access_token);
 
         if ($result['success'] && ($result['data']['success'] ?? false)) {
             $channel->update(['webhook_subscribed' => true]);
