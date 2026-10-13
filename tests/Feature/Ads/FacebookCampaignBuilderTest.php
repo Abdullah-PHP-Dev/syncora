@@ -599,6 +599,38 @@ class FacebookCampaignBuilderTest extends TestCase
         }
     }
 
+    /** Validation errors for a full builder request (empty when it passes). */
+    private function requestErrors(array $data): array
+    {
+        $request = FacebookAdBuilderRequest::create('/', 'POST', $data);
+        $request->setContainer(app())->setRedirector(app('redirect'))->setUserResolver(fn () => $this->user);
+
+        try {
+            $request->validateResolved();
+
+            return [];
+        } catch (ValidationException $e) {
+            return collect($e->errors())->flatten()->all();
+        }
+    }
+
+    public function test_a_single_image_ignores_empty_carousel_cards(): void
+    {
+        // The wizard used to send cards: [] with a single image -> "a carousel needs at least 2 cards".
+        $data = ['idempotency_key' => 'key-image-cards-001'] + $this->input(['creative' => ['cards' => []]]);
+        $this->assertSame([], $this->requestErrors($data));
+
+        $video = $this->input(['creative' => ['format' => 'VIDEO', 'cards' => [['asset_id' => 3]]]]);
+        $this->assertSame([], $this->requestErrors(['idempotency_key' => 'key-video-cards-001'] + $video));
+    }
+
+    public function test_a_carousel_still_needs_two_cards(): void
+    {
+        $data = ['idempotency_key' => 'key-carousel-1card'] + $this->input(['creative' => ['format' => 'CAROUSEL', 'media' => [], 'cards' => [['asset_id' => 1]]]]);
+
+        $this->assertContains('Creative: a carousel needs at least 2 cards.', $this->requestErrors($data));
+    }
+
     // ---- page ------------------------------------------------------------
 
     public function test_create_page_opens_the_builder_and_keeps_the_old_form_reachable(): void

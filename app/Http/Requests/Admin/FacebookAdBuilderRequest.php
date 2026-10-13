@@ -28,6 +28,7 @@ class FacebookAdBuilderRequest extends FormRequest
         $newCreative = $this->input('creative.mode') === 'new';
         $campaignBudget = $newCampaign && $this->boolean('campaign.campaign_budget');
         $format = strtoupper((string) $this->input('creative.format'));
+        $newCarousel = $newCreative && $format === 'CAROUSEL';
 
         return [
             'idempotency_key' => ['required', 'string', 'min:16', 'max:64', 'regex:/^[A-Za-z0-9-]+$/'],
@@ -97,11 +98,13 @@ class FacebookAdBuilderRequest extends FormRequest
             'creative.media' => [Rule::requiredIf($newCreative && $format !== 'CAROUSEL'), 'nullable', 'array', 'max:1'],
             'creative.media.*.asset_id' => ['required', 'integer'],
             'creative.thumbnail_asset_id' => ['nullable', 'integer'],
-            'creative.cards' => [Rule::requiredIf($newCreative && $format === 'CAROUSEL'), 'nullable', 'array', 'min:2', 'max:10'],
-            'creative.cards.*.asset_id' => ['required', 'integer'],
-            'creative.cards.*.headline' => ['nullable', 'string', 'max:255'],
-            'creative.cards.*.description' => ['nullable', 'string', 'max:255'],
-            'creative.cards.*.link' => ['nullable', 'url'],
+            // Carousel cards only count for a new carousel; any other format
+            // drops them (an empty [] would otherwise fail min:2).
+            'creative.cards' => [Rule::excludeIf(! $newCarousel), 'required', 'array', 'min:2', 'max:10'],
+            'creative.cards.*.asset_id' => [Rule::excludeIf(! $newCarousel), 'required', 'integer'],
+            'creative.cards.*.headline' => [Rule::excludeIf(! $newCarousel), 'nullable', 'string', 'max:255'],
+            'creative.cards.*.description' => [Rule::excludeIf(! $newCarousel), 'nullable', 'string', 'max:255'],
+            'creative.cards.*.link' => [Rule::excludeIf(! $newCarousel), 'nullable', 'url'],
 
             'ad.name' => ['required', 'string', 'max:255'],
             'ad.status' => ['required', 'in:PAUSED,ACTIVE'],

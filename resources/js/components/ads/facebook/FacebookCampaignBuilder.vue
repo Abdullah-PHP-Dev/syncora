@@ -664,8 +664,12 @@
             </template>
             <div v-else class="fb-mock">
               <div class="fb-mock-h">
-                <span class="fb-mock-av"><img v-if="selectedPage && selectedPage.picture" :src="selectedPage.picture" alt=""><i v-else class="bx bxl-facebook"></i></span>
-                <div><strong>{{ selectedPage ? selectedPage.name : 'Your Page' }}</strong><small>Sponsored · <i class="bx bx-world"></i></small></div>
+                <span class="fb-mock-av">
+                  <img v-if="previewPage && previewPage.picture && !previewAvatarBroken" :src="previewPage.picture" alt="" @error="previewAvatarBroken = true">
+                  <span v-else-if="previewPage" class="fb-mock-initial">{{ previewPage.name.trim().charAt(0).toUpperCase() }}</span>
+                  <i v-else class="bx bxl-facebook"></i>
+                </span>
+                <div><strong>{{ previewPage ? previewPage.name : 'Your Page' }}</strong><small>Sponsored · <i class="bx bx-world"></i></small></div>
               </div>
               <p class="fb-mock-text">{{ creative.primary_text || 'Your primary text appears here.' }}</p>
               <div v-if="creative.format === 'CAROUSEL'" class="fb-mock-carousel">
@@ -774,6 +778,14 @@ const needsPage = computed(() => !!destRules.value && (destRules.value.promoted_
 const selectedPixel = computed(() => lists.pixels.find((p) => p.id === adset.pixel_id) || null);
 const selectedApp = computed(() => lists.apps.find((a) => a.id === adset.application_id) || null);
 const selectedPage = computed(() => (boot.value ? boot.value.pages.find((p) => p.id === creative.page_id) : null) || null);
+// Page shown in the ad preview: the creative's Page, else the ad set's,
+// else the seller's first Page - never a placeholder when Pages exist.
+const previewPage = computed(() => {
+  const pages = boot.value ? boot.value.pages : [];
+  return pages.find((p) => p.id === creative.page_id) || pages.find((p) => p.id === adset.page_id) || pages[0] || null;
+});
+const previewAvatarBroken = ref(false);
+watch(() => previewPage.value && previewPage.value.picture, () => { previewAvatarBroken.value = false; });
 const usableAudiences = computed(() => lists.audiences.custom.filter((a) => !(specialCategory.value && a.kind === 'lookalike')));
 const filteredCampaigns = computed(() => {
   const q = campaignQuery.value.trim().toLowerCase();
@@ -1100,9 +1112,11 @@ function payload() {
       link: creative.link || null,
       cta: creative.cta,
       lead_form_id: creative.lead_form_id,
-      media: creative.media.map((m) => ({ asset_id: m.id })),
-      thumbnail_asset_id: creative.thumbnail ? creative.thumbnail.id : null,
-      cards: creative.cards.map((c) => ({ asset_id: c.asset.id, headline: c.headline || null, description: c.description || null, link: c.link || null })),
+      // Only the format's own media: a single image / video never sends
+      // carousel cards (and the reverse), so stale picks can't fail validation.
+      media: creative.format !== 'CAROUSEL' ? creative.media.map((m) => ({ asset_id: m.id })) : [],
+      thumbnail_asset_id: creative.format === 'VIDEO' && creative.thumbnail ? creative.thumbnail.id : null,
+      cards: creative.format === 'CAROUSEL' ? creative.cards.map((c) => ({ asset_id: c.asset.id, headline: c.headline || null, description: c.description || null, link: c.link || null })) : [],
     },
     ad: { ...ad },
   };
@@ -1465,6 +1479,7 @@ onMounted(async () => {
 .fb-mock-h { display: flex; align-items: center; gap: 8px; padding: 10px; }
 .fb-mock-av { width: 34px; height: 34px; border-radius: 50%; overflow: hidden; background: #0866FF; color: #fff; display: grid; place-items: center; flex-shrink: 0; }
 .fb-mock-av img { width: 100%; height: 100%; object-fit: cover; }
+.fb-mock-initial { font-weight: 700; font-size: .95rem; }
 .fb-mock-h strong { display: block; font-size: .82rem; color: var(--ink); }
 .fb-mock-h small { font-size: .7rem; color: var(--muted); }
 .fb-mock-text { margin: 0; padding: 0 10px 8px; font-size: .8rem; color: var(--ink); white-space: pre-wrap; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }

@@ -88,7 +88,9 @@ class FacebookCampaignBuilder
     {
         return PlatformPage::where('user_id', $this->graph->account->user_id)->where('platform', 'facebook')
             ->orderBy('name')->get()
-            ->map(fn ($p) => ['id' => (string) $p->page_id, 'name' => $p->name, 'picture' => $p->picture, 'username' => $p->username])
+            // Graph's /{page}/picture redirect always serves the Page's current
+            // avatar; the stored URL is a signed CDN link that expires.
+            ->map(fn ($p) => ['id' => (string) $p->page_id, 'name' => $p->name, 'picture' => 'https://graph.facebook.com/' . $p->page_id . '/picture?type=large', 'username' => $p->username])
             ->values()->all();
     }
 
