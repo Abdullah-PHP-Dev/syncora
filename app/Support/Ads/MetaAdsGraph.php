@@ -76,7 +76,18 @@ class MetaAdsGraph
         $params = array_map(fn ($v) => is_array($v) ? json_encode($v) : (is_bool($v) ? ($v ? 'true' : 'false') : $v), $params);
         $params['access_token'] = $this->token();
 
+        // appsecret_proof on every call, keyed with the Ads app's secret and
+        // sent in the query string. The global MetaAppSecretProof middleware
+        // can't read large form bodies (eg. /adimages base64 bytes), so
+        // relying on it left image uploads without a proof.
+        $secret = (string) adminSetting('ads.facebook.client_secret');
+        $proof = $secret !== '' ? hash_hmac('sha256', $params['access_token'], $secret) : null;
         $url = $this->base() . ltrim($path, '/');
+        if ($proof && $method === 'get') {
+            $params['appsecret_proof'] = $proof;   // GET: the query option replaces the URL's query string
+        } elseif ($proof) {
+            $url .= '?appsecret_proof=' . $proof;
+        }
         $request = Http::timeout(60)->acceptJson();
         $response = $method === 'get' ? $request->get($url, $params) : $request->asForm()->post($url, $params);
 

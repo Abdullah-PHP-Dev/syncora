@@ -425,6 +425,25 @@ class FacebookCampaignBuilderTest extends TestCase
         $this->assertSame(['type' => 'WHATSAPP_MESSAGE', 'value' => ['app_destination' => 'WHATSAPP']], $linkData['call_to_action']);
     }
 
+    public function test_every_graph_call_carries_the_ads_app_secret_proof(): void
+    {
+        // Image uploads post base64 bytes - too large for the global proof
+        // middleware to read - so the client must add the proof itself.
+        Settings::set('ads.facebook.client_secret', 'ads-secret');
+        Settings::set('posts.facebook.client_secret', 'posts-secret');
+        Settings::forgetRequestCache();
+
+        $result = $this->builder()->submit($this->input(), 'key-proof-00000001');
+
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+        $graph = collect(Http::recorded())->map(fn ($pair) => $pair[0])->filter(fn ($r) => str_starts_with($r->url(), self::G));
+        $this->assertNotEmpty($graph->filter(fn ($r) => str_contains($r->url(), 'adimages'))->all());
+        foreach ($graph as $request) {
+            parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+            $this->assertSame(hash_hmac('sha256', 'ads-token', 'ads-secret'), $query['appsecret_proof'] ?? null, $request->method() . ' ' . $request->url());
+        }
+    }
+
     public function test_awareness_ads_use_the_website_or_fall_back_to_the_page(): void
     {
         $awareness = ['goal' => 'awareness', 'destination' => 'NONE', 'adset' => ['optimization_goal' => 'REACH', 'page_id' => '500']];
