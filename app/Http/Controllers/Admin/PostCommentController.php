@@ -53,7 +53,8 @@ class PostCommentController extends Controller
         $platformCounts = (clone $base)->selectRaw('platform, count(*) as total')->groupBy('platform')->pluck('total', 'platform');
 
         $comments = (clone $base)
-            ->with(['post:id,user_id,platform,content,group_id', 'post.media', 'socialAccount:id,name,username,avatar_url,platform'])
+            // replies: shown under each comment, so answered threads are visible.
+            ->with(['post:id,user_id,platform,content,group_id', 'post.media', 'socialAccount:id,name,username,avatar_url,platform', 'childComments' => fn ($q) => $q->orderByRaw('COALESCE(posted_at, created_at)')])
             ->when($platform !== '', fn ($q) => $q->where('platform', $platform))
             ->when($filter === 'unread', fn ($q) => $q->whereNull('read_at'))
             ->when($postId, fn ($q) => $q->where('post_id', $postId))

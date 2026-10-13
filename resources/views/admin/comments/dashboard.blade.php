@@ -77,6 +77,25 @@
     .cm-btn.is-primary { background: linear-gradient(135deg, var(--brand), var(--brand-2)); border-color: transparent; color: #fff; }
     .cm-btn.is-ghost { border-color: transparent; color: var(--muted); }
 
+    .cm-replies { margin: 0 0 10px; padding-inline-start: 12px; border-inline-start: 2px solid var(--ln); display: flex; flex-direction: column; gap: 8px; }
+    .cm-reply { font-size: .83rem; color: var(--ink); line-height: 1.5; word-break: break-word; }
+    .cm-reply strong { font-size: .78rem; margin-inline-end: 6px; }
+    .cm-reply small { color: var(--muted); font-size: .7rem; margin-inline-start: 6px; }
+    .cm-reply.is-own strong { color: var(--brand); }
+    .cm-reply.is-new { animation: cm-flash 1.6s ease; }
+    @keyframes cm-flash { from { background: var(--brand-soft); } to { background: transparent; } }
+    .cm-replies-more { font-size: .74rem; color: var(--brand); font-weight: 600; text-decoration: none; }
+
+    .cm-compose { display: none; margin: 4px 0 10px; border: 1px solid var(--ln); border-radius: 12px; background: #fff; padding: 10px; max-width: 640px; }
+    .cm-compose.is-open { display: block; }
+    .cm-compose textarea { width: 100%; border: 0; outline: none; resize: vertical; min-height: 60px; font-size: .86rem; color: var(--ink); background: transparent; }
+    .cm-compose-foot { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+    .cm-compose-foot small { color: var(--muted); font-size: .72rem; margin-inline-end: auto; }
+    .cm-compose-error { display: none; margin-top: 8px; padding: 8px 10px; border-radius: 9px; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; font-size: .79rem; }
+    .cm-compose-error.is-shown { display: block; }
+    .cm-compose:focus-within { border-color: #c9bcff; box-shadow: 0 0 0 3px rgba(109, 74, 255, .1); }
+    .cm-btn[disabled] { opacity: .6; pointer-events: none; }
+
     .cm-empty { text-align: center; padding: 56px 20px; }
     .cm-empty-icon { width: 60px; height: 60px; margin: 0 auto 12px; border-radius: 16px; display: grid; place-items: center; font-size: 28px; color: var(--brand); background: var(--brand-soft); }
     .cm-empty h6 { color: var(--ink); font-weight: 700; margin-bottom: 4px; }
@@ -101,7 +120,7 @@
             <div>
                 <div class="cm-eyebrow">{{ __('Engagement') }}</div>
                 <h4>{{ __('Comments') }}</h4>
-                <p>{{ __('Every comment on your published posts in one place - open a post to reply.') }}</p>
+                <p>{{ __('Every comment on your published posts in one place - reply right here.') }}</p>
             </div>
         </div>
         <div class="cm-stats">
@@ -162,6 +181,32 @@
                         @if ($comment->replies_count)<span><i class="bx bx-reply"></i> {{ trans_choice(':count reply|:count replies', $comment->replies_count, ['count' => $comment->replies_count]) }}</span>@endif
                     </div>
                     <div class="cm-text">{{ $comment->content }}</div>
+
+                    {{-- Replies so far (newest 3), then the inline reply box. --}}
+                    @php $replies = $comment->childComments; @endphp
+                    <div class="cm-replies" data-cm-replies @if ($replies->isEmpty()) hidden @endif>
+                        @if ($replies->count() > 3 && $postUrl)
+                            <a href="{{ $postUrl }}" class="cm-replies-more">{{ __('View all :count replies', ['count' => $replies->count()]) }}</a>
+                        @endif
+                        @foreach ($replies->slice(-3) as $reply)
+                            <div class="cm-reply {{ $reply->sender_type === 'support' ? 'is-own' : '' }}">
+                                <strong>{{ $reply->sender_type === 'support' ? __('You') : ($reply->user_name ?: __('Unknown')) }}</strong>{{ $reply->content }}<small>{{ ($reply->posted_at ?? $reply->created_at)?->diffForHumans() }}</small>
+                            </div>
+                        @endforeach
+                    </div>
+
+                    @if ($post)
+                        <form class="cm-compose" data-cm-compose action="{{ route('admin.posts.comments.reply', $comment) }}">
+                            <textarea name="content" maxlength="2000" placeholder="{{ __('Reply to :name on :platform...', ['name' => $comment->user_name ?: __('this comment'), 'platform' => $pName]) }}"></textarea>
+                            <div class="cm-compose-foot">
+                                <small>{{ __('Posted publicly on :platform as :account', ['platform' => $pName, 'account' => $comment->socialAccount?->name ?? __('your account')]) }} · Ctrl/⌘ + Enter</small>
+                                <button type="button" class="cm-btn is-ghost" data-cm-cancel>{{ __('Cancel') }}</button>
+                                <button type="submit" class="cm-btn is-primary"><i class="bx bx-send"></i> {{ __('Send reply') }}</button>
+                            </div>
+                            <div class="cm-compose-error" role="alert"></div>
+                        </form>
+                    @endif
+
                     @if ($post)
                         <a href="{{ $postUrl }}" class="cm-post" title="{{ __('View post') }}">
                             @if ($thumb && $thumb['kind'] === 'image' && $thumb['url'])
@@ -174,8 +219,9 @@
                     @endif
                 </div>
                 <div class="cm-actions">
-                    @if ($postUrl)
-                        <a href="{{ $postUrl }}" class="cm-btn is-primary" data-cm-open><i class="bx bx-reply"></i> {{ __('Reply') }}</a>
+                    @if ($post)
+                        <button type="button" class="cm-btn is-primary" data-cm-reply><i class="bx bx-reply"></i> {{ __('Reply') }}</button>
+                        <a href="{{ $postUrl }}" class="cm-btn" data-cm-open><i class="bx bx-show"></i> {{ __('View post') }}</a>
                     @endif
                     @unless ($comment->read_at)
                         <button type="button" class="cm-btn is-ghost" data-cm-read="{{ route('admin.comments.read', $comment) }}"><i class="bx bx-check"></i> {{ __('Mark read') }}</button>
@@ -212,22 +258,119 @@
 @push('scripts')
 <script>
     // Delegated: the Vue #app root re-mounts after load.
-    document.addEventListener('click', function (e) {
-        const btn = e.target.closest('[data-cm-read]');
-        const open = e.target.closest('[data-cm-open]');
-        const row = (btn || open)?.closest('.cm-row');
-        if (!row) return;
+    (function () {
+        const csrf = () => document.querySelector('meta[name="csrf-token"]').content;
 
-        const url = btn ? btn.dataset.cmRead : row.querySelector('[data-cm-read]')?.dataset.cmRead;
-        if (!url) return;
+        function markRead(row) {
+            const url = row.querySelector('[data-cm-read]')?.dataset.cmRead;
+            if (!url) return;
+            fetch(url, { method: 'PATCH', headers: { 'X-CSRF-TOKEN': csrf(), 'Accept': 'application/json' }, keepalive: true })
+                .then(() => {
+                    row.classList.remove('is-unread');
+                    row.querySelector('.cm-dot')?.remove();
+                    row.querySelector('[data-cm-read]')?.remove();
+                })
+                .catch(() => {});
+        }
 
-        fetch(url, { method: 'PATCH', headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content, 'Accept': 'application/json' }, keepalive: true })
-            .then(() => {
-                row.classList.remove('is-unread');
-                row.querySelector('.cm-dot')?.remove();
-                row.querySelector('[data-cm-read]')?.remove();
-            })
-            .catch(() => {});
-    });
+        function openCompose(row) {
+            const form = row.querySelector('[data-cm-compose]');
+            if (!form) return;
+            form.classList.add('is-open');
+            form.querySelector('textarea').focus();
+        }
+
+        function closeCompose(form) {
+            form.classList.remove('is-open');
+            form.querySelector('.cm-compose-error').classList.remove('is-shown');
+        }
+
+        // Validation ({errors: {content: [...]}}) and platform refusals
+        // ({message}) both read as one plain sentence.
+        function errorText(status, data) {
+            if (data && data.errors && !Array.isArray(data.errors)) return Object.values(data.errors).flat().join(' ');
+            if (data && Array.isArray(data.errors) && data.errors.length) return data.errors.map(e => e.message).filter(Boolean).join(' ');
+            if (data && data.message) return data.message;
+            if (status === 419) return 'Your session expired - reload the page and try again.';
+            if (status === 403) return "You can't reply to this comment.";
+            return "The reply couldn't be sent. Please try again.";
+        }
+
+        async function send(form) {
+            const textarea = form.querySelector('textarea');
+            const button = form.querySelector('button[type="submit"]');
+            const error = form.querySelector('.cm-compose-error');
+            const text = textarea.value.trim();
+            if (!text) { textarea.focus(); return; }
+
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...';
+            error.classList.remove('is-shown');
+
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': csrf(), 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: text }),
+                });
+                const data = await response.json().catch(() => ({}));
+
+                if (!response.ok || !data.success) {
+                    error.textContent = errorText(response.status, data);
+                    error.classList.add('is-shown');
+                    return;
+                }
+
+                const row = form.closest('.cm-row');
+                const list = row.querySelector('[data-cm-replies]');
+                const item = document.createElement('div');
+                item.className = 'cm-reply is-own is-new';
+                const who = document.createElement('strong');
+                who.textContent = 'You';
+                const when = document.createElement('small');
+                when.textContent = (data.reply && data.reply.timeAgo) || 'just now';
+                item.append(who, document.createTextNode((data.reply && data.reply.content) || text), when);
+                list.hidden = false;
+                list.append(item);
+
+                textarea.value = '';
+                closeCompose(form);
+                markRead(row);
+            } catch (e) {
+                error.textContent = "Couldn't reach the server. Check your connection and try again.";
+                error.classList.add('is-shown');
+            } finally {
+                button.disabled = false;
+                button.innerHTML = '<i class="bx bx-send"></i> Send reply';
+            }
+        }
+
+        document.addEventListener('click', function (e) {
+            const row = e.target.closest('.cm-row');
+            if (!row) return;
+
+            if (e.target.closest('[data-cm-reply]')) {
+                openCompose(row);
+            } else if (e.target.closest('[data-cm-cancel]')) {
+                closeCompose(row.querySelector('[data-cm-compose]'));
+            } else if (e.target.closest('[data-cm-read]') || e.target.closest('[data-cm-open]')) {
+                markRead(row);
+            }
+        });
+
+        document.addEventListener('submit', function (e) {
+            const form = e.target.closest('[data-cm-compose]');
+            if (!form) return;
+            e.preventDefault();
+            send(form);
+        });
+
+        document.addEventListener('keydown', function (e) {
+            const form = e.target.closest && e.target.closest('[data-cm-compose]');
+            if (!form) return;
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(form); }
+            if (e.key === 'Escape') closeCompose(form);
+        });
+    })();
 </script>
 @endpush
