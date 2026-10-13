@@ -17,7 +17,7 @@
         <!-- ============ Left: header + the post as it appears ============ -->
         <div class="pp-main">
 
-          <header class="pp-card pp-hero">
+          <!-- <header class="pp-card pp-hero">
 
             <div class="pp-hero-text">
               <div class="pp-crumbs">
@@ -55,7 +55,7 @@
               </div>
             </div>
 
-          </header>
+          </header> -->
 
           <section class="pp-card pp-stage-card">
 
