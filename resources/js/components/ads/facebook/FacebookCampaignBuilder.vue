@@ -365,11 +365,17 @@
                         <button type="button" :class="{ on: targeting.genders[0] === 2 }" :disabled="specialCategory" @click="targeting.genders = [2]">Women</button>
                       </div>
                     </div>
-                    <div v-if="ui.advanced">
-                      <label class="fb-label">Languages <span class="fb-opt">optional</span></label>
-                      <search-picker v-model="targeting.locales" :fetcher="searchLocales" item-key="key" :min-chars="1" placeholder="eg. Arabic, English…" />
-                    </div>
                   </div>
+                  <label class="fb-label mt-2">Languages <span class="fb-opt">optional - leave empty for all languages</span></label>
+                  <search-picker v-model="targeting.locales" :fetcher="searchLocales" item-key="key" :min-chars="1" placeholder="Search languages (eg. Arabic, English, Urdu)…" />
+                  <div class="fb-quick">
+                    <span>Quick add:</span>
+                    <button v-for="l in quickLocales" :key="l.query" type="button" class="fb-chip-btn" :disabled="quickLoading === l.query || hasLocale(l)" @click="addQuickLocale(l)">
+                      <span v-if="quickLoading === l.query" class="spinner-border spinner-border-sm"></span><i v-else class="bx" :class="hasLocale(l) ? 'bx-check' : 'bx-plus'"></i> {{ l.label }}
+                    </button>
+                  </div>
+                  <p v-if="quickError" class="fb-field-err">{{ quickError }}</p>
+                  <p class="fb-hint"><i class="bx bx-info-circle"></i> Only add languages if the ad's text is in a language not common where you're advertising - Meta already shows ads to people likely to understand them.</p>
                 </div>
 
                 <div v-if="!specialCategory" class="fb-group">
@@ -886,6 +892,7 @@ function stepTitle(s) { return ({ validation: 'Settings', campaign: 'Campaign', 
 function audienceSummary() {
   if (targeting.saved_audience_id) return 'Saved audience';
   const parts = [`${targeting.age_min}-${targeting.age_max === 65 ? '65+' : targeting.age_max}`, targeting.genders[0] === 1 ? 'men' : targeting.genders[0] === 2 ? 'women' : 'all genders'];
+  parts.push(targeting.locales.length ? targeting.locales.map((l) => l.name).join(', ') : 'all languages');
   if (targeting.interests.length) parts.push(`${targeting.interests.length} detailed targeting`);
   if (ui.includeAudiences.length) parts.push(`${ui.includeAudiences.length} custom audience(s)`);
   if (targeting.advantage_audience && !specialCategory.value) parts.push('Advantage+ audience');
@@ -959,6 +966,36 @@ function setRadius(city, value) {
 
 const searchLocations = (q) => api(props.urls.locations, { q });
 const searchLocales = (q) => api(props.urls.locales, { q });
+
+// One-click languages: looked up in Meta's own locale list (no hard-coded
+// keys) and the exact-name match added.
+const quickLocales = [
+  { query: 'Arabic', label: 'Arabic', match: ['arabic'] },
+  { query: 'English', label: 'English', match: ['english (all)', 'english'] },
+  { query: 'Urdu', label: 'Urdu', match: ['urdu'] },
+  { query: 'Hindi', label: 'Hindi', match: ['hindi'] },
+  { query: 'French', label: 'French', match: ['french (all)', 'french'] },
+];
+const quickLoading = ref('');
+const quickError = ref('');
+const hasLocale = (l) => targeting.locales.some((x) => l.match.includes(String(x.name).toLowerCase()));
+async function addQuickLocale(l) {
+  quickError.value = '';
+  quickLoading.value = l.query;
+  try {
+    const items = (await searchLocales(l.query)) || [];
+    const found = l.match.map((m) => items.find((i) => String(i.name).toLowerCase() === m)).find(Boolean);
+    if (!found) {
+      quickError.value = `Meta didn't return "${l.label}" - search for it above.`;
+    } else if (!targeting.locales.some((x) => x.key === found.key)) {
+      targeting.locales.push(found);
+    }
+  } catch (e) {
+    quickError.value = (e && e.message) || "Couldn't load languages right now.";
+  } finally {
+    quickLoading.value = '';
+  }
+}
 const searchTargeting = (q) => api(props.urls.targeting, { q });
 
 // ---------------------------------------------------------------- media
@@ -1399,6 +1436,11 @@ onMounted(async () => {
 .fb-search input { width: 100%; height: 40px; border: 1px solid #E2E5ED; border-radius: 10px; padding: 0 12px 0 36px; font-size: .86rem; outline: none; }
 .fb-search input:focus { border-color: #8F6BFF; box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
 .fb-ident { margin-bottom: 14px; }
+.fb-quick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: .76rem; color: var(--muted); }
+.fb-chip-btn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: #374151; font-size: .76rem; font-weight: 600; }
+.fb-chip-btn:hover:not(:disabled) { border-color: #CFC4FF; color: var(--brand); }
+.fb-chip-btn:disabled { opacity: .6; }
+.fb-chip-btn .spinner-border { width: 11px; height: 11px; border-width: 2px; }
 .fb-pick-list { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; padding: 2px; }
 .fb-pick { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1.5px solid var(--line); border-radius: 12px; background: #fff; text-align: start; }
 .fb-pick:hover:not(:disabled) { border-color: #CFC4FF; }
