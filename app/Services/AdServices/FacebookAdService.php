@@ -691,9 +691,9 @@ class FacebookAdService
         ];
 
         if ($request['budget_mode'] == 'daily_budget') {
-            $payload['daily_budget'] = $request['budget'] * 1000;
+            $payload['daily_budget'] = $this->toMinorUnits($request['budget']);
         } else {
-            $payload['lifetime_budget'] = $request['budget'] * 1000;
+            $payload['lifetime_budget'] = $this->toMinorUnits($request['budget']);
         }
 
         if ($adSetObjects['shouldUnsetDestinationType']) {
@@ -905,7 +905,8 @@ class FacebookAdService
         if (isset($request['instagram'])) {
             $loginUser = SocialAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
             if ($loginUser) {
-                $payload['object_story_spec']['instagram_actor_id'] = $loginUser->platform_account_id;
+                // instagram_actor_id was removed by Meta (Sept 2025) - instagram_user_id replaces it.
+                $payload['object_story_spec']['instagram_user_id'] = $loginUser->platform_account_id;
             }
         }
 
@@ -1119,6 +1120,18 @@ class FacebookAdService
         if (!$response['success']) {
             return $this->errorResponse($response['data']['error']['error_user_msg'] ?? $response['data']['error']['message']);
         }
+    }
+
+    /**
+     * Budget in what Meta expects: the account currency's minimum unit
+     * (cents for USD/SAR - x100; whole units for JPY/KRW...). Was x1000,
+     * which sent budgets 10 times higher than entered.
+     */
+    private function toMinorUnits($amount): int
+    {
+        $currency = $this->account->adDetails->currency ?? ($this->account->metadata['currency'] ?? null);
+
+        return (int) round(((float) $amount) * \App\Support\Ads\MetaAdsGraph::offsetFor($currency));
     }
 
     protected function errorResponse($error)
@@ -1775,9 +1788,9 @@ class FacebookAdService
         ];
 
         if ($request['budget_mode'] == 'daily_budget') {
-            $payload['daily_budget'] = $request['budget'] * 1000;
+            $payload['daily_budget'] = $this->toMinorUnits($request['budget']);
         } else {
-            $payload['lifetime_budget'] = $request['budget'] * 1000;
+            $payload['lifetime_budget'] = $this->toMinorUnits($request['budget']);
         }
 
         if ($adSetObjects['shouldUnsetDestinationType']) {
@@ -1845,7 +1858,8 @@ class FacebookAdService
         if (isset($request['instagram'])) {
             $loginUser = SocialAccount::where('user_id', Auth::user()->id)->where('platform', 'instagram')->first();
             if ($loginUser) {
-                $payload['object_story_spec']['instagram_actor_id'] = $loginUser->platform_account_id;
+                // instagram_actor_id was removed by Meta (Sept 2025) - instagram_user_id replaces it.
+                $payload['object_story_spec']['instagram_user_id'] = $loginUser->platform_account_id;
             }
         }
 

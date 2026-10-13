@@ -587,4 +587,17 @@ class FacebookCampaignBuilderTest extends TestCase
         request()->merge(['legacy' => 1]);
         $this->assertSame('admin.ads.facebook.campaigns.create', $controller->create('facebook')->name());
     }
+
+    public function test_legacy_form_budgets_use_the_currency_unit_not_x1000(): void
+    {
+        $this->account->adDetails()->updateOrCreate([], ['currency' => 'SAR']);
+        $service = app(\App\Services\AdServices\FacebookAdService::class);
+        $minor = new \ReflectionMethod($service, 'toMinorUnits');
+
+        $this->assertSame(5000, $minor->invoke($service, 50)); // SAR 50 -> 5000 halalas (was 50000)
+
+        $this->account->adDetails()->update(['currency' => 'JPY']);
+        $service = app(\App\Services\AdServices\FacebookAdService::class);
+        $this->assertSame(5000, (new \ReflectionMethod($service, 'toMinorUnits'))->invoke($service, 5000));
+    }
 }

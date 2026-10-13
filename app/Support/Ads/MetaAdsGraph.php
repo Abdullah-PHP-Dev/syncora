@@ -122,7 +122,13 @@ class MetaAdsGraph
     /** Multiplier from major units (what people type) to what Meta expects. */
     public function currencyOffset(): int
     {
-        return in_array($this->currency(), self::ZERO_DECIMAL, true) ? 1 : 100;
+        return self::offsetFor($this->currency());
+    }
+
+    /** 1 for currencies Meta budgets in whole units, 100 for the rest. */
+    public static function offsetFor(?string $currency): int
+    {
+        return in_array(strtoupper((string) $currency), self::ZERO_DECIMAL, true) ? 1 : 100;
     }
 
     public function toMinor(float|int|string $amount): int
