@@ -13,9 +13,8 @@
     <meta name="description" content="@yield('meta_description', '')" />
 
     <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="{{ asset('assets/img/favicon/favicon.ico') }}" />
-    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/img/logo/socialeaz-logo-32.png') }}" />
-    <link rel="apple-touch-icon" href="{{ asset('assets/img/logo/socialeaz-logo-128.png') }}" />
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/images/home-theme/favicon-32.png') }}" />
+    <link rel="apple-touch-icon" href="{{ asset('assets/images/home-theme/apple-touch-icon.png') }}" />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -66,9 +65,10 @@
     <script src="{{ asset('assets/js/config.js') }}"></script>
 
     @stack('styles')
+    <link rel="stylesheet" href="{{ asset('assets/css/dashboard-theme.css') }}?v={{ filemtime(public_path('assets/css/dashboard-theme.css')) }}" />
 </head>
 
-<body>
+<body class="socialeaz-app">
 
 <div class="layout-wrapper layout-content-navbar">
     <div class="layout-container">
@@ -98,6 +98,7 @@
     </div>
 </div>
 <!-- Core JS -->
+<div class="layout-overlay layout-menu-toggle"></div>
 <script src="{{ asset('assets/vendor/libs/jquery/jquery.js') }}"></script>
 <script src="{{ asset('assets/vendor/libs/popper/popper.js') }}"></script>
 <script src="{{ asset('assets/vendor/js/bootstrap.js') }}"></script>
@@ -137,7 +138,8 @@
     });
 </script>
 <!-- Main JS -->
-<script src="{{ asset('assets/js/main.js') }}"></script>
+<script src="{{ asset('assets/js/dashboard-sidebar.js') }}?v={{ filemtime(public_path('assets/js/dashboard-sidebar.js')) }}"></script>
+<script src="{{ asset('assets/js/main.js') }}?v={{ filemtime(public_path('assets/js/main.js')) }}"></script>
 {{-- Reverb (WebSocket) client settings, read at runtime by
      resources/js/bootstrap.js from THIS server's .env - not baked into
      the committed public/build at build time (which pointed every
