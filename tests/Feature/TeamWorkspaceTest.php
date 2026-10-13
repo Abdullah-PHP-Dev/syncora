@@ -226,4 +226,15 @@ class TeamWorkspaceTest extends TestCase
         $this->post('/login', ['email' => $user->email, 'password' => 'password'])->assertSessionHasErrors('email');
         $this->assertGuest();
     }
+
+    public function test_modern_overview_renders_for_admin_and_support_roles(): void
+    {
+        foreach (['admin', 'customer_support'] as $role) {
+            $this->actingAs($this->user($role))
+                ->get(route('dashboard.overview', absolute: false))
+                ->assertOk()
+                ->assertViewIs('admin.overview-team')
+                ->assertSee('workspace-overview');
+        }
+    }
 }
