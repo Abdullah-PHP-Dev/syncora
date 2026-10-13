@@ -7,6 +7,7 @@ use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdBuilderRun;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdCreative;
+use App\Models\Admin\AdCreativeMedia;
 use App\Models\Admin\AdMedia;
 use App\Models\Admin\PlatformPage;
 use App\Models\MediaAsset;
@@ -37,6 +38,9 @@ use Illuminate\Support\Str;
  */
 class FacebookCampaignBuilder
 {
+    /** Local ad_media ids used by the creative being built (linked in ad_creative_media). */
+    private array $creativeMedia = [];
+
     /** VAT (%) shown on top of the ad budget - same rate the other ad forms use. Display only; Meta gets the budget as entered. */
     public const VAT_RATE = 15;
 
@@ -382,6 +386,19 @@ class FacebookCampaignBuilder
                     'created' => $this->createdSummary($run),
                     'retryable' => true,
                 ];
+            } catch (\Throwable $e) {
+                // Our own failure (database, code): logged in full, never shown raw.
+                $run->forceFill(['status' => 'failed', 'failed_step' => $step, 'error' => mb_substr($e->getMessage(), 0, 1000)])->save();
+                report($e);
+
+                return [
+                    'success' => false,
+                    'status' => 500,
+                    'step' => $step,
+                    'message' => "Something went wrong on our side while saving this step (reference #{$run->id}). Press \"Create ad\" again - anything already created on Meta is reused, not created twice. If it keeps failing, contact support with the reference.",
+                    'created' => $this->createdSummary($run),
+                    'retryable' => true,
+                ];
             }
 
             $run->forceFill(['status' => 'completed'])->save();
@@ -489,11 +506,9 @@ class FacebookCampaignBuilder
             $payload['is_adset_budget_sharing_enabled'] = false;
         }
 
-        $created = $this->graph->post($this->graph->actId() . '/campaigns', $payload);
+        $created = $this->createOnMeta($run, 'campaign', 'campaigns', $payload);
 
-        $local = AdCampaign::create([
-            'ad_campaign_id' => $created['id'],
-            'platform' => 'facebook',
+        $local = AdCampaign::updateOrCreate(['ad_campaign_id' => $created['id'], 'platform' => 'facebook'], [
             'user_id' => $run->user_id,
             'social_account_id' => $this->graph->account->id,
             'name' => $spec['name'],
@@ -580,11 +595,9 @@ class FacebookCampaignBuilder
             $payload['bid_amount'] = $this->graph->toMinor($spec['bid_amount'] ?? 0);
         }
 
-        $created = $this->graph->post($this->graph->actId() . '/adsets', $payload);
+        $created = $this->createOnMeta($run, 'adset', 'adsets', $payload);
 
-        $local = AdAdGroup::create([
-            'ad_adgroup_id' => $created['id'],
-            'platform' => 'facebook',
+        $local = AdAdGroup::updateOrCreate(['ad_adgroup_id' => $created['id'], 'platform' => 'facebook'], [
             'user_id' => $run->user_id,
             'social_account_id' => $this->graph->account->id,
             'ad_campaign_id' => $campaign['local'],
@@ -824,11 +837,9 @@ class FacebookCampaignBuilder
         }
 
         $name = $spec['name'] ?? ('Creative ' . now()->format('Y-m-d H:i'));
-        $created = $this->graph->post($this->graph->actId() . '/adcreatives', ['name' => $name, 'object_story_spec' => $story]);
+        $created = $this->createOnMeta($run, 'creative', 'adcreatives', ['name' => $name, 'object_story_spec' => $story]);
 
-        $local = AdCreative::create([
-            'ad_creative_id' => $created['id'],
-            'platform' => 'facebook',
+        $local = AdCreative::updateOrCreate(['ad_creative_id' => $created['id'], 'platform' => 'facebook'], [
             'user_id' => $run->user_id,
             'social_account_id' => $this->graph->account->id,
             'ad_campaign_id' => $run->result('campaign.local'),
@@ -842,9 +853,47 @@ class FacebookCampaignBuilder
             'call_to_action' => $cta['type'] ?? null,
             'lead_generation_form_id' => $spec['lead_form_id'] ?? null,
         ]);
+        foreach (array_unique($this->creativeMedia) as $mediaId) {
+            AdCreativeMedia::firstOrCreate(['ad_creative_id' => $local->id, 'ad_media_id' => $mediaId]);
+        }
         $run->remember('creative', ['remote' => $created['id'], 'local' => $local->id, 'reused' => false]);
 
         return ['remote' => $created['id'], 'local' => $local->id];
+    }
+
+    /**
+     * POST to an ad-account edge, recording the new id on the run before
+     * anything else happens - so if saving the local copy fails, a retry
+     * reuses the object instead of creating a duplicate on Meta.
+     */
+    private function createOnMeta(AdBuilderRun $run, string $key, string $edge, array $payload): array
+    {
+        if ($id = $run->result("meta.{$key}")) {
+            return ['id' => $id];
+        }
+
+        $created = $this->graph->post($this->graph->actId() . '/' . $edge, $payload);
+        $run->remember("meta.{$key}", $created['id']);
+
+        return $created;
+    }
+
+    /**
+     * Local ad_media row for an uploaded image/video (ad_campaign_id is
+     * required there), collected so the creative can be linked to it.
+     */
+    private function rememberMedia(AdBuilderRun $run, string $metaId, MediaAsset $asset, string $type, ?string $url, string $uploadType): void
+    {
+        $media = AdMedia::updateOrCreate(
+            ['ad_media_id' => $metaId, 'platform' => 'facebook', 'ad_campaign_id' => $run->result('campaign.local')],
+            [
+                'user_id' => $run->user_id, 'social_account_id' => $this->graph->account->id,
+                'name' => $asset->original_name, 'file_name' => $asset->original_name, 'url' => $url, 'download_link' => $asset->url,
+                'type' => $type, 'status' => false, 'signature' => $metaId, 'file_id' => $metaId, 'upload_by_type' => $uploadType,
+                'ad_format' => 'FEED', 'thumbnail_url' => $type === 'VIDEO' ? $asset->thumbnail_url : null,
+            ]
+        );
+        $this->creativeMedia[] = $media->id;
     }
 
     /** CTA with the value Meta needs for the destination (message apps, lead forms, links). */
@@ -915,6 +964,8 @@ class FacebookCampaignBuilder
     private function uploadImage(AdBuilderRun $run, MediaAsset $asset): string
     {
         if ($hash = $run->result("media.image_{$asset->id}")) {
+            $this->rememberMedia($run, $hash, $asset, 'IMAGE', $asset->url, 'UPLOAD_BY_FILE');
+
             return $hash;
         }
 
@@ -928,14 +979,9 @@ class FacebookCampaignBuilder
         if (empty($image['hash'])) {
             throw new MetaApiException("Meta didn't accept the image \"{$asset->original_name}\".");
         }
-
-        AdMedia::create([
-            'ad_media_id' => $image['hash'], 'platform' => 'facebook', 'user_id' => $run->user_id,
-            'social_account_id' => $this->graph->account->id, 'name' => $asset->original_name, 'file_name' => $asset->original_name,
-            'url' => $image['url'] ?? $asset->url, 'download_link' => $asset->url, 'type' => 'IMAGE', 'status' => false,
-            'signature' => $image['hash'], 'file_id' => $image['hash'], 'upload_by_type' => 'UPLOAD_BY_FILE', 'ad_format' => 'FEED',
-        ]);
         $run->remember("media.image_{$asset->id}", $image['hash']);
+
+        $this->rememberMedia($run, $image['hash'], $asset, 'IMAGE', $image['url'] ?? $asset->url, 'UPLOAD_BY_FILE');
 
         return $image['hash'];
     }
@@ -944,6 +990,8 @@ class FacebookCampaignBuilder
     private function uploadVideo(AdBuilderRun $run, MediaAsset $asset): string
     {
         if ($id = $run->result("media.video_{$asset->id}")) {
+            $this->rememberMedia($run, $id, $asset, 'VIDEO', $asset->url, 'UPLOAD_BY_URL');
+
             return $id;
         }
 
@@ -951,15 +999,9 @@ class FacebookCampaignBuilder
         if (empty($data['id'])) {
             throw new MetaApiException("Meta didn't accept the video \"{$asset->original_name}\".");
         }
-
-        AdMedia::create([
-            'ad_media_id' => $data['id'], 'platform' => 'facebook', 'user_id' => $run->user_id,
-            'social_account_id' => $this->graph->account->id, 'name' => $asset->original_name, 'file_name' => $asset->original_name,
-            'url' => $asset->url, 'download_link' => $asset->url, 'type' => 'VIDEO', 'status' => false,
-            'signature' => $data['id'], 'file_id' => $data['id'], 'upload_by_type' => 'UPLOAD_BY_URL', 'ad_format' => 'FEED',
-            'thumbnail_url' => $asset->thumbnail_url,
-        ]);
         $run->remember("media.video_{$asset->id}", $data['id']);
+
+        $this->rememberMedia($run, $data['id'], $asset, 'VIDEO', $asset->url, 'UPLOAD_BY_URL');
 
         return $data['id'];
     }
@@ -975,16 +1017,14 @@ class FacebookCampaignBuilder
         $status = ($input['ad']['status'] ?? 'PAUSED') === 'ACTIVE' ? 'ACTIVE' : 'PAUSED';
         $name = $input['ad']['name'] ?? ($input['adset']['name'] ?? 'Ad') . ' - Ad';
 
-        $created = $this->graph->post($this->graph->actId() . '/ads', [
+        $created = $this->createOnMeta($run, 'ad', 'ads', [
             'name' => $name,
             'adset_id' => $adSet['remote'],
             'creative' => ['creative_id' => $creative['remote']],
             'status' => $status,
         ]);
 
-        $local = Ad::create([
-            'ad_id' => $created['id'],
-            'platform' => 'facebook',
+        $local = Ad::updateOrCreate(['ad_id' => $created['id'], 'platform' => 'facebook'], [
             'user_id' => $run->user_id,
             'social_account_id' => $this->graph->account->id,
             'ad_campaign_id' => $campaign['local'],

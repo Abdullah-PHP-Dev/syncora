@@ -9,6 +9,7 @@ use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdBuilderRun;
 use App\Models\Admin\AdCampaign;
 use App\Models\Admin\AdCreative;
+use App\Models\Admin\AdMedia;
 use App\Models\SocialAccount;
 use App\Models\User;
 use App\Services\AdServices\FacebookCampaignBuilder;
@@ -170,12 +171,20 @@ class FacebookCampaignBuilderTest extends TestCase
             foreach (['ad_media_id', 'platform', 'name', 'file_name', 'type', 'status', 'signature', 'file_id', 'upload_by_type', 'ad_format'] as $c) {
                 $t->string($c)->nullable();
             }
-            foreach (['user_id', 'social_account_id', 'ad_campaign_id'] as $c) {
+            foreach (['user_id', 'social_account_id'] as $c) {
                 $t->unsignedBigInteger($c)->nullable();
             }
+            $t->unsignedBigInteger('ad_campaign_id'); // NOT NULL, as on MySQL
             foreach (['url', 'download_link', 'thumbnail_url'] as $c) {
                 $t->text($c)->nullable();
             }
+            $t->timestamps();
+        });
+        Schema::create('ad_creative_media', function ($t) {
+            $t->id();
+            $t->unsignedBigInteger('ad_creative_id');
+            $t->unsignedBigInteger('ad_media_id');
+            $t->integer('sort_order')->default(0);
             $t->timestamps();
         });
         Schema::create('platform_pages', function ($t) {
@@ -423,6 +432,44 @@ class FacebookCampaignBuilderTest extends TestCase
         $this->assertSame(['WHATSAPP', 'OUTCOME_ENGAGEMENT'], [$this->posts('act_111/adsets')[0][2]['destination_type'], $this->posts('act_111/campaigns')[0][2]['objective']]);
         $linkData = $this->posts('act_111/adcreatives')[0][2]['object_story_spec']['link_data'];
         $this->assertSame(['type' => 'WHATSAPP_MESSAGE', 'value' => ['app_destination' => 'WHATSAPP']], $linkData['call_to_action']);
+    }
+
+    public function test_uploaded_media_is_saved_with_its_campaign_and_linked_to_the_creative(): void
+    {
+        $result = $this->builder()->submit($this->input(), 'key-media-row-00001');
+
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+        $media = AdMedia::sole();
+        $this->assertSame(['HASH1', AdCampaign::sole()->id, 'IMAGE'], [$media->ad_media_id, (int) $media->ad_campaign_id, $media->type]);
+        $this->assertSame([[AdCreative::sole()->id, $media->id]], DB::table('ad_creative_media')->get()->map(fn ($r) => [(int) $r->ad_creative_id, (int) $r->ad_media_id])->all());
+    }
+
+    public function test_a_local_save_failure_never_recreates_the_meta_object_on_retry(): void
+    {
+        // Meta creates the creative, then saving our copy fails (like the
+        // staging ad_media error) - the retry must reuse Meta's creative.
+        $fail = true;
+        AdCreative::creating(function () use (&$fail) {
+            if ($fail) {
+                throw new \RuntimeException('SQLSTATE[HY000]: General error: 1364 Field doesn\'t have a default value');
+            }
+        });
+
+        $first = $this->builder()->submit($this->input(), 'key-local-fail-0001');
+        $this->assertFalse($first['success']);
+        $this->assertSame('creative', $first['step']);
+        $this->assertStringNotContainsString('SQLSTATE', $first['message']);
+        $this->assertStringContainsString('reference #', $first['message']);
+
+        $fail = false;
+        $retry = $this->builder()->submit($this->input(), 'key-local-fail-0001');
+
+        $this->assertTrue($retry['success'], $retry['message'] ?? '');
+        $this->assertCount(1, $this->posts('act_111/campaigns'));
+        $this->assertCount(1, $this->posts('act_111/adsets'));
+        $this->assertCount(1, $this->posts('act_111/adcreatives'));
+        $this->assertCount(1, $this->posts('act_111/ads'));
+        $this->assertSame(1, AdCreative::count());
     }
 
     public function test_every_graph_call_carries_the_ads_app_secret_proof(): void
