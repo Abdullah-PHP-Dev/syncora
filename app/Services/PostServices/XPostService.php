@@ -336,6 +336,21 @@ class XPostService
         }
         $endpoint = $this->baseUrl . 'tweets';
         $account = $post->socialAccount;
+
+        // X rejects an over-long post with a bare 403 "You are not
+        // permitted to perform this action." - check first (before any
+        // media upload) and say what's actually wrong.
+        $length = self::weightedLength((string) $post->content);
+        $limit = $this->characterLimit($account);
+        if ($limit !== null && $length > $limit) {
+            $post->forceFill([
+                'status' => 'failed',
+                'error_message' => "This post is {$length} characters - X allows {$limit} on accounts without X Premium. Shorten it (or post it as a thread) and try again.",
+            ])->save();
+
+            return ['success' => false, 'message' => $post->error_message];
+        }
+
         $payload = [
             'text' => $post->content ?? '',
             // share_with_followers only applies to Super Follows-exclusive
@@ -371,7 +386,16 @@ class XPostService
         ])->post($endpoint, $payload);
     
         if (!$response->successful()) {
-            return $this->errorResponse($post, $response, $account->platform);
+            $result = $this->errorResponse($post, $response, $account->platform);
+
+            // The limit lookup failed, so X decided - its 403 for an
+            // over-long post doesn't say so.
+            if ($response->status() === 403 && $length > 280) {
+                $post->forceFill(['error_message' => "X refused the post ({$result['message']}). It is {$length} characters - accounts without X Premium can post up to 280."])->save();
+                $result['message'] = $post->error_message;
+            }
+
+            return $result;
         }
     
 
@@ -755,6 +779,57 @@ class XPostService
     /**
      * Error response handler
      */
+    /**
+     * Length as X counts it (twitter-text v3): links count as 23, most
+     * Latin/Arabic/Cyrillic characters as 1, everything else (CJK, emoji)
+     * as 2.
+     */
+    public static function weightedLength(string $text): int
+    {
+        $text = (string) (class_exists(\Normalizer::class) ? \Normalizer::normalize($text, \Normalizer::FORM_C) : $text);
+        $urls = preg_match_all('~https?://\S+~u', $text);
+        $text = preg_replace('~https?://\S+~u', '', $text);
+
+        $length = $urls * 23;
+        foreach (preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY) as $char) {
+            $code = mb_ord($char);
+            $light = ($code <= 4351) || ($code >= 8192 && $code <= 8205) || ($code >= 8208 && $code <= 8223) || ($code >= 8242 && $code <= 8247);
+            $length += $light ? 1 : 2;
+        }
+
+        return $length;
+    }
+
+    /**
+     * 280 without an X subscription, 25,000 with Basic/Premium/Premium+.
+     * Looked up once (GET /2/users/me user.fields=subscription_type) and
+     * remembered on the account for a day; null when X won't say (then X
+     * decides).
+     */
+    protected function characterLimit($account): ?int
+    {
+        $meta = $account->metadata ?? [];
+        $checked = $meta['x_subscription_checked_at'] ?? null;
+
+        if (! $checked || Carbon::parse($checked)->lt(now()->subDay())) {
+            try {
+                $response = Http::withToken((string) $account->access_token)->acceptJson()
+                    ->get(rtrim($this->baseUrl ?: 'https://api.x.com/2/', '/') . '/users/me', ['user.fields' => 'subscription_type,verified_type']);
+            } catch (\Throwable $e) {
+                return null;
+            }
+            if (! $response->successful() || ! $response->json('data')) {
+                return null;
+            }
+
+            $meta['x_subscription_type'] = $response->json('data.subscription_type') ?? 'None';
+            $meta['x_subscription_checked_at'] = now()->toIso8601String();
+            $account->update(['metadata' => $meta]);
+        }
+
+        return in_array($meta['x_subscription_type'] ?? 'None', ['Basic', 'Premium', 'PremiumPlus'], true) ? 25000 : 280;
+    }
+
     private function errorResponse($model, $response)
     {
         $data = $response->json() ?? $response;
