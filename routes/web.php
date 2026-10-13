@@ -368,6 +368,28 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::get('ads/{platform}/campaigns/insights', [AdCampaignController::class, 'insights'])
 					->name('ads.campaigns.insights');
 
+				// Facebook campaign builder (FacebookCampaignBuilder): live
+				// lookups for the wizard and the idempotent submit. Literal
+				// "facebook/builder" segment, so no clash with {platform}.
+				Route::prefix('ads/facebook/builder')->name('ads.facebook.builder.')
+					->controller(\App\Http\Controllers\Admin\FacebookAdBuilderController::class)->group(function () {
+						Route::get('bootstrap', 'bootstrap')->name('bootstrap');
+						Route::get('campaigns', 'campaigns')->name('campaigns');
+						Route::get('campaigns/{campaign}/adsets', 'adSets')->name('adsets')->where('campaign', '[0-9]+');
+						Route::get('creatives', 'creatives')->name('creatives');
+						Route::get('creatives/{creative}/preview', 'creativePreview')->name('creative_preview')->where('creative', '[0-9]+');
+						Route::get('audiences', 'audiences')->name('audiences');
+						Route::get('pixels', 'pixels')->name('pixels');
+						Route::get('apps', 'apps')->name('apps');
+						Route::get('instagram-accounts', 'instagramAccounts')->name('instagram_accounts');
+						Route::get('pages/{page}/lead-forms', 'leadForms')->name('lead_forms')->where('page', '[0-9]+');
+						Route::get('targeting', 'targetingSearch')->name('targeting');
+						Route::get('locations', 'locations')->name('locations');
+						Route::get('locales', 'locales')->name('locales');
+						Route::post('estimate', 'estimate')->name('estimate')->middleware('throttle:30,1');
+						Route::post('submit', 'submit')->name('submit')->middleware('throttle:10,1');
+					});
+
 				Route::resource('ads/{platform}/campaigns', AdCampaignController::class)
 					->names('ads.campaigns');
 
