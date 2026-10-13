@@ -497,7 +497,9 @@ class TiktokPostService
             // taken from the caption instead.
             $payload = [
                 'post_info' => [
-                    'title' => mb_substr($title, 0, 90),
+                    // The composer's title when given (not the seller's name
+                    // older posts were saved with), else the caption's opening.
+                    'title' => mb_substr(trim((string) $post->title) !== '' && trim((string) $post->title) !== ($post->user?->name ?? null) ? trim((string) $post->title) : $title, 0, 90),
                     'description' => mb_substr($content, 0, 4000),
                     'privacy_level' => $this->privacyLevel($creatorResponseData),
                     'disable_comment' => false,

@@ -27,7 +27,10 @@ class PostRequest extends FormRequest
         $platforms = ['facebook', 'instagram', 'x', 'google', 'tiktok', 'youtube', 'linkedin', 'whatsapp', 'threads', 'pinterest'];
         
         $rules = [
-            'content'    => ['required', 'string', 'min:1', 'max:5000'],
+            'title'      => ['nullable', 'string', 'max:' . \App\Support\PlatformTextLimits::MAX_TITLE],
+            // The longest any platform accepts (Facebook); each selected
+            // platform's own limit is checked in withValidator().
+            'content'    => ['required', 'string', 'min:1', 'max:' . \App\Support\PlatformTextLimits::MAX_CONTENT],
             'platforms'  => ['required', 'array', 'min:1'],
             'platforms.*' => ['required', 'string', 'in:' . implode(',', $platforms)],
             //'ai_image_url' => ['nullable', 'required_without:media'],
@@ -127,7 +130,8 @@ class PostRequest extends FormRequest
         $messages = [
             'content.required' => 'Please enter post content.',
             'content.min' => 'Post content must be at least 1 character.',
-            'content.max' => 'Post content cannot exceed 5000 characters.',
+            'content.max' => 'Post content cannot exceed ' . number_format(\App\Support\PlatformTextLimits::MAX_CONTENT) . ' characters.',
+            'title.max' => 'The title can be up to ' . \App\Support\PlatformTextLimits::MAX_TITLE . ' characters.',
             
             'platforms.required' => 'Please select at least one platform.',
             'platforms.min' => 'Please select at least one platform.',
@@ -156,6 +160,33 @@ class PostRequest extends FormRequest
         }
 
         return $messages;
+    }
+
+    /**
+     * Each selected platform's own text limits (PlatformTextLimits) - eg.
+     * Instagram 2,200, X 280 without X Premium, LinkedIn 3,000.
+     */
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            if ($validator->errors()->has('content') || ! is_array($this->input('platforms'))) {
+                return;
+            }
+
+            $accountIds = collect($this->input('platforms'))
+                ->mapWithKeys(fn ($platform) => [$platform => array_map('intval', (array) $this->input("{$platform}.pages", []))])
+                ->all();
+
+            $problems = \App\Support\PlatformTextLimits::check(
+                $this->input('platforms'), $accountIds, (string) $this->input('content'), $this->input('title'), (int) $this->user()?->id
+            );
+
+            foreach ($problems as $messages) {
+                foreach ($messages as $message) {
+                    $validator->errors()->add('content', $message);
+                }
+            }
+        });
     }
 
     /**

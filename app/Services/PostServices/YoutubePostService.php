@@ -412,10 +412,17 @@ class YoutubePostService
                 | Title Generation (Unique per video index if multiple)
                 |--------------------------------------------------------------------------
                 */
+                // The composer's title when one was given (posts saved
+                // before titles were kept carry the seller's name - ignored).
+                $ownTitle = trim((string) $post->title);
                 $dotPosition = mb_strpos($content, '.');
-                $baseTitle = ($dotPosition !== false && $dotPosition < 90)
-                    ? mb_substr($content, 0, $dotPosition + 1)
-                    : mb_substr($content, 0, 90);
+                $baseTitle = $ownTitle !== '' && $ownTitle !== ($post->user?->name ?? null)
+                    ? $ownTitle
+                    : (($dotPosition !== false && $dotPosition < 90)
+                        ? mb_substr($content, 0, $dotPosition + 1)
+                        : mb_substr($content, 0, 90));
+                // YouTube rejects < and > in titles.
+                $baseTitle = trim(str_replace(['<', '>'], '', $baseTitle));
 
                 if (empty($baseTitle)) {
                     $baseTitle = 'Video ' . date('Y-m-d H:i:s');

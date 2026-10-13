@@ -12,6 +12,7 @@
             :accounts='@json($accounts)'
             :categories='@json($categories)'
             :prefill='@json($prefill)'
+            :text-limits='@json($textLimits)'
             store-url="{{ route('admin.posts.store') }}"
             category-store-url="{{ route('admin.categories.store') }}"
             manage-accounts-url="{{ route('admin.connections.index') }}"

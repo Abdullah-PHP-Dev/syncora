@@ -806,7 +806,7 @@ class XPostService
      * remembered on the account for a day; null when X won't say (then X
      * decides).
      */
-    protected function characterLimit($account): ?int
+    public function characterLimit($account): ?int
     {
         $meta = $account->metadata ?? [];
         $checked = $meta['x_subscription_checked_at'] ?? null;

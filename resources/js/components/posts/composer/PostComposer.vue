@@ -60,18 +60,29 @@
 
         <label class="composer-field-label mt-3">Post Description</label>
         <div class="composer-input-wrap">
-          <textarea v-model="description" class="form-control" rows="5" maxlength="2200"
+          <textarea v-model="description" class="form-control" rows="5" :maxlength="textLimits.platforms ? 63206 : 2200"
                     placeholder="What do you want to share?"></textarea>
           <div class="composer-textarea-actions">
             <button type="button" title="Insert emoji" @click="showEmojiPicker = !showEmojiPicker"><i class="bx bx-smile"></i></button>
             <button type="button" title="Insert hashtag" @click="description += (description.endsWith(' ') || !description ? '' : ' ') + '#'"><i class="bx bx-hash"></i></button>
           </div>
-          <span class="composer-counter composer-counter--textarea">{{ description.length }}/2200</span>
+          <span class="composer-counter composer-counter--textarea">{{ codePoints(description) }}</span>
 
           <div v-if="showEmojiPicker" class="composer-emoji-picker">
             <button v-for="emoji in quickEmojis" :key="emoji" type="button" @click="insertEmoji(emoji)">{{ emoji }}</button>
           </div>
         </div>
+
+        <!-- Each selected platform's own limit (PlatformTextLimits). -->
+        <div v-if="platformLimits.length" class="composer-limits">
+          <span v-for="item in platformLimits" :key="item.platform" class="composer-limit"
+                :class="{ 'is-over': item.problems.length, 'is-near': !item.problems.length && item.used / item.limit > 0.9 }"
+                :title="item.problems.join(' ') || (item.label + ': ' + item.used.toLocaleString() + ' of ' + item.limit.toLocaleString() + ' ' + item.unit)">
+            <i class="bx" :class="item.problems.length ? 'bx-error-circle' : 'bx-check-circle'"></i>
+            {{ item.label }} {{ item.used.toLocaleString() }}/{{ item.limit.toLocaleString() }}
+          </span>
+        </div>
+        <p v-if="limitProblems.length" class="composer-limit-error">{{ limitProblems.join(' ') }}</p>
 
         <hr class="composer-divider">
 
@@ -205,6 +216,13 @@ const props = defineProps({
   aiUrls: {
     type: Object,
     default: null
+  },
+
+  // { platforms: {key: {label, content, ...}}, accounts: {id: contentLimit}, title }
+  // from PlatformTextLimits - each platform's API text limits.
+  textLimits: {
+    type: Object,
+    default: () => ({})
   }
 
 });
@@ -227,6 +245,60 @@ const mediaItems = ref([]);
 const selectedPlatforms = computed(() => [...new Set(
   props.accounts.filter(account => selectedAccountIds.value.includes(account.id)).map(account => account.platform)
 )]);
+// ---- Text limits per platform (mirrors App\Support\PlatformTextLimits) ----
+// Characters as the platforms count them: code points, not UTF-16 units.
+function codePoints(text) {
+  return [...(text || '')].length;
+}
+
+// X's weighted length (twitter-text v3): links 23, most scripts 1, CJK/emoji 2.
+function xLength(text) {
+  const normalized = (text || '').normalize('NFC');
+  const urls = normalized.match(/https?:\/\/\S+/g) || [];
+  let length = urls.length * 23;
+  for (const char of normalized.replace(/https?:\/\/\S+/g, '')) {
+    const code = char.codePointAt(0);
+    const light = code <= 4351 || (code >= 8192 && code <= 8205) || (code >= 8208 && code <= 8223) || (code >= 8242 && code <= 8247);
+    length += light ? 1 : 2;
+  }
+  return length;
+}
+
+const platformLimits = computed(() => {
+  const platforms = props.textLimits?.platforms || {};
+  const text = description.value || '';
+
+  return selectedPlatforms.value.filter(key => platforms[key]).map(key => {
+    const rules = platforms[key];
+    // The strictest selected account (eg. one X account without Premium).
+    const accountLimits = props.accounts
+      .filter(account => account.platform === key && selectedAccountIds.value.includes(account.id))
+      .map(account => props.textLimits.accounts?.[account.id])
+      .filter(Boolean);
+    const limit = accountLimits.length ? Math.min(...accountLimits) : rules.content;
+    const used = rules.weighted ? xLength(text) : rules.content_bytes ? new TextEncoder().encode(text).length : codePoints(text);
+    const unit = rules.content_bytes ? 'bytes' : 'characters';
+
+    const problems = [];
+    if (used > limit) {
+      problems.push(`${rules.label} allows ${limit.toLocaleString()} ${unit} - this text is ${used.toLocaleString()}.` + (key === 'x' && limit === 280 ? ' (25,000 with X Premium.)' : ''));
+    }
+    if (rules.hashtags && (text.match(/(^|\s)#[\p{L}\p{N}_]+/gu) || []).length > rules.hashtags) {
+      problems.push(`${rules.label} allows up to ${rules.hashtags} hashtags.`);
+    }
+    if (rules.mentions && (text.match(/(^|\s)@[\w.]+/gu) || []).length > rules.mentions) {
+      problems.push(`${rules.label} allows up to ${rules.mentions} @mentions.`);
+    }
+    if (rules.no_angle_brackets && /[<>]/.test(text + title.value)) {
+      problems.push(`${rules.label} doesn't allow < or > in the title or description.`);
+    }
+
+    return { platform: key, label: rules.label, used, limit, unit, problems };
+  });
+});
+
+const limitProblems = computed(() => platformLimits.value.flatMap(item => item.problems));
+
 const useAsFirstComment = ref(false);
 const showEmojiPicker = ref(false);
 const quickEmojis = ['😀','🎉','🚀','🔥','❤️','👏','✨','📈','💡','🙌'];
@@ -445,6 +517,11 @@ async function submit(mode) {
     return;
   }
 
+  if (limitProblems.value.length) {
+    submitError.value = limitProblems.value.join(' ') + ' Shorten the text or unselect that platform.';
+    return;
+  }
+
   if (mode === 'schedule' && !scheduleAt.value) {
     submitError.value = 'Pick a date/time to schedule for.';
     return;
@@ -471,7 +548,13 @@ async function submit(mode) {
       window.location.href = data.redirect_url || props.redirectUrl || window.location.href;
     }
   } catch (error) {
-    submitError.value = error.response?.data?.errors?.map(e => e.message).filter(Boolean).join(' ')
+    // Our own failures send errors: [{message}], Laravel validation sends
+    // errors: {field: [messages]} - show either.
+    const errors = error.response?.data?.errors;
+    const messages = Array.isArray(errors)
+      ? errors.map(e => e.message)
+      : Object.values(errors || {}).flat();
+    submitError.value = messages.filter(Boolean).join(' ')
       || error.response?.data?.message
       || 'Something went wrong while publishing. Please try again.';
   } finally {
@@ -613,6 +696,58 @@ async function submit(mode) {
 .composer-input-wrap textarea {
   resize: vertical;
   padding-bottom: 34px;
+}
+
+.composer-limits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.composer-limit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.composer-limit i {
+  font-size: 14px;
+  color: #10b981;
+}
+
+.composer-limit.is-near {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.composer-limit.is-near i {
+  color: #f59e0b;
+}
+
+.composer-limit.is-over {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.composer-limit.is-over i {
+  color: #dc2626;
+}
+
+.composer-limit-error {
+  margin: 6px 0 0;
+  color: #b91c1c;
+  font-size: 13px;
 }
 
 .composer-counter {

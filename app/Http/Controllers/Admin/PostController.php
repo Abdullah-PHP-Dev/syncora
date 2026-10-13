@@ -1005,7 +1005,15 @@ class PostController extends Controller
             : null;
         $prefill = $prefill ? ['title' => $prefill->title, 'content' => $prefill->content, 'category_id' => $prefill->post_category_id] : null;
 
-        return view('admin.posts.composer', compact('categories', 'accounts', 'prefill'));
+        // Live per-platform counters (PlatformTextLimits) - each account's
+        // own limit, since X depends on the account's X subscription.
+        $textLimits = [
+            'platforms' => \App\Support\PlatformTextLimits::LIMITS,
+            'accounts' => $accounts->mapWithKeys(fn ($account) => [$account->id => \App\Support\PlatformTextLimits::forAccount($account, $account->platform === 'x')['content']]),
+            'title' => \App\Support\PlatformTextLimits::MAX_TITLE,
+        ];
+
+        return view('admin.posts.composer', compact('categories', 'accounts', 'prefill', 'textLimits'));
     }
 
     /**
@@ -1273,6 +1281,7 @@ class PostController extends Controller
     {
         $userId = Auth::id();
         $validated = $request->validated();
+        $validated['title'] = $this->postTitle($validated['title'] ?? null, $validated['content'] ?? '');
 
         // Ties every Post row this single submission creates - across
         // platforms (facebook+instagram+tiktok in one go) AND across
@@ -1615,6 +1624,24 @@ class PostController extends Controller
     }
 
     /**
+     * The composer's title, or - when left empty - the start of the text
+     * (first line, up to 100 characters). Every *PostService::store()
+     * falls back to the seller's NAME when no title is passed, which is
+     * what posts were titled before the title was validated.
+     */
+    private function postTitle(?string $title, string $content): ?string
+    {
+        $title = trim((string) $title);
+        if ($title !== '') {
+            return $title;
+        }
+
+        $firstLine = trim(strtok(trim(strip_tags($content)), "\n") ?: '');
+
+        return $firstLine === '' ? null : Str::limit($firstLine, \App\Support\PlatformTextLimits::MAX_TITLE - 3);
+    }
+
+    /**
      * Publish the Quick Post composer's post straight to every connected
      * account for each selected platform (no page/category picker in that UI).
      */
@@ -1625,7 +1652,8 @@ class PostController extends Controller
         $scheduleMode = $request->boolean('schedule_mode');
 
         $validated = $request->validate([
-            'content' => ['nullable', 'string', 'max:5000'],
+            'title' => ['nullable', 'string', 'max:' . \App\Support\PlatformTextLimits::MAX_TITLE],
+            'content' => ['nullable', 'string', 'max:' . \App\Support\PlatformTextLimits::MAX_CONTENT],
             'platforms' => ['required', 'array', 'min:1'],
             'platforms.*' => ['required', 'string', 'in:' . implode(',', $quickPlatforms)],
             'media' => ['nullable', 'file', 'max:10240'],
@@ -1647,11 +1675,22 @@ class PostController extends Controller
             ], 422);
         }
 
+        // Each platform's own text limit (Instagram 2,200, X 280 without
+        // Premium, ...) - quick posts go to every connected account.
+        $limitProblems = \App\Support\PlatformTextLimits::check($validated['platforms'], [], (string) ($validated['content'] ?? ''), $validated['title'] ?? null, $userId);
+        if ($limitProblems) {
+            return response()->json([
+                'success' => false,
+                'errors' => collect($limitProblems)->flatten()->map(fn ($message) => ['message' => $message])->values()->all(),
+            ], 422);
+        }
+
         $category = PostCategory::firstOrCreate(
             ['user_id' => $userId, 'name' => 'Quick Posts']
         );
 
         $data = [
+            'title' => $this->postTitle($validated['title'] ?? null, $validated['content'] ?? ''),
             'content' => $validated['content'] ?? '',
             'media' => $request->hasFile('media') ? [$request->file('media')] : [],
             'category_id' => $category->id,
