@@ -37,6 +37,9 @@ use Illuminate\Support\Str;
  */
 class FacebookCampaignBuilder
 {
+    /** VAT (%) shown on top of the ad budget - same rate the other ad forms use. Display only; Meta gets the budget as entered. */
+    public const VAT_RATE = 15;
+
     public function __construct(private MetaAdsGraph $graph)
     {
     }
@@ -74,6 +77,7 @@ class FacebookCampaignBuilder
                 'active' => (int) ($info['account_status'] ?? 1) === 1,
             ],
             'pages' => $this->pages(),
+            'vat_rate' => self::VAT_RATE,
             'goals' => MetaGoals::all(),
             'conversion_events' => MetaGoals::CONVERSION_EVENTS,
         ];
@@ -874,6 +878,12 @@ class FacebookCampaignBuilder
         }
 
         $link = trim((string) ($input['creative']['link'] ?? ($input['adset']['object_store_url'] ?? '')));
+
+        // Awareness / engagement ads don't need a website: without one the
+        // button (and link_data.link) points to the advertiser's Page.
+        if ($link === '' && empty($destination['needs_link']) && ! empty($input['creative']['page_id'])) {
+            return 'https://www.facebook.com/' . $input['creative']['page_id'];
+        }
         if (! filter_var($link, FILTER_VALIDATE_URL)) {
             throw new \InvalidArgumentException('Add the website address (starting with https://) people go to.');
         }

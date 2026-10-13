@@ -141,6 +141,7 @@
                   </select>
                 </div>
               </div>
+              <budget-summary v-if="campaign.campaign_budget" :summary="budgetSummary" :money="money" />
             </template>
 
             <template v-if="goal">
@@ -201,15 +202,12 @@
               <!-- Tracking / promoted object -->
               <div v-if="destRules && (destRules.needs_pixel || destRules.needs_app || needsPage)" class="fb-group">
                 <h6><i class="bx bx-target-lock"></i> Tracking &amp; promoted object</h6>
+                <div v-if="needsPage" class="fb-ident">
+                  <label class="fb-label">Facebook Page</label>
+                  <identity-cards v-model="adset.page_id" :items="pageCards" label="Facebook Page" />
+                  <p v-if="!boot.pages.length" class="fb-field-err">No Pages found - reconnect your ad account in Connections to load your Pages.</p>
+                </div>
                 <div class="fb-grid-2">
-                  <div v-if="needsPage">
-                    <label class="fb-label" for="fbPage">Facebook Page</label>
-                    <select id="fbPage" v-model="adset.page_id" class="form-control">
-                      <option :value="null" disabled>Choose a Page</option>
-                      <option v-for="p in boot.pages" :key="p.id" :value="p.id">{{ p.name }}</option>
-                    </select>
-                    <p v-if="!boot.pages.length" class="fb-field-err">No Pages found - reconnect your ad account in Connections to load your Pages.</p>
-                  </div>
                   <template v-if="destRules.needs_pixel">
                     <div>
                       <label class="fb-label" for="fbPixel">Meta Pixel / dataset</label>
@@ -288,6 +286,7 @@
                     <input id="fbEnd" v-model="adset.end_time" type="datetime-local" class="form-control" :min="adset.start_time || nowLocal">
                   </div>
                 </div>
+                <budget-summary v-if="!campaignHasBudget || campaign.mode === 'new'" :summary="budgetSummary" :money="money" />
                 <p v-if="boot.account.timezone" class="fb-hint"><i class="bx bx-time-five"></i> Times are in the ad account's time zone ({{ boot.account.timezone }}).</p>
               </div>
             </template>
@@ -472,21 +471,16 @@
             </template>
 
             <template v-else>
-              <div class="fb-grid-2">
-                <div>
-                  <label class="fb-label" for="fbCrPage">Facebook Page</label>
-                  <select id="fbCrPage" v-model="creative.page_id" class="form-control">
-                    <option :value="null" disabled>Choose a Page</option>
-                    <option v-for="p in boot.pages" :key="p.id" :value="p.id">{{ p.name }}</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="fb-label" for="fbIg">Instagram account <span class="fb-opt">for Instagram placements</span></label>
-                  <select id="fbIg" v-model="creative.instagram_user_id" class="form-control">
-                    <option :value="null">{{ lists.loading.instagram ? 'Loading…' : 'Use the Facebook Page' }}</option>
-                    <option v-for="a in lists.instagram" :key="a.id" :value="a.id">@{{ a.username || a.id }}</option>
-                  </select>
-                </div>
+              <div class="fb-ident">
+                <label class="fb-label">Facebook Page <span class="fb-opt">the ad is posted from</span></label>
+                <identity-cards v-model="creative.page_id" :items="pageCards" label="Facebook Page" />
+                <p v-if="!boot.pages.length" class="fb-field-err">No Pages found - reconnect your ad account in Connections to load your Pages.</p>
+              </div>
+              <div class="fb-ident">
+                <label class="fb-label">Instagram account <span class="fb-opt">for Instagram placements</span></label>
+                <div v-if="lists.loading.instagram" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> Loading Instagram accounts…</div>
+                <identity-cards v-else v-model="creative.instagram_user_id" :items="instagramCards" platform="instagram" label="Instagram account"
+                                empty-label="Facebook Page" empty-sub="Shows the Page on Instagram" empty-icon="bxl-facebook-circle" />
               </div>
 
               <div v-if="destRules && destRules.needs_lead_form" class="fb-group">
@@ -565,9 +559,11 @@
                   </div>
                 </div>
                 <div class="fb-grid-2">
-                  <div v-if="destRules && destRules.needs_link && !destRules.needs_app">
-                    <label class="fb-label" for="fbLink">Website URL</label>
+                  <div v-if="showLink">
+                    <label class="fb-label" for="fbLink">Website URL <span class="fb-opt">{{ linkRequired ? 'where the button goes' : 'optional - where the button goes' }}</span></label>
                     <input id="fbLink" v-model.trim="creative.link" type="url" class="form-control" placeholder="https://yourstore.com/offer">
+                    <p v-if="creative.link && !validLink" class="fb-field-err">Enter the full address, starting with https://</p>
+                    <p v-else-if="!linkRequired && !creative.link" class="fb-hint"><i class="bx bx-info-circle"></i> Leave empty to send people to your Facebook Page.</p>
                   </div>
                   <div v-if="destRules">
                     <label class="fb-label" for="fbCta">Call to action</label>
@@ -707,6 +703,8 @@
 // duplicates on Meta.
 import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
 import SearchPicker from './SearchPicker.vue';
+import IdentityCards from './IdentityCards.vue';
+import BudgetSummary from './BudgetSummary.vue';
 import MediaPicker from '../../media/MediaPicker.vue';
 import { uploadToGallery, errorMessage, precheck } from '../../media/mediaShared';
 
@@ -788,6 +786,36 @@ const filteredCreatives = computed(() => {
 const linkHost = computed(() => {
   try { return new URL(creative.link).hostname.replace(/^www\./, '').toUpperCase(); } catch (e) { return 'YOURWEBSITE.COM'; }
 });
+// Website field: every destination except messaging, Instant forms and
+// app installs (those links are set by Meta / the app store URL).
+// Required where the goal is a website; optional for awareness and
+// engagement, where the server falls back to the Page.
+const showLink = computed(() => !!destRules.value && !destRules.value.message_app && !destRules.value.needs_lead_form && !destRules.value.needs_app);
+const linkRequired = computed(() => showLink.value && !!destRules.value.needs_link);
+const validLink = computed(() => /^https?:\/\/\S+\.\S+/.test(creative.link || ''));
+const pageCards = computed(() => (boot.value ? boot.value.pages : []).map((p) => ({ id: p.id, name: p.name, picture: p.picture, sub: p.username ? '@' + p.username : 'Facebook Page' })));
+const instagramCards = computed(() => lists.instagram.map((a) => ({ id: a.id, name: a.username ? '@' + a.username : a.id, picture: a.picture, sub: 'Instagram' })));
+// What the budget comes to with VAT (shown only - Meta gets the budget as
+// entered). A daily budget with an end date is multiplied by the days.
+const budgetSummary = computed(() => {
+  const vatRate = boot.value ? Number(boot.value.vat_rate || 0) : 0;
+  let amount = null;
+  let type = 'daily';
+  if (campaign.mode === 'new' && campaign.campaign_budget) {
+    amount = campaign.budget; type = campaign.budget_type;
+  } else if (adset.mode === 'new' && !campaignHasBudget.value) {
+    amount = adset.budget; type = adset.budget_type;
+  }
+  if (!(amount > 0)) return null;
+  let days = null;
+  if (type === 'daily' && adset.mode === 'new' && adset.end_time) {
+    const start = adset.start_time ? new Date(adset.start_time) : new Date();
+    days = Math.max(1, Math.ceil((new Date(adset.end_time) - start) / 86400000));
+  }
+  const budget = type === 'daily' && days ? amount * days : amount;
+  const vat = Math.round(budget * vatRate) / 100;
+  return { type, amount, days, budget, vatRate, vat, total: Math.round((budget + vat) * 100) / 100, perDay: type === 'daily' && !days };
+});
 const pickerTypeLock = computed(() => (pickerTarget.value === 'media' ? (creative.format === 'VIDEO' ? 'video' : 'image') : 'image'));
 
 const steps = computed(() => [
@@ -813,6 +841,7 @@ const reviewRows = computed(() => {
     { step: 2, icon: 'bx-group', label: 'Audience', value: adset.mode === 'existing' ? 'From ad set' : audienceSummary() },
     { step: 2, icon: 'bx-layout', label: 'Placements', value: adset.mode === 'existing' ? 'From ad set' : (placements.mode === 'advantage' ? 'Advantage+ placements' : placements.publisher_platforms.join(', ')) },
     { step: 1, icon: 'bx-line-chart', label: 'Tracking', value: adset.mode === 'existing' ? 'From ad set' : destRules.value && destRules.value.needs_pixel ? `Pixel ${selectedPixel.value ? selectedPixel.value.name : '-'} · ${adset.custom_event_type}` : (destRules.value && destRules.value.needs_app ? `App ${selectedApp.value ? selectedApp.value.name : '-'}` : 'Not needed for this goal') },
+    ...(budgetSummary.value ? [{ step: 1, icon: 'bx-receipt', label: `Total incl. VAT (${budgetSummary.value.vatRate}%)`, value: `${money(budgetSummary.value.total)}${budgetSummary.value.perDay ? ' per day' : ''}${budgetSummary.value.days ? ` for ${budgetSummary.value.days} day${budgetSummary.value.days > 1 ? 's' : ''}` : ''}` }] : []),
     { step: 3, icon: 'bx-image', label: 'Creative', value: creative.mode === 'existing' ? `${(lists.creatives.find((c) => c.id === creative.id) || {}).name || '-'} (existing)` : `${creative.format.toLowerCase()} · ${ctaLabel(creative.cta)}${creative.link ? ' · ' + creative.link : ''}` },
   ];
 });
@@ -997,7 +1026,8 @@ function validate() {
     if (creative.format === 'CAROUSEL' && creative.cards.length < 2) cr.push('Add at least 2 carousel cards.');
     if (creative.format !== 'CAROUSEL' && !creative.media.length) cr.push(creative.format === 'VIDEO' ? 'Choose a video.' : 'Choose an image.');
     if (creative.format === 'VIDEO' && creative.media[0] && !creative.media[0].thumbnail_url && !creative.thumbnail) cr.push('Add a thumbnail for the video.');
-    if (destRules.value && destRules.value.needs_link && !destRules.value.needs_app && !/^https?:\/\/\S+\.\S+/.test(creative.link)) cr.push('Add your website URL (https://…).');
+    if (linkRequired.value && !validLink.value) cr.push('Add your website URL (https://…).');
+    else if (showLink.value && creative.link && !validLink.value) cr.push('The website URL must start with https://');
     if (destRules.value && destRules.value.needs_lead_form && !creative.lead_form_id) cr.push('Choose the Instant form.');
   }
   add(3, cr);
@@ -1354,6 +1384,7 @@ onMounted(async () => {
 .fb-search i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); }
 .fb-search input { width: 100%; height: 40px; border: 1px solid #E2E5ED; border-radius: 10px; padding: 0 12px 0 36px; font-size: .86rem; outline: none; }
 .fb-search input:focus { border-color: #8F6BFF; box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
+.fb-ident { margin-bottom: 14px; }
 .fb-pick-list { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; padding: 2px; }
 .fb-pick { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1.5px solid var(--line); border-radius: 12px; background: #fff; text-align: start; }
 .fb-pick:hover:not(:disabled) { border-color: #CFC4FF; }

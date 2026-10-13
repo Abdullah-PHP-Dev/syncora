@@ -425,6 +425,29 @@ class FacebookCampaignBuilderTest extends TestCase
         $this->assertSame(['type' => 'WHATSAPP_MESSAGE', 'value' => ['app_destination' => 'WHATSAPP']], $linkData['call_to_action']);
     }
 
+    public function test_awareness_ads_use_the_website_or_fall_back_to_the_page(): void
+    {
+        $awareness = ['goal' => 'awareness', 'destination' => 'NONE', 'adset' => ['optimization_goal' => 'REACH', 'page_id' => '500']];
+
+        $this->builder()->submit($this->input($awareness + ['creative' => ['cta' => 'LEARN_MORE', 'link' => 'https://socialeaz.com/about']]), 'key-aware-link-0001');
+        $linkData = $this->posts('act_111/adcreatives')[0][2]['object_story_spec']['link_data'];
+        $this->assertSame(['https://socialeaz.com/about', ['type' => 'LEARN_MORE', 'value' => ['link' => 'https://socialeaz.com/about']]], [$linkData['link'], $linkData['call_to_action']]);
+
+        $result = $this->builder()->submit($this->input($awareness + ['creative' => ['cta' => 'LEARN_MORE', 'link' => null]]), 'key-aware-nolink-01');
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+        $linkData = $this->posts('act_111/adcreatives')[1][2]['object_story_spec']['link_data'];
+        $this->assertSame(['https://www.facebook.com/500', ['type' => 'LEARN_MORE', 'value' => ['link' => 'https://www.facebook.com/500']]], [$linkData['link'], $linkData['call_to_action']]);
+    }
+
+    public function test_website_goals_still_require_the_website(): void
+    {
+        $result = $this->builder()->submit($this->input(['creative' => ['link' => null]]), 'key-traffic-nolink1');
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('creative', $result['step']);
+        $this->assertStringContainsString('website address', $result['message']);
+    }
+
     public function test_special_ad_categories_drop_disallowed_targeting(): void
     {
         $this->builder()->submit($this->input(['campaign' => ['special_ad_category' => 'EMPLOYMENT'], 'adset' => ['targeting' => ['advantage_audience' => true]]]), 'key-special-000001');
@@ -546,6 +569,7 @@ class FacebookCampaignBuilderTest extends TestCase
         $this->assertSame([120000, 140000], array_values(array_intersect_key($b->estimate($this->input()), ['audience_min' => 1, 'audience_max' => 1])));
         $this->assertSame(['custom', 'lookalike'], collect($b->audiences()['custom'])->pluck('kind')->all());
         $this->assertSame(['SAR', 100, 4.0], [$b->bootstrap()['account']['currency'], $b->bootstrap()['account']['currency_offset'], $b->bootstrap()['account']['min_daily_budget']]);
+        $this->assertSame(15, $b->bootstrap()['vat_rate']);
     }
 
     public function test_no_estimate_means_none_is_shown(): void
