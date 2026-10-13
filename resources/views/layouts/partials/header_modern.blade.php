@@ -3,7 +3,8 @@
         <a href="{{ route('home') }}" class="theme-brand" aria-label="{{ __('Socialeaz home') }}">
             <img src="{{ asset('assets/images/home-theme/logo.png') }}" alt="Socialeaz" width="145" height="40">
         </a>
-        <nav class="theme-links" aria-label="{{ __('Primary navigation') }}">
+        <button class="theme-menu-toggle" type="button" aria-controls="primary-navigation" aria-expanded="false" aria-label="{{ __('Toggle menu') }}"><span aria-hidden="true">☰</span></button>
+        <nav id="primary-navigation" class="theme-links" aria-label="{{ __('Primary navigation') }}">
             <details class="theme-product-dropdown" data-product-dropdown>
                 <summary>{{ __('Product') }} <span class="theme-dropdown-chevron" aria-hidden="true">@include('front.partials.home-icon', ['icon' => 'chevron-down'])</span></summary>
                 <div class="theme-product-menu">

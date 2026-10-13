@@ -1,0 +1,21 @@
+.theme-menu-toggle { display: none; }
+@media (max-width: 900px) {
+    .marketing-home .theme-nav { display: flex; flex-wrap: wrap; gap: 12px; padding-block: 12px; min-height: 72px; }
+    .marketing-home .theme-brand img { width: 120px; }
+    .marketing-home .theme-language-dropdown { margin-inline-start: auto; order: 1; }
+    .marketing-home .theme-menu-toggle { display: grid; place-items: center; order: 2; width: 44px; height: 44px; border: 1px solid #edf0fa; border-radius: 10px; background: #fff; color: #282653; font-size: 24px; cursor: pointer; }
+    .marketing-home .theme-links { display: none; order: 3; flex: 0 0 100%; min-width: 0; align-items: stretch; justify-content: flex-start; flex-flow: column nowrap; gap: 0; font-size: 14px; max-height: 60dvh; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
+    .marketing-home .theme-links > * { flex-shrink: 0; width: 100%; min-width: 0; }
+    .marketing-home .theme-nav-actions { display: none; order: 4; width: 100%; margin: 0; padding-top: 12px; border-top: 1px solid #edf0fa; justify-content: space-between; font-size: 14px; }
+    .marketing-home .theme-header.is-menu-open .theme-links, .marketing-home .theme-header.is-menu-open .theme-nav-actions { display: flex; }
+    .marketing-home .theme-links > a, .marketing-home .theme-product-dropdown > summary { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 12px 4px; font-size: 14px; }
+    .marketing-home .theme-product-dropdown[open] > summary { color: var(--theme-purple); }
+    .marketing-home .theme-product-menu { position: static; width: 100%; transform: none; margin-bottom: 8px; padding: 8px; border-radius: 12px; background: #f8f7fc; box-shadow: none; max-height: none; overflow: visible; }
+    .marketing-home .theme-product-menu-label { display: none; }
+    .marketing-home .theme-product-menu-grid { grid-template-columns: minmax(0,1fr); gap: 4px; }
+    .marketing-home .theme-product-menu-item { align-items: center; gap: 12px; min-height: 48px; padding: 8px; border-radius: 8px; }
+    .marketing-home .theme-product-menu-item .theme-icon { flex: 0 0 32px; width: 32px; height: 32px; border-radius: 8px; }
+    .marketing-home .theme-product-menu-item .theme-icon svg { width: 18px; height: 18px; }
+    .marketing-home .theme-product-menu-copy strong { font-size: 13px; overflow-wrap: anywhere; }
+    .marketing-home .theme-product-menu-copy small { display: none; }
+}
