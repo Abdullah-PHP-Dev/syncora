@@ -21,6 +21,7 @@ import TicketThread from './components/support/TicketThread.vue';
 import CopilotFindAnswer from './components/support/CopilotFindAnswer.vue';
 import AdsDashboard from './components/ads/AdsDashboard.vue';
 import PlatformCampaignsDashboard from './components/ads/PlatformCampaignsDashboard.vue';
+import FacebookCampaignBuilder from './components/ads/facebook/FacebookCampaignBuilder.vue';
 import EmailTemplateDesigner from './components/email/EmailTemplateDesigner.vue';
 
 window.Alpine = Alpine;
@@ -50,6 +51,7 @@ Vue.component('ticket-thread', TicketThread);
 Vue.component('copilot-find-answer', CopilotFindAnswer);
 Vue.component('ads-dashboard', AdsDashboard);
 Vue.component('platform-campaigns-dashboard', PlatformCampaignsDashboard);
+Vue.component('facebook-campaign-builder', FacebookCampaignBuilder);
 Vue.component('email-template-designer', EmailTemplateDesigner);
 Vue.component('connection-hub', ConnectionHub);
 

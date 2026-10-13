@@ -574,4 +574,17 @@ class FacebookCampaignBuilderTest extends TestCase
             $this->assertContains('Creative: choose an image or video.', $messages);
         }
     }
+
+    // ---- page ------------------------------------------------------------
+
+    public function test_create_page_opens_the_builder_and_keeps_the_old_form_reachable(): void
+    {
+        Schema::create('countries', fn ($t) => [$t->id(), $t->string('name')->nullable(), $t->string('code')->nullable()]);
+        $controller = app(\App\Http\Controllers\Admin\AdCampaignController::class);
+
+        $this->assertSame('admin.ads.facebook.campaigns.builder', $controller->create('facebook')->name());
+
+        request()->merge(['legacy' => 1]);
+        $this->assertSame('admin.ads.facebook.campaigns.create', $controller->create('facebook')->name());
+    }
 }

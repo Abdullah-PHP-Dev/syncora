@@ -155,6 +155,13 @@ class AdCampaignController extends Controller
             ? \App\Models\Post::with('media')->where('user_id', Auth::id())->find(request()->integer('post'))
             : null;
 
+        // Facebook: the campaign builder (FacebookCampaignBuilder - create or
+        // reuse campaign/ad set/creative). The previous form stays at
+        // ?legacy=1 while the builder rolls out.
+        if ($platform === 'facebook' && ! request()->boolean('legacy')) {
+            return view('admin.ads.facebook.campaigns.builder', compact('platform', 'account', 'adAccounts', 'promotePost'));
+        }
+
         return view('admin.ads.' . $this->viewPlatform($platform) . '.campaigns.create', compact('platform', 'account', 'adAccounts', 'countries', 'platformPages', 'promotePost'));
     }
 
