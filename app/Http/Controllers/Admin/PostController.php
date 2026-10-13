@@ -1375,7 +1375,8 @@ class PostController extends Controller
                    
                         if ($pages->isEmpty()) {
                             $errors[] = [
-                                'message' => "No pages found for platform: {$platform}"
+                                'platform' => $platform,
+                                'message' => 'Select a connected ' . (\App\Support\PlatformTextLimits::LIMITS[$platform]['label'] ?? ucfirst($platform)) . ' account to post to, or connect one in Connections.',
                             ];
     
                             throw new \Exception("No pages found");
@@ -1433,15 +1434,19 @@ class PostController extends Controller
     
                         if (!$response['success']) {
                             DB::rollback();
+                            // Every error says which platform and account it
+                            // came from - the composer lists them that way.
                             if (isset($response['errors']) && is_array($response['errors'])) {
                                 foreach ($response['errors'] as $error) {
-                                    $errors[] = $error;
+                                    $errors[] = ['platform' => $platform, 'account' => $error['page_name'] ?? null] + (array) $error;
                                 }
                             } else {
                                 $errors[] = [
+                                    'platform'  => $platform,
+                                    'account'   => $pages->first()->page_name ?? $pages->first()->name ?? null,
                                     'page_id'   => $pages->first()->external_id ?? null,
                                     'page_name' => $pages->first()->page_name ?? $pages->first()->name ?? null,
-                                    'message'   => $response['message'] ?? 'Unknown error occurred'
+                                    'message'   => $response['message'] ?? 'The platform rejected the post without saying why.'
                                 ];
                             }
     
@@ -1473,9 +1478,11 @@ class PostController extends Controller
                     'trace'     => $e->getTraceAsString(),
                 ]);
 
+                // An unexpected failure (not a platform's answer) still
+                // gets a readable message instead of an empty list.
                 return response()->json([
                     'success' => false,
-                    'errors' => $errors
+                    'errors' => $errors ?: [['message' => 'Something went wrong while publishing - nothing was posted. Please try again; if it keeps happening, contact support.']],
                 ], 422);
             }
         }
@@ -1736,7 +1743,7 @@ class PostController extends Controller
                 ->get();
 
             if ($pages->isEmpty()) {
-                $errors[] = ['message' => "No connected {$platform} account found. Connect one first."];
+                $errors[] = ['platform' => $platform, 'message' => 'No connected ' . (\App\Support\PlatformTextLimits::LIMITS[$platform]['label'] ?? ucfirst($platform)) . ' account - connect one in Connections first.'];
                 continue;
             }
 
@@ -1764,10 +1771,10 @@ class PostController extends Controller
             if (!$response['success']) {
                 if (isset($response['errors']) && is_array($response['errors'])) {
                     foreach ($response['errors'] as $error) {
-                        $errors[] = $error;
+                        $errors[] = ['platform' => $platform, 'account' => $error['page_name'] ?? null] + (array) $error;
                     }
                 } else {
-                    $errors[] = ['message' => "{$platform}: " . ($response['message'] ?? 'Publishing failed')];
+                    $errors[] = ['platform' => $platform, 'message' => $response['message'] ?? 'The platform rejected the post without saying why.'];
                 }
                 continue;
             }

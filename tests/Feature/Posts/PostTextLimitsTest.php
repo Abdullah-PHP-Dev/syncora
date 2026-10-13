@@ -130,4 +130,14 @@ class PostTextLimitsTest extends TestCase
         $this->assertSame(100, mb_strlen($method->invoke(app(PostController::class), null, str_repeat('long ', 50))));
         $this->assertNull($method->invoke(app(PostController::class), null, ''));
     }
+
+    public function test_a_platform_without_a_selected_account_is_named(): void
+    {
+        try {
+            $this->validate(['content' => 'Hello', 'platforms' => ['instagram']]);
+            $this->fail('Missing account not reported');
+        } catch (ValidationException $e) {
+            $this->assertSame(['Select at least one Instagram account to post to.'], $e->errors()['instagram.pages']);
+        }
+    }
 }

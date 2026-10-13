@@ -114,7 +114,23 @@
 
       </div>
 
-      <div v-if="submitError" class="composer-error">{{ submitError }}</div>
+      <div v-if="errorPanel" class="composer-error" :class="'is-' + errorPanel.kind" role="alert">
+        <div class="composer-error-head">
+          <i class="bx" :class="errorPanel.icon"></i>
+          <strong>{{ errorPanel.title }}</strong>
+          <button type="button" class="composer-error-close" aria-label="Dismiss" @click="clearErrors"><i class="bx bx-x"></i></button>
+        </div>
+        <ul class="composer-error-list">
+          <li v-for="(item, index) in errorPanel.items" :key="index">
+            <span v-if="item.platform" class="composer-error-tag" :style="{ '--tone': platformMeta(item.platform).color }">
+              <i v-if="platformMeta(item.platform).icon" class="bx" :class="platformMeta(item.platform).icon"></i>{{ platformMeta(item.platform).label }}<template v-if="item.account"> · {{ item.account }}</template>
+            </span>
+            <span v-else-if="item.field" class="composer-error-tag is-field">{{ item.field }}</span>
+            <span class="composer-error-text">{{ item.message }}</span>
+          </li>
+        </ul>
+        <p v-if="errorPanel.hint" class="composer-error-hint">{{ errorPanel.hint }}</p>
+      </div>
 
       <div class="composer-action-bar">
 
@@ -163,7 +179,7 @@
 // fetch("#", ...) placeholder) - see saveAsDraft() and
 // AiAssistantPanel.vue for how each surfaces that instead of faking
 // success.
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import AccountSelector from './AccountSelector.vue';
 import MediaGrid from './MediaGrid.vue';
 import AiAssistantPanel from './AiAssistantPanel.vue';
@@ -324,7 +340,105 @@ const warnBeforeLeaving = (event) => {
 };
 onMounted(() => window.addEventListener('beforeunload', warnBeforeLeaving));
 onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeLeaving));
-const submitError = ref('');
+// ---- Errors: validation (Laravel {field: [messages]}), platform/API
+// failures ([{platform, account, message}]), our own pre-publish checks,
+// and network/server problems - each shown as a titled, itemised panel.
+const errorPanel = ref(null);
+
+const PLATFORM_META = {
+  facebook: { label: 'Facebook', icon: 'bxl-facebook-circle', color: '#1877F2' },
+  instagram: { label: 'Instagram', icon: 'bxl-instagram', color: '#E1306C' },
+  x: { label: 'X', icon: null, color: '#111111' },
+  linkedin: { label: 'LinkedIn', icon: 'bxl-linkedin-square', color: '#0A66C2' },
+  tiktok: { label: 'TikTok', icon: 'bxl-tiktok', color: '#111111' },
+  youtube: { label: 'YouTube', icon: 'bxl-youtube', color: '#FF0000' },
+  threads: { label: 'Threads', icon: 'bx-at', color: '#111111' },
+  pinterest: { label: 'Pinterest', icon: 'bxl-pinterest', color: '#E60023' },
+  google: { label: 'Google Business', icon: 'bxl-google', color: '#4285F4' },
+  whatsapp: { label: 'WhatsApp', icon: 'bxl-whatsapp', color: '#25D366' },
+};
+function platformMeta(key) {
+  return PLATFORM_META[key] || { label: key, icon: 'bx-globe', color: '#6b7280' };
+}
+
+const FIELD_LABELS = {
+  title: 'Post title', content: 'Post description', category_id: 'Category', platforms: 'Accounts',
+  media: 'Media', schedule_at: 'Schedule date', expiry_at: 'Expiry date', media_asset_ids: 'Media gallery',
+  whatsapp_recipients: 'WhatsApp recipients', whatsapp_template_name: 'WhatsApp template',
+};
+// "facebook.pages" -> the platform; "media.0" -> "Media".
+function fieldInfo(key) {
+  const [root] = String(key).split('.');
+  if (PLATFORM_META[root]) return { platform: root };
+  return { field: FIELD_LABELS[root] || root.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()) };
+}
+// Messages that start with a platform's name ("X allows 280 ...") get its tag.
+function platformFromMessage(message) {
+  return Object.keys(PLATFORM_META).find(key => String(message).startsWith(PLATFORM_META[key].label + ' '));
+}
+
+const KINDS = {
+  check: { title: 'Before you publish', icon: 'bx-info-circle' },
+  validation: { title: 'Please fix the following', icon: 'bx-error-circle' },
+  publish: { title: "Couldn't publish", icon: 'bx-error' },
+  network: { title: 'Connection problem', icon: 'bx-wifi-off' },
+};
+function showErrors(kind, items, hint = null) {
+  const clean = items.filter(item => item && item.message);
+  if (!clean.length) return;
+  errorPanel.value = { kind, ...KINDS[kind], items: clean, hint };
+  // The panel sits above the action bar - bring it into view.
+  nextTick(() => document.querySelector('.composer-error')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+}
+function showError(kind, message, extra = {}) {
+  showErrors(kind, [{ message, ...extra }]);
+}
+function clearErrors() {
+  errorPanel.value = null;
+}
+
+// Any axios failure -> a readable panel.
+function showResponseErrors(error) {
+  const response = error.response;
+  if (!response) {
+    return showError('network', "Couldn't reach the server. Check your internet connection and try again.");
+  }
+
+  const data = response.data || {};
+  const errors = data.errors;
+
+  if (errors && !Array.isArray(errors) && typeof errors === 'object') {
+    // Laravel validation: {field: [messages]}
+    const items = Object.entries(errors).flatMap(([key, messages]) => [].concat(messages).map(message => {
+      const info = fieldInfo(key);
+      const platform = info.platform || platformFromMessage(message);
+      return platform ? { platform, message } : { field: info.field, message };
+    }));
+    return showErrors('validation', items);
+  }
+
+  if (Array.isArray(errors) && errors.length) {
+    // Publishing: [{platform, account|page_name, message}]
+    const items = errors.map(e => ({
+      platform: e.platform || platformFromMessage(e.message),
+      account: e.account || e.page_name || null,
+      message: e.message,
+    }));
+    return showErrors('publish', items, 'Fix the problem above, then publish again.');
+  }
+
+  if (response.status === 413) {
+    return showError('validation', 'The upload is too large. Remove or compress a file and try again.', { field: 'Media' });
+  }
+  if (response.status === 419) {
+    return showError('network', 'Your session expired. Reload the page and try again.');
+  }
+  if (response.status >= 500) {
+    return showError('network', 'The server had a problem publishing this post. Please try again in a moment.');
+  }
+
+  return showError('publish', data.message || 'Something went wrong while publishing. Please try again.');
+}
 const showScheduler = ref(false);
 const scheduleAt = ref('');
 
@@ -440,13 +554,13 @@ function onAiGenerated({ kind, title: aiTitle, description: aiDescription, hasht
         duration: null,
       }];
     } catch (error) {
-      submitError.value = 'The image was generated, but couldn\'t be attached automatically - please try again.';
+      showError('check', 'The image was generated, but couldn\'t be attached automatically - please try again.', { field: 'Media' });
     }
   }
 }
 
 function saveAsDraft() {
-  submitError.value = 'Saving a draft isn\'t wired to a backend endpoint yet - there\'s no draft-saving route in this app today. Use "Post Now" or "Schedule for later" instead.';
+  showError('check', 'Saving drafts isn\'t available yet. Use "Post Now" or "Schedule for later" instead.');
 }
 
 function selectedAccountsByPlatform() {
@@ -499,31 +613,31 @@ function buildFormData(mode) {
 }
 
 async function submit(mode) {
-  submitError.value = '';
+  clearErrors();
 
   if (!defaultCategoryId.value) {
-    submitError.value = 'Choose a category for this post (or add one with "+ New").';
+    showError('check', 'Choose a category for this post (or add one with "+ New").', { field: 'Category' });
     return;
   }
 
   if (!selectedAccountIds.value.length) {
-    submitError.value = 'Select at least one account to post to.';
+    showError('check', 'Select at least one account to post to.', { field: 'Accounts' });
     return;
   }
 
   // YouTube only publishes videos - catch it here instead of at publish time.
   if (selectedPlatforms.value.includes('youtube') && !mediaItems.value.some(item => item.type === 'video')) {
-    submitError.value = 'YouTube only accepts videos. Add a video, or unselect your YouTube channel.';
+    showError('check', 'YouTube only accepts videos. Add a video, or unselect your YouTube channel.', { platform: 'youtube' });
     return;
   }
 
   if (limitProblems.value.length) {
-    submitError.value = limitProblems.value.join(' ') + ' Shorten the text or unselect that platform.';
+    showErrors('check', platformLimits.value.flatMap(item => item.problems.map(message => ({ platform: item.platform, message }))), 'Shorten the text, or unselect that platform.');
     return;
   }
 
   if (mode === 'schedule' && !scheduleAt.value) {
-    submitError.value = 'Pick a date/time to schedule for.';
+    showError('check', 'Pick a date and time to schedule this post for.', { field: 'Schedule date' });
     return;
   }
 
@@ -535,7 +649,7 @@ async function submit(mode) {
     });
 
     if (!data.success) {
-      submitError.value = (data.errors || []).map(e => e.message).filter(Boolean).join(' ') || 'Failed to publish this post.';
+      showResponseErrors({ response: { status: 422, data } });
       return;
     }
 
@@ -548,15 +662,7 @@ async function submit(mode) {
       window.location.href = data.redirect_url || props.redirectUrl || window.location.href;
     }
   } catch (error) {
-    // Our own failures send errors: [{message}], Laravel validation sends
-    // errors: {field: [messages]} - show either.
-    const errors = error.response?.data?.errors;
-    const messages = Array.isArray(errors)
-      ? errors.map(e => e.message)
-      : Object.values(errors || {}).flat();
-    submitError.value = messages.filter(Boolean).join(' ')
-      || error.response?.data?.message
-      || 'Something went wrong while publishing. Please try again.';
+    showResponseErrors(error);
   } finally {
     submitting.value = false;
   }
@@ -828,13 +934,100 @@ async function submit(mode) {
 
 .composer-inline-notice,
 .composer-error {
-  font-size: .8rem;
-  color: #9a3412;
-  background: #FFF7ED;
-  border: 1px solid #FED7AA;
-  border-radius: 8px;
-  padding: 8px 12px;
+  --err: #b91c1c;
+  --err-bg: #fef2f2;
+  --err-line: #fecaca;
+  font-size: .84rem;
+  color: #374151;
+  background: var(--err-bg);
+  border: 1px solid var(--err-line);
+  border-left: 4px solid var(--err);
+  border-radius: 10px;
+  padding: 10px 12px;
   margin-bottom: 12px;
+}
+
+.composer-error.is-check {
+  --err: #b45309;
+  --err-bg: #fffbeb;
+  --err-line: #fde68a;
+}
+
+.composer-error.is-network {
+  --err: #4b5563;
+  --err-bg: #f9fafb;
+  --err-line: #e5e7eb;
+}
+
+.composer-error-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--err);
+}
+
+.composer-error-head i {
+  font-size: 18px;
+}
+
+.composer-error-close {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+}
+
+.composer-error-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.composer-error-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.composer-error-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid var(--err-line);
+  color: var(--tone, #374151);
+  font-size: .75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.composer-error-tag i {
+  font-size: 14px;
+}
+
+.composer-error-tag.is-field {
+  color: #374151;
+}
+
+.composer-error-text {
+  flex: 1;
+  min-width: 200px;
+  word-break: break-word;
+}
+
+.composer-error-hint {
+  margin: 8px 0 0;
+  color: #6b7280;
+  font-size: .78rem;
 }
 
 .composer-action-bar {

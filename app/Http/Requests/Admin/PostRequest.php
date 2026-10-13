@@ -49,9 +49,9 @@ class PostRequest extends FormRequest
             'schedule_mode' => ['nullable', 'boolean'],
             'schedule_at' => [
                 'nullable',
-                Rule::requiredIf(fn () => request('schedule_mode') == 1),
+                Rule::requiredIf(fn () => $this->input('schedule_mode') == 1),
                 Rule::when(
-                    request('schedule_mode') == 1,
+                    $this->input('schedule_mode') == 1,
                     [
                         'date',
                         'after:' . Carbon::now()->addMinutes(10)->toDateTimeString(),
@@ -62,9 +62,9 @@ class PostRequest extends FormRequest
             'expiry_mode' => ['nullable', 'boolean'],
             'expiry_at' => [
                 'nullable',
-                Rule::requiredIf(fn () => request('expiry_mode') == 1),
+                Rule::requiredIf(fn () => $this->input('expiry_mode') == 1),
                 Rule::when(
-                    request('expiry_mode') == 1,
+                    $this->input('expiry_mode') == 1,
                     [
                         'date',
                         'after:now',
@@ -79,12 +79,12 @@ class PostRequest extends FormRequest
             // 24h customer conversation) sent to a list of numbers. See
             // WhatsAppPostService.
             'whatsapp_recipients' => [
-                Rule::requiredIf(fn () => in_array('whatsapp', request('platforms', []))),
+                Rule::requiredIf(fn () => in_array('whatsapp', $this->input('platforms', []))),
                 'nullable',
                 'string',
             ],
             'whatsapp_template_name' => [
-                Rule::requiredIf(fn () => in_array('whatsapp', request('platforms', []))),
+                Rule::requiredIf(fn () => in_array('whatsapp', $this->input('platforms', []))),
                 'nullable',
                 'string',
                 'max:255',
@@ -98,7 +98,7 @@ class PostRequest extends FormRequest
                 'nullable',
                 'array',
                 // Only validate if the platform is selected in platforms array
-                Rule::requiredIf(fn () => in_array($platform, request('platforms', []))),
+                Rule::requiredIf(fn () => in_array($platform, $this->input('platforms', []))),
             ];
             
             $rules[$platform . '.pages.*'] = [
@@ -155,8 +155,10 @@ class PostRequest extends FormRequest
         // Add messages for each platform's pages
         $platforms = ['facebook', 'instagram', 'x', 'google', 'tiktok', 'youtube', 'linkedin', 'whatsapp', 'threads', 'pinterest'];
         foreach ($platforms as $platform) {
-            $messages[$platform . '.pages.required_if'] = "Please select at least one page for {$platform}.";
-            $messages[$platform . '.pages.*.exists'] = "Invalid page selected for {$platform}.";
+            $label = \App\Support\PlatformTextLimits::LIMITS[$platform]['label'] ?? ucfirst($platform);
+            $messages[$platform . '.pages.required'] = "Select at least one {$label} account to post to.";
+            $messages[$platform . '.pages.required_if'] = "Select at least one {$label} account to post to.";
+            $messages[$platform . '.pages.*.exists'] = "One of the selected {$label} accounts is no longer connected - reconnect it in Connections.";
         }
 
         return $messages;
