@@ -5,6 +5,7 @@
         'LinkedIn' => 'linkedin',
         'YouTube' => 'youtube',
         'TikTok' => 'tiktok',
+        'X' => 'x',
         'Snapchat' => 'snapchat',
         'WhatsApp' => 'whatsapp',
         'Email Marketing' => 'envelope',

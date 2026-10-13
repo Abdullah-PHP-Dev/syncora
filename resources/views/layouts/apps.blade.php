@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="{{ asset('assets/css/home-assets.css') }}?v={{ filemtime(public_path('assets/css/home-assets.css')) }}">
     @vite(['resources/css/apps.css', 'resources/js/apps.js'])
     <link rel="stylesheet" href="{{ asset('assets/css/footer-social.css') }}?v={{ filemtime(public_path('assets/css/footer-social.css')) }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/marketing-header.css') }}?v={{ filemtime(public_path('assets/css/marketing-header.css')) }}">
     @stack('styles')
     <link rel="stylesheet" href="{{ asset('assets/css/hero-illustrations.css') }}?v={{ filemtime(public_path('assets/css/hero-illustrations.css')) }}">
 </head>

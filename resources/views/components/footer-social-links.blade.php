@@ -7,8 +7,6 @@
         @endphp
         @if($validUrl)
             <a class="theme-footer-social-icon theme-footer-social-{{ strtolower($platform) }}" href="{{ $url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ __('Socialeaz on :platform', ['platform' => $platform]) }}" title="{{ $platform }}">@include('front.partials.social-brand-icon', ['platform' => $platform])</a>
-        @else
-            <span class="theme-footer-social-icon theme-footer-social-{{ strtolower($platform) }}" role="img" aria-label="{{ $platform }}">@include('front.partials.social-brand-icon', ['platform' => $platform])</span>
         @endif
     @endforeach
 </div>
