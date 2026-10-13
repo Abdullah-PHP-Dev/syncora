@@ -935,14 +935,27 @@ class InstagramPostService
      */
     public function fetchComments(Post $post): void
     {
-        $this->ensureValidToken($post);
+        // Runs while the preview page loads - best effort only: a post not
+        // on Instagram yet, or an account whose token is missing/unreadable,
+        // must not break the page.
+        if (! $post->post_id || ! $post->socialAccount?->access_token) {
+            return;
+        }
 
-        $endpoint = $this->resolveBaseUrl($post->socialAccount) . $post->post_id . '/comments';
+        try {
+            $this->ensureValidToken($post);
 
-        $response = $this->api->request('get', $endpoint, [], [
-            'fields' => 'id,text,username,timestamp,like_count',
-            'access_token' => $post->socialAccount->access_token,
-        ] + $this->metaAuthExtra($post->socialAccount, $post->socialAccount->access_token));
+            $endpoint = $this->resolveBaseUrl($post->socialAccount) . $post->post_id . '/comments';
+
+            $response = $this->api->request('get', $endpoint, [], [
+                'fields' => 'id,text,username,timestamp,like_count',
+                'access_token' => $post->socialAccount->access_token,
+            ] + $this->metaAuthExtra($post->socialAccount, (string) $post->socialAccount->access_token));
+        } catch (\Throwable $e) {
+            Log::info('Instagram comment refresh skipped.', ['post_id' => $post->id, 'error' => $e->getMessage()]);
+
+            return;
+        }
 
         if (!$response->successful()) {
             return;

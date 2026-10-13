@@ -17,46 +17,6 @@
         <!-- ============ Left: header + the post as it appears ============ -->
         <div class="pp-main">
 
-          <!-- <header class="pp-card pp-hero">
-
-            <div class="pp-hero-text">
-              <div class="pp-crumbs">
-                <a :href="backUrl" class="pp-crumb-back" title="Back to Posts"><i class="fas fa-arrow-left"></i></a>
-                <a :href="backUrl">Posts</a>
-                <i class="fas fa-chevron-right"></i>
-                <span>Preview</span>
-              </div>
-
-              <h1 class="pp-title">{{ post.title }}</h1>
-
-              <div class="pp-chips">
-                <span class="pp-badge" :class="'is-' + activeStatus.tone">{{ activeStatus.label }}</span>
-                <span class="pp-chip" v-if="activeMember.scheduled_label"><i class="far fa-clock"></i> {{ activeMember.scheduled_label }}</span>
-                <span class="pp-chip" v-else-if="activeMember.created_label"><i class="far fa-calendar"></i> {{ activeMember.created_label }}</span>
-                <span class="pp-chip"><i class="fas fa-layer-group"></i> {{ post.platforms.length }} {{ post.platforms.length === 1 ? 'platform' : 'platforms' }}</span>
-              </div>
-            </div>
-
-            <div class="pp-hero-actions">
-              <a v-if="hasPlatformUrl" :href="platformUrl" target="_blank" rel="noopener noreferrer" class="pp-btn pp-btn-ghost">
-                <i class="fas fa-external-link-alt"></i> View on {{ activePlatform.name }}
-              </a>
-              <a v-if="duplicateUrl" :href="duplicateUrl.replace('__POST__', activePlatform.post_id || post.id)" class="pp-btn pp-btn-ghost">
-                <i class="far fa-copy"></i> Duplicate
-              </a>
-              <div ref="menu" class="pp-menu">
-                <button type="button" class="pp-btn pp-btn-ghost pp-btn-icon" :aria-expanded="showMenu" aria-label="More actions" @click="showMenu = !showMenu">
-                  <i class="fas fa-ellipsis-v"></i>
-                </button>
-                <div v-if="showMenu" class="pp-menu-list" role="menu">
-                  <a :href="backUrl" role="menuitem"><i class="fas fa-th-large"></i> All posts</a>
-                  <button type="button" role="menuitem" @click="copyCaption"><i class="far fa-clipboard"></i> {{ copied ? 'Caption copied' : 'Copy caption' }}</button>
-                </div>
-              </div>
-            </div>
-
-          </header> -->
-
           <section class="pp-card pp-stage-card">
 
             <!-- Platform bar: the one on show, then the rest of the group -->
@@ -448,10 +408,8 @@ export default {
 
     return {
       post: null,
-      showMenu: false,
       // Row / comment menus: 'p{postId}' or 'c{commentId}', one open at a time.
       openMenu: null,
-      copied: false,
       showAllPlatforms: false,
       showAllComments: false,
       commentPreviewCount: 3,
@@ -559,20 +517,6 @@ export default {
       if (!this.post) return null;
 
       return this.post.engagement[this.activeId];
-
-    },
-
-    platformUrl() {
-
-      if (!this.post) return '#';
-
-      return this.post.platformUrls[this.activeId] || '#';
-
-    },
-
-    hasPlatformUrl() {
-
-      return this.platformUrl && this.platformUrl !== '#';
 
     },
 
@@ -800,24 +744,7 @@ export default {
 
     },
 
-    copyCaption() {
-
-      const done = () => {
-        this.copied = true;
-        setTimeout(() => { this.copied = false; this.showMenu = false; }, 1200);
-      };
-
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(this.post.content || '').then(done).catch(() => {});
-      }
-
-    },
-
     closeMenuOnOutsideClick(event) {
-
-      if (this.showMenu && this.$refs.menu && !this.$refs.menu.contains(event.target)) {
-        this.showMenu = false;
-      }
 
       if (this.openMenu && !event.target.closest('.pp-menu')) {
         this.openMenu = null;
@@ -1024,52 +951,16 @@ export default {
 }
 
 /* Hero */
-.pp-hero{
-  display:flex;
-  flex-wrap:wrap;
-  align-items:center;
-  justify-content:space-between;
-  gap:18px;
-  padding:22px 24px;
-  background:
-    radial-gradient(1200px 200px at 0% 0%, rgba(109,74,255,.07), transparent 60%),
-    linear-gradient(180deg, #fff, #fbfaff);
-}
 
 
 
 
 
 
-.pp-hero-text{ min-width:0; }
 
-.pp-crumbs{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin-bottom:4px; }
-.pp-crumbs a{ color:var(--muted); text-decoration:none; }
-.pp-crumbs a:hover{ color:var(--brand); }
-.pp-crumbs i{ font-size:8px; }
 
-.pp-title{
-  margin:0 0 10px;
-  line-height:1.25;
-  font-size:22px;
-  font-weight:700;
-  letter-spacing:-.01em;
-  color:var(--ink);
-  overflow-wrap:anywhere;
-}
 
-.pp-chips{ display:flex; flex-wrap:wrap; gap:8px; }
 
-.pp-chip{
-  display:inline-flex; align-items:center; gap:6px;
-  height:28px; padding:0 11px;
-  border-radius:8px;
-  background:#fff;
-  border:1px solid var(--line);
-  color:var(--text);
-  font-size:12px; font-weight:500;
-}
-.pp-chip i{ color:var(--muted); font-size:11px; }
 
 .pp-badge{
   display:inline-flex; align-items:center; gap:6px;
@@ -1085,7 +976,6 @@ export default {
 .pp-badge.is-danger{ background:#FDECEC; color:#DC2626; }
 .pp-badge.is-muted{ background:#F1F3F7; color:#64748B; }
 
-.pp-hero-actions{ display:flex; flex-wrap:wrap; gap:10px; }
 
 .pp-btn{
   display:inline-flex; align-items:center; gap:8px;
@@ -1410,7 +1300,7 @@ export default {
 .pp-not-found p{ margin:0 0 10px; color:var(--muted); }
 
 /* RTL */
-[dir="rtl"] .pp-crumbs i, [dir="rtl"] .pp-dist-arrow, [dir="rtl"] .pp-back i{ transform:scaleX(-1); }
+[dir="rtl"] .pp-dist-arrow, [dir="rtl"] .pp-back i { transform:scaleX(-1); }
 [dir="rtl"] .pp-dist-item{ text-align:right; }
 [dir="rtl"] .pp-replies{ padding-left:0; padding-right:14px; border-left:none; border-right:2px solid var(--line-soft); }
 [dir="rtl"] .pp-bubble{ border-radius:16px 4px 16px 16px; }
@@ -1418,8 +1308,6 @@ export default {
 @media (max-width: 575.98px){
   .pp{ padding:14px; gap:14px; }
   .pp-card{ padding:16px; }
-  .pp-hero-actions{ width:100%; }
-  .pp-hero-actions .pp-btn{ flex:1; justify-content:center; }
   .pp-stage{ padding:16px 10px; }
   .pp-kpis{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
 }
@@ -1433,15 +1321,6 @@ export default {
 .pp-main{ display:flex; flex-direction:column; gap:20px; min-width:0; }
 .pp-stage-card{ position:static; padding:18px; }
 
-.pp-hero{ align-items:flex-start; flex-wrap:nowrap; padding:20px 22px; }
-.pp-hero-text{ flex:1 1 auto; min-width:0; }
-.pp-hero-actions{ flex-shrink:0; flex-wrap:nowrap; }
-.pp-crumbs{ gap:10px; font-size:12.5px; margin-bottom:8px; }
-.pp-crumbs span{ color:var(--brand); font-weight:600; }
-.pp-crumb-back{ color:var(--text) !important; font-size:12px; display:inline-flex; }
-.pp-crumb-back:hover{ color:var(--brand) !important; }
-.pp-title{ margin:0 0 12px; }
-.pp-hero-actions{ align-items:center; gap:8px; }
 .pp-btn-icon{ width:40px; padding:0; justify-content:center; }
 .pp-btn-sm{ height:34px; padding:0 12px; font-size:12.5px; border-radius:10px; }
 .pp-btn i{ font-size:13px; }
@@ -1574,9 +1453,5 @@ export default {
 @media (max-width: 575.98px){
   .pp-stage-card .pp-kpis{ grid-template-columns:repeat(3, minmax(0, 1fr)); }
   .pp-stage{ padding:12px; }
-  .pp-hero-actions{ width:100%; flex-wrap:wrap; }
-}
-@media (max-width: 767.98px){
-  .pp-hero{ flex-wrap:wrap; }
 }
 </style>
