@@ -129,6 +129,15 @@ class Settings
         return $deleted;
     }
 
+    /**
+     * Drop the per-request memo only. Static state outlives a request in
+     * the test runner (and long-lived workers), so each test starts clean.
+     */
+    public static function forgetRequestCache(): void
+    {
+        self::$requestCache = null;
+    }
+
     private static function flush(): void
     {
         self::$requestCache = null;
