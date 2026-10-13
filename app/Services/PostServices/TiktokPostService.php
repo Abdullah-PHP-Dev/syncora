@@ -737,116 +737,14 @@ class TiktokPostService
     }
 
     /**
-     * Publish a comment reply on TikTok
+     * Reply to a comment (PostComment) or comment on a post (Post) on
+     * TikTok. Login Kit has no comment API - this goes through the
+     * "TikTok comments" connection (TiktokCommentsService). PostController
+     * calls it as publishComment($data, $target, 'reply'|'comment').
      */
-    public function publishComment($data, $comment)
+    public function publishComment($data, $target, $type = 'reply')
     {
-        $account = $comment->socialAccount;
-
-        $this->ensureValidToken($comment->post);
-
-        // TikTok Business API endpoint for creating a reply to an existing comment
-        $endpoint = 'https://business-api.tiktok.com/open_api/v1.3/business/comment/reply/create/';
-
-        $payload = [
-            "business_id" => $account->platform_account_id,
-            "video_id"    => $comment->post?->post_id ?? $data['video_id'], // TikTok item_id / video_id
-            "comment_id"  => $comment->comment_id,                          // Parent comment ID to reply to
-            "text"        => $data['body'] ?? ''                             // Reply content
-        ];
-
-        $response = $this->api->request(
-            'post',
-            $endpoint,
-            [
-                'Access-Token'  => $account->access_token, // TikTok uses 'Access-Token' header or Bearer token
-                'Authorization' => 'Bearer ' . $account->access_token,
-                'Content-Type'  => 'application/json'
-            ],
-            $payload,
-            'json'
-        );
-
-        if (!$response->successful() || ($response->json()['code'] ?? 0) !== 0) {
-            return $this->errorResponse($comment, $response);
-        }
-
-        // TikTok returns the new created reply ID inside 'data.comment_id'
-        $newCommentId = $response->json()['data']['comment_id'] ?? null;
-
-        return $this->storeComment($comment, $data, $newCommentId);
-    }
-
-    /**
-     * Store the reply comment locally in the database
-     */
-    private function storeComment($comment, $data, $commentId)
-    {
-        $createdComment = PostComment::create([
-            'content'           => $data['body'] ?? '',
-            'sender_type'       => 'support',
-            'platform'          => 'tiktok', // Fixed typo ("titkok" -> "tiktok")
-            'parent_comment_id' => $comment->id,
-            'user_id'           => Auth::id(),
-            'sender_name'       => Auth::user()?->name ?? 'Support',
-            'post_id'           => $comment->post?->id,
-            'is_read'           => 1,
-            'is_reply'          => true,
-            'user_name'         => Auth::user()?->name ?? 'Support',
-            'comment_id'        => $commentId,
-            'social_account_id'   => $comment->socialAccount?->id
-        ]);
-
-        return [
-            'message' => 'Reply posted successfully',
-            'success' => true,
-            'data'    => $createdComment
-        ];
-    }
-
-    public function getComments($videoId, $account)
-    {
-
-        if (!$this->ensureValidToken($account)) {
-            $errors = [
-                'success' => false,
-                'message' => 'Failed to refresh access token'
-            ];
-        }
-        $response = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $account->access_token,
-            'Content-Type'  => 'application/json',
-        ])->post(
-            'https://open.tiktokapis.com/v2/research/video/comment/list/',
-            [
-                'video_id' => $videoId,
-                'max_count' => 100,
-                'cursor' => 0,
-            ]
-        )->json();
-
-        $response = Http::withToken($account->access_token)
-            ->get(
-                'https://business-api.tiktok.com/open_api/v1.3/business/comment/list/',
-                [
-                    "business_id" => $account->platform_account_id,
-                    "video_id" => $videoId,
-                    "status" => "PUBLIC"
-                ]
-            );
-        $data = $response->json();
-
-        if (!$response->successful()) {
-            return [
-                'success' => false,
-                'message' => $data['error']['message']
-            ];
-        }
-
-        return [
-            'success' => true,
-            'data' => $data['items']
-        ];
+        return app(TiktokCommentsService::class)->publish((string) ($data['body'] ?? ''), $target);
     }
 
     /** Every field TikTok's video list/query APIs return (scope video.list). */

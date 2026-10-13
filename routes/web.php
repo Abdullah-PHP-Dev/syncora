@@ -485,6 +485,14 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('post-accounts.tiktok.redirect')->defaults('platform', 'tiktok');
 				Route::get('post-accounts/tiktok/callback', [SocialAccountController::class, 'callback'])
 					->name('post-accounts.tiktok.callback')->defaults('platform', 'tiktok');
+				// TikTok comments: account-holder authorization of the TikTok
+				// for Business app (Accounts API) - see TiktokCommentsService.
+				// The callback URL is registered under "TikTok account holder
+				// redirect URL" in that app's developer portal.
+				Route::get('post-accounts/tiktok/comments/redirect', [\App\Http\Controllers\Admin\TiktokCommentsController::class, 'redirect'])
+					->name('post-accounts.tiktok.comments.redirect');
+				Route::get('post-accounts/tiktok/comments/callback', [\App\Http\Controllers\Admin\TiktokCommentsController::class, 'callback'])
+					->name('post-accounts.tiktok.comments.callback');
 				// Unified combined-consent connect flow (posting + messaging +
 				// ads scopes in one redirect) for Facebook, Google, LinkedIn,
 				// and TikTok - the platforms whose OAuth model supports

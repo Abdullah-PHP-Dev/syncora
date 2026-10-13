@@ -25,6 +25,8 @@ class TikTokDriver extends MirroredTokenDriver
 {
     public const LOGIN_KIT = 'tiktok.login_kit';
     public const BUSINESS = 'tiktok.business';
+    /** Organic Accounts API (comments) - account-holder authorization of the Business app. */
+    public const COMMENTS = 'tiktok.comments';
 
     public function __construct(private SocialAuthService $socialAuth)
     {
@@ -48,20 +50,26 @@ class TikTokDriver extends MirroredTokenDriver
             'connect_label' => 'Connect with TikTok',
             'empty_title' => 'Connect TikTok for posting and ads',
             'empty_text' => 'TikTok uses two separate sign-ins: one for publishing videos to your account and one for your TikTok for Business advertiser accounts.',
-            'benefits' => ['posting', 'ads'],
+            'benefits' => ['posting', 'engagement', 'ads'],
             'asset_groups' => [
                 'tiktok_account' => ['label' => 'TikTok accounts', 'icon' => 'bxl-tiktok', 'brand' => 'tiktok', 'capabilities' => ['posting', 'insights']],
                 'tiktok_ads' => ['label' => 'Advertiser accounts', 'icon' => 'bx-bullseye', 'brand' => 'tiktok', 'capabilities' => ['ads']],
+                'tiktok_comments' => ['label' => 'Comments', 'icon' => 'bx-message-rounded-dots', 'brand' => 'tiktok', 'capabilities' => ['engagement']],
             ],
             'step_icons' => [
                 self::LOGIN_KIT => ['icon' => 'bxl-tiktok', 'brand' => 'tiktok'],
                 self::BUSINESS => ['icon' => 'bx-bullseye', 'brand' => 'tiktok'],
+                self::COMMENTS => ['icon' => 'bx-message-rounded-dots', 'brand' => 'tiktok'],
             ],
         ];
     }
 
     public function assetKind(SocialAccount $asset): string
     {
+        if ($asset->account_type === \App\Services\PostServices\TiktokCommentsService::ACCOUNT_TYPE) {
+            return 'tiktok_comments';
+        }
+
         return $asset->has_ads_permission && ! $asset->has_posting_permission ? 'tiktok_ads' : 'tiktok_account';
     }
 
@@ -88,6 +96,14 @@ class TikTokDriver extends MirroredTokenDriver
                 'available' => (bool) adminSetting('ads.tiktok.client_id'),
                 'note' => 'TikTok uses a separate app and sign-in for ads.',
             ],
+            [
+                'key' => self::COMMENTS,
+                'label' => 'TikTok comments',
+                'description' => 'Read and reply to comments on your TikTok videos.',
+                'primary' => false,
+                'available' => (bool) adminSetting('ads.tiktok.client_id'),
+                'note' => 'Uses your TikTok for Business app - its comment permissions must be approved by TikTok.',
+            ],
         ];
     }
 
@@ -95,13 +111,21 @@ class TikTokDriver extends MirroredTokenDriver
     {
         HubReturn::mark();
 
-        return $step === self::BUSINESS
-            ? redirect()->route('admin.ads.redirect', 'tiktok')
-            : $this->socialAuth->redirect('tiktok');
+        return match ($step) {
+            self::BUSINESS => redirect()->route('admin.ads.redirect', 'tiktok'),
+            self::COMMENTS => app(\App\Services\PostServices\TiktokCommentsService::class)->redirect(),
+            default => $this->socialAuth->redirect('tiktok'),
+        };
     }
 
     protected function probe(SocialConnection $connection, SocialAccount $asset): ?array
     {
+        if ($connection->step === self::COMMENTS) {
+            $profile = app(\App\Services\PostServices\TiktokCommentsService::class)->profile((string) $asset->access_token, (string) ($asset->metadata['business_id'] ?? ''));
+
+            return $profile ? null : ['status' => SocialConnection::NEEDS_REAUTH, 'error' => 'TikTok comments access was refused - reconnect "TikTok comments".'];
+        }
+
         if ($connection->step === self::BUSINESS) {
             // Business API answers HTTP 200 with a non-zero `code` on errors.
             $response = Http::withHeaders(['Access-Token' => $asset->access_token])

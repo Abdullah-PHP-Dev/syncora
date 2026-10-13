@@ -51,7 +51,9 @@ class TikTokHubTest extends TestCase
 
     public function test_steps_and_connect_targets(): void
     {
-        $this->assertSame([TikTokDriver::LOGIN_KIT, TikTokDriver::BUSINESS], collect(app(TikTokDriver::class)->steps())->pluck('key')->all());
+        $this->assertSame([TikTokDriver::LOGIN_KIT, TikTokDriver::BUSINESS, TikTokDriver::COMMENTS], collect(app(TikTokDriver::class)->steps())->pluck('key')->all());
+        // Comments: account-holder authorization of the Business app (no PKCE, no trailing slash).
+        $this->assertStringStartsWith('https://www.tiktok.com/v2/auth/authorize?', app(ConnectionService::class)->connect('tiktok', TikTokDriver::COMMENTS)->headers->get('Location'));
         $this->assertStringContainsString('tiktok.com/v2/auth/authorize', app(ConnectionService::class)->connect('tiktok', TikTokDriver::LOGIN_KIT)->headers->get('Location'));
         $this->assertStringContainsString('ads/tiktok/redirect', app(ConnectionService::class)->connect('tiktok', TikTokDriver::BUSINESS)->headers->get('Location'));
     }

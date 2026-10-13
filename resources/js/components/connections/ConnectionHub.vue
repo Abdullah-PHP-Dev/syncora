@@ -432,7 +432,8 @@ const CAPABILITIES = [
   { key: 'posting', label: 'Publishing', icon: 'bx-send', long: { meta: 'Publish and schedule posts to Pages and Instagram', google: 'Upload and schedule videos to your YouTube channels', x: 'Publish and schedule posts on X', default: 'Publish and schedule posts' } },
   { key: 'messaging', label: 'Inbox', icon: 'bx-message-rounded-dots', long: { meta: 'Answer Messenger, Instagram and WhatsApp messages', x: 'Answer Direct Messages and X Chat', default: 'Answer direct messages' } },
   { key: 'ads', label: 'Ads', icon: 'bx-bullseye', long: { meta: 'Create and manage campaigns on your ad accounts', google: 'Create and manage Google Ads and YouTube campaigns', x: 'Promote posts on your X Ads accounts', default: 'Create and manage ad campaigns' } },
-  { key: 'insights', label: 'Insights', icon: 'bx-bar-chart-alt-2', long: { meta: 'Read Page and Instagram insights for reports', google: 'Read Analytics data for reports', default: 'Read insights for reports' } }
+  { key: 'insights', label: 'Insights', icon: 'bx-bar-chart-alt-2', long: { meta: 'Read Page and Instagram insights for reports', google: 'Read Analytics data for reports', default: 'Read insights for reports' } },
+  { key: 'engagement', label: 'Comments', icon: 'bx-comment-detail', long: { tiktok: 'Read and reply to comments on your TikTok videos', default: 'Read and reply to comments' } }
 ];
 
 
@@ -444,6 +445,7 @@ const ACCOUNT_VIEWS = {
   x_account: { section: 'social', title: 'X', subtitle: 'Account', idLabel: 'Account ID', brand: 'x', icon: 'bxl-x-logo' },
   linkedin_page: { section: 'social', title: 'LinkedIn', subtitle: 'Company Page', idLabel: 'Page ID', brand: 'linkedin', icon: 'bxl-linkedin' },
   tiktok_account: { section: 'social', title: 'TikTok', subtitle: 'Account', idLabel: 'Account ID', brand: 'tiktok', icon: 'bxl-tiktok' },
+  tiktok_comments: { section: 'social', title: 'TikTok', subtitle: 'Comments', idLabel: 'Business ID', brand: 'tiktok', icon: 'bxl-tiktok' },
   threads_profile: { section: 'social', title: 'Threads', subtitle: 'Profile', idLabel: 'Profile ID', brand: 'threads', icon: 'bx-at' },
   pinterest_account: { section: 'social', title: 'Pinterest', subtitle: 'Account', idLabel: 'Account ID', brand: 'pinterest', icon: 'bxl-pinterest' },
   ad_account: { section: 'ads', title: 'Meta Ads', subtitle: 'Ad Account', idLabel: 'Account ID', brand: 'meta', icon: 'bxl-meta' },

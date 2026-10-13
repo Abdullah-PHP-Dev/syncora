@@ -83,6 +83,10 @@ return tap(
             // Facebook sends no webhook for shares to people's own
             // timelines - re-read recent posts' counts (SyncPostEngagement).
             $schedule->command('posts:sync-engagement')->everyThirtyMinutes()->withoutOverlapping();
+
+            // TikTok has no comment webhook for posted videos - pull
+            // comments through the "TikTok comments" connection.
+            $schedule->command('tiktok:sync-comments')->hourly()->withoutOverlapping();
         })
         ->withExceptions(function (Exceptions $exceptions) {
             //
