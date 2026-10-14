@@ -25,9 +25,15 @@ class AdsBuilderTranslationsTest extends TestCase
         return $out;
     }
 
-    private function load(string $locale): array
+    /** lang file => the Vue files that read it with t()/tc(). */
+    private const FILES = [
+        'ads_builder' => 'resources/js/components/ads/facebook/*.{vue,js}',
+        'ads_dashboard' => 'resources/js/components/ads/AdsDashboard.vue',
+    ];
+
+    private function load(string $locale, string $file = 'ads_builder'): array
     {
-        return $this->flatten(require dirname(__DIR__, 2) . "/lang/{$locale}/ads_builder.php");
+        return $this->flatten(require dirname(__DIR__, 2) . "/lang/{$locale}/{$file}.php");
     }
 
     private function placeholders(string $text): array
@@ -41,18 +47,24 @@ class AdsBuilderTranslationsTest extends TestCase
 
     public function test_english_and_arabic_have_the_same_keys(): void
     {
-        $en = $this->load('en');
-        $ar = $this->load('ar');
+        foreach (array_keys(self::FILES) as $file) {
+            $en = $this->load('en', $file);
+            $ar = $this->load('ar', $file);
 
-        $this->assertSame([], array_values(array_diff(array_keys($en), array_keys($ar))), 'Missing in Arabic');
-        $this->assertSame([], array_values(array_diff(array_keys($ar), array_keys($en))), 'Missing in English');
+            $this->assertSame([], array_values(array_diff(array_keys($en), array_keys($ar))), "{$file}: missing in Arabic");
+            $this->assertSame([], array_values(array_diff(array_keys($ar), array_keys($en))), "{$file}: missing in English");
+        }
     }
 
     public function test_every_translation_is_filled_and_keeps_its_placeholders(): void
     {
-        $en = $this->load('en');
-        $ar = $this->load('ar');
+        foreach (array_keys(self::FILES) as $file) {
+            $this->assertFilledWithSamePlaceholders($this->load('en', $file), $this->load('ar', $file));
+        }
+    }
 
+    private function assertFilledWithSamePlaceholders(array $en, array $ar): void
+    {
         foreach ($en as $key => $text) {
             $this->assertNotSame('', trim((string) $text), "en {$key} is empty");
             $this->assertNotSame('', trim((string) $ar[$key]), "ar {$key} is empty");
@@ -65,16 +77,19 @@ class AdsBuilderTranslationsTest extends TestCase
         }
     }
 
-    public function test_every_key_the_builder_page_uses_exists(): void
+    public function test_every_key_the_pages_use_exists(): void
     {
-        $en = $this->load('en');
-        $used = [];
-        foreach (glob(dirname(__DIR__, 2) . '/resources/js/components/ads/facebook/*.{vue,js}', GLOB_BRACE) as $file) {
-            preg_match_all("/\\bt[c]?\\('([a-z_]+(?:\\.[A-Za-z_]+)+)'/", file_get_contents($file), $m);
-            $used = array_merge($used, $m[1]);
-        }
+        foreach (self::FILES as $langFile => $pattern) {
+            $en = $this->load('en', $langFile);
+            $used = [];
+            foreach (glob(dirname(__DIR__, 2) . '/' . $pattern, GLOB_BRACE) as $file) {
+                preg_match_all("/\\bt[c]?\\('([a-z_]+(?:\\.[A-Za-z_]+)*)'/", file_get_contents($file), $m);
+                $used = array_merge($used, $m[1]);
+            }
+            $used = array_unique($used);
 
-        $this->assertGreaterThan(150, count(array_unique($used)));
-        $this->assertSame([], array_values(array_diff(array_unique($used), array_keys($en))), 'Keys used in the Vue code but missing from lang/en/ads_builder.php');
+            $this->assertGreaterThan(30, count($used), $langFile);
+            $this->assertSame([], array_values(array_diff($used, array_keys($en))), "Keys used in the Vue code but missing from lang/en/{$langFile}.php");
+        }
     }
 }

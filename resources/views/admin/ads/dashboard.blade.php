@@ -14,7 +14,7 @@
     <x-connection-alerts capability="ads" />
 
     <div v-cloak>
-        <ads-dashboard :data='@json($data)'></ads-dashboard>
+        <ads-dashboard :data='@json($data)' :messages='@json(__('ads_dashboard'))' locale="{{ app()->getLocale() }}"></ads-dashboard>
     </div>
 
 @endsection
