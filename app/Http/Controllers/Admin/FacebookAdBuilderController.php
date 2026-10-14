@@ -22,7 +22,8 @@ class FacebookAdBuilderController extends Controller
         $builder = FacebookCampaignBuilder::forUser((int) Auth::id());
         abort_unless($builder, 409, __('ads_builder.server.connect_first'));
 
-        return $builder;
+        // Facebook or Instagram page (same Meta ad account, different rules).
+        return $builder->forChannel(request()->input('channel'));
     }
 
     /** Runs a lookup; Meta errors become a readable 422. */
@@ -95,6 +96,14 @@ class FacebookAdBuilderController extends Controller
         return $this->respond(fn ($b) => $b->targetingSearch($request->string('q')->value(), $request->query('type')));
     }
 
+    /** Job titles / employers / schools / fields of study (Meta search). */
+    public function workSearch(Request $request): JsonResponse
+    {
+        $request->validate(['q' => ['required', 'string', 'min:2', 'max:100'], 'type' => ['required', 'in:' . implode(',', array_keys(FacebookCampaignBuilder::WORK_SEARCH))]]);
+
+        return $this->respond(fn ($b) => $b->workSearch($request->string('q')->value(), $request->string('type')->value()));
+    }
+
     public function locations(Request $request): JsonResponse
     {
         $request->validate(['q' => ['required', 'string', 'min:2', 'max:100']]);
@@ -120,7 +129,7 @@ class FacebookAdBuilderController extends Controller
         $status = $result['success'] ? 200 : ($result['status'] ?? 422);
 
         if ($result['success']) {
-            $result['redirect_url'] = route('admin.ads.campaigns.index', ['platform' => 'facebook']);
+            $result['redirect_url'] = route('admin.ads.campaigns.index', ['platform' => $this->builder()->channel()]);
         }
 
         return response()->json($result, $status);

@@ -248,6 +248,20 @@ class MetaGoals
         return $goals;
     }
 
+    /**
+     * Goals offered on a channel's ads page. Instagram: a Messenger
+     * conversation can't start from an Instagram-only ad, so messaging
+     * goes to Instagram Direct or WhatsApp; everything else is the same.
+     */
+    public static function forChannel(array $goals, string $channel): array
+    {
+        if ($channel === 'instagram') {
+            unset($goals['messages']['destinations']['MESSENGER']);
+        }
+
+        return $goals;
+    }
+
     /** CONVERSION_EVENTS in the current locale. */
     public static function localizedEvents(): array
     {

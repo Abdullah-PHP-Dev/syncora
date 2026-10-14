@@ -385,6 +385,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 						Route::get('instagram-accounts', 'instagramAccounts')->name('instagram_accounts');
 						Route::get('pages/{page}/lead-forms', 'leadForms')->name('lead_forms')->where('page', '[0-9]+');
 						Route::get('targeting', 'targetingSearch')->name('targeting');
+						Route::get('work', 'workSearch')->name('work');
 						Route::get('locations', 'locations')->name('locations');
 						Route::get('locales', 'locales')->name('locales');
 						Route::post('estimate', 'estimate')->name('estimate')->middleware('throttle:30,1');

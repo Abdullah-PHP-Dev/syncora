@@ -42,6 +42,37 @@ class FacebookCampaignBuilder
     /** Local ad_media ids used by the creative being built (linked in ad_creative_media). */
     private array $creativeMedia = [];
 
+    /**
+     * Which ads page this is for: 'facebook' or 'instagram'. Both run on
+     * the same Meta ad account; 'instagram' delivers on Instagram only,
+     * needs an Instagram identity on the creative, offers the destinations
+     * Instagram supports and saves the local rows as platform 'instagram'.
+     */
+    private string $channel = 'facebook';
+
+    public const CHANNELS = ['facebook', 'instagram'];
+
+    /** Instagram positions Meta accepts in instagram_positions (Instagram ads guide). */
+    public const INSTAGRAM_POSITIONS = ['stream', 'story', 'reels', 'explore', 'explore_home', 'ig_search'];
+
+    /** Location types offered from Meta's adgeolocation search, and the geo_locations key each maps to. */
+    public const LOCATION_TYPES = ['country' => 'countries', 'region' => 'regions', 'city' => 'cities', 'zip' => 'zips', 'geo_market' => 'geo_markets', 'neighborhood' => 'neighborhoods'];
+
+    /** Work & education targeting: Graph search type => flexible_spec key. */
+    public const WORK_SEARCH = ['adworkposition' => 'work_positions', 'adworkemployer' => 'work_employers', 'adeducationschool' => 'education_schools', 'adeducationmajor' => 'education_majors'];
+
+    public function forChannel(?string $channel): static
+    {
+        $this->channel = in_array($channel, self::CHANNELS, true) ? $channel : 'facebook';
+
+        return $this;
+    }
+
+    public function channel(): string
+    {
+        return $this->channel;
+    }
+
     /** VAT (%) shown on top of the ad budget - same rate the other ad forms use. Display only; Meta gets the budget as entered. */
     public const VAT_RATE = 15;
 
@@ -83,7 +114,8 @@ class FacebookCampaignBuilder
             ],
             'pages' => $this->pages(),
             'vat_rate' => self::VAT_RATE,
-            'goals' => MetaGoals::localized(),
+            'channel' => $this->channel,
+            'goals' => MetaGoals::forChannel(MetaGoals::localized(), $this->channel),
             'conversion_events' => MetaGoals::localizedEvents(),
         ];
     }
@@ -260,6 +292,27 @@ class FacebookCampaignBuilder
     }
 
     /** Detailed targeting - whatever Meta offers this account for the query (interests, behaviors, demographics...). */
+    /**
+     * Job titles, employers, schools and fields of study from Meta's own
+     * search (B2B targeting). Returns what Meta returns - nothing is added.
+     */
+    public function workSearch(string $query, string $type): array
+    {
+        $key = self::WORK_SEARCH[$type] ?? null;
+        if (! $key) {
+            throw new \InvalidArgumentException(__('ads_builder.server.work_type'));
+        }
+
+        return array_values(array_map(fn ($t) => [
+            'id' => (string) $t['id'],
+            'name' => $t['name'] ?? '',
+            'type' => $key,
+            'description' => $t['description'] ?? null,
+            'size_min' => $t['audience_size_lower_bound'] ?? $t['audience_size'] ?? null,
+            'size_max' => $t['audience_size_upper_bound'] ?? null,
+        ], array_filter($this->graph->get('search', ['type' => $type, 'q' => $query, 'limit' => 25])['data'] ?? [], fn ($t) => ! empty($t['id']))));
+    }
+
     public function targetingSearch(string $query, ?string $type = null): array
     {
         $params = array_filter(['q' => $query, 'limit_type' => $type, 'limit' => 25]);
@@ -288,7 +341,7 @@ class FacebookCampaignBuilder
         ], $this->graph->get('search', [
             'type' => 'adgeolocation',
             'q' => $query,
-            'location_types' => ['country', 'region', 'city'],
+            'location_types' => array_keys(self::LOCATION_TYPES),
             'limit' => 15,
         ])['data'] ?? []);
     }
@@ -339,6 +392,7 @@ class FacebookCampaignBuilder
      */
     public function submit(array $input, string $key): array
     {
+        $this->forChannel($input['channel'] ?? $this->channel);
         $userId = (int) $this->graph->account->user_id;
         $hash = hash('sha256', json_encode($input));
 
@@ -437,6 +491,23 @@ class FacebookCampaignBuilder
     /** Everything a request references must be the seller's: Page, audiences, pixel. */
     private function validateSelection(array $input): void
     {
+        $newCreative = ($input['creative']['mode'] ?? 'new') === 'new';
+        $instagramId = $newCreative ? ($input['creative']['instagram_user_id'] ?? null) : null;
+
+        if ($this->channel === 'instagram') {
+            if (! array_key_exists($input['destination'] ?? '', MetaGoals::forChannel(MetaGoals::all(), 'instagram')[$input['goal'] ?? '']['destinations'] ?? [])) {
+                throw new \InvalidArgumentException(__('ads_builder.server.instagram_destination'));
+            }
+            if ($newCreative && ! $instagramId) {
+                throw new \InvalidArgumentException(__('ads_builder.server.instagram_identity'));
+            }
+        }
+
+        // The Instagram identity must be one of this ad account's / the seller's Pages' accounts.
+        if ($instagramId && ! collect($this->instagramAccounts())->pluck('id')->contains((string) $instagramId)) {
+            throw new \InvalidArgumentException(__('ads_builder.server.instagram_not_owned'));
+        }
+
         foreach (array_filter([$input['adset']['page_id'] ?? null, $input['creative']['page_id'] ?? null]) as $pageId) {
             $this->ownedPage((string) $pageId);
         }
@@ -475,7 +546,7 @@ class FacebookCampaignBuilder
                 throw new \InvalidArgumentException(__('ads_builder.server.objective_mismatch', ['name' => $remote['name'] ?? '', 'objective' => $remote['objective'] ?? '']));
             }
 
-            $local = AdCampaign::updateOrCreate(['ad_campaign_id' => $remote['id'], 'platform' => 'facebook'], [
+            $local = AdCampaign::updateOrCreate(['ad_campaign_id' => $remote['id'], 'platform' => $this->channel], [
                 'user_id' => $run->user_id,
                 'social_account_id' => $this->graph->account->id,
                 'name' => $remote['name'] ?? $remote['id'],
@@ -509,7 +580,7 @@ class FacebookCampaignBuilder
 
         $created = $this->createOnMeta($run, 'campaign', 'campaigns', $payload);
 
-        $local = AdCampaign::updateOrCreate(['ad_campaign_id' => $created['id'], 'platform' => 'facebook'], [
+        $local = AdCampaign::updateOrCreate(['ad_campaign_id' => $created['id'], 'platform' => $this->channel], [
             'user_id' => $run->user_id,
             'social_account_id' => $this->graph->account->id,
             'name' => $spec['name'],
@@ -537,12 +608,17 @@ class FacebookCampaignBuilder
         }
 
         if (($spec['mode'] ?? 'new') === 'existing') {
-            $remote = $this->ownedObject((string) $spec['id'], 'ad set', 'id,name,account_id,campaign_id,optimization_goal,billing_event,destination_type,status');
+            $remote = $this->ownedObject((string) $spec['id'], 'ad set', 'id,name,account_id,campaign_id,optimization_goal,billing_event,destination_type,status,targeting{publisher_platforms}');
             if ((string) ($remote['campaign_id'] ?? '') !== (string) $campaign['remote']) {
                 throw new \InvalidArgumentException(__('ads_builder.server.adset_other_campaign'));
             }
+            // No publisher_platforms = automatic placements, which include Instagram.
+            $platforms = $remote['targeting']['publisher_platforms'] ?? null;
+            if ($this->channel === 'instagram' && $platforms && ! in_array('instagram', $platforms, true)) {
+                throw new \InvalidArgumentException(__('ads_builder.server.adset_not_instagram'));
+            }
 
-            $local = AdAdGroup::updateOrCreate(['ad_adgroup_id' => $remote['id'], 'platform' => 'facebook'], [
+            $local = AdAdGroup::updateOrCreate(['ad_adgroup_id' => $remote['id'], 'platform' => $this->channel], [
                 'user_id' => $run->user_id,
                 'social_account_id' => $this->graph->account->id,
                 'ad_campaign_id' => $campaign['local'],
@@ -598,7 +674,7 @@ class FacebookCampaignBuilder
 
         $created = $this->createOnMeta($run, 'adset', 'adsets', $payload);
 
-        $local = AdAdGroup::updateOrCreate(['ad_adgroup_id' => $created['id'], 'platform' => 'facebook'], [
+        $local = AdAdGroup::updateOrCreate(['ad_adgroup_id' => $created['id'], 'platform' => $this->channel], [
             'user_id' => $run->user_id,
             'social_account_id' => $this->graph->account->id,
             'ad_campaign_id' => $campaign['local'],
@@ -717,7 +793,24 @@ class FacebookCampaignBuilder
         }
 
         $placements = $input['adset']['placements'] ?? [];
-        if (($placements['mode'] ?? 'advantage') === 'manual') {
+        if ($this->channel === 'instagram') {
+            // Instagram only. No positions = every Instagram position; Explore home
+            // needs Feed + Explore and search results need Feed (Meta's rules).
+            $spec['publisher_platforms'] = ['instagram'];
+            $positions = array_values(array_intersect($placements['instagram_positions'] ?? [], self::INSTAGRAM_POSITIONS));
+            if (in_array('explore_home', $positions, true)) {
+                $positions = array_merge($positions, ['stream', 'explore']);
+            }
+            if (in_array('ig_search', $positions, true)) {
+                $positions[] = 'stream';
+            }
+            if ($positions) {
+                $spec['instagram_positions'] = array_values(array_unique($positions));
+            }
+            if (! empty($placements['device_platforms'])) {
+                $spec['device_platforms'] = array_values(array_intersect($placements['device_platforms'], ['mobile', 'desktop']));
+            }
+        } elseif (($placements['mode'] ?? 'advantage') === 'manual') {
             $spec['publisher_platforms'] = array_values(array_intersect($placements['publisher_platforms'] ?? [], ['facebook', 'instagram', 'messenger', 'audience_network']));
             foreach (['facebook_positions', 'instagram_positions', 'messenger_positions', 'audience_network_positions'] as $key) {
                 if (! empty($placements[$key])) {
@@ -727,6 +820,10 @@ class FacebookCampaignBuilder
             if (! empty($placements['device_platforms'])) {
                 $spec['device_platforms'] = array_values(array_intersect($placements['device_platforms'], ['mobile', 'desktop']));
             }
+        }
+
+        if ($special && ! empty($spec['geo_locations']['zips'])) {
+            throw new \InvalidArgumentException(__('ads_builder.server.special_zip'));
         }
 
         if ($special) {
@@ -745,6 +842,9 @@ class FacebookCampaignBuilder
             match ($l['type'] ?? 'country') {
                 'country' => $geo['countries'][] = $l['country_code'] ?? $l['key'],
                 'region' => $geo['regions'][] = ['key' => (string) $l['key']],
+                'zip' => $geo['zips'][] = ['key' => (string) $l['key']],
+                'geo_market' => $geo['geo_markets'][] = ['key' => (string) $l['key']],
+                'neighborhood' => $geo['neighborhoods'][] = ['key' => (string) $l['key']],
                 'city' => $geo['cities'][] = array_filter([
                     'key' => (string) $l['key'],
                     'radius' => isset($l['radius']) ? (int) $l['radius'] : null,
@@ -769,7 +869,7 @@ class FacebookCampaignBuilder
 
         if (($spec['mode'] ?? 'new') === 'existing') {
             $remote = $this->ownedObject((string) $spec['id'], 'creative', 'id,name,account_id,object_story_spec{page_id}');
-            $local = AdCreative::updateOrCreate(['ad_creative_id' => $remote['id'], 'platform' => 'facebook'], [
+            $local = AdCreative::updateOrCreate(['ad_creative_id' => $remote['id'], 'platform' => $this->channel], [
                 'user_id' => $run->user_id,
                 'social_account_id' => $this->graph->account->id,
                 'ad_campaign_id' => $run->result('campaign.local'),
@@ -840,7 +940,7 @@ class FacebookCampaignBuilder
         $name = $spec['name'] ?? ('Creative ' . now()->format('Y-m-d H:i'));
         $created = $this->createOnMeta($run, 'creative', 'adcreatives', ['name' => $name, 'object_story_spec' => $story]);
 
-        $local = AdCreative::updateOrCreate(['ad_creative_id' => $created['id'], 'platform' => 'facebook'], [
+        $local = AdCreative::updateOrCreate(['ad_creative_id' => $created['id'], 'platform' => $this->channel], [
             'user_id' => $run->user_id,
             'social_account_id' => $this->graph->account->id,
             'ad_campaign_id' => $run->result('campaign.local'),
@@ -886,7 +986,7 @@ class FacebookCampaignBuilder
     private function rememberMedia(AdBuilderRun $run, string $metaId, MediaAsset $asset, string $type, ?string $url, string $uploadType): void
     {
         $media = AdMedia::updateOrCreate(
-            ['ad_media_id' => $metaId, 'platform' => 'facebook', 'ad_campaign_id' => $run->result('campaign.local')],
+            ['ad_media_id' => $metaId, 'platform' => $this->channel, 'ad_campaign_id' => $run->result('campaign.local')],
             [
                 'user_id' => $run->user_id, 'social_account_id' => $this->graph->account->id,
                 'name' => $asset->original_name, 'file_name' => $asset->original_name, 'url' => $url, 'download_link' => $asset->url,
@@ -1025,7 +1125,7 @@ class FacebookCampaignBuilder
             'status' => $status,
         ]);
 
-        $local = Ad::updateOrCreate(['ad_id' => $created['id'], 'platform' => 'facebook'], [
+        $local = Ad::updateOrCreate(['ad_id' => $created['id'], 'platform' => $this->channel], [
             'user_id' => $run->user_id,
             'social_account_id' => $this->graph->account->id,
             'ad_campaign_id' => $campaign['local'],

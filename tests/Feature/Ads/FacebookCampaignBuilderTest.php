@@ -79,6 +79,8 @@ class FacebookCampaignBuilderTest extends TestCase
         $this->route('GET act_111/adspixels', ['data' => [['id' => '777', 'name' => 'Main pixel']]]);
         $this->route('GET act_111/customaudiences', ['data' => [['id' => '880', 'name' => 'Customers', 'subtype' => 'CUSTOM'], ['id' => '881', 'name' => 'Lookalike 1%', 'subtype' => 'LOOKALIKE']]]);
         $this->route('GET act_111/saved_audiences', ['data' => []]);
+        // The seller's Instagram identity (instagram_user_id 1784 in input()).
+        $this->route('GET act_111/instagram_accounts', ['data' => [['id' => '1784', 'username' => 'social.eaz', 'profile_pic' => 'https://cdn/ig.jpg']]]);
 
         Http::fake(function (HttpRequest $request) {
             if (str_starts_with($request->url(), 'https://cdn.socialeaz.com/')) {
@@ -695,6 +697,143 @@ class FacebookCampaignBuilderTest extends TestCase
         $data = ['idempotency_key' => 'key-carousel-1card'] + $this->input(['creative' => ['format' => 'CAROUSEL', 'media' => [], 'cards' => [['asset_id' => 1]]]]);
 
         $this->assertContains('Creative: a carousel needs at least 2 cards.', $this->requestErrors($data));
+    }
+
+    // ---- Instagram ---------------------------------------------------------
+
+    private function instagram(array $overrides = []): array
+    {
+        return $this->input(array_replace_recursive(['channel' => 'instagram', 'adset' => ['placements' => ['instagram_positions' => ['explore_home', 'reels']]]], $overrides));
+    }
+
+    public function test_instagram_ads_deliver_on_instagram_only_and_save_as_instagram(): void
+    {
+        $result = $this->builder()->submit($this->instagram(), 'key-instagram-0001');
+
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+        $t = $this->posts('act_111/adsets')[0][2]['targeting'];
+        $this->assertSame(['instagram'], $t['publisher_platforms']);
+        // Explore home needs Feed + Explore (Meta's rule) - added automatically.
+        $this->assertEqualsCanonicalizing(['explore_home', 'reels', 'stream', 'explore'], $t['instagram_positions']);
+        $this->assertArrayNotHasKey('facebook_positions', $t);
+        $this->assertSame('1784', $this->posts('act_111/adcreatives')[0][2]['object_story_spec']['instagram_user_id']);
+        $this->assertSame(['instagram', 'instagram', 'instagram', 'instagram'], [AdCampaign::sole()->platform, AdAdGroup::sole()->platform, AdCreative::sole()->platform, Ad::sole()->platform]);
+    }
+
+    public function test_instagram_all_positions_when_none_picked(): void
+    {
+        $input = $this->instagram();
+        $input['adset']['placements']['instagram_positions'] = []; // array_replace_recursive can't empty a list
+        $this->builder()->submit($input, 'key-instagram-0002');
+
+        $t = $this->posts('act_111/adsets')[0][2]['targeting'];
+        $this->assertSame(['instagram'], $t['publisher_platforms']);
+        $this->assertArrayNotHasKey('instagram_positions', $t);
+    }
+
+    public function test_instagram_needs_an_owned_instagram_account_and_no_messenger(): void
+    {
+        $b = $this->builder();
+
+        $none = $b->submit($this->instagram(['creative' => ['instagram_user_id' => null]]), 'key-instagram-0003');
+        $this->assertSame('Choose the Instagram account the ad is posted from.', $none['message']);
+
+        $foreign = $b->submit($this->instagram(['creative' => ['instagram_user_id' => '9999']]), 'key-instagram-0004');
+        $this->assertSame('That Instagram account is not connected to this ad account or your Pages.', $foreign['message']);
+
+        $messenger = $b->submit($this->instagram(['goal' => 'messages', 'destination' => 'MESSENGER', 'adset' => ['optimization_goal' => 'CONVERSATIONS', 'page_id' => '500'], 'creative' => ['cta' => 'MESSAGE_PAGE', 'link' => null]]), 'key-instagram-0005');
+        $this->assertStringContainsString('Instagram Direct', $messenger['message']);
+
+        $this->assertSame([], $this->posts('act_111/campaigns'));
+        $this->assertArrayNotHasKey('MESSENGER', $b->forChannel('instagram')->bootstrap()['goals']['messages']['destinations']);
+        $this->assertArrayHasKey('MESSENGER', $b->forChannel('facebook')->bootstrap()['goals']['messages']['destinations']);
+    }
+
+    public function test_an_instagram_identity_from_elsewhere_is_refused_on_facebook_too(): void
+    {
+        $result = $this->builder()->submit($this->input(['creative' => ['instagram_user_id' => '9999']]), 'key-fb-foreign-ig1');
+
+        $this->assertSame('That Instagram account is not connected to this ad account or your Pages.', $result['message']);
+    }
+
+    public function test_an_existing_facebook_only_ad_set_is_refused_for_instagram(): void
+    {
+        $this->route('GET 4001', ['id' => '4001', 'name' => 'Always on', 'account_id' => '111', 'objective' => 'OUTCOME_TRAFFIC', 'effective_status' => 'ACTIVE']);
+        $this->route('GET 4002', ['id' => '4002', 'name' => 'FB only', 'account_id' => '111', 'campaign_id' => '4001', 'targeting' => ['publisher_platforms' => ['facebook']]]);
+
+        $result = $this->builder()->submit($this->instagram(['campaign' => ['mode' => 'existing', 'id' => '4001'], 'adset' => ['mode' => 'existing', 'id' => '4002']]), 'key-instagram-0006');
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('adset', $result['step']);
+        $this->assertStringContainsString("doesn't deliver on Instagram", $result['message']);
+    }
+
+    public function test_request_requires_the_instagram_account_on_the_instagram_page(): void
+    {
+        $errors = $this->requestErrors(['idempotency_key' => 'key-instagram-val01'] + $this->instagram(['creative' => ['instagram_user_id' => null]]));
+
+        $this->assertContains('Creative: choose the Instagram account the ad is posted from.', $errors);
+        $this->assertSame([], $this->requestErrors(['idempotency_key' => 'key-instagram-val02'] + $this->instagram()));
+        $this->assertNotSame([], $this->requestErrors(['idempotency_key' => 'key-instagram-val03'] + $this->instagram(['adset' => ['placements' => ['instagram_positions' => ['profile_magic']]]])));
+    }
+
+    // ---- B2B work & education, more location types -------------------------
+
+    public function test_work_and_education_search_and_targeting(): void
+    {
+        $this->route('GET search', fn ($p) => match ($p['type']) {
+            'adworkposition' => ['data' => [['id' => '105', 'name' => 'Marketing Manager', 'audience_size' => 1000]]],
+            'adworkemployer' => ['data' => [['id' => '206', 'name' => 'Aramco']]],
+            default => ['data' => []],
+        });
+        $b = $this->builder();
+
+        $this->assertSame([['id' => '105', 'name' => 'Marketing Manager', 'type' => 'work_positions', 'description' => null, 'size_min' => 1000, 'size_max' => null]], $b->workSearch('Marketing', 'adworkposition'));
+        $this->assertSame('work_employers', $b->workSearch('Aramco', 'adworkemployer')[0]['type']);
+        try {
+            $b->workSearch('x', 'adinterest');
+            $this->fail('accepted an unsupported type');
+        } catch (\InvalidArgumentException) {
+        }
+
+        $b->submit($this->input(['adset' => ['targeting' => ['interests' => [['id' => '105', 'name' => 'Marketing Manager', 'type' => 'work_positions'], ['id' => '6003107902433', 'name' => 'Online shopping', 'type' => 'interests']]]]]), 'key-work-target-01');
+        $this->assertSame([['work_positions' => [['id' => '105', 'name' => 'Marketing Manager']], 'interests' => [['id' => '6003107902433', 'name' => 'Online shopping']]]], $this->posts('act_111/adsets')[0][2]['targeting']['flexible_spec']);
+    }
+
+    public function test_zip_dma_and_neighborhood_locations(): void
+    {
+        $locations = [['key' => 'US:10001', 'type' => 'zip'], ['key' => '501', 'type' => 'geo_market'], ['key' => '2000', 'type' => 'neighborhood']];
+        $this->builder()->submit($this->input(['adset' => ['targeting' => ['locations' => $locations]]]), 'key-geo-types-0001');
+
+        $geo = $this->posts('act_111/adsets')[0][2]['targeting']['geo_locations'];
+        $this->assertSame([['key' => 'US:10001']], $geo['zips']);
+        $this->assertSame([['key' => '501']], $geo['geo_markets']);
+        $this->assertSame([['key' => '2000']], $geo['neighborhoods']);
+
+        $special = $this->builder()->submit($this->input(['campaign' => ['special_ad_category' => 'HOUSING'], 'adset' => ['targeting' => ['locations' => $locations]]]), 'key-geo-types-0002');
+        $this->assertStringContainsString('ZIP', $special['message']);
+    }
+
+    public function test_builder_view_compiles_to_valid_php(): void
+    {
+        // A one-line @php(...) next to a @php ... @endphp block once compiled to broken PHP.
+        $compiled = app('blade.compiler')->compileString(file_get_contents(resource_path('views/admin/ads/facebook/campaigns/builder.blade.php')));
+
+        token_get_all($compiled, TOKEN_PARSE); // throws ParseError on invalid PHP
+        $this->assertStringContainsString('channel="<?php echo e($channel); ?>"', $compiled);
+    }
+
+    public function test_instagram_create_page_opens_the_builder_in_instagram_mode(): void
+    {
+        Schema::create('countries', fn ($t) => [$t->id(), $t->string('name')->nullable(), $t->string('code')->nullable()]);
+        $controller = app(\App\Http\Controllers\Admin\AdCampaignController::class);
+
+        $view = $controller->create('instagram');
+        $this->assertSame('admin.ads.facebook.campaigns.builder', $view->name());
+        $this->assertSame($this->account->id, $view->getData()['account']->id); // the Meta ad account
+
+        request()->merge(['legacy' => 1]);
+        $this->assertSame('admin.ads.facebook.campaigns.create', $controller->create('instagram')->name());
     }
 
     // ---- Arabic -----------------------------------------------------------

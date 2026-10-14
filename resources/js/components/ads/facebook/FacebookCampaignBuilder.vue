@@ -6,8 +6,8 @@
       <div class="fb-head-main">
         <span class="fb-head-icon"><i class="bx bxl-meta"></i></span>
         <div>
-          <h4>{{ t('header.title') }}</h4>
-          <p>{{ t('header.subtitle') }}</p>
+          <h4>{{ isInstagram ? t('header.title_instagram') : t('header.title') }}</h4>
+          <p>{{ isInstagram ? t('header.subtitle_instagram') : t('header.subtitle') }}</p>
         </div>
       </div>
       <div class="fb-head-actions">
@@ -376,7 +376,7 @@
 
                 <div v-if="!specialCategory" class="fb-group">
                   <h6><i class="bx bx-purchase-tag"></i> {{ t('audience.detailed') }} <span class="fb-opt">{{ t('audience.detailed_sub') }}</span></h6>
-                  <search-picker v-model="targeting.interests" :fetcher="searchTargeting" :placeholder="t('audience.search_detailed')">
+                  <search-picker :value="detailedItems" :fetcher="searchTargeting" :placeholder="t('audience.search_detailed')" @input="setDetailedItems">
                     <template #option="{ item }">
                       <span class="sp-opt-main"><strong>{{ item.name }}</strong> <small class="fb-muted">{{ (item.path || []).slice(0, -1).join(' › ') }}</small></span>
                       <span class="fb-tag">{{ typeLabel(item.type) }}</span>
@@ -384,6 +384,20 @@
                     </template>
                   </search-picker>
                   <p class="fb-hint"><i class="bx bx-info-circle"></i> <span v-html="t('audience.detailed_hint')"></span></p>
+
+                  <div class="fb-work">
+                    <label class="fb-label mt-2">{{ t('audience.work') }} <span class="fb-opt">{{ t('audience.work_sub') }}</span></label>
+                    <div class="fb-seg fb-seg-wrap">
+                      <button v-for="w in workTypes" :key="w" type="button" :class="{ on: workType === w }" @click="workType = w">{{ t('audience.work_types.' + w) }}</button>
+                    </div>
+                    <search-picker :key="'work-' + workType" :value="workItems" :fetcher="searchWork" :placeholder="t('audience.work_placeholder.' + workType)" @input="setWorkItems">
+                      <template #option="{ item }">
+                        <span class="sp-opt-main"><strong>{{ item.name }}</strong> <small v-if="item.description" class="fb-muted">{{ item.description }}</small></span>
+                        <span class="fb-tag">{{ typeLabel(item.type) }}</span>
+                      </template>
+                    </search-picker>
+                    <p class="fb-hint"><i class="bx bx-briefcase"></i> {{ t('audience.work_hint') }}</p>
+                  </div>
                   <template v-if="ui.advanced">
                     <div v-for="(group, gi) in targeting.narrow" :key="'n' + gi" class="fb-narrow">
                       <div class="fb-narrow-h"><strong>{{ t('audience.must_match') }}</strong><button type="button" class="fb-link" @click="targeting.narrow.splice(gi, 1)">{{ t('common.remove') }}</button></div>
@@ -419,7 +433,21 @@
                 </label>
               </template>
 
-              <div class="fb-group">
+              <div v-if="isInstagram" class="fb-group">
+                <h6><i class="bx bxl-instagram"></i> {{ t('audience.ig_placements') }}</h6>
+                <p class="fb-hint mt-0 mb-2"><i class="bx bx-bulb"></i> {{ t('audience.ig_placements_hint') }}</p>
+                <div class="fb-positions">
+                  <label v-for="pos in igPositions" :key="pos.key" class="fb-check is-sm"><input v-model="placements.instagram_positions" type="checkbox" :value="pos.key"> {{ t('audience.positions.' + pos.key) }}</label>
+                </div>
+                <p v-if="placements.instagram_positions.some(p => ['explore_home', 'ig_search'].includes(p))" class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('audience.ig_dependencies') }}</p>
+                <div class="fb-positions mt-2">
+                  <small>{{ t('audience.devices') }}</small>
+                  <label class="fb-check is-sm"><input v-model="placements.device_platforms" type="checkbox" value="mobile"> {{ t('audience.mobile') }}</label>
+                  <label class="fb-check is-sm"><input v-model="placements.device_platforms" type="checkbox" value="desktop"> {{ t('audience.desktop') }}</label>
+                </div>
+              </div>
+
+              <div v-else class="fb-group">
                 <h6><i class="bx bx-layout"></i> {{ t('audience.placements') }}</h6>
                 <div class="fb-seg">
                   <button type="button" :class="{ on: placements.mode === 'advantage' }" @click="placements.mode = 'advantage'">{{ t('audience.advantage_placements') }}</button>
@@ -479,10 +507,12 @@
                 <p v-if="!boot.pages.length" class="fb-field-err">{{ t('common.no_pages') }}</p>
               </div>
               <div class="fb-ident">
-                <label class="fb-label">{{ t('creative.instagram') }} <span class="fb-opt">{{ t('creative.instagram_sub') }}</span></label>
+                <label class="fb-label">{{ t('creative.instagram') }} <span class="fb-opt">{{ isInstagram ? t('creative.instagram_required') : t('creative.instagram_sub') }}</span></label>
                 <div v-if="lists.loading.instagram" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> {{ t('creative.loading_instagram') }}</div>
+                <identity-cards v-else-if="isInstagram" v-model="creative.instagram_user_id" :items="instagramCards" platform="instagram" :label="t('creative.instagram')" />
                 <identity-cards v-else v-model="creative.instagram_user_id" :items="instagramCards" platform="instagram" :label="t('creative.instagram')"
                                 :empty-label="t('creative.page_on_instagram')" :empty-sub="t('creative.page_on_instagram_sub')" empty-icon="bxl-facebook-circle" />
+                <p v-if="isInstagram && !lists.loading.instagram && !lists.instagram.length" class="fb-field-err">{{ lists.errors.instagram || t('creative.no_instagram') }}</p>
               </div>
 
               <div v-if="destRules && destRules.needs_lead_form" class="fb-group">
@@ -671,7 +701,8 @@
                   <span v-else-if="previewPage" class="fb-mock-initial">{{ previewPage.name.trim().charAt(0).toUpperCase() }}</span>
                   <i v-else class="bx bxl-facebook"></i>
                 </span>
-                <div><strong>{{ previewPage ? previewPage.name : t('side.your_page') }}</strong><small>{{ t('side.sponsored') }} · <i class="bx bx-world"></i></small></div>
+                <div v-if="isInstagram && previewInstagram"><strong dir="ltr">{{ previewInstagram.username ? '@' + previewInstagram.username : previewInstagram.id }}</strong><small>{{ t('side.sponsored') }} · <i class="bx bxl-instagram"></i></small></div>
+                <div v-else><strong>{{ previewPage ? previewPage.name : t('side.your_page') }}</strong><small>{{ t('side.sponsored') }} · <i class="bx bx-world"></i></small></div>
               </div>
               <p class="fb-mock-text">{{ creative.primary_text || t('side.primary_placeholder') }}</p>
               <div v-if="creative.format === 'CAROUSEL'" class="fb-mock-carousel">
@@ -722,7 +753,10 @@ const props = defineProps({
   // __('ads_builder') for the current locale (lang/{en,ar}/ads_builder.php).
   messages: { type: Object, default: () => ({}) },
   locale: { type: String, default: 'en' },
+  // 'instagram' = the Instagram ads page (same builder, Instagram-only rules).
+  channel: { type: String, default: 'facebook' },
 });
+const isInstagram = props.channel === 'instagram';
 
 const i18n = createTranslator(props.messages, props.locale);
 const { t, tc } = i18n;
@@ -739,7 +773,10 @@ const platformOptions = [
   { key: 'audience_network', icon: 'bx-grid-alt' },
 ];
 const fbPositions = ['feed', 'story', 'facebook_reels', 'marketplace', 'video_feeds', 'search'].map((key) => ({ key }));
-const igPositions = ['stream', 'story', 'reels', 'explore'].map((key) => ({ key }));
+const igPositions = (isInstagram ? ['stream', 'story', 'reels', 'explore', 'explore_home', 'ig_search'] : ['stream', 'story', 'reels', 'explore']).map((key) => ({ key }));
+// Work & education (B2B) - Graph search types; results come only from Meta.
+const workTypes = ['adworkposition', 'adworkemployer', 'adeducationschool', 'adeducationmajor'];
+const WORK_KEYS = { adworkposition: 'work_positions', adworkemployer: 'work_employers', adeducationschool: 'education_schools', adeducationmajor: 'education_majors' };
 const specialCategories = ['HOUSING', 'EMPLOYMENT', 'CREDIT', 'FINANCIAL_PRODUCTS_SERVICES', 'ISSUES_ELECTIONS_POLITICS'];
 
 // ---------------------------------------------------------------- state
@@ -752,7 +789,8 @@ const destination = ref(null);
 const campaign = reactive({ mode: 'new', id: null, name: '', special_ad_category: null, campaign_budget: false, budget_type: 'daily', budget: null, bid_strategy: 'LOWEST_COST_WITHOUT_CAP' });
 const adset = reactive({ mode: 'new', id: null, name: '', optimization_goal: null, budget_type: 'daily', budget: null, bid_strategy: 'LOWEST_COST_WITHOUT_CAP', bid_amount: null, start_time: '', end_time: '', page_id: null, pixel_id: null, custom_event_type: 'PURCHASE', application_id: null, object_store_url: null });
 const targeting = reactive({ locations: [], excluded_locations: [], age_min: 18, age_max: 65, genders: [], locales: [], interests: [], narrow: [], saved_audience_id: null, advantage_audience: true });
-const placements = reactive({ mode: 'advantage', publisher_platforms: ['facebook', 'instagram'], facebook_positions: [], instagram_positions: [], device_platforms: ['mobile', 'desktop'] });
+const placements = reactive({ mode: isInstagram ? 'manual' : 'advantage', publisher_platforms: isInstagram ? ['instagram'] : ['facebook', 'instagram'], facebook_positions: [], instagram_positions: [], device_platforms: ['mobile', 'desktop'] });
+const workType = ref('adworkposition');
 const creative = reactive({ mode: 'new', id: null, name: '', format: 'IMAGE', page_id: null, instagram_user_id: null, primary_text: '', headline: '', description: '', link: '', cta: 'LEARN_MORE', lead_form_id: null, media: [], thumbnail: null, cards: [] });
 const ad = reactive({ name: '', status: 'PAUSED' });
 const ui = reactive({ advanced: false, includeAudiences: [], excludeAudiences: [] });
@@ -815,6 +853,19 @@ const showLink = computed(() => !!destRules.value && !destRules.value.message_ap
 const linkRequired = computed(() => showLink.value && !!destRules.value.needs_link);
 const validLink = computed(() => /^https?:\/\/\S+\.\S+/.test(creative.link || ''));
 const pageCards = computed(() => (boot.value ? boot.value.pages : []).map((p) => ({ id: p.id, name: p.name, picture: p.picture, sub: p.username ? '@' + p.username : t('common.facebook_page') })));
+const previewInstagram = computed(() => lists.instagram.find((a) => a.id === creative.instagram_user_id) || null);
+// Work items live in targeting.interests (same "any of" group); this picker shows the current type's.
+const workItems = computed(() => targeting.interests.filter((i) => i.type === WORK_KEYS[workType.value]));
+const isWork = (i) => Object.values(WORK_KEYS).includes(i.type);
+// The detailed-targeting picker shows interests/behaviors/demographics; work items have their own picker.
+const detailedItems = computed(() => targeting.interests.filter((i) => !isWork(i)));
+function setDetailedItems(items) {
+  targeting.interests = [...items, ...targeting.interests.filter(isWork)];
+}
+function setWorkItems(items) {
+  const key = WORK_KEYS[workType.value];
+  targeting.interests = [...targeting.interests.filter((i) => i.type !== key), ...items];
+}
 const instagramCards = computed(() => lists.instagram.map((a) => ({ id: a.id, name: a.username ? '@' + a.username : a.id, picture: a.picture, sub: t('creative.instagram_card_sub') })));
 // What the budget comes to with VAT (shown only - Meta gets the budget as
 // entered). A daily budget with an end date is multiplied by the days.
@@ -866,7 +917,9 @@ const reviewRows = computed(() => {
     row('schedule', 1, 'bx-calendar', adset.mode === 'existing' ? fromAdset : `${adset.start_time ? fmtDate(adset.start_time) : t('review.starts_now')} → ${adset.end_time ? fmtDate(adset.end_time) : t('review.no_end')}`),
     row('locations', 2, 'bx-map', adset.mode === 'existing' ? fromAdset : (targeting.saved_audience_id ? t('review.saved_audience') : (locs || '-'))),
     row('audience', 2, 'bx-group', adset.mode === 'existing' ? fromAdset : audienceSummary()),
-    row('placements', 2, 'bx-layout', adset.mode === 'existing' ? fromAdset : (placements.mode === 'advantage' ? t('audience.advantage_placements') : placements.publisher_platforms.map((p) => t('audience.platforms.' + p)).join(', '))),
+    row('placements', 2, 'bx-layout', adset.mode === 'existing' ? fromAdset : isInstagram
+      ? (placements.instagram_positions.length ? t('audience.platforms.instagram') + ': ' + placements.instagram_positions.map((p) => t('audience.positions.' + p)).join(', ') : t('audience.ig_all'))
+      : (placements.mode === 'advantage' ? t('audience.advantage_placements') : placements.publisher_platforms.map((p) => t('audience.platforms.' + p)).join(', '))),
     row('tracking', 1, 'bx-line-chart', adset.mode === 'existing' ? fromAdset : destRules.value && destRules.value.needs_pixel ? t('review.pixel', { name: selectedPixel.value ? selectedPixel.value.name : '-', event: (boot.value.conversion_events || {})[adset.custom_event_type] || adset.custom_event_type }) : (destRules.value && destRules.value.needs_app ? t('review.app', { name: selectedApp.value ? selectedApp.value.name : '-' }) : t('review.not_needed'))),
     ...(sum ? [row('total_vat', 1, 'bx-receipt', sum.days ? tc('review.total_for_days', sum.days, { amount: money(sum.total) }) : (sum.perDay ? t('review.total_per_day', { amount: money(sum.total) }) : money(sum.total)))] : []),
     row('creative', 3, 'bx-image', creative.mode === 'existing' ? existing((lists.creatives.find((c) => c.id === creative.id) || {}).name) : `${t('review.formats.' + creative.format)} · ${ctaLabel(creative.cta)}${creative.link ? ' · ' + creative.link : ''}`),
@@ -913,6 +966,7 @@ function audienceSummary() {
 }
 
 async function api(url, params = {}, method = 'get') {
+  params = { ...params, channel: props.channel };
   try {
     const { data } = method === 'get' ? await window.axios.get(url, { params }) : await window.axios.post(url, params);
     if (!data.success) throw new Error(data.message || t('client.meta_error'));
@@ -1010,6 +1064,7 @@ async function addQuickLocale(l) {
   }
 }
 const searchTargeting = (q) => api(props.urls.targeting, { q });
+const searchWork = (q) => api(props.urls.work, { q, type: workType.value });
 
 // ---------------------------------------------------------------- media
 function openGallery(target) {
@@ -1084,6 +1139,7 @@ function validate() {
   if (creative.mode === 'existing' && !creative.id) cr.push(t('client.creative_existing'));
   if (creative.mode === 'new') {
     if (!creative.page_id) cr.push(t('client.creative_page'));
+    if (isInstagram && !creative.instagram_user_id) cr.push(t('client.instagram'));
     if (!creative.primary_text.trim()) cr.push(t('client.primary'));
     if (creative.format === 'CAROUSEL' && creative.cards.length < 2) cr.push(t('client.cards'));
     if (creative.format !== 'CAROUSEL' && !creative.media.length) cr.push(t(creative.format === 'VIDEO' ? 'client.video' : 'client.image'));
@@ -1131,6 +1187,7 @@ let estimateTimer = null;
 function payload() {
   return {
     idempotency_key: idempotencyKey.value,
+    channel: props.channel,
     goal: goal.value,
     destination: destination.value,
     campaign: campaign.mode === 'existing' ? { mode: 'existing', id: campaign.id } : { ...campaign, id: null },
@@ -1252,7 +1309,7 @@ function startAnother() {
 }
 
 // ---------------------------------------------------------------- drafts
-const draftKey = computed(() => `fb-ad-builder:${props.accountId}`);
+const draftKey = computed(() => `fb-ad-builder:${props.channel}:${props.accountId}`);
 function snapshot() {
   return JSON.parse(JSON.stringify({ step: step.value, maxReached: maxReached.value, goal: goal.value, destination: destination.value, campaign, adset, targeting, placements, creative, ad, ui, key: idempotencyKey.value }));
 }
@@ -1331,6 +1388,7 @@ onMounted(async () => {
     return;
   }
   if (boot.value.pages.length === 1) creative.page_id = boot.value.pages[0].id;
+  if (isInstagram) load('instagram', props.urls.instagram, {}, (data) => { lists.instagram = data; if (data.length === 1) creative.instagram_user_id = data[0].id; });
   const draft = readDraft();
   if (draft) draftOffer.value = { savedAt: fmtDate(draft.savedAt) };
 });
@@ -1450,6 +1508,8 @@ onMounted(async () => {
 .fb-search input { width: 100%; height: 40px; border: 1px solid #E2E5ED; border-radius: 10px; padding-block: 0; padding-inline: 36px 12px; font-size: .86rem; outline: none; }
 .fb-search input:focus { border-color: #5235FF; box-shadow: 0 0 0 3px rgba(0, 76, 255, .12); }
 .fb-ident { margin-bottom: 14px; }
+.fb-seg-wrap { flex-wrap: wrap; margin-bottom: 8px; }
+.fb-work { margin-top: 6px; }
 .fb-quick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: .76rem; color: var(--muted); }
 .fb-chip-btn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: #374151; font-size: .76rem; font-weight: 600; }
 .fb-chip-btn:hover:not(:disabled) { border-color: #B9CCFF; color: var(--brand); }

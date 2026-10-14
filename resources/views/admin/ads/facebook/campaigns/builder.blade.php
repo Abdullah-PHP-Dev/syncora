@@ -1,15 +1,18 @@
 @extends('layouts.app')
 
-@section('title', __('ads_builder.page_title'))
+@section('title', ($platform ?? 'facebook') === 'instagram' ? __('ads_builder.page_title_instagram') : __('ads_builder.page_title'))
 
 {{-- Facebook campaign builder - resources/js/components/ads/facebook/FacebookCampaignBuilder.vue,
      backed by App\Http\Controllers\Admin\FacebookAdBuilderController. --}}
 
 @section('content')
-    @include('admin.ads.partials.account-switcher')
+    {{-- Instagram ads run on the Meta (Facebook) ad account. --}}
+    @include('admin.ads.partials.account-switcher', ['platform' => 'facebook'])
 
     @if ($account)
         @php
+            // Facebook or Instagram page - same builder, same Meta ad account.
+            $channel = ($platform ?? 'facebook') === 'instagram' ? 'instagram' : 'facebook';
             $builderUrls = [
                 'bootstrap' => route('admin.ads.facebook.builder.bootstrap'),
                 'campaigns' => route('admin.ads.facebook.builder.campaigns'),
@@ -22,11 +25,12 @@
                 'instagram' => route('admin.ads.facebook.builder.instagram_accounts'),
                 'leadForms' => route('admin.ads.facebook.builder.lead_forms', ['page' => 'PAGE_ID']),
                 'targeting' => route('admin.ads.facebook.builder.targeting'),
+                'work' => route('admin.ads.facebook.builder.work'),
                 'locations' => route('admin.ads.facebook.builder.locations'),
                 'locales' => route('admin.ads.facebook.builder.locales'),
                 'estimate' => route('admin.ads.facebook.builder.estimate'),
                 'submit' => route('admin.ads.facebook.builder.submit'),
-                'campaignsList' => route('admin.ads.campaigns.index', ['platform' => 'facebook']),
+                'campaignsList' => route('admin.ads.campaigns.index', ['platform' => $channel]),
                 'connections' => \App\Support\Connections\HubLink::for('facebook') ?? route('admin.connections.index'),
             ];
             $galleryUrls = ['index' => route('admin.media-gallery.index'), 'store' => route('admin.media-gallery.store'), 'file' => route('admin.media-gallery.file', ['mediaAsset' => 'MEDIA_ID'])];
@@ -37,6 +41,7 @@
             :account-id="{{ (int) $account->id }}"
             :messages='@json(__('ads_builder'))'
             locale="{{ app()->getLocale() }}"
+            channel="{{ $channel }}"
         ></facebook-campaign-builder>
     @else
         <div class="card"><div class="card-body text-center py-5">

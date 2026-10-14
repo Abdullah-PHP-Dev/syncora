@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Services\AdServices\FacebookCampaignBuilder;
 use App\Support\Ads\MetaGoals;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -32,6 +33,7 @@ class FacebookAdBuilderRequest extends FormRequest
 
         return [
             'idempotency_key' => ['required', 'string', 'min:16', 'max:64', 'regex:/^[A-Za-z0-9-]+$/'],
+            'channel' => ['nullable', Rule::in(FacebookCampaignBuilder::CHANNELS)],
             'goal' => ['required', Rule::in(array_keys(MetaGoals::all()))],
             'destination' => ['required', Rule::in($destinations)],
 
@@ -62,7 +64,7 @@ class FacebookAdBuilderRequest extends FormRequest
             'adset.targeting' => ['nullable', 'array'],
             'adset.targeting.locations' => [Rule::requiredIf($newAdSet && ! $this->input('adset.targeting.saved_audience_id')), 'array'],
             'adset.targeting.locations.*.key' => ['required', 'string', 'max:60'],
-            'adset.targeting.locations.*.type' => ['required', 'in:country,region,city'],
+            'adset.targeting.locations.*.type' => ['required', Rule::in(array_keys(FacebookCampaignBuilder::LOCATION_TYPES))],
             'adset.targeting.locations.*.radius' => ['nullable', 'integer', 'min:1', 'max:80'],
             'adset.targeting.excluded_locations' => ['nullable', 'array'],
             'adset.targeting.age_min' => ['nullable', 'integer', 'between:18,65'],
@@ -82,13 +84,16 @@ class FacebookAdBuilderRequest extends FormRequest
             'adset.placements.mode' => ['nullable', 'in:advantage,manual'],
             'adset.placements.publisher_platforms' => ['nullable', 'array'],
             'adset.placements.publisher_platforms.*' => ['in:facebook,instagram,messenger,audience_network'],
+            'adset.placements.instagram_positions' => ['nullable', 'array'],
+            'adset.placements.instagram_positions.*' => [Rule::in(FacebookCampaignBuilder::INSTAGRAM_POSITIONS)],
+            'adset.targeting.interests.*.type' => ['nullable', 'string', 'max:40', 'regex:/^[a-z_]+$/'],
 
             'creative.mode' => ['required', 'in:existing,new'],
             'creative.id' => [Rule::requiredIf(! $newCreative), 'nullable', 'regex:/^\d+$/'],
             'creative.name' => ['nullable', 'string', 'max:255'],
             'creative.format' => [Rule::requiredIf($newCreative), 'nullable', 'in:IMAGE,VIDEO,CAROUSEL,image,video,carousel'],
             'creative.page_id' => [Rule::requiredIf($newCreative), 'nullable', 'regex:/^\d+$/'],
-            'creative.instagram_user_id' => ['nullable', 'regex:/^\d+$/'],
+            'creative.instagram_user_id' => [Rule::requiredIf($newCreative && $this->input('channel') === 'instagram'), 'nullable', 'regex:/^\d+$/'],
             'creative.primary_text' => [Rule::requiredIf($newCreative), 'nullable', 'string', 'max:2200'],
             'creative.headline' => ['nullable', 'string', 'max:255'],
             'creative.description' => ['nullable', 'string', 'max:255'],
@@ -131,6 +136,7 @@ class FacebookAdBuilderRequest extends FormRequest
             'adset.targeting.age_max.gte' => $m('age_max'),
             'creative.id.required' => $m('creative_id'),
             'creative.page_id.required' => $m('creative_page'),
+            'creative.instagram_user_id.required' => $m('creative_instagram'),
             'creative.primary_text.required' => $m('primary_text'),
             'creative.media.required' => $m('media'),
             'creative.cards.required' => $m('cards_required'),

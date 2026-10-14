@@ -162,6 +162,14 @@ class AdCampaignController extends Controller
             return view('admin.ads.facebook.campaigns.builder', compact('platform', 'account', 'adAccounts', 'promotePost'));
         }
 
+        // Instagram: the same builder in Instagram mode. Instagram ads run on
+        // the Meta (Facebook) ad account, so that's the account selected here.
+        if ($platform === 'instagram' && ! request()->boolean('legacy')) {
+            [$account, $adAccounts] = $this->selectedAdAccount('facebook');
+
+            return view('admin.ads.facebook.campaigns.builder', compact('platform', 'account', 'adAccounts', 'promotePost'));
+        }
+
         return view('admin.ads.' . $this->viewPlatform($platform) . '.campaigns.create', compact('platform', 'account', 'adAccounts', 'countries', 'platformPages', 'promotePost'));
     }
 

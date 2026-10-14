@@ -9,12 +9,15 @@
  */
 return [
     'page_title' => 'Create Facebook & Instagram ad',
+    'page_title_instagram' => 'Create Instagram ad',
     'no_account_title' => 'Connect a Facebook ad account first',
     'no_account_text' => 'Connect Meta in Connections, then come back to create your ad.',
 
     'header' => [
         'title' => 'Create a Facebook & Instagram ad',
         'subtitle' => 'Use an existing campaign, ad set or creative, or create new ones - mix and match as you go.',
+        'title_instagram' => 'Create an Instagram ad',
+        'subtitle_instagram' => 'Runs on Instagram only, from your Meta ad account. Use an existing campaign, ad set or creative, or create new ones.',
         'campaigns' => 'Campaigns',
     ],
 
@@ -163,7 +166,7 @@ return [
         'radius' => '+:km km',
         'exclude_locations' => 'Exclude locations',
         'search_exclude' => 'Search locations to exclude…',
-        'location_types' => ['country' => 'country', 'region' => 'region', 'city' => 'city'],
+        'location_types' => ['country' => 'country', 'region' => 'region', 'city' => 'city', 'zip' => 'ZIP / postal code', 'geo_market' => 'DMA', 'neighborhood' => 'neighborhood'],
         'people' => 'People',
         'age' => 'Age',
         'to' => 'to',
@@ -186,6 +189,15 @@ return [
         'must_match' => 'And must also match',
         'narrow_further' => 'Narrow further…',
         'narrow' => 'Narrow audience',
+        'work' => 'Work & education',
+        'work_sub' => 'B2B - job titles, employers, schools',
+        'work_types' => ['adworkposition' => 'Job titles', 'adworkemployer' => 'Employers', 'adeducationschool' => 'Schools', 'adeducationmajor' => 'Fields of study'],
+        'work_placeholder' => ['adworkposition' => 'Search job titles (eg. Marketing Manager, CEO)…', 'adworkemployer' => 'Search employers (eg. Aramco, Google)…', 'adeducationschool' => 'Search schools and universities…', 'adeducationmajor' => 'Search fields of study (eg. Business Administration)…'],
+        'work_hint' => 'From Meta\'s own lists. People only match if they added this to their profile, so pair it with interests for reach. Not available for Special Ad Categories.',
+        'ig_placements' => 'Instagram placements',
+        'ig_placements_hint' => 'Leave every box empty to show the ad in all Instagram positions (recommended), or pick only the ones you want.',
+        'ig_dependencies' => 'Meta also adds Feed (and Explore for Explore home) - those placements require it.',
+        'ig_all' => 'All Instagram positions',
         'custom' => 'Custom & lookalike audiences',
         'loading_audiences' => 'Loading audiences…',
         'include' => 'Include',
@@ -210,11 +222,12 @@ return [
         'platforms' => ['facebook' => 'Facebook', 'instagram' => 'Instagram', 'messenger' => 'Messenger', 'audience_network' => 'Audience Network'],
         'positions' => [
             'feed' => 'Feed', 'story' => 'Stories', 'facebook_reels' => 'Reels', 'marketplace' => 'Marketplace', 'video_feeds' => 'Video feeds',
-            'search' => 'Search results', 'stream' => 'Feed', 'reels' => 'Reels', 'explore' => 'Explore',
+            'search' => 'Search results', 'stream' => 'Feed', 'reels' => 'Reels', 'explore' => 'Explore', 'explore_home' => 'Explore home', 'ig_search' => 'Search results',
         ],
         'types' => [
             'interests' => 'Interest', 'behaviors' => 'Behavior', 'demographics' => 'Demographic', 'life_events' => 'Life event', 'industries' => 'Industry',
             'income' => 'Income', 'family_statuses' => 'Family', 'education_statuses' => 'Education', 'relationship_statuses' => 'Relationship',
+            'work_positions' => 'Job title', 'work_employers' => 'Employer', 'education_schools' => 'School', 'education_majors' => 'Field of study',
         ],
     ],
 
@@ -229,6 +242,8 @@ return [
         'page_sub' => 'the ad is posted from',
         'instagram' => 'Instagram account',
         'instagram_sub' => 'for Instagram placements',
+        'instagram_required' => 'the ad is posted from',
+        'no_instagram' => 'No Instagram account is linked to this ad account or your Pages. Link your Instagram professional account to your Facebook Page in Meta Business Settings, then reload.',
         'loading_instagram' => 'Loading Instagram accounts…',
         'page_on_instagram' => 'Facebook Page',
         'page_on_instagram_sub' => 'Shows the Page on Instagram',
@@ -400,6 +415,7 @@ return [
         'placement' => 'Pick at least one placement platform.',
         'creative_existing' => 'Choose an existing creative.',
         'creative_page' => 'Choose the Page the ad runs from.',
+        'instagram' => 'Choose the Instagram account the ad is posted from.',
         'primary' => 'Write the primary text.',
         'cards' => 'Add at least 2 carousel cards.',
         'video' => 'Choose a video.',
@@ -522,6 +538,7 @@ return [
         'age_max' => 'Audience: the maximum age must be at least the minimum age.',
         'creative_id' => 'Creative: choose an existing creative or create a new one.',
         'creative_page' => 'Creative: choose the Facebook Page the ad is posted from.',
+        'creative_instagram' => 'Creative: choose the Instagram account the ad is posted from.',
         'primary_text' => 'Creative: write the primary text.',
         'media' => 'Creative: choose an image or video.',
         'cards_required' => 'Creative: a carousel needs 2 to 10 cards.',
@@ -533,6 +550,12 @@ return [
     // FacebookCampaignBuilder / MetaAdsGraph / MetaApiException
     'server' => [
         'connect_first' => 'Connect a Facebook ad account first.',
+        'work_type' => 'That work or education search type is not supported.',
+        'instagram_destination' => "Instagram ads can't send people to Messenger - choose Instagram Direct or WhatsApp.",
+        'instagram_identity' => 'Choose the Instagram account the ad is posted from.',
+        'instagram_not_owned' => 'That Instagram account is not connected to this ad account or your Pages.',
+        'adset_not_instagram' => "The selected ad set doesn't deliver on Instagram - choose another ad set or create a new one.",
+        'special_zip' => "ZIP / postal code targeting isn't allowed for Special Ad Categories - use cities with a radius instead.",
         'in_progress' => 'This campaign is already being created - wait for it to finish.',
         'internal_error' => 'Something went wrong on our side while saving this step (reference #:ref). Press "Create ad" again - anything already created on Meta is reused, not created twice. If it keeps failing, contact support with the reference.',
         'replayed' => 'This ad was already created - nothing new was submitted.',
