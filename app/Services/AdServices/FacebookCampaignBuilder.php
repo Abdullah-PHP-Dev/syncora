@@ -134,8 +134,20 @@ class FacebookCampaignBuilder
 
     public function instagramAccounts(): array
     {
-        $accounts = collect($this->graph->list($this->graph->actId() . '/instagram_accounts', ['fields' => 'id,username,profile_pic'], 50))
-            ->map(fn ($a) => ['id' => (string) $a['id'], 'username' => $a['username'] ?? null, 'picture' => $a['profile_pic'] ?? null]);
+        // The ad account's Instagram accounts. profile_pic no longer exists on
+        // this edge ("(#100) Tried accessing nonexisting field"); if Meta
+        // refuses the fields, retry plain, and never let this block the list.
+        $edge = [];
+        foreach (['id,username,profile_picture_url', 'id,username'] as $fields) {
+            try {
+                $edge = $this->graph->list($this->graph->actId() . '/instagram_accounts', ['fields' => $fields], 50);
+                break;
+            } catch (MetaApiException $e) {
+                Log::info('Ad account instagram_accounts lookup failed.', ['fields' => $fields, 'error' => $e->getMessage()]);
+            }
+        }
+        $accounts = collect($edge)->filter(fn ($a) => ! empty($a['id']))
+            ->map(fn ($a) => ['id' => (string) $a['id'], 'username' => $a['username'] ?? null, 'picture' => $a['profile_picture_url'] ?? null]);
 
         // Accounts linked to the seller's Pages are also valid identities
         // (instagram_user_id) - the ad-account edge can come back empty
@@ -389,6 +401,10 @@ class FacebookCampaignBuilder
         ]))['data'][0] ?? null;
 
         if (! $data || (! isset($data['estimate_mau_lower_bound']) && ! isset($data['estimate_mau_upper_bound']) && ! isset($data['estimate_mau']))) {
+            return null;
+        }
+        // All-zero bounds = Meta can't size it yet (eg. still computing) - show no estimate rather than "0 - 0".
+        if (! (int) ($data['estimate_mau_upper_bound'] ?? $data['estimate_mau'] ?? 0)) {
             return null;
         }
 

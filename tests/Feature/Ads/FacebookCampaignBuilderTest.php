@@ -80,7 +80,7 @@ class FacebookCampaignBuilderTest extends TestCase
         $this->route('GET act_111/customaudiences', ['data' => [['id' => '880', 'name' => 'Customers', 'subtype' => 'CUSTOM'], ['id' => '881', 'name' => 'Lookalike 1%', 'subtype' => 'LOOKALIKE']]]);
         $this->route('GET act_111/saved_audiences', ['data' => []]);
         // The seller's Instagram identity (instagram_user_id 1784 in input()).
-        $this->route('GET act_111/instagram_accounts', ['data' => [['id' => '1784', 'username' => 'social.eaz', 'profile_pic' => 'https://cdn/ig.jpg']]]);
+        $this->route('GET act_111/instagram_accounts', ['data' => [['id' => '1784', 'username' => 'social.eaz', 'profile_picture_url' => 'https://cdn/ig.jpg']]]);
 
         Http::fake(function (HttpRequest $request) {
             if (str_starts_with($request->url(), 'https://cdn.socialeaz.com/')) {
@@ -771,6 +771,27 @@ class FacebookCampaignBuilderTest extends TestCase
         $other = $this->instagram();
         $other['creative']['instagram_user_id'] = '17841499999999999';
         $this->assertSame('That Instagram account is not connected to this ad account or your Pages.', $b->submit($other, 'key-instagram-fallback2')['message']);
+    }
+
+    public function test_a_refused_instagram_accounts_field_falls_back_instead_of_failing(): void
+    {
+        // Meta: "(#100) Tried accessing nonexisting field (profile_pic)" - the list still loads.
+        $this->route('GET act_111/instagram_accounts', fn ($p) => str_contains($p['fields'], 'profile_picture_url')
+            ? Http::response(['error' => ['message' => '(#100) Tried accessing nonexisting field (profile_picture_url)', 'code' => 100]], 400)
+            : ['data' => [['id' => '1784', 'username' => 'social.eaz']]]);
+
+        $this->assertSame([['id' => '1784', 'username' => 'social.eaz', 'picture' => null]], $this->builder()->instagramAccounts());
+
+        $this->route('GET act_111/instagram_accounts', Http::response(['error' => ['message' => '(#100) Tried accessing nonexisting field (profile_pic)', 'code' => 100]], 400));
+        $this->assertSame([], $this->builder()->instagramAccounts()); // no throw - connected accounts would fill it
+        $this->assertNotContains('profile_pic', collect($this->calls)->pluck('2.fields')->filter()->all());
+    }
+
+    public function test_an_all_zero_estimate_shows_no_estimate(): void
+    {
+        $this->route('GET act_111/delivery_estimate', ['data' => [['estimate_mau_lower_bound' => 0, 'estimate_mau_upper_bound' => 0, 'estimate_ready' => false]]]);
+
+        $this->assertNull($this->builder()->estimate($this->input()));
     }
 
     public function test_an_instagram_identity_from_elsewhere_is_refused_on_facebook_too(): void
