@@ -1,0 +1,138 @@
+@php
+    $team = auth()->user()->isTeamMember();
+    $platforms = [
+        'facebook' => ['Facebook', 'bxl-facebook-circle'],
+        'instagram' => ['Instagram', 'bxl-instagram'],
+        'tiktok' => ['TikTok', 'bxl-tiktok'],
+        'x' => ['X', 'bxl-x-logo'],
+        'snapchat' => ['Snapchat', 'bxl-snapchat'],
+        'google' => ['Google', 'bxl-google'],
+        'youtube' => ['YouTube', 'bxl-youtube'],
+        'linkedin' => ['LinkedIn', 'bxl-linkedin-square'],
+    ];
+    $children = [
+        'admin.posts.dashboard' => [
+            ['admin.posts.dashboard', 'admin.sidebar.overview', 'bx-grid-alt', []],
+            ['admin.posts.composer', 'overview.create_post', 'bx-plus', []],
+            ['admin.posts.index', 'overview.all_posts', 'bx-list-ul', []],
+        ],
+        'admin.ads.dashboard' => [['admin.ads.dashboard', 'admin.sidebar.overview', 'bx-grid-alt', []]],
+        'admin.ai-copilot.analytics.index' => [
+            ['admin.ai-copilot.analytics.index', 'admin.sidebar.analytics', 'bx-bar-chart-alt-2', []],
+            ['admin.ai-copilot.settings.index', 'admin.sidebar.copilot_settings', 'bx-cog', []],
+            ['admin.ai-copilot.business-profile.edit', 'admin.sidebar.business_profile', 'bx-buildings', []],
+            ['admin.knowledge-base.index', 'admin.sidebar.knowledge_base', 'bx-book-open', []],
+            ['admin.ai-copilot.knowledge-gaps.index', 'admin.sidebar.knowledge_gaps', 'bx-help-circle', []],
+        ],
+        'admin.knowledge-base.index' => [
+            ['admin.knowledge-base.index', 'admin.sidebar.knowledge_base', 'bx-book-open', []],
+            ['admin.ai-copilot.knowledge-gaps.index', 'admin.sidebar.knowledge_gaps', 'bx-help-circle', []],
+        ],
+        'employees.index' => [['employees.index', 'overview.sidebar_employees', 'bx-user', []], ['employees.create', 'overview.add_employee', 'bx-user-plus', []]],
+        'plans.index' => [['plans.index', 'overview.sidebar_plans', 'bx-crown', []], ['plans.create', 'overview.create_plan', 'bx-plus', []]],
+    ];
+    if (!$team) {
+        foreach ($platforms as $platform => [$platformLabel, $platformIcon]) {
+            $children['admin.posts.dashboard'][] = ['admin.posts.index', $platformLabel, $platformIcon, ['platform' => $platform]];
+            $children['admin.ads.dashboard'][] = ['admin.ads.campaigns.index', $platformLabel, $platformIcon, ['platform' => $platform]];
+        }
+    }
+    $groups = $team ? [
+        'overview.navigation' => [
+            ['dashboard.overview', 'admin.sidebar.overview', 'bx-grid-alt'],
+            ['dashboard', 'overview.old_dashboard', 'bx-layout'],
+        ],
+        'overview.sidebar_team' => array_merge([
+            ['admin.tickets.index', 'admin.sidebar.tickets', 'bx-headphone'],
+            ['subscribers.index', 'overview.subscribers_total', 'bx-group'],
+        ], auth()->user()->hasRole('admin') ? [
+            ['employees.index', 'overview.sidebar_employees', 'bx-user'],
+            ['plans.index', 'overview.sidebar_plans', 'bx-crown'],
+            ['admin.faqs.index', 'overview.sidebar_faqs', 'bx-book-open'],
+            ['admin.apis.index', 'overview.integrations', 'bx-plug'],
+        ] : []),
+    ] : [
+        'overview.navigation' => [
+            ['dashboard.overview', 'admin.sidebar.overview', 'bx-grid-alt'],
+        ],
+        'admin.sidebar.marketing' => [
+            ['admin.ads.dashboard', 'admin.sidebar.ads', 'bx-bullseye'],
+        ],
+        'overview.sidebar_posts_heading' => [
+            ['admin.posts.dashboard', 'admin.sidebar.posts', 'bx-calendar-edit'],
+        ],
+        'overview.sidebar_workspace' => [
+            ['admin.connections.index', 'admin.sidebar.connections', 'bx-link'],
+            ['admin.media-gallery.index', 'admin.sidebar.media_gallery', 'bx-images'],
+            ['admin.email.dashboard', 'admin.sidebar.email_marketing', 'bx-envelope'],
+        ],
+        'admin.sidebar.engagement' => [
+            ['admin.chats.dashboard', 'admin.sidebar.inbox', 'bx-message-square-dots'],
+            ['admin.comments.dashboard', 'admin.sidebar.comments', 'bx-comment-dots'],
+        ],
+        'admin.sidebar.ai_assistant' => [
+            ['admin.ai-copilot.analytics.index', 'admin.sidebar.ai_copilot', 'bx-brain'],
+        ],
+        'admin.sidebar.support' => [
+            ['admin.help-center.index', 'admin.sidebar.help_center', 'bx-book-reader'],
+            ['admin.tickets.index', 'admin.sidebar.tickets', 'bx-headphone'],
+        ],
+    ];
+@endphp
+<aside id="layout-menu" class="layout-menu menu-vertical admin-sidebar overview-sidebar" aria-label="{{ __('overview.sidebar_navigation') }}">
+    <div class="admin-sidebar-header ov-sidebar-header">
+        <a href="{{ LaravelLocalization::getLocalizedURL(app()->getLocale(), route('dashboard'), [], true) }}" class="admin-sidebar-brand" aria-label="Socialeaz">
+            <img class="admin-sidebar-logo" src="{{ asset('assets/images/home-theme/logo.png') }}" alt="Socialeaz" width="145" height="48">
+            <img class="admin-sidebar-logo-compact" src="{{ asset('assets/images/home-theme/apple-touch-icon.png') }}" alt="Socialeaz" width="34" height="34">
+        </a>
+        <button type="button" class="admin-sidebar-collapse layout-menu-toggle" aria-label="{{ __('admin.navbar.toggle_sidebar') }}" title="{{ __('admin.navbar.toggle_sidebar') }}"><i class="bx bx-chevron-left" aria-hidden="true"></i></button>
+    </div>
+    <div class="ov-sidebar-workspace">
+        <span class="ov-workspace-avatar" aria-hidden="true">{{ mb_strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}</span>
+        <div><strong>{{ __('overview.workspace_label') }}</strong><span>{{ auth()->user()->name }}</span></div>
+        <i class="bx bx-check-shield" aria-hidden="true"></i>
+    </div>
+    <nav class="admin-sidebar-body ov-sidebar-body" aria-label="{{ __('overview.sidebar_navigation') }}">
+        <ul class="menu-inner ov-sidebar-menu">
+            @foreach($groups as $heading => $links)
+                <li class="ov-sidebar-section"><span>{{ __($heading) }}</span></li>
+                @foreach($links as [$destination, $label, $icon])
+                    @php
+                        $active = request()->routeIs($destination);
+                        $submenu = $children[$destination] ?? [];
+                        $submenuId = 'ov-sidebar-'.str_replace('.', '-', $destination);
+                    @endphp
+                    <li class="menu-item {{ $active ? 'active' : '' }} {{ $submenu ? 'ov-sidebar-dropdown' : '' }}">
+                        <a href="{{ route($destination) }}" class="menu-link ov-sidebar-link" data-module="{{ $destination }}" title="{{ __($label) }}" @if($active) aria-current="page" @endif>
+                            <span class="ov-sidebar-icon"><i class="bx {{ $icon }}" aria-hidden="true"></i></span>
+                            <span class="ov-sidebar-label">{{ __($label) }}</span>
+                            @if($active)<span class="ov-sidebar-active-dot" aria-hidden="true"></span>@endif
+                            @if($destination === 'admin.chats.dashboard' && ($unread ?? 0) > 0)<span class="ov-sidebar-badge">{{ $unread > 99 ? '99+' : $unread }}</span>@endif
+                            @if($destination === 'admin.tickets.index' && ($openTickets ?? $ticketCounts['open'] ?? 0) > 0)<span class="ov-sidebar-badge">{{ min(99, $openTickets ?? $ticketCounts['open']) }}</span>@endif
+                        </a>
+                        @if($submenu)
+                            <button type="button" class="ov-sidebar-dropdown-toggle" aria-expanded="false" aria-controls="{{ $submenuId }}" aria-label="{{ __('admin.sidebar.toggle_group', ['name' => __($label)]) }}"><i class="bx bx-chevron-down" aria-hidden="true"></i></button>
+                            <ul id="{{ $submenuId }}" class="ov-sidebar-submenu" hidden>
+                                @foreach($submenu as [$childRoute, $childLabel, $childIcon, $parameters])
+                                    <li>
+                                        <a href="{{ route($childRoute, $parameters) }}" @if(isset($parameters['platform'])) data-platform="{{ $parameters['platform'] }}" @endif>
+                                            <span class="ov-sidebar-subicon" aria-hidden="true"><i class="bx {{ $childIcon }}"></i></span>
+                                            <span>{{ __($childLabel) }}</span>
+                                        </a>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </li>
+                @endforeach
+            @endforeach
+        </ul>
+    </nav>
+    <div class="admin-sidebar-footer ov-sidebar-footer">
+        @unless($team)
+            <a class="ov-sidebar-plan" href="{{ route('admin.subscription.select') }}" title="{{ __('admin.sidebar.manage_your_plan') }}"><span class="ov-plan-icon"><i class="bx bx-crown" aria-hidden="true"></i></span><div><strong>{{ __('overview.sidebar_plan_title') }}</strong><small>{{ __('admin.sidebar.manage_your_plan') }}</small></div><i class="bx bx-arrow-back ov-plan-arrow" aria-hidden="true"></i></a>
+        @endunless
+        @unless($team)<a class="ov-sidebar-legacy" href="{{ route('dashboard') }}" title="{{ __('overview.old_dashboard') }}"><i class="bx bx-arrow-back" aria-hidden="true"></i><span>{{ __('overview.old_dashboard') }}</span></a>@endunless
+    </div>
+</aside>
+<script src="{{ asset('assets/js/overview-sidebar.js') }}?v={{ filemtime(public_path('assets/js/overview-sidebar.js')) }}" defer></script>

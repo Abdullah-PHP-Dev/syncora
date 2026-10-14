@@ -72,7 +72,7 @@
     border-radius: 11px;
 
     background: #fff;
-    color: #52525b;
+    color: #626498;
 
     font-size: 20px;
 
@@ -88,7 +88,7 @@
 .admin-menu-toggle:hover {
     background: #f8f8fa;
     border-color: #d4d4d8;
-    color: #7c3aed;
+    color: #720aff;
 
     transform: translateY(-1px);
 }
@@ -135,7 +135,7 @@
 
     background: #fff;
 
-    color: #71717a;
+    color: #626498;
 
     font-size: 17px;
 
@@ -161,7 +161,7 @@
 
     background: transparent !important;
 
-    color: #18181b;
+    color: #09072d;
 
     font-size: 13px;
     font-weight: 500;
@@ -212,7 +212,7 @@
 }
 
 .admin-search:hover > i {
-    color: #7c3aed;
+    color: #720aff;
 }
 
 .admin-search:focus-within {
@@ -220,21 +220,21 @@
 
     background: #fff;
 
-    border-color: #ddd6fe;
+    border-color: #d9d9f5;
 
     box-shadow:
             0 0 0 3px rgba(124,58,237,.05);
 }
 
 .admin-search:focus-within > i {
-    background: #f3e8ff;
-    color: #7c3aed;
+    background: #f1e6ff;
+    color: #720aff;
 }
 
 .admin-search:focus-within .admin-search-shortcut {
-    border-color: #ddd6fe;
-    background: #faf5ff;
-    color: #7c3aed;
+    border-color: #d9d9f5;
+    background: #f8f6ff;
+    color: #720aff;
 }
 
 
@@ -266,8 +266,8 @@
 }
 
 .admin-subscription-status:hover {
-    background: #faf5ff;
-    border-color: #ddd6fe;
+    background: #f8f6ff;
+    border-color: #d9d9f5;
 
     transform: translateY(-1px);
 }
@@ -312,8 +312,8 @@
 
     border-radius: 8px;
 
-    background: #f3e8ff;
-    color: #7c3aed;
+    background: #f1e6ff;
+    color: #720aff;
 
     font-size: 15px;
 }
@@ -326,7 +326,7 @@
 }
 
 .admin-subscription-plan {
-    color: #27272a;
+    color: #09072d;
 
     font-size: 11px;
     font-weight: 800;
@@ -342,7 +342,7 @@
 }
 
 .admin-subscription-status.is-free .admin-subscription-plan {
-    color: #7c3aed;
+    color: #720aff;
 }
 
 
@@ -366,7 +366,7 @@
     border-radius: 11px;
 
     background: #fff;
-    color: #52525b;
+    color: #626498;
 
     font-size: 19px;
 
@@ -382,7 +382,7 @@
 .admin-navbar-icon:hover {
     background: #f8f8fa;
     border-color: #d4d4d8;
-    color: #7c3aed;
+    color: #720aff;
 
     transform: translateY(-1px);
 }
@@ -424,7 +424,7 @@
 
     border-radius: 9px;
 
-    color: #52525b !important;
+    color: #626498 !important;
 
     font-size: 12px;
     font-weight: 600;
@@ -432,7 +432,7 @@
 
 .admin-language-item:hover {
     background: #f5f3ff !important;
-    color: #7c3aed !important;
+    color: #720aff !important;
 }
 
 .admin-language-flag {
@@ -446,7 +446,7 @@
 .admin-language-check {
     margin-left: auto;
 
-    color: #7c3aed;
+    color: #720aff;
 
     font-size: 16px;
 }
@@ -472,7 +472,7 @@
     border: 2px solid #fff;
     border-radius: 50%;
 
-    background: #7c3aed;
+    background: #720aff;
 
     box-shadow:
             0 0 0 2px rgba(124,58,237,.12);
@@ -576,7 +576,7 @@
 
     overflow: hidden;
 
-    color: #18181b;
+    color: #09072d;
 
     font-size: 12px;
     font-weight: 800;
@@ -646,7 +646,7 @@
 }
 
 .admin-dropdown-name {
-    color: #18181b;
+    color: #09072d;
 
     font-size: 13px;
     font-weight: 800;
@@ -690,7 +690,7 @@
 
     border-radius: 10px;
 
-    color: #52525b !important;
+    color: #626498 !important;
 
     font-size: 12px;
     font-weight: 600;
@@ -702,7 +702,7 @@
 
 .admin-dropdown-item:hover {
     background: #f5f3ff !important;
-    color: #7c3aed !important;
+    color: #720aff !important;
 }
 
 
@@ -724,7 +724,7 @@
 
     background: #f4f4f5;
 
-    color: #71717a;
+    color: #626498;
 
     font-size: 16px;
 
@@ -734,8 +734,8 @@
 }
 
 .admin-dropdown-item:hover .admin-dropdown-icon {
-    background: #ede9fe;
-    color: #7c3aed;
+    background: #f1eaff;
+    color: #720aff;
 }
 
 
@@ -854,7 +854,7 @@
 
         background: #fff;
 
-        border-color: #ddd6fe;
+        border-color: #d9d9f5;
 
         box-shadow:
                 0 0 0 3px rgba(124,58,237,.05);
@@ -983,7 +983,7 @@
 
     background: #f4f1ff;
 
-    color: #7c3aed;
+    color: #720aff;
 
     font-size: 18px;
 }
@@ -994,7 +994,7 @@
 
     overflow: hidden;
 
-    color: #18181b;
+    color: #09072d;
 
     font-size: 16px;
     font-weight: 800;
@@ -1037,7 +1037,7 @@
 .premium-sidebar-collapse:hover {
     background: #f5f5f7;
 
-    color: #7c3aed;
+    color: #720aff;
 }
 
 
@@ -1118,7 +1118,7 @@
 
     background: #f0ecff;
 
-    color: #7c3aed;
+    color: #720aff;
 
     font-size: 17px;
 }
@@ -1134,7 +1134,7 @@
 .premium-workspace-name {
     overflow: hidden;
 
-    color: #27272a;
+    color: #09072d;
 
     font-size: 11px;
     font-weight: 800;
@@ -1254,7 +1254,7 @@
 
     border-radius: 11px;
 
-    color: #52525b !important;
+    color: #626498 !important;
 
     font-size: 12px;
     font-weight: 400;
@@ -1270,7 +1270,7 @@
 .premium-menu-link:hover {
     background: #f8f8fa !important;
 
-    color: #18181b !important;
+    color: #09072d !important;
 }
 
 
@@ -1294,7 +1294,7 @@
 
     background: #f6f6f8;
 
-    color: #71717a;
+    color: #626498;
 
     font-size: 17px;
 
@@ -1308,7 +1308,7 @@
 .premium-menu-link:hover .premium-menu-icon {
     background: #f0ecff;
 
-    color: #7c3aed;
+    color: #720aff;
 
     transform: translateY(-1px);
 }
@@ -1336,7 +1336,7 @@
 .premium-menu-item.active > .premium-menu-link {
     background: #f4f1ff !important;
 
-    color: #6d28d9 !important;
+    color: #6008ff !important;
 
     font-weight: 700;
 }
@@ -1355,12 +1355,12 @@
 
     border-radius: 0 4px 4px 0;
 
-    background: #7c3aed;
+    background: #720aff;
 }
 
 
 .premium-menu-item.active > .premium-menu-link .premium-menu-icon {
-    background: #7c3aed;
+    background: #720aff;
 
     color: #ffffff;
 
@@ -1389,7 +1389,7 @@
 
     background: #f0ecff;
 
-    color: #7c3aed;
+    color: #720aff;
 
     font-size: 9px;
     font-weight: 800;
@@ -1423,7 +1423,7 @@
 
     border-radius: 8px;
 
-    color: #71717a !important;
+    color: #626498 !important;
 
     font-size: 11px;
     font-weight: 600;
@@ -1437,14 +1437,14 @@
 .premium-submenu .menu-link:hover {
     background: #fafafa !important;
 
-    color: #7c3aed !important;
+    color: #720aff !important;
 }
 
 
 .premium-submenu .menu-item.active > .menu-link {
     background: #fafafa !important;
 
-    color: #7c3aed !important;
+    color: #720aff !important;
 
     font-weight: 700;
 }
@@ -1460,7 +1460,7 @@
 
     border-radius: 50%;
 
-    background: #7c3aed;
+    background: #720aff;
 }
 
 
@@ -1478,7 +1478,7 @@
 
 
 .premium-menu-item.open > .premium-menu-link.menu-toggle::after {
-    color: #7c3aed !important;
+    color: #720aff !important;
 }
 
 
@@ -1548,7 +1548,7 @@
 .premium-subscription:hover {
     background: #ffffff;
 
-    border-color: #ddd6fe;
+    border-color: #d9d9f5;
 
     box-shadow:
             0 5px 15px rgba(15, 23, 42, .04);
@@ -1569,7 +1569,7 @@
 
     background: #f4f1ff;
 
-    color: #7c3aed;
+    color: #720aff;
 
     font-size: 17px;
 }
@@ -1583,7 +1583,7 @@
 
 
 .premium-subscription-title {
-    color: #27272a;
+    color: #09072d;
 
     font-size: 10px;
     font-weight: 800;
@@ -1646,7 +1646,7 @@
 .premium-footer-links a:hover {
     background: #f5f5f7;
 
-    color: #7c3aed;
+    color: #720aff;
 }
 
 
@@ -1845,7 +1845,7 @@
 
 .premium-brand-name {
     margin-left: 10px;
-    color: #18181b;
+    color: #09072d;
     font-size: 15px;
     font-weight: 700;
     letter-spacing: -.02em;
@@ -1867,7 +1867,7 @@
     border: 1px solid #e6e8ee;
     border-radius: 9px;
     background: #ffffff;
-    color: #71717a;
+    color: #626498;
     font-size: 18px;
     transition: all .2s ease;
 }
@@ -2293,14 +2293,20 @@
 
     gap: 10px;
 
-    color: #18181b;
+    color: #09072d;
 
     text-decoration: none;
 }
 
 .admin-sidebar-brand:hover {
-    color: #18181b;
+    color: #09072d;
 }
+
+.admin-sidebar-logo { width: 145px; max-width: 100%; height: auto; object-fit: contain; }
+.admin-sidebar-logo-compact { display: none; width: 34px; height: 34px; object-fit: contain; }
+.layout-menu-collapsed .admin-sidebar-logo { display: none; }
+.layout-menu-collapsed .admin-sidebar-logo-compact { display: block; }
+.admin-footer-logo { width: 105px; height: auto; object-fit: contain; }
 
 .admin-sidebar-brand-icon {
     width: 34px;
@@ -2327,7 +2333,7 @@
 .admin-sidebar-brand-name {
     overflow: hidden;
 
-    color: #18181b;
+    color: #09072d;
 
     font-size: 15px;
     font-weight: 700;
@@ -2349,7 +2355,7 @@
     align-items: center;
     justify-content: center;
 
-    margin-left: auto;
+    margin-inline-start: auto;
 
     padding: 0;
 
@@ -2358,7 +2364,7 @@
 
     background: transparent;
 
-    color: #71717a;
+    color: #626498;
 
     font-size: 18px;
 
@@ -2370,7 +2376,15 @@
 .admin-sidebar-collapse:hover {
     background: #f1f5f9;
 
-    color: #18181b;
+    color: #09072d;
+}
+
+.admin-sidebar-collapse .bx-chevron-left {
+    transform: rotate(0deg);
+}
+
+.layout-menu-collapsed .admin-sidebar-collapse .bx-chevron-left {
+    transform: rotate(180deg);
 }
 
 
@@ -2481,7 +2495,7 @@
 
     border-radius: 9px;
 
-    color: #52525b;
+    color: #626498;
 
     font-size: 13px;
     font-weight: 500;
@@ -2510,7 +2524,7 @@
 
     margin: 0;
 
-    color: #71717a;
+    color: #626498;
 
     font-size: 18px;
 
@@ -2525,11 +2539,11 @@
 .admin-sidebar-menu > .menu-item > .menu-link:hover {
     background: #f1f5f9;
 
-    color: #18181b;
+    color: #09072d;
 }
 
 .admin-sidebar-menu > .menu-item > .menu-link:hover .menu-icon {
-    color: #52525b;
+    color: #626498;
 }
 
 
@@ -2538,15 +2552,15 @@
 ========================================================= */
 
 .admin-sidebar-menu > .menu-item.active > .menu-link {
-    background: #ede9fe;
+    background: #f1eaff;
 
-    color: #6d28d9;
+    color: #6008ff;
 
     font-weight: 600;
 }
 
 .admin-sidebar-menu > .menu-item.active > .menu-link .menu-icon {
-    color: #7c3aed;
+    color: #720aff;
 }
 
 
@@ -2592,7 +2606,7 @@
 
     border-radius: 7px;
 
-    color: #71717a;
+    color: #626498;
 
     font-size: 12px;
     font-weight: 400;
@@ -2607,13 +2621,13 @@
 .admin-sidebar-menu .menu-sub .menu-link:hover {
     background: #f1f5f9;
 
-    color: #18181b;
+    color: #09072d;
 }
 
 .admin-sidebar-menu .menu-sub .menu-item.active > .menu-link {
     background: transparent;
 
-    color: #7c3aed;
+    color: #720aff;
 
     font-weight: 600;
 }
@@ -2680,7 +2694,7 @@
 .admin-nav-chevron:hover {
     background: rgba(24, 24, 27, .06);
 
-    color: #52525b;
+    color: #626498;
 }
 
 .admin-nav-chevron:focus-visible {
@@ -2697,7 +2711,7 @@
 }
 
 .admin-nav-group.active > .admin-nav-chevron {
-    color: #7c3aed;
+    color: #720aff;
 }
 
 /* Height animation via grid rows: 0fr -> 1fr animates to the list's
@@ -2776,7 +2790,7 @@
 
     border-radius: 7px;
 
-    color: #71717a;
+    color: #626498;
 
     font-size: 12.5px;
     font-weight: 400;
@@ -2804,23 +2818,23 @@
 .admin-nav-sub a:hover {
     background: #f1f5f9;
 
-    color: #18181b;
+    color: #09072d;
 }
 
 .admin-nav-sub a:hover i {
-    color: #71717a;
+    color: #626498;
 }
 
 .admin-nav-sub li.active > a {
     background: #f5f3ff;
 
-    color: #6d28d9;
+    color: #6008ff;
 
     font-weight: 600;
 }
 
 .admin-nav-sub li.active > a i {
-    color: #7c3aed;
+    color: #720aff;
 }
 
 /* Dot on the guide line next to the current page. */
@@ -2839,7 +2853,7 @@
 
     border-radius: 50%;
 
-    background: #7c3aed;
+    background: #720aff;
 
     box-shadow: 0 0 0 3px #fff;
 }
@@ -2924,7 +2938,7 @@
 
     background: #ffffff;
 
-    color: #52525b;
+    color: #626498;
 
     text-decoration: none;
 
@@ -2938,7 +2952,7 @@
 
     border-color: #d4d4d8;
 
-    color: #18181b;
+    color: #09072d;
 }
 
 .admin-sidebar-subscription > .bx-crown {
@@ -2955,7 +2969,7 @@
 
     background: #f5f3ff;
 
-    color: #7c3aed;
+    color: #720aff;
 
     font-size: 16px;
 }
@@ -3017,7 +3031,7 @@
 .layout-menu-collapsed .admin-sidebar-collapse {
     position: absolute;
 
-    right: -12px;
+    inset-inline-end: -12px;
 
     width: 24px;
     height: 24px;
@@ -3090,6 +3104,14 @@
     margin-right: auto;
 }
 
+[dir="rtl"] .admin-sidebar-collapse .bx-chevron-left {
+    transform: rotate(180deg);
+}
+
+[dir="rtl"].layout-menu-collapsed .admin-sidebar-collapse .bx-chevron-left {
+    transform: rotate(0deg);
+}
+
 [dir="rtl"] .admin-sidebar-menu .menu-sub {
     padding-left: 0;
     padding-right: 31px;
@@ -3144,7 +3166,7 @@
 
     gap: 8px;
 
-    color: #27272a;
+    color: #09072d;
 
     font-size: 12px;
     font-weight: 700;
@@ -3165,7 +3187,7 @@
 
     background: #f4f4f5;
 
-    color: #52525b;
+    color: #626498;
 
     font-size: 10px;
     font-weight: 800;
@@ -3225,7 +3247,7 @@
 
     gap: 5px;
 
-    color: #71717a;
+    color: #626498;
 
     font-size: 11px;
     font-weight: 500;
@@ -3241,7 +3263,7 @@
 }
 
 .admin-footer-link:hover {
-    color: #7c3aed;
+    color: #720aff;
 }
 
 
@@ -3255,7 +3277,7 @@
 
     gap: 6px;
 
-    color: #71717a;
+    color: #626498;
 
     white-space: nowrap;
 }

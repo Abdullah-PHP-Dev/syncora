@@ -1,0 +1,69 @@
+/* Homepage palette shared by every authenticated page, including RTL. */
+:root {
+    --bs-primary: #720aff;
+    --bs-primary-rgb: 114, 10, 255;
+    --bs-primary-bg-subtle: #f1eaff;
+    --bs-primary-border-subtle: #d9d9f5;
+    --bs-primary-text-emphasis: #6008ff;
+    --bs-body-color: #09072d;
+    --bs-heading-color: #09072d;
+    --bs-secondary-color: #626498;
+    --bs-border-color: #edf0fa;
+    --bs-link-color: #720aff;
+    --bs-link-hover-color: #6008ff;
+    --bs-body-bg: #f8f9ff;
+}
+.socialeaz-app {
+    --theme-ink: #09072d;
+    --theme-muted: #626498;
+    --theme-blue: #064bff;
+    --theme-purple: #720aff;
+    --theme-gradient: linear-gradient(110deg, #004cff, #710bff);
+    background: var(--bs-body-bg);
+    color: var(--theme-ink);
+}
+.socialeaz-app .socialeaz-dash {
+    --dash-bg: #f8f9ff;
+    --dash-card-hover: #f8f6ff;
+    --dash-border: #edf0fa;
+    --dash-text: #626498;
+    --dash-heading: #09072d;
+    --dash-muted: #626498;
+    --dash-primary: #064bff;
+    --dash-primary-2: #720aff;
+}
+.socialeaz-app .btn-primary {
+    --bs-btn-bg: #064bff;
+    --bs-btn-border-color: #5556ff;
+    --bs-btn-hover-bg: #6008ff;
+    --bs-btn-hover-border-color: #6008ff;
+    --bs-btn-active-bg: #6008ff;
+    --bs-btn-active-border-color: #6008ff;
+    --bs-btn-disabled-bg: #064bff;
+    --bs-btn-disabled-border-color: #5556ff;
+    --bs-btn-focus-shadow-rgb: 114, 10, 255;
+    background-image: var(--theme-gradient);
+    color: #fff;
+    box-shadow: 0 4px 12px #360bff24;
+}
+.socialeaz-app .btn-outline-primary { color: var(--theme-purple); border-color: var(--theme-purple); }
+.socialeaz-app .btn-outline-primary:is(:hover, :active, .active) { background: var(--theme-gradient); color: #fff; border-color: #5556ff; }
+.socialeaz-app .text-primary { color: var(--theme-purple) !important; }
+.socialeaz-app .bg-primary { background-color: var(--theme-purple) !important; }
+.socialeaz-app .bg-label-primary, .socialeaz-app .badge.bg-label-primary { background: #f1eaff !important; color: #6008ff !important; }
+.socialeaz-app .admin-sidebar-menu > .menu-item.active > .menu-link,
+.socialeaz-app .admin-sidebar-menu .menu-sub .menu-item.active > .menu-link { background: #f1eaff; color: var(--theme-purple); }
+.socialeaz-app .nav-pills .nav-link.active,
+.socialeaz-app .page-item.active .page-link,
+.socialeaz-app .form-check-input:checked { background-color: var(--theme-purple); border-color: var(--theme-purple); color: #fff; }
+.socialeaz-app .form-control:focus, .socialeaz-app .form-select:focus { border-color: var(--theme-purple); box-shadow: 0 0 0 .2rem #720aff18; }
+.socialeaz-app .socialeaz-dash .dash-btn-primary { background: var(--theme-gradient); box-shadow: 0 4px 12px #360bff24; }
+.socialeaz-app .socialeaz-dash .email-hero { background: var(--theme-gradient); }
+.socialeaz-app .socialeaz-dash .email-hero .dash-btn-primary { background: #fff; color: #6008ff; }
+.socialeaz-app .progress-bar { background-color: var(--theme-blue); }
+.socialeaz-app .card, .socialeaz-app .admin-navbar, .socialeaz-app .admin-sidebar-header { border-color: #edf0fa; }
+@media (min-width: 1200px) {
+    .layout-menu-fixed .socialeaz-app .layout-page { padding-inline-start: 260px; }
+    .layout-menu-fixed.layout-menu-collapsed .socialeaz-app .layout-page { padding-inline-start: 72px; }
+    .layout-menu-collapsed .socialeaz-app .admin-sidebar { width: 72px; inline-size: 72px; }
+}

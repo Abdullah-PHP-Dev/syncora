@@ -5,15 +5,10 @@
     ========================================================== --}}
     <div class="admin-sidebar-header">
 
-        <a href="{{ url('/') }}" class="admin-sidebar-brand">
+        <a href="{{ LaravelLocalization::getLocalizedURL(app()->getLocale(), route('dashboard'), [], true) }}" class="admin-sidebar-brand">
 
-            <span class="admin-sidebar-brand-icon">
-                <img src="{{ asset('assets/img/logo/socialeaz-logo-64.png') }}" alt="{{ config('app.name') }}">
-            </span>
-
-            <span class="admin-sidebar-brand-name">
-                {{ config('app.name') }}
-            </span>
+            <img class="admin-sidebar-logo" src="{{ asset('assets/images/home-theme/logo.png') }}" alt="Socialeaz" width="145" height="48">
+            <img class="admin-sidebar-logo-compact" src="{{ asset('assets/images/home-theme/apple-touch-icon.png') }}" alt="Socialeaz" width="34" height="34">
 
         </a>
 
@@ -33,6 +28,7 @@
         <ul class="menu-inner admin-sidebar-menu">
             @php
                 $links = [
+                    ['dashboard.overview', 'overview.title', 'bx-bar-chart-alt-2', 'dashboard.overview'],
                     ['dashboard', 'Dashboard', 'bx-grid-alt', 'dashboard'],
                     ['subscribers.index', 'Subscribers', 'bx-group', 'subscribers.*'],
                     ['admin.tickets.index', 'Support tickets', 'bx-support', 'admin.tickets.*'],

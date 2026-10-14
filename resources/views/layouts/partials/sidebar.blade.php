@@ -5,15 +5,10 @@
     ========================================================== --}}
     <div class="admin-sidebar-header">
 
-        <a href="{{ url('/') }}" class="admin-sidebar-brand">
+        <a href="{{ LaravelLocalization::getLocalizedURL(app()->getLocale(), route('dashboard'), [], true) }}" class="admin-sidebar-brand">
 
-            <span class="admin-sidebar-brand-icon">
-                <img src="{{ asset('assets/img/logo/socialeaz-logo-64.png') }}" alt="{{ config('app.name') }}">
-            </span>
-
-            <span class="admin-sidebar-brand-name">
-                {{ config('app.name') }}
-            </span>
+            <img class="admin-sidebar-logo" src="{{ asset('assets/images/home-theme/logo.png') }}" alt="Socialeaz" width="145" height="48">
+            <img class="admin-sidebar-logo-compact" src="{{ asset('assets/images/home-theme/apple-touch-icon.png') }}" alt="Socialeaz" width="34" height="34">
 
         </a>
 
@@ -35,6 +30,12 @@
         <ul class="menu-inner admin-sidebar-menu">
 
             {{-- DASHBOARD --}}
+            <li class="menu-item {{ request()->routeIs('dashboard.overview') ? 'active' : '' }}">
+                <a href="{{ route('dashboard.overview') }}" class="menu-link">
+                    <i class="menu-icon tf-icons bx bx-bar-chart-alt-2"></i>
+                    <span>{{ app()->getLocale() === 'ar' ? 'نظرة عامة' : 'Overview' }}</span>
+                </a>
+            </li>
             <li class="menu-item {{ request()->routeIs('dashboard', 'crm-dashboard') ? 'active' : '' }}">
                 <a href="{{ route('dashboard') }}" class="menu-link">
                     <i class="menu-icon tf-icons bx bx-grid-alt"></i>

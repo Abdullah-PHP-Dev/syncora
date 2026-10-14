@@ -6,13 +6,7 @@
         <div class="admin-footer-left">
 
             <div class="admin-footer-brand">
-                <span class="admin-footer-brand-icon">
-                    <img src="{{ asset('assets/img/logo/socialeaz-logo-32.png') }}" alt="{{ config('app.name') }}">
-                </span>
-
-                <span class="admin-footer-brand-name">
-                    {{ config('app.name') }}
-                </span>
+                <img class="admin-footer-logo" src="{{ asset('assets/images/home-theme/logo.png') }}" alt="Socialeaz" width="105" height="35">
             </div>
 
             <span class="admin-footer-divider"></span>

@@ -189,6 +189,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 	Route::middleware(['auth', 'active.user'])->group(function () {
         Route::get('/dashboard', [\App\Http\Controllers\Admin\DashboardController::class, 'dashboard'])->name('dashboard');
+        Route::get('/dashboard/overview', [\App\Http\Controllers\Admin\DashboardController::class, 'overview'])->name('dashboard.overview');
 
         Route::middleware('role:admin')->group(function () {
             Route::resource('employees', \App\Http\Controllers\Team\EmployeeController::class)->except(['show', 'destroy']);

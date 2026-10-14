@@ -7,7 +7,7 @@
 
         <!-- Desktop Sidebar Toggle -->
         <button type="button"
-                class="admin-menu-toggle d-none d-xl-flex"
+                class="admin-menu-toggle layout-menu-toggle d-none d-xl-flex"
                 id="adminSidebarToggle"
                 aria-label="{{ __('admin.navbar.toggle_sidebar') }}"
                 title="{{ __('admin.navbar.toggle_sidebar') }}">
@@ -16,10 +16,9 @@
 
         <!-- Mobile Menu -->
         <button type="button"
-                class="admin-menu-toggle d-xl-none"
+                class="admin-menu-toggle layout-menu-toggle d-xl-none"
                 aria-label="{{ __('admin.navbar.open_menu') }}"
-                data-bs-toggle="offcanvas"
-                data-bs-target="#layout-menu">
+                aria-controls="layout-menu">
             <i class="bx bx-menu"></i>
         </button>
 
@@ -237,6 +236,7 @@
 
                     <span class="admin-user-role">
                         {{ auth()->user()->hasRole('admin') ? __('Team administrator') : (auth()->user()->hasRole('customer_support') ? __('Customer support') : __('Seller')) }}
+                        | {{ __('overview.user_id') }}: <bdi>{{ auth()->id() }}</bdi>
                     </span>
 
                 </div>
