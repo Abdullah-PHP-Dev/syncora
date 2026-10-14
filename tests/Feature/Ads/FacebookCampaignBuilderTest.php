@@ -757,6 +757,37 @@ class FacebookCampaignBuilderTest extends TestCase
         $this->assertSame(['reels'], $this->posts('act_111/adsets')[1][2]['targeting']['instagram_positions']);
     }
 
+    public function test_instagram_carousel_sends_its_placements_and_cards(): void
+    {
+        $input = $this->instagram(['creative' => ['format' => 'CAROUSEL', 'media' => [], 'cards' => [
+            ['asset_id' => 1, 'headline' => 'Card one', 'link' => 'https://socialeaz.com/one'],
+            ['asset_id' => 3, 'headline' => 'Card two'],
+        ]]]);
+        $input['adset']['placements'] = ['mode' => 'manual', 'publisher_platforms' => ['instagram'], 'instagram_positions' => ['stream', 'story', 'explore_home'], 'device_platforms' => ['mobile']];
+
+        $this->assertSame([], $this->requestErrors(['idempotency_key' => 'key-ig-carousel-v01'] + $input));
+        $result = $this->builder()->submit($input, 'key-ig-carousel-0001');
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+
+        // Ad set: Instagram only, exactly the chosen positions, mobile.
+        $t = $this->posts('act_111/adsets')[0][2]['targeting'];
+        $this->assertSame(['instagram'], $t['publisher_platforms']);
+        $this->assertEqualsCanonicalizing(['stream', 'story', 'explore_home'], $t['instagram_positions']);
+        $this->assertSame(['mobile'], $t['device_platforms']);
+
+        // Creative: carousel cards with their own images/links, Instagram identity.
+        $story = $this->posts('act_111/adcreatives')[0][2]['object_story_spec'];
+        $this->assertSame(['500', '1784'], [$story['page_id'], $story['instagram_user_id']]);
+        $cards = $story['link_data']['child_attachments'];
+        $this->assertCount(2, $cards);
+        $this->assertSame(['https://socialeaz.com/one', 'https://socialeaz.com/sale'], array_column($cards, 'link')); // card 2 uses the ad's link
+        $this->assertSame(['HASH1', 'HASH1'], array_column($cards, 'image_hash'));
+        $this->assertSame(['Card one', 'Card two'], array_column($cards, 'name'));
+        // Each card's button follows the card: card one -> its own link, card two -> the ad's link.
+        $this->assertSame(['https://socialeaz.com/one', 'https://socialeaz.com/sale'], array_map(fn ($c) => $c['call_to_action']['value']['link'], $cards));
+        $this->assertCount(2, $this->posts('act_111/adimages'));
+    }
+
     public function test_instagram_all_positions_when_none_picked(): void
     {
         $input = $this->instagram();

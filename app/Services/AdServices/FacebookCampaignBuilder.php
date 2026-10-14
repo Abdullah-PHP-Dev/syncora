@@ -965,7 +965,8 @@ class FacebookCampaignBuilder
                     'image_hash' => $this->uploadImage($run, $this->asset($card['asset_id'] ?? null, 'image')),
                     'name' => $card['headline'] ?? null,
                     'description' => $card['description'] ?? null,
-                    'call_to_action' => $cta,
+                    // Each card's button goes where the card goes (its own link, else the ad's).
+                    'call_to_action' => $this->cardCallToAction($cta, $card['link'] ?? null),
                 ]), $cards),
             ]);
         } else {
@@ -1037,6 +1038,16 @@ class FacebookCampaignBuilder
             ]
         );
         $this->creativeMedia[] = $media->id;
+    }
+
+    /** A carousel card's CTA: the ad's CTA, pointing at the card's own link when it has one. */
+    private function cardCallToAction(?array $cta, ?string $cardLink): ?array
+    {
+        if ($cta && $cardLink && isset($cta['value']['link'])) {
+            $cta['value']['link'] = $cardLink;
+        }
+
+        return $cta;
     }
 
     /** CTA with the value Meta needs for the destination (message apps, lead forms, links). */
