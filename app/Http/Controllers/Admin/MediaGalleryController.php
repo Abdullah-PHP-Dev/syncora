@@ -66,8 +66,8 @@ class MediaGalleryController extends Controller
             'file'      => ['required', 'file'],
             'thumbnail' => ['nullable', 'file'],
         ], [
-            'file.required' => 'Choose a file to upload.',
-            'file.file'     => 'The upload failed - the file may be larger than the server allows.',
+            'file.required' => __('media_gallery.server.choose_file'),
+            'file.file'     => __('media_gallery.server.too_large'),
         ]);
 
         $asset = $this->media->store($request->file('file'), Auth::id(), $request->file('thumbnail'));
@@ -75,7 +75,7 @@ class MediaGalleryController extends Controller
         return response()->json([
             'success' => true,
             'media'   => $asset,
-            'message' => '"' . $asset->original_name . '" uploaded.',
+            'message' => __('media_gallery.server.uploaded', ['name' => $asset->original_name]),
         ]);
     }
 

@@ -60,6 +60,17 @@ class MediaAsset extends Model
      * file - every *PostService::store() reads $data['uploaded_media'] in
      * this shape, so a gallery asset slots in with no re-upload.
      */
+    /** JSON for the gallery / pickers: compatibility issues in the current locale. */
+    public function toArray(): array
+    {
+        $data = parent::toArray();
+        if (array_key_exists('compatibility', $data)) {
+            $data['compatibility'] = \App\Support\MediaCompatibility::localize($data['compatibility']);
+        }
+
+        return $data;
+    }
+
     public function toUploadedMedia(): array
     {
         return [

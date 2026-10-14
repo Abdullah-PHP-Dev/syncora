@@ -223,6 +223,50 @@ class MediaCompatibility
         return ['ok' => $issues === [], 'issues' => $issues];
     }
 
+    /**
+     * Issues are stored in English (canonical text, see evaluate()); this
+     * shows them in the current locale (lang/{en,ar}/media_gallery.php
+     * issues.*). Unknown text is returned as it is.
+     *
+     * @param  array<string, array{ok: bool, issues: array<int, string>}>  $compatibility
+     */
+    public static function localize(?array $compatibility): ?array
+    {
+        if (! $compatibility || app()->getLocale() === 'en') {
+            return $compatibility;
+        }
+
+        foreach ($compatibility as $platform => $result) {
+            $compatibility[$platform]['issues'] = array_map([self::class, 'localizeIssue'], $result['issues'] ?? []);
+        }
+
+        return $compatibility;
+    }
+
+    public static function localizeIssue(string $issue): string
+    {
+        $t = fn (string $key, array $params = []) => __("media_gallery.issues.{$key}", $params);
+        $duration = fn (string $v) => match (true) {
+            (bool) preg_match('/^(\d+(?:\.\d+)?) min$/', $v, $m) => $t('minutes', ['count' => $m[1]]),
+            (bool) preg_match('/^(\d+)s$/', $v, $m) => __('media_gallery.seconds', ['count' => $m[1]]),
+            default => $v,
+        };
+
+        return match (true) {
+            (bool) preg_match('/^Needs (\S+) format\.$/', $issue, $m) => $t('format', ['formats' => $m[1]]),
+            (bool) preg_match('/^Max file size is ([\d.]+) MB\.$/', $issue, $m) => $t('max_size', ['mb' => $m[1]]),
+            $issue === 'Needs a vertical 9:16 aspect ratio.' => $t('vertical'),
+            $issue === 'Aspect ratio must be between 4:5 and 1.91:1.' => $t('ratio'),
+            (bool) preg_match('/^Needs at least (\d+)px width\.$/', $issue, $m) => $t('min_width', ['px' => $m[1]]),
+            (bool) preg_match('/^Shortest side must be at least (\d+)px\.$/', $issue, $m) => $t('min_side', ['px' => $m[1]]),
+            (bool) preg_match('/^Must be at least ([\d.]+)s long\.$/', $issue, $m) => $t('min_length', ['seconds' => $m[1]]),
+            (bool) preg_match('/^Must be (.+) or shorter\.$/', $issue, $m) => $t('max_length', ['duration' => $duration($m[1])]),
+            (bool) preg_match('/^Needs (\S+) video encoding\.$/', $issue, $m) => $t('codec', ['codecs' => $m[1]]),
+            (bool) preg_match("/^(.+) doesn't accept (images|videos)\\.$/", $issue, $m) => $t($m[2] === 'images' ? 'no_images' : 'no_videos', ['platform' => $m[1]]),
+            default => $issue,
+        };
+    }
+
     private static function formatList(array $formats): string
     {
         return strtoupper(implode('/', $formats));

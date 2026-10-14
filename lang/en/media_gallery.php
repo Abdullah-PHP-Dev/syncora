@@ -1,0 +1,100 @@
+<?php
+
+/*
+ * Media Gallery (/media-gallery) - resources/js/components/media/MediaGallery.vue
+ * (passed as JSON by admin/media-gallery/index.blade.php), mediaShared.js /
+ * PlatformIcon.vue, and the server side (MediaGalleryController,
+ * MediaAssetService, MediaCompatibility issues).
+ * Keep lang/ar/media_gallery.php in step with this file.
+ */
+return [
+    'title' => 'Media Gallery',
+    'subtitle' => 'Manage your images and videos. Use them for content posting and ad campaigns.',
+    'upload' => 'Upload Media',
+    'uploads' => 'Uploads',
+    'clear' => 'Clear',
+    'checking' => 'Checking file…',
+    'tabs' => ['all' => 'All', 'image' => 'Images', 'video' => 'Videos'],
+    'search' => 'Search media by name...',
+    'all_platforms' => 'All Platforms',
+    'works_on' => 'Works on :platform',
+    'sort' => 'Sort',
+    'sorts' => ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'largest' => 'Largest first', 'name' => 'Name (A–Z)'],
+    'loading' => 'Loading…',
+    'no_match' => 'No media matches these filters',
+    'clear_filters' => 'Clear filters',
+    'empty_title' => 'Your gallery is empty',
+    'empty_text' => 'Upload images and videos once, then reuse them in posts and ad campaigns. You can also drag files onto this page.',
+    'preview_of' => 'Preview :name',
+    'video' => 'Video',
+    'image' => 'Image',
+    'more_actions' => 'More actions',
+    'preview' => 'Preview',
+    'copy_link' => 'Copy link',
+    'download' => 'Download',
+    'delete' => 'Delete',
+    'delete_named' => 'Delete :name',
+    'compatible_all' => 'Compatible with all platforms',
+    'needs_adjustment' => 'Needs adjustment for :platforms',
+    'showing' => 'Showing :from–:to of :total media',
+    'prev_page' => 'Previous page',
+    'next_page' => 'Next page',
+    'drop' => 'Drop images or videos to upload',
+    'close' => 'Close',
+    'details' => ['type' => 'Type', 'size' => 'Size', 'dimensions' => 'Dimensions', 'duration' => 'Duration', 'uploaded' => 'Uploaded'],
+    'compatibility' => 'Platform compatibility',
+    'ready' => 'Ready to use',
+    'requires_adjustment' => 'Requires adjustment',
+    'fineprint' => "Based on each platform's published limits. The platform makes the final check when you publish.",
+    'load_failed' => 'Could not load media',
+    'refresh' => 'Please refresh the page.',
+    'upload_failed' => 'Upload failed.',
+    'delete_title' => 'Delete this media?',
+    'delete_text' => '":name" will be removed from your gallery. Posts that already use it keep their copy.',
+    'delete_failed' => 'Could not delete',
+    'try_again' => 'Please try again.',
+    'link_copied' => 'Link copied',
+    'copy_prompt' => 'Copy this link:',
+    'seconds' => ':counts',
+
+    // mediaShared.js precheck / errorMessage
+    'precheck' => [
+        'format' => '":name" isn\'t a supported format. Use JPG, PNG, GIF, WEBP, MP4, MOV, M4V or WEBM.',
+        'too_big_image' => '":name" is :size - images can be up to :max.',
+        'too_big_video' => '":name" is :size - videos can be up to :max.',
+        'empty' => '":name" is empty.',
+        'too_large_server' => 'The file is larger than the server accepts.',
+    ],
+
+    // Server side
+    'server' => [
+        'choose_file' => 'Choose a file to upload.',
+        'too_large' => 'The upload failed - the file may be larger than the server allows.',
+        'uploaded' => '":name" uploaded.',
+        'deleted' => 'Media deleted.',
+        'kept' => 'Removed from your gallery. The file is kept because a post still uses it.',
+        'upload_error' => 'The upload failed - :reason',
+        'unsupported_type' => 'Unsupported file type ".:extension". Upload JPG, PNG, GIF or WEBP images, or MP4, MOV, M4V or WEBM videos.',
+        'empty' => 'The file is empty.',
+        'codec' => 'Unsupported video encoding:codec. Export the video as H.264 MP4 - the format every platform accepts.',
+        'min_seconds' => 'Videos must be at least :count second long.',
+        'max_minutes' => 'Videos can be at most :count minutes long.',
+        'min_side' => 'Videos must be at least :countp.',
+    ],
+
+    // MediaCompatibility issues (stored in English, translated when shown)
+    'issues' => [
+        'format' => 'Needs :formats format.',
+        'max_size' => 'Max file size is :mb MB.',
+        'vertical' => 'Needs a vertical 9:16 aspect ratio.',
+        'ratio' => 'Aspect ratio must be between 4:5 and 1.91:1.',
+        'min_width' => 'Needs at least :pxpx width.',
+        'min_side' => 'Shortest side must be at least :pxpx.',
+        'min_length' => 'Must be at least :secondss long.',
+        'max_length' => 'Must be :duration or shorter.',
+        'codec' => 'Needs :codecs video encoding.',
+        'no_images' => ":platform doesn't accept images.",
+        'no_videos' => ":platform doesn't accept videos.",
+        'minutes' => ':count min',
+    ],
+];

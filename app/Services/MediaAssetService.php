@@ -68,12 +68,12 @@ class MediaAssetService
         if ($asset->isReferenced()) {
             $asset->delete();
 
-            return 'Removed from your gallery. The file is kept because a post still uses it.';
+            return __('media_gallery.server.kept');
         }
 
         $this->purge($asset);
 
-        return 'Media deleted.';
+        return __('media_gallery.server.deleted');
     }
 
     /**
@@ -118,14 +118,14 @@ class MediaAssetService
     private function inspect(UploadedFile $file): array
     {
         if (!$file->isValid()) {
-            $this->fail('The upload failed - ' . $file->getErrorMessage());
+            $this->fail(__('media_gallery.server.upload_error', ['reason' => $file->getErrorMessage()]));
         }
 
         $extension = strtolower($file->getClientOriginalExtension());
         $type = MediaCompatibility::typeForExtension($extension);
 
         if (!$type) {
-            $this->fail('Unsupported file type ".' . e($extension) . '". Upload JPG, PNG, GIF or WEBP images, or MP4, MOV, M4V or WEBM videos.');
+            $this->fail(__('media_gallery.server.unsupported_type', ['extension' => e($extension)]));
         }
 
         // finfo sniffs the actual bytes - a renamed PDF/EXE fails here.
@@ -143,7 +143,7 @@ class MediaAssetService
         }
 
         if ($size === 0) {
-            $this->fail('The file is empty.');
+            $this->fail(__('media_gallery.server.empty'));
         }
 
         $meta = ['type' => $type, 'extension' => $extension, 'mime' => $mime, 'size' => $size, 'width' => null, 'height' => null, 'duration' => null, 'video_codec' => null];
@@ -198,22 +198,22 @@ class MediaAssetService
         );
 
         if (!in_array($codec, MediaCompatibility::ACCEPTED_VIDEO_CODECS, true)) {
-            $this->fail('Unsupported video encoding' . ($codec ? ' (' . strtoupper(e($codec)) . ')' : '') . '. Export the video as H.264 MP4 - the format every platform accepts.');
+            $this->fail(__('media_gallery.server.codec', ['codec' => $codec ? ' (' . strtoupper(e($codec)) . ')' : '']));
         }
 
         $duration = round((float) ($info['playtime_seconds'] ?? 0), 2);
         $limits = MediaCompatibility::LIMITS;
 
         if ($duration < $limits['video_min_seconds']) {
-            $this->fail('Videos must be at least ' . $limits['video_min_seconds'] . ' second long.');
+            $this->fail(__('media_gallery.server.min_seconds', ['count' => $limits['video_min_seconds']]));
         }
 
         if ($duration > $limits['video_max_seconds']) {
-            $this->fail('Videos can be at most ' . ($limits['video_max_seconds'] / 60) . ' minutes long.');
+            $this->fail(__('media_gallery.server.max_minutes', ['count' => $limits['video_max_seconds'] / 60]));
         }
 
         if (!$w || !$h || min($w, $h) < $limits['video_min_side']) {
-            $this->fail('Videos must be at least ' . $limits['video_min_side'] . 'p.');
+            $this->fail(__('media_gallery.server.min_side', ['count' => $limits['video_min_side']]));
         }
 
         return ['width' => $w, 'height' => $h, 'duration' => $duration, 'video_codec' => $codec] + $meta;

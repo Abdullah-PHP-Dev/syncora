@@ -18,6 +18,8 @@
     <media-gallery
         :initial-media='@json($media)'
         :urls='@json($mediaUrls)'
+        :messages='@json(__('media_gallery'))'
+        locale="{{ app()->getLocale() }}"
     ></media-gallery>
 
 @endsection

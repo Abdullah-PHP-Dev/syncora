@@ -1,17 +1,17 @@
 <template>
-  <div class="mg" @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop.prevent="onDrop">
+  <div class="mg" :dir="i18n.dir" @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop.prevent="onDrop">
 
     <!-- Header -->
     <div class="mg-head">
       <div class="mg-head-id">
         <span class="mg-head-mark"><i class="bx bx-image"></i></span>
         <div>
-          <h4>Media Gallery</h4>
-          <p>Manage your images and videos. Use them for content posting and ad campaigns.</p>
+          <h4>{{ t('title') }}</h4>
+          <p>{{ t('subtitle') }}</p>
         </div>
       </div>
-      <button type="button" class="mg-btn mg-btn-brand mg-btn-lg" @click="$refs.fileInput.click()">
-        <i class="bx bx-cloud-upload"></i> Upload Media
+      <button type="button" class="btn btn-primary btn-sm" @click="$refs.fileInput.click()">
+        <i class="bx bx-cloud-upload"></i> {{ t('upload') }}
       </button>
       <input ref="fileInput" type="file" class="d-none" multiple :accept="ACCEPT" @change="onPicked">
     </div>
@@ -19,16 +19,16 @@
     <!-- Upload queue -->
     <div v-if="queue.length" class="mg-queue">
       <div class="mg-queue-h">
-        <strong>Uploads</strong>
-        <button v-if="!uploadingCount" type="button" class="mg-link" @click="queue = []">Clear</button>
+        <strong>{{ t('uploads') }}</strong>
+        <button v-if="!uploadingCount" type="button" class="mg-link" @click="queue = []">{{ t('clear') }}</button>
       </div>
       <div v-for="item in queue" :key="item.key" class="mg-queue-row" :class="item.status">
         <i :class="['bx', item.status === 'done' ? 'bxs-check-circle' : item.status === 'error' ? 'bxs-error-circle' : 'bx-loader-alt bx-spin']"></i>
         <div class="mg-queue-body">
-          <div class="mg-queue-name">{{ item.name }} <small>{{ formatBytes(item.size) }}</small></div>
+          <div class="mg-queue-name" dir="auto">{{ item.name }} <small>{{ formatBytes(item.size) }}</small></div>
           <div v-if="item.status === 'uploading'" class="mg-progress"><span :style="{ width: item.progress + '%' }"></span></div>
           <div v-else-if="item.status === 'error'" class="mg-queue-err">{{ item.error }}</div>
-          <div v-else-if="item.status === 'processing'" class="mg-queue-note">Checking file…</div>
+          <div v-else-if="item.status === 'processing'" class="mg-queue-note">{{ t('checking') }}</div>
         </div>
         <span v-if="item.status === 'uploading'" class="mg-queue-pct">{{ item.progress }}%</span>
       </div>
@@ -38,71 +38,71 @@
     <div class="mg-card">
       <div class="mg-toolbar">
         <div class="mg-tabs" role="tablist">
-          <button v-for="t in TABS" :key="t.key" type="button" role="tab" :aria-selected="filters.type === t.key" :class="{ on: filters.type === t.key }" @click="setType(t.key)">{{ t.label }}</button>
+          <button v-for="tab in TABS" :key="tab.key" type="button" role="tab" :aria-selected="filters.type === tab.key" :class="{ on: filters.type === tab.key }" @click="setType(tab.key)">{{ t('tabs.' + (tab.key || 'all')) }}</button>
         </div>
         <div class="mg-tools">
           <div class="mg-search">
             <i class="bx bx-search"></i>
-            <input v-model="filters.q" type="search" class="form-control" placeholder="Search media by name..." @input="debouncedFetch">
+            <input v-model="filters.q" type="search" class="form-control" :placeholder="t('search')" @input="debouncedFetch">
           </div>
           <select v-model="filters.platform" class="form-select mg-platform" @change="fetchMedia(1)">
-            <option value="">All Platforms</option>
-            <option v-for="(meta, key) in PLATFORM_META" :key="key" :value="key">Works on {{ meta.name }}</option>
+            <option value="">{{ t('all_platforms') }}</option>
+            <option v-for="(meta, key) in PLATFORM_META" :key="key" :value="key">{{ t('works_on', { platform: meta.name }) }}</option>
           </select>
           <div class="mg-sort">
-            <button type="button" class="mg-icon-btn" title="Sort" aria-label="Sort" @click.stop="sortOpen = !sortOpen"><i class="bx bx-slider-alt"></i></button>
+            <button type="button" class="mg-icon-btn" :title="t('sort')" :aria-label="t('sort')" @click.stop="sortOpen = !sortOpen"><i class="bx bx-slider-alt"></i></button>
             <div v-if="sortOpen" class="mg-menu" @click.stop>
               <button v-for="s in SORTS" :key="s.key" type="button" :class="{ on: filters.sort === s.key }" @click="setSort(s.key)">
-                <i class="bx" :class="filters.sort === s.key ? 'bx-check' : ''"></i> {{ s.label }}
+                <i class="bx" :class="filters.sort === s.key ? 'bx-check' : ''"></i> {{ t('sorts.' + s.key) }}
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      <div v-if="loading && !assets.length" class="mg-empty"><span class="spinner-border spinner-border-sm me-2"></span> Loading…</div>
+      <div v-if="loading && !assets.length" class="mg-empty"><span class="spinner-border spinner-border-sm me-2"></span> {{ t('loading') }}</div>
 
       <div v-else-if="!assets.length" class="mg-empty">
         <i class="bx bx-images"></i>
         <template v-if="hasFilters">
-          <strong>No media matches these filters</strong>
-          <button type="button" class="mg-link" @click="clearFilters">Clear filters</button>
+          <strong>{{ t('no_match') }}</strong>
+          <button type="button" class="mg-link" @click="clearFilters">{{ t('clear_filters') }}</button>
         </template>
         <template v-else>
-          <strong>Your gallery is empty</strong>
-          <span>Upload images and videos once, then reuse them in posts and ad campaigns. You can also drag files onto this page.</span>
-          <button type="button" class="mg-btn mg-btn-brand mt-2" @click="$refs.fileInput.click()"><i class="bx bx-cloud-upload"></i> Upload Media</button>
+          <strong>{{ t('empty_title') }}</strong>
+          <span>{{ t('empty_text') }}</span>
+          <button type="button" class="btn btn-primary btn-sm mt-2" @click="$refs.fileInput.click()"><i class="bx bx-cloud-upload"></i> {{ t('upload') }}</button>
         </template>
       </div>
 
       <div v-else class="mg-grid" :class="{ busy: loading }">
         <div v-for="asset in assets" :key="asset.id" class="mg-item">
-          <button type="button" class="mg-thumb" :aria-label="'Preview ' + asset.original_name" @click="openPreview(asset)">
+          <button type="button" class="mg-thumb" :aria-label="t('preview_of', { name: asset.original_name })" @click="openPreview(asset)">
             <img v-if="asset.type === 'image'" :src="asset.url" :alt="asset.original_name" loading="lazy">
             <img v-else-if="asset.thumbnail_url" :src="asset.thumbnail_url" :alt="asset.original_name" loading="lazy">
             <video v-else :src="asset.url + '#t=0.5'" preload="metadata" muted playsinline></video>
-            <span class="mg-badge"><i :class="['bx', asset.type === 'video' ? 'bx-play' : 'bx-image']"></i> {{ asset.type === 'video' ? 'Video' : 'Image' }}</span>
+            <span class="mg-badge"><i :class="['bx', asset.type === 'video' ? 'bx-play' : 'bx-image']"></i> {{ asset.type === 'video' ? t('video') : t('image') }}</span>
             <span v-if="asset.type === 'video'" class="mg-play"><i class="bx bx-play"></i></span>
             <span v-if="asset.type === 'video' && asset.duration" class="mg-dur">{{ formatDuration(asset.duration) }}</span>
           </button>
 
           <div class="mg-body">
             <div class="mg-name-row">
-              <div class="mg-name" :title="asset.original_name">{{ asset.original_name }}</div>
+              <div class="mg-name" dir="auto" :title="asset.original_name">{{ asset.original_name }}</div>
               <div class="mg-actions">
-                <button type="button" class="mg-icon-sm" aria-label="More actions" @click.stop="toggleMenu(asset.id)"><i class="bx bx-dots-vertical-rounded"></i></button>
+                <button type="button" class="mg-icon-sm" :aria-label="t('more_actions')" @click.stop="toggleMenu(asset.id)"><i class="bx bx-dots-vertical-rounded"></i></button>
                 <div v-if="menuFor === asset.id" class="mg-menu mg-menu-item" @click.stop>
-                  <button type="button" @click="openPreview(asset); menuFor = null"><i class="bx bx-show"></i> Preview</button>
-                  <button type="button" @click="copyUrl(asset)"><i class="bx bx-link"></i> Copy link</button>
-                  <a :href="urls.file.replace('MEDIA_ID', asset.id)" target="_blank" rel="noopener" @click="menuFor = null"><i class="bx bx-download"></i> Download</a>
+                  <button type="button" @click="openPreview(asset); menuFor = null"><i class="bx bx-show"></i> {{ t('preview') }}</button>
+                  <button type="button" @click="copyUrl(asset)"><i class="bx bx-link"></i> {{ t('copy_link') }}</button>
+                  <a :href="urls.file.replace('MEDIA_ID', asset.id)" target="_blank" rel="noopener" @click="menuFor = null"><i class="bx bx-download"></i> {{ t('download') }}</a>
                   <hr>
-                  <button type="button" class="danger" @click="remove(asset)"><i class="bx bx-trash"></i> Delete</button>
+                  <button type="button" class="danger" @click="remove(asset)"><i class="bx bx-trash"></i> {{ t('delete') }}</button>
                 </div>
               </div>
             </div>
             <div class="mg-info-row">
               <div class="mg-info">{{ mediaInfo(asset) }}</div>
-              <button type="button" class="mg-trash" :aria-label="'Delete ' + asset.original_name" title="Delete" :disabled="deleting === asset.id" @click="remove(asset)">
+              <button type="button" class="mg-trash" :aria-label="t('delete_named', { name: asset.original_name })" :title="t('delete')" :disabled="deleting === asset.id" @click="remove(asset)">
                 <span v-if="deleting === asset.id" class="spinner-border spinner-border-sm"></span><i v-else class="bx bx-trash"></i>
               </button>
             </div>
@@ -111,24 +111,24 @@
             </div>
             <div class="mg-compat" :class="compatSummary(asset).allOk ? 'ok' : 'warn'" :title="compatTitle(asset)">
               <i :class="['bx', compatSummary(asset).allOk ? 'bxs-check-circle' : 'bxs-error']"></i>
-              <span v-if="compatSummary(asset).allOk">Compatible with all platforms</span>
-              <span v-else>Needs adjustment for {{ compatSummary(asset).bad.map(p => PLATFORM_META[p].name).join(', ') }}</span>
+              <span v-if="compatSummary(asset).allOk">{{ t('compatible_all') }}</span>
+              <span v-else>{{ t('needs_adjustment', { platforms: compatSummary(asset).bad.map(p => PLATFORM_META[p].name).join(i18n.locale === 'ar' ? '، ' : ', ') }) }}</span>
             </div>
           </div>
         </div>
       </div>
 
       <div v-if="meta.total" class="mg-foot">
-        <small>Showing {{ meta.from }}–{{ meta.to }} of {{ meta.total }} media</small>
+        <small>{{ t('showing', { from: meta.from, to: meta.to, total: meta.total }) }}</small>
         <div v-if="meta.last_page > 1" class="mg-pages">
-          <button type="button" :disabled="meta.current_page <= 1" aria-label="Previous page" @click="fetchMedia(meta.current_page - 1)"><i class="bx bx-chevron-left"></i></button>
+          <button type="button" :disabled="meta.current_page <= 1" :aria-label="t('prev_page')" @click="fetchMedia(meta.current_page - 1)"><i class="bx bx-chevron-left"></i></button>
           <button v-for="p in pageList" :key="p.key" type="button" :class="{ on: p.n === meta.current_page }" :disabled="!p.n" @click="p.n && fetchMedia(p.n)">{{ p.n || '…' }}</button>
-          <button type="button" :disabled="meta.current_page >= meta.last_page" aria-label="Next page" @click="fetchMedia(meta.current_page + 1)"><i class="bx bx-chevron-right"></i></button>
+          <button type="button" :disabled="meta.current_page >= meta.last_page" :aria-label="t('next_page')" @click="fetchMedia(meta.current_page + 1)"><i class="bx bx-chevron-right"></i></button>
         </div>
       </div>
     </div>
 
-    <div v-if="dragging" class="mg-drop"><div><i class="bx bx-cloud-upload"></i><strong>Drop images or videos to upload</strong></div></div>
+    <div v-if="dragging" class="mg-drop"><div><i class="bx bx-cloud-upload"></i><strong>{{ t('drop') }}</strong></div></div>
 
     <!-- Preview -->
     <div class="modal fade" ref="previewEl" tabindex="-1">
@@ -140,29 +140,29 @@
           </div>
           <div class="mg-preview-side">
             <div class="d-flex justify-content-between align-items-start gap-2">
-              <h5>{{ preview.original_name }}</h5>
-              <button type="button" class="mg-close" data-bs-dismiss="modal" aria-label="Close"><i class="bx bx-x"></i></button>
+              <h5 dir="auto">{{ preview.original_name }}</h5>
+              <button type="button" class="mg-close" data-bs-dismiss="modal" :aria-label="t('close')"><i class="bx bx-x"></i></button>
             </div>
             <dl class="mg-dl">
-              <dt>Type</dt><dd>{{ preview.type === 'video' ? 'Video' : 'Image' }} · {{ (preview.extension || '').toUpperCase() }}</dd>
-              <dt>Size</dt><dd>{{ formatBytes(preview.size) }}</dd>
-              <dt>Dimensions</dt><dd>{{ preview.width }} × {{ preview.height }}</dd>
-              <template v-if="preview.type === 'video'"><dt>Duration</dt><dd>{{ formatDuration(preview.duration) }} · {{ (preview.video_codec || '').toUpperCase() }}</dd></template>
-              <dt>Uploaded</dt><dd>{{ new Date(preview.created_at).toLocaleString() }}</dd>
+              <dt>{{ t('details.type') }}</dt><dd>{{ preview.type === 'video' ? t('video') : t('image') }} · {{ (preview.extension || '').toUpperCase() }}</dd>
+              <dt>{{ t('details.size') }}</dt><dd>{{ formatBytes(preview.size) }}</dd>
+              <dt>{{ t('details.dimensions') }}</dt><dd>{{ preview.width }} × {{ preview.height }}</dd>
+              <template v-if="preview.type === 'video'"><dt>{{ t('details.duration') }}</dt><dd>{{ formatDuration(preview.duration) }} · {{ (preview.video_codec || '').toUpperCase() }}</dd></template>
+              <dt>{{ t('details.uploaded') }}</dt><dd>{{ new Date(preview.created_at).toLocaleString(i18n.intl) }}</dd>
             </dl>
-            <div class="mg-side-h">Platform compatibility</div>
+            <div class="mg-side-h">{{ t('compatibility') }}</div>
             <ul class="mg-compat-list">
               <li v-for="(meta, key) in PLATFORM_META" :key="key" :class="preview.compatibility && preview.compatibility[key] && preview.compatibility[key].ok ? 'ok' : 'warn'">
                 <platform-icon :platform="key" :ok="!!(preview.compatibility && preview.compatibility[key] && preview.compatibility[key].ok)" :issues="issuesText(preview, key)" />
                 <div>
                   <strong>{{ meta.name }}</strong>
-                  <small v-if="preview.compatibility && preview.compatibility[key] && preview.compatibility[key].ok">Ready to use</small>
-                  <small v-else>{{ issuesText(preview, key) || 'Requires adjustment' }}</small>
+                  <small v-if="preview.compatibility && preview.compatibility[key] && preview.compatibility[key].ok">{{ t('ready') }}</small>
+                  <small v-else>{{ issuesText(preview, key) || t('requires_adjustment') }}</small>
                 </div>
               </li>
             </ul>
-            <p class="mg-fineprint">Based on each platform's published limits. The platform makes the final check when you publish.</p>
-            <button type="button" class="mg-btn mg-btn-danger w-100 mt-2" @click="remove(preview)"><i class="bx bx-trash"></i> Delete</button>
+            <p class="mg-fineprint">{{ t('fineprint') }}</p>
+            <button type="button" class="btn btn-sm mg-btn-danger w-100 mt-2" @click="remove(preview)"><i class="bx bx-trash"></i> {{ t('delete') }}</button>
           </div>
         </div>
       </div>
@@ -177,23 +177,26 @@
 // MediaPicker.vue in the posts composer and ads campaign forms.
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import PlatformIcon from './PlatformIcon.vue';
+import { createTranslator } from '../ads/facebook/i18n';
 import {
   PLATFORM_META, ACCEPT, precheck, formatBytes, formatDuration, mediaInfo,
-  compatSummary, issuesText, errorMessage, uploadToGallery, fetchGallery,
+  compatSummary, issuesText, errorMessage, uploadToGallery, fetchGallery, setMediaTranslator,
 } from './mediaShared';
 
 const props = defineProps({
   initialMedia: { type: Object, required: true },
   urls: { type: Object, required: true }, // index, store, destroy (MEDIA_ID), file (MEDIA_ID)
+  // __('media_gallery') for the current locale (lang/{en,ar}/media_gallery.php).
+  messages: { type: Object, default: () => ({}) },
+  locale: { type: String, default: 'en' },
 });
 
-const TABS = [{ key: '', label: 'All' }, { key: 'image', label: 'Images' }, { key: 'video', label: 'Videos' }];
-const SORTS = [
-  { key: 'newest', label: 'Newest first' },
-  { key: 'oldest', label: 'Oldest first' },
-  { key: 'largest', label: 'Largest first' },
-  { key: 'name', label: 'Name (A–Z)' },
-];
+const i18n = createTranslator(props.messages, props.locale);
+const { t } = i18n;
+setMediaTranslator(t);
+
+const TABS = [{ key: '' }, { key: 'image' }, { key: 'video' }];
+const SORTS = [{ key: 'newest' }, { key: 'oldest' }, { key: 'largest' }, { key: 'name' }];
 
 const assets = ref(props.initialMedia.data || []);
 const meta = ref(pageMeta(props.initialMedia));
@@ -245,7 +248,7 @@ async function fetchMedia(page = meta.value.current_page) {
     assets.value = data.data;
     meta.value = pageMeta(data);
   } catch (e) {
-    toast('error', 'Could not load media', errorMessage(e, 'Please refresh the page.'));
+    toast('error', t('load_failed'), errorMessage(e, t('refresh')));
   } finally {
     loading.value = false;
   }
@@ -297,7 +300,7 @@ async function enqueue(files) {
       uploaded++;
     } catch (e) {
       row.status = 'error';
-      row.error = errorMessage(e, 'Upload failed.');
+      row.error = errorMessage(e, t('upload_failed'));
     }
     row.file = null;
   }
@@ -310,9 +313,9 @@ async function enqueue(files) {
 
 // --- delete ---
 async function confirmDelete(asset) {
-  const text = `"${asset.original_name}" will be removed from your gallery. Posts that already use it keep their copy.`;
+  const text = t('delete_text', { name: asset.original_name });
   if (window.Swal) {
-    const r = await window.Swal.fire({ icon: 'warning', title: 'Delete this media?', text, showCancelButton: true, confirmButtonText: 'Delete', confirmButtonColor: '#d92d20' });
+    const r = await window.Swal.fire({ icon: 'warning', title: t('delete_title'), text, showCancelButton: true, confirmButtonText: t('delete'), confirmButtonColor: '#d92d20' });
     return r.isConfirmed;
   }
   return window.confirm(text);
@@ -330,7 +333,7 @@ async function remove(asset) {
     const lastOnPage = assets.value.length === 1 && meta.value.current_page > 1;
     await fetchMedia(lastOnPage ? meta.value.current_page - 1 : meta.value.current_page);
   } catch (e) {
-    toast('error', 'Could not delete', errorMessage(e, 'Please try again.'));
+    toast('error', t('delete_failed'), errorMessage(e, t('try_again')));
   } finally {
     deleting.value = null;
   }
@@ -341,9 +344,9 @@ async function copyUrl(asset) {
   menuFor.value = null;
   try {
     await navigator.clipboard.writeText(asset.url);
-    toast('success', 'Link copied');
+    toast('success', t('link_copied'));
   } catch (e) {
-    window.prompt('Copy this link:', asset.url);
+    window.prompt(t('copy_prompt'), asset.url);
   }
 }
 
@@ -364,13 +367,13 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenus));
 </script>
 
 <style scoped>
-.mg { --ln: #e6e8ef; --ln-soft: #f0f2f6; --ink: #1b2130; --ink2: #5b6475; --muted: #8a93a3; --brand: #6d4aff; --brand-soft: #f1edff; --radius: 14px; position: relative; }
+.mg { --ln: #e6e8ef; --ln-soft: #f0f2f6; --ink: #1b2130; --ink2: #5b6475; --muted: #8a93a3; --brand: #004cff; --brand-soft: #eef3ff; --radius: 14px; position: relative; }
 
-.mg-btn { display: inline-flex; align-items: center; justify-content: center; gap: .45rem; height: 40px; padding: 0 1rem; border-radius: 10px; font-size: .86rem; font-weight: 600; border: 1px solid transparent; cursor: pointer; white-space: nowrap; text-decoration: none; }
-.mg-btn i { font-size: 1.15rem; }
-.mg-btn-lg { height: 46px; padding: 0 1.4rem; font-size: .95rem; border-radius: 12px; }
-.mg-btn-brand { background: var(--brand); color: #fff; box-shadow: 0 6px 16px rgba(109, 74, 255, .25); }
-.mg-btn-brand:hover { background: #5a36f0; color: #fff; }
+/* Theme .btn .btn-primary .btn-sm (as on the campaigns list) with the homepage
+   brand gradient, scoped to the gallery; .mg-btn-danger is the outlined delete. */
+.mg .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.mg .btn-primary { background-image: linear-gradient(105deg, #004cff, #5235ff); border-color: transparent; color: #fff; }
+.mg .btn-primary:hover { background-image: linear-gradient(105deg, #0043e0, #4429f0); color: #fff; }
 .mg-btn-danger { background: #fff; border-color: #f5c2c0; color: #d92d20; }
 .mg-btn-danger:hover { background: #fef3f2; }
 .mg-link { background: none; border: 0; padding: 0; color: var(--brand); font-size: .8rem; font-weight: 600; cursor: pointer; }
@@ -392,7 +395,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenus));
 .mg-queue-row.error > i { color: #d92d20; }
 .mg-queue-body { flex: 1; min-width: 0; }
 .mg-queue-name { font-size: .83rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mg-queue-name small { color: var(--muted); margin-left: .35rem; }
+.mg-queue-name small { color: var(--muted); margin-inline-start: .35rem; }
 .mg-queue-err { font-size: .76rem; color: #b42318; }
 .mg-queue-note { font-size: .76rem; color: var(--muted); }
 .mg-queue-pct { font-size: .76rem; color: var(--ink2); font-variant-numeric: tabular-nums; }
@@ -404,13 +407,13 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenus));
 .mg-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .8rem; margin-bottom: 1.1rem; }
 .mg-tabs { display: inline-flex; gap: .35rem; padding: .25rem; background: #f4f5f9; border-radius: 12px; }
 .mg-tabs button { border: 0; background: transparent; height: 36px; min-width: 76px; padding: 0 1rem; border-radius: 9px; font-size: .86rem; font-weight: 600; color: var(--ink2); cursor: pointer; }
-.mg-tabs button.on { background: var(--brand); color: #fff; box-shadow: 0 4px 12px rgba(109, 74, 255, .25); }
+.mg-tabs button.on { background: var(--brand); color: #fff; box-shadow: 0 4px 12px rgba(0, 76, 255, .25); }
 .mg-tools { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
 .mg-search { position: relative; }
 .mg-search i { position: absolute; left: .8rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 1.1rem; }
 .mg-search .form-control { width: 280px; height: 40px; padding-left: 2.3rem; border-radius: 10px; border-color: var(--ln); font-size: .86rem; }
 .mg-platform { width: 170px; height: 40px; border-radius: 10px; border-color: var(--ln); font-size: .86rem; }
-.mg .form-control:focus, .mg .form-select:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
+.mg .form-control:focus, .mg .form-select:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0, 76, 255, .12); }
 .mg-sort { position: relative; }
 .mg-icon-btn { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--ln); background: #fff; color: var(--ink2); font-size: 1.2rem; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .mg-icon-btn:hover { border-color: #cfd4de; color: var(--ink); }
@@ -461,7 +464,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenus));
 .mg-pages button.on { background: var(--brand); border-color: var(--brand); color: #fff; }
 .mg-pages button:disabled:not(.on) { opacity: .5; cursor: default; }
 
-.mg-drop { position: fixed; inset: 0; z-index: 1080; background: rgba(109, 74, 255, .12); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.mg-drop { position: fixed; inset: 0; z-index: 1080; background: rgba(0, 76, 255, .12); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; pointer-events: none; }
 .mg-drop > div { background: #fff; border: 2px dashed var(--brand); border-radius: 18px; padding: 2rem 3rem; text-align: center; color: var(--ink); }
 .mg-drop i { display: block; font-size: 2.6rem; color: var(--brand); }
 
@@ -496,6 +499,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenus));
   .mg-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
 }
 
+[dir="rtl"] .mg-pages .bx-chevron-left, [dir="rtl"] .mg-pages .bx-chevron-right { transform: scaleX(-1); }
 [dir="rtl"] .mg-search i { left: auto; right: .8rem; }
 [dir="rtl"] .mg-search .form-control { padding-left: .75rem; padding-right: 2.3rem; }
 [dir="rtl"] .mg-menu { right: auto; left: 0; }

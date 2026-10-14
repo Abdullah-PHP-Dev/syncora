@@ -1,6 +1,18 @@
 // Shared by MediaGallery.vue, MediaPicker.vue, MediaInputAttach.vue and the
 // posts composer's MediaGrid.vue.
 
+// Optional translator (lang/{en,ar}/media_gallery.php): the gallery page
+// sets it; other screens using these helpers keep the English text.
+let translate = null;
+export function setMediaTranslator(t) { translate = t; }
+export function mediaText(key, params, fallback) {
+  if (translate) {
+    const value = translate(key, params);
+    if (value !== key) return value;
+  }
+  return fallback;
+}
+
 // Order/keys match App\Support\MediaCompatibility::PLATFORMS.
 export const PLATFORM_META = {
   facebook:  { name: 'Facebook',  icon: 'bxl-facebook-circle', color: '#1877F2' },
@@ -24,9 +36,9 @@ export function precheck(file) {
   const ext = (file.name.split('.').pop() || '').toLowerCase();
   const type = IMAGE_EXT.includes(ext) ? 'image' : VIDEO_EXT.includes(ext) ? 'video' : null;
 
-  if (!type) return `"${file.name}" isn't a supported format. Use JPG, PNG, GIF, WEBP, MP4, MOV, M4V or WEBM.`;
-  if (file.size > MAX_BYTES[type]) return `"${file.name}" is ${formatBytes(file.size)} - ${type}s can be up to ${formatBytes(MAX_BYTES[type])}.`;
-  if (!file.size) return `"${file.name}" is empty.`;
+  if (!type) return mediaText('precheck.format', { name: file.name }, `"${file.name}" isn't a supported format. Use JPG, PNG, GIF, WEBP, MP4, MOV, M4V or WEBM.`);
+  if (file.size > MAX_BYTES[type]) return mediaText('precheck.too_big_' + type, { name: file.name, size: formatBytes(file.size), max: formatBytes(MAX_BYTES[type]) }, `"${file.name}" is ${formatBytes(file.size)} - ${type}s can be up to ${formatBytes(MAX_BYTES[type])}.`);
+  if (!file.size) return mediaText('precheck.empty', { name: file.name }, `"${file.name}" is empty.`);
   return null;
 }
 
@@ -51,7 +63,7 @@ export function mediaInfo(asset) {
   return [
     formatBytes(asset.size),
     asset.width && asset.height ? `${asset.width} × ${asset.height}` : null,
-    asset.type === 'video' && asset.duration ? `${Math.round(asset.duration)}s` : null,
+    asset.type === 'video' && asset.duration ? mediaText('seconds', { count: Math.round(asset.duration) }, `${Math.round(asset.duration)}s`) : null,
   ].filter(Boolean).join(' · ');
 }
 
@@ -68,7 +80,7 @@ export function issuesText(asset, platform) {
 
 export function errorMessage(error, fallback) {
   const data = error?.response?.data;
-  if (error?.response?.status === 413) return 'The file is larger than the server accepts.';
+  if (error?.response?.status === 413) return mediaText('precheck.too_large_server', {}, 'The file is larger than the server accepts.');
   return data?.errors?.file?.[0] || Object.values(data?.errors || {}).flat()[0] || data?.message || fallback;
 }
 

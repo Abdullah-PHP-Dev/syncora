@@ -8,7 +8,7 @@
 
 <script setup>
 import { computed } from 'vue';
-import { PLATFORM_META } from './mediaShared';
+import { PLATFORM_META, mediaText } from './mediaShared';
 
 const props = defineProps({
   platform: { type: String, required: true },
@@ -17,7 +17,7 @@ const props = defineProps({
 });
 
 const meta = computed(() => PLATFORM_META[props.platform] || { name: props.platform, icon: 'bx-globe', color: '#64748b' });
-const title = computed(() => (props.ok ? `✓ ${meta.value.name}` : `⚠ ${meta.value.name}: ${props.issues || 'Requires adjustment'}`));
+const title = computed(() => (props.ok ? `✓ ${meta.value.name}` : `⚠ ${meta.value.name}: ${props.issues || mediaText('requires_adjustment', {}, 'Requires adjustment')}`));
 </script>
 
 <style scoped>
