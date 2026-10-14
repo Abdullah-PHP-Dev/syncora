@@ -16,7 +16,7 @@
 .overview-sidebar .ov-sidebar-section:first-child { margin-top:0; }
 .overview-sidebar .ov-sidebar-menu > .menu-item { inline-size:100%!important; width:100%; margin:1px 0; }
 .overview-sidebar .ov-sidebar-menu > .menu-item::before { display:none!important; }
-.overview-sidebar .ov-sidebar-menu > .menu-item > .ov-sidebar-link { display:flex; align-items:center; gap:10px; width:100%; inline-size:100%; min-height:42px; padding:5px 12px; margin:0; border-radius:11px; border:1px solid transparent; color:#5e5277; font-size:14px; font-weight:500; background:transparent; transition:background .15s,color .15s,box-shadow .15s; }
+.overview-sidebar .ov-sidebar-menu > .menu-item > .ov-sidebar-link { display:flex; align-items:center; gap:10px; width:100%; inline-size:100%; min-height:42px; padding:5px 12px; margin:0; border-radius:11px; border:1px solid transparent; color:#5e5277; font-size:13px; font-weight:500; background:transparent; transition:background .15s,color .15s,box-shadow .15s; }
 .overview-sidebar .ov-sidebar-link::before,.overview-sidebar .ov-sidebar-link::after { display:none!important; }
 .overview-sidebar .ov-sidebar-icon { display:grid; place-items:center; width:32px; height:32px; flex:0 0 32px; border-radius:9px; font-size:20px; color:#8663c4; background:#f0e9fb; border:1px solid #e9e0f5; }
 .overview-sidebar .ov-sidebar-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
@@ -70,7 +70,7 @@
 .overview-sidebar .ov-sidebar-dropdown-toggle[aria-expanded="true"] i { transform:rotate(180deg); }
 .overview-sidebar .ov-sidebar-submenu { list-style:none; margin:6px 6px 12px 0; margin-inline:27px 6px; padding:0; padding-inline-start:13px; border-inline-start:1px solid #e4d9f3; }
 .overview-sidebar .ov-sidebar-submenu[hidden] { display:none; }
-.overview-sidebar .ov-sidebar-submenu a { display:flex; align-items:center; gap:9px; min-height:40px; padding:9px 8px; border-radius:7px; color:#8a789f; font-size:13px; }
+.overview-sidebar .ov-sidebar-submenu a { display:flex; align-items:center; gap:9px; min-height:40px; padding:9px 8px; border-radius:7px; color:#8a789f; font-size:12px; }
 .overview-sidebar .ov-sidebar-submenu a:hover { color:#7b4daf; background:#f3edfc; }
 .overview-sidebar .ov-sidebar-submenu a i { width:18px; flex:0 0 18px; font-size:17px; text-align:center; }
 .overview-sidebar .ov-sidebar-submenu a span { overflow-wrap:anywhere; }
