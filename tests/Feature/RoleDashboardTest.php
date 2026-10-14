@@ -53,7 +53,7 @@ class RoleDashboardTest extends TestCase
             $request = \Illuminate\Http\Request::create('/dashboard');
             $request->setUserResolver(fn () => $user);
             $response = app(\App\Http\Controllers\Admin\DashboardController::class)->dashboard($request, app(DashboardService::class), app(\App\Services\TeamDashboardService::class));
-            $this->assertSame($view, $response->name());
+            $this->assertSame(in_array('admin', $roles) ? 'admin.overview-team' : 'admin.overview', $response->name());
             $this->get('/login')->assertRedirect($expected);
         }
     }
@@ -80,14 +80,14 @@ class RoleDashboardTest extends TestCase
     {
         $this->withoutVite();
         $this->actingAs($this->userWithRoles(['admin']))->get('/dashboard')
-            ->assertOk()->assertSee('Social Eaz Team Dashboard')->assertDontSee('Manage your plan');
+            ->assertOk()->assertViewIs('admin.overview-team')->assertDontSee('Manage your plan');
     }
 
     public function test_seller_dashboard_is_rendered_at_the_shared_url(): void
     {
         $this->withoutVite();
         $this->actingAs($this->userWithRoles(['seller']))->get('/dashboard')
-            ->assertOk()->assertViewIs('admin.dashboard')->assertDontSee('Social Eaz Team Dashboard');
+            ->assertOk()->assertViewIs('admin.overview')->assertSee('Dashboard')->assertDontSee('Old dashboard');
     }
 
     public function test_unknown_role_cannot_resolve_a_dashboard(): void

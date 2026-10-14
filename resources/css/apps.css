@@ -1,10 +1,5 @@
 /* The public homepage uses its own entries; dashboard styles stay in app.css. */
 .marketing-home {
-    --theme-ink: #09072d;
-    --theme-muted: #626498;
-    --theme-blue: #064bff;
-    --theme-purple: #720aff;
-    --theme-gradient: linear-gradient(110deg, #004cff, #710bff);
     margin: 0;
     color: var(--theme-ink);
     background: #fff;

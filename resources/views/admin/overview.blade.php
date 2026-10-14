@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', __('overview.performance'))
+@section('title', __('admin.dashboard'))
 @push('styles')
 <link rel="stylesheet" href="{{ asset('assets/css/workspace-overview.css') }}?v={{ filemtime(public_path('assets/css/workspace-overview.css')) }}">
 @endpush
@@ -14,10 +14,10 @@
     <header class="ov-heading">
         <div>
             <span class="ov-eyebrow">SOCIALEAZ / {{ __('overview.workspace_label') }}</span>
-            <h1>{{ __('overview.performance') }}</h1>
+            <h1>{{ __('admin.dashboard') }}</h1>
             <p>{{ __('overview.performance_copy') }}</p>
         </div>
-        <a class="ov-old-dashboard" href="{{ route('dashboard') }}">{{ __('overview.old_dashboard') }}</a>
+
     </header>
     <div class="ov-update-bar">
         <span><i class="ov-live-dot" aria-hidden="true"></i>{{ __('overview.latest_data') }}</span>

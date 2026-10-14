@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="{{ asset('assets/css/marketing-header.css') }}?v={{ filemtime(public_path('assets/css/marketing-header.css')) }}">
     @stack('styles')
     <link rel="stylesheet" href="{{ asset('assets/css/hero-illustrations.css') }}?v={{ filemtime(public_path('assets/css/hero-illustrations.css')) }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/brand-theme.css') }}?v={{ filemtime(public_path('assets/css/brand-theme.css')) }}" />
 </head>
 <body class="marketing-home">
 @include('layouts.partials.header_modern')
