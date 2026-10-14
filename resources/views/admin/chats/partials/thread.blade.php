@@ -9,7 +9,7 @@
     <div class="thread-header-identity">
         <img class="conversation-avatar" src="{{ $conversation->customer_avatar_url ?: asset('assets/img/avatars/1.png') }}" onerror="this.src='{{ asset('assets/img/avatars/1.png') }}'">
         <div>
-            <div class="fw-semibold">{{ $conversation->customer_name ?: __('Unknown') }}</div>
+            <div class="fw-semibold" dir="auto">{{ $conversation->customer_name ?: __('Unknown') }}</div>
             <div class="thread-header-badges">
                 <span class="platform-badge" style="background:{{ $platformColors[$conversation->platform] ?? '#6d28d9' }}">{{ $platformLabel($conversation->platform) }}</span>
                 <span class="status-pill {{ $conversation->status }}">
@@ -75,7 +75,7 @@
                                     @endif
                                 </div>
                             @endforeach
-                            @if ($message->body)<span class="message-bubble-text">{{ trim($message->body) }}</span>@endif
+                            @if ($message->body)<span class="message-bubble-text" dir="auto">{{ trim($message->body) }}</span>@endif
                         </div>
                     @endif
                     <div class="message-meta text-{{ $message->direction === 'outbound' ? 'end' : 'start' }}">
@@ -131,7 +131,7 @@
             <input type="file" name="media" id="replyMedia" hidden accept="image/*,video/*">
             <button type="button" class="btn-composer-attach" onclick="document.getElementById('replyMedia').click()"><i class="bx bx-paperclip"></i></button>
             <button type="button" class="btn-ai-compose" id="aiComposeToggleBtn" title="{{ __('Open AI Copilot') }}"><i class="bx bx-pen"></i><span>{{ __('AI Compose') }}</span></button>
-            <button type="submit" class="btn-composer-send">{{ __('Send') }}</button>
+            <button type="submit" class="btn btn-primary btn-sm btn-composer-send">{{ __('Send') }}</button>
         </div>
     </form>
 </div>

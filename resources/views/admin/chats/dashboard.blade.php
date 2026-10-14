@@ -22,11 +22,12 @@
         --ib-ink: #161b2b;
         --ib-ink2: #545d70;
         --ib-muted: #8a92a3;
-        --ib-brand: #6d4aff;
-        --ib-brand-2: #8f6bff;
-        --ib-brand-soft: #f2eeff;
-        --ib-brand-ink: #4f2fd6;
-        --ib-grad: linear-gradient(135deg, var(--ib-brand) 0%, var(--ib-brand-2) 100%);
+        /* Socialeaz brand blue (homepage CTA: 105deg #004cff -> #5235ff). */
+        --ib-brand: #004cff;
+        --ib-brand-2: #5235ff;
+        --ib-brand-soft: #eef3ff;
+        --ib-brand-ink: #0039cc;
+        --ib-grad: linear-gradient(105deg, #004cff, #5235ff);
         --ib-ok: #079455;
         --ib-danger: #d92d20;
         --ib-surface: #fbfbfd;
@@ -58,7 +59,7 @@
         background: var(--ib-grad);
         color: #fff;
         font-size: 23px;
-        box-shadow: 0 8px 18px rgba(109, 74, 255, .28);
+        box-shadow: 0 8px 18px rgba(0, 76, 255, .28);
         flex-shrink: 0;
     }
 
@@ -153,7 +154,7 @@
         align-items: center;
         gap: 7px;
         height: 38px;
-        border: 1px solid #ddd3ff;
+        border: 1px solid #cfdcff;
         border-radius: 10px;
         padding: 0 14px;
         font-size: .82rem;
@@ -168,9 +169,9 @@
     }
 
     .btn-ai-feature:hover {
-        background: #e9e2ff;
+        background: #e3ecff;
         color: var(--ib-brand-ink);
-        box-shadow: 0 4px 12px rgba(109, 74, 255, .14);
+        box-shadow: 0 4px 12px rgba(0, 76, 255, .14);
     }
 
     .inbox-alert {
@@ -274,7 +275,7 @@
     .inbox-search input:focus {
         background: #fff;
         border-color: var(--ib-brand);
-        box-shadow: 0 0 0 3px rgba(109, 74, 255, .12);
+        box-shadow: 0 0 0 3px rgba(0, 76, 255, .12);
     }
 
     /* Legacy pill filter (unused markup kept compatible). */
@@ -670,7 +671,7 @@
         background: var(--ib-grad);
         color: #fff;
         border-end-end-radius: 5px;
-        box-shadow: 0 4px 12px rgba(109, 74, 255, .2);
+        box-shadow: 0 4px 12px rgba(0, 76, 255, .2);
     }
 
     .message-row.outbound .message-bubble a {
@@ -814,7 +815,7 @@
 
     .composer-row:focus-within {
         border-color: var(--ib-brand);
-        box-shadow: 0 0 0 3px rgba(109, 74, 255, .12);
+        box-shadow: 0 0 0 3px rgba(0, 76, 255, .12);
     }
 
     .composer-preview {
@@ -927,7 +928,7 @@
         align-items: center;
         gap: 6px;
         height: 38px;
-        border: 1px solid #ddd3ff;
+        border: 1px solid #cfdcff;
         background: var(--ib-brand-soft);
         color: var(--ib-brand-ink);
         border-radius: 10px;
@@ -939,36 +940,26 @@
     }
 
     .btn-ai-compose:hover {
-        background: #e9e2ff;
+        background: #e3ecff;
         color: var(--ib-brand-ink);
     }
 
-    .btn-composer-send {
+    /* Send: the theme's .btn .btn-primary .btn-sm (as on the campaigns list)
+       with the brand gradient, scoped to the inbox. */
+    .inbox-page .btn-composer-send {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        height: 38px;
-        border: none;
-        border-radius: 10px;
-        padding: 0 18px;
-        font-size: .84rem;
-        font-weight: 600;
-        color: #fff;
-        background: var(--ib-grad);
-        box-shadow: 0 4px 12px rgba(109, 74, 255, .28);
         flex-shrink: 0;
-        transition: box-shadow .15s, transform .15s;
-    }
-
-    .btn-composer-send:hover {
+        align-self: center;
+        background-image: var(--ib-grad);
+        border-color: transparent;
         color: #fff;
-        box-shadow: 0 6px 16px rgba(109, 74, 255, .36);
-        transform: translateY(-1px);
     }
 
-    .btn-composer-send:disabled {
-        opacity: .65;
-        transform: none;
+    .inbox-page .btn-composer-send:hover {
+        background-image: linear-gradient(105deg, #0043e0, #4429f0);
+        color: #fff;
     }
 
     /* ---------- Empty states ---------- */
@@ -1113,11 +1104,11 @@
     .ai-copilot-panel {
         display: none;
         margin: 0 20px 12px;
-        border: 1px solid #e4dcff;
+        border: 1px solid #dbe6ff;
         border-radius: 14px;
-        background: linear-gradient(180deg, #faf8ff 0%, #f4f0ff 100%);
+        background: linear-gradient(180deg, #f7f9ff 0%, #eef3ff 100%);
         overflow: hidden;
-        box-shadow: 0 8px 24px rgba(109, 74, 255, .08);
+        box-shadow: 0 8px 24px rgba(0, 76, 255, .08);
     }
 
     .ai-copilot-header {
@@ -1125,7 +1116,7 @@
         align-items: center;
         justify-content: space-between;
         padding: 10px 14px;
-        border-bottom: 1px solid #ebe5ff;
+        border-bottom: 1px solid #e6eeff;
     }
 
     .ai-copilot-title {
@@ -1154,7 +1145,7 @@
     }
 
     .ai-copilot-close:hover {
-        background: #ebe5ff;
+        background: #e6eeff;
         color: var(--ib-ink);
     }
 
@@ -1181,8 +1172,8 @@
     }
 
     .ai-copilot-btn:hover {
-        border-color: #cfc2ff;
-        box-shadow: 0 2px 8px rgba(109, 74, 255, .1);
+        border-color: #b9ccff;
+        box-shadow: 0 2px 8px rgba(0, 76, 255, .1);
     }
 
     .ai-copilot-btn i {
@@ -1476,11 +1467,11 @@
                             </div>
                             <div class="conversation-meta">
                                 <div class="conversation-name">
-                                    <span>{{ $conversation->customer_name ?: __('Unknown') }}</span>
+                                    <span dir="auto">{{ $conversation->customer_name ?: __('Unknown') }}</span>
                                     <span class="conversation-time">{{ optional($conversation->last_message_at)->diffForHumans(null, true) }}</span>
                                 </div>
                                 <div class="conversation-preview">
-                                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $conversation->last_message_preview }}</span>
+                                    <span dir="auto" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $conversation->last_message_preview }}</span>
                                     @if ($conversation->unread_count > 0)
                                         <span class="unread-badge">{{ $conversation->unread_count }}</span>
                                     @endif
@@ -1727,7 +1718,7 @@
                         <div class="thread-header-identity">
                             <img class="conversation-avatar" src="${conversation.customer_avatar_url || '{{ asset('assets/img/avatars/1.png') }}'}" onerror="this.src='{{ asset('assets/img/avatars/1.png') }}'">
                             <div>
-                                <div class="fw-semibold">${escapeHtml(conversation.customer_name || t('Unknown'))}</div>
+                                <div class="fw-semibold" dir="auto">${escapeHtml(conversation.customer_name || t('Unknown'))}</div>
                                 <div class="thread-header-badges">
                                     <span class="platform-badge" style="background:${badgeColor}">${platformLabel(conversation.platform)}</span>
                                     <span class="status-pill ${isActive ? 'open' : ''}">
@@ -1773,7 +1764,7 @@
                                 <input type="file" name="media" id="replyMedia" hidden accept="image/*,video/*">
                                 <button type="button" class="btn-composer-attach" onclick="document.getElementById('replyMedia').click()"><i class="bx bx-paperclip"></i></button>
                                 <button type="button" class="btn-ai-compose" id="aiComposeToggleBtn" title="${t('Open AI Copilot')}"><i class="bx bx-pen"></i><span>${t('AI Compose')}</span></button>
-                                <button type="submit" class="btn-composer-send">${t('Send')}</button>
+                                <button type="submit" class="btn btn-primary btn-sm btn-composer-send">${t('Send')}</button>
                             </div>
                         </form>
                     </div>`;
@@ -1964,7 +1955,7 @@
                         <div class="message-row-inner">
                             ${renderAvatarHtml(m.direction)}
                             <div class="message-col">
-                                <div class="message-bubble ${failedClass}" data-message-body="${escapeAttr(m.body)}">${attachmentHtml}${m.body ? `<span class="message-bubble-text">${escapeHtml(m.body.trim())}</span>` : ''}</div>
+                                <div class="message-bubble ${failedClass}" data-message-body="${escapeAttr(m.body)}">${attachmentHtml}${m.body ? `<span class="message-bubble-text" dir="auto">${escapeHtml(m.body.trim())}</span>` : ''}</div>
                                 <div class="message-meta text-${m.direction === 'outbound' ? 'end' : 'start'}">
                                     ${platformBadgeHtml}
                                     <span class="message-meta-text">${formatMessageTime(m.created_at)}${m.edited_at ? ' · ' + t('edited') : ''}</span>
