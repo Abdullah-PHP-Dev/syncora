@@ -20,7 +20,7 @@ class FacebookAdBuilderController extends Controller
     private function builder(): FacebookCampaignBuilder
     {
         $builder = FacebookCampaignBuilder::forUser((int) Auth::id());
-        abort_unless($builder, 409, 'Connect a Facebook ad account first.');
+        abort_unless($builder, 409, __('ads_builder.server.connect_first'));
 
         return $builder;
     }

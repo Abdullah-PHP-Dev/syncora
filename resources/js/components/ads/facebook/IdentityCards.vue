@@ -64,11 +64,11 @@ const initial = (name) => String(name || '?').trim().charAt(0).toUpperCase();
 .ic-av img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 1px solid #EEF0F5; }
 .ic-av.is-empty { color: #6D4AFF; font-size: 20px; }
 .ic-initial { color: #4F2FD6; font-weight: 700; font-size: 1rem; }
-.ic-badge { position: absolute; right: -3px; bottom: -3px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 11px; border: 2px solid #fff; }
+.ic-badge { position: absolute; inset-inline-end: -3px; bottom: -3px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 11px; border: 2px solid #fff; }
 .ic-badge.is-facebook { background: #1877F2; }
 .ic-badge.is-instagram { background: radial-gradient(circle at 30% 107%, #FDF497 0%, #FD5949 45%, #D6249F 60%, #285AEB 90%); }
-.ic-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding-right: 16px; }
+.ic-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding-inline-end: 16px; }
 .ic-main strong { color: #161B2B; font-size: .86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ic-main small { color: #8A92A3; font-size: .74rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ic-check { position: absolute; top: 6px; right: 6px; color: #22C55E; font-size: 18px; }
+.ic-check { position: absolute; top: 6px; inset-inline-end: 6px; color: #22C55E; font-size: 18px; }
 </style>

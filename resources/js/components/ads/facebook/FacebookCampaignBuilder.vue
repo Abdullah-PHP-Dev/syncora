@@ -1,43 +1,43 @@
 <template>
-  <div class="fb">
+  <div class="fb" :dir="i18n.dir">
 
     <!-- ===== Header ===== -->
     <header class="fb-head">
       <div class="fb-head-main">
         <span class="fb-head-icon"><i class="bx bxl-meta"></i></span>
         <div>
-          <h4>Create a Facebook &amp; Instagram ad</h4>
-          <p>Use an existing campaign, ad set or creative, or create new ones - mix and match as you go.</p>
+          <h4>{{ t('header.title') }}</h4>
+          <p>{{ t('header.subtitle') }}</p>
         </div>
       </div>
       <div class="fb-head-actions">
         <span v-if="boot" class="fb-acct" :title="boot.account.id"><i class="bx bx-briefcase-alt-2"></i> {{ boot.account.name }} · {{ boot.account.currency }}</span>
-        <a :href="urls.campaignsList" class="fb-btn fb-btn-ghost"><i class="bx bx-list-ul"></i> Campaigns</a>
+        <a :href="urls.campaignsList" class="fb-btn fb-btn-ghost"><i class="bx bx-list-ul"></i> {{ t('header.campaigns') }}</a>
       </div>
     </header>
 
     <!-- ===== Draft banner ===== -->
     <div v-if="draftOffer" class="fb-banner">
       <i class="bx bx-history"></i>
-      <span>You have an unfinished ad from {{ draftOffer.savedAt }}.</span>
-      <button type="button" class="fb-btn fb-btn-primary fb-btn-sm" @click="resumeDraft">Continue it</button>
-      <button type="button" class="fb-btn fb-btn-ghost fb-btn-sm" @click="discardDraft">Start fresh</button>
+      <span>{{ t('draft.unfinished', { date: draftOffer.savedAt }) }}</span>
+      <button type="button" class="fb-btn fb-btn-primary fb-btn-sm" @click="resumeDraft">{{ t('draft.continue') }}</button>
+      <button type="button" class="fb-btn fb-btn-ghost fb-btn-sm" @click="discardDraft">{{ t('draft.fresh') }}</button>
     </div>
 
     <!-- ===== Loading / blocked states ===== -->
     <div v-if="bootError" class="fb-card fb-empty">
       <span class="fb-empty-ic"><i class="bx bx-plug"></i></span>
-      <h5>We couldn't open your ad account</h5>
+      <h5>{{ t('boot.error_title') }}</h5>
       <p>{{ bootError }}</p>
-      <a :href="urls.connections" class="fb-btn fb-btn-primary"><i class="bx bx-link"></i> Go to Connections</a>
+      <a :href="urls.connections" class="fb-btn fb-btn-primary"><i class="bx bx-link"></i> {{ t('boot.go_connections') }}</a>
     </div>
-    <div v-else-if="!boot" class="fb-card fb-loading"><span class="spinner-border"></span> Loading your ad account from Meta…</div>
+    <div v-else-if="!boot" class="fb-card fb-loading"><span class="spinner-border"></span> {{ t('boot.loading') }}</div>
 
     <template v-else>
-      <div v-if="!boot.account.active" class="fb-alert is-warn"><i class="bx bx-error"></i> Meta reports this ad account as not active. Ads can't run until it is fixed in Meta Business Settings.</div>
+      <div v-if="!boot.account.active" class="fb-alert is-warn"><i class="bx bx-error"></i> {{ t('boot.inactive') }}</div>
 
       <!-- ===== Stepper ===== -->
-      <nav class="fb-steps" aria-label="Steps">
+      <nav class="fb-steps" :aria-label="t('steps.aria')">
         <button v-for="(s, i) in steps" :key="s.key" type="button" class="fb-step"
                 :class="{ 'is-current': step === i, 'is-done': i < step && !stepErrors[s.key], 'has-error': stepErrors[s.key], 'is-skipped': s.skipped }"
                 :disabled="i > maxReached" :aria-current="step === i ? 'step' : null" @click="goTo(i)">
@@ -52,17 +52,17 @@
           <!-- ============ 1. Campaign ============ -->
           <div v-show="current === 'campaign'" class="fb-card">
             <div class="fb-card-h">
-              <h5>Campaign</h5>
+              <h5>{{ t('campaign.title') }}</h5>
               <div class="fb-seg" role="tablist">
-                <button type="button" role="tab" :class="{ on: campaign.mode === 'new' }" @click="setMode('campaign', 'new')"><i class="bx bx-plus"></i> Create new</button>
-                <button type="button" role="tab" :class="{ on: campaign.mode === 'existing' }" @click="setMode('campaign', 'existing')"><i class="bx bx-folder-open"></i> Use existing</button>
+                <button type="button" role="tab" :class="{ on: campaign.mode === 'new' }" @click="setMode('campaign', 'new')"><i class="bx bx-plus"></i> {{ t('common.create_new') }}</button>
+                <button type="button" role="tab" :class="{ on: campaign.mode === 'existing' }" @click="setMode('campaign', 'existing')"><i class="bx bx-folder-open"></i> {{ t('common.use_existing') }}</button>
               </div>
             </div>
 
             <template v-if="campaign.mode === 'existing'">
-              <label class="fb-label">Choose a campaign</label>
-              <div class="fb-search"><i class="bx bx-search"></i><input v-model="campaignQuery" type="search" placeholder="Search campaigns by name…" aria-label="Search campaigns"></div>
-              <div v-if="lists.loading.campaigns" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> Loading campaigns…</div>
+              <label class="fb-label">{{ t('campaign.choose') }}</label>
+              <div class="fb-search"><i class="bx bx-search"></i><input v-model="campaignQuery" type="search" :placeholder="t('campaign.search')" :aria-label="t('campaign.search')"></div>
+              <div v-if="lists.loading.campaigns" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> {{ t('campaign.loading') }}</div>
               <p v-else-if="lists.errors.campaigns" class="fb-field-err">{{ lists.errors.campaigns }}</p>
               <div v-else class="fb-pick-list">
                 <button v-for="c in filteredCampaigns" :key="c.id" type="button" class="fb-pick" :class="{ on: campaign.id === c.id, 'is-off': !c.goals.length }"
@@ -70,24 +70,24 @@
                   <span class="fb-pick-ic"><i class="bx" :class="goalIcon(c.goals[0])"></i></span>
                   <span class="fb-pick-main">
                     <strong>{{ c.name }}</strong>
-                    <small>{{ objectiveLabel(c) }} · {{ statusLabel(c.status) }}<template v-if="c.campaign_budget"> · Campaign budget {{ money(c.daily_budget || c.lifetime_budget) }}{{ c.daily_budget ? '/day' : '' }}</template><template v-if="c.special_ad_categories.length"> · Special Ad Category</template></small>
+                    <small>{{ objectiveLabel(c) }} · {{ statusLabel(c.status) }}<template v-if="c.campaign_budget"> · {{ t('campaign.campaign_budget', { amount: money(c.daily_budget || c.lifetime_budget) }) }}{{ c.daily_budget ? t('campaign.per_day_suffix') : '' }}</template><template v-if="c.special_ad_categories.length"> · {{ t('campaign.special') }}</template></small>
                   </span>
                   <i v-if="campaign.id === c.id" class="bx bxs-check-circle fb-pick-check"></i>
                 </button>
                 <div v-if="!filteredCampaigns.length" class="fb-mini-empty">
                   <i class="bx bx-folder"></i>
-                  <span>{{ campaignQuery ? 'No campaign matches that name.' : 'This ad account has no active or paused campaigns yet.' }}</span>
-                  <button type="button" class="fb-link" @click="setMode('campaign', 'new')">Create a new campaign</button>
+                  <span>{{ campaignQuery ? t('campaign.no_match') : t('campaign.none_yet') }}</span>
+                  <button type="button" class="fb-link" @click="setMode('campaign', 'new')">{{ t('campaign.create_link') }}</button>
                 </div>
               </div>
-              <p v-if="selectedCampaign && selectedCampaign.goals.length > 1" class="fb-hint"><i class="bx bx-info-circle"></i> This campaign's objective covers more than one goal - pick the one you want below.</p>
+              <p v-if="selectedCampaign && selectedCampaign.goals.length > 1" class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('campaign.multi_goal') }}</p>
               <div v-if="selectedCampaign && selectedCampaign.goals.length > 1" class="fb-goal-mini">
                 <button v-for="g in selectedCampaign.goals" :key="g" type="button" :class="{ on: goal === g }" @click="setGoal(g)"><i class="bx" :class="goalIcon(g)"></i> {{ goals[g].label }}</button>
               </div>
             </template>
 
             <template v-else>
-              <label class="fb-label">What do you want this campaign to achieve?</label>
+              <label class="fb-label">{{ t('campaign.achieve') }}</label>
               <div class="fb-goals">
                 <button v-for="(g, key) in goals" :key="key" type="button" class="fb-goal" :class="{ on: goal === key }" @click="setGoal(key)">
                   <span class="fb-goal-ic"><i class="bx" :class="g.icon"></i></span>
@@ -99,45 +99,41 @@
 
               <div class="fb-grid-2">
                 <div>
-                  <label class="fb-label" for="fbCampaignName">Campaign name</label>
-                  <input id="fbCampaignName" v-model.trim="campaign.name" class="form-control" maxlength="255" :placeholder="goal ? goals[goal].label + ' - ' + today : 'Campaign name'">
+                  <label class="fb-label" for="fbCampaignName">{{ t('campaign.name') }}</label>
+                  <input id="fbCampaignName" v-model.trim="campaign.name" class="form-control" maxlength="255" :placeholder="goal ? goals[goal].label + ' - ' + today : t('campaign.name_placeholder')">
                 </div>
                 <div>
-                  <label class="fb-label" for="fbSpecial">Special Ad Category <span class="fb-opt">if it applies</span></label>
+                  <label class="fb-label" for="fbSpecial">{{ t('campaign.special_label') }} <span class="fb-opt">{{ t('campaign.if_applies') }}</span></label>
                   <select id="fbSpecial" v-model="campaign.special_ad_category" class="form-control">
-                    <option :value="null">None</option>
-                    <option value="HOUSING">Housing</option>
-                    <option value="EMPLOYMENT">Employment</option>
-                    <option value="CREDIT">Credit</option>
-                    <option value="FINANCIAL_PRODUCTS_SERVICES">Financial products &amp; services</option>
-                    <option value="ISSUES_ELECTIONS_POLITICS">Social issues, elections or politics</option>
+                    <option :value="null">{{ t('campaign.special_none') }}</option>
+                    <option v-for="code in specialCategories" :key="code" :value="code">{{ t('campaign.special_options.' + code) }}</option>
                   </select>
                 </div>
               </div>
-              <p v-if="campaign.special_ad_category" class="fb-hint is-warn"><i class="bx bx-shield-quarter"></i> Meta requires this category for these ads. It limits targeting: no age or gender narrowing, no detailed targeting or lookalikes - we'll apply that automatically. Social-issue ads also need Meta's ad authorization on your account.</p>
+              <p v-if="campaign.special_ad_category" class="fb-hint is-warn"><i class="bx bx-shield-quarter"></i> {{ t('campaign.special_warn') }}</p>
 
               <label class="fb-toggle">
                 <input v-model="campaign.campaign_budget" type="checkbox">
-                <span><strong>Advantage campaign budget</strong><small>Set one budget for the whole campaign and let Meta share it across ad sets. Leave off to set the budget on the ad set.</small></span>
+                <span><strong>{{ t('campaign.cbo_title') }}</strong><small>{{ t('campaign.cbo_desc') }}</small></span>
               </label>
               <div v-if="campaign.campaign_budget" class="fb-grid-3">
                 <div>
-                  <label class="fb-label">Budget type</label>
+                  <label class="fb-label">{{ t('common.budget_type') }}</label>
                   <div class="fb-seg fb-seg-full">
-                    <button type="button" :class="{ on: campaign.budget_type === 'daily' }" @click="campaign.budget_type = 'daily'">Daily</button>
-                    <button type="button" :class="{ on: campaign.budget_type === 'lifetime' }" @click="campaign.budget_type = 'lifetime'">Lifetime</button>
+                    <button type="button" :class="{ on: campaign.budget_type === 'daily' }" @click="campaign.budget_type = 'daily'">{{ t('common.daily') }}</button>
+                    <button type="button" :class="{ on: campaign.budget_type === 'lifetime' }" @click="campaign.budget_type = 'lifetime'">{{ t('common.lifetime') }}</button>
                   </div>
                 </div>
                 <div>
-                  <label class="fb-label" for="fbCampBudget">Budget ({{ boot.account.currency }})</label>
+                  <label class="fb-label" for="fbCampBudget">{{ t('campaign.budget', { currency: boot.account.currency }) }}</label>
                   <input id="fbCampBudget" v-model.number="campaign.budget" type="number" min="1" step="0.01" class="form-control">
                 </div>
                 <div>
-                  <label class="fb-label" for="fbCampBid">Bid strategy</label>
+                  <label class="fb-label" for="fbCampBid">{{ t('common.bid_strategy') }}</label>
                   <select id="fbCampBid" v-model="campaign.bid_strategy" class="form-control">
-                    <option value="LOWEST_COST_WITHOUT_CAP">Highest volume (recommended)</option>
-                    <option value="COST_CAP">Cost per result goal</option>
-                    <option value="LOWEST_COST_WITH_BID_CAP">Bid cap</option>
+                    <option value="LOWEST_COST_WITHOUT_CAP">{{ t('common.highest_volume') }}</option>
+                    <option value="COST_CAP">{{ t('common.cost_cap') }}</option>
+                    <option value="LOWEST_COST_WITH_BID_CAP">{{ t('common.bid_cap') }}</option>
                   </select>
                 </div>
               </div>
@@ -145,13 +141,13 @@
             </template>
 
             <template v-if="goal">
-              <label class="fb-label mt-3">Where should people go? <span class="fb-opt">conversion location</span></label>
+              <label class="fb-label mt-3">{{ t('campaign.where_go') }} <span class="fb-opt">{{ t('campaign.conversion_location') }}</span></label>
               <div class="fb-dests">
                 <button v-for="(d, key) in goals[goal].destinations" :key="key" type="button" class="fb-dest" :class="{ on: destination === key }" @click="setDestination(key)">
                   <i class="bx" :class="destIcon(key)"></i> {{ d.label }}
                 </button>
               </div>
-              <p v-if="destRules && destRules.needs_pixel" class="fb-hint"><i class="bx bx-target-lock"></i> This needs the Meta Pixel (dataset) on your website - you'll choose it on the next step.</p>
+              <p v-if="destRules && destRules.needs_pixel" class="fb-hint"><i class="bx bx-target-lock"></i> {{ t('campaign.needs_pixel') }}</p>
             </template>
             <p v-if="fieldErrors.campaign" class="fb-field-err">{{ fieldErrors.campaign }}</p>
           </div>
@@ -159,40 +155,40 @@
           <!-- ============ 2. Ad set ============ -->
           <div v-show="current === 'adset'" class="fb-card">
             <div class="fb-card-h">
-              <h5>Ad set</h5>
+              <h5>{{ t('adset.title') }}</h5>
               <div class="fb-seg">
-                <button type="button" :class="{ on: adset.mode === 'new' }" @click="setMode('adset', 'new')"><i class="bx bx-plus"></i> Create new</button>
-                <button type="button" :class="{ on: adset.mode === 'existing' }" :disabled="campaign.mode !== 'existing'" :title="campaign.mode !== 'existing' ? 'A new campaign has no ad sets yet' : ''" @click="setMode('adset', 'existing')"><i class="bx bx-folder-open"></i> Use existing</button>
+                <button type="button" :class="{ on: adset.mode === 'new' }" @click="setMode('adset', 'new')"><i class="bx bx-plus"></i> {{ t('common.create_new') }}</button>
+                <button type="button" :class="{ on: adset.mode === 'existing' }" :disabled="campaign.mode !== 'existing'" :title="campaign.mode !== 'existing' ? t('adset.no_sets_new_campaign') : ''" @click="setMode('adset', 'existing')"><i class="bx bx-folder-open"></i> {{ t('common.use_existing') }}</button>
               </div>
             </div>
-            <p class="fb-sub">The ad set decides who sees your ads, when, with what budget and what Meta optimizes for.</p>
+            <p class="fb-sub">{{ t('adset.sub') }}</p>
 
             <template v-if="adset.mode === 'existing'">
-              <div v-if="lists.loading.adsets" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> Loading ad sets…</div>
+              <div v-if="lists.loading.adsets" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> {{ t('adset.loading') }}</div>
               <p v-else-if="lists.errors.adsets" class="fb-field-err">{{ lists.errors.adsets }}</p>
               <div v-else class="fb-pick-list">
                 <button v-for="s in lists.adsets" :key="s.id" type="button" class="fb-pick" :class="{ on: adset.id === s.id }" @click="adset.id = s.id">
                   <span class="fb-pick-ic"><i class="bx bx-target-lock"></i></span>
                   <span class="fb-pick-main">
                     <strong>{{ s.name }}</strong>
-                    <small>{{ statusLabel(s.status) }} · {{ optimizationLabel(s.optimization_goal) }}<template v-if="s.daily_budget || s.lifetime_budget"> · {{ money(s.daily_budget || s.lifetime_budget) }}{{ s.daily_budget ? '/day' : ' lifetime' }}</template></small>
+                    <small>{{ statusLabel(s.status) }} · {{ optimizationLabel(s.optimization_goal) }}<template v-if="s.daily_budget || s.lifetime_budget"> · {{ s.daily_budget ? t('review.per_day', { amount: money(s.daily_budget) }) : t('review.lifetime', { amount: money(s.lifetime_budget) }) }}</template></small>
                     <small class="fb-pick-aud"><i class="bx bx-group"></i> {{ s.targeting_summary }}</small>
                   </span>
                   <i v-if="adset.id === s.id" class="bx bxs-check-circle fb-pick-check"></i>
                 </button>
-                <div v-if="!lists.adsets.length" class="fb-mini-empty"><i class="bx bx-target-lock"></i><span>This campaign has no active or paused ad sets.</span><button type="button" class="fb-link" @click="setMode('adset', 'new')">Create a new ad set</button></div>
+                <div v-if="!lists.adsets.length" class="fb-mini-empty"><i class="bx bx-target-lock"></i><span>{{ t('adset.none') }}</span><button type="button" class="fb-link" @click="setMode('adset', 'new')">{{ t('adset.create_link') }}</button></div>
               </div>
-              <p class="fb-hint"><i class="bx bx-info-circle"></i> The ad uses this ad set's audience, budget and schedule as they are in Meta.</p>
+              <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('adset.existing_hint') }}</p>
             </template>
 
             <template v-else>
               <div class="fb-grid-2">
                 <div>
-                  <label class="fb-label" for="fbAdsetName">Ad set name</label>
-                  <input id="fbAdsetName" v-model.trim="adset.name" class="form-control" maxlength="255" :placeholder="'Audience - ' + today">
+                  <label class="fb-label" for="fbAdsetName">{{ t('adset.name') }}</label>
+                  <input id="fbAdsetName" v-model.trim="adset.name" class="form-control" maxlength="255" :placeholder="t('adset.name_placeholder', { date: today })">
                 </div>
                 <div v-if="destRules">
-                  <label class="fb-label" for="fbOptGoal">Optimize for <i class="bx bx-help-circle fb-tip" title="What Meta tries to get the most of within your budget."></i></label>
+                  <label class="fb-label" for="fbOptGoal">{{ t('adset.optimize_for') }} <i class="bx bx-help-circle fb-tip" :title="t('adset.optimize_tip')"></i></label>
                   <select id="fbOptGoal" v-model="adset.optimization_goal" class="form-control">
                     <option v-for="(label, key) in destRules.optimization_goals" :key="key" :value="key">{{ label }}</option>
                   </select>
@@ -201,25 +197,25 @@
 
               <!-- Tracking / promoted object -->
               <div v-if="destRules && (destRules.needs_pixel || destRules.needs_app || needsPage)" class="fb-group">
-                <h6><i class="bx bx-target-lock"></i> Tracking &amp; promoted object</h6>
+                <h6><i class="bx bx-target-lock"></i> {{ t('adset.tracking') }}</h6>
                 <div v-if="needsPage" class="fb-ident">
-                  <label class="fb-label">Facebook Page</label>
-                  <identity-cards v-model="adset.page_id" :items="pageCards" label="Facebook Page" />
-                  <p v-if="!boot.pages.length" class="fb-field-err">No Pages found - reconnect your ad account in Connections to load your Pages.</p>
+                  <label class="fb-label">{{ t('common.facebook_page') }}</label>
+                  <identity-cards v-model="adset.page_id" :items="pageCards" :label="t('common.facebook_page')" />
+                  <p v-if="!boot.pages.length" class="fb-field-err">{{ t('common.no_pages') }}</p>
                 </div>
                 <div class="fb-grid-2">
                   <template v-if="destRules.needs_pixel">
                     <div>
-                      <label class="fb-label" for="fbPixel">Meta Pixel / dataset</label>
+                      <label class="fb-label" for="fbPixel">{{ t('adset.pixel') }}</label>
                       <select id="fbPixel" v-model="adset.pixel_id" class="form-control" :disabled="lists.loading.pixels">
-                        <option :value="null" disabled>{{ lists.loading.pixels ? 'Loading…' : 'Choose a Pixel' }}</option>
-                        <option v-for="p in lists.pixels" :key="p.id" :value="p.id">{{ p.name }}{{ p.last_fired ? '' : ' (no events yet)' }}</option>
+                        <option :value="null" disabled>{{ lists.loading.pixels ? t('common.loading') : t('adset.choose_pixel') }}</option>
+                        <option v-for="p in lists.pixels" :key="p.id" :value="p.id">{{ p.name }}{{ p.last_fired ? '' : t('adset.no_events') }}</option>
                       </select>
-                      <p v-if="!lists.loading.pixels && !lists.pixels.length" class="fb-field-err">This ad account has no Pixel. Create one in Meta Events Manager and install it on your website first.</p>
-                      <p v-else-if="selectedPixel && !selectedPixel.last_fired" class="fb-hint is-warn"><i class="bx bx-error"></i> Meta hasn't received events from this Pixel yet - conversions can't be optimized until it fires on your site.</p>
+                      <p v-if="!lists.loading.pixels && !lists.pixels.length" class="fb-field-err">{{ t('adset.no_pixel') }}</p>
+                      <p v-else-if="selectedPixel && !selectedPixel.last_fired" class="fb-hint is-warn"><i class="bx bx-error"></i> {{ t('adset.pixel_not_fired') }}</p>
                     </div>
                     <div>
-                      <label class="fb-label" for="fbEvent">Conversion event</label>
+                      <label class="fb-label" for="fbEvent">{{ t('adset.event') }}</label>
                       <select id="fbEvent" v-model="adset.custom_event_type" class="form-control">
                         <option v-for="(label, key) in boot.conversion_events" :key="key" :value="key">{{ label }}</option>
                       </select>
@@ -227,15 +223,15 @@
                   </template>
                   <template v-if="destRules.needs_app">
                     <div>
-                      <label class="fb-label" for="fbApp">App</label>
+                      <label class="fb-label" for="fbApp">{{ t('adset.app') }}</label>
                       <select id="fbApp" v-model="adset.application_id" class="form-control" @change="adset.object_store_url = (selectedApp && selectedApp.store_urls[0]) || null">
-                        <option :value="null" disabled>{{ lists.loading.apps ? 'Loading…' : 'Choose an app' }}</option>
+                        <option :value="null" disabled>{{ lists.loading.apps ? t('common.loading') : t('adset.choose_app') }}</option>
                         <option v-for="a in lists.apps" :key="a.id" :value="a.id">{{ a.name }}</option>
                       </select>
-                      <p v-if="!lists.loading.apps && !lists.apps.length" class="fb-field-err">No apps are available to this ad account. Register the app on developers.facebook.com and add it to your Business first.</p>
+                      <p v-if="!lists.loading.apps && !lists.apps.length" class="fb-field-err">{{ t('adset.no_apps') }}</p>
                     </div>
                     <div>
-                      <label class="fb-label" for="fbStoreUrl">App store URL</label>
+                      <label class="fb-label" for="fbStoreUrl">{{ t('adset.store_url') }}</label>
                       <input id="fbStoreUrl" v-model.trim="adset.object_store_url" type="url" class="form-control" placeholder="https://apps.apple.com/...">
                     </div>
                   </template>
@@ -244,50 +240,50 @@
 
               <!-- Budget & schedule -->
               <div class="fb-group">
-                <h6><i class="bx bx-wallet"></i> Budget &amp; schedule</h6>
-                <div v-if="campaignHasBudget" class="fb-hint"><i class="bx bx-info-circle"></i> This campaign uses an Advantage campaign budget, so the budget is set on the campaign.</div>
+                <h6><i class="bx bx-wallet"></i> {{ t('adset.budget_schedule') }}</h6>
+                <div v-if="campaignHasBudget" class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('adset.cbo_hint') }}</div>
                 <div v-else class="fb-grid-3">
                   <div>
-                    <label class="fb-label">Budget type</label>
+                    <label class="fb-label">{{ t('common.budget_type') }}</label>
                     <div class="fb-seg fb-seg-full">
-                      <button type="button" :class="{ on: adset.budget_type === 'daily' }" @click="adset.budget_type = 'daily'">Daily</button>
-                      <button type="button" :class="{ on: adset.budget_type === 'lifetime' }" @click="adset.budget_type = 'lifetime'">Lifetime</button>
+                      <button type="button" :class="{ on: adset.budget_type === 'daily' }" @click="adset.budget_type = 'daily'">{{ t('common.daily') }}</button>
+                      <button type="button" :class="{ on: adset.budget_type === 'lifetime' }" @click="adset.budget_type = 'lifetime'">{{ t('common.lifetime') }}</button>
                     </div>
                   </div>
                   <div>
-                    <label class="fb-label" for="fbBudget">{{ adset.budget_type === 'daily' ? 'Daily budget' : 'Lifetime budget' }} ({{ boot.account.currency }})</label>
+                    <label class="fb-label" for="fbBudget">{{ t(adset.budget_type === 'daily' ? 'adset.daily_budget' : 'adset.lifetime_budget', { currency: boot.account.currency }) }}</label>
                     <input id="fbBudget" v-model.number="adset.budget" type="number" min="1" step="0.01" class="form-control">
-                    <p v-if="boot.account.min_daily_budget && adset.budget_type === 'daily' && adset.budget && adset.budget < boot.account.min_daily_budget" class="fb-field-err">Meta's minimum daily budget for this account is {{ money(boot.account.min_daily_budget) }}.</p>
+                    <p v-if="boot.account.min_daily_budget && adset.budget_type === 'daily' && adset.budget && adset.budget < boot.account.min_daily_budget" class="fb-field-err">{{ t('adset.min_budget', { amount: money(boot.account.min_daily_budget) }) }}</p>
                   </div>
                   <div>
-                    <label class="fb-label" for="fbBid">Bid strategy</label>
+                    <label class="fb-label" for="fbBid">{{ t('common.bid_strategy') }}</label>
                     <select id="fbBid" v-model="adset.bid_strategy" class="form-control">
-                      <option value="LOWEST_COST_WITHOUT_CAP">Highest volume (recommended)</option>
-                      <option value="COST_CAP">Cost per result goal</option>
-                      <option value="LOWEST_COST_WITH_BID_CAP">Bid cap</option>
+                      <option value="LOWEST_COST_WITHOUT_CAP">{{ t('common.highest_volume') }}</option>
+                      <option value="COST_CAP">{{ t('common.cost_cap') }}</option>
+                      <option value="LOWEST_COST_WITH_BID_CAP">{{ t('common.bid_cap') }}</option>
                     </select>
                   </div>
                 </div>
-                <p v-if="!campaignHasBudget" class="fb-hint"><i class="bx bx-bulb"></i> <span><strong>Daily</strong> spends about this much each day (some days up to 25% more, balanced over the week). <strong>Lifetime</strong> spreads the total over the schedule and needs an end date.</span></p>
+                <p v-if="!campaignHasBudget" class="fb-hint"><i class="bx bx-bulb"></i> <span v-html="t('adset.budget_help')"></span></p>
                 <div v-if="!campaignHasBudget && adset.bid_strategy !== 'LOWEST_COST_WITHOUT_CAP'" class="fb-grid-3">
                   <div>
-                    <label class="fb-label" for="fbBidAmount">{{ adset.bid_strategy === 'COST_CAP' ? 'Cost per result goal' : 'Bid cap' }} ({{ boot.account.currency }})</label>
+                    <label class="fb-label" for="fbBidAmount">{{ t(adset.bid_strategy === 'COST_CAP' ? 'adset.cost_goal_amount' : 'adset.bid_cap_amount', { currency: boot.account.currency }) }}</label>
                     <input id="fbBidAmount" v-model.number="adset.bid_amount" type="number" min="0.01" step="0.01" class="form-control">
                   </div>
-                  <p class="fb-hint fb-span-2"><i class="bx bx-info-circle"></i> Caps can limit delivery: if Meta can't get results at or below this amount, your ads may spend less than the budget.</p>
+                  <p class="fb-hint fb-span-2"><i class="bx bx-info-circle"></i> {{ t('adset.cap_hint') }}</p>
                 </div>
                 <div class="fb-grid-2">
                   <div>
-                    <label class="fb-label" for="fbStart">Start</label>
+                    <label class="fb-label" for="fbStart">{{ t('adset.start') }}</label>
                     <input id="fbStart" v-model="adset.start_time" type="datetime-local" class="form-control" :min="nowLocal">
                   </div>
                   <div>
-                    <label class="fb-label" for="fbEnd">End <span class="fb-opt">{{ adset.budget_type === 'lifetime' && !campaignHasBudget ? 'required for lifetime budget' : 'optional - runs until you stop it' }}</span></label>
+                    <label class="fb-label" for="fbEnd">{{ t('adset.end') }} <span class="fb-opt">{{ adset.budget_type === 'lifetime' && !campaignHasBudget ? t('adset.end_required') : t('adset.end_optional') }}</span></label>
                     <input id="fbEnd" v-model="adset.end_time" type="datetime-local" class="form-control" :min="adset.start_time || nowLocal">
                   </div>
                 </div>
                 <budget-summary v-if="!campaignHasBudget || campaign.mode === 'new'" :summary="budgetSummary" :money="money" />
-                <p v-if="boot.account.timezone" class="fb-hint"><i class="bx bx-time-five"></i> Times are in the ad account's time zone ({{ boot.account.timezone }}).</p>
+                <p v-if="boot.account.timezone" class="fb-hint"><i class="bx bx-time-five"></i> {{ t('adset.timezone', { zone: boot.account.timezone }) }}</p>
               </div>
             </template>
             <p v-if="fieldErrors.adset" class="fb-field-err">{{ fieldErrors.adset }}</p>
@@ -296,154 +292,154 @@
           <!-- ============ 3. Audience ============ -->
           <div v-show="current === 'audience'" class="fb-card">
             <div class="fb-card-h">
-              <h5>Audience &amp; placements</h5>
-              <label class="fb-switch"><input v-model="ui.advanced" type="checkbox"><span>Advanced</span></label>
+              <h5>{{ t('audience.title') }}</h5>
+              <label class="fb-switch"><input v-model="ui.advanced" type="checkbox"><span>{{ t('audience.advanced') }}</span></label>
             </div>
 
             <template v-if="adset.mode === 'existing'">
-              <div class="fb-mini-empty is-info"><i class="bx bx-group"></i><span>You're using an existing ad set, so its audience and placements are already set in Meta.</span></div>
+              <div class="fb-mini-empty is-info"><i class="bx bx-group"></i><span>{{ t('audience.existing_info') }}</span></div>
             </template>
 
             <template v-else>
-              <div v-if="specialCategory" class="fb-hint is-warn"><i class="bx bx-shield-quarter"></i> Special Ad Category: age 18-65+, all genders, no detailed targeting or lookalikes - Meta's rules.</div>
+              <div v-if="specialCategory" class="fb-hint is-warn"><i class="bx bx-shield-quarter"></i> {{ t('audience.special_warn') }}</div>
 
               <div v-if="ui.advanced && lists.audiences.saved.length" class="fb-group">
-                <h6><i class="bx bx-bookmark"></i> Saved audience <span class="fb-opt">optional</span></h6>
+                <h6><i class="bx bx-bookmark"></i> {{ t('audience.saved') }} <span class="fb-opt">{{ t('common.optional') }}</span></h6>
                 <select v-model="targeting.saved_audience_id" class="form-control">
-                  <option :value="null">Build the audience here</option>
+                  <option :value="null">{{ t('audience.saved_build') }}</option>
                   <option v-for="a in lists.audiences.saved" :key="a.id" :value="a.id">{{ a.name }} - {{ a.summary }}</option>
                 </select>
-                <p v-if="targeting.saved_audience_id" class="fb-hint"><i class="bx bx-info-circle"></i> The saved audience's targeting (defined in Ads Manager) is used as-is; placements below still apply.</p>
+                <p v-if="targeting.saved_audience_id" class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('audience.saved_hint') }}</p>
               </div>
 
               <template v-if="!targeting.saved_audience_id">
                 <div class="fb-group">
-                  <h6><i class="bx bx-map"></i> Locations</h6>
-                  <search-picker v-model="targeting.locations" :fetcher="searchLocations" item-key="key" placeholder="Search countries, regions or cities…">
+                  <h6><i class="bx bx-map"></i> {{ t('audience.locations') }}</h6>
+                  <search-picker v-model="targeting.locations" :fetcher="searchLocations" item-key="key" :placeholder="t('audience.search_locations')">
                     <template #chip="{ item }">{{ locationLabel(item) }}</template>
                     <template #option="{ item }">
                       <span class="sp-opt-main"><strong>{{ item.name }}</strong> <small class="fb-muted">{{ [item.region, item.country_name].filter(Boolean).join(', ') }}</small></span>
-                      <span class="fb-tag">{{ item.type }}</span>
+                      <span class="fb-tag">{{ locationType(item.type) }}</span>
                     </template>
                   </search-picker>
                   <div v-for="city in targeting.locations.filter(l => l.type === 'city')" :key="'r' + city.key" class="fb-radius">
                     <span><i class="bx bx-current-location"></i> {{ city.name }}</span>
                     <select :value="city.radius || ''" class="form-control form-control-sm" @change="setRadius(city, $event.target.value)">
-                      <option value="">City only</option>
-                      <option v-for="r in radiusOptions" :key="r" :value="r">+{{ r }} km</option>
+                      <option value="">{{ t('audience.city_only') }}</option>
+                      <option v-for="r in radiusOptions" :key="r" :value="r">{{ t('audience.radius', { km: r }) }}</option>
                     </select>
                   </div>
                   <template v-if="ui.advanced">
-                    <label class="fb-label mt-2">Exclude locations</label>
-                    <search-picker v-model="targeting.excluded_locations" :fetcher="searchLocations" item-key="key" chip-tone="exclude" placeholder="Search locations to exclude…">
+                    <label class="fb-label mt-2">{{ t('audience.exclude_locations') }}</label>
+                    <search-picker v-model="targeting.excluded_locations" :fetcher="searchLocations" item-key="key" chip-tone="exclude" :placeholder="t('audience.search_exclude')">
                       <template #chip="{ item }">{{ locationLabel(item) }}</template>
-                      <template #option="{ item }"><span class="sp-opt-main"><strong>{{ item.name }}</strong> <small class="fb-muted">{{ item.country_name }}</small></span><span class="fb-tag">{{ item.type }}</span></template>
+                      <template #option="{ item }"><span class="sp-opt-main"><strong>{{ item.name }}</strong> <small class="fb-muted">{{ item.country_name }}</small></span><span class="fb-tag">{{ locationType(item.type) }}</span></template>
                     </search-picker>
                   </template>
                 </div>
 
                 <div class="fb-group">
-                  <h6><i class="bx bx-user"></i> People</h6>
+                  <h6><i class="bx bx-user"></i> {{ t('audience.people') }}</h6>
                   <div class="fb-grid-3">
                     <div>
-                      <label class="fb-label">Age</label>
+                      <label class="fb-label">{{ t('audience.age') }}</label>
                       <div class="fb-age">
                         <select v-model.number="targeting.age_min" class="form-control" :disabled="specialCategory">
                           <option v-for="a in ages" :key="'min' + a" :value="a">{{ a }}</option>
                         </select>
-                        <span>to</span>
+                        <span>{{ t('audience.to') }}</span>
                         <select v-model.number="targeting.age_max" class="form-control" :disabled="specialCategory || targeting.advantage_audience">
                           <option v-for="a in ages" :key="'max' + a" :value="a">{{ a === 65 ? '65+' : a }}</option>
                         </select>
                       </div>
                     </div>
                     <div>
-                      <label class="fb-label">Gender</label>
+                      <label class="fb-label">{{ t('audience.gender') }}</label>
                       <div class="fb-seg fb-seg-full">
-                        <button type="button" :class="{ on: !targeting.genders.length }" :disabled="specialCategory" @click="targeting.genders = []">All</button>
-                        <button type="button" :class="{ on: targeting.genders[0] === 1 }" :disabled="specialCategory" @click="targeting.genders = [1]">Men</button>
-                        <button type="button" :class="{ on: targeting.genders[0] === 2 }" :disabled="specialCategory" @click="targeting.genders = [2]">Women</button>
+                        <button type="button" :class="{ on: !targeting.genders.length }" :disabled="specialCategory" @click="targeting.genders = []">{{ t('audience.all') }}</button>
+                        <button type="button" :class="{ on: targeting.genders[0] === 1 }" :disabled="specialCategory" @click="targeting.genders = [1]">{{ t('audience.men') }}</button>
+                        <button type="button" :class="{ on: targeting.genders[0] === 2 }" :disabled="specialCategory" @click="targeting.genders = [2]">{{ t('audience.women') }}</button>
                       </div>
                     </div>
                   </div>
-                  <label class="fb-label mt-2">Languages <span class="fb-opt">optional - leave empty for all languages</span></label>
-                  <search-picker v-model="targeting.locales" :fetcher="searchLocales" item-key="key" :min-chars="1" placeholder="Search languages (eg. Arabic, English, Urdu)…" />
+                  <label class="fb-label mt-2">{{ t('audience.languages') }} <span class="fb-opt">{{ t('audience.languages_opt') }}</span></label>
+                  <search-picker v-model="targeting.locales" :fetcher="searchLocales" item-key="key" :min-chars="1" :placeholder="t('audience.search_languages')" />
                   <div class="fb-quick">
-                    <span>Quick add:</span>
+                    <span>{{ t('audience.quick_add') }}</span>
                     <button v-for="l in quickLocales" :key="l.query" type="button" class="fb-chip-btn" :disabled="quickLoading === l.query || hasLocale(l)" @click="addQuickLocale(l)">
-                      <span v-if="quickLoading === l.query" class="spinner-border spinner-border-sm"></span><i v-else class="bx" :class="hasLocale(l) ? 'bx-check' : 'bx-plus'"></i> {{ l.label }}
+                      <span v-if="quickLoading === l.query" class="spinner-border spinner-border-sm"></span><i v-else class="bx" :class="hasLocale(l) ? 'bx-check' : 'bx-plus'"></i> {{ t('audience.quick.' + l.id) }}
                     </button>
                   </div>
                   <p v-if="quickError" class="fb-field-err">{{ quickError }}</p>
-                  <p class="fb-hint"><i class="bx bx-info-circle"></i> Only add languages if the ad's text is in a language not common where you're advertising - Meta already shows ads to people likely to understand them.</p>
+                  <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('audience.languages_hint') }}</p>
                 </div>
 
                 <div v-if="!specialCategory" class="fb-group">
-                  <h6><i class="bx bx-purchase-tag"></i> Detailed targeting <span class="fb-opt">interests, behaviors, demographics</span></h6>
-                  <search-picker v-model="targeting.interests" :fetcher="searchTargeting" placeholder="Search interests, behaviors or demographics (eg. Online shopping, Small business owners)…">
+                  <h6><i class="bx bx-purchase-tag"></i> {{ t('audience.detailed') }} <span class="fb-opt">{{ t('audience.detailed_sub') }}</span></h6>
+                  <search-picker v-model="targeting.interests" :fetcher="searchTargeting" :placeholder="t('audience.search_detailed')">
                     <template #option="{ item }">
                       <span class="sp-opt-main"><strong>{{ item.name }}</strong> <small class="fb-muted">{{ (item.path || []).slice(0, -1).join(' › ') }}</small></span>
                       <span class="fb-tag">{{ typeLabel(item.type) }}</span>
                       <small v-if="item.size_min" class="fb-muted">{{ compact(item.size_min) }}–{{ compact(item.size_max) }}</small>
                     </template>
                   </search-picker>
-                  <p class="fb-hint"><i class="bx bx-info-circle"></i> Options come straight from Meta for your ad account. People matching <strong>any</strong> of these are included.</p>
+                  <p class="fb-hint"><i class="bx bx-info-circle"></i> <span v-html="t('audience.detailed_hint')"></span></p>
                   <template v-if="ui.advanced">
                     <div v-for="(group, gi) in targeting.narrow" :key="'n' + gi" class="fb-narrow">
-                      <div class="fb-narrow-h"><strong>And must also match</strong><button type="button" class="fb-link" @click="targeting.narrow.splice(gi, 1)">Remove</button></div>
-                      <search-picker :value="group" :fetcher="searchTargeting" placeholder="Narrow further…" @input="v => targeting.narrow.splice(gi, 1, v)" />
+                      <div class="fb-narrow-h"><strong>{{ t('audience.must_match') }}</strong><button type="button" class="fb-link" @click="targeting.narrow.splice(gi, 1)">{{ t('common.remove') }}</button></div>
+                      <search-picker :value="group" :fetcher="searchTargeting" :placeholder="t('audience.narrow_further')" @input="v => targeting.narrow.splice(gi, 1, v)" />
                     </div>
-                    <button v-if="targeting.interests.length && targeting.narrow.length < 3" type="button" class="fb-link" @click="targeting.narrow.push([])"><i class="bx bx-plus"></i> Narrow audience</button>
+                    <button v-if="targeting.interests.length && targeting.narrow.length < 3" type="button" class="fb-link" @click="targeting.narrow.push([])"><i class="bx bx-plus"></i> {{ t('audience.narrow') }}</button>
                   </template>
                 </div>
 
                 <div v-if="ui.advanced" class="fb-group">
-                  <h6><i class="bx bx-user-check"></i> Custom &amp; lookalike audiences</h6>
-                  <div v-if="lists.loading.audiences" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> Loading audiences…</div>
+                  <h6><i class="bx bx-user-check"></i> {{ t('audience.custom') }}</h6>
+                  <div v-if="lists.loading.audiences" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> {{ t('audience.loading_audiences') }}</div>
                   <template v-else-if="usableAudiences.length">
                     <div class="fb-grid-2">
                       <div>
-                        <label class="fb-label">Include</label>
-                        <search-picker v-model="ui.includeAudiences" :options="usableAudiences" placeholder="Choose audiences…">
-                          <template #option="{ item }"><span class="sp-opt-main">{{ item.name }} <small v-if="!item.ready" class="fb-muted">({{ item.status || 'not ready' }})</small></span><span class="fb-tag">{{ item.kind }}</span></template>
+                        <label class="fb-label">{{ t('audience.include') }}</label>
+                        <search-picker v-model="ui.includeAudiences" :options="usableAudiences" :placeholder="t('audience.choose_audiences')">
+                          <template #option="{ item }"><span class="sp-opt-main">{{ item.name }} <small v-if="!item.ready" class="fb-muted">({{ item.status || t('audience.not_ready') }})</small></span><span class="fb-tag">{{ t('audience.kinds.' + item.kind) }}</span></template>
                         </search-picker>
                       </div>
                       <div>
-                        <label class="fb-label">Exclude</label>
-                        <search-picker v-model="ui.excludeAudiences" :options="lists.audiences.custom" chip-tone="exclude" placeholder="Exclude audiences (eg. existing customers)…" />
+                        <label class="fb-label">{{ t('audience.exclude') }}</label>
+                        <search-picker v-model="ui.excludeAudiences" :options="lists.audiences.custom" chip-tone="exclude" :placeholder="t('audience.exclude_audiences')" />
                       </div>
                     </div>
                   </template>
-                  <p v-else class="fb-hint"><i class="bx bx-info-circle"></i> No custom audiences in this ad account yet. Create them in Meta Ads Manager (eg. website visitors or a customer list) and they'll appear here.</p>
+                  <p v-else class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('audience.no_custom') }}</p>
                 </div>
 
                 <label v-if="!specialCategory" class="fb-toggle">
                   <input v-model="targeting.advantage_audience" type="checkbox">
-                  <span><strong>Advantage+ audience</strong><small>Let Meta find people beyond your settings when it expects better results. Your age and interests become suggestions; the maximum age stays 65+.</small></span>
+                  <span><strong>{{ t('audience.advantage') }}</strong><small>{{ t('audience.advantage_desc') }}</small></span>
                 </label>
               </template>
 
               <div class="fb-group">
-                <h6><i class="bx bx-layout"></i> Placements</h6>
+                <h6><i class="bx bx-layout"></i> {{ t('audience.placements') }}</h6>
                 <div class="fb-seg">
-                  <button type="button" :class="{ on: placements.mode === 'advantage' }" @click="placements.mode = 'advantage'">Advantage+ placements</button>
-                  <button type="button" :class="{ on: placements.mode === 'manual' }" @click="placements.mode = 'manual'">Manual</button>
+                  <button type="button" :class="{ on: placements.mode === 'advantage' }" @click="placements.mode = 'advantage'">{{ t('audience.advantage_placements') }}</button>
+                  <button type="button" :class="{ on: placements.mode === 'manual' }" @click="placements.mode = 'manual'">{{ t('audience.manual') }}</button>
                 </div>
-                <p class="fb-hint"><i class="bx bx-bulb"></i> {{ placements.mode === 'advantage' ? 'Meta shows your ad where it is likely to perform best across Facebook, Instagram, Messenger and Audience Network - usually the best value for your budget.' : 'Only the places you pick. Fewer placements can raise costs.' }}</p>
+                <p class="fb-hint"><i class="bx bx-bulb"></i> {{ placements.mode === 'advantage' ? t('audience.placements_advantage_hint') : t('audience.placements_manual_hint') }}</p>
                 <div v-if="placements.mode === 'manual'" class="fb-place-grid">
-                  <label v-for="p in platformOptions" :key="p.key" class="fb-check"><input v-model="placements.publisher_platforms" type="checkbox" :value="p.key"><i class="bx" :class="p.icon"></i> {{ p.label }}</label>
+                  <label v-for="p in platformOptions" :key="p.key" class="fb-check"><input v-model="placements.publisher_platforms" type="checkbox" :value="p.key"><i class="bx" :class="p.icon"></i> {{ t('audience.platforms.' + p.key) }}</label>
                   <div v-if="placements.publisher_platforms.includes('facebook')" class="fb-positions">
-                    <small>Facebook positions</small>
-                    <label v-for="pos in fbPositions" :key="pos.key" class="fb-check is-sm"><input v-model="placements.facebook_positions" type="checkbox" :value="pos.key"> {{ pos.label }}</label>
+                    <small>{{ t('audience.fb_positions') }}</small>
+                    <label v-for="pos in fbPositions" :key="pos.key" class="fb-check is-sm"><input v-model="placements.facebook_positions" type="checkbox" :value="pos.key"> {{ t('audience.positions.' + pos.key) }}</label>
                   </div>
                   <div v-if="placements.publisher_platforms.includes('instagram')" class="fb-positions">
-                    <small>Instagram positions</small>
-                    <label v-for="pos in igPositions" :key="pos.key" class="fb-check is-sm"><input v-model="placements.instagram_positions" type="checkbox" :value="pos.key"> {{ pos.label }}</label>
+                    <small>{{ t('audience.ig_positions') }}</small>
+                    <label v-for="pos in igPositions" :key="pos.key" class="fb-check is-sm"><input v-model="placements.instagram_positions" type="checkbox" :value="pos.key"> {{ t('audience.positions.' + pos.key) }}</label>
                   </div>
                   <div class="fb-positions">
-                    <small>Devices</small>
-                    <label class="fb-check is-sm"><input v-model="placements.device_platforms" type="checkbox" value="mobile"> Mobile</label>
-                    <label class="fb-check is-sm"><input v-model="placements.device_platforms" type="checkbox" value="desktop"> Desktop</label>
+                    <small>{{ t('audience.devices') }}</small>
+                    <label class="fb-check is-sm"><input v-model="placements.device_platforms" type="checkbox" value="mobile"> {{ t('audience.mobile') }}</label>
+                    <label class="fb-check is-sm"><input v-model="placements.device_platforms" type="checkbox" value="desktop"> {{ t('audience.desktop') }}</label>
                   </div>
                 </div>
               </div>
@@ -454,16 +450,16 @@
           <!-- ============ 4. Creative ============ -->
           <div v-show="current === 'creative'" class="fb-card">
             <div class="fb-card-h">
-              <h5>Creative</h5>
+              <h5>{{ t('creative.title') }}</h5>
               <div class="fb-seg">
-                <button type="button" :class="{ on: creative.mode === 'new' }" @click="setMode('creative', 'new')"><i class="bx bx-plus"></i> Create new</button>
-                <button type="button" :class="{ on: creative.mode === 'existing' }" @click="setMode('creative', 'existing')"><i class="bx bx-folder-open"></i> Use existing</button>
+                <button type="button" :class="{ on: creative.mode === 'new' }" @click="setMode('creative', 'new')"><i class="bx bx-plus"></i> {{ t('common.create_new') }}</button>
+                <button type="button" :class="{ on: creative.mode === 'existing' }" @click="setMode('creative', 'existing')"><i class="bx bx-folder-open"></i> {{ t('common.use_existing') }}</button>
               </div>
             </div>
 
             <template v-if="creative.mode === 'existing'">
-              <div class="fb-search"><i class="bx bx-search"></i><input v-model="creativeQuery" type="search" placeholder="Search creatives by name or text…"></div>
-              <div v-if="lists.loading.creatives" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> Loading creatives…</div>
+              <div class="fb-search"><i class="bx bx-search"></i><input v-model="creativeQuery" type="search" :placeholder="t('creative.search')"></div>
+              <div v-if="lists.loading.creatives" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> {{ t('creative.loading') }}</div>
               <p v-else-if="lists.errors.creatives" class="fb-field-err">{{ lists.errors.creatives }}</p>
               <div v-else class="fb-creative-grid">
                 <button v-for="c in filteredCreatives" :key="c.id" type="button" class="fb-creative" :class="{ on: creative.id === c.id }" @click="chooseCreative(c)">
@@ -471,108 +467,108 @@
                   <strong>{{ c.name }}</strong>
                   <small>{{ c.headline || c.text || c.type }}</small>
                 </button>
-                <div v-if="!filteredCreatives.length" class="fb-mini-empty"><i class="bx bx-image"></i><span>No creatives found.</span><button type="button" class="fb-link" @click="setMode('creative', 'new')">Create a new creative</button></div>
+                <div v-if="!filteredCreatives.length" class="fb-mini-empty"><i class="bx bx-image"></i><span>{{ t('creative.none') }}</span><button type="button" class="fb-link" @click="setMode('creative', 'new')">{{ t('creative.create_link') }}</button></div>
               </div>
-              <p v-if="creative.id" class="fb-hint"><i class="bx bx-info-circle"></i> Meta checks the creative fits this ad set's goal when the ad is created (eg. an Instant form ad needs a lead form creative).</p>
+              <p v-if="creative.id" class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('creative.existing_hint') }}</p>
             </template>
 
             <template v-else>
               <div class="fb-ident">
-                <label class="fb-label">Facebook Page <span class="fb-opt">the ad is posted from</span></label>
-                <identity-cards v-model="creative.page_id" :items="pageCards" label="Facebook Page" />
-                <p v-if="!boot.pages.length" class="fb-field-err">No Pages found - reconnect your ad account in Connections to load your Pages.</p>
+                <label class="fb-label">{{ t('creative.page') }} <span class="fb-opt">{{ t('creative.page_sub') }}</span></label>
+                <identity-cards v-model="creative.page_id" :items="pageCards" :label="t('creative.page')" />
+                <p v-if="!boot.pages.length" class="fb-field-err">{{ t('common.no_pages') }}</p>
               </div>
               <div class="fb-ident">
-                <label class="fb-label">Instagram account <span class="fb-opt">for Instagram placements</span></label>
-                <div v-if="lists.loading.instagram" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> Loading Instagram accounts…</div>
-                <identity-cards v-else v-model="creative.instagram_user_id" :items="instagramCards" platform="instagram" label="Instagram account"
-                                empty-label="Facebook Page" empty-sub="Shows the Page on Instagram" empty-icon="bxl-facebook-circle" />
+                <label class="fb-label">{{ t('creative.instagram') }} <span class="fb-opt">{{ t('creative.instagram_sub') }}</span></label>
+                <div v-if="lists.loading.instagram" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> {{ t('creative.loading_instagram') }}</div>
+                <identity-cards v-else v-model="creative.instagram_user_id" :items="instagramCards" platform="instagram" :label="t('creative.instagram')"
+                                :empty-label="t('creative.page_on_instagram')" :empty-sub="t('creative.page_on_instagram_sub')" empty-icon="bxl-facebook-circle" />
               </div>
 
               <div v-if="destRules && destRules.needs_lead_form" class="fb-group">
-                <h6><i class="bx bx-id-card"></i> Instant form</h6>
+                <h6><i class="bx bx-id-card"></i> {{ t('creative.instant_form') }}</h6>
                 <select v-model="creative.lead_form_id" class="form-control" :disabled="lists.loading.leadForms || !creative.page_id">
-                  <option :value="null" disabled>{{ !creative.page_id ? 'Choose the Page first' : (lists.loading.leadForms ? 'Loading forms…' : 'Choose a form') }}</option>
+                  <option :value="null" disabled>{{ !creative.page_id ? t('creative.choose_page_first') : (lists.loading.leadForms ? t('creative.loading_forms') : t('creative.choose_form')) }}</option>
                   <option v-for="f in lists.leadForms" :key="f.id" :value="f.id">{{ f.name }}</option>
                 </select>
                 <p v-if="lists.errors.leadForms" class="fb-field-err">{{ lists.errors.leadForms }}</p>
-                <p v-else-if="creative.page_id && !lists.loading.leadForms && !lists.leadForms.length" class="fb-hint is-warn"><i class="bx bx-error"></i> This Page has no active Instant forms. Create one in Meta Business Suite (Page &gt; Instant forms) first.</p>
+                <p v-else-if="creative.page_id && !lists.loading.leadForms && !lists.leadForms.length" class="fb-hint is-warn"><i class="bx bx-error"></i> {{ t('creative.no_forms') }}</p>
               </div>
 
-              <label class="fb-label">Format</label>
+              <label class="fb-label">{{ t('creative.format') }}</label>
               <div class="fb-seg">
-                <button type="button" :class="{ on: creative.format === 'IMAGE' }" @click="setFormat('IMAGE')"><i class="bx bx-image"></i> Single image</button>
-                <button type="button" :class="{ on: creative.format === 'VIDEO' }" @click="setFormat('VIDEO')"><i class="bx bx-video"></i> Video</button>
-                <button type="button" :class="{ on: creative.format === 'CAROUSEL' }" :disabled="destRules && (destRules.message_app || destRules.needs_lead_form)" @click="setFormat('CAROUSEL')"><i class="bx bx-carousel"></i> Carousel</button>
+                <button type="button" :class="{ on: creative.format === 'IMAGE' }" @click="setFormat('IMAGE')"><i class="bx bx-image"></i> {{ t('creative.single_image') }}</button>
+                <button type="button" :class="{ on: creative.format === 'VIDEO' }" @click="setFormat('VIDEO')"><i class="bx bx-video"></i> {{ t('creative.video') }}</button>
+                <button type="button" :class="{ on: creative.format === 'CAROUSEL' }" :disabled="destRules && (destRules.message_app || destRules.needs_lead_form)" @click="setFormat('CAROUSEL')"><i class="bx bx-carousel"></i> {{ t('creative.carousel') }}</button>
               </div>
 
               <!-- Media -->
               <div class="fb-group">
-                <h6><i class="bx bx-photo-album"></i> {{ creative.format === 'CAROUSEL' ? 'Cards (2-10)' : 'Media' }}</h6>
+                <h6><i class="bx bx-photo-album"></i> {{ creative.format === 'CAROUSEL' ? t('creative.cards') : t('creative.media') }}</h6>
                 <div v-if="creative.format !== 'CAROUSEL'" class="fb-media-row">
                   <div v-if="creative.media[0]" class="fb-media">
                     <img v-if="creative.media[0].type === 'image' || creative.media[0].thumbnail_url" :src="creative.media[0].thumbnail_url || creative.media[0].url" alt="">
                     <span v-else class="fb-media-ph"><i class="bx bx-play"></i></span>
-                    <div><strong>{{ creative.media[0].original_name }}</strong><small>{{ creative.media[0].type === 'video' ? 'Video' : 'Image' }}<template v-if="creative.media[0].width"> · {{ creative.media[0].width }}×{{ creative.media[0].height }}</template></small></div>
-                    <button type="button" class="fb-icon-btn" aria-label="Remove" @click="creative.media = []"><i class="bx bx-trash"></i></button>
+                    <div><strong>{{ creative.media[0].original_name }}</strong><small>{{ creative.media[0].type === 'video' ? t('creative.video') : t('creative.image') }}<template v-if="creative.media[0].width"> · {{ creative.media[0].width }}×{{ creative.media[0].height }}</template></small></div>
+                    <button type="button" class="fb-icon-btn" :aria-label="t('common.remove')" @click="creative.media = []"><i class="bx bx-trash"></i></button>
                   </div>
                   <div v-else class="fb-media-actions">
-                    <button type="button" class="fb-btn fb-btn-ghost" @click="openGallery('media')"><i class="bx bx-images"></i> Media Gallery</button>
-                    <label class="fb-btn fb-btn-ghost"><i class="bx bx-cloud-upload"></i> Upload new<input type="file" hidden :accept="creative.format === 'VIDEO' ? 'video/mp4,video/quicktime' : 'image/jpeg,image/png'" @change="uploadNew($event, 'media')"></label>
+                    <button type="button" class="fb-btn fb-btn-ghost" @click="openGallery('media')"><i class="bx bx-images"></i> {{ t('creative.media_gallery') }}</button>
+                    <label class="fb-btn fb-btn-ghost"><i class="bx bx-cloud-upload"></i> {{ t('creative.upload_new') }}<input type="file" hidden :accept="creative.format === 'VIDEO' ? 'video/mp4,video/quicktime' : 'image/jpeg,image/png'" @change="uploadNew($event, 'media')"></label>
                   </div>
                 </div>
                 <div v-if="creative.format === 'VIDEO' && creative.media[0]" class="fb-media-row">
                   <div v-if="creative.thumbnail" class="fb-media is-sm">
                     <img :src="creative.thumbnail.url" alt="">
-                    <div><strong>Thumbnail</strong><small>{{ creative.thumbnail.original_name }}</small></div>
-                    <button type="button" class="fb-icon-btn" aria-label="Remove thumbnail" @click="creative.thumbnail = null"><i class="bx bx-trash"></i></button>
+                    <div><strong>{{ t('creative.thumbnail') }}</strong><small>{{ creative.thumbnail.original_name }}</small></div>
+                    <button type="button" class="fb-icon-btn" :aria-label="t('creative.remove_thumbnail')" @click="creative.thumbnail = null"><i class="bx bx-trash"></i></button>
                   </div>
-                  <div v-else class="fb-hint"><i class="bx bx-image"></i> {{ creative.media[0].thumbnail_url ? 'The video\'s own thumbnail is used.' : 'Add a thumbnail image for the video.' }}
-                    <button type="button" class="fb-link" @click="openGallery('thumbnail')">Choose thumbnail</button>
+                  <div v-else class="fb-hint"><i class="bx bx-image"></i> {{ creative.media[0].thumbnail_url ? t('creative.own_thumbnail') : t('creative.add_thumbnail') }}
+                    <button type="button" class="fb-link" @click="openGallery('thumbnail')">{{ t('creative.choose_thumbnail') }}</button>
                   </div>
                 </div>
                 <div v-if="creative.format === 'CAROUSEL'" class="fb-cards">
                   <div v-for="(card, ci) in creative.cards" :key="'c' + ci" class="fb-ccard">
                     <img :src="card.asset.url" alt="">
-                    <input v-model.trim="card.headline" class="form-control form-control-sm" placeholder="Headline" maxlength="255">
-                    <input v-model.trim="card.description" class="form-control form-control-sm" placeholder="Description (optional)" maxlength="255">
-                    <input v-model.trim="card.link" type="url" class="form-control form-control-sm" placeholder="Card link (optional)">
-                    <button type="button" class="fb-icon-btn" aria-label="Remove card" @click="creative.cards.splice(ci, 1)"><i class="bx bx-x"></i></button>
+                    <input v-model.trim="card.headline" class="form-control form-control-sm" :placeholder="t('creative.card_headline')" maxlength="255">
+                    <input v-model.trim="card.description" class="form-control form-control-sm" :placeholder="t('creative.card_description')" maxlength="255">
+                    <input v-model.trim="card.link" type="url" class="form-control form-control-sm" :placeholder="t('creative.card_link')">
+                    <button type="button" class="fb-icon-btn" :aria-label="t('creative.remove_card')" @click="creative.cards.splice(ci, 1)"><i class="bx bx-x"></i></button>
                   </div>
                   <div v-if="creative.cards.length < 10" class="fb-ccard is-add">
-                    <button type="button" class="fb-btn fb-btn-ghost fb-btn-sm" @click="openGallery('card')"><i class="bx bx-images"></i> Gallery</button>
-                    <label class="fb-btn fb-btn-ghost fb-btn-sm"><i class="bx bx-cloud-upload"></i> Upload<input type="file" hidden accept="image/jpeg,image/png" @change="uploadNew($event, 'card')"></label>
+                    <button type="button" class="fb-btn fb-btn-ghost fb-btn-sm" @click="openGallery('card')"><i class="bx bx-images"></i> {{ t('creative.gallery') }}</button>
+                    <label class="fb-btn fb-btn-ghost fb-btn-sm"><i class="bx bx-cloud-upload"></i> {{ t('creative.upload') }}<input type="file" hidden accept="image/jpeg,image/png" @change="uploadNew($event, 'card')"></label>
                   </div>
                 </div>
-                <p v-if="uploading" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> Uploading to your Media Gallery… {{ uploading }}%</p>
+                <p v-if="uploading" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> {{ t('creative.uploading', { percent: uploading }) }}</p>
                 <p v-if="mediaError" class="fb-field-err">{{ mediaError }}</p>
-                <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ creative.format === 'VIDEO' ? 'MP4 or MOV. Vertical 4:5 or 9:16 works best for Reels and Stories.' : 'JPG or PNG, at least 1080×1080 px. Square (1:1) or 4:5 works across most placements.' }}</p>
+                <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ creative.format === 'VIDEO' ? t('creative.hint_video') : t('creative.hint_image') }}</p>
               </div>
 
               <!-- Text -->
               <div class="fb-group">
-                <h6><i class="bx bx-text"></i> Text</h6>
-                <label class="fb-label" for="fbPrimary">Primary text <span class="fb-count">{{ (creative.primary_text || '').length }}/2200</span></label>
-                <textarea id="fbPrimary" v-model="creative.primary_text" class="form-control" rows="3" maxlength="2200" placeholder="Tell people what you offer. The first ~125 characters show before 'See more'."></textarea>
+                <h6><i class="bx bx-text"></i> {{ t('creative.text') }}</h6>
+                <label class="fb-label" for="fbPrimary">{{ t('creative.primary') }} <span class="fb-count">{{ (creative.primary_text || '').length }}/2200</span></label>
+                <textarea id="fbPrimary" v-model="creative.primary_text" class="form-control" rows="3" maxlength="2200" :placeholder="t('creative.primary_placeholder')"></textarea>
                 <div class="fb-grid-2">
                   <div>
-                    <label class="fb-label" for="fbHeadline">Headline <span class="fb-count">{{ (creative.headline || '').length }}/40 recommended</span></label>
+                    <label class="fb-label" for="fbHeadline">{{ t('creative.headline') }} <span class="fb-count">{{ t('creative.headline_count', { count: (creative.headline || '').length }) }}</span></label>
                     <input id="fbHeadline" v-model="creative.headline" class="form-control" maxlength="255">
                   </div>
                   <div>
-                    <label class="fb-label" for="fbDesc">Description <span class="fb-opt">optional</span></label>
+                    <label class="fb-label" for="fbDesc">{{ t('creative.description') }} <span class="fb-opt">{{ t('common.optional') }}</span></label>
                     <input id="fbDesc" v-model="creative.description" class="form-control" maxlength="255">
                   </div>
                 </div>
                 <div class="fb-grid-2">
                   <div v-if="showLink">
-                    <label class="fb-label" for="fbLink">Website URL <span class="fb-opt">{{ linkRequired ? 'where the button goes' : 'optional - where the button goes' }}</span></label>
+                    <label class="fb-label" for="fbLink">{{ t('creative.website') }} <span class="fb-opt">{{ linkRequired ? t('creative.where_button') : t('creative.where_button_optional') }}</span></label>
                     <input id="fbLink" v-model.trim="creative.link" type="url" class="form-control" placeholder="https://yourstore.com/offer">
-                    <p v-if="creative.link && !validLink" class="fb-field-err">Enter the full address, starting with https://</p>
-                    <p v-else-if="!linkRequired && !creative.link" class="fb-hint"><i class="bx bx-info-circle"></i> Leave empty to send people to your Facebook Page.</p>
+                    <p v-if="creative.link && !validLink" class="fb-field-err">{{ t('creative.url_invalid') }}</p>
+                    <p v-else-if="!linkRequired && !creative.link" class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('creative.url_fallback') }}</p>
                   </div>
                   <div v-if="destRules">
-                    <label class="fb-label" for="fbCta">Call to action</label>
+                    <label class="fb-label" for="fbCta">{{ t('creative.cta') }}</label>
                     <select id="fbCta" v-model="creative.cta" class="form-control">
                       <option v-for="c in destRules.ctas" :key="c" :value="c">{{ ctaLabel(c) }}</option>
                     </select>
@@ -585,32 +581,32 @@
 
           <!-- ============ 5. Review ============ -->
           <div v-show="current === 'review'" class="fb-card">
-            <div class="fb-card-h"><h5>Ad &amp; review</h5></div>
+            <div class="fb-card-h"><h5>{{ t('review.title') }}</h5></div>
             <div class="fb-grid-2">
               <div>
-                <label class="fb-label" for="fbAdName">Ad name</label>
+                <label class="fb-label" for="fbAdName">{{ t('review.ad_name') }}</label>
                 <input id="fbAdName" v-model.trim="ad.name" class="form-control" maxlength="255">
               </div>
               <div>
-                <label class="fb-label">When it's created</label>
+                <label class="fb-label">{{ t('review.when') }}</label>
                 <div class="fb-seg fb-seg-full">
-                  <button type="button" :class="{ on: ad.status === 'PAUSED' }" @click="ad.status = 'PAUSED'"><i class="bx bx-pause-circle"></i> Save paused</button>
-                  <button type="button" :class="{ on: ad.status === 'ACTIVE' }" @click="ad.status = 'ACTIVE'"><i class="bx bx-play-circle"></i> Publish</button>
+                  <button type="button" :class="{ on: ad.status === 'PAUSED' }" @click="ad.status = 'PAUSED'"><i class="bx bx-pause-circle"></i> {{ t('review.save_paused') }}</button>
+                  <button type="button" :class="{ on: ad.status === 'ACTIVE' }" @click="ad.status = 'ACTIVE'"><i class="bx bx-play-circle"></i> {{ t('review.publish') }}</button>
                 </div>
               </div>
             </div>
-            <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ ad.status === 'ACTIVE' ? 'The ad goes to Meta\'s review and starts delivering once approved (new campaign/ad set are switched on too; existing ones are left as they are).' : 'Everything is created paused so you can check it in Ads Manager first - turn it on from Campaigns when ready.' }}</p>
+            <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ ad.status === 'ACTIVE' ? t('review.hint_active') : t('review.hint_paused') }}</p>
 
             <div class="fb-review">
-              <div v-for="row in reviewRows" :key="row.label" class="fb-review-row">
+              <div v-for="row in reviewRows" :key="row.key" class="fb-review-row">
                 <span class="fb-review-l"><i class="bx" :class="row.icon"></i> {{ row.label }}</span>
                 <span class="fb-review-v">{{ row.value }}</span>
-                <button type="button" class="fb-link" @click="goTo(row.step)">Edit</button>
+                <button type="button" class="fb-link" @click="goTo(row.step)">{{ t('common.edit') }}</button>
               </div>
             </div>
 
             <div v-if="blockers.length" class="fb-blockers">
-              <strong><i class="bx bx-error-circle"></i> Fix before creating the ad</strong>
+              <strong><i class="bx bx-error-circle"></i> {{ t('review.fix_before') }}</strong>
               <ul><li v-for="b in blockers" :key="b.text"><button type="button" class="fb-link" @click="goTo(b.step)">{{ b.text }}</button></li></ul>
             </div>
 
@@ -619,32 +615,32 @@
               <i class="bx bx-check-circle"></i>
               <div>
                 <strong>{{ result.message }}</strong>
-                <p>{{ result.status === 'ACTIVE' ? 'It is in Meta\'s review now.' : 'It is saved paused.' }} Ad ID {{ result.ad_id }}.</p>
-                <a :href="result.redirect_url || urls.campaignsList" class="fb-btn fb-btn-primary fb-btn-sm">Go to campaigns</a>
-                <button type="button" class="fb-btn fb-btn-ghost fb-btn-sm" @click="startAnother">Create another ad</button>
+                <p>{{ result.status === 'ACTIVE' ? t('result.in_review') : t('result.saved_paused') }} {{ t('result.ad_id', { id: result.ad_id }) }}</p>
+                <a :href="result.redirect_url || urls.campaignsList" class="fb-btn fb-btn-primary fb-btn-sm">{{ t('result.go_campaigns') }}</a>
+                <button type="button" class="fb-btn fb-btn-ghost fb-btn-sm" @click="startAnother">{{ t('result.another') }}</button>
               </div>
             </div>
             <div v-else-if="result" class="fb-result is-err">
               <i class="bx bx-error-circle"></i>
               <div>
-                <strong>{{ result.step ? stepTitle(result.step) + ' couldn\'t be created' : 'The ad couldn\'t be created' }}</strong>
+                <strong>{{ result.step ? t('result.step_failed', { step: stepTitle(result.step) }) : t('result.failed') }}</strong>
                 <p>{{ result.message }}</p>
                 <ul v-if="result.created && result.created.length" class="fb-created">
-                  <li v-for="c in result.created" :key="c.type"><i class="bx bx-check"></i> {{ stepTitle(c.type) }} {{ c.reused ? 'selected' : 'created' }} on Meta ({{ c.id }}) - kept, it won't be created again.</li>
+                  <li v-for="c in result.created" :key="c.type"><i class="bx bx-check"></i> {{ t('result.created_item', { step: stepTitle(c.type), action: c.reused ? t('result.selected') : t('result.created'), id: c.id }) }}</li>
                 </ul>
-                <p class="fb-muted">Fix the problem and press "Create ad" again - it continues from this step.</p>
+                <p class="fb-muted">{{ t('result.fix_retry') }}</p>
               </div>
             </div>
           </div>
 
           <!-- ===== Footer nav ===== -->
           <div class="fb-foot">
-            <button type="button" class="fb-btn fb-btn-ghost" :disabled="step === 0 || submitting" @click="back"><i class="bx bx-chevron-left"></i> Back</button>
-            <span class="fb-saved" :class="{ on: savedAt }"><i class="bx bx-cloud-upload"></i> {{ savedAt ? 'Draft saved ' + savedAt : 'Drafts save automatically' }}</span>
-            <button v-if="current !== 'review'" type="button" class="fb-btn fb-btn-primary" @click="next">Continue <i class="bx bx-chevron-right"></i></button>
+            <button type="button" class="fb-btn fb-btn-ghost" :disabled="step === 0 || submitting" @click="back"><i class="bx bx-chevron-left"></i> {{ t('common.back') }}</button>
+            <span class="fb-saved" :class="{ on: savedAt }"><i class="bx bx-cloud-upload"></i> {{ savedAt ? t('draft.saved', { time: savedAt }) : t('draft.auto') }}</span>
+            <button v-if="current !== 'review'" type="button" class="fb-btn fb-btn-primary" @click="next">{{ t('common.continue') }} <i class="bx bx-chevron-right"></i></button>
             <button v-else type="button" class="fb-btn fb-btn-primary" :disabled="submitting || blockers.length > 0 || (result && result.success)" @click="submit">
               <span v-if="submitting" class="spinner-border spinner-border-sm"></span><i v-else class="bx bx-rocket"></i>
-              {{ submitting ? 'Creating on Meta…' : (result && !result.success ? 'Try again' : 'Create ad') }}
+              {{ submitting ? t('foot.creating') : (result && !result.success ? t('foot.try_again') : t('foot.create_ad')) }}
             </button>
           </div>
         </section>
@@ -652,21 +648,21 @@
         <!-- ===== Side: preview + estimate ===== -->
         <aside class="fb-side">
           <div v-if="adset.mode === 'new' && current !== 'campaign'" class="fb-card fb-estimate">
-            <div class="fb-side-h"><strong><i class="bx bx-group"></i> Audience size</strong><small>Meta estimate</small></div>
-            <div v-if="estimate.loading" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> Asking Meta…</div>
+            <div class="fb-side-h"><strong><i class="bx bx-group"></i> {{ t('side.audience_size') }}</strong><small>{{ t('side.meta_estimate') }}</small></div>
+            <div v-if="estimate.loading" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> {{ t('side.asking') }}</div>
             <template v-else-if="estimate.data">
               <div class="fb-est-num">{{ compact(estimate.data.audience_min) }} – {{ compact(estimate.data.audience_max) }}</div>
-              <p class="fb-muted">Monthly active people matching your settings. An estimate from Meta, not a guarantee of reach or results.</p>
+              <p class="fb-muted">{{ t('side.estimate_desc') }}</p>
             </template>
-            <p v-else class="fb-muted">{{ estimate.error || 'Add a location to see Meta\'s audience estimate.' }}</p>
+            <p v-else class="fb-muted">{{ estimate.error || t('side.estimate_empty') }}</p>
           </div>
 
           <div class="fb-card fb-preview">
-            <div class="fb-side-h"><strong><i class="bx bx-show"></i> Preview</strong><small>{{ creative.mode === 'existing' ? 'Rendered by Meta' : 'Approximate' }}</small></div>
+            <div class="fb-side-h"><strong><i class="bx bx-show"></i> {{ t('side.preview') }}</strong><small>{{ creative.mode === 'existing' ? t('side.rendered') : t('side.approximate') }}</small></div>
             <template v-if="creative.mode === 'existing'">
-              <div v-if="preview.loading" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> Loading Meta's preview…</div>
+              <div v-if="preview.loading" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> {{ t('side.loading_preview') }}</div>
               <div v-else-if="preview.html" class="fb-meta-preview" v-html="preview.html"></div>
-              <p v-else class="fb-muted">{{ preview.error || 'Choose a creative to preview it.' }}</p>
+              <p v-else class="fb-muted">{{ preview.error || t('side.choose_creative') }}</p>
             </template>
             <div v-else class="fb-mock">
               <div class="fb-mock-h">
@@ -675,13 +671,13 @@
                   <span v-else-if="previewPage" class="fb-mock-initial">{{ previewPage.name.trim().charAt(0).toUpperCase() }}</span>
                   <i v-else class="bx bxl-facebook"></i>
                 </span>
-                <div><strong>{{ previewPage ? previewPage.name : 'Your Page' }}</strong><small>Sponsored · <i class="bx bx-world"></i></small></div>
+                <div><strong>{{ previewPage ? previewPage.name : t('side.your_page') }}</strong><small>{{ t('side.sponsored') }} · <i class="bx bx-world"></i></small></div>
               </div>
-              <p class="fb-mock-text">{{ creative.primary_text || 'Your primary text appears here.' }}</p>
+              <p class="fb-mock-text">{{ creative.primary_text || t('side.primary_placeholder') }}</p>
               <div v-if="creative.format === 'CAROUSEL'" class="fb-mock-carousel">
                 <div v-for="(card, ci) in creative.cards.slice(0, 3)" :key="'p' + ci" class="fb-mock-card">
                   <img :src="card.asset.url" alt="">
-                  <strong>{{ card.headline || 'Headline' }}</strong>
+                  <strong>{{ card.headline || t('side.card_headline') }}</strong>
                 </div>
                 <div v-if="!creative.cards.length" class="fb-mock-media"><i class="bx bx-carousel"></i></div>
               </div>
@@ -691,7 +687,7 @@
                 <span v-if="creative.format === 'VIDEO' && creative.media[0]" class="fb-mock-play"><i class="bx bx-play"></i></span>
               </div>
               <div v-if="creative.format !== 'CAROUSEL'" class="fb-mock-foot">
-                <div><small>{{ linkHost }}</small><strong>{{ creative.headline || 'Your headline' }}</strong><small v-if="creative.description">{{ creative.description }}</small></div>
+                <div><small>{{ linkHost }}</small><strong>{{ creative.headline || t('side.headline_placeholder') }}</strong><small v-if="creative.description">{{ creative.description }}</small></div>
                 <span v-if="creative.cta && creative.cta !== 'NO_BUTTON'" class="fb-mock-cta">{{ ctaLabel(creative.cta) }}</span>
               </div>
             </div>
@@ -711,33 +707,40 @@
 // new". Drafts are kept in localStorage per ad account; every submission
 // carries an idempotency key so retries and double clicks never create
 // duplicates on Meta.
-import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
+import { ref, reactive, computed, watch, onMounted, nextTick, provide } from 'vue';
 import SearchPicker from './SearchPicker.vue';
 import IdentityCards from './IdentityCards.vue';
 import BudgetSummary from './BudgetSummary.vue';
 import MediaPicker from '../../media/MediaPicker.vue';
+import { createTranslator } from './i18n';
 import { uploadToGallery, errorMessage, precheck } from '../../media/mediaShared';
 
 const props = defineProps({
   urls: { type: Object, required: true },
   galleryUrls: { type: Object, required: true },
   accountId: { type: [Number, String], required: true },
+  // __('ads_builder') for the current locale (lang/{en,ar}/ads_builder.php).
+  messages: { type: Object, default: () => ({}) },
+  locale: { type: String, default: 'en' },
 });
+
+const i18n = createTranslator(props.messages, props.locale);
+const { t, tc } = i18n;
+provide('fbI18n', i18n);
 
 const today = new Date().toISOString().slice(0, 10);
 const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 const ages = Array.from({ length: 48 }, (_, i) => i + 18);
 const radiusOptions = [5, 10, 17, 25, 40, 80];
 const platformOptions = [
-  { key: 'facebook', label: 'Facebook', icon: 'bxl-facebook-circle' },
-  { key: 'instagram', label: 'Instagram', icon: 'bxl-instagram' },
-  { key: 'messenger', label: 'Messenger', icon: 'bxl-messenger' },
-  { key: 'audience_network', label: 'Audience Network', icon: 'bx-grid-alt' },
+  { key: 'facebook', icon: 'bxl-facebook-circle' },
+  { key: 'instagram', icon: 'bxl-instagram' },
+  { key: 'messenger', icon: 'bxl-messenger' },
+  { key: 'audience_network', icon: 'bx-grid-alt' },
 ];
-const fbPositions = [{ key: 'feed', label: 'Feed' }, { key: 'story', label: 'Stories' }, { key: 'facebook_reels', label: 'Reels' }, { key: 'marketplace', label: 'Marketplace' }, { key: 'video_feeds', label: 'Video feeds' }, { key: 'search', label: 'Search results' }];
-const igPositions = [{ key: 'stream', label: 'Feed' }, { key: 'story', label: 'Stories' }, { key: 'reels', label: 'Reels' }, { key: 'explore', label: 'Explore' }];
-const CTA_LABELS = { LEARN_MORE: 'Learn more', SHOP_NOW: 'Shop now', SIGN_UP: 'Sign up', BOOK_NOW: 'Book now', CONTACT_US: 'Contact us', GET_OFFER: 'Get offer', ORDER_NOW: 'Order now', SUBSCRIBE: 'Subscribe', APPLY_NOW: 'Apply now', DOWNLOAD: 'Download', BUY_NOW: 'Buy now', GET_QUOTE: 'Get quote', MESSAGE_PAGE: 'Send message', WHATSAPP_MESSAGE: 'Send WhatsApp message', INSTAGRAM_MESSAGE: 'Send Instagram message', INSTALL_MOBILE_APP: 'Install now', USE_APP: 'Use app', PLAY_GAME: 'Play game', NO_BUTTON: 'No button' };
-const OPT_LABELS = { LANDING_PAGE_VIEWS: 'Landing page views', LINK_CLICKS: 'Link clicks', REACH: 'Reach', IMPRESSIONS: 'Impressions', AD_RECALL_LIFT: 'Ad recall lift', THRUPLAY: 'ThruPlay', LEAD_GENERATION: 'Leads', QUALITY_LEAD: 'Conversion leads', OFFSITE_CONVERSIONS: 'Conversions', CONVERSATIONS: 'Conversations', POST_ENGAGEMENT: 'Post engagement', APP_INSTALLS: 'App installs' };
+const fbPositions = ['feed', 'story', 'facebook_reels', 'marketplace', 'video_feeds', 'search'].map((key) => ({ key }));
+const igPositions = ['stream', 'story', 'reels', 'explore'].map((key) => ({ key }));
+const specialCategories = ['HOUSING', 'EMPLOYMENT', 'CREDIT', 'FINANCIAL_PRODUCTS_SERVICES', 'ISSUES_ELECTIONS_POLITICS'];
 
 // ---------------------------------------------------------------- state
 const boot = ref(null);
@@ -802,7 +805,7 @@ const filteredCreatives = computed(() => {
   return lists.creatives.filter((c) => !q || [c.name, c.headline, c.text].join(' ').toLowerCase().includes(q));
 });
 const linkHost = computed(() => {
-  try { return new URL(creative.link).hostname.replace(/^www\./, '').toUpperCase(); } catch (e) { return 'YOURWEBSITE.COM'; }
+  try { return new URL(creative.link).hostname.replace(/^www\./, '').toUpperCase(); } catch (e) { return t('side.website_placeholder'); }
 });
 // Website field: every destination except messaging, Instant forms and
 // app installs (those links are set by Meta / the app store URL).
@@ -811,8 +814,8 @@ const linkHost = computed(() => {
 const showLink = computed(() => !!destRules.value && !destRules.value.message_app && !destRules.value.needs_lead_form && !destRules.value.needs_app);
 const linkRequired = computed(() => showLink.value && !!destRules.value.needs_link);
 const validLink = computed(() => /^https?:\/\/\S+\.\S+/.test(creative.link || ''));
-const pageCards = computed(() => (boot.value ? boot.value.pages : []).map((p) => ({ id: p.id, name: p.name, picture: p.picture, sub: p.username ? '@' + p.username : 'Facebook Page' })));
-const instagramCards = computed(() => lists.instagram.map((a) => ({ id: a.id, name: a.username ? '@' + a.username : a.id, picture: a.picture, sub: 'Instagram' })));
+const pageCards = computed(() => (boot.value ? boot.value.pages : []).map((p) => ({ id: p.id, name: p.name, picture: p.picture, sub: p.username ? '@' + p.username : t('common.facebook_page') })));
+const instagramCards = computed(() => lists.instagram.map((a) => ({ id: a.id, name: a.username ? '@' + a.username : a.id, picture: a.picture, sub: t('creative.instagram_card_sub') })));
 // What the budget comes to with VAT (shown only - Meta gets the budget as
 // entered). A daily budget with an end date is multiplied by the days.
 const budgetSummary = computed(() => {
@@ -837,11 +840,11 @@ const budgetSummary = computed(() => {
 const pickerTypeLock = computed(() => (pickerTarget.value === 'media' ? (creative.format === 'VIDEO' ? 'video' : 'image') : 'image'));
 
 const steps = computed(() => [
-  { key: 'campaign', label: 'Campaign', summary: campaign.mode === 'existing' ? (selectedCampaign.value ? selectedCampaign.value.name : 'Choose one') : (goal.value ? goals.value[goal.value].label : 'Pick a goal') },
-  { key: 'adset', label: 'Ad set', summary: adset.mode === 'existing' ? 'Existing' : (adset.budget && !campaignHasBudget.value ? money(adset.budget) + (adset.budget_type === 'daily' ? '/day' : '') : 'Budget & schedule') },
-  { key: 'audience', label: 'Audience', summary: adset.mode === 'existing' ? 'From ad set' : (targeting.locations.length ? targeting.locations.length + ' location' + (targeting.locations.length > 1 ? 's' : '') : 'Who sees it'), skipped: adset.mode === 'existing' },
-  { key: 'creative', label: 'Creative', summary: creative.mode === 'existing' ? 'Existing' : (creative.format === 'CAROUSEL' ? 'Carousel' : creative.format === 'VIDEO' ? 'Video' : 'Image') },
-  { key: 'review', label: 'Ad & review', summary: ad.status === 'ACTIVE' ? 'Publish' : 'Save paused' },
+  { key: 'campaign', label: t('steps.campaign'), summary: campaign.mode === 'existing' ? (selectedCampaign.value ? selectedCampaign.value.name : t('steps.choose_one')) : (goal.value ? goals.value[goal.value].label : t('steps.pick_goal')) },
+  { key: 'adset', label: t('steps.adset'), summary: adset.mode === 'existing' ? t('steps.existing') : (adset.budget && !campaignHasBudget.value ? (adset.budget_type === 'daily' ? t('steps.per_day', { amount: money(adset.budget) }) : money(adset.budget)) : t('steps.budget_schedule')) },
+  { key: 'audience', label: t('steps.audience'), summary: adset.mode === 'existing' ? t('steps.from_adset') : (targeting.locations.length ? tc('steps.locations', targeting.locations.length) : t('steps.who_sees')), skipped: adset.mode === 'existing' },
+  { key: 'creative', label: t('steps.creative'), summary: creative.mode === 'existing' ? t('steps.existing') : t('steps.' + ({ CAROUSEL: 'carousel', VIDEO: 'video' }[creative.format] || 'image')) },
+  { key: 'review', label: t('steps.review'), summary: ad.status === 'ACTIVE' ? t('steps.publish') : t('steps.save_paused') },
 ]);
 const current = computed(() => steps.value[step.value].key);
 
@@ -849,18 +852,24 @@ const reviewRows = computed(() => {
   if (!boot.value) return [];
   const g = goal.value ? goals.value[goal.value] : null;
   const locs = targeting.locations.map(locationLabel).join(', ');
+  const fromAdset = t('review.from_adset');
+  const existing = (name) => t('review.existing', { name: name || '-' });
+  const fresh = (name) => t('review.new', { name: name || t('review.no_name') });
+  const amount = (value, type) => t(type === 'daily' ? 'review.per_day' : 'review.lifetime', { amount: money(value) });
+  const sum = budgetSummary.value;
+  const row = (key, step, icon, value) => ({ key, step, icon, label: t('review.rows.' + key, key === 'total_vat' && sum ? { rate: sum.vatRate } : {}), value });
   return [
-    { step: 0, icon: 'bx-flag', label: 'Campaign', value: campaign.mode === 'existing' ? `${selectedCampaign.value ? selectedCampaign.value.name : '-'} (existing)` : `${campaign.name || '(no name)'} · new` },
-    { step: 0, icon: 'bx-bullseye', label: 'Goal', value: g ? `${g.label} · ${destRules.value ? destRules.value.label : ''}` : '-' },
-    { step: 1, icon: 'bx-target-lock', label: 'Ad set', value: adset.mode === 'existing' ? `${(lists.adsets.find((s) => s.id === adset.id) || {}).name || '-'} (existing)` : `${adset.name || '(no name)'} · new · ${destRules.value ? OPT_LABELS[adset.optimization_goal] || adset.optimization_goal : ''}` },
-    { step: 1, icon: 'bx-wallet', label: 'Budget', value: campaignHasBudget.value ? (campaign.mode === 'new' ? `${money(campaign.budget)} ${campaign.budget_type === 'daily' ? 'per day' : 'lifetime'} (campaign)` : 'Campaign budget') : (adset.mode === 'existing' ? 'From ad set' : `${money(adset.budget)} ${adset.budget_type === 'daily' ? 'per day' : 'lifetime'}`) },
-    { step: 1, icon: 'bx-calendar', label: 'Schedule', value: adset.mode === 'existing' ? 'From ad set' : `${adset.start_time ? fmtDate(adset.start_time) : 'Starts right away'} → ${adset.end_time ? fmtDate(adset.end_time) : 'No end date'}` },
-    { step: 2, icon: 'bx-map', label: 'Locations', value: adset.mode === 'existing' ? 'From ad set' : (targeting.saved_audience_id ? 'Saved audience' : (locs || '-')) },
-    { step: 2, icon: 'bx-group', label: 'Audience', value: adset.mode === 'existing' ? 'From ad set' : audienceSummary() },
-    { step: 2, icon: 'bx-layout', label: 'Placements', value: adset.mode === 'existing' ? 'From ad set' : (placements.mode === 'advantage' ? 'Advantage+ placements' : placements.publisher_platforms.join(', ')) },
-    { step: 1, icon: 'bx-line-chart', label: 'Tracking', value: adset.mode === 'existing' ? 'From ad set' : destRules.value && destRules.value.needs_pixel ? `Pixel ${selectedPixel.value ? selectedPixel.value.name : '-'} · ${adset.custom_event_type}` : (destRules.value && destRules.value.needs_app ? `App ${selectedApp.value ? selectedApp.value.name : '-'}` : 'Not needed for this goal') },
-    ...(budgetSummary.value ? [{ step: 1, icon: 'bx-receipt', label: `Total incl. VAT (${budgetSummary.value.vatRate}%)`, value: `${money(budgetSummary.value.total)}${budgetSummary.value.perDay ? ' per day' : ''}${budgetSummary.value.days ? ` for ${budgetSummary.value.days} day${budgetSummary.value.days > 1 ? 's' : ''}` : ''}` }] : []),
-    { step: 3, icon: 'bx-image', label: 'Creative', value: creative.mode === 'existing' ? `${(lists.creatives.find((c) => c.id === creative.id) || {}).name || '-'} (existing)` : `${creative.format.toLowerCase()} · ${ctaLabel(creative.cta)}${creative.link ? ' · ' + creative.link : ''}` },
+    row('campaign', 0, 'bx-flag', campaign.mode === 'existing' ? existing(selectedCampaign.value && selectedCampaign.value.name) : fresh(campaign.name)),
+    row('goal', 0, 'bx-bullseye', g ? `${g.label} · ${destRules.value ? destRules.value.label : ''}` : '-'),
+    row('adset', 1, 'bx-target-lock', adset.mode === 'existing' ? existing((lists.adsets.find((s) => s.id === adset.id) || {}).name) : `${fresh(adset.name)} · ${destRules.value ? optimizationLabel(adset.optimization_goal) : ''}`),
+    row('budget', 1, 'bx-wallet', campaignHasBudget.value ? (campaign.mode === 'new' ? t('review.campaign_level', { budget: amount(campaign.budget, campaign.budget_type) }) : t('review.campaign_budget')) : (adset.mode === 'existing' ? fromAdset : amount(adset.budget, adset.budget_type))),
+    row('schedule', 1, 'bx-calendar', adset.mode === 'existing' ? fromAdset : `${adset.start_time ? fmtDate(adset.start_time) : t('review.starts_now')} → ${adset.end_time ? fmtDate(adset.end_time) : t('review.no_end')}`),
+    row('locations', 2, 'bx-map', adset.mode === 'existing' ? fromAdset : (targeting.saved_audience_id ? t('review.saved_audience') : (locs || '-'))),
+    row('audience', 2, 'bx-group', adset.mode === 'existing' ? fromAdset : audienceSummary()),
+    row('placements', 2, 'bx-layout', adset.mode === 'existing' ? fromAdset : (placements.mode === 'advantage' ? t('audience.advantage_placements') : placements.publisher_platforms.map((p) => t('audience.platforms.' + p)).join(', '))),
+    row('tracking', 1, 'bx-line-chart', adset.mode === 'existing' ? fromAdset : destRules.value && destRules.value.needs_pixel ? t('review.pixel', { name: selectedPixel.value ? selectedPixel.value.name : '-', event: (boot.value.conversion_events || {})[adset.custom_event_type] || adset.custom_event_type }) : (destRules.value && destRules.value.needs_app ? t('review.app', { name: selectedApp.value ? selectedApp.value.name : '-' }) : t('review.not_needed'))),
+    ...(sum ? [row('total_vat', 1, 'bx-receipt', sum.days ? tc('review.total_for_days', sum.days, { amount: money(sum.total) }) : (sum.perDay ? t('review.total_per_day', { amount: money(sum.total) }) : money(sum.total)))] : []),
+    row('creative', 3, 'bx-image', creative.mode === 'existing' ? existing((lists.creatives.find((c) => c.id === creative.id) || {}).name) : `${t('review.formats.' + creative.format)} · ${ctaLabel(creative.cta)}${creative.link ? ' · ' + creative.link : ''}`),
   ];
 });
 
@@ -872,40 +881,44 @@ function newKey() {
 }
 function money(v) {
   if (v === null || v === undefined || v === '') return '-';
-  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: boot.value ? boot.value.account.currency : 'USD', maximumFractionDigits: 2 }).format(v); } catch (e) { return v; }
+  try { return new Intl.NumberFormat(i18n.intl, { style: 'currency', currency: boot.value ? boot.value.account.currency : 'USD', maximumFractionDigits: 2 }).format(v); } catch (e) { return v; }
 }
 function compact(n) {
-  return n === null || n === undefined ? '-' : new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+  return n === null || n === undefined ? '-' : new Intl.NumberFormat(i18n.intl, { notation: 'compact', maximumFractionDigits: 1 }).format(n);
 }
 function fmtDate(v) {
-  return new Date(v).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  return new Date(v).toLocaleString(i18n.intl, { dateStyle: 'medium', timeStyle: 'short' });
 }
-function ctaLabel(c) { return CTA_LABELS[c] || (c || '').replace(/_/g, ' ').toLowerCase().replace(/^./, (x) => x.toUpperCase()); }
-function optimizationLabel(o) { return OPT_LABELS[o] || o || '-'; }
-function statusLabel(s) { return (s || '').replace(/_/g, ' ').toLowerCase().replace(/^./, (x) => x.toUpperCase()); }
-function typeLabel(t) { return ({ interests: 'Interest', behaviors: 'Behavior', demographics: 'Demographic', life_events: 'Life event', industries: 'Industry', income: 'Income', family_statuses: 'Family', education_statuses: 'Education', relationship_statuses: 'Relationship' })[t] || t; }
+const humanize = (v) => (v || '').replace(/_/g, ' ').toLowerCase().replace(/^./, (x) => x.toUpperCase());
+// Known codes from the lang file; anything new from Meta is shown readable.
+const known = (key, code, fallback) => { const v = t(key + '.' + code); return v === key + '.' + code ? fallback : v; };
+function ctaLabel(c) { return known('cta', c, humanize(c)); }
+function optimizationLabel(o) { return o ? known('optimization', o, o) : '-'; }
+function statusLabel(s) { return known('status', s, humanize(s)); }
+function typeLabel(type) { return known('audience.types', type, type); }
+function locationType(type) { return known('audience.location_types', type, humanize(type)); }
 function goalIcon(g) { return (goals.value[g] || {}).icon || 'bx-flag'; }
-function objectiveLabel(c) { return c.goals.length ? c.goals.map((g) => goals.value[g].label).join(' / ') : `${c.objective} (not supported here)`; }
+function objectiveLabel(c) { return c.goals.length ? c.goals.map((g) => goals.value[g].label).join(' / ') : t('campaign.not_supported', { objective: c.objective }); }
 function destIcon(key) { return ({ WEBSITE: 'bx-globe', ON_AD: 'bx-id-card', MESSENGER: 'bxl-messenger', WHATSAPP: 'bxl-whatsapp', INSTAGRAM_DIRECT: 'bxl-instagram', APP: 'bx-mobile-alt', ON_POST: 'bx-like', NONE: 'bx-broadcast' })[key] || 'bx-right-arrow-alt'; }
-function locationLabel(l) { return l.type === 'city' && l.radius ? `${l.name} +${l.radius} km` : (l.type === 'country' ? l.name : `${l.name}${l.country_code ? ', ' + l.country_code : ''}`); }
-function stepTitle(s) { return ({ validation: 'Settings', campaign: 'Campaign', adset: 'Ad set', creative: 'Creative', ad: 'Ad' })[s] || s; }
+function locationLabel(l) { return l.type === 'city' && l.radius ? `${l.name} ${t('audience.radius', { km: l.radius })}` : (l.type === 'country' ? l.name : `${l.name}${l.country_code ? ', ' + l.country_code : ''}`); }
+function stepTitle(s) { return known('step_titles', s, s); }
 function audienceSummary() {
-  if (targeting.saved_audience_id) return 'Saved audience';
-  const parts = [`${targeting.age_min}-${targeting.age_max === 65 ? '65+' : targeting.age_max}`, targeting.genders[0] === 1 ? 'men' : targeting.genders[0] === 2 ? 'women' : 'all genders'];
-  parts.push(targeting.locales.length ? targeting.locales.map((l) => l.name).join(', ') : 'all languages');
-  if (targeting.interests.length) parts.push(`${targeting.interests.length} detailed targeting`);
-  if (ui.includeAudiences.length) parts.push(`${ui.includeAudiences.length} custom audience(s)`);
-  if (targeting.advantage_audience && !specialCategory.value) parts.push('Advantage+ audience');
+  if (targeting.saved_audience_id) return t('review.saved_audience');
+  const parts = [`${targeting.age_min}-${targeting.age_max === 65 ? '65+' : targeting.age_max}`, t(targeting.genders[0] === 1 ? 'summary.men' : targeting.genders[0] === 2 ? 'summary.women' : 'summary.all_genders')];
+  parts.push(targeting.locales.length ? targeting.locales.map((l) => l.name).join(', ') : t('summary.all_languages'));
+  if (targeting.interests.length) parts.push(t('summary.detailed', { count: targeting.interests.length }));
+  if (ui.includeAudiences.length) parts.push(t('summary.custom', { count: ui.includeAudiences.length }));
+  if (targeting.advantage_audience && !specialCategory.value) parts.push(t('summary.advantage'));
   return parts.join(' · ');
 }
 
 async function api(url, params = {}, method = 'get') {
   try {
     const { data } = method === 'get' ? await window.axios.get(url, { params }) : await window.axios.post(url, params);
-    if (!data.success) throw new Error(data.message || 'Meta returned an error.');
+    if (!data.success) throw new Error(data.message || t('client.meta_error'));
     return data.data;
   } catch (e) {
-    throw new Error((e.response && e.response.data && (e.response.data.message || Object.values(e.response.data.errors || {}).flat()[0])) || e.message || 'Request failed.');
+    throw new Error((e.response && e.response.data && (e.response.data.message || Object.values(e.response.data.errors || {}).flat()[0])) || e.message || t('client.request_failed'));
   }
 }
 async function load(name, url, params = {}, assign = null) {
@@ -970,11 +983,11 @@ const searchLocales = (q) => api(props.urls.locales, { q });
 // One-click languages: looked up in Meta's own locale list (no hard-coded
 // keys) and the exact-name match added.
 const quickLocales = [
-  { query: 'Arabic', label: 'Arabic', match: ['arabic'] },
-  { query: 'English', label: 'English', match: ['english (all)', 'english'] },
-  { query: 'Urdu', label: 'Urdu', match: ['urdu'] },
-  { query: 'Hindi', label: 'Hindi', match: ['hindi'] },
-  { query: 'French', label: 'French', match: ['french (all)', 'french'] },
+  { id: 'arabic', query: 'Arabic', match: ['arabic'] },
+  { id: 'english', query: 'English', match: ['english (all)', 'english'] },
+  { id: 'urdu', query: 'Urdu', match: ['urdu'] },
+  { id: 'hindi', query: 'Hindi', match: ['hindi'] },
+  { id: 'french', query: 'French', match: ['french (all)', 'french'] },
 ];
 const quickLoading = ref('');
 const quickError = ref('');
@@ -986,12 +999,12 @@ async function addQuickLocale(l) {
     const items = (await searchLocales(l.query)) || [];
     const found = l.match.map((m) => items.find((i) => String(i.name).toLowerCase() === m)).find(Boolean);
     if (!found) {
-      quickError.value = `Meta didn't return "${l.label}" - search for it above.`;
+      quickError.value = t('audience.quick_missing', { name: t('audience.quick.' + l.id) });
     } else if (!targeting.locales.some((x) => x.key === found.key)) {
       targeting.locales.push(found);
     }
   } catch (e) {
-    quickError.value = (e && e.message) || "Couldn't load languages right now.";
+    quickError.value = (e && e.message) || t('audience.quick_failed');
   } finally {
     quickLoading.value = '';
   }
@@ -1030,7 +1043,7 @@ async function uploadNew(event, target) {
     const asset = await uploadToGallery(props.galleryUrls.store, file, (p) => { uploading.value = p || 1; });
     placeAssets([asset]);
   } catch (e) {
-    mediaError.value = errorMessage(e, 'Upload failed.');
+    mediaError.value = errorMessage(e, t('client.upload_failed'));
   } finally {
     uploading.value = 0;
   }
@@ -1041,47 +1054,47 @@ function validate() {
   const out = [];
   const add = (stepIndex, errors) => { if (errors.length) out.push({ step: stepIndex, errors }); };
   const c = [];
-  if (!goal.value) c.push('Choose a goal.');
-  if (!destination.value) c.push('Choose where people should go.');
-  if (campaign.mode === 'existing' && !campaign.id) c.push('Choose an existing campaign.');
-  if (campaign.mode === 'new' && !campaign.name) c.push('Name the campaign.');
-  if (campaign.mode === 'new' && campaign.campaign_budget && !(campaign.budget > 0)) c.push('Enter the campaign budget.');
+  if (!goal.value) c.push(t('client.goal'));
+  if (!destination.value) c.push(t('client.destination'));
+  if (campaign.mode === 'existing' && !campaign.id) c.push(t('client.campaign_existing'));
+  if (campaign.mode === 'new' && !campaign.name) c.push(t('client.campaign_name'));
+  if (campaign.mode === 'new' && campaign.campaign_budget && !(campaign.budget > 0)) c.push(t('client.campaign_budget'));
   add(0, c);
 
   const s = [];
-  if (adset.mode === 'existing' && !adset.id) s.push('Choose an existing ad set.');
+  if (adset.mode === 'existing' && !adset.id) s.push(t('client.adset_existing'));
   if (adset.mode === 'new') {
-    if (!adset.name) s.push('Name the ad set.');
-    if (!campaignHasBudget.value && !(adset.budget > 0)) s.push('Enter a budget.');
-    if (!campaignHasBudget.value && adset.budget_type === 'lifetime' && !adset.end_time) s.push('A lifetime budget needs an end date.');
-    if (adset.end_time && adset.start_time && adset.end_time <= adset.start_time) s.push('The end must be after the start.');
-    if (!campaignHasBudget.value && adset.bid_strategy !== 'LOWEST_COST_WITHOUT_CAP' && !(adset.bid_amount > 0)) s.push('Enter the bid or cost amount.');
-    if (needsPage.value && !adset.page_id) s.push('Choose the Facebook Page.');
-    if (destRules.value && destRules.value.needs_pixel && !adset.pixel_id) s.push('Choose the Meta Pixel.');
-    if (destRules.value && destRules.value.needs_app && (!adset.application_id || !adset.object_store_url)) s.push('Choose the app and its store URL.');
+    if (!adset.name) s.push(t('client.adset_name'));
+    if (!campaignHasBudget.value && !(adset.budget > 0)) s.push(t('client.budget'));
+    if (!campaignHasBudget.value && adset.budget_type === 'lifetime' && !adset.end_time) s.push(t('client.lifetime_end'));
+    if (adset.end_time && adset.start_time && adset.end_time <= adset.start_time) s.push(t('client.end_after_start'));
+    if (!campaignHasBudget.value && adset.bid_strategy !== 'LOWEST_COST_WITHOUT_CAP' && !(adset.bid_amount > 0)) s.push(t('client.bid_amount'));
+    if (needsPage.value && !adset.page_id) s.push(t('client.page'));
+    if (destRules.value && destRules.value.needs_pixel && !adset.pixel_id) s.push(t('client.pixel'));
+    if (destRules.value && destRules.value.needs_app && (!adset.application_id || !adset.object_store_url)) s.push(t('client.app'));
   }
   add(1, s);
 
   const a = [];
-  if (adset.mode === 'new' && !targeting.saved_audience_id && !targeting.locations.length) a.push('Add at least one location.');
-  if (adset.mode === 'new' && placements.mode === 'manual' && !placements.publisher_platforms.length) a.push('Pick at least one placement platform.');
+  if (adset.mode === 'new' && !targeting.saved_audience_id && !targeting.locations.length) a.push(t('client.location'));
+  if (adset.mode === 'new' && placements.mode === 'manual' && !placements.publisher_platforms.length) a.push(t('client.placement'));
   add(2, a);
 
   const cr = [];
-  if (creative.mode === 'existing' && !creative.id) cr.push('Choose an existing creative.');
+  if (creative.mode === 'existing' && !creative.id) cr.push(t('client.creative_existing'));
   if (creative.mode === 'new') {
-    if (!creative.page_id) cr.push('Choose the Page the ad runs from.');
-    if (!creative.primary_text.trim()) cr.push('Write the primary text.');
-    if (creative.format === 'CAROUSEL' && creative.cards.length < 2) cr.push('Add at least 2 carousel cards.');
-    if (creative.format !== 'CAROUSEL' && !creative.media.length) cr.push(creative.format === 'VIDEO' ? 'Choose a video.' : 'Choose an image.');
-    if (creative.format === 'VIDEO' && creative.media[0] && !creative.media[0].thumbnail_url && !creative.thumbnail) cr.push('Add a thumbnail for the video.');
-    if (linkRequired.value && !validLink.value) cr.push('Add your website URL (https://…).');
-    else if (showLink.value && creative.link && !validLink.value) cr.push('The website URL must start with https://');
-    if (destRules.value && destRules.value.needs_lead_form && !creative.lead_form_id) cr.push('Choose the Instant form.');
+    if (!creative.page_id) cr.push(t('client.creative_page'));
+    if (!creative.primary_text.trim()) cr.push(t('client.primary'));
+    if (creative.format === 'CAROUSEL' && creative.cards.length < 2) cr.push(t('client.cards'));
+    if (creative.format !== 'CAROUSEL' && !creative.media.length) cr.push(t(creative.format === 'VIDEO' ? 'client.video' : 'client.image'));
+    if (creative.format === 'VIDEO' && creative.media[0] && !creative.media[0].thumbnail_url && !creative.thumbnail) cr.push(t('client.thumbnail'));
+    if (linkRequired.value && !validLink.value) cr.push(t('client.website'));
+    else if (showLink.value && creative.link && !validLink.value) cr.push(t('client.website_https'));
+    if (destRules.value && destRules.value.needs_lead_form && !creative.lead_form_id) cr.push(t('client.lead_form'));
   }
   add(3, cr);
 
-  if (!ad.name) add(4, ['Name the ad.']);
+  if (!ad.name) add(4, [t('client.ad_name')]);
   return out;
 }
 
@@ -1139,7 +1152,7 @@ function payload() {
     },
     creative: creative.mode === 'existing' ? { mode: 'existing', id: creative.id } : {
       mode: 'new',
-      name: creative.name || `${ad.name || 'Creative'} - ${today}`,
+      name: creative.name || `${ad.name || t('creative.default_name')} - ${today}`,
       format: creative.format,
       page_id: creative.page_id,
       instagram_user_id: creative.instagram_user_id,
@@ -1170,7 +1183,7 @@ function refreshEstimate() {
     estimate.error = '';
     try {
       estimate.data = await api(props.urls.estimate, payload(), 'post');
-      if (!estimate.data) estimate.error = 'Meta has no estimate for these settings yet.';
+      if (!estimate.data) estimate.error = t('side.no_estimate');
     } catch (e) {
       estimate.data = null;
       estimate.error = e.message;
@@ -1185,7 +1198,7 @@ async function loadPreview() {
   preview.error = '';
   try {
     preview.html = (await api(props.urls.creativePreview.replace('CREATIVE_ID', creative.id))).html || '';
-    if (!preview.html) preview.error = 'Meta returned no preview for this creative.';
+    if (!preview.html) preview.error = t('side.no_preview');
   } catch (e) {
     preview.html = '';
     preview.error = e.message;
@@ -1220,7 +1233,7 @@ async function submit() {
       });
       result.value = { success: false, message: Object.values(data.errors).flat().join(' ') };
     } else {
-      result.value = { success: false, ...data, message: data.message || (e.response ? 'Meta or the server returned an error. Please try again.' : "Couldn't reach the server - check your connection and try again.") };
+      result.value = { success: false, ...data, message: data.message || (e.response ? t('client.server_error') : t('client.network')) };
     }
   } finally {
     submitting.value = false;
@@ -1249,7 +1262,7 @@ function saveDraft() {
   saveTimer = setTimeout(() => {
     try {
       localStorage.setItem(draftKey.value, JSON.stringify({ ...snapshot(), savedAt: new Date().toISOString() }));
-      savedAt.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      savedAt.value = new Date().toLocaleTimeString(i18n.intl, { hour: '2-digit', minute: '2-digit' });
     } catch (e) { /* private mode - drafts just aren't kept */ }
   }, 800);
 }
@@ -1319,7 +1332,7 @@ onMounted(async () => {
   }
   if (boot.value.pages.length === 1) creative.page_id = boot.value.pages[0].id;
   const draft = readDraft();
-  if (draft) draftOffer.value = { savedAt: new Date(draft.savedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) };
+  if (draft) draftOffer.value = { savedAt: fmtDate(draft.savedAt) };
 });
 </script>
 
@@ -1384,15 +1397,15 @@ onMounted(async () => {
 /* fields */
 .fb-label { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: .82rem; font-weight: 600; color: #374151; margin: 12px 0 6px; }
 .fb-opt { font-weight: 500; color: var(--muted); font-size: .74rem; }
-.fb-count { margin-left: auto; font-weight: 500; color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
+.fb-count { margin-inline-start: auto; font-weight: 500; color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
 .fb-tip { color: var(--muted); cursor: help; }
 .fb :deep(.form-control) { border-radius: 10px; border-color: #E2E5ED; font-size: .88rem; }
 .fb :deep(.form-control:focus) { border-color: #8F6BFF; box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
 .fb-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
 .fb-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 14px; align-items: start; }
 .fb-span-2 { grid-column: span 2; align-self: end; }
-.fb-hint { position: relative; display: block; margin: 8px 0 0; padding-left: 21px; font-size: .78rem; color: var(--muted); line-height: 1.45; }
-.fb-hint > i:first-child { position: absolute; left: 0; top: 1px; font-size: 15px; color: #A3A9B8; }
+.fb-hint { position: relative; display: block; margin: 8px 0 0; padding-inline-start: 21px; font-size: .78rem; color: var(--muted); line-height: 1.45; }
+.fb-hint > i:first-child { position: absolute; inset-inline-start: 0; top: 1px; font-size: 15px; color: #A3A9B8; }
 .fb-hint.is-warn { color: #92400E; }
 .fb-hint.is-warn i { color: #D97706; }
 .fb-field-err { margin: 8px 0 0; font-size: .8rem; color: var(--err); font-weight: 500; }
@@ -1432,8 +1445,8 @@ onMounted(async () => {
 .fb-switch input { accent-color: var(--brand); width: 16px; height: 16px; }
 
 .fb-search { position: relative; margin-bottom: 10px; }
-.fb-search i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); }
-.fb-search input { width: 100%; height: 40px; border: 1px solid #E2E5ED; border-radius: 10px; padding: 0 12px 0 36px; font-size: .86rem; outline: none; }
+.fb-search i { position: absolute; inset-inline-start: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+.fb-search input { width: 100%; height: 40px; border: 1px solid #E2E5ED; border-radius: 10px; padding-block: 0; padding-inline: 36px 12px; font-size: .86rem; outline: none; }
 .fb-search input:focus { border-color: #8F6BFF; box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
 .fb-ident { margin-bottom: 14px; }
 .fb-quick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: .76rem; color: var(--muted); }
@@ -1482,7 +1495,7 @@ onMounted(async () => {
 .fb-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-top: 8px; }
 .fb-ccard { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; }
 .fb-ccard img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
-.fb-ccard .fb-icon-btn { position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; background: rgba(255, 255, 255, .92); }
+.fb-ccard .fb-icon-btn { position: absolute; top: 12px; inset-inline-end: 12px; width: 26px; height: 26px; background: rgba(255, 255, 255, .92); }
 .fb-ccard.is-add { align-items: center; justify-content: center; gap: 8px; border-style: dashed; min-height: 170px; }
 .fb-creative-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; max-height: 460px; overflow-y: auto; padding: 2px; }
 .fb-creative { display: flex; flex-direction: column; gap: 4px; padding: 8px; border: 1.5px solid var(--line); border-radius: 12px; background: #fff; text-align: start; }
@@ -1500,14 +1513,14 @@ onMounted(async () => {
 .fb-review-l i { color: var(--brand); }
 .fb-review-v { color: var(--ink); font-weight: 500; word-break: break-word; }
 .fb-blockers { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: #FEF2F2; border: 1px solid #FECACA; color: var(--err); font-size: .84rem; }
-.fb-blockers ul { margin: 6px 0 0; padding-left: 18px; }
+.fb-blockers ul { margin: 6px 0 0; padding-inline-start: 18px; }
 .fb-blockers .fb-link { color: var(--err); text-decoration: underline; font-weight: 500; }
 .fb-result { display: flex; gap: 12px; margin-top: 14px; padding: 14px; border-radius: 12px; font-size: .86rem; }
 .fb-result > i { font-size: 26px; }
 .fb-result p { margin: 4px 0 8px; }
 .fb-result.is-ok { background: #ECFDF5; border: 1px solid #A7F3D0; color: #065F46; }
 .fb-result.is-err { background: #FEF2F2; border: 1px solid #FECACA; color: #7F1D1D; }
-.fb-result .fb-btn { margin-right: 6px; }
+.fb-result .fb-btn { margin-inline-end: 6px; }
 .fb-created { list-style: none; padding: 0; margin: 4px 0 8px; font-size: .8rem; }
 .fb-created i { color: var(--ok); }
 
@@ -1555,4 +1568,8 @@ onMounted(async () => {
   .fb-review-l { grid-column: 1 / -1; }
   .fb-foot .fb-saved { display: none; }
 }
+
+/* Arabic (dir="rtl"): mirror direction arrows. */
+.fb[dir="rtl"] .bx-chevron-left, .fb[dir="rtl"] .bx-chevron-right { transform: scaleX(-1); }
+.fb[dir="rtl"] select.form-control { background-position: left .75rem center; padding-left: 2.25rem; padding-right: .875rem; }
 </style>

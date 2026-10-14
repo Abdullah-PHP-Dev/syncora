@@ -2,6 +2,8 @@
 
 namespace App\Support\Ads;
 
+use Illuminate\Support\Facades\Lang;
+
 /**
  * Business goals for the Facebook campaign builder, mapped to Meta's
  * outcome-based objectives (ODAX). For each goal: the objective, the
@@ -215,6 +217,46 @@ class MetaGoals
     public static function destination(string $goal, string $destination): ?array
     {
         return self::find($goal)['destinations'][$destination] ?? null;
+    }
+
+    /**
+     * all() with the text in the current locale (lang/{en,ar}/ads_builder.php
+     * goals.*) - for the wizard. Codes and rules are unchanged; anything
+     * without a translation keeps the English text above.
+     */
+    public static function localized(): array
+    {
+        $tr = fn (string $key, string $fallback) => Lang::has("ads_builder.goals.{$key}") ? __("ads_builder.goals.{$key}") : $fallback;
+
+        $goals = [];
+        foreach (self::all() as $goal => $g) {
+            foreach (['label', 'summary', 'guidance'] as $field) {
+                $g[$field] = $tr("{$goal}.{$field}", $g[$field]);
+            }
+            foreach ($g['destinations'] as $code => $d) {
+                $d['label'] = $tr("destinations.{$code}", $d['label']);
+                foreach ($d['optimization_goals'] as $opt => $label) {
+                    $d['optimization_goals'][$opt] = Lang::has("ads_builder.goals.optimization_by_goal.{$goal}.{$opt}")
+                        ? __("ads_builder.goals.optimization_by_goal.{$goal}.{$opt}")
+                        : $tr("optimization.{$opt}", $label);
+                }
+                $g['destinations'][$code] = $d;
+            }
+            $goals[$goal] = $g;
+        }
+
+        return $goals;
+    }
+
+    /** CONVERSION_EVENTS in the current locale. */
+    public static function localizedEvents(): array
+    {
+        $events = [];
+        foreach (self::CONVERSION_EVENTS as $code => $label) {
+            $events[$code] = Lang::has("ads_builder.goals.events.{$code}") ? __("ads_builder.goals.events.{$code}") : $label;
+        }
+
+        return $events;
     }
 
     /** Meta's destination_type for the ad set (null = don't send one). */

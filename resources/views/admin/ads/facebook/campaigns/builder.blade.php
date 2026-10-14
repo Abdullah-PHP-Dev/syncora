@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Create Facebook & Instagram ad')
+@section('title', __('ads_builder.page_title'))
 
 {{-- Facebook campaign builder - resources/js/components/ads/facebook/FacebookCampaignBuilder.vue,
      backed by App\Http\Controllers\Admin\FacebookAdBuilderController. --}}
@@ -35,12 +35,14 @@
             :urls='@json($builderUrls)'
             :gallery-urls='@json($galleryUrls)'
             :account-id="{{ (int) $account->id }}"
+            :messages='@json(__('ads_builder'))'
+            locale="{{ app()->getLocale() }}"
         ></facebook-campaign-builder>
     @else
         <div class="card"><div class="card-body text-center py-5">
-            <h5>Connect a Facebook ad account first</h5>
-            <p class="text-muted">Connect Meta in Connections, then come back to create your ad.</p>
-            <a href="{{ \App\Support\Connections\HubLink::for('facebook') ?? route('admin.connections.index') }}" class="btn btn-primary">Go to Connections</a>
+            <h5>{{ __('ads_builder.no_account_title') }}</h5>
+            <p class="text-muted">{{ __('ads_builder.no_account_text') }}</p>
+            <a href="{{ \App\Support\Connections\HubLink::for('facebook') ?? route('admin.connections.index') }}" class="btn btn-primary">{{ __('ads_builder.boot.go_connections') }}</a>
         </div></div>
     @endif
 @endsection

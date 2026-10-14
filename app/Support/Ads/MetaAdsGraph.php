@@ -76,6 +76,12 @@ class MetaAdsGraph
         $params = array_map(fn ($v) => is_array($v) ? json_encode($v) : (is_bool($v) ? ($v ? 'true' : 'false') : $v), $params);
         $params['access_token'] = $this->token();
 
+        // Arabic UI: ask Meta for Arabic names (interests, locations) and
+        // error text on reads. Callers can pin a locale (eg. en_US).
+        if ($method === 'get' && ! isset($params['locale']) && app()->getLocale() === 'ar') {
+            $params['locale'] = 'ar_AR';
+        }
+
         // appsecret_proof on every call, keyed with the Ads app's secret and
         // sent in the query string. The global MetaAppSecretProof middleware
         // can't read large form bodies (eg. /adimages base64 bytes), so
@@ -165,7 +171,7 @@ class MetaAdsGraph
 
         $refreshed = app(FacebookAdService::class)->refreshToken((string) $this->account->access_token);
         if (! ($refreshed['success'] ?? false)) {
-            throw new MetaApiException('Your Facebook ad account connection has expired. Reconnect it in Connections and try again.', 190);
+            throw new MetaApiException(__('ads_builder.server.token_expired'), 190);
         }
         $this->account->refresh();
 

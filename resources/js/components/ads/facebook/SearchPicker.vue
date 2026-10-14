@@ -3,14 +3,14 @@
     <div class="sp-field" @click="focusInput">
       <span v-for="item in value" :key="keyOf(item)" class="sp-chip" :class="{ 'is-exclude': chipTone === 'exclude' }">
         <slot name="chip" :item="item">{{ labelOf(item) }}</slot>
-        <button type="button" :aria-label="'Remove ' + labelOf(item)" @click.stop="remove(item)"><i class="bx bx-x"></i></button>
+        <button type="button" :aria-label="t('picker.remove', { name: labelOf(item) })" @click.stop="remove(item)"><i class="bx bx-x"></i></button>
       </span>
       <input
         ref="input"
         v-model="query"
         type="text"
-        :placeholder="value.length ? '' : placeholder"
-        :aria-label="placeholder"
+        :placeholder="value.length ? '' : (placeholder || t('picker.search'))"
+        :aria-label="placeholder || t('picker.search')"
         autocomplete="off"
         @focus="onFocus"
         @blur="onBlur"
@@ -50,6 +50,7 @@
 // targeting, languages, audiences. Either searches the server (fetcher -
 // debounced, min 2 characters) or filters a local list (options).
 import { ref } from 'vue';
+import { useBuilderI18n } from './i18n';
 
 const props = defineProps({
   value: { type: Array, default: () => [] },
@@ -57,12 +58,13 @@ const props = defineProps({
   options: { type: Array, default: null },      // local list instead of fetcher
   itemKey: { type: String, default: 'id' },
   itemLabel: { type: String, default: 'name' },
-  placeholder: { type: String, default: 'Search...' },
+  placeholder: { type: String, default: '' },
   max: { type: Number, default: 50 },
   chipTone: { type: String, default: 'include' },
   minChars: { type: Number, default: 2 },
 });
 const emit = defineEmits(['input', 'error']);
+const { t } = useBuilderI18n();
 
 const input = ref(null);
 const query = ref('');
@@ -99,14 +101,14 @@ function search() {
   if (props.options) {
     const needle = q.toLowerCase();
     results.value = props.options.filter((o) => !needle || String(labelOf(o)).toLowerCase().includes(needle)).slice(0, 50);
-    message.value = results.value.length ? '' : 'Nothing matches.';
+    message.value = results.value.length ? '' : t('picker.nothing');
     active.value = 0;
     return;
   }
 
   if (q.length < props.minChars) {
     results.value = [];
-    message.value = q ? `Type at least ${props.minChars} characters.` : '';
+    message.value = q ? t('picker.min_chars', { count: props.minChars }) : '';
     return;
   }
 
@@ -117,12 +119,12 @@ function search() {
       const items = await props.fetcher(q);
       if (id !== requestId) return;
       results.value = items || [];
-      message.value = results.value.length ? '' : 'Meta found nothing for that search.';
+      message.value = results.value.length ? '' : t('picker.meta_nothing');
       active.value = 0;
     } catch (e) {
       if (id !== requestId) return;
       results.value = [];
-      message.value = (e && e.message) || "Couldn't search right now.";
+      message.value = (e && e.message) || t('picker.failed');
       emit('error', message.value);
     } finally {
       if (id === requestId) loading.value = false;

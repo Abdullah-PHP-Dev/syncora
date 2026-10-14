@@ -24,12 +24,12 @@ class MetaApiException extends RuntimeException
         $subcode = isset($error['error_subcode']) ? (int) $error['error_subcode'] : null;
 
         $title = $error['error_user_title'] ?? null;
-        $message = $error['error_user_msg'] ?? $error['message'] ?? ('Meta returned HTTP ' . $response->status() . '.');
+        $message = $error['error_user_msg'] ?? $error['message'] ?? __('ads_builder.server.meta_http', ['status' => $response->status()]);
 
         $message = match (true) {
-            $code === 190 => 'Your Facebook connection has expired or was revoked. Reconnect your ad account in Connections.',
-            in_array($code, [10, 200], true) || ($code >= 200 && $code < 300) => 'Meta says this ad account or Page lacks the permission for this action. ' . $message,
-            in_array($code, [4, 17, 32, 613, 80004], true) => 'Meta is rate-limiting this ad account right now. Wait a few minutes and try again.',
+            $code === 190 => __('ads_builder.server.meta_revoked'),
+            in_array($code, [10, 200], true) || ($code >= 200 && $code < 300) => __('ads_builder.server.meta_permission', ['message' => $message]),
+            in_array($code, [4, 17, 32, 613, 80004], true) => __('ads_builder.server.meta_rate_limit'),
             default => ($title ? rtrim($title, '.') . ': ' : '') . $message,
         };
 

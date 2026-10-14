@@ -113,28 +113,30 @@ class FacebookAdBuilderRequest extends FormRequest
 
     public function messages(): array
     {
+        $m = fn (string $key) => __("ads_builder.validation.{$key}");
+
         return [
-            'destination.in' => 'Choose where people should go (conversion location) for this goal.',
-            'campaign.id.required' => 'Campaign: choose an existing campaign or create a new one.',
-            'campaign.name.required' => 'Campaign: give the new campaign a name.',
-            'campaign.budget.required' => 'Campaign: enter the campaign budget.',
-            'adset.id.required' => 'Ad set: choose an existing ad set or create a new one.',
-            'adset.name.required' => 'Ad set: give the new ad set a name.',
-            'adset.budget.required' => 'Ad set: enter a budget.',
-            'adset.bid_amount.required' => 'Ad set: this bid strategy needs a bid or cost amount.',
-            'adset.end_time.required' => 'Ad set: a lifetime budget needs an end date.',
-            'adset.end_time.after' => 'Ad set: the end date must be after the start date.',
-            'adset.start_time.after_or_equal' => 'Ad set: the start date can\'t be in the past.',
-            'adset.targeting.locations.required' => 'Audience: add at least one location.',
-            'adset.targeting.age_max.gte' => 'Audience: the maximum age must be at least the minimum age.',
-            'creative.id.required' => 'Creative: choose an existing creative or create a new one.',
-            'creative.page_id.required' => 'Creative: choose the Facebook Page the ad is posted from.',
-            'creative.primary_text.required' => 'Creative: write the primary text.',
-            'creative.media.required' => 'Creative: choose an image or video.',
-            'creative.cards.required' => 'Creative: a carousel needs 2 to 10 cards.',
-            'creative.cards.min' => 'Creative: a carousel needs at least 2 cards.',
-            'creative.link.url' => 'Creative: the website address must be a full URL (https://...).',
-            'ad.name.required' => 'Ad: give the ad a name.',
+            'destination.in' => $m('destination'),
+            'campaign.id.required' => $m('campaign_id'),
+            'campaign.name.required' => $m('campaign_name'),
+            'campaign.budget.required' => $m('campaign_budget'),
+            'adset.id.required' => $m('adset_id'),
+            'adset.name.required' => $m('adset_name'),
+            'adset.budget.required' => $m('adset_budget'),
+            'adset.bid_amount.required' => $m('bid_amount'),
+            'adset.end_time.required' => $m('end_required'),
+            'adset.end_time.after' => $m('end_after'),
+            'adset.start_time.after_or_equal' => $m('start_past'),
+            'adset.targeting.locations.required' => $m('locations'),
+            'adset.targeting.age_max.gte' => $m('age_max'),
+            'creative.id.required' => $m('creative_id'),
+            'creative.page_id.required' => $m('creative_page'),
+            'creative.primary_text.required' => $m('primary_text'),
+            'creative.media.required' => $m('media'),
+            'creative.cards.required' => $m('cards_required'),
+            'creative.cards.min' => $m('cards_min'),
+            'creative.link.url' => $m('link_url'),
+            'ad.name.required' => $m('ad_name'),
         ];
     }
 

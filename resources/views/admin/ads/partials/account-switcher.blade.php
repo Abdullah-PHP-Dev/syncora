@@ -17,35 +17,35 @@
     @if ($account)
         <span class="ads-acct-icon"><i class="bx bx-briefcase-alt-2"></i></span>
         <div class="ads-acct-text">
-            <small>{{ $platformName }} ad account</small>
-            <strong title="{{ $account->name }}">{{ $account->name ?: $platformName . ' ad account' }}</strong>
+            <small>{{ __('ads_builder.account_switcher.ad_account', ['platform' => $platformName]) }}</small>
+            <strong title="{{ $account->name }}">{{ $account->name ?: __('ads_builder.account_switcher.ad_account', ['platform' => $platformName]) }}</strong>
         </div>
         @if ($adAccounts->count() > 1)
             <div class="dropdown ms-auto">
-                <button type="button" class="ads-acct-btn" data-bs-toggle="dropdown" aria-expanded="false"><i class="bx bx-transfer-alt"></i> Switch <i class="bx bx-chevron-down"></i></button>
+                <button type="button" class="ads-acct-btn" data-bs-toggle="dropdown" aria-expanded="false"><i class="bx bx-transfer-alt"></i> {{ __('ads_builder.account_switcher.switch') }} <i class="bx bx-chevron-down"></i></button>
                 <ul class="dropdown-menu dropdown-menu-end ads-acct-menu">
                     @foreach ($adAccounts as $option)
                         <li>
                             <a class="dropdown-item {{ $option->id === $account->id ? 'active' : '' }}" href="{{ $switchUrl($option->id) }}" data-ads-acct-switch>
                                 <i class="bx {{ $option->id === $account->id ? 'bx-check' : 'bx-briefcase-alt-2' }}"></i>
-                                <span>{{ $option->name ?: $platformName . ' ad account #' . $option->id }}</span>
+                                <span>{{ $option->name ?: __('ads_builder.account_switcher.ad_account_number', ['platform' => $platformName, 'id' => $option->id]) }}</span>
                             </a>
                         </li>
                     @endforeach
                     <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item" href="{{ $connectUrl }}"><i class="bx bx-plus"></i> <span>Connect another account</span></a></li>
+                    <li><a class="dropdown-item" href="{{ $connectUrl }}"><i class="bx bx-plus"></i> <span>{{ __('ads_builder.account_switcher.connect_another_account') }}</span></a></li>
                 </ul>
             </div>
         @else
-            <a href="{{ $connectUrl }}" class="ads-acct-btn ms-auto"><i class="bx bx-plus"></i> Connect another</a>
+            <a href="{{ $connectUrl }}" class="ads-acct-btn ms-auto"><i class="bx bx-plus"></i> {{ __('ads_builder.account_switcher.connect_another') }}</a>
         @endif
     @else
         <span class="ads-acct-icon is-warn"><i class="bx bx-error"></i></span>
         <div class="ads-acct-text">
-            <strong>No {{ $platformName }} advertising account is connected</strong>
-            <small>Connect one to create this campaign - you'll come straight back here.</small>
+            <strong>{{ __('ads_builder.account_switcher.none', ['platform' => $platformName]) }}</strong>
+            <small>{{ __('ads_builder.account_switcher.none_hint') }}</small>
         </div>
-        <a href="{{ $connectUrl }}" class="ads-acct-btn is-primary ms-auto"><i class="bx bx-link"></i> Connect {{ $platformName }}</a>
+        <a href="{{ $connectUrl }}" class="ads-acct-btn is-primary ms-auto"><i class="bx bx-link"></i> {{ __('ads_builder.account_switcher.connect', ['platform' => $platformName]) }}</a>
     @endif
 </div>
 {{-- Account exists but its connection lost access: point at the Hub's reconnect. --}}

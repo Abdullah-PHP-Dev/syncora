@@ -697,6 +697,36 @@ class FacebookCampaignBuilderTest extends TestCase
         $this->assertContains('Creative: a carousel needs at least 2 cards.', $this->requestErrors($data));
     }
 
+    // ---- Arabic -----------------------------------------------------------
+
+    public function test_arabic_locale_translates_goals_messages_and_asks_meta_in_arabic(): void
+    {
+        app()->setLocale('ar');
+        $this->route('GET search', ['data' => [['key' => 28, 'name' => 'Arabic']]]);
+        $b = $this->builder();
+
+        $boot = $b->bootstrap();
+        $this->assertSame('زيارات الموقع', $boot['goals']['traffic']['label']);
+        $this->assertSame('الموقع الإلكتروني', $boot['goals']['traffic']['destinations']['WEBSITE']['label']);
+        $this->assertSame('الوصول اليومي الفريد', $boot['goals']['traffic']['destinations']['WEBSITE']['optimization_goals']['REACH']);
+        $this->assertSame('الوصول (العرض لأكبر عدد من الأشخاص)', $boot['goals']['awareness']['destinations']['NONE']['optimization_goals']['REACH']);
+        $this->assertSame('شراء', $boot['conversion_events']['PURCHASE']);
+        $this->assertSame(['WEBSITE'], array_keys($boot['goals']['traffic']['destinations'])); // codes unchanged
+
+        // Meta reads in Arabic; the language list stays English so quick-add can match it.
+        $this->assertSame('ar_AR', collect($this->calls)->firstWhere(1, 'act_111')[2]['locale'] ?? null);
+        $b->locales('Arab');
+        $this->assertSame('en_US', collect($this->calls)->last(fn ($c) => $c[1] === 'search')[2]['locale']);
+
+        // Server-side failures come back in Arabic.
+        $result = $b->submit($this->input(['creative' => ['link' => null]]), 'key-arabic-msg-0001');
+        $this->assertSame('أضف عنوان الموقع (يبدأ بـ https://) الذي ينتقل إليه الأشخاص.', $result['message']);
+        $this->assertNotContains('locale', array_keys($this->posts('act_111/campaigns')[0][2])); // creates don't carry it
+
+        $errors = $this->requestErrors(['idempotency_key' => 'key-arabic-val-0001'] + $this->input(['campaign' => ['name' => null]]));
+        $this->assertContains('الحملة: أدخل اسماً للحملة الجديدة.', $errors);
+    }
+
     // ---- page ------------------------------------------------------------
 
     public function test_create_page_opens_the_builder_and_keeps_the_old_form_reachable(): void

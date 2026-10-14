@@ -17,6 +17,7 @@ use App\Support\Ads\MetaGoals;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -82,8 +83,8 @@ class FacebookCampaignBuilder
             ],
             'pages' => $this->pages(),
             'vat_rate' => self::VAT_RATE,
-            'goals' => MetaGoals::all(),
-            'conversion_events' => MetaGoals::CONVERSION_EVENTS,
+            'goals' => MetaGoals::localized(),
+            'conversion_events' => MetaGoals::localizedEvents(),
         ];
     }
 
@@ -295,7 +296,7 @@ class FacebookCampaignBuilder
     public function locales(string $query): array
     {
         return array_map(fn ($l) => ['key' => (int) $l['key'], 'name' => $l['name'] ?? ''],
-            $this->graph->get('search', ['type' => 'adlocale', 'q' => $query, 'limit' => 15])['data'] ?? []);
+            $this->graph->get('search', ['type' => 'adlocale', 'q' => $query, 'limit' => 15, 'locale' => 'en_US'])['data'] ?? []);
     }
 
     /**
@@ -343,7 +344,7 @@ class FacebookCampaignBuilder
 
         $lock = Cache::lock("ad-builder:{$userId}:{$key}", 300);
         if (! $lock->get()) {
-            return ['success' => false, 'status' => 409, 'message' => 'This campaign is already being created - wait for it to finish.'];
+            return ['success' => false, 'status' => 409, 'message' => __('ads_builder.server.in_progress')];
         }
 
         try {
@@ -395,7 +396,7 @@ class FacebookCampaignBuilder
                     'success' => false,
                     'status' => 500,
                     'step' => $step,
-                    'message' => "Something went wrong on our side while saving this step (reference #{$run->id}). Press \"Create ad\" again - anything already created on Meta is reused, not created twice. If it keeps failing, contact support with the reference.",
+                    'message' => __('ads_builder.server.internal_error', ['ref' => $run->id]),
                     'created' => $this->createdSummary($run),
                     'retryable' => true,
                 ];
@@ -414,7 +415,7 @@ class FacebookCampaignBuilder
         return [
             'success' => true,
             'replayed' => $replayed,
-            'message' => $replayed ? 'This ad was already created - nothing new was submitted.' : 'Your ad was created on Meta.',
+            'message' => $replayed ? __('ads_builder.server.replayed') : __('ads_builder.server.created'),
             'created' => $this->createdSummary($run),
             'ad_id' => $run->result('ad.remote'),
             'campaign_local_id' => $run->result('campaign.local'),
@@ -445,14 +446,14 @@ class FacebookCampaignBuilder
             $owned = collect($this->audiences()['custom'])->pluck('id')->map(fn ($id) => (string) $id);
             foreach ($audienceIds as $id) {
                 if (! $owned->contains((string) $id)) {
-                    throw new \InvalidArgumentException('One of the selected audiences does not belong to this ad account.');
+                    throw new \InvalidArgumentException(__('ads_builder.server.audience_not_owned'));
                 }
             }
         }
 
         if ($pixel = $input['adset']['pixel_id'] ?? null) {
             if (! collect($this->pixels())->pluck('id')->contains((string) $pixel)) {
-                throw new \InvalidArgumentException('The selected Pixel / dataset is not available to this ad account.');
+                throw new \InvalidArgumentException(__('ads_builder.server.pixel_not_owned'));
             }
         }
     }
@@ -471,7 +472,7 @@ class FacebookCampaignBuilder
         if (($spec['mode'] ?? 'new') === 'existing') {
             $remote = $this->ownedCampaign((string) $spec['id']);
             if (($remote['objective'] ?? null) !== $goal['objective']) {
-                throw new \InvalidArgumentException("The campaign \"{$remote['name']}\" uses a different objective ({$remote['objective']}) than the goal you chose.");
+                throw new \InvalidArgumentException(__('ads_builder.server.objective_mismatch', ['name' => $remote['name'] ?? '', 'objective' => $remote['objective'] ?? '']));
             }
 
             $local = AdCampaign::updateOrCreate(['ad_campaign_id' => $remote['id'], 'platform' => 'facebook'], [
@@ -538,7 +539,7 @@ class FacebookCampaignBuilder
         if (($spec['mode'] ?? 'new') === 'existing') {
             $remote = $this->ownedObject((string) $spec['id'], 'ad set', 'id,name,account_id,campaign_id,optimization_goal,billing_event,destination_type,status');
             if ((string) ($remote['campaign_id'] ?? '') !== (string) $campaign['remote']) {
-                throw new \InvalidArgumentException('The selected ad set belongs to a different campaign.');
+                throw new \InvalidArgumentException(__('ads_builder.server.adset_other_campaign'));
             }
 
             $local = AdAdGroup::updateOrCreate(['ad_adgroup_id' => $remote['id'], 'platform' => 'facebook'], [
@@ -558,11 +559,11 @@ class FacebookCampaignBuilder
 
         $destination = MetaGoals::destination($input['goal'], $input['destination']);
         if (! $destination) {
-            throw new \InvalidArgumentException('That conversion location is not available for this goal.');
+            throw new \InvalidArgumentException(__('ads_builder.server.destination_unavailable'));
         }
         $optimization = $spec['optimization_goal'] ?? array_key_first($destination['optimization_goals']);
         if (! isset($destination['optimization_goals'][$optimization])) {
-            throw new \InvalidArgumentException('That optimization goal is not available for this goal and conversion location.');
+            throw new \InvalidArgumentException(__('ads_builder.server.optimization_unavailable'));
         }
 
         $status = ($input['ad']['status'] ?? 'PAUSED') === 'ACTIVE' ? 'ACTIVE' : 'PAUSED';
@@ -586,7 +587,7 @@ class FacebookCampaignBuilder
         if (! $campaign['campaign_budget']) {
             $budgetType = ($spec['budget_type'] ?? 'daily') === 'lifetime' ? 'lifetime_budget' : 'daily_budget';
             if ($budgetType === 'lifetime_budget' && ! $end) {
-                throw new \InvalidArgumentException('A lifetime budget needs an end date.');
+                throw new \InvalidArgumentException(__('ads_builder.server.lifetime_end'));
             }
             $payload[$budgetType] = $this->graph->toMinor($spec['budget']);
             $payload['bid_strategy'] = $spec['bid_strategy'] ?? 'LOWEST_COST_WITHOUT_CAP';
@@ -638,11 +639,11 @@ class FacebookCampaignBuilder
         foreach ($destination['promoted_object'] ?? [] as $field) {
             if (empty($values[$field])) {
                 throw new \InvalidArgumentException(match ($field) {
-                    'page_id' => 'Choose the Facebook Page this ad runs for.',
-                    'pixel_id' => 'Choose the Meta Pixel (dataset) that tracks conversions on your website.',
-                    'custom_event_type' => 'Choose the conversion event to optimize for.',
-                    'application_id', 'object_store_url' => 'Choose your app and its store URL.',
-                    default => "Missing {$field}.",
+                    'page_id' => __('ads_builder.server.promoted_page'),
+                    'pixel_id' => __('ads_builder.server.promoted_pixel'),
+                    'custom_event_type' => __('ads_builder.server.promoted_event'),
+                    'application_id', 'object_store_url' => __('ads_builder.server.promoted_app'),
+                    default => __('ads_builder.server.promoted_missing', ['field' => $field]),
                 });
             }
             $object[$field] = $values[$field];
@@ -805,12 +806,12 @@ class FacebookCampaignBuilder
                 'call_to_action' => $cta,
             ]);
             if (empty($story['video_data']['image_hash']) && empty($story['video_data']['image_url'])) {
-                throw new \InvalidArgumentException('Add a thumbnail image for the video.');
+                throw new \InvalidArgumentException(__('ads_builder.server.thumbnail'));
             }
         } elseif ($format === 'CAROUSEL') {
             $cards = $spec['cards'] ?? [];
             if (count($cards) < 2 || count($cards) > 10) {
-                throw new \InvalidArgumentException('A carousel needs between 2 and 10 cards.');
+                throw new \InvalidArgumentException(__('ads_builder.server.carousel_cards'));
             }
             $story['link_data'] = array_filter([
                 'link' => $link,
@@ -912,7 +913,7 @@ class FacebookCampaignBuilder
         };
 
         if (! empty($destination['needs_lead_form']) && empty($spec['lead_form_id'])) {
-            throw new \InvalidArgumentException('Choose the Instant form people fill in.');
+            throw new \InvalidArgumentException(__('ads_builder.server.lead_form'));
         }
 
         return ['type' => $type, 'value' => $value];
@@ -936,7 +937,7 @@ class FacebookCampaignBuilder
             return 'https://www.facebook.com/' . $input['creative']['page_id'];
         }
         if (! filter_var($link, FILTER_VALIDATE_URL)) {
-            throw new \InvalidArgumentException('Add the website address (starting with https://) people go to.');
+            throw new \InvalidArgumentException(__('ads_builder.server.website'));
         }
 
         return $link;
@@ -948,13 +949,13 @@ class FacebookCampaignBuilder
 
         if (! $asset) {
             if ($required) {
-                throw new \InvalidArgumentException($type === 'video' ? 'Choose a video for the ad.' : 'Choose an image for the ad.');
+                throw new \InvalidArgumentException(__($type === 'video' ? 'ads_builder.server.choose_video' : 'ads_builder.server.choose_image'));
             }
 
             return null;
         }
         if ($asset->type !== $type) {
-            throw new \InvalidArgumentException("\"{$asset->original_name}\" is not " . ($type === 'video' ? 'a video.' : 'an image.'));
+            throw new \InvalidArgumentException(__($type === 'video' ? 'ads_builder.server.not_video' : 'ads_builder.server.not_image', ['name' => $asset->original_name]));
         }
 
         return $asset;
@@ -971,13 +972,13 @@ class FacebookCampaignBuilder
 
         $bytes = Http::timeout(120)->get($asset->url);
         if (! $bytes->successful()) {
-            throw new \InvalidArgumentException("Couldn't read \"{$asset->original_name}\" from your Media Gallery.");
+            throw new \InvalidArgumentException(__('ads_builder.server.unreadable', ['name' => $asset->original_name]));
         }
 
         $data = $this->graph->post($this->graph->actId() . '/adimages', ['bytes' => base64_encode($bytes->body())]);
         $image = collect($data['images'] ?? [])->first();
         if (empty($image['hash'])) {
-            throw new MetaApiException("Meta didn't accept the image \"{$asset->original_name}\".");
+            throw new MetaApiException(__('ads_builder.server.image_rejected', ['name' => $asset->original_name]));
         }
         $run->remember("media.image_{$asset->id}", $image['hash']);
 
@@ -997,7 +998,7 @@ class FacebookCampaignBuilder
 
         $data = $this->graph->post($this->graph->actId() . '/advideos', ['file_url' => $asset->url, 'name' => $asset->original_name]);
         if (empty($data['id'])) {
-            throw new MetaApiException("Meta didn't accept the video \"{$asset->original_name}\".");
+            throw new MetaApiException(__('ads_builder.server.video_rejected', ['name' => $asset->original_name]));
         }
         $run->remember("media.video_{$asset->id}", $data['id']);
 
@@ -1051,28 +1052,34 @@ class FacebookCampaignBuilder
     private function ownedObject(string $id, string $label, string $fields = 'id,name,account_id'): array
     {
         if (! preg_match('/^\d+$/', $id)) {
-            throw new \InvalidArgumentException("That {$label} id isn't valid.");
+            throw new \InvalidArgumentException(__('ads_builder.server.invalid_id', ['object' => $this->objectName($label)]));
         }
 
         try {
             $object = $this->graph->get($id, ['fields' => $fields]);
         } catch (MetaApiException $e) {
-            throw new \InvalidArgumentException("That {$label} wasn't found in this ad account (" . $e->getMessage() . ')');
+            throw new \InvalidArgumentException(__('ads_builder.server.not_found', ['object' => $this->objectName($label), 'reason' => $e->getMessage()]));
         }
 
         $accountId = (string) ($object['account_id'] ?? ($object['account']['account_id'] ?? $object['account']['id'] ?? ''));
         if (preg_replace('/^act_/', '', $accountId) !== $this->graph->accountId()) {
-            throw new \InvalidArgumentException("That {$label} belongs to a different ad account.");
+            throw new \InvalidArgumentException(__('ads_builder.server.other_account', ['object' => $this->objectName($label)]));
         }
 
         return $object;
+    }
+
+    /** "ad set" -> the translated object name for messages. */
+    private function objectName(string $label): string
+    {
+        return Lang::has("ads_builder.server.objects.{$label}") ? __("ads_builder.server.objects.{$label}") : $label;
     }
 
     private function ownedPage(string $pageId): void
     {
         $owned = PlatformPage::where('user_id', $this->graph->account->user_id)->where('platform', 'facebook')->where('page_id', $pageId)->exists();
         if (! $owned) {
-            throw new \InvalidArgumentException('That Facebook Page is not connected to your account. Reconnect your ad account to refresh your Pages.');
+            throw new \InvalidArgumentException(__('ads_builder.server.page_not_owned'));
         }
     }
 
@@ -1084,10 +1091,10 @@ class FacebookCampaignBuilder
         $parts = array_filter([
             $places ? implode(', ', array_slice($places, 0, 3)) . (count($places) > 3 ? ' +' . (count($places) - 3) : '') : null,
             isset($t['age_min']) ? ($t['age_min'] . '-' . ($t['age_max'] ?? '65+')) : null,
-            ! empty($t['flexible_spec']) ? count(array_merge(...array_map(fn ($g) => array_merge(...array_values($g)), $t['flexible_spec']))) . ' detailed targeting' : null,
-            ! empty($t['custom_audiences']) ? count($t['custom_audiences']) . ' custom audience(s)' : null,
+            ! empty($t['flexible_spec']) ? __('ads_builder.server.summary_detailed', ['count' => count(array_merge(...array_map(fn ($g) => array_merge(...array_values($g)), $t['flexible_spec'])))]) : null,
+            ! empty($t['custom_audiences']) ? __('ads_builder.server.summary_custom', ['count' => count($t['custom_audiences'])]) : null,
         ]);
 
-        return implode(' · ', $parts) ?: 'Broad audience';
+        return implode(' · ', $parts) ?: __('ads_builder.server.broad');
     }
 }
