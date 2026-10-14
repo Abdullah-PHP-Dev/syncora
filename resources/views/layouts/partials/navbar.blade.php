@@ -236,6 +236,7 @@
 
                     <span class="admin-user-role">
                         {{ auth()->user()->hasRole('admin') ? __('Team administrator') : (auth()->user()->hasRole('customer_support') ? __('Customer support') : __('Seller')) }}
+                        | {{ __('overview.user_id') }}: <bdi>{{ auth()->id() }}</bdi>
                     </span>
 
                 </div>

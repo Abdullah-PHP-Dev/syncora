@@ -234,7 +234,11 @@ class TeamWorkspaceTest extends TestCase
                 ->get(route('dashboard.overview', absolute: false))
                 ->assertOk()
                 ->assertViewIs('admin.overview-team')
-                ->assertSee('workspace-overview');
+                ->assertSee('workspace-overview')
+                ->assertSee('overview-sidebar');
+            $this->get(route('dashboard', absolute: false))
+                ->assertOk()
+                ->assertDontSee('overview-sidebar');
         }
     }
 }

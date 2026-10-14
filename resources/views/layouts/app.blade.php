@@ -66,6 +66,9 @@
 
     @stack('styles')
     <link rel="stylesheet" href="{{ asset('assets/css/dashboard-theme.css') }}?v={{ filemtime(public_path('assets/css/dashboard-theme.css')) }}" />
+    @if(request()->routeIs('dashboard.overview'))
+        <link rel="stylesheet" href="{{ asset('assets/css/overview-sidebar.css') }}?v={{ filemtime(public_path('assets/css/overview-sidebar.css')) }}" />
+    @endif
 </head>
 
 <body class="socialeaz-app">
@@ -74,7 +77,11 @@
     <div class="layout-container">
 
         <!-- SIDEBAR -->
-        @include(auth()->user()->isTeamMember() ? 'layouts.partials.team-sidebar' : 'layouts.partials.sidebar')
+        @if(request()->routeIs('dashboard.overview'))
+            @include('layouts.partials.overview-sidebar')
+        @else
+            @include(auth()->user()->isTeamMember() ? 'layouts.partials.team-sidebar' : 'layouts.partials.sidebar')
+        @endif
 
         <!-- MAIN CONTENT -->
         <div class="layout-page">
