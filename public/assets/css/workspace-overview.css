@@ -1,6 +1,6 @@
 /* Performance workspace: restrained typography, expansive chart, compact metrics. */
 body.socialeaz-app:has(.workspace-overview) { background:#fff; }
-.workspace-overview { --ov-ink:#24263d; --ov-muted:#8793ac; --ov-purple:#6855ed; --ov-border:#e7ebf4; color:var(--ov-ink); padding:8px 4px 28px; font-family:Inter,sans-serif; }
+.workspace-overview { --ov-ink:var(--theme-ink); --ov-muted:var(--theme-muted); --ov-purple:var(--theme-purple); --ov-border:var(--theme-border); color:var(--ov-ink); padding:8px 4px 28px; font-family:Inter,sans-serif; }
 .workspace-overview * { box-sizing:border-box; min-width:0; }
 .workspace-overview h1,.workspace-overview h2,.workspace-overview h3 { color:var(--ov-ink); margin:0; }
 .workspace-overview h1 { font-size:clamp(28px,3.1vw,42px); font-weight:700; letter-spacing:-1.5px; margin:18px 0; line-height:1.2; }

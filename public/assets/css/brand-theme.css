@@ -1,0 +1,11 @@
+/* Common homepage and workspace brand palette. */
+:root {
+    --theme-ink: #09072d;
+    --theme-muted: #626498;
+    --theme-blue: #064bff;
+    --theme-purple: #720aff;
+    --theme-gradient: linear-gradient(110deg, #004cff, #710bff);
+    --theme-soft: #f1eaff;
+    --theme-border: #edf0fa;
+    --theme-hover: #6008ff;
+}

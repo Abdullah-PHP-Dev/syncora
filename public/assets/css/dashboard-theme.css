@@ -14,23 +14,18 @@
     --bs-body-bg: #f8f9ff;
 }
 .socialeaz-app {
-    --theme-ink: #09072d;
-    --theme-muted: #626498;
-    --theme-blue: #064bff;
-    --theme-purple: #720aff;
-    --theme-gradient: linear-gradient(110deg, #004cff, #710bff);
     background: var(--bs-body-bg);
     color: var(--theme-ink);
 }
 .socialeaz-app .socialeaz-dash {
     --dash-bg: #f8f9ff;
     --dash-card-hover: #f8f6ff;
-    --dash-border: #edf0fa;
-    --dash-text: #626498;
-    --dash-heading: #09072d;
-    --dash-muted: #626498;
-    --dash-primary: #064bff;
-    --dash-primary-2: #720aff;
+    --dash-border: var(--theme-border);
+    --dash-text: var(--theme-muted);
+    --dash-heading: var(--theme-ink);
+    --dash-muted: var(--theme-muted);
+    --dash-primary: var(--theme-blue);
+    --dash-primary-2: var(--theme-purple);
 }
 .socialeaz-app .btn-primary {
     --bs-btn-bg: #064bff;

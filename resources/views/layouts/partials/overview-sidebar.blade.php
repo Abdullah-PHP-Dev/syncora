@@ -39,8 +39,7 @@
     }
     $groups = $team ? [
         'overview.navigation' => [
-            ['dashboard.overview', 'admin.sidebar.overview', 'bx-grid-alt'],
-            ['dashboard', 'overview.old_dashboard', 'bx-layout'],
+            ['dashboard', 'admin.dashboard', 'bx-grid-alt'],
         ],
         'overview.sidebar_team' => array_merge([
             ['admin.tickets.index', 'admin.sidebar.tickets', 'bx-headphone'],
@@ -53,7 +52,7 @@
         ] : []),
     ] : [
         'overview.navigation' => [
-            ['dashboard.overview', 'admin.sidebar.overview', 'bx-grid-alt'],
+            ['dashboard', 'admin.dashboard', 'bx-grid-alt'],
         ],
         'admin.sidebar.marketing' => [
             ['admin.ads.dashboard', 'admin.sidebar.ads', 'bx-bullseye'],
@@ -87,35 +86,44 @@
         </a>
         <button type="button" class="admin-sidebar-collapse layout-menu-toggle" aria-label="{{ __('admin.navbar.toggle_sidebar') }}" title="{{ __('admin.navbar.toggle_sidebar') }}"><i class="bx bx-chevron-left" aria-hidden="true"></i></button>
     </div>
-    <div class="ov-sidebar-workspace">
-        <span class="ov-workspace-avatar" aria-hidden="true">{{ mb_strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}</span>
-        <div><strong>{{ __('overview.workspace_label') }}</strong><span>{{ auth()->user()->name }}</span></div>
-        <i class="bx bx-check-shield" aria-hidden="true"></i>
-    </div>
     <nav class="admin-sidebar-body ov-sidebar-body" aria-label="{{ __('overview.sidebar_navigation') }}">
         <ul class="menu-inner ov-sidebar-menu">
             @foreach($groups as $heading => $links)
                 <li class="ov-sidebar-section"><span>{{ __($heading) }}</span></li>
                 @foreach($links as [$destination, $label, $icon])
                     @php
-                        $active = request()->routeIs($destination);
+                        $active = request()->routeIs($destination) || ($destination === 'dashboard' && request()->routeIs('dashboard.overview'));
                         $submenu = $children[$destination] ?? [];
+                        $submenuOpen = ($destination === 'admin.ads.dashboard' && request()->routeIs('admin.ads.*'))
+                            || ($destination === 'admin.posts.dashboard' && request()->routeIs('admin.posts.*'));
+                        $active = $active || $submenuOpen;
                         $submenuId = 'ov-sidebar-'.str_replace('.', '-', $destination);
                     @endphp
                     <li class="menu-item {{ $active ? 'active' : '' }} {{ $submenu ? 'ov-sidebar-dropdown' : '' }}">
-                        <a href="{{ route($destination) }}" class="menu-link ov-sidebar-link" data-module="{{ $destination }}" title="{{ __($label) }}" @if($active) aria-current="page" @endif>
+                        @if($submenu)
+                            <button type="button" class="menu-link ov-sidebar-link ov-sidebar-parent-toggle" data-module="{{ $destination }}" title="{{ __($label) }}" aria-expanded="{{ $submenuOpen ? 'true' : 'false' }}" aria-controls="{{ $submenuId }}">
+                        @else
+                            <a href="{{ route($destination) }}" class="menu-link ov-sidebar-link" data-module="{{ $destination }}" title="{{ __($label) }}" @if($active) aria-current="page" @endif>
+                        @endif
                             <span class="ov-sidebar-icon"><i class="bx {{ $icon }}" aria-hidden="true"></i></span>
                             <span class="ov-sidebar-label">{{ __($label) }}</span>
-                            @if($active)<span class="ov-sidebar-active-dot" aria-hidden="true"></span>@endif
                             @if($destination === 'admin.chats.dashboard' && ($unread ?? 0) > 0)<span class="ov-sidebar-badge">{{ $unread > 99 ? '99+' : $unread }}</span>@endif
                             @if($destination === 'admin.tickets.index' && ($openTickets ?? $ticketCounts['open'] ?? 0) > 0)<span class="ov-sidebar-badge">{{ min(99, $openTickets ?? $ticketCounts['open']) }}</span>@endif
-                        </a>
                         @if($submenu)
-                            <button type="button" class="ov-sidebar-dropdown-toggle" aria-expanded="false" aria-controls="{{ $submenuId }}" aria-label="{{ __('admin.sidebar.toggle_group', ['name' => __($label)]) }}"><i class="bx bx-chevron-down" aria-hidden="true"></i></button>
-                            <ul id="{{ $submenuId }}" class="ov-sidebar-submenu" hidden>
+                                <span class="ov-sidebar-dropdown-toggle" aria-hidden="true"><i class="bx bx-chevron-down"></i></span>
+                            </button>
+                        @else
+                            </a>
+                        @endif
+                        @if($submenu)
+                            <ul id="{{ $submenuId }}" class="ov-sidebar-submenu" @unless($submenuOpen) hidden @endunless>
                                 @foreach($submenu as [$childRoute, $childLabel, $childIcon, $parameters])
+                                    @php
+                                        $childActive = request()->routeIs($childRoute)
+                                            && (request()->route('platform') ?? request()->query('platform')) === ($parameters['platform'] ?? null);
+                                    @endphp
                                     <li>
-                                        <a href="{{ route($childRoute, $parameters) }}" @if(isset($parameters['platform'])) data-platform="{{ $parameters['platform'] }}" @endif>
+                                        <a href="{{ route($childRoute, $parameters) }}" @if($childActive) aria-current="page" @endif @if(isset($parameters['platform'])) data-platform="{{ $parameters['platform'] }}" @endif>
                                             <span class="ov-sidebar-subicon" aria-hidden="true"><i class="bx {{ $childIcon }}"></i></span>
                                             <span>{{ __($childLabel) }}</span>
                                         </a>
@@ -132,7 +140,6 @@
         @unless($team)
             <a class="ov-sidebar-plan" href="{{ route('admin.subscription.select') }}" title="{{ __('admin.sidebar.manage_your_plan') }}"><span class="ov-plan-icon"><i class="bx bx-crown" aria-hidden="true"></i></span><div><strong>{{ __('overview.sidebar_plan_title') }}</strong><small>{{ __('admin.sidebar.manage_your_plan') }}</small></div><i class="bx bx-arrow-back ov-plan-arrow" aria-hidden="true"></i></a>
         @endunless
-        @unless($team)<a class="ov-sidebar-legacy" href="{{ route('dashboard') }}" title="{{ __('overview.old_dashboard') }}"><i class="bx bx-arrow-back" aria-hidden="true"></i><span>{{ __('overview.old_dashboard') }}</span></a>@endunless
     </div>
 </aside>
 <script src="{{ asset('assets/js/overview-sidebar.js') }}?v={{ filemtime(public_path('assets/js/overview-sidebar.js')) }}" defer></script>
