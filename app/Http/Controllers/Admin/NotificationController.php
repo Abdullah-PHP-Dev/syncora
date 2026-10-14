@@ -51,7 +51,11 @@ class NotificationController extends Controller
                     'avatar' => $comment->user_avatar_url,
                     'preview' => Str::limit($comment->content ?: '(no content)', 80),
                     'platform' => $comment->platform,
-                    'url' => route('admin.posts.show', $comment->post_id) . '#comment-' . $comment->id,
+                    // A comment not (yet) matched to a post has no post page -
+                    // link to the Comments dashboard instead of failing the list.
+                    'url' => $comment->post_id
+                        ? route('admin.posts.show', $comment->post_id) . '#comment-' . $comment->id
+                        : route('admin.comments.dashboard'),
                     'created_at' => $comment->created_at,
                 ];
             });
