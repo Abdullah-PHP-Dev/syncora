@@ -63,6 +63,20 @@ class FacebookCampaignBuilder
 
     public const DEPRECATED_INSTAGRAM_POSITIONS = ['explore'];
 
+    /**
+     * Positions Meta has removed ("... placement is deprecated for this API
+     * version and cannot be selected") - dropped before sending, so old
+     * drafts and saved settings never fail on them. Facebook video feeds
+     * (v24, Reels replaces it), Instagram Explore (v26), Messenger Stories,
+     * Instant Articles (retired).
+     */
+    public const DEPRECATED_POSITIONS = [
+        'facebook_positions' => ['video_feeds', 'instant_article'],
+        'instagram_positions' => self::DEPRECATED_INSTAGRAM_POSITIONS,
+        'messenger_positions' => ['story'],
+        'audience_network_positions' => [],
+    ];
+
     /** Location types offered from Meta's adgeolocation search, and the geo_locations key each maps to. */
     public const LOCATION_TYPES = ['country' => 'countries', 'region' => 'regions', 'city' => 'cities', 'zip' => 'zips', 'geo_market' => 'geo_markets', 'neighborhood' => 'neighborhoods'];
 
@@ -851,12 +865,15 @@ class FacebookCampaignBuilder
             }
         } elseif (($placements['mode'] ?? 'advantage') === 'manual') {
             $spec['publisher_platforms'] = array_values(array_intersect($placements['publisher_platforms'] ?? [], ['facebook', 'instagram', 'messenger', 'audience_network']));
-            foreach (['facebook_positions', 'instagram_positions', 'messenger_positions', 'audience_network_positions'] as $key) {
-                $values = $key === 'instagram_positions'
-                    ? array_diff($placements[$key] ?? [], self::DEPRECATED_INSTAGRAM_POSITIONS)
-                    : ($placements[$key] ?? []);
+            foreach (self::DEPRECATED_POSITIONS as $key => $removed) {
+                // Only for platforms that are selected (eg. no facebook_positions
+                // when delivering on Instagram only), and never removed positions.
+                if (! in_array(str_replace('_positions', '', $key), $spec['publisher_platforms'], true)) {
+                    continue;
+                }
+                $values = array_values(array_diff($placements[$key] ?? [], $removed));
                 if ($values) {
-                    $spec[$key] = array_values($values);
+                    $spec[$key] = $values;
                 }
             }
             if (! empty($placements['device_platforms'])) {

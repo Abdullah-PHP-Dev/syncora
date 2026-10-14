@@ -772,7 +772,8 @@ const platformOptions = [
   { key: 'messenger', icon: 'bxl-messenger' },
   { key: 'audience_network', icon: 'bx-grid-alt' },
 ];
-const fbPositions = ['feed', 'story', 'facebook_reels', 'marketplace', 'video_feeds', 'search'].map((key) => ({ key }));
+// No 'video_feeds': Meta removed Facebook video feeds (Reels replaces it).
+const fbPositions = ['feed', 'story', 'facebook_reels', 'marketplace', 'search'].map((key) => ({ key }));
 // No 'explore': Meta removed the Explore placement (Explore home remains).
 const igPositions = (isInstagram ? ['stream', 'story', 'reels', 'explore_home', 'ig_search'] : ['stream', 'story', 'reels', 'explore_home']).map((key) => ({ key }));
 // Work & education (B2B) - Graph search types; results come only from Meta.
@@ -1350,6 +1351,7 @@ function resumeDraft() {
   Object.assign(targeting, d.targeting);
   Object.assign(placements, d.placements);
   placements.instagram_positions = (placements.instagram_positions || []).filter((p) => p !== 'explore');
+  placements.facebook_positions = (placements.facebook_positions || []).filter((p) => !['video_feeds', 'instant_article'].includes(p));
   Object.assign(creative, d.creative);
   Object.assign(ad, d.ad);
   Object.assign(ui, d.ui);

@@ -788,6 +788,38 @@ class FacebookCampaignBuilderTest extends TestCase
         $this->assertCount(2, $this->posts('act_111/adimages'));
     }
 
+    public function test_the_reported_facebook_payload_sends_no_removed_or_unselected_positions(): void
+    {
+        // Meta: "Facebook Video Feeds Placement Is Deprecated ... please remove it from your targeting."
+        $this->route('POST act_111/adsets', fn ($p) => in_array('video_feeds', $p['targeting']['facebook_positions'] ?? [], true)
+            ? Http::response(['error' => ['code' => 100, 'error_user_title' => 'Facebook Video Feeds Placement Is Deprecated', 'error_user_msg' => 'Facebook video feeds placement is deprecated for this API version and cannot be selected, please remove it from your targeting.']], 400)
+            : ['id' => '9002']);
+
+        // The report: Facebook page, manual placements on Instagram only, but six
+        // Facebook positions (incl. video_feeds) still in the request; carousel.
+        $input = $this->input(['goal' => 'awareness', 'destination' => 'NONE', 'adset' => ['optimization_goal' => 'REACH', 'page_id' => '500'],
+            'creative' => ['format' => 'CAROUSEL', 'media' => [], 'instagram_user_id' => null, 'cta' => 'LEARN_MORE', 'cards' => [
+                ['asset_id' => 1, 'headline' => 'Socialeaz Announced', 'link' => 'https://socialeaz.com'],
+                ['asset_id' => 3, 'headline' => 'Socialeaz Announced 1', 'link' => 'https://socialeaz.com'],
+            ]]]);
+        $input['adset']['placements'] = ['mode' => 'manual', 'publisher_platforms' => ['instagram'],
+            'facebook_positions' => ['search', 'video_feeds', 'marketplace', 'facebook_reels', 'story', 'feed'],
+            'instagram_positions' => ['stream', 'story', 'reels', 'explore_home'], 'device_platforms' => ['mobile', 'desktop']];
+
+        $result = $this->builder()->submit($input, 'key-fb-report-0001');
+
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+        $t = $this->posts('act_111/adsets')[0][2]['targeting'];
+        $this->assertSame(['instagram'], $t['publisher_platforms']);
+        $this->assertArrayNotHasKey('facebook_positions', $t);
+        $this->assertSame(['stream', 'story', 'reels', 'explore_home'], $t['instagram_positions']);
+
+        // With Facebook selected, its positions are sent - minus the removed video_feeds.
+        $input['adset']['placements']['publisher_platforms'] = ['facebook', 'instagram'];
+        $this->builder()->submit($input, 'key-fb-report-0002');
+        $this->assertSame(['search', 'marketplace', 'facebook_reels', 'story', 'feed'], $this->posts('act_111/adsets')[1][2]['targeting']['facebook_positions']);
+    }
+
     public function test_instagram_all_positions_when_none_picked(): void
     {
         $input = $this->instagram();
