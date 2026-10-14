@@ -853,6 +853,14 @@ const showLink = computed(() => !!destRules.value && !destRules.value.message_ap
 const linkRequired = computed(() => showLink.value && !!destRules.value.needs_link);
 const validLink = computed(() => /^https?:\/\/\S+\.\S+/.test(creative.link || ''));
 const pageCards = computed(() => (boot.value ? boot.value.pages : []).map((p) => ({ id: p.id, name: p.name, picture: p.picture, sub: p.username ? '@' + p.username : t('common.facebook_page') })));
+// Instagram page: pre-pick the account linked to the chosen Page, else the
+// first one - the ad needs one, so never leave it empty when there's a choice.
+function pickInstagram() {
+  if (!isInstagram || !lists.instagram.length) return;
+  if (lists.instagram.some((a) => a.id === creative.instagram_user_id)) return;
+  const linked = lists.instagram.find((a) => a.page_id && a.page_id === creative.page_id);
+  creative.instagram_user_id = (linked || lists.instagram[0]).id;
+}
 const previewInstagram = computed(() => lists.instagram.find((a) => a.id === creative.instagram_user_id) || null);
 // Work items live in targeting.interests (same "any of" group); this picker shows the current type's.
 const workItems = computed(() => targeting.interests.filter((i) => i.type === WORK_KEYS[workType.value]));
@@ -1360,6 +1368,7 @@ function discardDraft() {
 watch(() => [campaign.mode, campaign.id], () => {
   if (campaign.mode === 'existing' && campaign.id) load('adsets', props.urls.adsets.replace('CAMPAIGN_ID', campaign.id));
 });
+watch(() => lists.instagram, pickInstagram);
 watch(() => creative.page_id, (pageId) => {
   lists.leadForms = [];
   creative.lead_form_id = null;
@@ -1388,7 +1397,7 @@ onMounted(async () => {
     return;
   }
   if (boot.value.pages.length === 1) creative.page_id = boot.value.pages[0].id;
-  if (isInstagram) load('instagram', props.urls.instagram, {}, (data) => { lists.instagram = data; if (data.length === 1) creative.instagram_user_id = data[0].id; });
+  if (isInstagram) load('instagram', props.urls.instagram, {}, (data) => { lists.instagram = data; pickInstagram(); });
   const draft = readDraft();
   if (draft) draftOffer.value = { savedAt: fmtDate(draft.savedAt) };
 });

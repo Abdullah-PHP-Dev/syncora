@@ -749,6 +749,30 @@ class FacebookCampaignBuilderTest extends TestCase
         $this->assertArrayHasKey('MESSENGER', $b->forChannel('facebook')->bootstrap()['goals']['messages']['destinations']);
     }
 
+    public function test_connected_instagram_accounts_are_offered_when_meta_returns_none(): void
+    {
+        // Ad-account edge empty and the Page lookup refused (ads token without Page access).
+        $this->route('GET act_111/instagram_accounts', ['data' => []]);
+        $otherSeller = User::create(['name' => 'Other', 'email' => 'other@example.com', 'password' => bcrypt('x')]);
+        DB::table('social_accounts')->insert([
+            ['user_id' => $this->user->id, 'platform' => 'instagram', 'platform_account_id' => '17841440159861121', 'name' => 'Socialeaz', 'username' => 'social.eaz', 'account_type' => 'business_account', 'access_token' => 't', 'created_at' => now(), 'updated_at' => now()],
+            ['user_id' => $otherSeller->id, 'platform' => 'instagram', 'platform_account_id' => '17841499999999999', 'name' => 'Other seller', 'username' => 'other', 'account_type' => 'business_account', 'access_token' => 't', 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        $b = $this->builder();
+        $this->assertSame(['17841440159861121'], collect($b->instagramAccounts())->pluck('id')->all());
+
+        $input = $this->instagram();
+        $input['creative']['instagram_user_id'] = '17841440159861121';
+        $result = $b->submit($input, 'key-instagram-fallback1');
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+        $this->assertSame('17841440159861121', $this->posts('act_111/adcreatives')[0][2]['object_story_spec']['instagram_user_id']);
+
+        $other = $this->instagram();
+        $other['creative']['instagram_user_id'] = '17841499999999999';
+        $this->assertSame('That Instagram account is not connected to this ad account or your Pages.', $b->submit($other, 'key-instagram-fallback2')['message']);
+    }
+
     public function test_an_instagram_identity_from_elsewhere_is_refused_on_facebook_too(): void
     {
         $result = $this->builder()->submit($this->input(['creative' => ['instagram_user_id' => '9999']]), 'key-fb-foreign-ig1');

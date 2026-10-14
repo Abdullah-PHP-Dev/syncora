@@ -10,6 +10,7 @@ use App\Models\Admin\AdCreative;
 use App\Models\Admin\AdCreativeMedia;
 use App\Models\Admin\AdMedia;
 use App\Models\Admin\PlatformPage;
+use App\Models\SocialAccount;
 use App\Models\MediaAsset;
 use App\Support\Ads\MetaAdsGraph;
 use App\Support\Ads\MetaApiException;
@@ -142,13 +143,31 @@ class FacebookCampaignBuilder
         foreach (array_slice($this->pages(), 0, 10) as $page) {
             try {
                 $ig = $this->graph->get($page['id'], ['fields' => 'instagram_business_account{id,username,profile_picture_url}'])['instagram_business_account'] ?? null;
-            } catch (MetaApiException) {
+            } catch (MetaApiException $e) {
+                // Usually the ads token lacks Page permissions - the connected accounts below still apply.
+                Log::info('Instagram lookup for Page failed.', ['page' => $page['id'], 'error' => $e->getMessage()]);
                 $ig = null;
             }
             if ($ig && ! $accounts->contains('id', (string) $ig['id'])) {
                 $accounts->push(['id' => (string) $ig['id'], 'username' => $ig['username'] ?? null, 'picture' => $ig['profile_picture_url'] ?? null, 'page_id' => $page['id']]);
             }
         }
+
+        // The seller's Instagram professional accounts already connected
+        // through Meta (saved with their Instagram account id when the Meta
+        // ads / Pages connection was made) - real ids for this seller, used
+        // when the two lookups above come back empty for this token.
+        SocialAccount::where('user_id', $this->graph->account->user_id)
+            ->where('platform', 'instagram')
+            ->where(fn ($q) => $q->where('account_type', 'business_account')->orWhere('has_ads_permission', true))
+            ->whereNotNull('platform_account_id')
+            ->get(['platform_account_id', 'username', 'name', 'avatar_url'])
+            ->filter(fn ($a) => preg_match('/^\d+$/', (string) $a->platform_account_id))
+            ->each(function ($a) use ($accounts) {
+                if (! $accounts->contains('id', (string) $a->platform_account_id)) {
+                    $accounts->push(['id' => (string) $a->platform_account_id, 'username' => $a->username ?: $a->name, 'picture' => $a->avatar_url]);
+                }
+            });
 
         return $accounts->values()->all();
     }
