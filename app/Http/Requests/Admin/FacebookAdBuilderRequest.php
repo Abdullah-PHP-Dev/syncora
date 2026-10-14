@@ -85,7 +85,8 @@ class FacebookAdBuilderRequest extends FormRequest
             'adset.placements.publisher_platforms' => ['nullable', 'array'],
             'adset.placements.publisher_platforms.*' => ['in:facebook,instagram,messenger,audience_network'],
             'adset.placements.instagram_positions' => ['nullable', 'array'],
-            'adset.placements.instagram_positions.*' => [Rule::in(FacebookCampaignBuilder::INSTAGRAM_POSITIONS)],
+            // Deprecated positions (old drafts) are accepted here and dropped by the builder.
+            'adset.placements.instagram_positions.*' => [Rule::in([...FacebookCampaignBuilder::INSTAGRAM_POSITIONS, ...FacebookCampaignBuilder::DEPRECATED_INSTAGRAM_POSITIONS])],
             'adset.targeting.interests.*.type' => ['nullable', 'string', 'max:40', 'regex:/^[a-z_]+$/'],
 
             'creative.mode' => ['required', 'in:existing,new'],

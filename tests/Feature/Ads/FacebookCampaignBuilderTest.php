@@ -713,11 +713,48 @@ class FacebookCampaignBuilderTest extends TestCase
         $this->assertTrue($result['success'], $result['message'] ?? '');
         $t = $this->posts('act_111/adsets')[0][2]['targeting'];
         $this->assertSame(['instagram'], $t['publisher_platforms']);
-        // Explore home needs Feed + Explore (Meta's rule) - added automatically.
-        $this->assertEqualsCanonicalizing(['explore_home', 'reels', 'stream', 'explore'], $t['instagram_positions']);
+        // Explore home is delivered with Feed - added automatically (never the removed 'explore').
+        $this->assertEqualsCanonicalizing(['explore_home', 'reels', 'stream'], $t['instagram_positions']);
         $this->assertArrayNotHasKey('facebook_positions', $t);
         $this->assertSame('1784', $this->posts('act_111/adcreatives')[0][2]['object_story_spec']['instagram_user_id']);
         $this->assertSame(['instagram', 'instagram', 'instagram', 'instagram'], [AdCampaign::sole()->platform, AdAdGroup::sole()->platform, AdCreative::sole()->platform, Ad::sole()->platform]);
+    }
+
+    public function test_the_reported_instagram_payload_never_sends_the_removed_explore_placement(): void
+    {
+        // Meta: "IG Explore Placement Is Deprecated ... please remove it from your targeting."
+        $this->route('POST act_111/adsets', fn ($p) => in_array('explore', $p['targeting']['instagram_positions'] ?? [], true)
+            ? Http::response(['error' => ['code' => 100, 'error_user_title' => 'IG Explore Placement Is Deprecated', 'error_user_msg' => 'IG Explore placement is deprecated for this API version and cannot be selected, please remove it from your targeting.']], 400)
+            : ['id' => '9002']);
+
+        // The payload from the report: awareness, CBO, every position incl. 'explore', a job title, 3 languages.
+        $input = $this->instagram([
+            'goal' => 'awareness', 'destination' => 'NONE',
+            'campaign' => ['campaign_budget' => true, 'budget_type' => 'daily', 'budget' => 20],
+            'adset' => ['optimization_goal' => 'REACH', 'page_id' => '500', 'budget' => null, 'targeting' => [
+                'locations' => [['key' => 'SA', 'type' => 'country', 'country_code' => 'SA']],
+                'interests' => [['id' => '662527803859073', 'name' => 'Sales and Marketing Manager', 'type' => 'work_positions']],
+                'locales' => [['key' => 1001, 'name' => 'English (All)'], ['key' => 28, 'name' => 'Arabic'], ['key' => 90, 'name' => 'Urdu']],
+                'advantage_audience' => true,
+            ]],
+            'creative' => ['cta' => 'LEARN_MORE', 'link' => 'https://socialeaz.com'],
+        ]);
+        $input['adset']['placements'] = ['mode' => 'manual', 'publisher_platforms' => ['instagram'], 'instagram_positions' => ['reels', 'story', 'stream', 'explore', 'explore_home', 'ig_search'], 'device_platforms' => ['mobile', 'desktop']];
+        $input['adset']['targeting']['locations'] = [['key' => 'SA', 'type' => 'country', 'country_code' => 'SA']];
+        $input['adset']['targeting']['interests'] = [['id' => '662527803859073', 'name' => 'Sales and Marketing Manager', 'type' => 'work_positions']];
+
+        $this->assertSame([], $this->requestErrors(['idempotency_key' => 'key-ig-report-val01'] + $input));
+        $result = $this->builder()->submit($input, 'key-ig-report-0001');
+
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+        $t = $this->posts('act_111/adsets')[0][2]['targeting'];
+        $this->assertEqualsCanonicalizing(['reels', 'story', 'stream', 'explore_home', 'ig_search'], $t['instagram_positions']);
+        $this->assertSame([['work_positions' => [['id' => '662527803859073', 'name' => 'Sales and Marketing Manager']]]], $t['flexible_spec']);
+        $this->assertSame([1001, 28, 90], $t['locales']);
+
+        // Facebook page, manual placements with an old 'explore' pick: dropped too.
+        $this->builder()->submit($this->input(['adset' => ['placements' => ['mode' => 'manual', 'publisher_platforms' => ['instagram'], 'instagram_positions' => ['explore', 'reels']]]]), 'key-fb-explore-0001');
+        $this->assertSame(['reels'], $this->posts('act_111/adsets')[1][2]['targeting']['instagram_positions']);
     }
 
     public function test_instagram_all_positions_when_none_picked(): void

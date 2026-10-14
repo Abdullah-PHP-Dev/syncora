@@ -53,8 +53,15 @@ class FacebookCampaignBuilder
 
     public const CHANNELS = ['facebook', 'instagram'];
 
-    /** Instagram positions Meta accepts in instagram_positions (Instagram ads guide). */
-    public const INSTAGRAM_POSITIONS = ['stream', 'story', 'reels', 'explore', 'explore_home', 'ig_search'];
+    /**
+     * Instagram positions offered. 'explore' (the Explore grid) was removed
+     * by Meta - it now answers "IG Explore placement is deprecated for this
+     * API version" - so it is dropped from requests (old drafts) instead of
+     * sent; Explore home is still available.
+     */
+    public const INSTAGRAM_POSITIONS = ['stream', 'story', 'reels', 'explore_home', 'ig_search'];
+
+    public const DEPRECATED_INSTAGRAM_POSITIONS = ['explore'];
 
     /** Location types offered from Meta's adgeolocation search, and the geo_locations key each maps to. */
     public const LOCATION_TYPES = ['country' => 'countries', 'region' => 'regions', 'city' => 'cities', 'zip' => 'zips', 'geo_market' => 'geo_markets', 'neighborhood' => 'neighborhoods'];
@@ -830,13 +837,10 @@ class FacebookCampaignBuilder
         $placements = $input['adset']['placements'] ?? [];
         if ($this->channel === 'instagram') {
             // Instagram only. No positions = every Instagram position; Explore home
-            // needs Feed + Explore and search results need Feed (Meta's rules).
+            // and search results are delivered with Feed, so Feed is added.
             $spec['publisher_platforms'] = ['instagram'];
             $positions = array_values(array_intersect($placements['instagram_positions'] ?? [], self::INSTAGRAM_POSITIONS));
-            if (in_array('explore_home', $positions, true)) {
-                $positions = array_merge($positions, ['stream', 'explore']);
-            }
-            if (in_array('ig_search', $positions, true)) {
+            if (array_intersect(['explore_home', 'ig_search'], $positions)) {
                 $positions[] = 'stream';
             }
             if ($positions) {
@@ -848,8 +852,11 @@ class FacebookCampaignBuilder
         } elseif (($placements['mode'] ?? 'advantage') === 'manual') {
             $spec['publisher_platforms'] = array_values(array_intersect($placements['publisher_platforms'] ?? [], ['facebook', 'instagram', 'messenger', 'audience_network']));
             foreach (['facebook_positions', 'instagram_positions', 'messenger_positions', 'audience_network_positions'] as $key) {
-                if (! empty($placements[$key])) {
-                    $spec[$key] = array_values($placements[$key]);
+                $values = $key === 'instagram_positions'
+                    ? array_diff($placements[$key] ?? [], self::DEPRECATED_INSTAGRAM_POSITIONS)
+                    : ($placements[$key] ?? []);
+                if ($values) {
+                    $spec[$key] = array_values($values);
                 }
             }
             if (! empty($placements['device_platforms'])) {

@@ -196,7 +196,7 @@ return [
         'work_hint' => 'From Meta\'s own lists. People only match if they added this to their profile, so pair it with interests for reach. Not available for Special Ad Categories.',
         'ig_placements' => 'Instagram placements',
         'ig_placements_hint' => 'Leave every box empty to show the ad in all Instagram positions (recommended), or pick only the ones you want.',
-        'ig_dependencies' => 'Meta also adds Feed (and Explore for Explore home) - those placements require it.',
+        'ig_dependencies' => 'Explore home and search results are delivered together with Feed, so Feed is added too.',
         'ig_all' => 'All Instagram positions',
         'custom' => 'Custom & lookalike audiences',
         'loading_audiences' => 'Loading audiences…',

@@ -773,7 +773,8 @@ const platformOptions = [
   { key: 'audience_network', icon: 'bx-grid-alt' },
 ];
 const fbPositions = ['feed', 'story', 'facebook_reels', 'marketplace', 'video_feeds', 'search'].map((key) => ({ key }));
-const igPositions = (isInstagram ? ['stream', 'story', 'reels', 'explore', 'explore_home', 'ig_search'] : ['stream', 'story', 'reels', 'explore']).map((key) => ({ key }));
+// No 'explore': Meta removed the Explore placement (Explore home remains).
+const igPositions = (isInstagram ? ['stream', 'story', 'reels', 'explore_home', 'ig_search'] : ['stream', 'story', 'reels', 'explore_home']).map((key) => ({ key }));
 // Work & education (B2B) - Graph search types; results come only from Meta.
 const workTypes = ['adworkposition', 'adworkemployer', 'adeducationschool', 'adeducationmajor'];
 const WORK_KEYS = { adworkposition: 'work_positions', adworkemployer: 'work_employers', adeducationschool: 'education_schools', adeducationmajor: 'education_majors' };
@@ -1348,6 +1349,7 @@ function resumeDraft() {
   Object.assign(adset, d.adset);
   Object.assign(targeting, d.targeting);
   Object.assign(placements, d.placements);
+  placements.instagram_positions = (placements.instagram_positions || []).filter((p) => p !== 'explore');
   Object.assign(creative, d.creative);
   Object.assign(ad, d.ad);
   Object.assign(ui, d.ui);
