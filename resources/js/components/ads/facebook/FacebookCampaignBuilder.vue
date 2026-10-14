@@ -12,7 +12,7 @@
       </div>
       <div class="fb-head-actions">
         <span v-if="boot" class="fb-acct" :title="boot.account.id"><i class="bx bx-briefcase-alt-2"></i> {{ boot.account.name }} · {{ boot.account.currency }}</span>
-        <a :href="urls.campaignsList" class="fb-btn fb-btn-ghost"><i class="bx bx-list-ul"></i> {{ t('header.campaigns') }}</a>
+        <a :href="urls.campaignsList" class="btn btn-sm fb-btn-ghost"><i class="bx bx-list-ul"></i> {{ t('header.campaigns') }}</a>
       </div>
     </header>
 
@@ -20,8 +20,8 @@
     <div v-if="draftOffer" class="fb-banner">
       <i class="bx bx-history"></i>
       <span>{{ t('draft.unfinished', { date: draftOffer.savedAt }) }}</span>
-      <button type="button" class="fb-btn fb-btn-primary fb-btn-sm" @click="resumeDraft">{{ t('draft.continue') }}</button>
-      <button type="button" class="fb-btn fb-btn-ghost fb-btn-sm" @click="discardDraft">{{ t('draft.fresh') }}</button>
+      <button type="button" class="btn btn-primary btn-sm" @click="resumeDraft">{{ t('draft.continue') }}</button>
+      <button type="button" class="btn btn-sm fb-btn-ghost" @click="discardDraft">{{ t('draft.fresh') }}</button>
     </div>
 
     <!-- ===== Loading / blocked states ===== -->
@@ -29,7 +29,7 @@
       <span class="fb-empty-ic"><i class="bx bx-plug"></i></span>
       <h5>{{ t('boot.error_title') }}</h5>
       <p>{{ bootError }}</p>
-      <a :href="urls.connections" class="fb-btn fb-btn-primary"><i class="bx bx-link"></i> {{ t('boot.go_connections') }}</a>
+      <a :href="urls.connections" class="btn btn-primary btn-sm"><i class="bx bx-link"></i> {{ t('boot.go_connections') }}</a>
     </div>
     <div v-else-if="!boot" class="fb-card fb-loading"><span class="spinner-border"></span> {{ t('boot.loading') }}</div>
 
@@ -513,8 +513,8 @@
                     <button type="button" class="fb-icon-btn" :aria-label="t('common.remove')" @click="creative.media = []"><i class="bx bx-trash"></i></button>
                   </div>
                   <div v-else class="fb-media-actions">
-                    <button type="button" class="fb-btn fb-btn-ghost" @click="openGallery('media')"><i class="bx bx-images"></i> {{ t('creative.media_gallery') }}</button>
-                    <label class="fb-btn fb-btn-ghost"><i class="bx bx-cloud-upload"></i> {{ t('creative.upload_new') }}<input type="file" hidden :accept="creative.format === 'VIDEO' ? 'video/mp4,video/quicktime' : 'image/jpeg,image/png'" @change="uploadNew($event, 'media')"></label>
+                    <button type="button" class="btn btn-sm fb-btn-ghost" @click="openGallery('media')"><i class="bx bx-images"></i> {{ t('creative.media_gallery') }}</button>
+                    <label class="btn btn-sm fb-btn-ghost"><i class="bx bx-cloud-upload"></i> {{ t('creative.upload_new') }}<input type="file" hidden :accept="creative.format === 'VIDEO' ? 'video/mp4,video/quicktime' : 'image/jpeg,image/png'" @change="uploadNew($event, 'media')"></label>
                   </div>
                 </div>
                 <div v-if="creative.format === 'VIDEO' && creative.media[0]" class="fb-media-row">
@@ -536,8 +536,8 @@
                     <button type="button" class="fb-icon-btn" :aria-label="t('creative.remove_card')" @click="creative.cards.splice(ci, 1)"><i class="bx bx-x"></i></button>
                   </div>
                   <div v-if="creative.cards.length < 10" class="fb-ccard is-add">
-                    <button type="button" class="fb-btn fb-btn-ghost fb-btn-sm" @click="openGallery('card')"><i class="bx bx-images"></i> {{ t('creative.gallery') }}</button>
-                    <label class="fb-btn fb-btn-ghost fb-btn-sm"><i class="bx bx-cloud-upload"></i> {{ t('creative.upload') }}<input type="file" hidden accept="image/jpeg,image/png" @change="uploadNew($event, 'card')"></label>
+                    <button type="button" class="btn btn-sm fb-btn-ghost" @click="openGallery('card')"><i class="bx bx-images"></i> {{ t('creative.gallery') }}</button>
+                    <label class="btn btn-sm fb-btn-ghost"><i class="bx bx-cloud-upload"></i> {{ t('creative.upload') }}<input type="file" hidden accept="image/jpeg,image/png" @change="uploadNew($event, 'card')"></label>
                   </div>
                 </div>
                 <p v-if="uploading" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> {{ t('creative.uploading', { percent: uploading }) }}</p>
@@ -616,8 +616,8 @@
               <div>
                 <strong>{{ result.message }}</strong>
                 <p>{{ result.status === 'ACTIVE' ? t('result.in_review') : t('result.saved_paused') }} {{ t('result.ad_id', { id: result.ad_id }) }}</p>
-                <a :href="result.redirect_url || urls.campaignsList" class="fb-btn fb-btn-primary fb-btn-sm">{{ t('result.go_campaigns') }}</a>
-                <button type="button" class="fb-btn fb-btn-ghost fb-btn-sm" @click="startAnother">{{ t('result.another') }}</button>
+                <a :href="result.redirect_url || urls.campaignsList" class="btn btn-primary btn-sm">{{ t('result.go_campaigns') }}</a>
+                <button type="button" class="btn btn-sm fb-btn-ghost" @click="startAnother">{{ t('result.another') }}</button>
               </div>
             </div>
             <div v-else-if="result" class="fb-result is-err">
@@ -635,10 +635,10 @@
 
           <!-- ===== Footer nav ===== -->
           <div class="fb-foot">
-            <button type="button" class="fb-btn fb-btn-ghost" :disabled="step === 0 || submitting" @click="back"><i class="bx bx-chevron-left"></i> {{ t('common.back') }}</button>
+            <button type="button" class="btn btn-sm fb-btn-ghost" :disabled="step === 0 || submitting" @click="back"><i class="bx bx-chevron-left"></i> {{ t('common.back') }}</button>
             <span class="fb-saved" :class="{ on: savedAt }"><i class="bx bx-cloud-upload"></i> {{ savedAt ? t('draft.saved', { time: savedAt }) : t('draft.auto') }}</span>
-            <button v-if="current !== 'review'" type="button" class="fb-btn fb-btn-primary" @click="next">{{ t('common.continue') }} <i class="bx bx-chevron-right"></i></button>
-            <button v-else type="button" class="fb-btn fb-btn-primary" :disabled="submitting || blockers.length > 0 || (result && result.success)" @click="submit">
+            <button v-if="current !== 'review'" type="button" class="btn btn-primary btn-sm" @click="next">{{ t('common.continue') }} <i class="bx bx-chevron-right"></i></button>
+            <button v-else type="button" class="btn btn-primary btn-sm" :disabled="submitting || blockers.length > 0 || (result && result.success)" @click="submit">
               <span v-if="submitting" class="spinner-border spinner-border-sm"></span><i v-else class="bx bx-rocket"></i>
               {{ submitting ? t('foot.creating') : (result && !result.success ? t('foot.try_again') : t('foot.create_ad')) }}
             </button>
@@ -1337,30 +1337,31 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.fb { --ink: #161B2B; --text: #4B5263; --muted: #8A92A3; --line: #E7E9F0; --line-soft: #F1F3F7; --brand: #6D4AFF; --brand-2: #8F6BFF; --brand-soft: #F2EEFF; --ok: #12B76A; --warn: #B45309; --err: #B91C1C; color: var(--text); }
+.fb { --ink: #161B2B; --text: #4B5263; --muted: #8A92A3; --line: #E7E9F0; --line-soft: #F1F3F7; --brand: #004CFF; --brand-2: #5235FF; --brand-soft: #EEF3FF; --ok: #12B76A; --warn: #B45309; --err: #B91C1C; color: var(--text); }
 
-.fb-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 20px 22px; margin-bottom: 14px; border-radius: 18px; background: linear-gradient(135deg, #F6F3FF 0%, #EEF4FF 100%); border: 1px solid #E7E4F7; }
+.fb-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 20px 22px; margin-bottom: 14px; border-radius: 18px; background: linear-gradient(135deg, #F3F6FF 0%, #EEF4FF 100%); border: 1px solid #E1E8FA; }
 .fb-head-main { display: flex; align-items: center; gap: 14px; }
-.fb-head-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 26px; color: #fff; background: linear-gradient(135deg, #0866FF, #6D4AFF); box-shadow: 0 8px 18px rgba(8, 102, 255, .22); }
+.fb-head-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 26px; color: #fff; background: linear-gradient(105deg, #004cff, #5235ff); box-shadow: 0 8px 18px rgba(0, 76, 255, .22); }
 .fb-head h4 { margin: 0; font-weight: 700; color: var(--ink); letter-spacing: -.01em; }
 .fb-head p { margin: 2px 0 0; font-size: .88rem; color: #6b7385; }
 .fb-head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.fb-acct { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 999px; background: #fff; border: 1px solid #E7E4F7; font-size: .8rem; font-weight: 600; color: var(--ink); }
+.fb-acct { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 999px; background: #fff; border: 1px solid #E1E8FA; font-size: .8rem; font-weight: 600; color: var(--ink); }
 .fb-acct i { color: var(--brand); }
 
-.fb-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid transparent; font-size: .85rem; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap; transition: transform .15s, box-shadow .15s, border-color .15s; }
-.fb-btn-sm { height: 32px; padding: 0 11px; font-size: .8rem; }
-.fb-btn-primary { background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #fff; box-shadow: 0 4px 12px rgba(109, 74, 255, .25); }
-.fb-btn-primary:hover:not(:disabled) { color: #fff; transform: translateY(-1px); }
+/* Buttons: the theme's .btn .btn-primary .btn-sm (as on the campaigns list), with the
+   homepage brand gradient on this page only; .fb-btn-ghost is the white secondary. */
+.fb .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.fb .btn-primary { background-image: linear-gradient(105deg, #004cff, #5235ff); border-color: transparent; color: #fff; }
+.fb .btn-primary:hover:not(:disabled) { background-image: linear-gradient(105deg, #0043e0, #4429f0); color: #fff; }
 .fb-btn-ghost { background: #fff; border-color: var(--line); color: #3f4759; }
-.fb-btn-ghost:hover:not(:disabled) { border-color: #CFC4FF; color: var(--brand); }
-.fb-btn:disabled { opacity: .55; cursor: not-allowed; }
+.fb-btn-ghost:hover:not(:disabled) { background: #fff; border-color: #B9CCFF; color: var(--brand); }
+.fb .btn:disabled { opacity: .55; cursor: not-allowed; }
 .fb-link { border: 0; background: none; padding: 0; color: var(--brand); font-weight: 600; font-size: .82rem; cursor: pointer; display: inline-flex; align-items: center; gap: 3px; }
 .fb-icon-btn { border: 0; background: var(--line-soft); width: 32px; height: 32px; border-radius: 9px; color: var(--muted); display: grid; place-items: center; font-size: 17px; flex-shrink: 0; }
 .fb-icon-btn:hover { background: #FEE2E2; color: var(--err); }
 
 .fb-banner, .fb-alert { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 12px; margin-bottom: 14px; font-size: .86rem; }
-.fb-banner { background: #F7F5FF; border: 1px solid #E2DAFF; color: var(--ink); }
+.fb-banner { background: #F2F6FF; border: 1px solid #E2DAFF; color: var(--ink); }
 .fb-banner > i { color: var(--brand); font-size: 20px; }
 .fb-alert.is-warn { background: #FFFBEB; border: 1px solid #FDE68A; color: #92400E; }
 
@@ -1400,7 +1401,7 @@ onMounted(async () => {
 .fb-count { margin-inline-start: auto; font-weight: 500; color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
 .fb-tip { color: var(--muted); cursor: help; }
 .fb :deep(.form-control) { border-radius: 10px; border-color: #E2E5ED; font-size: .88rem; }
-.fb :deep(.form-control:focus) { border-color: #8F6BFF; box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
+.fb :deep(.form-control:focus) { border-color: #5235FF; box-shadow: 0 0 0 3px rgba(0, 76, 255, .12); }
 .fb-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
 .fb-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 14px; align-items: start; }
 .fb-span-2 { grid-column: span 2; align-self: end; }
@@ -1424,16 +1425,16 @@ onMounted(async () => {
 
 .fb-goals { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
 .fb-goal { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 14px; border: 1.5px solid var(--line); border-radius: 14px; background: #fff; text-align: start; transition: border-color .15s, box-shadow .15s, transform .15s; }
-.fb-goal:hover { border-color: #CFC4FF; transform: translateY(-1px); }
-.fb-goal.on { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); background: #FBFAFF; }
+.fb-goal:hover { border-color: #B9CCFF; transform: translateY(-1px); }
+.fb-goal.on { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0, 76, 255, .12); background: #F7F9FF; }
 .fb-goal-ic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-size: 19px; background: var(--brand-soft); color: var(--brand); margin-bottom: 4px; }
 .fb-goal strong { font-size: .88rem; color: var(--ink); }
 .fb-goal small { font-size: .76rem; color: var(--muted); line-height: 1.4; }
 .fb-goal-mini { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .fb-goal-mini button, .fb-dest { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; font-size: .82rem; font-weight: 600; color: var(--text); }
-.fb-goal-mini button.on, .fb-dest.on { border-color: var(--brand); color: #4F2FD6; background: #FBFAFF; }
+.fb-goal-mini button.on, .fb-dest.on { border-color: var(--brand); color: #0039CC; background: #F7F9FF; }
 .fb-dests { display: flex; gap: 8px; flex-wrap: wrap; }
-.fb-guide { display: flex; gap: 8px; margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: #F7F5FF; border: 1px solid #E8E1FF; font-size: .82rem; color: #3f3a5a; line-height: 1.5; }
+.fb-guide { display: flex; gap: 8px; margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: #F2F6FF; border: 1px solid #E8E1FF; font-size: .82rem; color: #3f3a5a; line-height: 1.5; }
 .fb-guide i { color: var(--brand); font-size: 18px; flex-shrink: 0; }
 
 .fb-toggle { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
@@ -1447,17 +1448,17 @@ onMounted(async () => {
 .fb-search { position: relative; margin-bottom: 10px; }
 .fb-search i { position: absolute; inset-inline-start: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); }
 .fb-search input { width: 100%; height: 40px; border: 1px solid #E2E5ED; border-radius: 10px; padding-block: 0; padding-inline: 36px 12px; font-size: .86rem; outline: none; }
-.fb-search input:focus { border-color: #8F6BFF; box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
+.fb-search input:focus { border-color: #5235FF; box-shadow: 0 0 0 3px rgba(0, 76, 255, .12); }
 .fb-ident { margin-bottom: 14px; }
 .fb-quick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: .76rem; color: var(--muted); }
 .fb-chip-btn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: #374151; font-size: .76rem; font-weight: 600; }
-.fb-chip-btn:hover:not(:disabled) { border-color: #CFC4FF; color: var(--brand); }
+.fb-chip-btn:hover:not(:disabled) { border-color: #B9CCFF; color: var(--brand); }
 .fb-chip-btn:disabled { opacity: .6; }
 .fb-chip-btn .spinner-border { width: 11px; height: 11px; border-width: 2px; }
 .fb-pick-list { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; padding: 2px; }
 .fb-pick { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1.5px solid var(--line); border-radius: 12px; background: #fff; text-align: start; }
-.fb-pick:hover:not(:disabled) { border-color: #CFC4FF; }
-.fb-pick.on { border-color: var(--brand); background: #FBFAFF; }
+.fb-pick:hover:not(:disabled) { border-color: #B9CCFF; }
+.fb-pick.on { border-color: var(--brand); background: #F7F9FF; }
 .fb-pick.is-off { opacity: .55; }
 .fb-pick-ic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); font-size: 18px; flex-shrink: 0; }
 .fb-pick-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -1499,7 +1500,7 @@ onMounted(async () => {
 .fb-ccard.is-add { align-items: center; justify-content: center; gap: 8px; border-style: dashed; min-height: 170px; }
 .fb-creative-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; max-height: 460px; overflow-y: auto; padding: 2px; }
 .fb-creative { display: flex; flex-direction: column; gap: 4px; padding: 8px; border: 1.5px solid var(--line); border-radius: 12px; background: #fff; text-align: start; }
-.fb-creative.on { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
+.fb-creative.on { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0, 76, 255, .12); }
 .fb-creative-img { aspect-ratio: 1; border-radius: 8px; background: var(--line-soft); display: grid; place-items: center; overflow: hidden; color: var(--muted); font-size: 24px; }
 .fb-creative-img img { width: 100%; height: 100%; object-fit: cover; }
 .fb-creative strong { font-size: .8rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1520,7 +1521,7 @@ onMounted(async () => {
 .fb-result p { margin: 4px 0 8px; }
 .fb-result.is-ok { background: #ECFDF5; border: 1px solid #A7F3D0; color: #065F46; }
 .fb-result.is-err { background: #FEF2F2; border: 1px solid #FECACA; color: #7F1D1D; }
-.fb-result .fb-btn { margin-inline-end: 6px; }
+.fb-result .btn { margin-inline-end: 6px; }
 .fb-created { list-style: none; padding: 0; margin: 4px 0 8px; font-size: .8rem; }
 .fb-created i { color: var(--ok); }
 

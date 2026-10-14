@@ -58,12 +58,12 @@ const initial = (name) => String(name || '?').trim().charAt(0).toUpperCase();
 <style scoped>
 .ic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
 .ic-card { position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 12px; border: 1.5px solid #E2E5ED; border-radius: 12px; background: #fff; text-align: start; transition: border-color .15s, background .15s, box-shadow .15s; }
-.ic-card:hover { border-color: #CFC4FF; }
-.ic-card.on { border-color: #6D4AFF; background: #FBFAFF; box-shadow: 0 0 0 3px rgba(109, 74, 255, .10); }
-.ic-av { position: relative; width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; background: #F2EEFF; display: grid; place-items: center; }
+.ic-card:hover { border-color: #B9CCFF; }
+.ic-card.on { border-color: #004CFF; background: #F7F9FF; box-shadow: 0 0 0 3px rgba(0, 76, 255, .10); }
+.ic-av { position: relative; width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; background: #EEF3FF; display: grid; place-items: center; }
 .ic-av img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 1px solid #EEF0F5; }
-.ic-av.is-empty { color: #6D4AFF; font-size: 20px; }
-.ic-initial { color: #4F2FD6; font-weight: 700; font-size: 1rem; }
+.ic-av.is-empty { color: #004CFF; font-size: 20px; }
+.ic-initial { color: #0039CC; font-weight: 700; font-size: 1rem; }
 .ic-badge { position: absolute; inset-inline-end: -3px; bottom: -3px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 11px; border: 2px solid #fff; }
 .ic-badge.is-facebook { background: #1877F2; }
 .ic-badge.is-instagram { background: radial-gradient(circle at 30% 107%, #FDF497 0%, #FD5949 45%, #D6249F 60%, #285AEB 90%); }

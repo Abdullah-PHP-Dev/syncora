@@ -157,18 +157,18 @@ function move(step) {
 <style scoped>
 .sp { position: relative; }
 .sp-field { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 42px; padding: 5px 8px; border: 1px solid #E2E5ED; border-radius: 10px; background: #fff; cursor: text; transition: border-color .15s, box-shadow .15s; }
-.sp.is-open .sp-field, .sp-field:focus-within { border-color: #8F6BFF; box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
+.sp.is-open .sp-field, .sp-field:focus-within { border-color: #5235FF; box-shadow: 0 0 0 3px rgba(0, 76, 255, .12); }
 .sp-field input { flex: 1; min-width: 140px; border: 0; outline: 0; font-size: .86rem; padding: 4px 2px; background: transparent; color: #161B2B; }
 .sp-spin { color: #8A92A3; }
-.sp-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 3px 4px 3px 9px; border-radius: 999px; background: #F2EEFF; color: #4F2FD6; font-size: .78rem; font-weight: 600; }
+.sp-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 3px 4px 3px 9px; border-radius: 999px; background: #EEF3FF; color: #0039CC; font-size: .78rem; font-weight: 600; }
 .sp-chip.is-exclude { background: #FEF2F2; color: #B91C1C; }
 .sp-chip button { border: 0; background: transparent; color: inherit; padding: 0 2px; line-height: 1; font-size: 15px; opacity: .7; }
 .sp-chip button:hover { opacity: 1; }
 .sp-menu { position: absolute; z-index: 40; left: 0; right: 0; top: calc(100% + 4px); max-height: 280px; overflow-y: auto; background: #fff; border: 1px solid #E7E9F0; border-radius: 12px; box-shadow: 0 18px 40px rgba(16, 24, 40, .14); padding: 4px; }
 .sp-msg { margin: 0; padding: 10px 12px; color: #8A92A3; font-size: .8rem; }
 .sp-opt { width: 100%; display: flex; align-items: center; gap: 8px; text-align: start; padding: 8px 10px; border: 0; background: transparent; border-radius: 8px; font-size: .84rem; color: #374151; }
-.sp-opt.is-active { background: #F7F5FF; }
-.sp-opt.is-picked { color: #4F2FD6; font-weight: 600; }
+.sp-opt.is-active { background: #F2F6FF; }
+.sp-opt.is-picked { color: #0039CC; font-weight: 600; }
 .sp-opt-main { flex: 1; min-width: 0; }
-.sp-check { color: #6D4AFF; font-size: 18px; }
+.sp-check { color: #004CFF; font-size: 18px; }
 </style>
