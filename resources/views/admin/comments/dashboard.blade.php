@@ -14,17 +14,17 @@
         'threads'   => ['Threads', 'bx-at', '#000000'],
         'pinterest' => ['Pinterest', 'bxl-pinterest', '#E60023'],
     ];
-    $meta = fn ($p) => $platformMeta[$p] ?? [ucfirst((string) $p), 'bx-globe', '#6d4aff'];
+    $meta = fn ($p) => $platformMeta[$p] ?? [ucfirst((string) $p), 'bx-globe', '#004cff'];
     $query = fn (array $changes) => route('admin.comments.dashboard', array_filter(array_merge(['platform' => $platform ?: null, 'filter' => $filter === 'unread' ? 'unread' : null, 'q' => $search ?: null, 'post' => $postId], $changes), fn ($v) => $v !== null && $v !== ''));
     $activeName = $platform ? $meta($platform)[0] : null;
 @endphp
 
 @push('styles')
 <style>
-    .cm { --ln: #e7e9f0; --ln-soft: #f1f3f7; --ink: #161b2b; --ink2: #545d70; --muted: #8a92a3; --brand: #6d4aff; --brand-2: #8f6bff; --brand-soft: #f2eeff; color: var(--ink2); }
+    .cm { --ln: #e7e9f0; --ln-soft: #f1f3f7; --ink: #161b2b; --ink2: #545d70; --muted: #8a92a3; --brand: #004cff; --brand-2: #5235ff; --brand-soft: #eef3ff; color: var(--ink2); }
     .cm-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
     .cm-head-title { display: flex; gap: 14px; align-items: flex-start; }
-    .cm-head-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-2)); box-shadow: 0 8px 18px rgba(109, 74, 255, .28); flex-shrink: 0; }
+    .cm-head-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-2)); box-shadow: 0 8px 18px rgba(0, 76, 255, .28); flex-shrink: 0; }
     .cm-eyebrow { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--brand); margin-bottom: 2px; }
     .cm-head h4 { color: var(--ink); font-weight: 700; font-size: 1.35rem; margin: 0 0 4px; letter-spacing: -.01em; }
     .cm-head p { margin: 0; font-size: .87rem; }
@@ -46,16 +46,16 @@
     .cm-search { position: relative; margin: 0; }
     .cm-search i { position: absolute; inset-inline-start: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); }
     .cm-search input { height: 36px; width: 230px; border: 1px solid var(--ln); border-radius: 9px; padding-inline: 34px 10px; font-size: .83rem; outline: none; }
-    .cm-search input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
+    .cm-search input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0, 76, 255, .12); }
     .cm-toggle { height: 36px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--ln); background: #fff; display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 600; color: var(--ink2); text-decoration: none; }
-    .cm-toggle.is-on { background: var(--brand-soft); border-color: #d9d0ff; color: #4f2fd6; }
-    .cm-filter-note { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: #fbfaff; border-bottom: 1px solid var(--ln); font-size: .8rem; }
+    .cm-toggle.is-on { background: var(--brand-soft); border-color: #cfdcff; color: #0039cc; }
+    .cm-filter-note { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: #f7f9ff; border-bottom: 1px solid var(--ln); font-size: .8rem; }
     .cm-filter-note a { color: var(--brand); font-weight: 600; text-decoration: none; }
 
     .cm-row { display: flex; gap: 14px; padding: 16px; border-bottom: 1px solid var(--ln-soft); transition: background .15s; }
     .cm-row:last-child { border-bottom: none; }
-    .cm-row:hover { background: #fafaff; }
-    .cm-row.is-unread { background: #fcfbff; }
+    .cm-row:hover { background: #f8faff; }
+    .cm-row.is-unread { background: #f9fbff; }
     .cm-avatar { position: relative; width: 40px; height: 40px; flex-shrink: 0; }
     .cm-avatar img, .cm-avatar .cm-initial { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
     .cm-initial { display: grid; place-items: center; background: #eef0f5; color: var(--ink2); font-weight: 700; font-size: .8rem; }
@@ -67,14 +67,18 @@
     .cm-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); }
     .cm-text { color: var(--ink); font-size: .88rem; line-height: 1.55; word-break: break-word; margin-bottom: 10px; }
     .cm-post { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--ln); border-radius: 10px; background: #fbfbfd; max-width: 560px; text-decoration: none; transition: border-color .15s; }
-    .cm-post:hover { border-color: #d9d0ff; }
+    .cm-post:hover { border-color: #cfdcff; }
     .cm-post-thumb { width: 38px; height: 38px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: var(--ln-soft); display: grid; place-items: center; color: var(--muted); }
     .cm-post-text { min-width: 0; font-size: .78rem; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .cm-post-text small { display: block; font-size: .68rem; color: var(--muted); }
     .cm-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; flex-shrink: 0; }
-    .cm-btn { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 11px; border-radius: 8px; font-size: .78rem; font-weight: 600; text-decoration: none; border: 1px solid var(--ln); background: #fff; color: var(--ink); white-space: nowrap; }
+    /* Theme .btn .btn-primary .btn-sm (as on the campaigns list) with the homepage
+       brand gradient, scoped to this page; .cm-btn is the white secondary. */
+    .cm .btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; }
+    .cm .btn-primary { background-image: linear-gradient(105deg, #004cff, #5235ff); border-color: transparent; color: #fff; }
+    .cm .btn-primary:hover { background-image: linear-gradient(105deg, #0043e0, #4429f0); color: #fff; }
+    .cm-btn { border-color: var(--ln); background: #fff; color: var(--ink); }
     .cm-btn:hover { background: #fafbfd; border-color: #cfd4de; color: var(--ink); }
-    .cm-btn.is-primary { background: linear-gradient(135deg, var(--brand), var(--brand-2)); border-color: transparent; color: #fff; }
     .cm-btn.is-ghost { border-color: transparent; color: var(--muted); }
 
     .cm-replies { margin: 0 0 10px; padding-inline-start: 12px; border-inline-start: 2px solid var(--ln); display: flex; flex-direction: column; gap: 8px; }
@@ -93,8 +97,8 @@
     .cm-compose-foot small { color: var(--muted); font-size: .72rem; margin-inline-end: auto; }
     .cm-compose-error { display: none; margin-top: 8px; padding: 8px 10px; border-radius: 9px; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; font-size: .79rem; }
     .cm-compose-error.is-shown { display: block; }
-    .cm-compose:focus-within { border-color: #c9bcff; box-shadow: 0 0 0 3px rgba(109, 74, 255, .1); }
-    .cm-btn[disabled] { opacity: .6; pointer-events: none; }
+    .cm-compose:focus-within { border-color: #b9ccff; box-shadow: 0 0 0 3px rgba(0, 76, 255, .1); }
+    .cm .btn[disabled] { opacity: .6; pointer-events: none; }
 
     .cm-empty { text-align: center; padding: 56px 20px; }
     .cm-empty-icon { width: 60px; height: 60px; margin: 0 auto 12px; border-radius: 16px; display: grid; place-items: center; font-size: 28px; color: var(--brand); background: var(--brand-soft); }
@@ -175,12 +179,12 @@
                 <div class="cm-main">
                     <div class="cm-meta">
                         @unless ($comment->read_at)<span class="cm-dot" title="{{ __('Unread') }}"></span>@endunless
-                        <strong>{{ $comment->user_name ?: __('Unknown') }}</strong>
+                        <strong dir="auto">{{ $comment->user_name ?: __('Unknown') }}</strong>
                         <span>{{ $pName }}@if($comment->socialAccount) · {{ $comment->socialAccount->name }}@endif</span>
                         <span title="{{ $when?->translatedFormat('M j, Y g:i A') }}">{{ $when?->diffForHumans() }}</span>
                         @if ($comment->replies_count)<span><i class="bx bx-reply"></i> {{ trans_choice(':count reply|:count replies', $comment->replies_count, ['count' => $comment->replies_count]) }}</span>@endif
                     </div>
-                    <div class="cm-text">{{ $comment->content }}</div>
+                    <div class="cm-text" dir="auto">{{ $comment->content }}</div>
 
                     {{-- Replies so far (newest 3), then the inline reply box. --}}
                     @php $replies = $comment->childComments; @endphp
@@ -190,7 +194,7 @@
                         @endif
                         @foreach ($replies->slice(-3) as $reply)
                             <div class="cm-reply {{ $reply->sender_type === 'support' ? 'is-own' : '' }}">
-                                <strong>{{ $reply->sender_type === 'support' ? __('You') : ($reply->user_name ?: __('Unknown')) }}</strong>{{ $reply->content }}<small>{{ ($reply->posted_at ?? $reply->created_at)?->diffForHumans() }}</small>
+                                <strong dir="auto">{{ $reply->sender_type === 'support' ? __('You') : ($reply->user_name ?: __('Unknown')) }}</strong><span dir="auto">{{ $reply->content }}</span><small>{{ ($reply->posted_at ?? $reply->created_at)?->diffForHumans() }}</small>
                             </div>
                         @endforeach
                     </div>
@@ -200,8 +204,8 @@
                             <textarea name="content" maxlength="2000" placeholder="{{ __('Reply to :name on :platform...', ['name' => $comment->user_name ?: __('this comment'), 'platform' => $pName]) }}"></textarea>
                             <div class="cm-compose-foot">
                                 <small>{{ __('Posted publicly on :platform as :account', ['platform' => $pName, 'account' => $comment->socialAccount?->name ?? __('your account')]) }} · Ctrl/⌘ + Enter</small>
-                                <button type="button" class="cm-btn is-ghost" data-cm-cancel>{{ __('Cancel') }}</button>
-                                <button type="submit" class="cm-btn is-primary"><i class="bx bx-send"></i> {{ __('Send reply') }}</button>
+                                <button type="button" class="btn btn-sm cm-btn is-ghost" data-cm-cancel>{{ __('Cancel') }}</button>
+                                <button type="submit" class="btn btn-primary btn-sm"><i class="bx bx-send"></i> {{ __('Send reply') }}</button>
                             </div>
                             <div class="cm-compose-error" role="alert"></div>
                         </form>
@@ -214,17 +218,17 @@
                             @else
                                 <span class="cm-post-thumb"><i class="bx {{ $thumb && $thumb['kind'] === 'video' ? 'bx-play' : 'bx-file-blank' }}"></i></span>
                             @endif
-                            <span class="cm-post-text"><small>{{ __('On your post') }}</small>{{ \Illuminate\Support\Str::limit($post->content ?: __('(no caption)'), 90) }}</span>
+                            <span class="cm-post-text" dir="auto"><small>{{ __('On your post') }}</small>{{ \Illuminate\Support\Str::limit($post->content ?: __('(no caption)'), 90) }}</span>
                         </a>
                     @endif
                 </div>
                 <div class="cm-actions">
                     @if ($post)
-                        <button type="button" class="cm-btn is-primary" data-cm-reply><i class="bx bx-reply"></i> {{ __('Reply') }}</button>
-                        <a href="{{ $postUrl }}" class="cm-btn" data-cm-open><i class="bx bx-show"></i> {{ __('View post') }}</a>
+                        <button type="button" class="btn btn-primary btn-sm" data-cm-reply><i class="bx bx-reply"></i> {{ __('Reply') }}</button>
+                        <a href="{{ $postUrl }}" class="btn btn-sm cm-btn" data-cm-open><i class="bx bx-show"></i> {{ __('View post') }}</a>
                     @endif
                     @unless ($comment->read_at)
-                        <button type="button" class="cm-btn is-ghost" data-cm-read="{{ route('admin.comments.read', $comment) }}"><i class="bx bx-check"></i> {{ __('Mark read') }}</button>
+                        <button type="button" class="btn btn-sm cm-btn is-ghost" data-cm-read="{{ route('admin.comments.read', $comment) }}"><i class="bx bx-check"></i> {{ __('Mark read') }}</button>
                     @endunless
                 </div>
             </div>
@@ -234,15 +238,15 @@
                 @if ($search || $filter === 'unread' || $postId)
                     <h6>{{ __('No comments match these filters') }}</h6>
                     <p>{{ __('Try another search, or show all comments.') }}</p>
-                    <a href="{{ route('admin.comments.dashboard', array_filter(['platform' => $platform ?: null])) }}" class="cm-btn"><i class="bx bx-reset"></i> {{ __('Clear filters') }}</a>
+                    <a href="{{ route('admin.comments.dashboard', array_filter(['platform' => $platform ?: null])) }}" class="btn btn-sm cm-btn"><i class="bx bx-reset"></i> {{ __('Clear filters') }}</a>
                 @elseif ($activeName)
                     <h6>{{ __('No :platform comments yet', ['platform' => $activeName]) }}</h6>
                     <p>{{ __('Comments on your :platform posts appear here as they come in.', ['platform' => $activeName]) }}</p>
-                    <a href="{{ route('admin.posts.index', ['platform' => $platform]) }}" class="cm-btn is-primary"><i class="bx bx-edit-alt"></i> {{ __('Go to :platform posts', ['platform' => $activeName]) }}</a>
+                    <a href="{{ route('admin.posts.index', ['platform' => $platform]) }}" class="btn btn-primary btn-sm"><i class="bx bx-edit-alt"></i> {{ __('Go to :platform posts', ['platform' => $activeName]) }}</a>
                 @else
                     <h6>{{ __('No comments yet') }}</h6>
                     <p>{{ __('When people comment on your published posts, you can read and reply to them here.') }}</p>
-                    <a href="{{ route('admin.posts.index') }}" class="cm-btn is-primary"><i class="bx bx-edit-alt"></i> {{ __('Go to your posts') }}</a>
+                    <a href="{{ route('admin.posts.index') }}" class="btn btn-primary btn-sm"><i class="bx bx-edit-alt"></i> {{ __('Go to your posts') }}</a>
                 @endif
             </div>
         @endforelse
@@ -291,9 +295,9 @@
             if (data && data.errors && !Array.isArray(data.errors)) return Object.values(data.errors).flat().join(' ');
             if (data && Array.isArray(data.errors) && data.errors.length) return data.errors.map(e => e.message).filter(Boolean).join(' ');
             if (data && data.message) return data.message;
-            if (status === 419) return 'Your session expired - reload the page and try again.';
-            if (status === 403) return "You can't reply to this comment.";
-            return "The reply couldn't be sent. Please try again.";
+            if (status === 419) return @js(__('Your session expired - reload the page and try again.'));
+            if (status === 403) return @js(__("You can't reply to this comment."));
+            return @js(__("The reply couldn't be sent. Please try again."));
         }
 
         async function send(form) {
@@ -304,7 +308,7 @@
             if (!text) { textarea.focus(); return; }
 
             button.disabled = true;
-            button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...';
+            button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ' + @js(__('Sending...'));
             error.classList.remove('is-shown');
 
             try {
@@ -326,10 +330,13 @@
                 const item = document.createElement('div');
                 item.className = 'cm-reply is-own is-new';
                 const who = document.createElement('strong');
-                who.textContent = 'You';
+                who.textContent = @js(__('You'));
                 const when = document.createElement('small');
-                when.textContent = (data.reply && data.reply.timeAgo) || 'just now';
-                item.append(who, document.createTextNode((data.reply && data.reply.content) || text), when);
+                when.textContent = (data.reply && data.reply.timeAgo) || @js(__('just now'));
+                const body = document.createElement('span');
+                body.dir = 'auto';
+                body.textContent = (data.reply && data.reply.content) || text;
+                item.append(who, body, when);
                 list.hidden = false;
                 list.append(item);
 
@@ -337,11 +344,11 @@
                 closeCompose(form);
                 markRead(row);
             } catch (e) {
-                error.textContent = "Couldn't reach the server. Check your connection and try again.";
+                error.textContent = @js(__("Couldn't reach the server. Check your connection and try again."));
                 error.classList.add('is-shown');
             } finally {
                 button.disabled = false;
-                button.innerHTML = '<i class="bx bx-send"></i> Send reply';
+                button.innerHTML = '<i class="bx bx-send"></i> ' + @js(__('Send reply'));
             }
         }
 
