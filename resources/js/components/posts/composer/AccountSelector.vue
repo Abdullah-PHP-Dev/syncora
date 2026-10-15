@@ -2,7 +2,7 @@
 
   <div>
 
-    <h6 class="composer-section-label">Post to</h6>
+    <h6 class="composer-section-label">{{ t('post_to') }}</h6>
 
     <div class="account-selector-grid">
 
@@ -23,7 +23,7 @@
 
         <span class="account-card__text">
           <span class="account-card__platform">{{ metaFor(account.platform).name }}</span>
-          <span class="account-card__name">{{ account.name || account.username || 'Connected account' }}</span>
+          <span class="account-card__name" dir="auto">{{ account.name || account.username || t('connected_account') }}</span>
         </span>
 
         <!-- Always visible (checked or empty), not just-appears-when-
@@ -38,8 +38,8 @@
       </button>
 
       <p v-if="!accounts.length" class="account-selector-empty">
-        No connected accounts yet - connect one from
-        <a :href="manageAccountsUrl">Manage Channels</a> first.
+        {{ t('no_accounts') }}
+        <a :href="manageAccountsUrl">{{ t('manage_channels') }}</a> {{ t('no_accounts_after') }}
       </p>
 
     </div>
@@ -59,6 +59,7 @@
 // account id, not just platforms[] = platform key), and it's what the
 // existing calendar quick-post picker already does for the same reason
 // (see dashboard.blade.php's own account-picker comment).
+import { inject } from 'vue';
 import AccountAvatarBadge from '../AccountAvatarBadge.vue';
 import { platformMeta } from '../../../data/mockPosts';
 
@@ -82,9 +83,11 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update:selectedIds']);
+const { t } = inject('composerI18n', { t: (k) => k });
+
 
 function metaFor(platform) {
-  return platformMeta[platform] || { name: platform, icon: 'bx bx-globe', color: '#7c5cff' };
+  return platformMeta[platform] || { name: platform, icon: 'bx bx-globe', color: '#004cff' };
 }
 
 function isSelected(id) {
@@ -123,22 +126,24 @@ function toggle(id) {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 16px 10px 10px;
+  padding-block: 10px;
+  padding-inline: 10px 16px;
   border: 1px solid #E5E7EB;
   border-radius: 12px;
   background: #fff;
   cursor: pointer;
   transition: border-color .15s ease, background .15s ease;
-  text-align: left;
+  text-align: start;
 }
 
 .account-card:hover {
-  border-color: #c7d2fe;
+  border-color: #b9ccff;
 }
 
 .account-card--selected {
-  border-color: #7c5cff;
-  background: #F5F3FF;
+  border-color: #004cff;
+  background: #f7f9ff;
+  box-shadow: 0 0 0 3px rgba(0, 76, 255, .08);
 }
 
 .account-card__text {
@@ -161,7 +166,7 @@ function toggle(id) {
 .account-card__check {
   position: absolute;
   top: -6px;
-  right: -6px;
+  inset-inline-end: -6px;
   width: 18px;
   height: 18px;
   border-radius: 50%;

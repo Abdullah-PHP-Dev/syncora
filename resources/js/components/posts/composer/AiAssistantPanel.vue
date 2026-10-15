@@ -5,8 +5,8 @@
     <div class="ai-panel__header">
       <span class="ai-panel__icon"><i class="bx bx-sparkles"></i></span>
       <div>
-        <h6 class="mb-0">AI Content Assistant</h6>
-        <small class="text-muted">Generate engaging content with AI</small>
+        <h6 class="mb-0">{{ t('ai.title') }}</h6>
+        <small class="text-muted">{{ t('ai.subtitle') }}</small>
       </div>
     </div>
 
@@ -19,21 +19,21 @@
           :class="{ 'ai-panel__tab--active': activeTab === tab.key }"
           @click="activeTab = tab.key">
         <i :class="tab.icon"></i>
-        <span>{{ tab.label }}</span>
+        <span>{{ t('ai.tabs.' + tab.key) }}</span>
       </button>
     </div>
 
-    <label class="ai-panel__prompt-label">What would you like to create?</label>
+    <label class="ai-panel__prompt-label">{{ t('ai.prompt_label') }}</label>
     <textarea
         v-model="prompt"
         class="ai-panel__prompt"
         rows="3"
-        :placeholder="'Describe the content you want to create...\nExample: Create a motivational post about productivity for entrepreneurs'"></textarea>
+        :placeholder="t('ai.prompt_placeholder')" dir="auto"></textarea>
 
-    <button type="button" class="ai-panel__generate" :disabled="generating || !prompt.trim()" @click="generate">
+    <button type="button" class="btn btn-primary btn-sm w-100 ai-panel__generate" :disabled="generating || !prompt.trim()" @click="generate">
       <span v-if="generating" class="spinner-border spinner-border-sm me-1"></span>
       <i v-else class="bx bx-magic-wand me-1"></i>
-      Generate Content
+      {{ t('ai.generate') }}
     </button>
 
     <p v-if="notice" class="ai-panel__notice">{{ notice }}</p>
@@ -41,42 +41,42 @@
     <div class="ai-panel__suggestions">
 
       <div class="ai-panel__suggestions-head">
-        <span>AI Suggestions</span>
+        <span>{{ t('ai.suggestions') }}</span>
       </div>
 
       <div class="ai-suggestion-card">
-        <div class="ai-suggestion-card__icon" style="background:#EEF2FF;color:#6366F1;"><i class="bx bx-image"></i></div>
+        <div class="ai-suggestion-card__icon" style="background:#EEF3FF;color:#004CFF;"><i class="bx bx-image"></i></div>
         <div class="ai-suggestion-card__body">
-          <strong>AI Image</strong>
-          <small>Generate stunning visuals for your post</small>
-          <button type="button" class="ai-suggestion-card__action" @click="requestGeneration('image')">Generate Image</button>
+          <strong>{{ t('ai.image') }}</strong>
+          <small>{{ t('ai.image_desc') }}</small>
+          <button type="button" class="ai-suggestion-card__action" @click="requestGeneration('image')">{{ t('ai.image_btn') }}</button>
         </div>
       </div>
 
       <div class="ai-suggestion-card">
         <div class="ai-suggestion-card__icon" style="background:#ECFDF5;color:#10B981;"><i class="bx bx-video"></i></div>
         <div class="ai-suggestion-card__body">
-          <strong>AI Video</strong>
-          <small>Create engaging videos with AI</small>
-          <button type="button" class="ai-suggestion-card__action" @click="requestGeneration('video')">Generate Video</button>
+          <strong>{{ t('ai.video') }}</strong>
+          <small>{{ t('ai.video_desc') }}</small>
+          <button type="button" class="ai-suggestion-card__action" @click="requestGeneration('video')">{{ t('ai.video_btn') }}</button>
         </div>
       </div>
 
       <div class="ai-suggestion-card">
         <div class="ai-suggestion-card__icon" style="background:#FFF7ED;color:#F97316;"><i class="bx bx-edit-alt"></i></div>
         <div class="ai-suggestion-card__body">
-          <strong>AI Description</strong>
-          <small>Generate engaging post descriptions</small>
-          <button type="button" class="ai-suggestion-card__action" @click="requestGeneration('description')">Generate Description</button>
+          <strong>{{ t('ai.description') }}</strong>
+          <small>{{ t('ai.description_desc') }}</small>
+          <button type="button" class="ai-suggestion-card__action" @click="requestGeneration('description')">{{ t('ai.description_btn') }}</button>
         </div>
       </div>
 
       <div class="ai-suggestion-card">
         <div class="ai-suggestion-card__icon" style="background:#FDF4FF;color:#C026D3;"><i class="bx bx-hash"></i></div>
         <div class="ai-suggestion-card__body">
-          <strong>AI Hashtags</strong>
-          <small>Get relevant hashtags for your post</small>
-          <button type="button" class="ai-suggestion-card__action" @click="requestGeneration('hashtags')">Generate Hashtags</button>
+          <strong>{{ t('ai.hashtags') }}</strong>
+          <small>{{ t('ai.hashtags_desc') }}</small>
+          <button type="button" class="ai-suggestion-card__action" @click="requestGeneration('hashtags')">{{ t('ai.hashtags_btn') }}</button>
         </div>
       </div>
 
@@ -107,7 +107,7 @@
 // Video genuinely has no backend (out of scope for both AI tasks so far)
 // - stays an honest UI-only notice, same as this whole panel used to be
 // before either endpoint existed.
-import { ref } from 'vue';
+import { ref, inject } from 'vue';
 
 const props = defineProps({
   // { content, image } - admin.posts.generate-ai-* routes, built by Blade.
@@ -118,6 +118,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['generated']);
+const { t } = inject('composerI18n', { t: (k) => k });
+
 
 const tabs = [
   { key: 'all', label: 'All', icon: 'bx bx-grid-alt' },
@@ -141,12 +143,12 @@ function generate() {
 
 async function requestGeneration(kind) {
   if (kind === 'video') {
-    notice.value = 'AI video generation isn\'t connected to a backend endpoint yet - this panel is UI only for that, for now.';
+    notice.value = t('ai.video_soon');
     return;
   }
 
   if (!prompt.value.trim()) {
-    notice.value = 'Describe what you\'d like to create first.';
+    notice.value = t('ai.prompt_first');
     return;
   }
 
@@ -163,7 +165,7 @@ async function requestGeneration(kind) {
     );
 
     if (!data.success) {
-      notice.value = data.message || 'Failed to generate content.';
+      notice.value = data.message || t('ai.failed');
       return;
     }
 
@@ -175,7 +177,7 @@ async function requestGeneration(kind) {
     // trigger was clicked, since Gemini generates them as one call.
     emit('generated', { kind, ...data.data });
   } catch (error) {
-    notice.value = error.response?.data?.message || 'Something went wrong while generating content. Please try again.';
+    notice.value = error.response?.data?.message || t('ai.error');
   } finally {
     generating.value = false;
   }
@@ -184,6 +186,11 @@ async function requestGeneration(kind) {
 </script>
 
 <style scoped>
+
+/* Theme .btn .btn-primary .btn-sm (as on the campaigns list) with the homepage brand gradient. */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.btn-primary { background-image: linear-gradient(105deg, #004cff, #5235ff); border-color: transparent; color: #fff; }
+.btn-primary:hover:not(:disabled) { background-image: linear-gradient(105deg, #0043e0, #4429f0); color: #fff; }
 
 .ai-panel {
   background: #fff;
@@ -203,7 +210,7 @@ async function requestGeneration(kind) {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: linear-gradient(135deg,#8B5CF6,#6366F1);
+  background: linear-gradient(105deg, #004cff, #5235ff);
   color: #fff;
   display: flex;
   align-items: center;
@@ -233,8 +240,8 @@ async function requestGeneration(kind) {
 }
 
 .ai-panel__tab--active {
-  background: #EEF2FF;
-  color: #6366F1;
+  background: #eef3ff;
+  color: #004cff;
 }
 
 .ai-panel__prompt-label {
@@ -255,17 +262,7 @@ async function requestGeneration(kind) {
 }
 
 .ai-panel__generate {
-  width: 100%;
-  border: none;
-  border-radius: 10px;
-  padding: 10px;
-  background: linear-gradient(135deg,#8B5CF6,#6366F1);
-  color: #fff;
   font-weight: 600;
-  font-size: .84rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .ai-panel__generate:disabled {
@@ -333,8 +330,8 @@ async function requestGeneration(kind) {
   align-self: flex-start;
   margin-top: 6px;
   border: none;
-  background: #EEF2FF;
-  color: #6366F1;
+  background: #eef3ff;
+  color: #004cff;
   font-size: .72rem;
   font-weight: 600;
   padding: 5px 10px;

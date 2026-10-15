@@ -5,22 +5,22 @@
 
         <div class="mp-head">
           <div>
-            <h5 id="mpTitle">Select Media</h5>
+            <h5 id="mpTitle">{{ m('title', {}, 'Select Media') }}</h5>
             <p>
-              {{ multiple ? 'Choose one or more files' : 'Choose a file' }}{{ typeLock ? (typeLock === 'image' ? ' (images only)' : ' (videos only)') : '' }}.
+              {{ multiple ? m('choose_many', {}, 'Choose one or more files') : m('choose_one', {}, 'Choose a file') }}{{ typeLock ? (typeLock === 'image' ? m('images_only', {}, ' (images only)') : m('videos_only', {}, ' (videos only)')) : '' }}.
               <template v-if="platforms.length">Compatibility shown for {{ platforms.map(p => (PLATFORM_META[p] || {}).name || p).join(', ') }}.</template>
             </p>
           </div>
-          <button type="button" class="mp-close" data-bs-dismiss="modal" aria-label="Close"><i class="bx bx-x"></i></button>
+          <button type="button" class="mp-close" data-bs-dismiss="modal" :aria-label="mediaText('close', {}, 'Close')"><i class="bx bx-x"></i></button>
         </div>
 
         <div class="mp-toolbar">
           <div class="mp-tabs" role="tablist">
-            <button v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-selected="type === t.key" :class="{ on: type === t.key }" @click="type = t.key; load(1)">{{ t.label }}</button>
+            <button v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-selected="type === t.key" :class="{ on: type === t.key }" @click="type = t.key; load(1)">{{ mediaText('tabs.' + (t.key || 'all'), {}, t.label) }}</button>
           </div>
           <div class="mp-search">
             <i class="bx bx-search"></i>
-            <input v-model="q" type="search" class="form-control" placeholder="Search media by name..." @input="debouncedLoad">
+            <input v-model="q" type="search" class="form-control" :placeholder="mediaText('search', {}, 'Search media by name...')" @input="debouncedLoad">
           </div>
         </div>
 
@@ -28,18 +28,18 @@
           <div v-if="uploading" class="mp-upload-row">
             <span class="spinner-border spinner-border-sm"></span>
             <div class="flex-grow-1">
-              <div class="mp-upload-name">Uploading {{ uploading.name }}…</div>
+              <div class="mp-upload-name" dir="auto">{{ m('uploading', { name: uploading.name }, 'Uploading ' + uploading.name + '…') }}</div>
               <div class="mp-progress"><span :style="{ width: uploading.progress + '%' }"></span></div>
             </div>
             <span class="mp-pct">{{ uploading.progress }}%</span>
           </div>
           <div v-if="error" class="mp-error"><i class="bx bx-error-circle"></i> {{ error }}</div>
 
-          <div v-if="loading && !items.length" class="mp-empty"><span class="spinner-border spinner-border-sm me-2"></span> Loading…</div>
+          <div v-if="loading && !items.length" class="mp-empty"><span class="spinner-border spinner-border-sm me-2"></span> {{ mediaText('loading', {}, 'Loading…') }}</div>
           <div v-else-if="!items.length" class="mp-empty">
             <i class="bx bx-images"></i>
-            <strong>{{ q ? 'No media matches your search' : 'No ' + (type === 'image' ? 'images' : type === 'video' ? 'videos' : 'media') + ' in your gallery yet' }}</strong>
-            <span>Upload a file to add it to your gallery and select it.</span>
+            <strong>{{ q ? m('no_match', {}, 'No media matches your search') : m('none_' + (type || 'all'), {}, 'No ' + (type === 'image' ? 'images' : type === 'video' ? 'videos' : 'media') + ' in your gallery yet') }}</strong>
+            <span>{{ m('upload_hint', {}, 'Upload a file to add it to your gallery and select it.') }}</span>
           </div>
 
           <div v-else class="mp-grid" :class="{ busy: loading }">
@@ -53,11 +53,11 @@
                 <img v-if="asset.type === 'image'" :src="asset.url" :alt="asset.original_name" loading="lazy">
                 <img v-else-if="asset.thumbnail_url" :src="asset.thumbnail_url" :alt="asset.original_name" loading="lazy">
                 <video v-else :src="asset.url + '#t=0.5'" preload="metadata" muted playsinline></video>
-                <span class="mp-badge"><i :class="['bx', asset.type === 'video' ? 'bx-play' : 'bx-image']"></i> {{ asset.type === 'video' ? 'Video' : 'Image' }}</span>
+                <span class="mp-badge"><i :class="['bx', asset.type === 'video' ? 'bx-play' : 'bx-image']"></i> {{ asset.type === 'video' ? mediaText('video', {}, 'Video') : mediaText('image', {}, 'Image') }}</span>
                 <span v-if="asset.type === 'video' && asset.duration" class="mp-dur">{{ formatDuration(asset.duration) }}</span>
                 <span class="mp-check"><b v-if="multiple && isSelected(asset)">{{ selectedIndex(asset) + 1 }}</b><i v-else class="bx bx-check"></i></span>
               </span>
-              <span class="mp-name">{{ asset.original_name }}</span>
+              <span class="mp-name" dir="auto">{{ asset.original_name }}</span>
               <span class="mp-info">{{ mediaInfo(asset) }}</span>
               <span v-if="platforms.length" class="mp-compat">
                 <span v-for="p in platforms" :key="p" class="mp-chip" :class="compatOk(asset, p) ? 'ok' : 'warn'" :title="compatOk(asset, p) ? '' : issuesText(asset, p)">
@@ -68,18 +68,18 @@
           </div>
 
           <div v-if="meta.last_page > 1" class="mp-pages">
-            <button type="button" :disabled="meta.current_page <= 1" aria-label="Previous page" @click="load(meta.current_page - 1)"><i class="bx bx-chevron-left"></i></button>
-            <span>Page {{ meta.current_page }} of {{ meta.last_page }}</span>
-            <button type="button" :disabled="meta.current_page >= meta.last_page" aria-label="Next page" @click="load(meta.current_page + 1)"><i class="bx bx-chevron-right"></i></button>
+            <button type="button" :disabled="meta.current_page <= 1" :aria-label="mediaText('prev_page', {}, 'Previous page')" @click="load(meta.current_page - 1)"><i class="bx bx-chevron-left"></i></button>
+            <span>{{ m('page', { current: meta.current_page, last: meta.last_page }, 'Page ' + meta.current_page + ' of ' + meta.last_page) }}</span>
+            <button type="button" :disabled="meta.current_page >= meta.last_page" :aria-label="mediaText('next_page', {}, 'Next page')" @click="load(meta.current_page + 1)"><i class="bx bx-chevron-right"></i></button>
           </div>
         </div>
 
         <div class="mp-foot">
-          <button type="button" class="mp-btn mp-btn-outline" :disabled="!!uploading" @click="$refs.fileInput.click()"><i class="bx bx-cloud-upload"></i> Upload New</button>
+          <button type="button" class="mp-btn mp-btn-outline" :disabled="!!uploading" @click="$refs.fileInput.click()"><i class="bx bx-cloud-upload"></i> {{ m('upload_new', {}, 'Upload New') }}</button>
           <input ref="fileInput" type="file" class="d-none" :accept="acceptAttr" :multiple="multiple" @change="onUpload">
-          <span class="mp-count">{{ selected.length ? selected.length + ' selected' : '' }}</span>
-          <button type="button" class="mp-btn mp-btn-light" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="mp-btn mp-btn-brand" :disabled="!selected.length" @click="attach"><i class="bx bx-paperclip"></i> Attach Selected</button>
+          <span class="mp-count">{{ selected.length ? m('selected', { count: selected.length }, selected.length + ' selected') : '' }}</span>
+          <button type="button" class="mp-btn mp-btn-light" data-bs-dismiss="modal">{{ m('cancel', {}, 'Cancel') }}</button>
+          <button type="button" class="btn btn-primary btn-sm mp-attach" :disabled="!selected.length" @click="attach"><i class="bx bx-paperclip"></i> {{ m('attach', {}, 'Attach Selected') }}</button>
         </div>
 
       </div>
@@ -95,7 +95,11 @@ import { ref, computed } from 'vue';
 import {
   PLATFORM_META, ACCEPT, precheck, formatDuration, mediaInfo, issuesText,
   errorMessage, uploadToGallery, fetchGallery,
+  mediaText,
 } from './mediaShared';
+
+// Picker text (lang/{en,ar}/media_gallery.php picker.*) - English unless the page set a translator.
+const m = (key, params, fallback) => mediaText('picker.' + key, params, fallback);
 
 const props = defineProps({
   urls: { type: Object, required: true }, // index, store
@@ -157,7 +161,7 @@ async function load(page = 1) {
     items.value = data.data;
     meta.value = { current_page: data.current_page, last_page: data.last_page };
   } catch (e) {
-    error.value = errorMessage(e, 'Could not load your gallery.');
+    error.value = errorMessage(e, m('load_failed', {}, 'Could not load your gallery.'));
   } finally {
     loading.value = false;
   }
@@ -168,7 +172,7 @@ function compatOk(asset, platform) {
 }
 
 function disabledReason(asset) {
-  if (props.typeLock && asset.type !== props.typeLock) return `This field only accepts ${props.typeLock}s.`;
+  if (props.typeLock && asset.type !== props.typeLock) return m('only_' + props.typeLock, {}, `This field only accepts ${props.typeLock}s.`);
   return '';
 }
 
@@ -184,7 +188,7 @@ function toggle(asset) {
   } else if (selected.value.length < props.max) {
     selected.value = [...selected.value, asset];
   } else {
-    error.value = `You can select up to ${props.max} files.`;
+    error.value = m('max', { max: props.max }, `You can select up to ${props.max} files.`);
   }
 }
 
@@ -194,7 +198,7 @@ async function onUpload(e) {
   error.value = '';
 
   for (const file of files) {
-    const bad = precheck(file) || (props.typeLock && !file.type.startsWith(props.typeLock + '/') ? `"${file.name}" isn't ${props.typeLock === 'image' ? 'an image' : 'a video'}.` : null);
+    const bad = precheck(file) || (props.typeLock && !file.type.startsWith(props.typeLock + '/') ? m('not_' + props.typeLock, { name: file.name }, `"${file.name}" isn't ${props.typeLock === 'image' ? 'an image' : 'a video'}.`) : null);
     if (bad) { error.value = bad; continue; }
 
     uploading.value = { name: file.name, progress: 0 };
@@ -203,7 +207,7 @@ async function onUpload(e) {
       items.value = [asset, ...items.value.filter(a => a.id !== asset.id)];
       toggle(asset);
     } catch (err) {
-      error.value = errorMessage(err, `Upload of "${file.name}" failed.`);
+      error.value = errorMessage(err, m('upload_named_failed', { name: file.name }, `Upload of "${file.name}" failed.`));
     } finally {
       uploading.value = null;
     }
@@ -219,7 +223,7 @@ defineExpose({ open });
 </script>
 
 <style scoped>
-.mp { --ln: #e6e8ef; --ln-soft: #f0f2f6; --ink: #1b2130; --ink2: #5b6475; --muted: #8a93a3; --brand: #6d4aff; --brand-soft: #f1edff; border: 0; border-radius: 16px; }
+.mp { --ln: #e6e8ef; --ln-soft: #f0f2f6; --ink: #1b2130; --ink2: #5b6475; --muted: #8a93a3; --brand: #004cff; --brand-soft: #eef3ff; border: 0; border-radius: 16px; }
 .mp-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding: 1.15rem 1.4rem .8rem; border-bottom: 1px solid var(--ln-soft); }
 .mp-head h5 { margin: 0; font-weight: 700; color: var(--ink); }
 .mp-head p { margin: .2rem 0 0; font-size: .8rem; color: var(--muted); }
@@ -237,7 +241,7 @@ defineExpose({ open });
 .mp-grid.busy { opacity: .55; pointer-events: none; }
 .mp-item { display: flex; flex-direction: column; text-align: left; gap: .2rem; padding: .45rem; border: 2px solid var(--ln); border-radius: 12px; background: #fff; cursor: pointer; min-width: 0; transition: border-color .12s, box-shadow .12s; }
 .mp-item:hover { border-color: #cfc4ff; }
-.mp-item.sel { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(109, 74, 255, .15); }
+.mp-item.sel { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0, 76, 255, .15); }
 .mp-item.dis { opacity: .45; cursor: not-allowed; }
 .mp-thumb { position: relative; display: block; aspect-ratio: 4 / 3; border-radius: 8px; overflow: hidden; background: #0f1016; }
 .mp-thumb img, .mp-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -269,9 +273,9 @@ defineExpose({ open });
 .mp-count { margin-left: auto; font-size: .82rem; color: var(--ink2); font-weight: 600; }
 .mp-btn { display: inline-flex; align-items: center; gap: .4rem; height: 40px; padding: 0 1rem; border-radius: 10px; font-size: .86rem; font-weight: 600; border: 1px solid transparent; cursor: pointer; }
 .mp-btn:disabled { opacity: .55; cursor: not-allowed; }
-.mp-btn-brand { background: var(--brand); color: #fff; }
-.mp-btn-brand:hover:not(:disabled) { background: #5a36f0; }
-.mp-btn-outline { background: #fff; border-color: #d9d0ff; color: var(--brand); }
+.mp-attach { display: inline-flex; align-items: center; gap: .4rem; background-image: linear-gradient(105deg, #004cff, #5235ff); border-color: transparent; color: #fff; }
+.mp-attach:hover:not(:disabled) { background-image: linear-gradient(105deg, #0043e0, #4429f0); color: #fff; }
+.mp-btn-outline { background: #fff; border-color: #cfdcff; color: var(--brand); }
 .mp-btn-outline:hover:not(:disabled) { background: var(--brand-soft); }
 .mp-btn-light { background: #fff; border-color: var(--ln); color: var(--ink2); }
 @media (max-width: 575.98px) {

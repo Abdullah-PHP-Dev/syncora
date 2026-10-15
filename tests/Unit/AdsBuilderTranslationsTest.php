@@ -30,6 +30,7 @@ class AdsBuilderTranslationsTest extends TestCase
         'ads_builder' => 'resources/js/components/ads/facebook/*.{vue,js}',
         'ads_dashboard' => 'resources/js/components/ads/AdsDashboard.vue',
         'media_gallery' => 'resources/js/components/media/MediaGallery.vue',
+        'composer' => 'resources/js/components/posts/composer/*.vue',
     ];
 
     /** Files whose placeholders sit right before a unit (":pxpx" = "1080px"), so names can't be compared as text. */

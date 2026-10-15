@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Create Post')
+@section('title', __('composer.page_title'))
 
 @push('styles')
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
@@ -19,6 +19,9 @@
             redirect-url="{{ route('admin.posts.dashboard') }}"
             :gallery-urls='@json(['index' => route('admin.media-gallery.index'), 'store' => route('admin.media-gallery.store')])'
             :ai-urls='@json(['content' => route('admin.posts.generate-ai-content'), 'image' => route('admin.posts.generate-ai-image')])'
+            :messages='@json(__('composer'))'
+            :media-messages='@json(__('media_gallery'))'
+            locale="{{ app()->getLocale() }}"
     ></post-composer>
 
 @stop

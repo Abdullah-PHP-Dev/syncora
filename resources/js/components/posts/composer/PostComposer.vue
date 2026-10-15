@@ -1,16 +1,16 @@
 <template>
 
-  <div class="composer-layout">
+  <div class="composer-layout" :dir="i18n.dir">
 
     <section class="composer-main">
 
       <div class="composer-header">
         <div>
-          <h4 class="mb-1">Create Post</h4>
-          <p class="text-muted mb-0">Create, customize and publish your content across social media platforms.</p>
+          <h4 class="mb-1">{{ t('title') }}</h4>
+          <p class="text-muted mb-0">{{ t('subtitle') }}</p>
         </div>
-        <button type="button" class="btn-templates" @click="templatesNotice = 'Templates aren\'t wired up yet.'">
-          <i class="bx bx-grid-alt me-1"></i> Templates
+        <button type="button" class="btn btn-sm btn-templates" @click="templatesNotice = t('templates_soon')">
+          <i class="bx bx-grid-alt"></i> {{ t('templates') }}
         </button>
       </div>
       <p v-if="templatesNotice" class="composer-inline-notice">{{ templatesNotice }}</p>
@@ -25,46 +25,46 @@
 
         <hr class="composer-divider">
 
-        <h6 class="composer-section-label">Your Post</h6>
+        <h6 class="composer-section-label">{{ t('your_post') }}</h6>
 
         <label class="composer-field-label">
-          Post Title <span class="text-muted fw-normal">(Optional)</span>
+          {{ t('post_title') }} <span class="text-muted fw-normal">{{ t('optional') }}</span>
         </label>
         <div class="composer-input-wrap">
-          <input v-model="title" type="text" class="form-control" maxlength="100" placeholder="Give your post a title">
+          <input v-model="title" type="text" class="form-control" maxlength="100" :placeholder="t('title_placeholder')">
           <span class="composer-counter">{{ title.length }}/100</span>
         </div>
 
-        <label class="composer-field-label mt-3" for="composerCategory">Category</label>
+        <label class="composer-field-label mt-3" for="composerCategory">{{ t('category') }}</label>
         <div class="composer-category">
           <select v-if="!addingCategory" id="composerCategory" v-model="categoryId" class="form-control">
-            <option v-if="!categoryOptions.length" :value="null" disabled>No categories yet</option>
+            <option v-if="!categoryOptions.length" :value="null" disabled>{{ t('no_categories') }}</option>
             <option v-for="category in categoryOptions" :key="category.id" :value="category.id">{{ category.name }}</option>
           </select>
           <template v-else>
             <input ref="newCategoryInput" v-model="newCategoryName" type="text" class="form-control" maxlength="80"
-                   placeholder="New category name" @keydown.enter.prevent="createCategory" @keydown.esc="addingCategory = false">
+                   :placeholder="t('new_category_placeholder')" @keydown.enter.prevent="createCategory" @keydown.esc="addingCategory = false">
           </template>
           <button v-if="!addingCategory" type="button" class="composer-category-btn" @click="startNewCategory">
-            <i class="bx bx-plus"></i> New
+            <i class="bx bx-plus"></i> {{ t('new') }}
           </button>
           <template v-else>
-            <button type="button" class="composer-category-btn is-primary" :disabled="savingCategory || !newCategoryName.trim()" @click="createCategory">
+            <button type="button" class="btn btn-primary btn-sm composer-category-add" :disabled="savingCategory || !newCategoryName.trim()" @click="createCategory">
               <span v-if="savingCategory" class="spinner-border spinner-border-sm"></span>
-              <template v-else>Add</template>
+              <template v-else>{{ t('add') }}</template>
             </button>
-            <button type="button" class="composer-category-btn" @click="addingCategory = false">Cancel</button>
+            <button type="button" class="composer-category-btn" @click="addingCategory = false">{{ t('cancel') }}</button>
           </template>
         </div>
         <p v-if="categoryError" class="composer-category-error">{{ categoryError }}</p>
 
-        <label class="composer-field-label mt-3">Post Description</label>
+        <label class="composer-field-label mt-3">{{ t('description') }}</label>
         <div class="composer-input-wrap">
           <textarea v-model="description" class="form-control" rows="5" :maxlength="textLimits.platforms ? 63206 : 2200"
-                    placeholder="What do you want to share?"></textarea>
+                    :placeholder="t('description_placeholder')" dir="auto"></textarea>
           <div class="composer-textarea-actions">
-            <button type="button" title="Insert emoji" @click="showEmojiPicker = !showEmojiPicker"><i class="bx bx-smile"></i></button>
-            <button type="button" title="Insert hashtag" @click="description += (description.endsWith(' ') || !description ? '' : ' ') + '#'"><i class="bx bx-hash"></i></button>
+            <button type="button" :title="t('insert_emoji')" @click="showEmojiPicker = !showEmojiPicker"><i class="bx bx-smile"></i></button>
+            <button type="button" :title="t('insert_hashtag')" @click="description += (description.endsWith(' ') || !description ? '' : ' ') + '#'"><i class="bx bx-hash"></i></button>
           </div>
           <span class="composer-counter composer-counter--textarea">{{ codePoints(description) }}</span>
 
@@ -77,9 +77,9 @@
         <div v-if="platformLimits.length" class="composer-limits">
           <span v-for="item in platformLimits" :key="item.platform" class="composer-limit"
                 :class="{ 'is-over': item.problems.length, 'is-near': !item.problems.length && item.used / item.limit > 0.9 }"
-                :title="item.problems.join(' ') || (item.label + ': ' + item.used.toLocaleString() + ' of ' + item.limit.toLocaleString() + ' ' + item.unit)">
+                :title="item.problems.join(' ') || t('limit_title', { platform: item.label, used: num(item.used), limit: num(item.limit), unit: t('units.' + item.unit) })">
             <i class="bx" :class="item.problems.length ? 'bx-error-circle' : 'bx-check-circle'"></i>
-            {{ item.label }} {{ item.used.toLocaleString() }}/{{ item.limit.toLocaleString() }}
+            {{ item.label }} {{ num(item.used) }}/{{ num(item.limit) }}
           </span>
         </div>
         <p v-if="limitProblems.length" class="composer-limit-error">{{ limitProblems.join(' ') }}</p>
@@ -95,22 +95,22 @@
 
         <hr class="composer-divider">
 
-        <h6 class="composer-section-label">Options</h6>
+        <h6 class="composer-section-label">{{ t('options') }}</h6>
         <div class="composer-options-bar">
           <button type="button" class="composer-option-pill" :class="{ 'composer-option-pill--active': showLocation }" @click="showLocation = !showLocation">
-            <i class="bx bx-map"></i> Add Location
+            <i class="bx bx-map"></i> {{ t('add_location') }}
           </button>
           <button type="button" class="composer-option-pill" :class="{ 'composer-option-pill--active': showEvent }" @click="showEvent = !showEvent">
-            <i class="bx bx-calendar-event"></i> Add Event
+            <i class="bx bx-calendar-event"></i> {{ t('add_event') }}
           </button>
           <button type="button" class="composer-option-pill" :class="{ 'composer-option-pill--active': showProduct }" @click="showProduct = !showProduct">
-            <i class="bx bx-package"></i> Add Product
+            <i class="bx bx-package"></i> {{ t('add_product') }}
           </button>
         </div>
 
-        <input v-if="showLocation" v-model="location" type="text" class="form-control mt-2" placeholder="Location name">
-        <input v-if="showEvent" v-model="eventName" type="text" class="form-control mt-2" placeholder="Event name">
-        <input v-if="showProduct" v-model="productName" type="text" class="form-control mt-2" placeholder="Product name">
+        <input v-if="showLocation" v-model="location" type="text" class="form-control mt-2" :placeholder="t('location_placeholder')" dir="auto">
+        <input v-if="showEvent" v-model="eventName" type="text" class="form-control mt-2" :placeholder="t('event_placeholder')" dir="auto">
+        <input v-if="showProduct" v-model="productName" type="text" class="form-control mt-2" :placeholder="t('product_placeholder')" dir="auto">
 
       </div>
 
@@ -118,7 +118,7 @@
         <div class="composer-error-head">
           <i class="bx" :class="errorPanel.icon"></i>
           <strong>{{ errorPanel.title }}</strong>
-          <button type="button" class="composer-error-close" aria-label="Dismiss" @click="clearErrors"><i class="bx bx-x"></i></button>
+          <button type="button" class="composer-error-close" :aria-label="t('dismiss')" @click="clearErrors"><i class="bx bx-x"></i></button>
         </div>
         <ul class="composer-error-list">
           <li v-for="(item, index) in errorPanel.items" :key="index">
@@ -134,17 +134,17 @@
 
       <div class="composer-action-bar">
 
-        <button type="button" class="btn btn-outline-secondary" :disabled="submitting" @click="openScheduler">
-          <i class="bx bx-calendar me-1"></i> Schedule for later
+        <button type="button" class="btn btn-sm composer-btn-secondary" :disabled="submitting" @click="openScheduler">
+          <i class="bx bx-calendar"></i> {{ t('schedule_later') }}
         </button>
 
         <div class="composer-action-bar__right">
-          <button type="button" class="btn btn-outline-secondary" :disabled="submitting" @click="saveAsDraft">
-            Save as draft
+          <button type="button" class="btn btn-sm composer-btn-secondary" :disabled="submitting" @click="saveAsDraft">
+            {{ t('save_draft') }}
           </button>
-          <button type="button" class="btn btn-primary" :disabled="submitting || !canSubmit" @click="submit('now')">
-            <span v-if="submitting" class="spinner-border spinner-border-sm me-1"></span>
-            Post Now
+          <button type="button" class="btn btn-primary btn-sm" :disabled="submitting || !canSubmit" @click="submit('now')">
+            <span v-if="submitting" class="spinner-border spinner-border-sm"></span><i v-else class="bx bx-send"></i>
+            {{ t('post_now') }}
           </button>
         </div>
 
@@ -152,7 +152,7 @@
 
       <div v-if="showScheduler" class="composer-scheduler">
         <input v-model="scheduleAt" type="datetime-local" class="form-control" :min="minScheduleAt">
-        <button type="button" class="btn btn-primary btn-sm" :disabled="submitting || !scheduleAt" @click="submit('schedule')">Confirm schedule</button>
+        <button type="button" class="btn btn-primary btn-sm" :disabled="submitting || !scheduleAt" @click="submit('schedule')">{{ t('confirm_schedule') }}</button>
       </div>
 
     </section>
@@ -179,10 +179,12 @@
 // fetch("#", ...) placeholder) - see saveAsDraft() and
 // AiAssistantPanel.vue for how each surfaces that instead of faking
 // success.
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, provide } from 'vue';
 import AccountSelector from './AccountSelector.vue';
 import MediaGrid from './MediaGrid.vue';
 import AiAssistantPanel from './AiAssistantPanel.vue';
+import { createTranslator } from '../../ads/facebook/i18n';
+import { setMediaTranslator } from '../../media/mediaShared';
 
 const props = defineProps({
 
@@ -239,9 +241,21 @@ const props = defineProps({
   textLimits: {
     type: Object,
     default: () => ({})
-  }
+  },
+
+  // __('composer') / __('media_gallery') for the current locale.
+  messages: { type: Object, default: () => ({}) },
+  mediaMessages: { type: Object, default: () => ({}) },
+  locale: { type: String, default: 'en' },
 
 });
+
+const i18n = createTranslator(props.messages, props.locale);
+const { t } = i18n;
+provide('composerI18n', i18n);
+// The Media picker and upload checks on this page read media_gallery.php.
+setMediaTranslator(createTranslator(props.mediaMessages, props.locale).t);
+const num = (n) => Number(n).toLocaleString(i18n.intl);
 
 // Every connected account starts selected (matching the reference design,
 // and the reasonable default of "post everywhere I'm connected unless I
@@ -294,19 +308,20 @@ const platformLimits = computed(() => {
     const limit = accountLimits.length ? Math.min(...accountLimits) : rules.content;
     const used = rules.weighted ? xLength(text) : rules.content_bytes ? new TextEncoder().encode(text).length : codePoints(text);
     const unit = rules.content_bytes ? 'bytes' : 'characters';
+    const p = { platform: rules.label, limit: num(limit), used: num(used), unit: t('units.' + unit) };
 
     const problems = [];
     if (used > limit) {
-      problems.push(`${rules.label} allows ${limit.toLocaleString()} ${unit} - this text is ${used.toLocaleString()}.` + (key === 'x' && limit === 280 ? ' (25,000 with X Premium.)' : ''));
+      problems.push(t('limit_over', p) + (key === 'x' && limit === 280 ? t('x_premium') : ''));
     }
     if (rules.hashtags && (text.match(/(^|\s)#[\p{L}\p{N}_]+/gu) || []).length > rules.hashtags) {
-      problems.push(`${rules.label} allows up to ${rules.hashtags} hashtags.`);
+      problems.push(t('limit_hashtags', { platform: rules.label, count: rules.hashtags }));
     }
     if (rules.mentions && (text.match(/(^|\s)@[\w.]+/gu) || []).length > rules.mentions) {
-      problems.push(`${rules.label} allows up to ${rules.mentions} @mentions.`);
+      problems.push(t('limit_mentions', { platform: rules.label, count: rules.mentions }));
     }
     if (rules.no_angle_brackets && /[<>]/.test(text + title.value)) {
-      problems.push(`${rules.label} doesn't allow < or > in the title or description.`);
+      problems.push(t('limit_brackets', { platform: rules.label }));
     }
 
     return { platform: key, label: rules.label, used, limit, unit, problems };
@@ -361,16 +376,12 @@ function platformMeta(key) {
   return PLATFORM_META[key] || { label: key, icon: 'bx-globe', color: '#6b7280' };
 }
 
-const FIELD_LABELS = {
-  title: 'Post title', content: 'Post description', category_id: 'Category', platforms: 'Accounts',
-  media: 'Media', schedule_at: 'Schedule date', expiry_at: 'Expiry date', media_asset_ids: 'Media gallery',
-  whatsapp_recipients: 'WhatsApp recipients', whatsapp_template_name: 'WhatsApp template',
-};
+const fieldLabel = (key) => { const v = t('fields.' + key); return v === 'fields.' + key ? null : v; };
 // "facebook.pages" -> the platform; "media.0" -> "Media".
 function fieldInfo(key) {
   const [root] = String(key).split('.');
   if (PLATFORM_META[root]) return { platform: root };
-  return { field: FIELD_LABELS[root] || root.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()) };
+  return { field: fieldLabel(root) || root.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()) };
 }
 // Messages that start with a platform's name ("X allows 280 ...") get its tag.
 function platformFromMessage(message) {
@@ -378,10 +389,10 @@ function platformFromMessage(message) {
 }
 
 const KINDS = {
-  check: { title: 'Before you publish', icon: 'bx-info-circle' },
-  validation: { title: 'Please fix the following', icon: 'bx-error-circle' },
-  publish: { title: "Couldn't publish", icon: 'bx-error' },
-  network: { title: 'Connection problem', icon: 'bx-wifi-off' },
+  check: { title: t('kinds.check'), icon: 'bx-info-circle' },
+  validation: { title: t('kinds.validation'), icon: 'bx-error-circle' },
+  publish: { title: t('kinds.publish'), icon: 'bx-error' },
+  network: { title: t('kinds.network'), icon: 'bx-wifi-off' },
 };
 function showErrors(kind, items, hint = null) {
   const clean = items.filter(item => item && item.message);
@@ -401,7 +412,7 @@ function clearErrors() {
 function showResponseErrors(error) {
   const response = error.response;
   if (!response) {
-    return showError('network', "Couldn't reach the server. Check your internet connection and try again.");
+    return showError('network', t('errors.network'));
   }
 
   const data = response.data || {};
@@ -424,20 +435,20 @@ function showResponseErrors(error) {
       account: e.account || e.page_name || null,
       message: e.message,
     }));
-    return showErrors('publish', items, 'Fix the problem above, then publish again.');
+    return showErrors('publish', items, t('errors.publish_hint'));
   }
 
   if (response.status === 413) {
-    return showError('validation', 'The upload is too large. Remove or compress a file and try again.', { field: 'Media' });
+    return showError('validation', t('errors.too_large'), { field: t('fields.media') });
   }
   if (response.status === 419) {
-    return showError('network', 'Your session expired. Reload the page and try again.');
+    return showError('network', t('errors.session'));
   }
   if (response.status >= 500) {
-    return showError('network', 'The server had a problem publishing this post. Please try again in a moment.');
+    return showError('network', t('errors.server'));
   }
 
-  return showError('publish', data.message || 'Something went wrong while publishing. Please try again.');
+  return showError('publish', data.message || t('errors.generic'));
 }
 const showScheduler = ref(false);
 const scheduleAt = ref('');
@@ -476,7 +487,7 @@ async function createCategory() {
     categoryId.value = data.data.id;
     addingCategory.value = false;
   } catch (error) {
-    categoryError.value = error.response?.data?.message || 'Could not create the category. Please try again.';
+    categoryError.value = error.response?.data?.message || t('category_failed');
   } finally {
     savingCategory.value = false;
   }
@@ -554,13 +565,13 @@ function onAiGenerated({ kind, title: aiTitle, description: aiDescription, hasht
         duration: null,
       }];
     } catch (error) {
-      showError('check', 'The image was generated, but couldn\'t be attached automatically - please try again.', { field: 'Media' });
+      showError('check', t('errors.ai_image_attach'), { field: t('fields.media') });
     }
   }
 }
 
 function saveAsDraft() {
-  showError('check', 'Saving drafts isn\'t available yet. Use "Post Now" or "Schedule for later" instead.');
+  showError('check', t('errors.drafts'));
 }
 
 function selectedAccountsByPlatform() {
@@ -616,28 +627,28 @@ async function submit(mode) {
   clearErrors();
 
   if (!defaultCategoryId.value) {
-    showError('check', 'Choose a category for this post (or add one with "+ New").', { field: 'Category' });
+    showError('check', t('errors.category'), { field: t('fields.category_id') });
     return;
   }
 
   if (!selectedAccountIds.value.length) {
-    showError('check', 'Select at least one account to post to.', { field: 'Accounts' });
+    showError('check', t('errors.accounts'), { field: t('fields.platforms') });
     return;
   }
 
   // YouTube only publishes videos - catch it here instead of at publish time.
   if (selectedPlatforms.value.includes('youtube') && !mediaItems.value.some(item => item.type === 'video')) {
-    showError('check', 'YouTube only accepts videos. Add a video, or unselect your YouTube channel.', { platform: 'youtube' });
+    showError('check', t('errors.youtube_video'), { platform: 'youtube' });
     return;
   }
 
   if (limitProblems.value.length) {
-    showErrors('check', platformLimits.value.flatMap(item => item.problems.map(message => ({ platform: item.platform, message }))), 'Shorten the text, or unselect that platform.');
+    showErrors('check', platformLimits.value.flatMap(item => item.problems.map(message => ({ platform: item.platform, message }))), t('errors.limits_hint'));
     return;
   }
 
   if (mode === 'schedule' && !scheduleAt.value) {
-    showError('check', 'Pick a date and time to schedule this post for.', { field: 'Schedule date' });
+    showError('check', t('errors.schedule_date'), { field: t('fields.schedule_at') });
     return;
   }
 
@@ -656,7 +667,7 @@ async function submit(mode) {
     published.value = true;
 
     if (window.Swal) {
-      window.Swal.fire('Success!', data.message || 'Post published successfully!', 'success')
+      window.Swal.fire(t('success'), data.message || t('published'), 'success')
         .then(() => { window.location.href = data.redirect_url || props.redirectUrl || window.location.href; });
     } else {
       window.location.href = data.redirect_url || props.redirectUrl || window.location.href;
@@ -671,6 +682,14 @@ async function submit(mode) {
 </script>
 
 <style scoped>
+
+/* Theme .btn .btn-primary .btn-sm (as on the campaigns list) with the homepage brand gradient. */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.btn-primary { background-image: linear-gradient(105deg, #004cff, #5235ff); border-color: transparent; color: #fff; }
+.btn-primary:hover:not(:disabled) { background-image: linear-gradient(105deg, #0043e0, #4429f0); color: #fff; }
+
+.composer-btn-secondary { background: #fff; border-color: #E5E7EB; color: #374151; }
+.composer-btn-secondary:hover:not(:disabled) { border-color: #b9ccff; color: #004cff; background: #fff; }
 
 .composer-layout {
   display: grid;
@@ -693,13 +712,14 @@ async function submit(mode) {
 }
 
 .btn-templates {
-  border: 1px solid #E5E7EB;
+  border-color: #E5E7EB;
   background: #fff;
-  border-radius: 9px;
-  padding: 7px 14px;
-  font-size: .82rem;
-  font-weight: 600;
   color: #374151;
+}
+
+.btn-templates:hover {
+  border-color: #b9ccff;
+  color: #004cff;
 }
 
 .composer-card {
@@ -772,8 +792,8 @@ async function submit(mode) {
 }
 
 .composer-category-btn.is-primary {
-  background: #6d4aff;
-  border-color: #6d4aff;
+  background: #004cff;
+  border-color: #004cff;
   color: #fff;
 }
 
@@ -856,22 +876,26 @@ async function submit(mode) {
   font-size: 13px;
 }
 
+.composer-input-wrap > input.form-control {
+  padding-inline-end: 64px; /* room for the 0/100 counter */
+}
+
 .composer-counter {
   position: absolute;
   bottom: 8px;
-  right: 12px;
+  inset-inline-end: 12px;
   font-size: .7rem;
   color: #9ca3af;
 }
 
 .composer-counter--textarea {
-  right: 70px;
+  inset-inline-end: 70px;
 }
 
 .composer-textarea-actions {
   position: absolute;
   bottom: 6px;
-  right: 12px;
+  inset-inline-end: 12px;
   display: flex;
   gap: 4px;
 }
@@ -887,7 +911,7 @@ async function submit(mode) {
 .composer-emoji-picker {
   position: absolute;
   bottom: 40px;
-  right: 12px;
+  inset-inline-end: 12px;
   background: #fff;
   border: 1px solid #E5E7EB;
   border-radius: 10px;
@@ -927,9 +951,9 @@ async function submit(mode) {
 }
 
 .composer-option-pill--active {
-  border-color: #7c5cff;
-  background: #F5F3FF;
-  color: #6D28D9;
+  border-color: #004cff;
+  background: #eef3ff;
+  color: #0039cc;
 }
 
 .composer-inline-notice,
@@ -971,7 +995,7 @@ async function submit(mode) {
 }
 
 .composer-error-close {
-  margin-left: auto;
+  margin-inline-start: auto;
   border: 0;
   background: transparent;
   color: #6b7280;

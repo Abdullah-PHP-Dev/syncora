@@ -2,23 +2,23 @@
 
   <div>
 
-    <h6 class="composer-section-label">Media</h6>
+    <h6 class="composer-section-label">{{ t('media') }}</h6>
 
     <div class="media-grid">
 
       <div v-for="(item, index) in items" :key="item.previewUrl" class="media-thumb" :title="item.name || ''">
 
-        <img v-if="item.posterUrl" :src="item.posterUrl" :alt="`Media ${index + 1}`">
+        <img v-if="item.posterUrl" :src="item.posterUrl" :alt="t('media_alt', { n: index + 1 })">
         <video v-else-if="item.type === 'video'" :src="item.previewUrl" muted></video>
-        <img v-else :src="item.previewUrl" :alt="`Media ${index + 1}`">
+        <img v-else :src="item.previewUrl" :alt="t('media_alt', { n: index + 1 })">
 
-        <span v-if="item.assetId" class="media-thumb__source" title="From Media Gallery"><i class="bx bx-images"></i></span>
+        <span v-if="item.assetId" class="media-thumb__source" :title="t('from_gallery')"><i class="bx bx-images"></i></span>
 
         <span v-if="item.type === 'video' && item.duration" class="media-thumb__duration">
           {{ item.duration }}
         </span>
 
-        <button type="button" class="media-thumb__remove" title="Remove" @click="remove(index)">
+        <button type="button" class="media-thumb__remove" :title="t('remove')" @click="remove(index)">
           <i class="bx bx-x"></i>
         </button>
 
@@ -37,10 +37,10 @@
 
     <div class="media-source-actions">
       <button type="button" :disabled="!galleryUrls" @click="$refs.picker.open()">
-        <i class="bx bx-images"></i> Attach from Media Gallery
+        <i class="bx bx-images"></i> {{ t('attach_gallery') }}
       </button>
       <button type="button" :disabled="!galleryUrls || !!uploading" @click="$refs.galleryUpload.click()">
-        <i class="bx bx-cloud-upload"></i> Upload New
+        <i class="bx bx-cloud-upload"></i> {{ t('upload_new') }}
       </button>
       <input ref="galleryUpload" type="file" class="d-none" multiple :accept="ACCEPT" @change="onGalleryUpload">
     </div>
@@ -49,11 +49,11 @@
     <media-picker v-if="galleryUrls" ref="picker" :urls="galleryUrls" :platforms="platforms" @select="onGallerySelect" />
 
     <div class="media-quick-actions">
-      <button type="button" title="Add photo" @click="openPicker('image/*', false)"><i class="bx bx-image"></i></button>
-      <button type="button" title="Add video" @click="openPicker('video/*', false)"><i class="bx bx-video"></i></button>
-      <button type="button" title="Add carousel (multiple photos)" @click="openPicker('image/*', true)"><i class="bx bx-carousel"></i></button>
-      <button type="button" title="Add GIF" @click="openPicker('image/gif', false)"><i class="bx bx-file-gif"></i></button>
-      <button type="button" title="Add reel" @click="openPicker('video/*', false)"><i class="bx bx-mobile"></i></button>
+      <button type="button" :title="t('add_photo')" @click="openPicker('image/*', false)"><i class="bx bx-image"></i></button>
+      <button type="button" :title="t('add_video')" @click="openPicker('video/*', false)"><i class="bx bx-video"></i></button>
+      <button type="button" :title="t('add_carousel')" @click="openPicker('image/*', true)"><i class="bx bx-carousel"></i></button>
+      <button type="button" :title="t('add_gif')" @click="openPicker('image/gif', false)"><i class="bx bx-file-gif"></i></button>
+      <button type="button" :title="t('add_reel')" @click="openPicker('video/*', false)"><i class="bx bx-mobile"></i></button>
     </div>
 
     <input
@@ -64,11 +64,11 @@
         :multiple="multipleAllowed"
         @change="onFilesPicked">
 
-    <div class="form-check form-switch d-flex align-items-center gap-2 mt-3">
+    <div class="form-check form-switch composer-switch d-flex align-items-center gap-2 mt-3">
       <input id="composerFirstComment" v-model="firstComment" class="form-check-input" type="checkbox" role="switch"
              @change="$emit('update:useAsFirstComment', firstComment)">
-      <label class="form-check-label small mb-0" for="composerFirstComment">Use as first comment</label>
-      <i class="bx bx-info-circle text-muted" title="Some platforms (Instagram) show hashtags separately when they're sent as the first comment instead of in the caption itself."></i>
+      <label class="form-check-label small mb-0" for="composerFirstComment">{{ t('first_comment') }}</label>
+      <i class="bx bx-info-circle text-muted" :title="t('first_comment_hint')"></i>
     </div>
 
   </div>
@@ -90,7 +90,7 @@
 // server-side) - not re-validated here client-side, since this composer
 // isn't platform-specific the way that guard is; the server error will
 // surface through submitError same as any other platform rejection.
-import { ref, computed } from 'vue';
+import { ref, computed, inject } from 'vue';
 import MediaPicker from '../../media/MediaPicker.vue';
 import { ACCEPT, precheck, errorMessage, uploadToGallery } from '../../media/mediaShared';
 
@@ -120,6 +120,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update:items', 'update:useAsFirstComment']);
+const { t } = inject('composerI18n', { t: (k) => k });
+
 
 const fileInput = ref(null);
 const acceptFilter = ref('image/*,video/*');
@@ -194,7 +196,7 @@ async function onGalleryUpload(event) {
       next = [...next, assetToItem(asset)];
       emit('update:items', next);
     } catch (error) {
-      galleryError.value = errorMessage(error, `Upload of "${file.name}" failed.`);
+      galleryError.value = errorMessage(error, t('upload_failed', { name: file.name }));
     } finally {
       uploading.value = null;
     }
@@ -249,7 +251,7 @@ defineExpose({});
 .media-thumb__duration {
   position: absolute;
   bottom: 6px;
-  right: 6px;
+  inset-inline-end: 6px;
   background: rgba(0,0,0,.65);
   color: #fff;
   font-size: .68rem;
@@ -260,7 +262,7 @@ defineExpose({});
 .media-thumb__remove {
   position: absolute;
   top: 6px;
-  right: 6px;
+  inset-inline-end: 6px;
   width: 22px;
   height: 22px;
   border-radius: 50%;
@@ -286,18 +288,18 @@ defineExpose({});
 }
 
 .media-add-box:hover {
-  border-color: #7c5cff;
-  color: #7c5cff;
+  border-color: #004cff;
+  color: #004cff;
 }
 
 .media-thumb__source {
   position: absolute;
   top: 6px;
-  left: 6px;
+  inset-inline-start: 6px;
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  background: rgba(109,74,255,.9);
+  background: rgba(0,76,255,.9);
   color: #fff;
   display: flex;
   align-items: center;
@@ -311,9 +313,9 @@ defineExpose({});
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: #f5f3ff;
-  color: #7c5cff;
-  border: 1.5px dashed #c4b5fd;
+  background: #eef3ff;
+  color: #004cff;
+  border: 1.5px dashed #b9ccff;
 }
 
 .media-source-actions {
@@ -330,15 +332,15 @@ defineExpose({});
   height: 36px;
   padding: 0 14px;
   border-radius: 9px;
-  border: 1px solid #d9d0ff;
+  border: 1px solid #cfdcff;
   background: #fff;
-  color: #6d4aff;
+  color: #004cff;
   font-size: .82rem;
   font-weight: 600;
 }
 
 .media-source-actions button:hover:not(:disabled) {
-  background: #f1edff;
+  background: #eef3ff;
 }
 
 .media-source-actions button:disabled {
@@ -373,8 +375,13 @@ defineExpose({});
 }
 
 .media-quick-actions button:hover {
-  border-color: #7c5cff;
-  color: #7c5cff;
+  border-color: #004cff;
+  color: #004cff;
 }
 
+
+/* Bootstrap's switch offsets the input with left-side padding/margin; laid out
+   with flex here instead, so it sits correctly in Arabic (RTL) too. */
+.composer-switch { padding-inline-start: 0; }
+.composer-switch .form-check-input { float: none; margin: 0; }
 </style>
