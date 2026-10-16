@@ -411,6 +411,28 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 						Route::post('submit', 'submit')->name('submit')->middleware('throttle:10,1');
 					});
 
+				// X campaign builder (XCampaignBuilder): same pattern as the
+				// Facebook and TikTok builders above.
+				Route::prefix('ads/x/builder')->name('ads.x.builder.')
+					->controller(\App\Http\Controllers\Admin\XAdBuilderController::class)->group(function () {
+						Route::get('bootstrap', 'bootstrap')->name('bootstrap');
+						Route::get('campaigns', 'campaigns')->name('campaigns');
+						Route::get('tweets', 'tweets')->name('tweets');
+						Route::get('audiences', 'audiences')->name('audiences');
+						Route::get('locations', 'locations')->name('locations');
+						Route::get('languages', 'languages')->name('languages');
+						Route::get('interests', 'interests')->name('interests');
+						Route::get('conversations', 'conversations')->name('conversations');
+						Route::get('events', 'events')->name('events');
+						Route::get('platforms', 'platforms')->name('platforms');
+						Route::get('devices', 'devices')->name('devices');
+						Route::get('network-operators', 'networkOperators')->name('network_operators');
+						Route::get('app-categories', 'appCategories')->name('app_categories');
+						Route::post('users', 'users')->name('users')->middleware('throttle:30,1');
+						Route::post('estimate', 'estimate')->name('estimate')->middleware('throttle:30,1');
+						Route::post('submit', 'submit')->name('submit')->middleware('throttle:10,1');
+					});
+
 				Route::resource('ads/{platform}/campaigns', AdCampaignController::class)
 					->names('ads.campaigns');
 

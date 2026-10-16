@@ -23,6 +23,7 @@ import AdsDashboard from './components/ads/AdsDashboard.vue';
 import PlatformCampaignsDashboard from './components/ads/PlatformCampaignsDashboard.vue';
 import FacebookCampaignBuilder from './components/ads/facebook/FacebookCampaignBuilder.vue';
 import TiktokCampaignBuilder from './components/ads/tiktok/TiktokCampaignBuilder.vue';
+import XCampaignBuilder from './components/ads/x/XCampaignBuilder.vue';
 import EmailTemplateDesigner from './components/email/EmailTemplateDesigner.vue';
 
 window.Alpine = Alpine;
@@ -54,6 +55,7 @@ Vue.component('ads-dashboard', AdsDashboard);
 Vue.component('platform-campaigns-dashboard', PlatformCampaignsDashboard);
 Vue.component('facebook-campaign-builder', FacebookCampaignBuilder);
 Vue.component('tiktok-campaign-builder', TiktokCampaignBuilder);
+Vue.component('xads-campaign-builder', XCampaignBuilder);
 Vue.component('email-template-designer', EmailTemplateDesigner);
 Vue.component('connection-hub', ConnectionHub);
 
