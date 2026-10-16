@@ -37,6 +37,7 @@
             :gallery-urls='@json($galleryUrls)'
             :account-id="{{ (int) $account->id }}"
             :messages='@json($messages)'
+            :media-messages='@json(__('media_gallery'))'
             locale="{{ app()->getLocale() }}"
         ></tiktok-campaign-builder>
     @else

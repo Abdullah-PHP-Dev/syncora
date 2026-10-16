@@ -1,19 +1,31 @@
 <template>
   <div class="fb tt" :dir="i18n.dir">
 
-    <!-- ===== Header ===== -->
-    <header class="fb-head tt-head">
-      <div class="fb-head-main">
-        <span class="fb-head-icon tt-head-icon"><i class="bx bxl-tiktok"></i></span>
-        <div>
+    <!-- ===== Header (TikTok-style hero) ===== -->
+    <header class="tt-hero">
+      <span class="tt-hero-glow is-cyan" aria-hidden="true"></span>
+      <span class="tt-hero-glow is-pink" aria-hidden="true"></span>
+      <div class="tt-hero-main">
+        <span class="tt-logo" aria-hidden="true"><i class="bx bxl-tiktok"></i></span>
+        <div class="tt-hero-text">
+          <span class="tt-eyebrow"><i class="bx bxs-zap"></i> {{ t('header.eyebrow') }}</span>
           <h4>{{ t('header.title') }}</h4>
           <p>{{ t('header.subtitle') }}</p>
         </div>
       </div>
-      <div class="fb-head-actions">
-        <span v-if="boot" class="fb-acct" :title="boot.account.id"><i class="bx bx-briefcase-alt-2"></i> {{ boot.account.name }} · {{ boot.account.currency }}</span>
-        <a :href="urls.campaignsList" class="btn btn-sm fb-btn-ghost"><i class="bx bx-list-ul"></i> {{ t('header.campaigns') }}</a>
+      <div class="tt-hero-side">
+        <div v-if="boot" class="tt-hero-acct" :title="boot.account.id">
+          <span class="tt-hero-acct-ic"><i class="bx bx-briefcase-alt-2"></i></span>
+          <span><small>{{ t('header.ad_account') }}</small><strong>{{ boot.account.name }}</strong><small dir="ltr">{{ boot.account.currency }} · {{ boot.account.timezone }}</small></span>
+        </div>
+        <a :href="urls.campaignsList" class="tt-hero-btn"><i class="bx bx-list-ul"></i> {{ t('header.campaigns') }}</a>
       </div>
+      <ul class="tt-hero-flow">
+        <li><i class="bx bx-flag"></i> {{ t('header.flow_campaign') }}</li>
+        <li><i class="bx bx-target-lock"></i> {{ t('header.flow_targeting') }}</li>
+        <li><i class="bx bx-video"></i> {{ t('header.flow_creative') }}</li>
+        <li><i class="bx bx-cloud-upload"></i> {{ t('header.flow_drafts') }}</li>
+      </ul>
     </header>
 
     <div v-if="draftOffer" class="fb-banner">
@@ -650,18 +662,22 @@ import { ref, reactive, computed, watch, onMounted, nextTick, provide } from 'vu
 import SearchPicker from '../facebook/SearchPicker.vue';
 import MediaPicker from '../../media/MediaPicker.vue';
 import { createTranslator } from '../facebook/i18n';
+import { setMediaTranslator } from '../../media/mediaShared';
 
 const props = defineProps({
   urls: { type: Object, required: true },
   galleryUrls: { type: Object, required: true },
   accountId: { type: Number, required: true },
   messages: { type: Object, default: () => ({}) },
+  mediaMessages: { type: Object, default: () => ({}) },
   locale: { type: String, default: 'en' },
 });
 
 const i18n = createTranslator(props.messages, props.locale);
 const { t } = i18n;
 provide('fbI18n', i18n);
+// The Media picker on this page reads media_gallery.php.
+setMediaTranslator(createTranslator(props.mediaMessages, props.locale).t);
 
 const boot = ref(null);
 const bootError = ref('');
@@ -1131,8 +1147,36 @@ onMounted(async () => {
 <style scoped src="../facebook/builder.css"></style>
 <style scoped>
 .tt { --brand: #111827; --brand-2: #FE2C55; --brand-soft: #FFF0F3; }
-.tt-head { background: linear-gradient(135deg, #F6F7F9 0%, #FFF1F4 100%); border-color: #F1E3E7; }
-.tt-head-icon { background: linear-gradient(135deg, #111827 0%, #25F4EE 55%, #FE2C55 100%); box-shadow: 0 8px 18px rgba(254, 44, 85, .22); }
+.tt-hero { position: relative; overflow: hidden; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 18px; padding: 26px 26px 20px; margin-bottom: 16px; border-radius: 22px; color: #fff; background: radial-gradient(120% 140% at 0% 0%, #1c1c24 0%, #0b0b10 55%, #050507 100%); box-shadow: 0 18px 40px rgba(5, 5, 7, .28); isolation: isolate; }
+.tt-hero-glow { position: absolute; width: 280px; height: 280px; border-radius: 50%; filter: blur(70px); opacity: .45; z-index: -1; pointer-events: none; }
+.tt-hero-glow.is-cyan { background: #25F4EE; top: -140px; inset-inline-start: -60px; }
+.tt-hero-glow.is-pink { background: #FE2C55; bottom: -170px; inset-inline-end: -40px; }
+.tt-hero-main { display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1 1 380px; }
+.tt-logo { flex-shrink: 0; width: 60px; height: 60px; border-radius: 18px; display: grid; place-items: center; font-size: 34px; color: #fff; background: #000; border: 1px solid rgba(255, 255, 255, .12); text-shadow: -2px -2px 0 #25F4EE, 2px 2px 0 #FE2C55; box-shadow: 0 10px 24px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(255, 255, 255, .04); }
+.tt-hero-text { min-width: 0; }
+.tt-eyebrow { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; margin-bottom: 6px; border-radius: 999px; font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #25F4EE; background: rgba(37, 244, 238, .1); border: 1px solid rgba(37, 244, 238, .25); }
+.tt-hero h4 { margin: 0; font-size: 1.55rem; font-weight: 800; letter-spacing: -.02em; color: #fff; }
+.tt-hero p { margin: 4px 0 0; max-width: 560px; font-size: .9rem; line-height: 1.5; color: rgba(255, 255, 255, .7); }
+.tt-hero-side { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tt-hero-acct { display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 8px; border-radius: 14px; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .1); backdrop-filter: blur(6px); }
+[dir="rtl"] .tt-hero-acct { padding: 8px 8px 8px 14px; }
+.tt-hero-acct-ic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-size: 18px; background: linear-gradient(135deg, #25F4EE, #FE2C55); color: #0b0b10; }
+.tt-hero-acct > span:last-child { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.tt-hero-acct small { font-size: .68rem; color: rgba(255, 255, 255, .55); }
+.tt-hero-acct strong { font-size: .86rem; color: #fff; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tt-hero-btn { display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 16px; border-radius: 12px; font-size: .84rem; font-weight: 600; color: #0b0b10; background: #fff; text-decoration: none; transition: transform .15s ease, box-shadow .15s ease; }
+.tt-hero-btn:hover { color: #0b0b10; transform: translateY(-1px); box-shadow: -3px 3px 0 #25F4EE, 3px -3px 0 #FE2C55; }
+.tt-hero-flow { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; margin: 4px 0 0; padding: 14px 0 0; list-style: none; border-top: 1px solid rgba(255, 255, 255, .08); }
+.tt-hero-flow li { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-size: .76rem; font-weight: 500; color: rgba(255, 255, 255, .82); background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .08); }
+.tt-hero-flow li i { color: #25F4EE; font-size: 14px; }
+.tt-hero-flow li:nth-child(even) i { color: #FE2C55; }
+@media (max-width: 767.98px) {
+  .tt-hero { padding: 20px 16px 16px; border-radius: 18px; }
+  .tt-hero h4 { font-size: 1.25rem; }
+  .tt-logo { width: 50px; height: 50px; font-size: 28px; border-radius: 15px; }
+  .tt-hero-side, .tt-hero-acct { width: 100%; }
+  .tt-hero-btn { flex: 1; justify-content: center; }
+}
 .tt-daypart { margin-top: 10px; display: grid; gap: 10px; }
 .tt-days, .tt-types { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .fb-chip-btn.is-on { background: var(--ink); color: #fff; border-color: var(--ink); }

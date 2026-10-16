@@ -8,7 +8,13 @@ return [
 
     'header' => [
         'title' => 'Create a TikTok ad',
-        'subtitle' => 'Campaign, ad group and ad in one guided flow, sent straight to TikTok Ads Manager.',
+        'subtitle' => 'Build your campaign, ad group and ad in one guided flow - published straight to TikTok Ads Manager.',
+        'eyebrow' => 'TikTok Ads',
+        'ad_account' => 'Ad account',
+        'flow_campaign' => 'Campaign & objective',
+        'flow_targeting' => 'Live TikTok targeting',
+        'flow_creative' => 'Video, image or Spark Ad',
+        'flow_drafts' => 'Drafts save automatically',
         'campaigns' => 'Campaigns',
     ],
     'boot' => [
