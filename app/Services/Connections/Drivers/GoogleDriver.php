@@ -44,15 +44,15 @@ class GoogleDriver extends BaseDriver
     public function presentation(): array
     {
         return [
-            'subtitle' => 'YouTube · Google Ads · Analytics',
+            'subtitle' => __('connections.platforms.google.subtitle'),
             'icons' => [['icon' => 'bxl-google', 'brand' => 'google'], ['icon' => 'bxl-youtube', 'brand' => 'youtube']],
-            'connect_label' => 'Connect with Google',
-            'empty_title' => 'One Google consent for YouTube and Ads',
-            'empty_text' => 'Connect the Google account that owns your YouTube channels and Google Ads accounts. You can remove access at any time, here or in your Google Account settings.',
+            'connect_label' => __('connections.platforms.google.connect_label'),
+            'empty_title' => __('connections.platforms.google.empty_title'),
+            'empty_text' => __('connections.platforms.google.empty_text'),
             'benefits' => ['posting', 'ads', 'insights'],
             'asset_groups' => [
-                'youtube' => ['label' => 'YouTube channels', 'icon' => 'bxl-youtube', 'brand' => 'youtube', 'capabilities' => ['posting', 'insights']],
-                'google_ads' => ['label' => 'Google Ads accounts', 'icon' => 'bx-bullseye', 'brand' => 'google', 'capabilities' => ['ads']],
+                'youtube' => ['label' => __('connections.platforms.google.groups.youtube'), 'icon' => 'bxl-youtube', 'brand' => 'youtube', 'capabilities' => ['posting', 'insights']],
+                'google_ads' => ['label' => __('connections.platforms.google.groups.google_ads'), 'icon' => 'bx-bullseye', 'brand' => 'google', 'capabilities' => ['ads']],
             ],
             'step_icons' => [
                 self::OAUTH => ['icon' => 'bxl-google', 'brand' => 'google'],
@@ -60,8 +60,8 @@ class GoogleDriver extends BaseDriver
             ],
             'legacy_steps' => [
                 self::ADS_LEGACY => [
-                    'label' => 'Google Ads (earlier connection)',
-                    'upgrade_note' => 'Connected through the old Ads-only Google app. It keeps working; reconnect once to move it to the single Google connection.',
+                    'label' => __('connections.platforms.google.legacy.label'),
+                    'upgrade_note' => __('connections.platforms.google.legacy.upgrade_note'),
                     'upgrade_step' => self::OAUTH,
                 ],
             ],
@@ -77,8 +77,8 @@ class GoogleDriver extends BaseDriver
     {
         return [[
             'key' => self::OAUTH,
-            'label' => 'Google account',
-            'description' => 'YouTube channels, Google Ads accounts and Analytics in one consent.',
+            'label' => __('connections.platforms.google.steps.oauth.label'),
+            'description' => __('connections.platforms.google.steps.oauth.description'),
             'primary' => true,
             'available' => (bool) GoogleClient::credentials()['client_id'],
         ]];

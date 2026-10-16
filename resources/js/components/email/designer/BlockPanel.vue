@@ -1,23 +1,23 @@
 <template>
   <div class="block-panel">
     <div class="block-panel-section">
-      <div class="block-panel-title">Layout</div>
+      <div class="block-panel-title">{{ t('panel.layout') }}</div>
       <div :ref="setLayoutGridEl" class="block-grid">
         <button v-for="preset in layoutPresets" :key="preset.preset" type="button" class="block-item" :data-layout-preset="preset.preset" @click="$emit('add-preset', preset.preset)">
           <i :class="'bx ' + preset.icon"></i>
-          <span>{{ preset.label }}</span>
-          <small>{{ preset.description }}</small>
+          <span>{{ t(`layouts.${preset.preset}.label`) }}</span>
+          <small>{{ t(`layouts.${preset.preset}.description`) }}</small>
         </button>
       </div>
     </div>
 
     <div class="block-panel-section">
-      <div class="block-panel-title">Content</div>
+      <div class="block-panel-title">{{ t('panel.content') }}</div>
       <div :ref="setBlockGridEl" class="block-grid">
         <button v-for="block in blockLibrary" :key="block.type" type="button" class="block-item" :data-block-type="block.type" @click="$emit('add-block', block.type)">
           <i :class="'bx ' + block.icon"></i>
-          <span>{{ block.label }}</span>
-          <small>{{ block.description }}</small>
+          <span>{{ t(`blocks.${block.type}.label`) }}</span>
+          <small>{{ t(`blocks.${block.type}.description`) }}</small>
         </button>
       </div>
     </div>
@@ -28,8 +28,11 @@
 import { onBeforeUnmount } from 'vue';
 import Sortable from 'sortablejs';
 import { BLOCK_LIBRARY, LAYOUT_PRESETS } from '../lib/inspectorSchemas';
+import { useEmailI18n } from '../lib/i18n';
 
 defineEmits(['add-block', 'add-preset']);
+
+const { t } = useEmailI18n();
 
 const blockLibrary = BLOCK_LIBRARY;
 const layoutPresets = LAYOUT_PRESETS;
@@ -77,7 +80,7 @@ onBeforeUnmount(() => {
 .block-item {
   display: flex; flex-direction: column; align-items: flex-start; gap: .15rem;
   border: 1px solid var(--dash-border); background: var(--dash-card); border-radius: .6rem;
-  padding: .6rem .65rem; cursor: grab; text-align: left; transition: all .12s ease;
+  padding: .6rem .65rem; cursor: grab; text-align: start; transition: all .12s ease;
 }
 .block-item:hover { border-color: var(--dash-primary); background: var(--dash-card-hover); transform: translateY(-1px); }
 .block-item:active { cursor: grabbing; }

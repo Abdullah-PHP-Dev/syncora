@@ -104,13 +104,13 @@ class ConnectionHubController extends Controller
         try {
             $response = OpenAiAds::adAccount($key);
         } catch (\Throwable $e) {
-            return redirect()->to($hub)->with('error', 'Could not reach OpenAI Ads. Please try again.');
+            return redirect()->to($hub)->with('error', __('connections.openai_flash.unreachable'));
         }
 
         if (! $response->successful() || ! $response->json('id')) {
             return redirect()->to($hub)->with('error', in_array($response->status(), [401, 403], true)
-                ? 'OpenAI did not accept this API key. Copy it again from ads.openai.com > Settings.'
-                : OpenAiAds::errorMessage($response, 'Could not read the ChatGPT Ads account for this key.'));
+                ? __('connections.openai_flash.rejected')
+                : OpenAiAds::errorMessage($response, __('connections.openai_flash.unreadable')));
         }
 
         $account = $response->json();
@@ -134,7 +134,7 @@ class ConnectionHubController extends Controller
             'access_token' => $key,
         ], [$asset->id]);
 
-        return redirect()->to($hub)->with('success', 'Connected ChatGPT Ads account "' . $asset->name . '".');
+        return redirect()->to($hub)->with('success', __('connections.openai_flash.connected', ['name' => $asset->name]));
     }
 
     /** Start a card step's consent (also the "Upgrade access" target). */

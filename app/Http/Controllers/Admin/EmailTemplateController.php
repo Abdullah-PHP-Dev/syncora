@@ -90,7 +90,7 @@ class EmailTemplateController extends Controller
         // two copies of this logic.
         $template->snapshotVersion(Auth::id());
 
-        return redirect()->route('admin.email.templates.index')->with('success', 'Template created.');
+        return redirect()->route('admin.email.templates.index')->with('success', __('email_marketing.flash.template_created'));
     }
 
     public function edit(EmailTemplate $template)
@@ -117,7 +117,7 @@ class EmailTemplateController extends Controller
         $template->snapshotVersion(Auth::id());
         $template->update($validated);
 
-        return redirect()->route('admin.email.templates.index')->with('success', 'Template updated.');
+        return redirect()->route('admin.email.templates.index')->with('success', __('email_marketing.flash.template_updated'));
     }
 
     /**
@@ -134,7 +134,7 @@ class EmailTemplateController extends Controller
         $template->snapshotVersion(Auth::id());
         $template->update(['body' => $version->html_content, 'schema_json' => $version->schema_json]);
 
-        return redirect()->route('admin.email.templates.edit', $template)->with('success', "Restored version {$version->version}.");
+        return redirect()->route('admin.email.templates.edit', $template)->with('success', __('email_marketing.flash.version_restored', ['number' => $version->version]));
     }
 
     public function destroy(EmailTemplate $template)
@@ -143,7 +143,7 @@ class EmailTemplateController extends Controller
 
         $template->delete();
 
-        return back()->with('success', 'Template deleted.');
+        return back()->with('success', __('email_marketing.flash.template_deleted'));
     }
 
     /**
@@ -219,7 +219,7 @@ class EmailTemplateController extends Controller
         if (empty($apiKey)) {
             return response()->json([
                 'success' => false,
-                'message' => 'AI content generation is not configured yet - add a Gemini API key in Admin > APIs.',
+                'message' => __('email_marketing.flash.ai_not_configured'),
             ], 422);
         }
 
@@ -265,7 +265,7 @@ class EmailTemplateController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => $response->json('error.message') ?? 'Failed to generate content - please try again.',
+                'message' => $response->json('error.message') ?? __('email_marketing.flash.ai_failed'),
             ], 422);
         }
 
@@ -277,7 +277,7 @@ class EmailTemplateController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'AI returned an unexpected response - please try again.',
+                'message' => __('email_marketing.flash.ai_unexpected'),
             ], 422);
         }
 
@@ -454,13 +454,13 @@ class EmailTemplateController extends Controller
         $subaccount = EmailSubaccount::where('user_id', Auth::id())->first();
 
         if (!$subaccount?->isActive()) {
-            return [null, null, 'Complete Email Marketing setup (SendGrid subaccount) before sending a test email.'];
+            return [null, null, __('email_marketing.flash.test_setup_required')];
         }
 
         $sender = SenderIdentity::where('user_id', Auth::id())->where('status', 'verified')->first();
 
         if (!$sender) {
-            return [null, null, 'Verify a sender identity before sending a test email.'];
+            return [null, null, __('email_marketing.flash.test_sender_required')];
         }
 
         return [$subaccount, $sender, null];

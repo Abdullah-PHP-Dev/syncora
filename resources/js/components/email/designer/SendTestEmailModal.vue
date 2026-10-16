@@ -2,20 +2,20 @@
   <div v-if="visible" class="stm-overlay" @click.self="close">
     <div class="stm-card">
       <div class="stm-header">
-        <strong>Send Test Email</strong>
-        <button type="button" class="stm-close" @click="close"><i class="bx bx-x"></i></button>
+        <strong>{{ t('send_test.title') }}</strong>
+        <button type="button" class="stm-close" :title="t('send_test.close')" @click="close"><i class="bx bx-x"></i></button>
       </div>
 
       <div class="stm-body">
         <template v-if="step === 'input'">
-          <label class="stm-label">Recipient email</label>
-          <input v-model="recipient" type="email" class="dash-input w-100" placeholder="you@example.com" @keyup.enter="goToConfirm" />
+          <label class="stm-label">{{ t('send_test.recipient_label') }}</label>
+          <input v-model="recipient" type="email" class="dash-input w-100" placeholder="you@example.com" dir="ltr" @keyup.enter="goToConfirm" />
           <p v-if="inputError" class="stm-error">{{ inputError }}</p>
         </template>
 
         <template v-else-if="step === 'confirm'">
-          <div class="stm-review-row"><span>Recipient</span><span>{{ recipient }}</span></div>
-          <div class="stm-review-row"><span>Subject</span><span>{{ subject }}</span></div>
+          <div class="stm-review-row"><span>{{ t('send_test.recipient') }}</span><span dir="ltr">{{ recipient }}</span></div>
+          <div class="stm-review-row"><span>{{ t('send_test.subject') }}</span><span dir="auto">{{ subject }}</span></div>
           <div class="stm-preview-wrap">
             <iframe class="stm-preview-frame" :srcdoc="html"></iframe>
           </div>
@@ -23,21 +23,21 @@
         </template>
 
         <template v-else-if="step === 'success'">
-          <div class="stm-success"><i class="bx bx-check-circle"></i> Test email sent to {{ recipient }}.</div>
+          <div class="stm-success"><i class="bx bx-check-circle"></i> {{ t('send_test.success', { email: recipient }) }}</div>
         </template>
       </div>
 
       <div class="stm-footer">
         <template v-if="step === 'input'">
-          <button type="button" class="dash-btn dash-btn-ghost" @click="close">Cancel</button>
-          <button type="button" class="dash-btn dash-btn-primary" @click="goToConfirm">Continue</button>
+          <button type="button" class="dash-btn dash-btn-ghost" @click="close">{{ t('send_test.cancel') }}</button>
+          <button type="button" class="dash-btn dash-btn-primary" @click="goToConfirm">{{ t('send_test.continue') }}</button>
         </template>
         <template v-else-if="step === 'confirm'">
-          <button type="button" class="dash-btn dash-btn-ghost" @click="step = 'input'">Back</button>
-          <button type="button" class="dash-btn dash-btn-primary" :disabled="sending" @click="send">{{ sending ? 'Sending...' : 'Confirm & Send' }}</button>
+          <button type="button" class="dash-btn dash-btn-ghost" @click="step = 'input'">{{ t('send_test.back') }}</button>
+          <button type="button" class="dash-btn dash-btn-primary" :disabled="sending" @click="send">{{ sending ? t('send_test.sending') : t('send_test.confirm_send') }}</button>
         </template>
         <template v-else-if="step === 'success'">
-          <button type="button" class="dash-btn dash-btn-primary" @click="close">Done</button>
+          <button type="button" class="dash-btn dash-btn-primary" @click="close">{{ t('send_test.done') }}</button>
         </template>
       </div>
     </div>
@@ -46,12 +46,15 @@
 
 <script setup>
 import { ref } from 'vue';
+import { useEmailI18n } from '../lib/i18n';
 
 const props = defineProps({
   sendTestUrl: { type: String, required: true },
   subject: { type: String, default: '' },
   html: { type: String, default: '' },
 });
+
+const { t } = useEmailI18n();
 
 const visible = ref(false);
 const step = ref('input');
@@ -74,7 +77,7 @@ function close() {
 function goToConfirm() {
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient.value);
   if (!isValidEmail) {
-    inputError.value = 'Enter a valid email address.';
+    inputError.value = t('send_test.invalid_email');
     return;
   }
   inputError.value = '';
@@ -93,10 +96,10 @@ async function send() {
     if (data.success) {
       step.value = 'success';
     } else {
-      sendError.value = data.message || 'Failed to send test email.';
+      sendError.value = data.message || t('send_test.failed');
     }
   } catch (e) {
-    sendError.value = e.response?.data?.message || 'Failed to send test email - please try again.';
+    sendError.value = e.response?.data?.message || t('send_test.retry');
   } finally {
     sending.value = false;
   }
@@ -115,7 +118,7 @@ defineExpose({ open });
 .stm-error { color: var(--dash-danger, #e11d48); font-size: .78rem; margin-top: .5rem; }
 .stm-review-row { display: flex; justify-content: space-between; padding: .5rem 0; border-bottom: 1px solid var(--dash-border); font-size: .85rem; }
 .stm-review-row span:first-child { color: var(--dash-muted); }
-.stm-review-row span:last-child { font-weight: 600; color: var(--dash-heading); text-align: right; }
+.stm-review-row span:last-child { font-weight: 600; color: var(--dash-heading); text-align: end; }
 .stm-preview-wrap { margin-top: .75rem; border: 1px solid var(--dash-border); border-radius: .6rem; overflow: hidden; }
 .stm-preview-frame { width: 100%; height: 320px; border: 0; display: block; }
 .stm-success { display: flex; align-items: center; gap: .5rem; color: var(--dash-success, #16a34a); font-weight: 600; }

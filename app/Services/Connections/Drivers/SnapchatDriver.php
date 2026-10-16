@@ -33,14 +33,14 @@ class SnapchatDriver extends MirroredTokenDriver
     public function presentation(): array
     {
         return [
-            'subtitle' => 'Snapchat Ads',
+            'subtitle' => __('connections.platforms.snapchat.subtitle'),
             'icons' => [['icon' => 'bxl-snapchat', 'brand' => 'snapchat']],
-            'connect_label' => 'Connect with Snapchat',
-            'empty_title' => 'Connect your Snapchat Ads accounts',
-            'empty_text' => 'Sign in with the Snapchat account that has a role in your Snap Business Manager organization. To fully remove access later, also remove SocialEaz in Snap Business Manager.',
+            'connect_label' => __('connections.platforms.snapchat.connect_label'),
+            'empty_title' => __('connections.platforms.snapchat.empty_title'),
+            'empty_text' => __('connections.platforms.snapchat.empty_text'),
             'benefits' => ['ads'],
             'asset_groups' => [
-                'snapchat_ads' => ['label' => 'Ad accounts', 'icon' => 'bx-bullseye', 'brand' => 'snapchat', 'capabilities' => ['ads']],
+                'snapchat_ads' => ['label' => __('connections.platforms.snapchat.groups.snapchat_ads'), 'icon' => 'bx-bullseye', 'brand' => 'snapchat', 'capabilities' => ['ads']],
             ],
             'step_icons' => [self::MARKETING => ['icon' => 'bxl-snapchat', 'brand' => 'snapchat']],
         ];
@@ -55,8 +55,8 @@ class SnapchatDriver extends MirroredTokenDriver
     {
         return [[
             'key' => self::MARKETING,
-            'label' => 'Snapchat Ads',
-            'description' => 'Ad accounts in your Snap Business Manager organizations.',
+            'label' => __('connections.platforms.snapchat.steps.marketing.label'),
+            'description' => __('connections.platforms.snapchat.steps.marketing.description'),
             'primary' => true,
             'available' => (bool) adminSetting('ads.snapchat.client_id'),
         ]];

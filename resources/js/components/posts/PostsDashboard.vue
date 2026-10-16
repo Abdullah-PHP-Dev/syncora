@@ -1,20 +1,20 @@
 <template>
-  <div class="posts-dashboard">
+  <div class="posts-dashboard" :dir="i18n.dir">
 
     <div class="dashboard-header">
 
       <div>
 
         <div class="page-badge">
-          Social Media Management
+          {{ t('header.badge') }}
         </div>
 
         <h2 class="page-title">
-          Social Media Posts
+          {{ t('header.title') }}
         </h2>
 
         <p class="page-subtitle">
-          Manage, schedule and monitor all your social media posts from one place.
+          {{ t('header.subtitle') }}
         </p>
 
       </div>
@@ -24,9 +24,9 @@
         <button
             class="btn btn-outline-secondary">
 
-          <i class="fas fa-download mr-2"></i>
+          <i class="fas fa-download me-2"></i>
 
-          Export
+          {{ t('header.export') }}
 
         </button>
 
@@ -34,9 +34,9 @@
             class="btn btn-primary btn-create"
             @click="createPost">
 
-          <i class="fas fa-plus mr-2"></i>
+          <i class="fas fa-plus me-2"></i>
 
-          Create Post
+          {{ t('header.create_post') }}
 
         </button>
 
@@ -49,13 +49,13 @@
 
       <div class="composer-avatar">{{ userInitials }}</div>
 
-      <div class="composer-input">What's on your mind, {{ userFirstName }}?</div>
+      <div class="composer-input">{{ t('composer.placeholder', { name: userFirstName }) }}</div>
 
       <div class="composer-icons">
 
-        <i class="fas fa-image" style="color:#45BD62" title="Photo" @click.stop="openQuickCreate"></i>
+        <i class="fas fa-image" style="color:#45BD62" :title="t('composer.photo')" @click.stop="openQuickCreate"></i>
 
-        <i class="fas fa-video" style="color:#F3425F" title="Video" @click.stop="openQuickCreate"></i>
+        <i class="fas fa-video" style="color:#F3425F" :title="t('composer.video')" @click.stop="openQuickCreate"></i>
 
       </div>
 
@@ -77,7 +77,7 @@
 
         <account-avatar-badge
             v-else
-            style="margin-right: 15px;"
+            style="margin-inline-end: 15px;"
             :avatar-url="platform.avatarUrl"
             :icon="platform.icon"
             :color="platform.color"
@@ -87,8 +87,8 @@
             :size="44" />
 
         <div class="platform-info">
-          <strong>{{ platform.accountName || platform.name }}</strong>
-          <small>{{ platform.count }} Posts</small>
+          <strong>{{ platform.accountName || (platform.key === 'all' ? t('tabs.all') : platform.name) }}</strong>
+          <small>{{ tc('tabs.posts', platform.count, { count: num(platform.count) }) }}</small>
         </div>
 
       </div>
@@ -107,7 +107,7 @@
           <input
               type="text"
               v-model="filters.search"
-              placeholder="Search posts by title or content...">
+              :placeholder="t('toolbar.search_placeholder')">
 
         </div>
 
@@ -116,21 +116,21 @@
       <div class="toolbar-right">
 
         <select class="modern-select" v-model="filters.status">
-          <option value="">All Status</option>
-          <option value="Published">Published</option>
-          <option value="Scheduled">Scheduled</option>
-          <option value="Failed">Failed</option>
+          <option value="">{{ t('toolbar.all_status') }}</option>
+          <option value="Published">{{ t('status.published') }}</option>
+          <option value="Scheduled">{{ t('status.scheduled') }}</option>
+          <option value="Failed">{{ t('status.failed') }}</option>
         </select>
 
         <select class="modern-select" v-model="filters.sort">
-          <option value="latest">Latest First</option>
-          <option value="oldest">Oldest First</option>
+          <option value="latest">{{ t('toolbar.latest_first') }}</option>
+          <option value="oldest">{{ t('toolbar.oldest_first') }}</option>
         </select>
 
         <button
             class="modern-btn d-none"
             :class="{active: gridView}"
-            title="Grid view"
+            :title="t('toolbar.grid_view')"
             @click="gridView = true">
           <i class="fas fa-th-large"></i>
         </button>
@@ -138,7 +138,7 @@
         <button
             class="modern-btn d-none"
             :class="{active: !gridView}"
-            title="List view"
+            :title="t('toolbar.list_view')"
             @click="gridView = false">
           <i class="fas fa-list"></i>
         </button>
@@ -152,9 +152,9 @@
 
       <div>
 
-        <h3>Recent Posts</h3>
+        <h3>{{ t('list.recent_posts') }}</h3>
 
-        <p>{{ pageInfo.total }} Posts Available</p>
+        <p>{{ tc('list.available', pageInfo.total, { count: num(pageInfo.total) }) }}</p>
 
       </div>
 
@@ -164,7 +164,7 @@
         v-if="!loading && paginatedPosts.length === 0"
         class="posts-empty-state">
 
-      No posts found.
+      {{ t('list.empty') }}
 
     </div>
 
@@ -257,7 +257,7 @@
               class="status-badge"
               :class="post.status.toLowerCase()">
 
-        {{ post.status }}
+        {{ statusLabel(post.status) }}
 
     </span>
 
@@ -314,20 +314,20 @@
             <!-- Quick actions: preview, its comments, or promote it as an ad
                  (opens Ads > Create campaign with the post attached). -->
             <div class="dropdown post-actions">
-              <button type="button" class="post-actions-btn" data-bs-toggle="dropdown" aria-expanded="false" :aria-label="'Actions for ' + (post.title || 'post')">
+              <button type="button" class="post-actions-btn" data-bs-toggle="dropdown" aria-expanded="false" :aria-label="t('list.actions_for', { title: post.title || t('list.post') })">
                 <i class="fas fa-ellipsis-v"></i>
               </button>
               <ul class="dropdown-menu dropdown-menu-end post-actions-menu">
                 <li v-if="post.platforms && post.platforms.length">
-                  <a class="dropdown-item" :href="previewUrl(post, post.platforms[0])"><i class="far fa-eye"></i> Preview</a>
+                  <a class="dropdown-item" :href="previewUrl(post, post.platforms[0])"><i class="far fa-eye"></i> {{ t('list.preview') }}</a>
                 </li>
                 <li v-if="post.platforms && post.platforms.length">
-                  <a class="dropdown-item" :href="previewUrl(post, post.platforms[0]) + '#comments'"><i class="far fa-comment"></i> View comments</a>
+                  <a class="dropdown-item" :href="previewUrl(post, post.platforms[0]) + '#comments'"><i class="far fa-comment"></i> {{ t('list.view_comments') }}</a>
                 </li>
                 <template v-if="promoteTargets(post).length">
                   <li><hr class="dropdown-divider"></li>
                   <li v-for="target in promoteTargets(post)" :key="'promote-' + target.key">
-                    <a class="dropdown-item" :href="promoteUrl(post, target)"><i class="fas fa-bullhorn"></i> Promote on {{ target.name }}</a>
+                    <a class="dropdown-item" :href="promoteUrl(post, target)"><i class="fas fa-bullhorn"></i> {{ t('list.promote_on', { platform: target.name }) }}</a>
                   </li>
                 </template>
               </ul>
@@ -335,13 +335,13 @@
 
           </div>
 
-          <h4>
+          <h4 dir="auto">
 
             {{ post.title }}
 
           </h4>
 
-          <p>
+          <p dir="auto">
 
             {{ post.content }}
 
@@ -407,19 +407,7 @@
 
       <div class="pagination-info">
 
-        Showing
-
-        <strong>{{ pageInfo.from }}</strong>
-
-        -
-
-        <strong>{{ pageInfo.to }}</strong>
-
-        of
-
-        <strong>{{ pageInfo.total }}</strong>
-
-        Posts
+        {{ t('list.showing', { from: num(pageInfo.from), to: num(pageInfo.to), total: num(pageInfo.total) }) }}
 
       </div>
 
@@ -428,9 +416,10 @@
         <button
             class="page-btn"
             :disabled="pagination.currentPage===1"
+            :aria-label="t('list.previous')"
             @click="goToPage(pagination.currentPage - 1)">
 
-          <i class="fas fa-chevron-left"></i>
+          <i :class="i18n.dir === 'rtl' ? 'fas fa-chevron-right' : 'fas fa-chevron-left'"></i>
 
         </button>
 
@@ -456,9 +445,11 @@
 
             :disabled="pagination.currentPage===totalPages"
 
+            :aria-label="t('list.next')"
+
             @click="goToPage(pagination.currentPage + 1)">
 
-          <i class="fas fa-chevron-right"></i>
+          <i :class="i18n.dir === 'rtl' ? 'fas fa-chevron-left' : 'fas fa-chevron-right'"></i>
 
         </button>
 
@@ -479,13 +470,13 @@
 
           <div class="modal-header">
 
-            <h5 class="modal-title">Create post</h5>
+            <h5 class="modal-title">{{ t('quick.title') }}</h5>
 
             <button
                 type="button"
                 class="btn-close"
                 data-bs-dismiss="modal"
-                aria-label="Close"></button>
+:aria-label="t('quick.close')"></button>
 
           </div>
 
@@ -498,7 +489,7 @@
               <div>
                 <strong>{{ userName }}</strong>
                 <div class="composer-audience">
-                  <i class="fas fa-users"></i> Friends
+                  <i class="fas fa-users"></i> {{ t('quick.audience') }}
                 </div>
               </div>
 
@@ -508,7 +499,8 @@
                 class="quick-textarea"
                 rows="4"
                 v-model="quickPost.content"
-                :placeholder="'What\'s on your mind, ' + userFirstName + '?'">
+                dir="auto"
+                :placeholder="t('composer.placeholder', { name: userFirstName })">
             </textarea>
 
             <div
@@ -534,7 +526,7 @@
 
             </div>
 
-            <div class="quick-platform-label">Post to</div>
+            <div class="quick-platform-label">{{ t('quick.post_to') }}</div>
 
             <div class="quick-platform-select">
 
@@ -564,7 +556,7 @@
 
               <label class="quick-checkbox">
                 <input type="checkbox" v-model="quickPost.scheduleLater">
-                Schedule for later
+                {{ t('quick.schedule_later') }}
               </label>
 
               <input
@@ -577,11 +569,11 @@
 
             <div class="add-to-post-row">
 
-              <span>Add to your post</span>
+              <span>{{ t('quick.add_to_post') }}</span>
 
               <div class="add-to-post-icons">
 
-                <label class="media-upload-btn" title="Photo/Video">
+                <label class="media-upload-btn" :title="t('quick.photo_video')">
                   <i class="fas fa-image" style="color:#45BD62"></i>
                   <input
                       type="file"
@@ -590,11 +582,11 @@
                       @change="onQuickMediaSelected">
                 </label>
 
-                <i class="fas fa-user-tag" style="color:#1877F2" title="Tag people"></i>
+                <i class="fas fa-user-tag" style="color:#1877F2" :title="t('quick.tag_people')"></i>
 
-                <i class="far fa-smile" style="color:#F7B928" title="Feeling/activity"></i>
+                <i class="far fa-smile" style="color:#F7B928" :title="t('quick.feeling')"></i>
 
-                <i class="fas fa-map-marker-alt" style="color:#F5533D" title="Location"></i>
+                <i class="fas fa-map-marker-alt" style="color:#F5533D" :title="t('quick.location')"></i>
 
               </div>
 
@@ -610,7 +602,7 @@
                 :disabled="!canSubmitQuickPost"
                 @click="submitQuickPost">
 
-              {{ quickPostSubmitting ? 'Posting...' : (quickPost.scheduleLater ? 'Schedule Post' : 'Post') }}
+              {{ quickPostSubmitting ? t('quick.posting') : (quickPost.scheduleLater ? t('quick.schedule_post') : t('quick.post')) }}
 
             </button>
 
@@ -628,6 +620,7 @@
 <script>
 import { platformMeta, platformOrder, brandOf } from '../../data/mockPosts';
 import AccountAvatarBadge from './AccountAvatarBadge.vue';
+import { createTranslator } from '../ads/facebook/i18n';
 
 export default {
 
@@ -728,6 +721,17 @@ export default {
     platformCounts: {
       type: Object,
       default: () => ({})
+    },
+
+    // __('posts_listing') for the current locale.
+    messages: {
+      type: Object,
+      default: () => ({})
+    },
+
+    locale: {
+      type: String,
+      default: 'en'
     }
 
   },
@@ -815,6 +819,12 @@ export default {
   },
 
   computed: {
+
+    i18n() {
+
+      return createTranslator(this.messages, this.locale);
+
+    },
 
     userInitials() {
 
@@ -953,6 +963,34 @@ export default {
 
   },
   methods: {
+
+    t(key, params) {
+
+      return this.i18n.t(key, params);
+
+    },
+
+    tc(key, count, params) {
+
+      return this.i18n.tc(key, count, params);
+
+    },
+
+    num(n) {
+
+      return Number(n || 0).toLocaleString(this.i18n.intl);
+
+    },
+
+    // Statuses arrive as ucfirst() raw values (Published, Pending, In_progress...).
+    statusLabel(status) {
+
+      const key = 'status.' + String(status || '').toLowerCase();
+      const label = this.t(key);
+
+      return label === key ? status : label;
+
+    },
 
     // Backend groups every platform a single quick-post submission was
     // published to under raw.platforms (see PostController::
@@ -1215,7 +1253,7 @@ export default {
         return Object.values(errors).flat().join(' ');
       }
 
-      return (payload && payload.message) || 'Something went wrong while posting.';
+      return (payload && payload.message) || this.t('alerts.generic_error');
 
     },
 
@@ -1260,25 +1298,25 @@ export default {
         this.pagination.currentPage = 1;
         this.fetchPosts();
 
-        const message = data.message || 'Post published successfully!';
+        const message = this.t(formData.has('schedule_at') ? 'alerts.scheduled' : 'alerts.published');
         const shareUrl = this.snapchatShareUrl(data.results);
 
         if (window.Swal) {
           if (shareUrl) {
             window.Swal.fire({
-              title: 'Success!',
+              title: this.t('alerts.success'),
               icon: 'success',
               html: message +
                 '<div class="mt-3 pt-2 border-top">' +
-                  '<p class="text-muted small mb-2">Snapchat has no auto-publish API - share this post manually instead:</p>' +
+                  '<p class="text-muted small mb-2">' + this.t('alerts.snapchat_note') + '</p>' +
                   '<a href="#" class="btn btn-sm btn-outline-dark snapchat-share-button" data-share-url="' + shareUrl + '">' +
-                    '<i class="fab fa-snapchat-ghost"></i> Share to Snapchat' +
+                    '<i class="fab fa-snapchat-ghost"></i> ' + this.t('alerts.share_snapchat') +
                   '</a>' +
                 '</div>',
               didOpen: this.initSnapchatShareButtons
             });
           } else {
-            window.Swal.fire('Success!', message, 'success');
+            window.Swal.fire(this.t('alerts.success'), message, 'success');
           }
         } else {
           window.alert(message);
@@ -1287,7 +1325,7 @@ export default {
         if (data.errors && data.errors.length) {
           const warning = this.quickPostErrorMessage(data);
           if (window.Swal) {
-            window.Swal.fire('Partial success', warning, 'warning');
+            window.Swal.fire(this.t('alerts.partial'), warning, 'warning');
           } else {
             window.alert(warning);
           }
@@ -1298,7 +1336,7 @@ export default {
         const message = this.quickPostErrorMessage(error.response && error.response.data);
 
         if (window.Swal) {
-          window.Swal.fire('Error!', message, 'error');
+          window.Swal.fire(this.t('alerts.error'), message, 'error');
         } else {
           window.alert(message);
         }
@@ -1680,7 +1718,7 @@ export default {
 
   position:absolute;
 
-  left:18px;
+  inset-inline-start:18px;
 
   top:50%;
 
@@ -1696,7 +1734,7 @@ export default {
 
   height:48px;
 
-  padding-left:48px;
+  padding-inline-start:48px;
 
   border:1px solid #E5E7EB;
 
@@ -1943,7 +1981,7 @@ export default {
 
   top:18px;
 
-  right:18px;
+  inset-inline-end:18px;
 
   padding:7px 16px;
 
@@ -2080,7 +2118,7 @@ export default {
   align-items: center;
   justify-content: center;
   font-size: 20px;
-  margin-right: 15px;
+  margin-inline-end: 15px;
   flex-shrink: 0;
   transition: .25s;
 }
@@ -2201,7 +2239,7 @@ export default {
 
   position:absolute;
 
-  left:18px;
+  inset-inline-start:18px;
 
   top:18px;
 
@@ -2429,7 +2467,7 @@ export default {
 .remove-media-btn{
   position:absolute;
   top:10px;
-  right:10px;
+  inset-inline-end:10px;
   width:32px;
   height:32px;
   border-radius:50%;

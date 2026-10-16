@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Create Email Campaign')
+@section('title', __('email_marketing.campaigns.create_title'))
 
 @push('styles')
 @include('layouts.partials.dash-styles')
@@ -10,19 +10,19 @@
 <div class="socialeaz-dash">
 
     <nav class="dash-subtitle small mb-2">
-        <a href="{{ route('admin.email.dashboard') }}" class="dash-link">Email Marketing</a> /
-        <a href="{{ route('admin.email.campaigns.index') }}" class="dash-link">Campaigns</a>
+        <a href="{{ route('admin.email.dashboard') }}" class="dash-link">{{ __('email_marketing.module') }}</a> /
+        <a href="{{ route('admin.email.campaigns.index') }}" class="dash-link">{{ __('email_marketing.common.campaigns') }}</a>
     </nav>
 
     <div class="email-hero mb-3">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
             <div>
-                <h4 class="mb-1">Create Email Campaign</h4>
-                <p>Design, send and track your email campaigns to engage your audience and grow your business.</p>
+                <h4 class="mb-1">{{ __('email_marketing.campaigns.create_title') }}</h4>
+                <p>{{ __('email_marketing.campaigns.create_subtitle') }}</p>
             </div>
             <div class="d-none d-md-block text-end">
-                <strong style="font-size:.9rem;">Reach the right audience<br>with powerful email campaigns.</strong>
-                <p class="mb-0" style="font-size:.78rem;">Build beautiful emails, get higher opens, and drive more engagement.</p>
+                <strong style="font-size:.9rem;">{!! __('email_marketing.campaigns.create_tagline') !!}</strong>
+                <p class="mb-0" style="font-size:.78rem;">{{ __('email_marketing.campaigns.create_tagline_text') }}</p>
             </div>
         </div>
     </div>

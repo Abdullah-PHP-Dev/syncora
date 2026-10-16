@@ -392,6 +392,25 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 						Route::post('submit', 'submit')->name('submit')->middleware('throttle:10,1');
 					});
 
+				// TikTok campaign builder (TiktokCampaignBuilder): same pattern
+				// as the Facebook builder above.
+				Route::prefix('ads/tiktok/builder')->name('ads.tiktok.builder.')
+					->controller(\App\Http\Controllers\Admin\TiktokAdBuilderController::class)->group(function () {
+						Route::get('bootstrap', 'bootstrap')->name('bootstrap');
+						Route::get('campaigns', 'campaigns')->name('campaigns');
+						Route::get('spark-posts', 'sparkPosts')->name('spark_posts');
+						Route::get('pixels', 'pixels')->name('pixels');
+						Route::get('audiences', 'audiences')->name('audiences');
+						Route::get('apps', 'apps')->name('apps');
+						Route::get('lead-forms', 'leadForms')->name('lead_forms');
+						Route::get('locations', 'locations')->name('locations');
+						Route::get('languages', 'languages')->name('languages');
+						Route::get('interests', 'interests')->name('interests');
+						Route::get('device-models', 'deviceModels')->name('device_models');
+						Route::get('os-versions', 'osVersions')->name('os_versions');
+						Route::post('submit', 'submit')->name('submit')->middleware('throttle:10,1');
+					});
+
 				Route::resource('ads/{platform}/campaigns', AdCampaignController::class)
 					->names('ads.campaigns');
 

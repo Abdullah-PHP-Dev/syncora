@@ -1,18 +1,18 @@
 <template>
-  <div class="ch">
+  <div class="ch" :dir="i18n.dir">
 
     <header class="ch-head">
       <span class="ch-head-icon"><i class="bx bx-link-alt"></i></span>
       <div>
-        <h1 class="ch-title">Connections</h1>
-        <p class="ch-sub">Manage your social media accounts, ad accounts and chat connections all in one place.</p>
+        <h1 class="ch-title">{{ t('header.title') }}</h1>
+        <p class="ch-sub">{{ t('header.subtitle') }}</p>
       </div>
     </header>
 
     <div v-if="flashMessage" class="ch-flash" :class="flashMessage.tone" role="status" aria-live="polite">
       <i class="bx" :class="flashMessage.tone === 'is-error' ? 'bx-error-circle' : 'bx-check-circle'"></i>
       <span>{{ flashMessage.text }}</span>
-      <button type="button" class="ch-flash-x" @click="flashMessage = null" aria-label="Dismiss"><i class="bx bx-x"></i></button>
+      <button type="button" class="ch-flash-x" @click="flashMessage = null" :aria-label="t('dismiss')"><i class="bx bx-x"></i></button>
     </div>
 
     <!-- "Connect all recommended": one consent per step, back here between them. -->
@@ -20,25 +20,25 @@
       <span class="ch-wizard-icon"><i class="bx" :class="wizardState.next ? 'bx-rocket' : 'bx-check-double'"></i></span>
       <div class="ch-wizard-text">
         <template v-if="wizardState.next">
-          <strong>Setup {{ wizardState.done + 1 }} of {{ wizardState.total }}: {{ wizardState.next.label }}</strong>
-          <span>Next, sign in with {{ wizardState.next.label }}. You'll come straight back here afterwards.</span>
+          <strong>{{ t('wizard.step', { done: wizardState.done + 1, total: wizardState.total, label: wizardState.next.label }) }}</strong>
+          <span>{{ t('wizard.next', { label: wizardState.next.label }) }}</span>
         </template>
         <template v-else>
-          <strong>Setup finished</strong>
-          <span>{{ wizardState.skipped ? wizardState.skipped + ' skipped - connect them from their cards whenever you like.' : 'All recommended platforms are connected.' }}</span>
+          <strong>{{ t('wizard.finished') }}</strong>
+          <span>{{ wizardState.skipped ? tc('wizard.skipped', wizardState.skipped) : t('wizard.all_connected') }}</span>
         </template>
         <div class="ch-wizard-bar"><span :style="{ width: (100 * wizardState.done / wizardState.total) + '%' }"></span></div>
       </div>
       <div v-if="wizardState.next" class="ch-wizard-actions">
         <form method="POST" :action="urls.wizard_finish" class="ch-inline-form">
           <input type="hidden" name="_token" :value="csrf"><input type="hidden" name="_method" value="DELETE">
-          <button type="submit" class="ch-btn ch-btn-ghost sm">Finish later</button>
+          <button type="submit" class="ch-btn ch-btn-ghost sm">{{ t('wizard.finish_later') }}</button>
         </form>
         <form method="POST" :action="urls.wizard_skip" class="ch-inline-form">
           <input type="hidden" name="_token" :value="csrf">
-          <button type="submit" class="ch-btn ch-btn-ghost sm">Skip</button>
+          <button type="submit" class="ch-btn ch-btn-ghost sm">{{ t('wizard.skip') }}</button>
         </form>
-        <a :href="wizardState.next.url" class="ch-btn ch-btn-primary sm">Continue <i class="bx bx-right-arrow-alt"></i></a>
+        <a :href="wizardState.next.url" class="ch-btn ch-btn-primary sm">{{ t('wizard.continue') }} <i class="bx bx-right-arrow-alt"></i></a>
       </div>
     </div>
 
@@ -49,12 +49,12 @@
         <section class="ch-hero">
           <span class="ch-hero-icon"><i class="bx bx-link"></i></span>
           <div class="ch-hero-text">
-            <h2>Your Connected Platforms</h2>
-            <p>Manage all your social accounts, ad accounts and messaging connections from one central place. Connect a platform once and Publishing, Ads and Inbox all use it.</p>
+            <h2>{{ t('hero.title') }}</h2>
+            <p>{{ t('hero.text') }}</p>
           </div>
           <div class="ch-hero-stats">
             <button v-for="s in heroStats" :key="s.key" type="button" class="ch-hero-stat" @click="setTab(s.key)">
-              <span class="ch-hero-stat-top"><span class="ch-hero-stat-icon" :class="'is-' + s.tone"><i class="bx" :class="s.icon"></i></span><strong>{{ s.count }}</strong></span>
+              <span class="ch-hero-stat-top"><span class="ch-hero-stat-icon" :class="'is-' + s.tone"><i class="bx" :class="s.icon"></i></span><strong>{{ num(s.count) }}</strong></span>
               <small>{{ s.label }}</small>
             </button>
           </div>
@@ -62,8 +62,8 @@
 
         <!-- Tabs -->
         <nav class="ch-tabs" role="tablist">
-          <button v-for="t in tabs" :key="t.key" type="button" role="tab" class="ch-tab" :class="{ 'is-active': tab === t.key }" :aria-selected="tab === t.key" @click="setTab(t.key)">
-            <i class="bx" :class="t.icon"></i> {{ t.label }} <span class="ch-tab-count">{{ t.count }}</span>
+          <button v-for="tb in tabs" :key="tb.key" type="button" role="tab" class="ch-tab" :class="{ 'is-active': tab === tb.key }" :aria-selected="tab === tb.key" @click="setTab(tb.key)">
+            <i class="bx" :class="tb.icon"></i> {{ tb.label }} <span class="ch-tab-count">{{ num(tb.count) }}</span>
           </button>
         </nav>
 
@@ -71,8 +71,8 @@
         <section v-if="!accountRows.length" class="ch-section ch-start">
           <div class="ch-section-head">
             <div>
-              <h3>Connect your first platform</h3>
-              <p>Sign in once - Publishing, Ads and Inbox all use the same connection.</p>
+              <h3>{{ t('start.title') }}</h3>
+              <p>{{ t('start.text') }}</p>
             </div>
           </div>
           <div class="ch-pick-grid">
@@ -81,7 +81,7 @@
               <strong>{{ card.label }}</strong>
               <small>{{ card.presentation.subtitle }}</small>
               <span class="ch-pick-caps"><span v-for="cap in cardCapabilities(card)" :key="cap.key"><i class="bx" :class="cap.icon"></i> {{ cap.label }}</span></span>
-              <span class="ch-pick-cta">Connect <i class="bx bx-right-arrow-alt"></i></span>
+              <span class="ch-pick-cta">{{ t('connect') }} <i class="bx bx-right-arrow-alt"></i></span>
             </button>
           </div>
         </section>
@@ -95,7 +95,7 @@
                 <p>{{ section.subtitle }}</p>
               </div>
               <button v-if="tab === 'all' && section.rows.length" type="button" class="ch-section-link" @click="setTab(section.key)">
-                {{ section.rows.length }} {{ section.rows.length === 1 ? 'account' : 'accounts' }} <i class="bx bx-chevron-right"></i>
+                {{ tc('sections.accounts', section.rows.length) }} <i class="bx bx-chevron-right"></i>
               </button>
             </div>
 
@@ -107,7 +107,7 @@
                     <strong>{{ row.view.title }}</strong>
                     <small>{{ row.view.subtitle }}</small>
                   </div>
-                  <span v-if="busy[row.conn.id] === 'check'" class="ch-state is-muted"><i class="bx bx-loader-alt bx-spin"></i> Checking…</span>
+                  <span v-if="busy[row.conn.id] === 'check'" class="ch-state is-muted"><i class="bx bx-loader-alt bx-spin"></i> {{ t('account.checking') }}</span>
                   <span v-else class="ch-state" :class="'is-' + row.state.tone">{{ row.state.label }}</span>
                 </div>
                 <div class="ch-acct-bottom">
@@ -120,18 +120,18 @@
                     <small :title="row.asset.external_id">{{ row.asset.username && section.key === 'social' ? '@' + row.asset.username : row.view.idLabel + ': ' + row.asset.external_id }}</small>
                   </div>
                   <div class="ch-menu" @click.stop>
-                    <button type="button" class="ch-kebab" :aria-expanded="openMenu === section.key + row.asset.id" aria-label="Account actions" @click="toggleMenu(section.key + row.asset.id)"><i class="bx bx-dots-vertical-rounded"></i></button>
+                    <button type="button" class="ch-kebab" :aria-expanded="openMenu === section.key + row.asset.id" :aria-label="t('account.actions')" @click="toggleMenu(section.key + row.asset.id)"><i class="bx bx-dots-vertical-rounded"></i></button>
                     <div v-if="openMenu === section.key + row.asset.id" class="ch-menu-list" role="menu">
-                      <a v-if="row.state.key === 'reconnect' || row.state.key === 'expiring'" :href="row.conn.reconnect_url" role="menuitem" class="is-accent"><i class="bx bx-refresh"></i> Reconnect</a>
+                      <a v-if="row.state.key === 'reconnect' || row.state.key === 'expiring'" :href="row.conn.reconnect_url" role="menuitem" class="is-accent"><i class="bx bx-refresh"></i> {{ t('reconnect') }}</a>
                       <a v-if="sectionLink(section.key, row)" :href="sectionLink(section.key, row).url" role="menuitem"><i class="bx" :class="sectionLink(section.key, row).icon"></i> {{ sectionLink(section.key, row).label }}</a>
                       <button v-if="row.asset.available_capabilities.includes(section.capability)" type="button" role="menuitem" :disabled="saving[row.asset.id]" @click="toggleSection(row, section)">
                         <i class="bx" :class="row.asset.enabled_capabilities.includes(section.capability) ? 'bx-pause-circle' : 'bx-play-circle'"></i>
-                        {{ row.asset.enabled_capabilities.includes(section.capability) ? 'Pause' : 'Resume' }} {{ capability(section.capability).label.toLowerCase() }}
+                        {{ t(row.asset.enabled_capabilities.includes(section.capability) ? 'account.pause' : 'account.resume', { capability: capabilityLower(section.capability) }) }}
                       </button>
-                      <button type="button" role="menuitem" :disabled="!!busy[row.conn.id]" @click="openMenu = null; check(row.card, row.conn)"><i class="bx bx-check-shield"></i> Check connection</button>
-                      <button type="button" role="menuitem" @click="copyId(row)"><i class="bx bx-copy"></i> Copy {{ row.view.idLabel }}</button>
+                      <button type="button" role="menuitem" :disabled="!!busy[row.conn.id]" @click="openMenu = null; check(row.card, row.conn)"><i class="bx bx-check-shield"></i> {{ t('account.check') }}</button>
+                      <button type="button" role="menuitem" @click="copyId(row)"><i class="bx bx-copy"></i> {{ t('account.copy', { label: row.view.idLabel }) }}</button>
                       <span class="ch-menu-sep" role="separator"></span>
-                      <button type="button" role="menuitem" @click="openPlatform(row.card.platform)"><i class="bx bx-slider-alt"></i> Manage connection</button>
+                      <button type="button" role="menuitem" @click="openPlatform(row.card.platform)"><i class="bx bx-slider-alt"></i> {{ t('account.manage') }}</button>
                     </div>
                   </div>
                 </div>
@@ -139,7 +139,7 @@
 
               <button type="button" class="ch-acct ch-acct-add" @click="openPicker()">
                 <span class="ch-acct-add-icon"><i class="bx bx-plus"></i></span>
-                <strong>{{ section.rows.length ? 'Connect More Accounts' : section.emptyTitle }}</strong>
+                <strong>{{ section.rows.length ? t('sections.connect_more') : section.emptyTitle }}</strong>
                 <small>{{ section.addText }}</small>
               </button>
             </div>
@@ -152,53 +152,53 @@
       <aside class="ch-side">
 
         <section class="ch-panel">
-          <h3><i class="bx bxs-zap"></i> Quick Actions</h3>
+          <h3><i class="bx bxs-zap"></i> {{ t('quick.title') }}</h3>
           <form v-if="wizard.available && !wizardState" method="POST" :action="urls.wizard_start" class="ch-quick-form">
             <input type="hidden" name="_token" :value="csrf">
             <button type="submit" class="ch-quick">
               <span class="ch-quick-icon is-violet"><i class="bx bx-rocket"></i></span>
-              <span><strong>Connect all recommended</strong><small>Meta, Google, LinkedIn, X and TikTok in a row</small></span>
+              <span><strong>{{ t('quick.recommended') }}</strong><small>{{ t('quick.recommended_text') }}</small></span>
               <i class="bx bx-chevron-right"></i>
             </button>
           </form>
           <button type="button" class="ch-quick" @click="openPicker()">
             <span class="ch-quick-icon is-blue"><i class="bx bx-link"></i></span>
-            <span><strong>Connect New Account</strong><small>Add a social, ad or messaging account</small></span>
+            <span><strong>{{ t('quick.new') }}</strong><small>{{ t('quick.new_text') }}</small></span>
             <i class="bx bx-chevron-right"></i>
           </button>
           <a v-if="urls.ads" :href="urls.ads" class="ch-quick">
             <span class="ch-quick-icon is-purple"><i class="bx bxs-megaphone"></i></span>
-            <span><strong>Create Ad Campaign</strong><small>Launch your next campaign</small></span>
+            <span><strong>{{ t('quick.ads') }}</strong><small>{{ t('quick.ads_text') }}</small></span>
             <i class="bx bx-chevron-right"></i>
           </a>
           <a v-if="urls.composer" :href="urls.composer" class="ch-quick">
             <span class="ch-quick-icon is-green"><i class="bx bx-calendar-plus"></i></span>
-            <span><strong>Schedule a Post</strong><small>Plan your content in advance</small></span>
+            <span><strong>{{ t('quick.post') }}</strong><small>{{ t('quick.post_text') }}</small></span>
             <i class="bx bx-chevron-right"></i>
           </a>
         </section>
 
         <section class="ch-panel">
-          <h3><i class="bx bx-pulse"></i> Connection Status</h3>
+          <h3><i class="bx bx-pulse"></i> {{ t('status.title') }}</h3>
           <div class="ch-donut-wrap">
-            <svg class="ch-donut" viewBox="0 0 120 120" role="img" :aria-label="statusTotals.total + ' connections'">
+            <svg class="ch-donut" viewBox="0 0 120 120" role="img" :aria-label="tc('status.aria', statusTotals.total)">
               <circle cx="60" cy="60" r="48" class="ch-donut-track"></circle>
               <circle v-for="seg in donutSegments" :key="seg.key" cx="60" cy="60" r="48" class="ch-donut-seg" :stroke="seg.color"
                       :stroke-dasharray="seg.length + ' ' + (donutCircumference - seg.length)" :stroke-dashoffset="-seg.offset"></circle>
             </svg>
-            <div class="ch-donut-label"><strong>{{ statusTotals.total }}</strong><small>Total<br>connections</small></div>
+            <div class="ch-donut-label"><strong>{{ num(statusTotals.total) }}</strong><small>{{ t('status.total') }}<br>{{ t('status.connections') }}</small></div>
           </div>
           <ul class="ch-legend">
-            <li><span class="dot is-ok"></span> Connected <strong>{{ statusTotals.ok }}</strong></li>
-            <li><span class="dot is-warn"></span> Expiring soon <strong>{{ statusTotals.warn }}</strong></li>
-            <li><span class="dot is-bad"></span> Needs reconnect <strong>{{ statusTotals.bad }}</strong></li>
+            <li><span class="dot is-ok"></span> {{ t('status.connected') }} <strong>{{ num(statusTotals.ok) }}</strong></li>
+            <li><span class="dot is-warn"></span> {{ t('status.expiring') }} <strong>{{ num(statusTotals.warn) }}</strong></li>
+            <li><span class="dot is-bad"></span> {{ t('status.reconnect') }} <strong>{{ num(statusTotals.bad) }}</strong></li>
           </ul>
         </section>
 
         <section class="ch-panel ch-help">
-          <h3><i class="bx bx-bulb"></i> Need Help?</h3>
-          <p>Check our documentation or contact our support team for help with connections.</p>
-          <a v-if="urls.help" :href="urls.help" class="ch-help-btn">View Help Center <i class="bx bx-right-arrow-alt"></i></a>
+          <h3><i class="bx bx-bulb"></i> {{ t('help.title') }}</h3>
+          <p>{{ t('help.text') }}</p>
+          <a v-if="urls.help" :href="urls.help" class="ch-help-btn">{{ t('help.cta') }} <i class="bx bx-right-arrow-alt"></i></a>
           <span class="ch-help-art" aria-hidden="true"><i class="bx bx-support"></i></span>
         </section>
 
@@ -212,14 +212,14 @@
     <transition name="ch-slide">
       <aside v-if="drawer" class="ch-drawer" role="dialog" aria-modal="true" :aria-label="drawerTitle" @keydown.esc="closeDrawer">
         <header class="ch-drawer-head">
-          <button v-if="drawer !== 'picker'" type="button" class="ch-drawer-icon-btn" aria-label="All platforms" @click="openPicker()"><i class="bx bx-arrow-back"></i></button>
+          <button v-if="drawer !== 'picker'" type="button" class="ch-drawer-icon-btn" :aria-label="t('drawer.all_platforms')" @click="openPicker()"><i class="bx bx-arrow-back"></i></button>
           <span v-if="drawerCard" class="ch-drawer-logos"><span v-for="b in drawerCard.presentation.icons" :key="b.icon" class="ch-badge" :class="'is-' + b.brand"><i class="bx" :class="b.icon"></i></span></span>
           <div class="ch-drawer-title">
             <h2>{{ drawerTitle }}</h2>
-            <p>{{ drawerCard ? drawerCard.presentation.subtitle : 'Choose a platform to connect or manage.' }}</p>
+            <p>{{ drawerCard ? drawerCard.presentation.subtitle : t('drawer.subtitle') }}</p>
           </div>
           <span v-if="drawerCard" class="ch-pill" :class="cardStatus(drawerCard).tone"><i class="bx" :class="cardStatus(drawerCard).icon"></i> {{ cardStatus(drawerCard).label }}</span>
-          <button type="button" class="ch-drawer-icon-btn" aria-label="Close" @click="closeDrawer"><i class="bx bx-x"></i></button>
+          <button type="button" class="ch-drawer-icon-btn" :aria-label="t('close')" @click="closeDrawer"><i class="bx bx-x"></i></button>
         </header>
 
         <div class="ch-drawer-body">
@@ -256,7 +256,7 @@
           <div class="ch-step-main">
             <span class="ch-step-icon" :class="stepIcon(card, step.key).cls"><i class="bx" :class="stepIcon(card, step.key).icon"></i></span>
             <div>
-              <strong>{{ step.label }} <span v-if="step.connected" class="ch-mini-ok"><i class="bx bx-check"></i> Connected</span></strong>
+              <strong>{{ step.label }} <span v-if="step.connected" class="ch-mini-ok"><i class="bx bx-check"></i> {{ t('step.connected') }}</span></strong>
               <span class="ch-step-desc">{{ step.description }}</span>
               <span v-if="!step.available && step.note" class="ch-step-note"><i class="bx bx-info-circle"></i> {{ step.note }}</span>
             </div>
@@ -270,41 +270,41 @@
                 :disabled="waBusy"
                 @click="startWhatsappSignup(card.whatsapp_signup)">
               <i class="bx" :class="waBusy ? 'bx-loader-alt bx-spin' : (step.connected ? 'bx-plus' : 'bx-link')"></i>
-              {{ step.connected ? 'Add a number' : 'Connect' }}
+              {{ step.connected ? t('step.add_number') : t('connect') }}
             </button>
             <!-- API-key platforms (ChatGPT Ads): a form here, no sign-in page. -->
             <button v-else-if="step.input === 'api_key'" type="button" class="ch-btn" :class="apiKeyOpen ? 'ch-btn-ghost' : 'ch-btn-primary'" @click="apiKeyOpen = !apiKeyOpen">
               <i class="bx" :class="apiKeyOpen ? 'bx-x' : (step.connected ? 'bx-plus' : 'bx-key')"></i>
-              {{ apiKeyOpen ? 'Cancel' : (step.connected ? 'Add another key' : card.presentation.connect_label) }}
+              {{ apiKeyOpen ? t('cancel') : (step.connected ? t('step.add_key') : card.presentation.connect_label) }}
             </button>
             <a v-else-if="step.available" :href="step.connect_url" class="ch-btn" :class="step.primary ? 'ch-btn-primary' : 'ch-btn-ghost'">
               <i class="bx" :class="step.connected ? 'bx-refresh' : 'bx-link'"></i>
-              {{ step.connected ? (step.primary ? 'Add or change accounts' : 'Reconnect') : (step.primary ? card.presentation.connect_label : 'Connect') }}
+              {{ step.connected ? (step.primary ? t('step.change_accounts') : t('reconnect')) : (step.primary ? card.presentation.connect_label : t('connect')) }}
             </a>
-            <span v-else-if="step.key !== 'meta.whatsapp'" class="ch-btn ch-btn-disabled">Not available</span>
+            <span v-else-if="step.key !== 'meta.whatsapp'" class="ch-btn ch-btn-disabled">{{ t('not_available') }}</span>
             <!-- WhatsApp: a System User token works with or without Embedded Signup. -->
             <button v-if="step.key === 'meta.whatsapp'" type="button" class="ch-btn ch-btn-ghost" @click="waManual = !waManual">
-              <i class="bx" :class="waManual ? 'bx-x' : 'bx-key'"></i> {{ waManual ? 'Cancel' : 'Enter manually' }}
+              <i class="bx" :class="waManual ? 'bx-x' : 'bx-key'"></i> {{ waManual ? t('cancel') : t('step.enter_manually') }}
             </button>
           </div>
           <form v-if="step.input === 'api_key' && apiKeyOpen" method="POST" :action="urls.openai_key" class="ch-wa-form">
             <input type="hidden" name="_token" :value="csrf">
-            <p>In OpenAI Ads Manager open <strong>Settings &rsaquo; API keys</strong>, create a key and paste it below. We check it with OpenAI before saving, and store it encrypted.</p>
+            <p v-html="t('openai.help')"></p>
             <div class="ch-wa-fields">
-              <label class="is-wide">Ads API key<input type="password" name="api_key" required minlength="20" autocomplete="off" spellcheck="false" placeholder="Paste the key from ads.openai.com"></label>
+              <label class="is-wide">{{ t('openai.key') }}<input type="password" name="api_key" required minlength="20" autocomplete="off" spellcheck="false" dir="ltr" :placeholder="t('openai.key_placeholder')"></label>
             </div>
             <div class="ch-key-actions">
               <button type="submit" class="ch-btn ch-btn-primary sm"><i class="bx bx-check"></i> Verify and connect</button>
-              <a href="https://ads.openai.com" target="_blank" rel="noopener noreferrer" class="ch-btn ch-btn-ghost sm"><i class="bx bx-link-external"></i> Open Ads Manager</a>
+              <a href="https://ads.openai.com" target="_blank" rel="noopener noreferrer" class="ch-btn ch-btn-ghost sm"><i class="bx bx-link-external"></i> {{ t('openai.open') }}</a>
             </div>
           </form>
           <form v-if="step.key === 'meta.whatsapp' && waManual" method="POST" :action="urls.whatsapp_manual" class="ch-wa-form">
             <input type="hidden" name="_token" :value="csrf">
-            <p>Paste the Phone Number ID and a permanent access token from a Meta Business System User. We verify them with Meta before saving.</p>
+            <p>{{ t('whatsapp.help') }}</p>
             <div class="ch-wa-fields">
-              <label>Display name<input type="text" name="name" required maxlength="255" placeholder="e.g. Support line"></label>
-              <label>Phone Number ID<input type="text" name="phone_number_id" required inputmode="numeric"></label>
-              <label class="is-wide">Permanent access token<input type="password" name="access_token" required autocomplete="off"></label>
+              <label>{{ t('whatsapp.name') }}<input type="text" name="name" required maxlength="255" :placeholder="t('whatsapp.name_placeholder')"></label>
+              <label>{{ t('whatsapp.phone_id') }}<input type="text" name="phone_number_id" required inputmode="numeric" dir="ltr"></label>
+              <label class="is-wide">{{ t('whatsapp.token') }}<input type="password" name="access_token" required autocomplete="off" dir="ltr"></label>
             </div>
             <button type="submit" class="ch-btn ch-btn-primary sm"><i class="bx bx-check"></i> Verify and connect</button>
           </form>
@@ -332,23 +332,23 @@
               <span class="ch-conn-meta">
                 <span class="ch-status" :class="statusInfo(conn.status).tone"><i class="ch-dot"></i>{{ statusInfo(conn.status).label }}</span>
                 <span v-if="conn.expires_in_days !== null"><i class="bx bx-time-five"></i> {{ expiryLabel(conn) }}</span>
-                <span v-if="conn.last_checked_at"><i class="bx bx-pulse"></i> Checked {{ ago(conn.last_checked_at) }}</span>
-                <span v-if="conn.provider_account_id" class="ch-muted">ID {{ conn.provider_account_id }}</span>
+                <span v-if="conn.last_checked_at"><i class="bx bx-pulse"></i> {{ t('conn.checked', { time: ago(conn.last_checked_at) }) }}</span>
+                <span v-if="conn.provider_account_id" class="ch-muted">{{ t('conn.id', { id: conn.provider_account_id }) }}</span>
               </span>
             </div>
           </div>
           <div class="ch-conn-actions">
             <button type="button" class="ch-btn ch-btn-ghost sm" :disabled="busy[conn.id]" @click="check(card, conn)">
-              <i class="bx" :class="busy[conn.id] === 'check' ? 'bx-loader-alt bx-spin' : 'bx-revision'"></i> Check now
+              <i class="bx" :class="busy[conn.id] === 'check' ? 'bx-loader-alt bx-spin' : 'bx-revision'"></i> {{ t('conn.check_now') }}
             </button>
             <template v-if="conn.status !== 'revoked'">
               <button v-if="confirming !== conn.id" type="button" class="ch-btn ch-btn-danger-ghost sm" @click="confirming = conn.id">
-                <i class="bx bx-unlink"></i> Disconnect
+                <i class="bx bx-unlink"></i> {{ t('conn.disconnect') }}
               </button>
               <span v-else class="ch-confirm">
-                <span>Remove SocialEaz's access?</span>
-                <button type="button" class="ch-btn ch-btn-danger sm" :disabled="busy[conn.id]" @click="disconnect(card, conn)">Disconnect</button>
-                <button type="button" class="ch-btn ch-btn-ghost sm" @click="confirming = null">Cancel</button>
+                <span>{{ t('conn.confirm') }}</span>
+                <button type="button" class="ch-btn ch-btn-danger sm" :disabled="busy[conn.id]" @click="disconnect(card, conn)">{{ t('conn.disconnect') }}</button>
+                <button type="button" class="ch-btn ch-btn-ghost sm" @click="confirming = null">{{ t('cancel') }}</button>
               </span>
             </template>
           </div>
@@ -360,13 +360,13 @@
             <strong>{{ attentionTitle(conn) }}</strong>
             <span v-if="conn.last_error">{{ conn.last_error }}</span>
           </div>
-          <a :href="conn.reconnect_url" class="ch-btn ch-btn-primary sm"><i class="bx bx-refresh"></i> Reconnect</a>
+          <a :href="conn.reconnect_url" class="ch-btn ch-btn-primary sm"><i class="bx bx-refresh"></i> {{ t('reconnect') }}</a>
         </div>
 
         <div v-if="conn.upgrade && conn.status !== 'revoked'" class="ch-alert is-info">
           <i class="bx bx-up-arrow-circle"></i>
-          <div><strong>One-time upgrade available</strong><span>{{ conn.upgrade.note }}</span></div>
-          <a :href="conn.upgrade.url" class="ch-btn ch-btn-primary sm"><i class="bx bx-up-arrow-alt"></i> Upgrade</a>
+          <div><strong>{{ t('conn.upgrade_title') }}</strong><span>{{ conn.upgrade.note }}</span></div>
+          <a :href="conn.upgrade.url" class="ch-btn ch-btn-primary sm"><i class="bx bx-up-arrow-alt"></i> {{ t('upgrade') }}</a>
         </div>
 
         <!-- Capabilities of this consent -->
@@ -374,7 +374,7 @@
           <span v-for="cap in cardCapabilities(card)" :key="cap.key" class="ch-cap" :class="{ 'is-on': conn.capabilities.includes(cap.key) }">
             <i class="bx" :class="conn.capabilities.includes(cap.key) ? cap.icon : 'bx-lock-alt'"></i>
             {{ cap.label }}
-            <a v-if="!conn.capabilities.includes(cap.key) && conn.upgradable" :href="conn.reconnect_url" class="ch-cap-up">Upgrade</a>
+            <a v-if="!conn.capabilities.includes(cap.key) && conn.upgradable" :href="conn.reconnect_url" class="ch-cap-up">{{ t('upgrade') }}</a>
           </span>
         </div>
 
@@ -392,8 +392,8 @@
               </span>
               <span class="ch-asset-id">
                 <strong>{{ asset.name || asset.external_id }}</strong>
-                <small>{{ asset.username ? '@' + asset.username : asset.external_id }}<template v-if="!asset.token_ok"> · <span class="ch-warn-text">needs reconnect</span></template><template v-if="asset.provider_status"> · <span class="ch-warn-text">{{ asset.provider_status }}</span></template></small>
-                <small v-if="asset.duplicate_of" class="ch-dup-note"><i class="bx bx-copy"></i> Same account as {{ asset.duplicate_of }}. Publishing and inbox are off here so posts don't go out twice.</small>
+                <small>{{ asset.username ? '@' + asset.username : asset.external_id }}<template v-if="!asset.token_ok"> · <span class="ch-warn-text">{{ t('asset.needs_reconnect') }}</span></template><template v-if="asset.provider_status"> · <span class="ch-warn-text">{{ asset.provider_status }}</span></template></small>
+                <small v-if="asset.duplicate_of" class="ch-dup-note"><i class="bx bx-copy"></i> {{ t('asset.duplicate', { name: asset.duplicate_of }) }}</small>
               </span>
               <span class="ch-asset-caps">
                 <button
@@ -403,13 +403,13 @@
                     class="ch-toggle-pill"
                     :class="{ 'is-on': asset.enabled_capabilities.includes(cap) }"
                     :disabled="saving[asset.id]"
-                    :title="(asset.enabled_capabilities.includes(cap) ? 'Turn off ' : 'Turn on ') + capability(cap).label"
+                    :title="t(asset.enabled_capabilities.includes(cap) ? 'asset.turn_off' : 'asset.turn_on', { capability: capability(cap).label })"
                     @click="toggleCapability(conn, asset, cap)">
                   <i class="bx" :class="capability(cap).icon"></i> {{ capability(cap).label }}
                 </button>
-                <span v-if="!asset.available_capabilities.length" class="ch-muted">No permissions granted</span>
+                <span v-if="!asset.available_capabilities.length" class="ch-muted">{{ t('asset.no_permissions') }}</span>
               </span>
-              <label class="ch-switch" :title="asset.enabled_capabilities.length ? 'Stop using this account' : 'Use this account'">
+              <label class="ch-switch" :title="asset.enabled_capabilities.length ? t('asset.stop') : t('asset.use')">
                 <input type="checkbox" :checked="asset.enabled_capabilities.length > 0" :disabled="saving[asset.id] || !asset.available_capabilities.length" @change="toggleAsset(conn, asset)">
                 <span></span>
               </label>
@@ -417,7 +417,7 @@
           </div>
         </div>
 
-        <p v-if="!assetGroups(card, conn).length" class="ch-muted ch-none">No accounts linked to this connection yet. Use “Add or change accounts” to choose them.</p>
+        <p v-if="!assetGroups(card, conn).length" class="ch-muted ch-none">{{ t('conn.no_assets') }}</p>
       </div>
     </section>
         </div>
@@ -428,47 +428,50 @@
 </template>
 
 <script>
+import { createTranslator } from '../ads/facebook/i18n';
+
+// Text for all of these comes from lang/{en,ar}/connections.php.
 const CAPABILITIES = [
-  { key: 'posting', label: 'Publishing', icon: 'bx-send', long: { meta: 'Publish and schedule posts to Pages and Instagram', google: 'Upload and schedule videos to your YouTube channels', x: 'Publish and schedule posts on X', default: 'Publish and schedule posts' } },
-  { key: 'messaging', label: 'Inbox', icon: 'bx-message-rounded-dots', long: { meta: 'Answer Messenger, Instagram and WhatsApp messages', x: 'Answer Direct Messages and X Chat', default: 'Answer direct messages' } },
-  { key: 'ads', label: 'Ads', icon: 'bx-bullseye', long: { meta: 'Create and manage campaigns on your ad accounts', google: 'Create and manage Google Ads and YouTube campaigns', x: 'Promote posts on your X Ads accounts', default: 'Create and manage ad campaigns' } },
-  { key: 'insights', label: 'Insights', icon: 'bx-bar-chart-alt-2', long: { meta: 'Read Page and Instagram insights for reports', google: 'Read Analytics data for reports', default: 'Read insights for reports' } },
-  { key: 'engagement', label: 'Comments', icon: 'bx-comment-detail', long: { tiktok: 'Read and reply to comments on your TikTok videos', default: 'Read and reply to comments' } }
+  { key: 'posting', icon: 'bx-send' },
+  { key: 'messaging', icon: 'bx-message-rounded-dots' },
+  { key: 'ads', icon: 'bx-bullseye' },
+  { key: 'insights', icon: 'bx-bar-chart-alt-2' },
+  { key: 'engagement', icon: 'bx-comment-detail' }
 ];
 
 
-// How each account kind (driver asset_groups key) appears in the overview.
+// How each account kind (driver asset_groups key) appears in the overview (views.*).
 const ACCOUNT_VIEWS = {
-  page: { section: 'social', title: 'Facebook', subtitle: 'Business Page', idLabel: 'Page ID', brand: 'facebook', icon: 'bxl-facebook' },
-  instagram: { section: 'social', title: 'Instagram', subtitle: 'Business Account', idLabel: 'Account ID', brand: 'instagram', icon: 'bxl-instagram' },
-  youtube: { section: 'social', title: 'YouTube', subtitle: 'Channel', idLabel: 'Channel ID', brand: 'youtube', icon: 'bxl-youtube' },
-  x_account: { section: 'social', title: 'X', subtitle: 'Account', idLabel: 'Account ID', brand: 'x', icon: 'bxl-x-logo' },
-  linkedin_page: { section: 'social', title: 'LinkedIn', subtitle: 'Company Page', idLabel: 'Page ID', brand: 'linkedin', icon: 'bxl-linkedin' },
-  tiktok_account: { section: 'social', title: 'TikTok', subtitle: 'Account', idLabel: 'Account ID', brand: 'tiktok', icon: 'bxl-tiktok' },
-  tiktok_comments: { section: 'social', title: 'TikTok', subtitle: 'Comments', idLabel: 'Business ID', brand: 'tiktok', icon: 'bxl-tiktok' },
-  threads_profile: { section: 'social', title: 'Threads', subtitle: 'Profile', idLabel: 'Profile ID', brand: 'threads', icon: 'bx-at' },
-  pinterest_account: { section: 'social', title: 'Pinterest', subtitle: 'Account', idLabel: 'Account ID', brand: 'pinterest', icon: 'bxl-pinterest' },
-  ad_account: { section: 'ads', title: 'Meta Ads', subtitle: 'Ad Account', idLabel: 'Account ID', brand: 'meta', icon: 'bxl-meta' },
-  google_ads: { section: 'ads', title: 'Google Ads', subtitle: 'Ad Account', idLabel: 'Customer ID', brand: 'google', icon: 'bxl-google' },
-  x_ads: { section: 'ads', title: 'X Ads', subtitle: 'Ad Account', idLabel: 'Account ID', brand: 'x', icon: 'bxl-x-logo' },
-  linkedin_ads: { section: 'ads', title: 'LinkedIn Ads', subtitle: 'Ad Account', idLabel: 'Account ID', brand: 'linkedin', icon: 'bxl-linkedin' },
-  tiktok_ads: { section: 'ads', title: 'TikTok Ads', subtitle: 'Advertiser Account', idLabel: 'Advertiser ID', brand: 'tiktok', icon: 'bxl-tiktok' },
-  openai_ads: { section: 'ads', title: 'ChatGPT Ads', subtitle: 'Ad Account', idLabel: 'Account ID', brand: 'openai', icon: 'bx-bot' },
-  snapchat_ads: { section: 'ads', title: 'Snapchat Ads', subtitle: 'Ad Account', idLabel: 'Account ID', brand: 'snapchat', icon: 'bxl-snapchat' },
-  whatsapp: { section: 'messaging', title: 'WhatsApp', subtitle: 'Business Number', idLabel: 'Phone ID', brand: 'whatsapp', icon: 'bxl-whatsapp' }
+  page: { section: 'social', brand: 'facebook', icon: 'bxl-facebook' },
+  instagram: { section: 'social', brand: 'instagram', icon: 'bxl-instagram' },
+  youtube: { section: 'social', brand: 'youtube', icon: 'bxl-youtube' },
+  x_account: { section: 'social', brand: 'x', icon: 'bxl-x-logo' },
+  linkedin_page: { section: 'social', brand: 'linkedin', icon: 'bxl-linkedin' },
+  tiktok_account: { section: 'social', brand: 'tiktok', icon: 'bxl-tiktok' },
+  tiktok_comments: { section: 'social', brand: 'tiktok', icon: 'bxl-tiktok' },
+  threads_profile: { section: 'social', brand: 'threads', icon: 'bx-at' },
+  pinterest_account: { section: 'social', brand: 'pinterest', icon: 'bxl-pinterest' },
+  ad_account: { section: 'ads', brand: 'meta', icon: 'bxl-meta' },
+  google_ads: { section: 'ads', brand: 'google', icon: 'bxl-google' },
+  x_ads: { section: 'ads', brand: 'x', icon: 'bxl-x-logo' },
+  linkedin_ads: { section: 'ads', brand: 'linkedin', icon: 'bxl-linkedin' },
+  tiktok_ads: { section: 'ads', brand: 'tiktok', icon: 'bxl-tiktok' },
+  openai_ads: { section: 'ads', brand: 'openai', icon: 'bx-bot' },
+  snapchat_ads: { section: 'ads', brand: 'snapchat', icon: 'bxl-snapchat' },
+  whatsapp: { section: 'messaging', brand: 'whatsapp', icon: 'bxl-whatsapp' }
 };
 
-// The inbox side of social accounts that also take messages.
+// The inbox side of social accounts that also take messages (inbox_views.*).
 const INBOX_VIEWS = {
-  page: { title: 'Messenger', subtitle: 'Facebook Page inbox', idLabel: 'Page ID', brand: 'facebook', icon: 'bxl-messenger' },
-  instagram: { title: 'Instagram Direct', subtitle: 'Instagram inbox', idLabel: 'Account ID', brand: 'instagram', icon: 'bxl-instagram' },
-  x_account: { title: 'X Messages', subtitle: 'DMs and X Chat', idLabel: 'Account ID', brand: 'x', icon: 'bxl-x-logo' }
+  page: { brand: 'facebook', icon: 'bxl-messenger' },
+  instagram: { brand: 'instagram', icon: 'bxl-instagram' },
+  x_account: { brand: 'x', icon: 'bxl-x-logo' }
 };
 
 const SECTIONS = [
-  { key: 'social', capability: 'posting', title: 'Social Media Accounts', subtitle: 'Profiles and pages you publish to.', emptyTitle: 'Connect a social account', addText: 'Add more social media platforms to expand your reach and engagement.', label: 'Social Media', icon: 'bx-share-alt', tone: 'blue' },
-  { key: 'ads', capability: 'ads', title: 'Ad Accounts', subtitle: 'Advertising accounts for your campaigns.', emptyTitle: 'Connect an ad account', addText: 'Add Meta, Google, TikTok, X, LinkedIn, Snapchat or ChatGPT ad accounts.', label: 'Ads Manager', icon: 'bx-bullseye', tone: 'purple' },
-  { key: 'messaging', capability: 'messaging', title: 'Messaging Accounts', subtitle: 'Inboxes your team answers from.', emptyTitle: 'Connect a messaging account', addText: 'Add Messenger, Instagram Direct, X or WhatsApp to your inbox.', label: 'Messaging', icon: 'bx-message-rounded-dots', tone: 'green' }
+  { key: 'social', capability: 'posting', icon: 'bx-share-alt', tone: 'blue' },
+  { key: 'ads', capability: 'ads', icon: 'bx-bullseye', tone: 'purple' },
+  { key: 'messaging', capability: 'messaging', icon: 'bx-message-rounded-dots', tone: 'green' }
 ];
 
 export default {
@@ -477,7 +480,10 @@ export default {
     hub: { type: Object, required: true },
     urls: { type: Object, required: true },
     flash: { type: [Object, Array], default: () => ({}) },
-    wizard: { type: Object, default: () => ({ state: null, available: false }) }
+    wizard: { type: Object, default: () => ({ state: null, available: false }) },
+    // __('connections') for the current locale.
+    messages: { type: Object, default: () => ({}) },
+    locale: { type: String, default: 'en' }
   },
 
   data() {
@@ -492,7 +498,6 @@ export default {
       flashMessage: flash.error
         ? { tone: 'is-error', text: flash.error }
         : (flash.success ? { tone: 'is-success', text: flash.success } : null),
-      capabilityList: CAPABILITIES,
       wizardState: this.wizard.state,
       waManual: false,
       apiKeyOpen: false,
@@ -505,6 +510,17 @@ export default {
   },
 
   computed: {
+    i18n() {
+      return createTranslator(this.messages, this.locale);
+    },
+
+    capabilities() {
+      return CAPABILITIES.map(c => {
+        const text = (this.messages.capabilities || {})[c.key] || {};
+        return { ...c, label: this.t('capabilities.' + c.key + '.label'), long: text };
+      });
+    },
+
     // Every linked account once per section it belongs to.
     accountRows() {
       const rows = [];
@@ -513,9 +529,9 @@ export default {
           Object.keys(conn.assets || {}).forEach(kind => {
             (conn.assets[kind] || []).forEach(asset => {
               const view = ACCOUNT_VIEWS[kind];
-              if (view) rows.push({ section: view.section, kind, card, conn, asset, view });
+              if (view) rows.push({ section: view.section, kind, card, conn, asset, view: this.view('views', kind, view) });
               if (INBOX_VIEWS[kind] && asset.available_capabilities.includes('messaging')) {
-                rows.push({ section: 'messaging', kind, card, conn, asset, view: INBOX_VIEWS[kind] });
+                rows.push({ section: 'messaging', kind, card, conn, asset, view: this.view('inbox_views', kind, INBOX_VIEWS[kind]) });
               }
             });
           });
@@ -525,7 +541,15 @@ export default {
     },
 
     sections() {
-      return SECTIONS.map(section => ({ ...section, rows: this.accountRows.filter(r => r.section === section.key) }));
+      return SECTIONS.map(section => ({
+        ...section,
+        title: this.t('sections.' + section.key + '.title'),
+        subtitle: this.t('sections.' + section.key + '.subtitle'),
+        emptyTitle: this.t('sections.' + section.key + '.empty'),
+        addText: this.t('sections.' + section.key + '.add'),
+        label: this.t('tabs.' + section.key),
+        rows: this.accountRows.filter(r => r.section === section.key)
+      }));
     },
 
     visibleSections() {
@@ -537,12 +561,12 @@ export default {
     },
 
     heroStats() {
-      return this.sections.map(s => ({ key: s.key, label: s.label === 'Ads Manager' ? 'Ad Accounts' : s.label + ' Accounts', count: s.rows.length, icon: s.icon, tone: s.tone }));
+      return this.sections.map(s => ({ key: s.key, label: this.t('hero.' + s.key), count: s.rows.length, icon: s.icon, tone: s.tone }));
     },
 
     tabs() {
       return [
-        { key: 'all', label: 'All Connections', icon: 'bx-grid-alt', count: this.uniqueAccountCount },
+        { key: 'all', label: this.t('tabs.all'), icon: 'bx-grid-alt', count: this.uniqueAccountCount },
         ...this.sections.map(s => ({ key: s.key, label: s.label, icon: s.icon, count: s.rows.length }))
       ];
     },
@@ -573,7 +597,7 @@ export default {
     },
 
     drawerTitle() {
-      return this.drawerCard ? this.drawerCard.label : 'Connect a platform';
+      return this.drawerCard ? this.drawerCard.label : this.t('drawer.title');
     },
 
     donutCircumference() {
@@ -631,17 +655,38 @@ export default {
   },
 
   methods: {
+    t(key, params) {
+      return this.i18n.t(key, params);
+    },
+
+    tc(key, count, params) {
+      return this.i18n.tc(key, count, params);
+    },
+
+    num(n) {
+      return Number(n || 0).toLocaleString(this.i18n.intl);
+    },
+
+    // An account kind's structure plus its title / subtitle / ID label.
+    view(group, kind, base) {
+      return {
+        ...base,
+        title: this.t(group + '.' + kind + '.title'),
+        subtitle: this.t(group + '.' + kind + '.subtitle'),
+        idLabel: this.t(group + '.' + kind + '.id')
+      };
+    },
 
     rowState(row) {
       const { conn, asset, section } = row;
       const cap = (SECTIONS.find(s => s.key === section) || {}).capability;
-      if (conn.status === 'revoked') return { key: 'reconnect', label: 'Disconnected', tone: 'bad' };
-      if (conn.needs_attention && conn.status === 'expiring') return { key: 'expiring', label: 'Expiring soon', tone: 'warn' };
-      if (conn.needs_attention || !asset.token_ok) return { key: 'reconnect', label: 'Reconnect', tone: 'bad' };
+      if (conn.status === 'revoked') return { key: 'reconnect', label: this.t('state.disconnected'), tone: 'bad' };
+      if (conn.needs_attention && conn.status === 'expiring') return { key: 'expiring', label: this.t('state.expiring'), tone: 'warn' };
+      if (conn.needs_attention || !asset.token_ok) return { key: 'reconnect', label: this.t('state.reconnect'), tone: 'bad' };
       if (asset.provider_status) return { key: 'provider', label: asset.provider_status, tone: 'warn' };
-      if (!asset.enabled_capabilities.length) return { key: 'off', label: 'Off', tone: 'muted' };
-      if (cap && asset.available_capabilities.includes(cap) && !asset.enabled_capabilities.includes(cap)) return { key: 'paused', label: 'Paused', tone: 'muted' };
-      return { key: 'ok', label: 'Connected', tone: 'ok' };
+      if (!asset.enabled_capabilities.length) return { key: 'off', label: this.t('state.off'), tone: 'muted' };
+      if (cap && asset.available_capabilities.includes(cap) && !asset.enabled_capabilities.includes(cap)) return { key: 'paused', label: this.t('state.paused'), tone: 'muted' };
+      return { key: 'ok', label: this.t('state.connected'), tone: 'ok' };
     },
 
     setTab(key) {
@@ -659,11 +704,11 @@ export default {
 
     // Section shortcut in an account's menu.
     sectionLink(sectionKey, row) {
-      if (sectionKey === 'social' && this.urls.composer) return { url: this.urls.composer, label: 'Create a post', icon: 'bx-edit-alt' };
-      if (sectionKey === 'messaging' && this.urls.inbox) return { url: this.urls.inbox, label: 'Open inbox', icon: 'bx-message-rounded-dots' };
+      if (sectionKey === 'social' && this.urls.composer) return { url: this.urls.composer, label: this.t('account.create_post'), icon: 'bx-edit-alt' };
+      if (sectionKey === 'messaging' && this.urls.inbox) return { url: this.urls.inbox, label: this.t('account.open_inbox'), icon: 'bx-message-rounded-dots' };
       if (sectionKey === 'ads' && this.urls.ads_create) {
         const platform = { meta: 'facebook' }[row.card.platform] || row.card.platform;
-        return { url: this.urls.ads_create.replace('__PLATFORM__', platform), label: 'Create campaign', icon: 'bx-rocket' };
+        return { url: this.urls.ads_create.replace('__PLATFORM__', platform), label: this.t('account.create_campaign'), icon: 'bx-rocket' };
       }
       return null;
     },
@@ -671,20 +716,20 @@ export default {
     toggleSection(row, section) {
       this.openMenu = null;
       const on = row.asset.enabled_capabilities.includes(section.capability);
-      const label = this.capability(section.capability).label.toLowerCase();
       this.toggleCapability(row.conn, row.asset, section.capability,
-        (on ? 'Paused ' : 'Resumed ') + label + ' for ' + (row.asset.name || row.view.title) + '.');
+        this.t(on ? 'toast.paused' : 'toast.resumed', { capability: this.capabilityLower(section.capability), name: row.asset.name || row.view.title }));
     },
 
     copyId(row) {
       this.openMenu = null;
-      const done = () => { this.flashMessage = { tone: 'is-success', text: row.view.idLabel + ' copied: ' + row.asset.external_id }; };
+      const params = { label: row.view.idLabel, id: row.asset.external_id };
+      const done = () => { this.flashMessage = { tone: 'is-success', text: this.t('toast.copied', params) }; };
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(String(row.asset.external_id)).then(done).catch(() => {
-          this.flashMessage = { tone: 'is-error', text: 'Couldn’t copy. ' + row.view.idLabel + ': ' + row.asset.external_id };
+          this.flashMessage = { tone: 'is-error', text: this.t('toast.copy_failed', params) };
         });
       } else {
-        this.flashMessage = { tone: 'is-success', text: row.view.idLabel + ': ' + row.asset.external_id };
+        this.flashMessage = { tone: 'is-success', text: this.t('toast.copy_plain', params) };
       }
     },
 
@@ -713,48 +758,42 @@ export default {
 
     // Picker row status: what the user has there today.
     pickState(card) {
-      if (card.connections.some(c => c.needs_attention && c.status !== 'revoked')) return { label: 'Needs attention', tone: 'warn' };
+      if (card.connections.some(c => c.needs_attention && c.status !== 'revoked')) return { label: this.t('card.needs_attention'), tone: 'warn' };
       const accounts = card.connections.reduce((n, c) => n + Object.values(c.assets || {}).reduce((m, list) => m + list.length, 0), 0);
-      if (card.connected) return { label: accounts + (accounts === 1 ? ' account' : ' accounts'), tone: 'ok' };
-      if (!card.steps.some(st => st.available) && card.platform !== 'meta') return { label: 'Not available', tone: 'muted' };
-      return { label: 'Connect', tone: 'brand' };
+      if (card.connected) return { label: this.tc('card.accounts', accounts), tone: 'ok' };
+      if (!card.steps.some(st => st.available) && card.platform !== 'meta') return { label: this.t('not_available'), tone: 'muted' };
+      return { label: this.t('connect'), tone: 'brand' };
     },
 
     // Only the capabilities this platform offers (Google has no inbox).
     cardCapabilities(card) {
       const offered = (card.presentation && card.presentation.benefits) || CAPABILITIES.map(c => c.key);
-      return CAPABILITIES.filter(c => offered.includes(c.key));
+      return this.capabilities.filter(c => offered.includes(c.key));
     },
 
     capability(key) {
-      return CAPABILITIES.find(c => c.key === key) || { label: key, icon: 'bx-check' };
+      return this.capabilities.find(c => c.key === key) || { label: key, icon: 'bx-check' };
+    },
+
+    // Mid-sentence capability name ("Pause publishing").
+    capabilityLower(key) {
+      return this.capability(key).label.toLocaleLowerCase(this.locale);
     },
 
     statusInfo(status) {
-      return {
-        active: { label: 'Active', tone: 'is-ok' },
-        expiring: { label: 'Expiring soon', tone: 'is-warn' },
-        expired: { label: 'Expired', tone: 'is-warn' },
-        needs_reauth: { label: 'Reconnect needed', tone: 'is-bad' },
-        revoked: { label: 'Disconnected', tone: 'is-muted' },
-        error: { label: 'Check failed', tone: 'is-bad' }
-      }[status] || { label: status, tone: 'is-muted' };
+      const tone = { active: 'is-ok', expiring: 'is-warn', expired: 'is-warn', needs_reauth: 'is-bad', revoked: 'is-muted', error: 'is-bad' }[status];
+      return tone ? { label: this.t('statuses.' + status), tone } : { label: status, tone: 'is-muted' };
     },
 
     cardStatus(card) {
-      if (card.connections.some(c => c.needs_attention && c.status !== 'revoked')) return { label: 'Needs attention', tone: 'is-warn', icon: 'bx-error' };
-      if (card.connected) return { label: 'Connected', tone: 'is-ok', icon: 'bx-check-circle' };
-      return { label: 'Not connected', tone: 'is-muted', icon: 'bx-plug' };
+      if (card.connections.some(c => c.needs_attention && c.status !== 'revoked')) return { label: this.t('card.needs_attention'), tone: 'is-warn', icon: 'bx-error' };
+      if (card.connected) return { label: this.t('card.connected'), tone: 'is-ok', icon: 'bx-check-circle' };
+      return { label: this.t('card.not_connected'), tone: 'is-muted', icon: 'bx-plug' };
     },
 
     attentionTitle(conn) {
-      return {
-        expiring: 'Access expires soon. Reconnect to keep everything running.',
-        expired: 'Access expired.',
-        needs_reauth: 'Facebook needs you to log in again.',
-        revoked: 'This connection was disconnected.',
-        error: 'We couldn’t check this connection.'
-      }[conn.status] || 'Needs attention';
+      const known = ['expiring', 'expired', 'needs_reauth', 'revoked', 'error'];
+      return this.t('attention.' + (known.includes(conn.status) ? conn.status : 'default'));
     },
 
     // Icons come from the platform's driver (presentation.step_icons).
@@ -777,17 +816,17 @@ export default {
 
     expiryLabel(conn) {
       const d = conn.expires_in_days;
-      if (d < 0) return 'Expired';
-      if (d === 0) return 'Expires today';
-      return 'Expires in ' + d + (d === 1 ? ' day' : ' days');
+      if (d < 0) return this.t('expiry.expired');
+      if (d === 0) return this.t('expiry.today');
+      return this.tc('expiry.days', d);
     },
 
     ago(iso) {
       const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
-      if (s < 60) return 'just now';
-      if (s < 3600) return Math.round(s / 60) + ' min ago';
-      if (s < 86400) return Math.round(s / 3600) + ' h ago';
-      return Math.round(s / 86400) + ' d ago';
+      if (s < 60) return this.t('ago.now');
+      if (s < 3600) return this.t('ago.minutes', { count: Math.round(s / 60) });
+      if (s < 86400) return this.t('ago.hours', { count: Math.round(s / 3600) });
+      return this.t('ago.days', { count: Math.round(s / 86400) });
     },
 
     url(name, id) {
@@ -824,7 +863,7 @@ export default {
         })
         .catch(() => {
           asset.enabled_capabilities = previous;
-          this.flashMessage = { tone: 'is-error', text: 'Couldn’t save that change. Please try again.' };
+          this.flashMessage = { tone: 'is-error', text: this.t('toast.save_failed') };
         })
         .finally(() => this.$delete(this.saving, asset.id));
     },
@@ -837,9 +876,9 @@ export default {
           this.replaceConnection(card, data.connection);
           this.flashMessage = data.connection.needs_attention
             ? { tone: 'is-error', text: this.attentionTitle(data.connection) }
-            : { tone: 'is-success', text: card.label + ' checked: everything works.' };
+            : { tone: 'is-success', text: this.t('toast.checked', { platform: card.label }) };
         })
-        .catch(() => { this.flashMessage = { tone: 'is-error', text: 'The check didn’t complete. Please try again.' }; })
+        .catch(() => { this.flashMessage = { tone: 'is-error', text: this.t('toast.check_failed') }; })
         .finally(() => this.$delete(this.busy, conn.id));
     },
 
@@ -886,16 +925,16 @@ export default {
           if (!code) { done(); return; } // closed or cancelled
           if (!session.phone_number_id) {
             done();
-            this.flashMessage = { tone: 'is-error', text: 'Signup finished without a phone number. Please try again.' };
+            this.flashMessage = { tone: 'is-error', text: this.t('toast.wa_no_number') };
             return;
           }
           window.axios.post(cfg.store_url, { code, phone_number_id: session.phone_number_id, waba_id: session.waba_id })
             .then(({ data }) => {
-              this.flashMessage = { tone: 'is-success', text: data.message || 'WhatsApp number connected.' };
+              this.flashMessage = { tone: 'is-success', text: data.message || this.t('toast.wa_connected') };
               setTimeout(() => window.location.reload(), 900);
             })
             .catch((error) => {
-              this.flashMessage = { tone: 'is-error', text: (error.response && error.response.data && error.response.data.message) || 'Couldn’t connect WhatsApp.' };
+              this.flashMessage = { tone: 'is-error', text: (error.response && error.response.data && error.response.data.message) || this.t('toast.wa_failed') };
             })
             .finally(done);
         }, {
@@ -906,7 +945,7 @@ export default {
         });
       }).catch(() => {
         done();
-        this.flashMessage = { tone: 'is-error', text: 'Couldn’t load Facebook. Check your connection or ad blocker and try again.' };
+        this.flashMessage = { tone: 'is-error', text: this.t('toast.fb_load_failed') };
       });
     },
 
@@ -918,9 +957,9 @@ export default {
           const i = this.cards.indexOf(card);
           this.$set(this.cards, i, data.card);
           this.confirming = null;
-          this.flashMessage = { tone: 'is-success', text: 'Disconnected. Reconnect at any time from this page.' };
+          this.flashMessage = { tone: 'is-success', text: this.t('toast.disconnected') };
         })
-        .catch(() => { this.flashMessage = { tone: 'is-error', text: 'Couldn’t disconnect. Please try again.' }; })
+        .catch(() => { this.flashMessage = { tone: 'is-error', text: this.t('toast.disconnect_failed') }; })
         .finally(() => this.$delete(this.busy, conn.id));
     }
   }
@@ -1037,7 +1076,7 @@ export default {
 .ch-empty-art { width: 64px; height: 64px; margin: 0 auto 12px; border-radius: 18px; display: grid; place-items: center; background: #EEF4FF; color: #0866FF; font-size: 30px; }
 .ch-empty h3 { margin: 0 0 6px; padding: 0; font-size: 16px; font-weight: 700; line-height: 1.35; color: var(--ink); }
 .ch-empty p { margin: 0 auto 14px; max-width: 520px; color: var(--muted); font-size: 13px; line-height: 1.55; }
-.ch-gets { list-style: none; margin: 0 auto; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-width: 640px; text-align: left; }
+.ch-gets { list-style: none; margin: 0 auto; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-width: 640px; text-align: start; }
 .ch-gets li { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: #F8FAFF; color: var(--text); font-size: 12.5px; }
 .ch-gets i { color: #0866FF; font-size: 17px; }
 
@@ -1067,7 +1106,7 @@ export default {
 .ch-cap { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 10px; background: #F4F5F9; color: var(--muted); font-size: 12.5px; font-weight: 600; }
 .ch-cap.is-on { background: #EEF4FF; color: #0B4FD1; }
 .ch-cap i { font-size: 15px; }
-.ch-cap-up { margin-left: 4px; color: var(--brand); font-weight: 700; text-decoration: none; }
+.ch-cap-up { margin-inline-start: 4px; color: var(--brand); font-weight: 700; text-decoration: none; }
 .ch-cap-up:hover { text-decoration: underline; }
 
 .ch-group { display: flex; flex-direction: column; gap: 8px; }
@@ -1107,13 +1146,14 @@ export default {
 [dir="rtl"] .ch-flash-x { margin-left: 0; margin-right: auto; }
 [dir="rtl"] .ch-switch span::after { left: auto; right: 3px; }
 [dir="rtl"] .ch-switch input:checked + span::after { transform: translateX(-18px); }
+[dir="rtl"] .bx-chevron-right, [dir="rtl"] .bx-right-arrow-alt, [dir="rtl"] .bx-arrow-back { transform: scaleX(-1); }
 
 @media (max-width: 767.98px) {
   .ch { padding: 14px; }
   .ch-card { padding: 16px; }
   .ch-step { flex-direction: column; align-items: stretch; }
   .ch-asset { flex-wrap: wrap; }
-  .ch-asset-caps { width: 100%; justify-content: flex-start; padding-left: 50px; }
+  .ch-asset-caps { width: 100%; justify-content: flex-start; padding-inline-start: 50px; }
   .ch-gets { grid-template-columns: 1fr; }
 }
 
@@ -1135,8 +1175,8 @@ export default {
 .ch-hero-text h2 { margin: 0 0 4px; font-size: 17px; font-weight: 700; color: var(--ink); }
 .ch-hero-text p { margin: 0; font-size: 13px; color: var(--text); line-height: 1.55; max-width: 52ch; }
 .ch-hero-stats { display: flex; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 6px; }
-.ch-hero-stat { display: flex; flex-direction: column; gap: 4px; min-width: 112px; padding: 8px 14px; border: none; background: none; text-align: left; cursor: pointer; border-radius: 10px; }
-.ch-hero-stat + .ch-hero-stat { border-left: 1px solid var(--line-soft); border-radius: 0 10px 10px 0; }
+.ch-hero-stat { display: flex; flex-direction: column; gap: 4px; min-width: 112px; padding: 8px 14px; border: none; background: none; text-align: start; cursor: pointer; border-radius: 10px; }
+.ch-hero-stat + .ch-hero-stat { border-inline-start: 1px solid var(--line-soft); border-start-start-radius: 0; border-end-start-radius: 0; }
 .ch-hero-stat:hover { background: #F7F9FF; }
 .ch-hero-stat-top { display: flex; align-items: center; gap: 8px; }
 .ch-hero-stat-top strong { font-size: 24px; font-weight: 700; color: var(--ink); line-height: 1; font-variant-numeric: tabular-nums; }
@@ -1186,14 +1226,14 @@ export default {
 .ch-menu { position: relative; }
 .ch-kebab { width: 30px; height: 30px; border-radius: 8px; border: none; background: none; color: #98A0B3; font-size: 18px; display: grid; place-items: center; cursor: pointer; }
 .ch-kebab:hover, .ch-kebab[aria-expanded="true"] { background: #F1F3F8; color: var(--ink); }
-.ch-menu-list { position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 30; min-width: 210px; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 18px 40px rgba(16,24,40,.16); display: flex; flex-direction: column; }
-.ch-menu-list a, .ch-menu-list button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border: none; border-radius: 8px; background: none; color: var(--text); font-size: 13px; font-weight: 500; text-align: left; text-decoration: none; cursor: pointer; }
+.ch-menu-list { position: absolute; inset-inline-end: 0; bottom: calc(100% + 6px); z-index: 30; min-width: 210px; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 18px 40px rgba(16,24,40,.16); display: flex; flex-direction: column; }
+.ch-menu-list a, .ch-menu-list button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border: none; border-radius: 8px; background: none; color: var(--text); font-size: 13px; font-weight: 500; text-align: start; text-decoration: none; cursor: pointer; }
 .ch-menu-list a:hover, .ch-menu-list button:hover:not(:disabled) { background: #F2EEFF; color: var(--brand); }
 .ch-menu-list button:disabled { opacity: .5; cursor: default; }
 .ch-menu-list i { font-size: 16px; color: var(--muted); }
 .ch-menu-list .is-accent, .ch-menu-list .is-accent i { color: #DC2626; }
 .ch-menu-sep { height: 1px; margin: 4px 6px; background: var(--line-soft); }
-.ch-state .bx-spin { font-size: 13px; margin-right: 4px; }
+.ch-state .bx-spin { font-size: 13px; margin-inline-end: 4px; }
 
 .ch-acct-add { align-items: center; justify-content: center; text-align: center; gap: 6px; min-height: 148px; padding: 18px; border: 1.5px dashed #CFD6E6; background: #FBFCFF; cursor: pointer; font: inherit; }
 .ch-acct-add:hover { border-color: #93B4F5; background: #F5F8FF; }
@@ -1206,7 +1246,7 @@ export default {
 .ch-panel h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 15px; font-weight: 700; color: var(--ink); }
 .ch-panel h3 i { font-size: 18px; color: var(--brand); }
 .ch-quick-form { margin: 0; }
-.ch-quick { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: inherit; text-decoration: none; text-align: left; cursor: pointer; font: inherit; transition: border-color .15s, box-shadow .15s; }
+.ch-quick { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: inherit; text-decoration: none; text-align: start; cursor: pointer; font: inherit; transition: border-color .15s, box-shadow .15s; }
 .ch-quick + .ch-quick, .ch-quick-form + .ch-quick, .ch-quick + .ch-quick-form { margin-top: 10px; }
 .ch-quick:hover { border-color: #CFC4FF; box-shadow: 0 6px 16px rgba(16,24,40,.06); color: inherit; }
 .ch-quick > span:nth-child(2) { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -1225,7 +1265,7 @@ export default {
 .ch-donut-label small { font-size: 11px; color: var(--muted); line-height: 1.3; }
 .ch-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .ch-legend li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
-.ch-legend strong { margin-left: auto; color: var(--ink); font-variant-numeric: tabular-nums; }
+.ch-legend strong { margin-inline-start: auto; color: var(--ink); font-variant-numeric: tabular-nums; }
 .ch-legend .dot { width: 9px; height: 9px; border-radius: 50%; }
 .ch-legend .dot.is-ok { background: #16A34A; }
 .ch-legend .dot.is-warn { background: #F59E0B; }
@@ -1236,7 +1276,7 @@ export default {
 .ch-help p { margin: 0 0 14px; font-size: 12.5px; color: var(--text); line-height: 1.55; max-width: 24ch; }
 .ch-help-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 999px; background: #E8F0FF; color: #1D4ED8; font-size: 12.5px; font-weight: 600; text-decoration: none; position: relative; z-index: 1; }
 .ch-help-btn:hover { background: #DCE8FF; color: #1D4ED8; }
-.ch-help-art { position: absolute; right: -6px; bottom: -6px; width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center; font-size: 42px; color: #3B82F6; background: radial-gradient(circle, #DCE8FF 0%, rgba(220,232,255,0) 70%); }
+.ch-help-art { position: absolute; inset-inline-end: -6px; bottom: -6px; width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center; font-size: 42px; color: #3B82F6; background: radial-gradient(circle, #DCE8FF 0%, rgba(220,232,255,0) 70%); }
 
 @media (max-width: 1199.98px) {
   .ch-layout { grid-template-columns: minmax(0, 1fr); }
@@ -1269,7 +1309,7 @@ export default {
 .ch-drawer-icon-btn:hover { border-color: #CFC4FF; color: var(--brand); }
 .ch-drawer-logos, .ch-pick-logos { display: inline-flex; flex-shrink: 0; }
 .ch-drawer-logos .ch-badge, .ch-pick-logos .ch-badge { width: 38px; height: 38px; border-radius: 12px; font-size: 19px; }
-.ch-drawer-logos .ch-badge + .ch-badge, .ch-pick-logos .ch-badge + .ch-badge { margin-left: -12px; }
+.ch-drawer-logos .ch-badge + .ch-badge, .ch-pick-logos .ch-badge + .ch-badge { margin-inline-start: -12px; }
 .ch-drawer-body { flex: 1; overflow-y: auto; padding: 18px 20px calc(24px + env(safe-area-inset-bottom, 0px)); }
 
 .ch-fade-enter-active, .ch-fade-leave-active { transition: opacity .2s ease; }
@@ -1281,7 +1321,7 @@ export default {
 
 /* Picker list (panel) */
 .ch-pick-list { display: flex; flex-direction: column; gap: 10px; }
-.ch-pick-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; text-align: left; cursor: pointer; font: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.ch-pick-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; text-align: start; cursor: pointer; font: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
 .ch-pick-row:hover { border-color: #CFC4FF; box-shadow: 0 8px 20px rgba(16,24,40,.07); transform: translateY(-1px); }
 .ch-pick-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ch-pick-row-text strong { font-size: 14.5px; color: var(--ink); }
@@ -1291,7 +1331,7 @@ export default {
 
 /* Picker grid (first run, on the page) */
 .ch-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
-.ch-pick { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: #fff; text-align: left; cursor: pointer; font: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.ch-pick { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: #fff; text-align: start; cursor: pointer; font: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
 .ch-pick:hover { border-color: #CFC4FF; box-shadow: 0 12px 28px rgba(16,24,40,.08); transform: translateY(-2px); }
 .ch-pick .ch-pick-logos { margin-bottom: 6px; }
 .ch-pick strong { font-size: 15px; color: var(--ink); }

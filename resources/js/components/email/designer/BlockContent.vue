@@ -7,22 +7,23 @@
          is entirely inspector-driven. -->
     <template v-if="block.type === 'text' || block.type === 'heading'">
       <div v-if="selected" class="inline-toolbar">
-        <button type="button" title="Bold" @mousedown.prevent="exec('bold')"><i class="bx bx-bold"></i></button>
-        <button type="button" title="Italic" @mousedown.prevent="exec('italic')"><i class="bx bx-italic"></i></button>
-        <button type="button" title="Underline" @mousedown.prevent="exec('underline')"><i class="bx bx-underline"></i></button>
-        <button type="button" title="Strikethrough" @mousedown.prevent="exec('strikeThrough')"><i class="bx bx-strikethrough"></i></button>
+        <button type="button" :title="t('content.bold')" @mousedown.prevent="exec('bold')"><i class="bx bx-bold"></i></button>
+        <button type="button" :title="t('content.italic')" @mousedown.prevent="exec('italic')"><i class="bx bx-italic"></i></button>
+        <button type="button" :title="t('content.underline')" @mousedown.prevent="exec('underline')"><i class="bx bx-underline"></i></button>
+        <button type="button" :title="t('content.strikethrough')" @mousedown.prevent="exec('strikeThrough')"><i class="bx bx-strikethrough"></i></button>
         <span class="inline-toolbar-sep"></span>
-        <button type="button" title="Bulleted list" @mousedown.prevent="exec('insertUnorderedList')"><i class="bx bx-list-ul"></i></button>
-        <button type="button" title="Numbered list" @mousedown.prevent="exec('insertOrderedList')"><i class="bx bx-list-ol"></i></button>
-        <button type="button" title="Insert link" @mousedown.prevent="insertLink"><i class="bx bx-link"></i></button>
+        <button type="button" :title="t('content.bulleted_list')" @mousedown.prevent="exec('insertUnorderedList')"><i class="bx bx-list-ul"></i></button>
+        <button type="button" :title="t('content.numbered_list')" @mousedown.prevent="exec('insertOrderedList')"><i class="bx bx-list-ol"></i></button>
+        <button type="button" :title="t('content.insert_link')" @mousedown.prevent="insertLink"><i class="bx bx-link"></i></button>
         <span class="inline-toolbar-sep"></span>
-        <button v-for="tok in tokens" :key="tok.token" type="button" :title="'Insert ' + tok.label" class="inline-toolbar-token" @mousedown.prevent="insertToken(tok.token)">{{ tok.label }}</button>
+        <button v-for="tok in tokens" :key="tok.token" type="button" :title="t('content.insert_token', { token: t(`tokens.${tok.key}`) })" class="inline-toolbar-token" @mousedown.prevent="insertToken(tok.token)">{{ t(`tokens.${tok.key}`) }}</button>
       </div>
       <component
         :is="block.type === 'heading' ? 'h' + Math.min(6, Math.max(1, Number(block.settings.level) || 2)) : 'div'"
         ref="editableEl"
         class="ce-block"
         contenteditable="true"
+        :data-placeholder="t('content.click_to_edit')"
         :style="contentStyle"
         @input="onInput"
         @focus="$emit('focus')"
@@ -34,18 +35,18 @@
       <img v-if="block.settings.src" :src="block.settings.src" :alt="block.settings.alt" :style="imageStyle" />
       <div v-else class="image-placeholder">
         <i class="bx bx-image"></i>
-        <span>Select this block, then click Upload in Properties</span>
+        <span>{{ t('content.image_placeholder') }}</span>
       </div>
     </div>
 
     <!-- Button -->
     <div v-else-if="block.type === 'button'" class="button-block" :style="{ textAlign: block.settings.align }">
-      <span class="button-preview" :style="buttonStyle">{{ block.settings.label || 'Button' }}</span>
+      <span class="button-preview" :style="buttonStyle">{{ block.settings.label || t('content.button_default') }}</span>
     </div>
 
     <!-- Link -->
     <div v-else-if="block.type === 'link'" :style="{ textAlign: block.settings.align, padding: '4px 0' }">
-      <span :style="linkStyle">{{ block.settings.label || 'Link text' }}</span>
+      <span :style="linkStyle">{{ block.settings.label || t('content.link_default') }}</span>
     </div>
 
     <!-- Divider -->
@@ -65,12 +66,12 @@
           <i :class="'bx bxl-' + a.platform"></i>
         </span>
       </template>
-      <span v-else class="dash-subtitle" style="font-size:.75rem;">No accounts selected - pick some in Properties.</span>
+      <span v-else class="dash-subtitle" style="font-size:.75rem;">{{ t('content.no_social') }}</span>
     </div>
 
     <!-- Custom HTML -->
     <div v-else-if="block.type === 'html'" class="html-block">
-      <div class="html-block-label"><i class="bx bx-code-alt"></i> Custom HTML</div>
+      <div class="html-block-label"><i class="bx bx-code-alt"></i> {{ t('content.custom_html') }}</div>
       <iframe class="html-block-preview" :srcdoc="block.content || ''"></iframe>
     </div>
 
@@ -80,6 +81,7 @@
 <script setup>
 import { computed, onMounted, watch, ref } from 'vue';
 import { PERSONALIZATION_TOKENS, insertTokenAtCursor } from '../lib/personalizationTokens';
+import { useEmailI18n } from '../lib/i18n';
 
 const props = defineProps({
   block: { type: Object, required: true },
@@ -87,6 +89,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update-content', 'focus']);
+
+const { t } = useEmailI18n();
 
 const editableEl = ref(null);
 const tokens = PERSONALIZATION_TOKENS;
@@ -113,7 +117,7 @@ function exec(command) {
 }
 
 function insertLink() {
-  const url = window.prompt('Link URL');
+  const url = window.prompt(t('content.link_prompt'));
   if (url) {
     document.execCommand('createLink', false, url);
     onInput();
@@ -188,7 +192,7 @@ const linkStyle = computed(() => {
 <style scoped>
 .block-content { position: relative; }
 .ce-block { outline: none; min-height: 1.4em; }
-.ce-block:empty::before { content: 'Click to edit...'; color: var(--dash-muted); }
+.ce-block:empty::before { content: attr(data-placeholder); color: var(--dash-muted); }
 .inline-toolbar { position: absolute; top: -38px; left: 0; z-index: 5; display: flex; align-items: center; gap: .15rem; background: var(--dash-heading, #1e1e2d); border-radius: .5rem; padding: .3rem; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
 .inline-toolbar button { width: 26px; height: 26px; border: none; background: transparent; color: #fff; border-radius: .3rem; font-size: .85rem; }
 .inline-toolbar button:hover { background: rgba(255,255,255,.15); }

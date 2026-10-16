@@ -30,14 +30,14 @@ class ThreadsDriver extends MirroredTokenDriver
     public function presentation(): array
     {
         return [
-            'subtitle' => 'Posting',
+            'subtitle' => __('connections.platforms.threads.subtitle'),
             'icons' => [['icon' => 'bx-at', 'brand' => 'threads']],
-            'connect_label' => 'Connect with Threads',
-            'empty_title' => 'Connect your Threads profile',
-            'empty_text' => 'Publish and schedule posts to Threads. To fully remove access later, also remove SocialEaz in your Threads settings.',
+            'connect_label' => __('connections.platforms.threads.connect_label'),
+            'empty_title' => __('connections.platforms.threads.empty_title'),
+            'empty_text' => __('connections.platforms.threads.empty_text'),
             'benefits' => ['posting', 'insights'],
             'asset_groups' => [
-                'threads_profile' => ['label' => 'Threads profiles', 'icon' => 'bx-at', 'brand' => 'threads', 'capabilities' => ['posting', 'insights']],
+                'threads_profile' => ['label' => __('connections.platforms.threads.groups.threads_profile'), 'icon' => 'bx-at', 'brand' => 'threads', 'capabilities' => ['posting', 'insights']],
             ],
             'step_icons' => [self::LOGIN => ['icon' => 'bx-at', 'brand' => 'threads']],
         ];
@@ -52,8 +52,8 @@ class ThreadsDriver extends MirroredTokenDriver
     {
         return [[
             'key' => self::LOGIN,
-            'label' => 'Threads profile',
-            'description' => 'Publish and schedule posts to Threads.',
+            'label' => __('connections.platforms.threads.steps.login.label'),
+            'description' => __('connections.platforms.threads.steps.login.description'),
             'primary' => true,
             'available' => (bool) adminSetting('posts.threads.client_id'),
         ]];

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Edit Email Campaign')
+@section('title', __('email_marketing.campaigns.edit_title'))
 
 @push('styles')
 @include('layouts.partials.dash-styles')
@@ -10,17 +10,17 @@
 <div class="socialeaz-dash">
 
     <nav class="dash-subtitle small mb-2">
-        <a href="{{ route('admin.email.dashboard') }}" class="dash-link">Email Marketing</a> /
-        <a href="{{ route('admin.email.campaigns.index') }}" class="dash-link">Campaigns</a>
+        <a href="{{ route('admin.email.dashboard') }}" class="dash-link">{{ __('email_marketing.module') }}</a> /
+        <a href="{{ route('admin.email.campaigns.index') }}" class="dash-link">{{ __('email_marketing.common.campaigns') }}</a>
     </nav>
 
     <div class="email-hero mb-3">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
             <div>
-                <h4 class="mb-1">Edit Email Campaign</h4>
+                <h4 class="mb-1">{{ __('email_marketing.campaigns.edit_title') }}</h4>
                 <p>{{ $campaign->name }}</p>
             </div>
-            <span class="dash-badge dash-badge-{{ $campaign->status === 'scheduled' ? 'warning' : 'muted' }} text-capitalize" style="background:rgba(255,255,255,.18);color:#fff;">{{ $campaign->status }}</span>
+            <span class="dash-badge dash-badge-{{ $campaign->status === 'scheduled' ? 'warning' : 'muted' }} " style="background:rgba(255,255,255,.18);color:#fff;">{{ emailLabel('statuses', $campaign->status) }}</span>
         </div>
     </div>
 

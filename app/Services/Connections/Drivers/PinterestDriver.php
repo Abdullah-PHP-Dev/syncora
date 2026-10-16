@@ -31,14 +31,14 @@ class PinterestDriver extends MirroredTokenDriver
     public function presentation(): array
     {
         return [
-            'subtitle' => 'Pins and boards',
+            'subtitle' => __('connections.platforms.pinterest.subtitle'),
             'icons' => [['icon' => 'bxl-pinterest', 'brand' => 'pinterest']],
-            'connect_label' => 'Connect with Pinterest',
-            'empty_title' => 'Connect your Pinterest account',
-            'empty_text' => 'Publish Pins to your boards. To fully remove access later, also remove SocialEaz in your Pinterest settings.',
+            'connect_label' => __('connections.platforms.pinterest.connect_label'),
+            'empty_title' => __('connections.platforms.pinterest.empty_title'),
+            'empty_text' => __('connections.platforms.pinterest.empty_text'),
             'benefits' => ['posting', 'insights'],
             'asset_groups' => [
-                'pinterest_account' => ['label' => 'Pinterest accounts', 'icon' => 'bxl-pinterest', 'brand' => 'pinterest', 'capabilities' => ['posting', 'insights']],
+                'pinterest_account' => ['label' => __('connections.platforms.pinterest.groups.pinterest_account'), 'icon' => 'bxl-pinterest', 'brand' => 'pinterest', 'capabilities' => ['posting', 'insights']],
             ],
             'step_icons' => [self::LOGIN => ['icon' => 'bxl-pinterest', 'brand' => 'pinterest']],
         ];
@@ -53,8 +53,8 @@ class PinterestDriver extends MirroredTokenDriver
     {
         return [[
             'key' => self::LOGIN,
-            'label' => 'Pinterest account',
-            'description' => 'Publish Pins to your boards.',
+            'label' => __('connections.platforms.pinterest.steps.login.label'),
+            'description' => __('connections.platforms.pinterest.steps.login.description'),
             'primary' => true,
             'available' => (bool) adminSetting('posts.pinterest.client_id'),
         ]];

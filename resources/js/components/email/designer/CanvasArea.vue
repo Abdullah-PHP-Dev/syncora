@@ -11,10 +11,10 @@
         @click.self="selectSection(section)"
       >
         <div class="node-toolbar section-toolbar" @click.stop>
-          <button type="button" title="Move up" @click="moveSection(section, -1)"><i class="bx bx-up-arrow-alt"></i></button>
-          <button type="button" title="Move down" @click="moveSection(section, 1)"><i class="bx bx-down-arrow-alt"></i></button>
-          <button type="button" title="Duplicate section" @click="duplicateSection(section)"><i class="bx bx-duplicate"></i></button>
-          <button type="button" title="Delete section" @click="deleteSection(section)"><i class="bx bx-trash"></i></button>
+          <button type="button" :title="t('canvas.move_up')" @click="moveSection(section, -1)"><i class="bx bx-up-arrow-alt"></i></button>
+          <button type="button" :title="t('canvas.move_down')" @click="moveSection(section, 1)"><i class="bx bx-down-arrow-alt"></i></button>
+          <button type="button" :title="t('canvas.duplicate_section')" @click="duplicateSection(section)"><i class="bx bx-duplicate"></i></button>
+          <button type="button" :title="t('canvas.delete_section')" @click="deleteSection(section)"><i class="bx bx-trash"></i></button>
         </div>
 
         <div class="canvas-columns" @click="selectSection(section)">
@@ -36,11 +36,11 @@
                 @click.stop="selectBlock(section, column, block)"
               >
                 <div v-if="isBlockSelected(block)" class="node-toolbar block-toolbar">
-                  <span class="block-drag-handle" title="Drag to reorder"><i class="bx bx-move"></i></span>
-                  <button type="button" title="Move up" @click.stop="moveBlock(column, block, -1)"><i class="bx bx-up-arrow-alt"></i></button>
-                  <button type="button" title="Move down" @click.stop="moveBlock(column, block, 1)"><i class="bx bx-down-arrow-alt"></i></button>
-                  <button type="button" title="Duplicate" @click.stop="duplicateBlock(column, block)"><i class="bx bx-duplicate"></i></button>
-                  <button type="button" title="Delete" @click.stop="deleteBlock(column, block)"><i class="bx bx-trash"></i></button>
+                  <span class="block-drag-handle" :title="t('canvas.drag')"><i class="bx bx-move"></i></span>
+                  <button type="button" :title="t('canvas.move_up')" @click.stop="moveBlock(column, block, -1)"><i class="bx bx-up-arrow-alt"></i></button>
+                  <button type="button" :title="t('canvas.move_down')" @click.stop="moveBlock(column, block, 1)"><i class="bx bx-down-arrow-alt"></i></button>
+                  <button type="button" :title="t('canvas.duplicate')" @click.stop="duplicateBlock(column, block)"><i class="bx bx-duplicate"></i></button>
+                  <button type="button" :title="t('canvas.delete')" @click.stop="deleteBlock(column, block)"><i class="bx bx-trash"></i></button>
                 </div>
                 <BlockContent
                   :block="block"
@@ -49,7 +49,7 @@
                   @focus="selectBlock(section, column, block)"
                 />
               </div>
-              <div v-if="column.blocks.length === 0" class="column-empty">Drag a block here, or click one in the panel</div>
+              <div v-if="column.blocks.length === 0" class="column-empty">{{ t('canvas.column_empty') }}</div>
             </div>
           </div>
         </div>
@@ -57,7 +57,7 @@
 
       <div v-if="sections.length === 0" class="canvas-empty">
         <i class="bx bx-layout"></i>
-        <p>Start by adding a layout section from the panel on the left.</p>
+        <p>{{ t('canvas.empty') }}</p>
       </div>
     </div>
   </div>
@@ -68,6 +68,7 @@ import { onBeforeUnmount } from 'vue';
 import Sortable from 'sortablejs';
 import BlockContent from './BlockContent.vue';
 import { makeBlock, cloneBlock, SECTION_PRESETS } from '../lib/blockFactory';
+import { useEmailI18n } from '../lib/i18n';
 
 const props = defineProps({
   sections: { type: Array, required: true },
@@ -75,6 +76,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['select', 'change']);
+
+const { t } = useEmailI18n();
 
 function paddingCss(p) {
   const v = p || {};

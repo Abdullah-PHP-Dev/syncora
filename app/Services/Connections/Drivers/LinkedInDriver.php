@@ -46,15 +46,15 @@ class LinkedInDriver extends BaseDriver
     public function presentation(): array
     {
         return [
-            'subtitle' => 'Company Pages · Campaign Manager Ads',
+            'subtitle' => __('connections.platforms.linkedin.subtitle'),
             'icons' => [['icon' => 'bxl-linkedin', 'brand' => 'linkedin']],
-            'connect_label' => 'Connect with LinkedIn',
-            'empty_title' => 'Connect your LinkedIn Pages and Ads',
-            'empty_text' => 'Choose the Company Pages you post to and the Campaign Manager ad accounts you advertise with. To fully remove access later, also remove SocialEaz in your LinkedIn settings.',
+            'connect_label' => __('connections.platforms.linkedin.connect_label'),
+            'empty_title' => __('connections.platforms.linkedin.empty_title'),
+            'empty_text' => __('connections.platforms.linkedin.empty_text'),
             'benefits' => ['posting', 'ads', 'insights'],
             'asset_groups' => [
-                'linkedin_page' => ['label' => 'Company Pages', 'icon' => 'bxl-linkedin', 'brand' => 'linkedin', 'capabilities' => ['posting', 'insights']],
-                'linkedin_ads' => ['label' => 'Ad accounts', 'icon' => 'bx-bullseye', 'brand' => 'linkedin', 'capabilities' => ['ads']],
+                'linkedin_page' => ['label' => __('connections.platforms.linkedin.groups.linkedin_page'), 'icon' => 'bxl-linkedin', 'brand' => 'linkedin', 'capabilities' => ['posting', 'insights']],
+                'linkedin_ads' => ['label' => __('connections.platforms.linkedin.groups.linkedin_ads'), 'icon' => 'bx-bullseye', 'brand' => 'linkedin', 'capabilities' => ['ads']],
             ],
             'step_icons' => [
                 self::PAGES => ['icon' => 'bxl-linkedin', 'brand' => 'linkedin'],
@@ -78,18 +78,18 @@ class LinkedInDriver extends BaseDriver
         return [
             [
                 'key' => self::PAGES,
-                'label' => 'LinkedIn Pages',
-                'description' => 'Post to the Company Pages you administer.',
+                'label' => __('connections.platforms.linkedin.steps.pages.label'),
+                'description' => __('connections.platforms.linkedin.steps.pages.description'),
                 'primary' => true,
                 'available' => (bool) adminSetting('posts.linkedin.client_id'),
             ],
             [
                 'key' => self::ADS,
-                'label' => 'LinkedIn Ads',
-                'description' => 'Campaign Manager ad accounts where you have a role.',
+                'label' => __('connections.platforms.linkedin.steps.ads.label'),
+                'description' => __('connections.platforms.linkedin.steps.ads.description'),
                 'primary' => false,
                 'available' => (bool) adminSetting('ads.linkedin.client_id'),
-                'note' => ConnectionFlags::on('linkedin.single_app') ? null : 'Separate LinkedIn app until Community Management is added to the Ads app.',
+                'note' => ConnectionFlags::on('linkedin.single_app') ? null : __('connections.platforms.linkedin.steps.ads.note'),
             ],
         ];
     }

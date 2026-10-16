@@ -68,7 +68,7 @@ class EmailSubscriberController extends Controller
 
         $this->syncOneToSendGrid($subscriber, $list);
 
-        return back()->with('success', 'Subscriber added.');
+        return back()->with('success', __('email_marketing.flash.subscriber_added'));
     }
 
     /**
@@ -97,7 +97,7 @@ class EmailSubscriberController extends Controller
         if ($emailIndex === false) {
             fclose($handle);
 
-            return back()->with('error', 'The CSV must have an "email" column in its header row.');
+            return back()->with('error', __('email_marketing.flash.csv_missing_email'));
         }
 
         $imported = 0;
@@ -127,7 +127,7 @@ class EmailSubscriberController extends Controller
 
         $this->syncBatchToSendGrid($importedSubscribers, $list, $contacts);
 
-        return back()->with('success', "Imported {$imported} subscriber(s)." . ($skipped ? " Skipped {$skipped} invalid row(s)." : ''));
+        return back()->with('success', trans_choice('email_marketing.flash.imported', $imported) . ($skipped ? ' ' . trans_choice('email_marketing.flash.import_skipped', $skipped) : ''));
     }
 
     /**
@@ -141,7 +141,7 @@ class EmailSubscriberController extends Controller
 
         $list->subscribers()->detach($subscriber->id);
 
-        return back()->with('success', 'Subscriber removed from this list.');
+        return back()->with('success', __('email_marketing.flash.subscriber_removed'));
     }
 
     /**

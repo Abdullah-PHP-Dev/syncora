@@ -97,7 +97,7 @@
 .socialeaz-dash .dash-status-pill.is-muted .dot { background: var(--dash-muted); }
 
 .socialeaz-dash .dash-table { width: 100%; border-collapse: collapse; font-size: .8125rem; }
-.socialeaz-dash .dash-table th { text-align: left; color: var(--dash-muted); font-weight: 600; font-size: .7rem; text-transform: uppercase; letter-spacing: .03em; padding: 0 .5rem .6rem; border-bottom: 1px solid var(--dash-border); }
+.socialeaz-dash .dash-table th { text-align: start; color: var(--dash-muted); font-weight: 600; font-size: .7rem; text-transform: uppercase; letter-spacing: .03em; padding: 0 .5rem .6rem; border-bottom: 1px solid var(--dash-border); }
 .socialeaz-dash .dash-table td { padding: .6rem .5rem; border-bottom: 1px solid var(--dash-border); vertical-align: middle; color: var(--dash-text); }
 .socialeaz-dash .dash-table tr:last-child td { border-bottom: none; }
 .socialeaz-dash .dash-badge { display: inline-block; padding: .2rem .55rem; border-radius: .4rem; font-size: .68rem; font-weight: 600; }
@@ -129,7 +129,7 @@
     border: 2px solid var(--dash-border); flex-shrink: 0;
 }
 .socialeaz-dash .dash-stepper-label { margin: 0 .6rem 0 .5rem; font-size: .8125rem; font-weight: 600; color: var(--dash-muted); white-space: nowrap; }
-.socialeaz-dash .dash-stepper-line { width: 32px; height: 2px; background: var(--dash-border); margin-right: .6rem; }
+.socialeaz-dash .dash-stepper-line { width: 32px; height: 2px; background: var(--dash-border); margin-inline-end: .6rem; }
 .socialeaz-dash .dash-stepper-item.is-current .dash-stepper-circle { background: var(--dash-primary); border-color: var(--dash-primary); color: #fff; }
 .socialeaz-dash .dash-stepper-item.is-current .dash-stepper-label { color: var(--dash-heading); }
 .socialeaz-dash .dash-stepper-item.is-done .dash-stepper-circle { background: var(--dash-success); border-color: var(--dash-success); color: #fff; }
@@ -153,7 +153,7 @@
 .socialeaz-dash .review-row { display: flex; justify-content: space-between; padding: .6rem 0; border-bottom: 1px solid var(--dash-border); font-size: .85rem; }
 .socialeaz-dash .review-row:last-child { border-bottom: none; }
 .socialeaz-dash .review-row span:first-child { color: var(--dash-muted); }
-.socialeaz-dash .review-row span:last-child { font-weight: 600; color: var(--dash-heading); text-align: right; }
+.socialeaz-dash .review-row span:last-child { font-weight: 600; color: var(--dash-heading); text-align: end; }
 .socialeaz-dash .preflight-check { display: flex; align-items: center; gap: .6rem; padding: .5rem 0; border-bottom: 1px solid var(--dash-border); font-size: .85rem; }
 .socialeaz-dash .preflight-check:last-child { border-bottom: none; }
 .socialeaz-dash .preflight-check .bx { font-size: 1.1rem; }
@@ -210,7 +210,7 @@
 
 /* Device-toggle live preview frame - used by the template editor and
    the campaign builder's persistent Preview panel. */
-.socialeaz-dash .char-counter { position: absolute; right: .6rem; top: 50%; transform: translateY(-50%); font-size: .68rem; color: var(--dash-muted); pointer-events: none; }
+.socialeaz-dash .char-counter { position: absolute; inset-inline-end: .6rem; top: 50%; transform: translateY(-50%); font-size: .68rem; color: var(--dash-muted); pointer-events: none; }
 .socialeaz-dash .device-toggle { display: flex; gap: .25rem; }
 .socialeaz-dash .device-btn { width: 28px; height: 28px; border-radius: .4rem; border: 1px solid var(--dash-border); background: var(--dash-card); color: var(--dash-muted); display: inline-flex; align-items: center; justify-content: center; }
 .socialeaz-dash .device-btn.active { background: var(--dash-primary); border-color: var(--dash-primary); color: #fff; }
@@ -231,7 +231,7 @@
     position: relative; display: block; border: 1px solid var(--dash-border); border-radius: .7rem;
     padding: 1rem; cursor: pointer; height: 100%;
 }
-.socialeaz-dash .campaign-type-card input[type="radio"] { position: absolute; top: .85rem; right: .85rem; }
+.socialeaz-dash .campaign-type-card input[type="radio"] { position: absolute; top: .85rem; inset-inline-end: .85rem; }
 .socialeaz-dash .campaign-type-card:hover { border-color: var(--dash-primary); }
 .socialeaz-dash .campaign-type-card.is-selected { border-color: var(--dash-primary); background: rgba(124,92,255,.06); box-shadow: 0 0 0 1px var(--dash-primary); }
 .socialeaz-dash .campaign-type-card.is-disabled { cursor: not-allowed; opacity: .55; }

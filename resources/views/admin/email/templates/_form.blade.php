@@ -18,7 +18,7 @@
 
 <div class="row g-3 mb-3">
     <div class="col-md-4">
-        <label class="form-label">Template Name *</label>
+        <label class="form-label">{{ __('email_marketing.templates.form.name') }}</label>
         <div class="position-relative">
             <input type="text" name="name" id="templateName" class="form-control" maxlength="100" value="{{ old('name', $template->name ?? '') }}" required>
             <span class="char-counter" id="nameCounter">0/100</span>
@@ -26,7 +26,7 @@
         @error('name')<p class="text-danger small">{{ $message }}</p>@enderror
     </div>
     <div class="col-md-4">
-        <label class="form-label">Subject *</label>
+        <label class="form-label">{{ __('email_marketing.common.subject_required') }}</label>
         <div class="position-relative">
             <input type="text" name="subject" id="templateSubject" class="form-control" maxlength="100" value="{{ old('subject', $template->subject ?? '') }}" required>
             <span class="char-counter" id="subjectCounter">0/100</span>
@@ -34,8 +34,8 @@
         @error('subject')<p class="text-danger small">{{ $message }}</p>@enderror
     </div>
     <div class="col-md-4">
-        <label class="form-label">Category</label>
-        <input type="text" name="category" class="form-control" list="categoryOptions" value="{{ old('category', $template->category ?? '') }}" placeholder="e.g. Newsletter, Promo">
+        <label class="form-label">{{ __('email_marketing.templates.category') }}</label>
+        <input type="text" name="category" class="form-control" list="categoryOptions" value="{{ old('category', $template->category ?? '') }}" placeholder="{{ __('email_marketing.templates.form.category_placeholder') }}">
         <datalist id="categoryOptions">
             @foreach ($categories ?? [] as $category)
                 <option value="{{ $category }}"></option>
@@ -48,18 +48,17 @@
     <div class="d-flex align-items-start gap-3 flex-wrap">
         <div class="ai-banner-icon"><i class="bx bx-sparkle"></i></div>
         <div class="flex-grow-1">
-            <strong>Create with AI</strong>
-            <p class="mb-2 dash-subtitle small">Describe what this email is about and AI will draft a subject and body for you.</p>
+            <strong>{{ __('email_marketing.templates.form.ai_title') }}</strong>
+            <p class="mb-2 dash-subtitle small">{{ __('email_marketing.templates.form.ai_text') }}</p>
             <div class="d-flex gap-2 flex-wrap">
-                <input type="text" id="aiPrompt" class="form-control" style="max-width:420px;" placeholder="e.g. Welcome email for new customers">
-                <button type="button" id="generateAiBtn" class="dash-btn dash-btn-primary"><i class="bx bx-bulb"></i> Generate with AI</button>
+                <input type="text" id="aiPrompt" class="form-control" style="max-width:420px;" placeholder="{{ __('email_marketing.templates.form.ai_placeholder') }}">
+                <button type="button" id="generateAiBtn" class="dash-btn dash-btn-primary"><i class="bx bx-bulb"></i> {{ __('email_marketing.templates.generate_ai') }}</button>
                 <div class="dropdown">
-                    <button type="button" class="dash-btn dash-btn-ghost dropdown-toggle" data-bs-toggle="dropdown">Show Examples</button>
+                    <button type="button" class="dash-btn dash-btn-ghost dropdown-toggle" data-bs-toggle="dropdown">{{ __('email_marketing.templates.form.show_examples') }}</button>
                     <div class="dropdown-menu">
-                        <a class="dropdown-item ai-example" href="javascript:;">Welcome email for new customers</a>
-                        <a class="dropdown-item ai-example" href="javascript:;">Flash sale announcement - 24 hours only</a>
-                        <a class="dropdown-item ai-example" href="javascript:;">Monthly newsletter roundup</a>
-                        <a class="dropdown-item ai-example" href="javascript:;">Abandoned cart reminder</a>
+                        @foreach (__('email_marketing.templates.form.examples') as $example)
+                            <a class="dropdown-item ai-example" href="javascript:;">{{ $example }}</a>
+                        @endforeach
                     </div>
                 </div>
             </div>
@@ -72,6 +71,8 @@
     :initial-schema='@json($initialSchema)'
     initial-body="{{ old('body', $template->body ?? '') }}"
     :social-accounts='@json($socialAccountsByPlatform ?? [])'
+    :messages='@json(__('email_designer'))'
+    locale="{{ app()->getLocale() }}"
     upload-media-url="{{ route('admin.email.templates.uploadMedia') }}"
     :is-existing="{{ $isExisting ? 'true' : 'false' }}"
     autosave-url="{{ $isExisting ? route('admin.email.templates.autosave', $template) : '' }}"
@@ -128,7 +129,7 @@
             }
 
             generateBtn.disabled = true;
-            generateBtn.innerHTML = '<i class="bx bx-loader-alt bx-spin"></i> Generating...';
+            generateBtn.innerHTML = '<i class="bx bx-loader-alt bx-spin"></i> ' + @js(__('email_marketing.templates.form.generating'));
             aiStatus.style.display = 'none';
 
             fetch('{{ route('admin.email.templates.generateAi') }}', {
@@ -148,21 +149,21 @@
                         subjectInput.dispatchEvent(new Event('input'));
                         document.dispatchEvent(new CustomEvent('email-designer:load-html', { detail: res.data.body }));
                         aiStatus.className = 'small mt-2 text-success';
-                        aiStatus.textContent = 'Generated - review and edit before saving.';
+                        aiStatus.textContent = @js(__('email_marketing.templates.form.generated'));
                     } else {
                         aiStatus.className = 'small mt-2 text-danger';
-                        aiStatus.textContent = res.message || 'Failed to generate content.';
+                        aiStatus.textContent = res.message || @js(__('email_marketing.templates.form.generate_failed'));
                     }
                     aiStatus.style.display = 'block';
                 })
                 .catch(function () {
                     aiStatus.className = 'small mt-2 text-danger';
-                    aiStatus.textContent = 'Failed to generate content - please try again.';
+                    aiStatus.textContent = @js(__('email_marketing.templates.form.generate_retry'));
                     aiStatus.style.display = 'block';
                 })
                 .finally(function () {
                     generateBtn.disabled = false;
-                    generateBtn.innerHTML = '<i class="bx bx-bulb"></i> Generate with AI';
+                    generateBtn.innerHTML = '<i class="bx bx-bulb"></i> ' + @js(__('email_marketing.templates.generate_ai'));
                 });
         });
     });

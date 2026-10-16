@@ -59,7 +59,7 @@ class EmailListController extends Controller
             }
         }
 
-        return back()->with('success', 'List created.');
+        return back()->with('success', __('email_marketing.flash.list_created'));
     }
 
     public function update(Request $request, EmailList $list)
@@ -73,7 +73,7 @@ class EmailListController extends Controller
 
         $list->update($validated);
 
-        return back()->with('success', 'List updated.');
+        return back()->with('success', __('email_marketing.flash.list_updated'));
     }
 
     public function destroy(EmailList $list)
@@ -82,6 +82,6 @@ class EmailListController extends Controller
 
         $list->delete();
 
-        return back()->with('success', 'List deleted.');
+        return back()->with('success', __('email_marketing.flash.list_deleted'));
     }
 }

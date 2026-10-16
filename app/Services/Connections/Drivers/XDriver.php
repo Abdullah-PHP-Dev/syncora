@@ -41,15 +41,15 @@ class XDriver extends MirroredTokenDriver
     public function presentation(): array
     {
         return [
-            'subtitle' => 'Posts · Direct Messages · X Chat · Ads',
+            'subtitle' => __('connections.platforms.x.subtitle'),
             'icons' => [['icon' => 'bxl-x-logo', 'brand' => 'x']],
-            'connect_label' => 'Connect with X',
-            'empty_title' => 'Connect your X account once',
-            'empty_text' => 'One sign-in covers publishing and your X inbox, including X Chat. You can remove access at any time, here or in your X settings.',
+            'connect_label' => __('connections.platforms.x.connect_label'),
+            'empty_title' => __('connections.platforms.x.empty_title'),
+            'empty_text' => __('connections.platforms.x.empty_text'),
             'benefits' => ['posting', 'messaging', 'ads'],
             'asset_groups' => [
-                'x_account' => ['label' => 'X accounts', 'icon' => 'bxl-x-logo', 'brand' => 'x', 'capabilities' => ['posting', 'messaging']],
-                'x_ads' => ['label' => 'X Ads accounts', 'icon' => 'bx-bullseye', 'brand' => 'x', 'capabilities' => ['ads']],
+                'x_account' => ['label' => __('connections.platforms.x.groups.x_account'), 'icon' => 'bxl-x-logo', 'brand' => 'x', 'capabilities' => ['posting', 'messaging']],
+                'x_ads' => ['label' => __('connections.platforms.x.groups.x_ads'), 'icon' => 'bx-bullseye', 'brand' => 'x', 'capabilities' => ['ads']],
             ],
             'step_icons' => [
                 self::OAUTH2 => ['icon' => 'bxl-x-logo', 'brand' => 'x'],
@@ -72,8 +72,8 @@ class XDriver extends MirroredTokenDriver
     {
         $steps = [[
             'key' => self::OAUTH2,
-            'label' => 'X account',
-            'description' => 'Posts, Direct Messages and X Chat in one consent.',
+            'label' => __('connections.platforms.x.steps.oauth2.label'),
+            'description' => __('connections.platforms.x.steps.oauth2.description'),
             'primary' => true,
             'available' => (bool) adminSetting('posts.x.client_id'),
         ]];
@@ -81,11 +81,11 @@ class XDriver extends MirroredTokenDriver
         if (ConnectionFlags::on('x.ads')) {
             $steps[] = [
                 'key' => self::ADS,
-                'label' => 'X Ads',
-                'description' => 'Promoted posts on your X Ads accounts.',
+                'label' => __('connections.platforms.x.steps.ads.label'),
+                'description' => __('connections.platforms.x.steps.ads.description'),
                 'primary' => false,
                 'available' => XOAuth1::consumer()[0] !== '',
-                'note' => 'Separate X app until Ads API access is approved for the main one.',
+                'note' => __('connections.platforms.x.steps.ads.note'),
             ];
         }
 

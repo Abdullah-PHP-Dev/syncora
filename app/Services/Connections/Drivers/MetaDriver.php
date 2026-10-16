@@ -41,17 +41,17 @@ class MetaDriver extends BaseDriver
     public function presentation(): array
     {
         return [
-            'subtitle' => 'Facebook Pages · Instagram · Messenger · WhatsApp · Ads',
+            'subtitle' => __('connections.platforms.meta.subtitle'),
             'icons' => [['icon' => 'bxl-facebook', 'brand' => 'facebook'], ['icon' => 'bxl-instagram', 'brand' => 'instagram'], ['icon' => 'bxl-whatsapp', 'brand' => 'whatsapp']],
-            'connect_label' => 'Connect with Facebook',
-            'empty_title' => 'One consent for everything Meta',
-            'empty_text' => 'Choose the Pages, Instagram accounts and ad accounts SocialEaz may use. You can change your choice at any time, here or in your Facebook settings.',
+            'connect_label' => __('connections.platforms.meta.connect_label'),
+            'empty_title' => __('connections.platforms.meta.empty_title'),
+            'empty_text' => __('connections.platforms.meta.empty_text'),
             'benefits' => ['posting', 'messaging', 'ads', 'insights'],
             'asset_groups' => [
-                'page' => ['label' => 'Facebook Pages', 'icon' => 'bxl-facebook', 'brand' => 'facebook', 'capabilities' => ['posting', 'messaging', 'insights']],
-                'instagram' => ['label' => 'Instagram accounts', 'icon' => 'bxl-instagram', 'brand' => 'instagram', 'capabilities' => ['posting', 'messaging', 'insights']],
-                'ad_account' => ['label' => 'Ad accounts', 'icon' => 'bx-bullseye', 'brand' => 'meta', 'capabilities' => ['ads']],
-                'whatsapp' => ['label' => 'WhatsApp numbers', 'icon' => 'bxl-whatsapp', 'brand' => 'whatsapp', 'capabilities' => ['messaging', 'posting']],
+                'page' => ['label' => __('connections.platforms.meta.groups.page'), 'icon' => 'bxl-facebook', 'brand' => 'facebook', 'capabilities' => ['posting', 'messaging', 'insights']],
+                'instagram' => ['label' => __('connections.platforms.meta.groups.instagram'), 'icon' => 'bxl-instagram', 'brand' => 'instagram', 'capabilities' => ['posting', 'messaging', 'insights']],
+                'ad_account' => ['label' => __('connections.platforms.meta.groups.ad_account'), 'icon' => 'bx-bullseye', 'brand' => 'meta', 'capabilities' => ['ads']],
+                'whatsapp' => ['label' => __('connections.platforms.meta.groups.whatsapp'), 'icon' => 'bxl-whatsapp', 'brand' => 'whatsapp', 'capabilities' => ['messaging', 'posting']],
             ],
             'step_icons' => [
                 self::LOGIN => ['icon' => 'bxl-facebook', 'brand' => 'facebook'],
@@ -77,10 +77,10 @@ class MetaDriver extends BaseDriver
 
         $steps = [[
             'key' => self::LOGIN,
-            'label' => 'Facebook & Instagram',
+            'label' => __('connections.platforms.meta.steps.login.label'),
             'description' => $whatsappMerged
-                ? 'Pages, Instagram business accounts, Messenger, WhatsApp and ad accounts in one consent.'
-                : 'Pages, Instagram business accounts, Messenger and ad accounts in one consent.',
+                ? __('connections.platforms.meta.steps.login.description_whatsapp')
+                : __('connections.platforms.meta.steps.login.description'),
             'primary' => true,
             'available' => (bool) adminSetting('posts.facebook.client_id'),
         ]];
@@ -88,19 +88,19 @@ class MetaDriver extends BaseDriver
         if (! $whatsappMerged) {
             $steps[] = [
                 'key' => self::WHATSAPP,
-                'label' => 'WhatsApp Business',
-                'description' => 'Embedded Signup: pick or create a WhatsApp Business number.',
+                'label' => __('connections.platforms.meta.steps.whatsapp.label'),
+                'description' => __('connections.platforms.meta.steps.whatsapp.description'),
                 'primary' => false,
                 'available' => (bool) $this->whatsappConfigId(),
-                'note' => $this->whatsappConfigId() ? null : 'Embedded Signup needs a configuration in the Meta app - until then, enter a number manually.',
+                'note' => $this->whatsappConfigId() ? null : __('connections.platforms.meta.steps.whatsapp.note'),
             ];
         }
 
         if (ConnectionFlags::on('meta.instagram_login')) {
             $steps[] = [
                 'key' => self::INSTAGRAM_LOGIN,
-                'label' => 'Instagram without a Facebook Page',
-                'description' => 'Instagram Login for professional accounts that aren\'t linked to a Page.',
+                'label' => __('connections.platforms.meta.steps.instagram_login.label'),
+                'description' => __('connections.platforms.meta.steps.instagram_login.description'),
                 'primary' => false,
                 'available' => (bool) adminSetting('posts.instagram.client_id'),
             ];

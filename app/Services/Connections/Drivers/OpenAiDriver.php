@@ -31,14 +31,14 @@ class OpenAiDriver extends MirroredTokenDriver
     public function presentation(): array
     {
         return [
-            'subtitle' => 'Ads in ChatGPT conversations · OpenAI Ads Manager',
+            'subtitle' => __('connections.platforms.openai.subtitle'),
             'icons' => [['icon' => 'bx-bot', 'brand' => 'openai']],
-            'connect_label' => 'Add API key',
-            'empty_title' => 'Connect your ChatGPT Ads account',
-            'empty_text' => 'Create an Ads API key in OpenAI Ads Manager (ads.openai.com > Settings) and paste it here. Each key connects one ad account. ChatGPT Ads is available in the US, UK, Mexico, Brazil, Japan, South Korea and Europe.',
+            'connect_label' => __('connections.platforms.openai.connect_label'),
+            'empty_title' => __('connections.platforms.openai.empty_title'),
+            'empty_text' => __('connections.platforms.openai.empty_text'),
             'benefits' => ['ads'],
             'asset_groups' => [
-                'openai_ads' => ['label' => 'Ad accounts', 'icon' => 'bx-bot', 'brand' => 'openai', 'capabilities' => ['ads']],
+                'openai_ads' => ['label' => __('connections.platforms.openai.groups.openai_ads'), 'icon' => 'bx-bot', 'brand' => 'openai', 'capabilities' => ['ads']],
             ],
             'step_icons' => [self::API_KEY => ['icon' => 'bx-key', 'brand' => 'openai']],
         ];
@@ -53,8 +53,8 @@ class OpenAiDriver extends MirroredTokenDriver
     {
         return [[
             'key' => self::API_KEY,
-            'label' => 'ChatGPT Ads account',
-            'description' => 'Paste an Ads API key from ads.openai.com > Settings. Each key connects one ad account.',
+            'label' => __('connections.platforms.openai.steps.api_key.label'),
+            'description' => __('connections.platforms.openai.steps.api_key.description'),
             'primary' => true,
             'available' => true,
             // The Hub renders a key form for this step instead of a sign-in link.

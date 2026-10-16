@@ -170,6 +170,12 @@ class AdCampaignController extends Controller
             return view('admin.ads.facebook.campaigns.builder', compact('platform', 'account', 'adAccounts', 'promotePost'));
         }
 
+        // TikTok: the campaign builder (TiktokCampaignBuilder); the previous
+        // form stays at ?legacy=1.
+        if ($platform === 'tiktok' && ! request()->boolean('legacy')) {
+            return view('admin.ads.tiktok.campaigns.builder', compact('platform', 'account', 'adAccounts', 'promotePost'));
+        }
+
         return view('admin.ads.' . $this->viewPlatform($platform) . '.campaigns.create', compact('platform', 'account', 'adAccounts', 'countries', 'platformPages', 'promotePost'));
     }
 

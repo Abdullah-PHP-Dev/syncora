@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('page_title')
-    {{ __('View web') }}
+    {{ __('posts_listing.page_title') }}
 @stop
 
 @push('styles')
@@ -59,6 +59,8 @@
             share-url-base="{{ url('share/posts') }}"
             user-name="{{ auth()->user()->name ?? 'Admin' }}"
             :posting-accounts='@json($postingAccounts)'
+            :messages='@json(__('posts_listing'))'
+            locale="{{ app()->getLocale() }}"
     ></posts-dashboard>
 
 

@@ -95,7 +95,7 @@ class EmailCampaignController extends Controller
     public function edit(EmailCampaign $campaign, SendGridSuppressionService $suppression)
     {
         abort_unless($campaign->user_id === Auth::id(), 403);
-        abort_unless($campaign->isEditable(), 403, 'This campaign has already been sent and can no longer be edited.');
+        abort_unless($campaign->isEditable(), 403, __('email_marketing.flash.campaign_locked'));
 
         $lists = EmailList::where('user_id', Auth::id())->withCount('subscribers')->get();
         $segments = EmailSegment::where('user_id', Auth::id())->get();
@@ -113,7 +113,7 @@ class EmailCampaignController extends Controller
     public function update(Request $request, EmailCampaign $campaign)
     {
         abort_unless($campaign->user_id === Auth::id(), 403);
-        abort_unless($campaign->isEditable(), 403, 'This campaign has already been sent and can no longer be edited.');
+        abort_unless($campaign->isEditable(), 403, __('email_marketing.flash.campaign_locked'));
 
         $validated = $this->validated($request);
 
@@ -196,7 +196,7 @@ class EmailCampaignController extends Controller
         for ($i = 0; $i < $days; $i++) {
             $date = $start->copy()->addDays($i);
             $dayRows = $rows->get($date->format('Y-m-d'), collect());
-            $labels[] = $date->format('M j');
+            $labels[] = $date->translatedFormat('M j');
             $delivered[] = (int) ($dayRows->firstWhere('event_type', 'delivered')->c ?? 0);
             $opened[] = (int) ($dayRows->firstWhere('event_type', 'open')->c ?? 0);
             $clicked[] = (int) ($dayRows->firstWhere('event_type', 'click')->c ?? 0);
@@ -233,7 +233,7 @@ class EmailCampaignController extends Controller
         $copy->error_message = null;
         $copy->save();
 
-        return redirect()->route('admin.email.campaigns.edit', $copy)->with('success', 'Campaign duplicated as a new draft.');
+        return redirect()->route('admin.email.campaigns.edit', $copy)->with('success', __('email_marketing.flash.campaign_duplicated'));
     }
 
     /**
@@ -278,7 +278,7 @@ class EmailCampaignController extends Controller
 
         $campaign->delete();
 
-        return redirect()->route('admin.email.campaigns.index')->with('success', 'Campaign deleted.');
+        return redirect()->route('admin.email.campaigns.index')->with('success', __('email_marketing.flash.campaign_deleted'));
     }
 
     /**
@@ -294,10 +294,10 @@ class EmailCampaignController extends Controller
         $result = $this->emailMarketing->dispatchCampaign($campaign);
 
         if (!($result['success'] ?? false)) {
-            return back()->with('error', $result['error'] ?? 'Failed to send campaign.');
+            return back()->with('error', $result['error'] ?? __('email_marketing.flash.campaign_send_failed'));
         }
 
-        return redirect()->route('admin.email.campaigns.index')->with('success', 'Campaign sent.');
+        return redirect()->route('admin.email.campaigns.index')->with('success', __('email_marketing.flash.campaign_sent'));
     }
 
     /**
@@ -329,7 +329,7 @@ class EmailCampaignController extends Controller
         $subaccount = EmailSubaccount::where('user_id', Auth::id())->first();
 
         if (!$subaccount) {
-            return response()->json(['success' => false, 'message' => 'Complete Email Marketing setup before creating an unsubscribe group.'], 422);
+            return response()->json(['success' => false, 'message' => __('email_marketing.flash.group_setup_required')], 422);
         }
 
         $result = $suppression->createGroup($subaccount, $validated['name'], $validated['description'] ?? null);
@@ -353,7 +353,7 @@ class EmailCampaignController extends Controller
         $subaccount = EmailSubaccount::where('user_id', Auth::id())->first();
 
         if (!$subaccount) {
-            return [[], 'Complete Email Marketing setup before creating a campaign.'];
+            return [[], __('email_marketing.flash.campaign_setup_required')];
         }
 
         $result = $suppression->listGroups($subaccount);
@@ -366,7 +366,7 @@ class EmailCampaignController extends Controller
         if ($action === 'save_draft') {
             $this->emailMarketing->saveDraft($campaign);
 
-            return redirect()->route('admin.email.campaigns.index')->with('success', 'Campaign saved as draft.');
+            return redirect()->route('admin.email.campaigns.index')->with('success', __('email_marketing.flash.campaign_draft_saved'));
         }
 
         $sendAt = $action === 'schedule' ? Carbon::parse($scheduledAt) : null;
@@ -375,12 +375,12 @@ class EmailCampaignController extends Controller
       
         if (!($result['success'] ?? false)) {
             return redirect()->route('admin.email.campaigns.edit', $campaign)
-                ->with('error', $result['error'] ?? 'Failed to send campaign. It has been saved as a draft.');
+                ->with('error', $result['error'] ?? __('email_marketing.flash.campaign_send_failed_draft'));
         }
 
         return redirect()->route('admin.email.campaigns.index')->with(
             'success',
-            $action === 'schedule' ? 'Campaign scheduled.' : 'Campaign sent.'
+            $action === 'schedule' ? __('email_marketing.flash.campaign_scheduled') : __('email_marketing.flash.campaign_sent')
         );
     }
 
@@ -417,13 +417,12 @@ class EmailCampaignController extends Controller
             ],
         ]);
 
-        $table = $validated['audience_type'] === 'segment' ? 'email_segments' : 'email_lists';
         $exists = ($validated['audience_type'] === 'segment' ? EmailSegment::query() : EmailList::query())
             ->where('id', $validated['audience_id'])
             ->where('user_id', $userId)
             ->exists();
 
-        abort_unless($exists, 422, "Selected audience does not exist in {$table} for this account.");
+        abort_unless($exists, 422, __('email_marketing.flash.audience_missing'));
 
         return $validated;
     }

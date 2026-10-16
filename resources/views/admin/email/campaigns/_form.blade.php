@@ -20,18 +20,13 @@
 
 @if ($senders->isEmpty())
     <div class="alert alert-warning">
-        No verified sender yet - <a href="{{ route('admin.email.setup.index') }}">finish Email Marketing setup</a> before creating a campaign.
+        {{ __('email_marketing.campaigns.form.no_sender') }} <a href="{{ route('admin.email.setup.index') }}">{{ __('email_marketing.campaigns.form.no_sender_link') }}</a> {{ __('email_marketing.campaigns.form.no_sender_after') }}
     </div>
 @endif
 
 <div class="dash-card mb-3">
     <div class="dash-stepper">
-        @foreach ([
-            ['Details', 'Campaign information'],
-            ['Design', 'Email template & content'],
-            ['Recipients', 'Choose your audience'],
-            ['Review', 'Confirm and send'],
-        ] as $i => [$title, $desc])
+        @foreach (__('email_marketing.campaigns.form.steps') as $i => ['title' => $title, 'desc' => $desc])
             <div class="dash-stepper-item wizard-pill {{ $i === 0 ? 'is-current' : '' }}" data-step="{{ $i + 1 }}" style="cursor:pointer;">
                 <div class="dash-stepper-circle">{{ $i + 1 }}</div>
                 <div class="dash-stepper-text">
@@ -52,7 +47,7 @@
             <div class="wizard-step active" data-step="1">
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label class="form-label">Campaign Name *</label>
+                        <label class="form-label">{{ __('email_marketing.campaigns.form.name') }}</label>
                         <div class="position-relative">
                             <input type="text" name="name" id="campaignName" class="form-control" maxlength="255" value="{{ old('name', $campaign->name ?? '') }}" required>
                             <span class="char-counter" id="nameCounter">0/255</span>
@@ -60,9 +55,9 @@
                         @error('name')<p class="text-danger small">{{ $message }}</p>@enderror
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Sender *</label>
+                        <label class="form-label">{{ __('email_marketing.campaigns.form.sender') }}</label>
                         <select name="sender_identity_id" id="senderSelect" class="form-control" required>
-                            <option value="">Select a verified sender…</option>
+                            <option value="">{{ __('email_marketing.campaigns.form.select_sender') }}</option>
                             @foreach ($senders as $sender)
                                 <option value="{{ $sender->id }}" @selected(old('sender_identity_id', $campaign->sender_identity_id ?? null) == $sender->id)>{{ $sender->from_name }} &lt;{{ $sender->from_email }}&gt;</option>
                             @endforeach
@@ -72,7 +67,7 @@
                         @error('sender_identity_id')<p class="text-danger small">{{ $message }}</p>@enderror
                     </div>
                     <div class="col-12">
-                        <label class="form-label">Subject *</label>
+                        <label class="form-label">{{ __('email_marketing.common.subject_required') }}</label>
                         <div class="position-relative">
                             <input type="text" name="subject" id="campaignSubject" class="form-control" maxlength="255" value="{{ old('subject', $campaign->subject ?? '') }}" required>
                             <span class="char-counter" id="subjectCounter">0/255</span>
@@ -80,9 +75,9 @@
                         @error('subject')<p class="text-danger small">{{ $message }}</p>@enderror
                     </div>
                     <div class="col-12">
-                        <label class="form-label">Preheader</label>
+                        <label class="form-label">{{ __('email_marketing.campaigns.form.preheader') }}</label>
                         <div class="position-relative">
-                            <input type="text" name="preheader" id="campaignPreheader" class="form-control" value="{{ old('preheader', $campaign->preheader ?? '') }}" maxlength="255" placeholder="Preview text shown next to the subject line in most inboxes">
+                            <input type="text" name="preheader" id="campaignPreheader" class="form-control" value="{{ old('preheader', $campaign->preheader ?? '') }}" maxlength="255" placeholder="{{ __('email_marketing.campaigns.form.preheader_placeholder') }}">
                             <span class="char-counter" id="preheaderCounter">0/255</span>
                         </div>
                         @error('preheader')<p class="text-danger small">{{ $message }}</p>@enderror
@@ -93,9 +88,9 @@
                             <div class="d-flex align-items-start gap-2">
                                 <i class="bx bx-info-circle" style="color:var(--dash-primary);font-size:1.1rem;"></i>
                                 <div>
-                                    <strong style="font-size:.8125rem;color:var(--dash-heading);">Personalization Tags</strong>
-                                    <p class="dash-subtitle small mb-2">Use these tags in your campaign to make it more personal - substituted by SendGrid against each contact's synced fields.</p>
-                                    <div class="d-flex gap-2 flex-wrap" v-pre>
+                                    <strong style="font-size:.8125rem;color:var(--dash-heading);">{{ __('email_marketing.campaigns.form.tags_title') }}</strong>
+                                    <p class="dash-subtitle small mb-2">{{ __('email_marketing.campaigns.form.tags_text') }}</p>
+                                    <div class="d-flex gap-2 flex-wrap" dir="ltr" v-pre>
                                         <span class="tag-chip">@{{first_name}}</span>
                                         <span class="tag-chip">@{{last_name}}</span>
                                         <span class="tag-chip">@{{email}}</span>
@@ -106,58 +101,58 @@
                     </div>
 
                     <div class="col-12">
-                        <label class="form-label">Unsubscribe Group *</label>
+                        <label class="form-label">{{ __('email_marketing.campaigns.form.unsub_group') }}</label>
                         @if ($suppressionGroupsError)
                             <div class="alert alert-warning small mb-2">{{ $suppressionGroupsError }}</div>
                         @endif
                         <div class="d-flex gap-2">
                             <select name="suppression_group_id" id="suppressionGroupSelect" class="form-control" @if(count($suppressionGroups) === 0) disabled @endif>
-                                <option value="">Select an unsubscribe group…</option>
+                                <option value="">{{ __('email_marketing.campaigns.form.select_group') }}</option>
                                 @foreach ($suppressionGroups as $group)
                                     <option value="{{ $group['id'] }}" @selected(old('suppression_group_id', $campaign->suppression_group_id ?? null) == $group['id'])>{{ $group['name'] }}</option>
                                 @endforeach
                             </select>
-                            <button type="button" class="dash-btn dash-btn-ghost text-nowrap" data-bs-toggle="modal" data-bs-target="#suppressionGroupModal"><i class="bx bx-plus"></i> New Group</button>
+                            <button type="button" class="dash-btn dash-btn-ghost text-nowrap" data-bs-toggle="modal" data-bs-target="#suppressionGroupModal"><i class="bx bx-plus"></i> {{ __('email_marketing.campaigns.form.new_group') }}</button>
                         </div>
-                        <p class="dash-subtitle small mt-1 mb-0">Required before sending or scheduling (drafts can be saved without one). Recipients can unsubscribe from just this group without opting out of every email from you.</p>
+                        <p class="dash-subtitle small mt-1 mb-0">{{ __('email_marketing.campaigns.form.unsub_help') }}</p>
                         @error('suppression_group_id')<p class="text-danger small">{{ $message }}</p>@enderror
                     </div>
 
                     <div class="col-12">
-                        <label class="form-label">Campaign Type</label>
+                        <label class="form-label">{{ __('email_marketing.campaigns.form.campaign_type') }}</label>
                         <div class="row g-2">
                             <div class="col-6 col-md-3">
                                 <label class="campaign-type-card" data-type="one_time">
                                     <input type="radio" name="campaign_type" value="one_time" @checked($currentCampaignType === 'one_time')>
                                     <div class="campaign-type-card-icon"><i class="bx bx-paper-plane"></i></div>
-                                    <div class="campaign-type-card-title">One-time Campaign</div>
-                                    <div class="campaign-type-card-desc">Send to selected audience once</div>
+                                    <div class="campaign-type-card-title">{{ __('email_marketing.campaigns.form.types.one_time.title') }}</div>
+                                    <div class="campaign-type-card-desc">{{ __('email_marketing.campaigns.form.types.one_time.desc') }}</div>
                                 </label>
                             </div>
                             <div class="col-6 col-md-3">
                                 <label class="campaign-type-card is-disabled">
                                     <input type="radio" disabled>
                                     <div class="campaign-type-card-icon"><i class="bx bx-refresh"></i></div>
-                                    <div class="campaign-type-card-title">Automated Campaign</div>
-                                    <div class="campaign-type-card-desc">Trigger-based email series</div>
-                                    <span class="dash-badge dash-badge-muted mt-2 d-inline-block">Coming Soon</span>
+                                    <div class="campaign-type-card-title">{{ __('email_marketing.campaigns.form.types.automated.title') }}</div>
+                                    <div class="campaign-type-card-desc">{{ __('email_marketing.campaigns.form.types.automated.desc') }}</div>
+                                    <span class="dash-badge dash-badge-muted mt-2 d-inline-block">{{ __('email_marketing.campaigns.form.coming_soon') }}</span>
                                 </label>
                             </div>
                             <div class="col-6 col-md-3">
                                 <label class="campaign-type-card" data-type="newsletter">
                                     <input type="radio" name="campaign_type" value="newsletter" @checked($currentCampaignType === 'newsletter')>
                                     <div class="campaign-type-card-icon"><i class="bx bx-news"></i></div>
-                                    <div class="campaign-type-card-title">Newsletter</div>
-                                    <div class="campaign-type-card-desc">Regular updates &amp; news</div>
+                                    <div class="campaign-type-card-title">{{ __('email_marketing.campaigns.form.types.newsletter.title') }}</div>
+                                    <div class="campaign-type-card-desc">{{ __('email_marketing.campaigns.form.types.newsletter.desc') }}</div>
                                 </label>
                             </div>
                             <div class="col-6 col-md-3">
                                 <label class="campaign-type-card is-disabled">
                                     <input type="radio" disabled>
                                     <div class="campaign-type-card-icon"><i class="bx bx-droplet"></i></div>
-                                    <div class="campaign-type-card-title">Drip Campaign</div>
-                                    <div class="campaign-type-card-desc">Multi-step email sequence</div>
-                                    <span class="dash-badge dash-badge-muted mt-2 d-inline-block">Coming Soon</span>
+                                    <div class="campaign-type-card-title">{{ __('email_marketing.campaigns.form.types.drip.title') }}</div>
+                                    <div class="campaign-type-card-desc">{{ __('email_marketing.campaigns.form.types.drip.desc') }}</div>
+                                    <span class="dash-badge dash-badge-muted mt-2 d-inline-block">{{ __('email_marketing.campaigns.form.coming_soon') }}</span>
                                 </label>
                             </div>
                         </div>
@@ -169,9 +164,9 @@
             <div class="wizard-step" data-step="2">
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label class="form-label">Start from a Template (optional)</label>
+                        <label class="form-label">{{ __('email_marketing.campaigns.form.start_template') }}</label>
                         <select id="templateSelect" class="form-select">
-                            <option value="">Blank</option>
+                            <option value="">{{ __('email_marketing.campaigns.form.blank') }}</option>
                             @foreach ($templates as $template)
                                 <option value="{{ $template->id }}" @selected(old('email_template_id', $preselectedTemplateId ?? null) == $template->id)>{{ $template->name }}</option>
                             @endforeach
@@ -179,8 +174,8 @@
                     </div>
                     <div class="col-12">
                         <input type="hidden" name="email_template_id" id="emailTemplateId" value="{{ old('email_template_id', $campaign->email_template_id ?? '') }}">
-                        <label class="form-label">Body (HTML) *</label>
-                        <textarea name="body" id="campaignBody" class="form-control" rows="14" required v-pre>{{ old('body', $campaign->body ?? '') }}</textarea>
+                        <label class="form-label">{{ __('email_marketing.campaigns.form.body') }}</label>
+                        <textarea name="body" id="campaignBody" class="form-control" rows="14" dir="ltr" required v-pre>{{ old('body', $campaign->body ?? '') }}</textarea>
                         @error('body')<p class="text-danger small">{{ $message }}</p>@enderror
                     </div>
                 </div>
@@ -190,22 +185,22 @@
             <div class="wizard-step" data-step="3">
                 <div class="row g-3">
                     <div class="col-md-3">
-                        <label class="form-label">Audience *</label>
+                        <label class="form-label">{{ __('email_marketing.campaigns.form.audience') }}</label>
                         <select name="audience_type" id="audienceType" class="form-select" required>
-                            <option value="list" @selected($currentAudienceType === 'list')>List</option>
-                            <option value="segment" @selected($currentAudienceType === 'segment')>Segment</option>
+                            <option value="list" @selected($currentAudienceType === 'list')>{{ __('email_marketing.audience_types.list') }}</option>
+                            <option value="segment" @selected($currentAudienceType === 'segment')>{{ __('email_marketing.audience_types.segment') }}</option>
                         </select>
                     </div>
                     <div class="col-md-5">
                         <label class="form-label">&nbsp;</label>
                         <select name="audience_id" id="audienceListSelect" class="form-select" @if($currentAudienceType !== 'list') style="display:none" @endif>
-                            <option value="">Select a list…</option>
+                            <option value="">{{ __('email_marketing.campaigns.form.select_list') }}</option>
                             @foreach ($lists as $list)
                                 <option value="{{ $list->id }}" @selected($currentAudienceType === 'list' && $currentAudienceId == $list->id)>{{ $list->name }} ({{ $list->subscribers_count }})</option>
                             @endforeach
                         </select>
                         <select id="audienceSegmentSelect" class="form-select" @if($currentAudienceType !== 'segment') style="display:none" @endif>
-                            <option value="">Select a segment…</option>
+                            <option value="">{{ __('email_marketing.campaigns.form.select_segment') }}</option>
                             @foreach ($segments as $segment)
                                 <option value="{{ $segment->id }}" @selected($currentAudienceType === 'segment' && $currentAudienceId == $segment->id)>{{ $segment->name }}</option>
                             @endforeach
@@ -214,7 +209,7 @@
                     </div>
                     <div class="col-md-4">
                         <div class="dash-card" style="background:var(--dash-card-hover);box-shadow:none;margin-top:1.6rem;">
-                            <div class="dash-stat-label">Estimated Recipients</div>
+                            <div class="dash-stat-label">{{ __('email_marketing.campaigns.form.estimated_recipients') }}</div>
                             <div class="dash-stat-value" id="recipientEstimateValue">—</div>
                             <div class="dash-stat-foot" id="recipientEstimateNote"></div>
                         </div>
@@ -226,39 +221,39 @@
             <div class="wizard-step" data-step="4">
                 <div class="row g-3 mb-3">
                     <div class="col-md-6">
-                        <div class="review-row"><span>Campaign Name</span><span id="reviewName">—</span></div>
-                        <div class="review-row"><span>Subject</span><span id="reviewSubject">—</span></div>
-                        <div class="review-row"><span>Sender</span><span id="reviewSender">—</span></div>
-                        <div class="review-row"><span>Audience</span><span id="reviewAudience">—</span></div>
-                        <div class="review-row"><span>Unsubscribe Group</span><span id="reviewSuppressionGroup">—</span></div>
+                        <div class="review-row"><span>{{ __('email_marketing.campaigns.form.campaign_name') }}</span><span id="reviewName">—</span></div>
+                        <div class="review-row"><span>{{ __('email_marketing.common.subject') }}</span><span id="reviewSubject">—</span></div>
+                        <div class="review-row"><span>{{ __('email_marketing.common.sender') }}</span><span id="reviewSender">—</span></div>
+                        <div class="review-row"><span>{{ __('email_marketing.common.audience') }}</span><span id="reviewAudience">—</span></div>
+                        <div class="review-row"><span>{{ __('email_marketing.campaigns.form.unsub_group_label') }}</span><span id="reviewSuppressionGroup">—</span></div>
                     </div>
                     <div class="col-md-6">
                         @if ($isExisting)
-                            <h6 style="color:var(--dash-heading);">Pre-flight Check</h6>
-                            <div id="preflightChecks" class="dash-subtitle small">Checking…</div>
+                            <h6 style="color:var(--dash-heading);">{{ __('email_marketing.campaigns.form.preflight') }}</h6>
+                            <div id="preflightChecks" class="dash-subtitle small">{{ __('email_marketing.campaigns.form.checking') }}</div>
                         @else
-                            <div class="alert alert-info small mb-0">Pre-flight validation runs automatically the moment you send or schedule below - save as a draft first if you'd like to review the full checklist before sending.</div>
+                            <div class="alert alert-info small mb-0">{{ __('email_marketing.campaigns.form.preflight_new') }}</div>
                         @endif
                     </div>
                 </div>
 
                 <div class="dash-card mb-3" style="background:var(--dash-card-hover);box-shadow:none;">
-                    <label class="form-label">Schedule for later (optional)</label>
+                    <label class="form-label">{{ __('email_marketing.campaigns.form.schedule_label') }}</label>
                     <input type="datetime-local" name="scheduled_at" id="scheduledAt" class="form-control" style="max-width:280px" value="{{ old('scheduled_at', isset($campaign) && $campaign->scheduled_at ? $campaign->scheduled_at->format('Y-m-d\TH:i') : '') }}">
                     @error('scheduled_at')<p class="text-danger small">{{ $message }}</p>@enderror
-                    <p class="dash-subtitle small mt-2 mb-0">Leave blank and use "Save Draft" or "Send Now" below.</p>
+                    <p class="dash-subtitle small mt-2 mb-0">{{ __('email_marketing.campaigns.form.schedule_help') }}</p>
                 </div>
 
                 <div class="d-flex justify-content-end gap-2">
-                    <button type="submit" name="action" value="save_draft" class="dash-btn dash-btn-ghost">Save Draft</button>
-                    <button type="submit" name="action" value="schedule" class="dash-btn dash-btn-ghost" onclick="return requireScheduleTime();">Schedule</button>
-                    <button type="submit" name="action" value="send_now" class="dash-btn dash-btn-primary" onclick="return confirm('Send this campaign to every recipient in the selected audience right now? This cannot be undone.');">Send Now</button>
+                    <button type="submit" name="action" value="save_draft" class="dash-btn dash-btn-ghost">{{ __('email_marketing.campaigns.form.save_draft') }}</button>
+                    <button type="submit" name="action" value="schedule" class="dash-btn dash-btn-ghost" onclick="return requireScheduleTime();">{{ __('email_marketing.campaigns.form.schedule') }}</button>
+                    <button type="submit" name="action" value="send_now" class="dash-btn dash-btn-primary" onclick="return confirm(@js(__('email_marketing.campaigns.form.confirm_send_all')));">{{ __('email_marketing.campaigns.send_now') }}</button>
                 </div>
             </div>
 
             <div class="wizard-nav">
-                <button type="button" class="dash-btn dash-btn-ghost" id="prevStep" style="display:none">Previous</button>
-                <button type="button" class="dash-btn dash-btn-primary ms-auto" id="nextStep">Next</button>
+                <button type="button" class="dash-btn dash-btn-ghost" id="prevStep" style="display:none">{{ __('email_marketing.campaigns.form.previous') }}</button>
+                <button type="button" class="dash-btn dash-btn-primary ms-auto" id="nextStep">{{ __('email_marketing.campaigns.form.next') }}</button>
             </div>
 
         </div>
@@ -266,19 +261,19 @@
 
     <div class="col-lg-4">
         <div class="dash-card mb-3">
-            <h6 class="mb-3" style="color:var(--dash-heading);"><i class="bx bx-clipboard"></i> Campaign Summary</h6>
-            <div class="review-row"><span>Campaign Type</span><span id="summaryType">One-time Campaign</span></div>
-            <div class="review-row"><span>Sender</span><span id="summarySender">—</span></div>
-            <div class="review-row"><span>Subject</span><span id="summarySubject">—</span></div>
-            <div class="review-row"><span>Recipients</span><span id="summaryRecipients">All Subscribers ({{ number_format($totalSubscribers ?? 0) }})</span></div>
+            <h6 class="mb-3" style="color:var(--dash-heading);"><i class="bx bx-clipboard"></i> {{ __('email_marketing.campaigns.form.summary') }}</h6>
+            <div class="review-row"><span>{{ __('email_marketing.campaigns.form.campaign_type') }}</span><span id="summaryType">{{ __('email_marketing.campaign_types.one_time') }}</span></div>
+            <div class="review-row"><span>{{ __('email_marketing.common.sender') }}</span><span id="summarySender">—</span></div>
+            <div class="review-row"><span>{{ __('email_marketing.common.subject') }}</span><span id="summarySubject">—</span></div>
+            <div class="review-row"><span>{{ __('email_marketing.common.recipients') }}</span><span id="summaryRecipients">{{ __('email_marketing.campaigns.form.all_subscribers', ['count' => number_format($totalSubscribers ?? 0)]) }}</span></div>
         </div>
 
         <div class="dash-card">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0" style="color:var(--dash-heading);"><i class="bx bx-show"></i> Preview</h6>
+                <h6 class="mb-0" style="color:var(--dash-heading);"><i class="bx bx-show"></i> {{ __('email_marketing.common.preview') }}</h6>
                 <div class="device-toggle">
-                    <button type="button" class="device-btn active" data-width="100%" title="Desktop"><i class="bx bx-desktop"></i></button>
-                    <button type="button" class="device-btn" data-width="375px" title="Mobile"><i class="bx bx-mobile"></i></button>
+                    <button type="button" class="device-btn active" data-width="100%" title="{{ __('email_marketing.common.desktop') }}"><i class="bx bx-desktop"></i></button>
+                    <button type="button" class="device-btn" data-width="375px" title="{{ __('email_marketing.common.mobile') }}"><i class="bx bx-mobile"></i></button>
                 </div>
             </div>
             <div class="browser-chrome">
@@ -293,24 +288,24 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Create Unsubscribe Group</h5>
+                <h5 class="modal-title">{{ __('email_marketing.campaigns.form.group_modal_title') }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p class="dash-subtitle small">Creates a real SendGrid Suppression Group (ASM) on your subaccount - recipients who unsubscribe here only opt out of emails sent through this specific group.</p>
+                <p class="dash-subtitle small">{{ __('email_marketing.campaigns.form.group_modal_text') }}</p>
                 <div class="mb-3">
-                    <label class="form-label small">Name *</label>
-                    <input type="text" id="newGroupName" class="form-control" placeholder="e.g. Marketing Emails">
+                    <label class="form-label small">{{ __('email_marketing.common.name_required') }}</label>
+                    <input type="text" id="newGroupName" class="form-control" placeholder="{{ __('email_marketing.campaigns.form.group_placeholder') }}">
                 </div>
                 <div class="mb-2">
-                    <label class="form-label small">Description</label>
+                    <label class="form-label small">{{ __('email_marketing.common.description') }}</label>
                     <textarea id="newGroupDescription" class="form-control" rows="2"></textarea>
                 </div>
                 <div id="newGroupError" class="text-danger small" style="display:none;"></div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="createGroupBtn">Create Group</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ __('email_marketing.common.cancel') }}</button>
+                <button type="button" class="btn btn-primary" id="createGroupBtn">{{ __('email_marketing.campaigns.form.create_group') }}</button>
             </div>
         </div>
     </div>
@@ -380,10 +375,10 @@
             if (audienceType.value === 'list') {
                 const count = listCounts[audienceListSelect.value];
                 recipientEstimateValue.textContent = count !== undefined ? count : '—';
-                recipientEstimateNote.textContent = count !== undefined ? 'subscribed contacts in this list' : 'Select a list';
+                recipientEstimateNote.textContent = count !== undefined ? @js(__('email_marketing.campaigns.form.estimate_list')) : @js(__('email_marketing.campaigns.form.estimate_pick_list'));
             } else {
                 recipientEstimateValue.textContent = '—';
-                recipientEstimateNote.textContent = 'SendGrid determines segment size at send time';
+                recipientEstimateNote.textContent = @js(__('email_marketing.campaigns.form.estimate_segment'));
             }
             updateSummary();
         }
@@ -416,7 +411,7 @@
 
         window.requireScheduleTime = function () {
             if (!document.getElementById('scheduledAt').value) {
-                alert('Pick a date/time to schedule this campaign for.');
+                alert(@js(__('email_marketing.campaigns.form.schedule_required')));
                 return false;
             }
             return true;
@@ -459,7 +454,7 @@
         document.getElementById('createGroupBtn').addEventListener('click', function () {
             const name = newGroupName.value.trim();
             if (!name) {
-                newGroupError.textContent = 'A name is required.';
+                newGroupError.textContent = @js(__('email_marketing.campaigns.form.group_name_required'));
                 newGroupError.style.display = 'block';
                 return;
             }
@@ -488,12 +483,12 @@
                         newGroupDescription.value = '';
                         newGroupError.style.display = 'none';
                     } else {
-                        newGroupError.textContent = res.message || 'Failed to create the group.';
+                        newGroupError.textContent = res.message || @js(__('email_marketing.campaigns.form.group_failed'));
                         newGroupError.style.display = 'block';
                     }
                 })
                 .catch(function () {
-                    newGroupError.textContent = 'Failed to create the group - please try again.';
+                    newGroupError.textContent = @js(__('email_marketing.campaigns.form.group_retry'));
                     newGroupError.style.display = 'block';
                 });
         });
@@ -506,7 +501,7 @@
             const checkedType = document.querySelector('input[name="campaign_type"]:checked');
             document.getElementById('summaryType').textContent = checkedType
                 ? (checkedType.closest('.campaign-type-card').querySelector('.campaign-type-card-title').textContent)
-                : 'One-time Campaign';
+                : @js(__('email_marketing.campaign_types.one_time'));
             document.getElementById('summarySender').textContent = senderSelect.options[senderSelect.selectedIndex]?.text || '—';
             document.getElementById('summarySubject').textContent = subject.value || '—';
         }
@@ -628,11 +623,11 @@
 
                     document.querySelectorAll('button[name="action"][value="send_now"], button[name="action"][value="schedule"]').forEach(btn => {
                         btn.disabled = !data.ready;
-                        btn.title = data.ready ? '' : 'Every pre-flight check must pass before sending or scheduling.';
+                        btn.title = data.ready ? '' : @js(__('email_marketing.campaigns.form.preflight_blocked'));
                     });
                 })
                 .catch(() => {
-                    box.innerHTML = '<span class="text-danger">Could not load pre-flight status.</span>';
+                    box.innerHTML = '<span class="text-danger">' + @js(__('email_marketing.campaigns.form.preflight_failed')) + '</span>';
                 });
         }
     });

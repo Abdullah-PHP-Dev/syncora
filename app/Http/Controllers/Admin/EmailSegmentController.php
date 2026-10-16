@@ -37,7 +37,7 @@ class EmailSegmentController extends Controller
         $subaccount = EmailSubaccount::where('user_id', Auth::id())->where('status', 'active')->first();
 
         if (!$subaccount) {
-            return back()->with('error', 'Complete Email Marketing setup before creating segments.');
+            return back()->with('error', __('email_marketing.flash.segment_setup_required'));
         }
 
         $response = $client->asSubaccount($subaccount->apiKeyValue(), $subaccount->region)
@@ -47,7 +47,7 @@ class EmailSegmentController extends Controller
             ]);
 
         if (!$response['success']) {
-            return back()->with('error', $response['error'] ?? 'Failed to create segment on SendGrid.')->withInput();
+            return back()->with('error', $response['error'] ?? __('email_marketing.flash.segment_create_failed'))->withInput();
         }
 
         EmailSegment::create([
@@ -57,7 +57,7 @@ class EmailSegmentController extends Controller
             'query_json'          => $validated['query_json'],
         ]);
 
-        return back()->with('success', 'Segment created.');
+        return back()->with('success', __('email_marketing.flash.segment_created'));
     }
 
     public function destroy(EmailSegment $segment, SendGridClient $client)
@@ -73,6 +73,6 @@ class EmailSegmentController extends Controller
 
         $segment->delete();
 
-        return back()->with('success', 'Segment deleted.');
+        return back()->with('success', __('email_marketing.flash.segment_deleted'));
     }
 }

@@ -54,8 +54,8 @@ class EmailSetupController extends Controller
         $result = $service->provision(Auth::user());
 
         return back()->with($result['success'] ? 'success' : 'error', $result['success']
-            ? 'SendGrid subaccount ready.'
-            : ($result['error'] ?? 'Failed to provision SendGrid subaccount.'));
+            ? __('email_marketing.flash.subaccount_ready')
+            : ($result['error'] ?? __('email_marketing.flash.subaccount_failed')));
     }
 
     public function authenticateDomain(Request $request, SendGridDomainService $service)
@@ -67,8 +67,8 @@ class EmailSetupController extends Controller
         $result = $service->authenticate($subaccount, $validated['domain']);
 
         return back()->with($result['success'] ? 'success' : 'error', $result['success']
-            ? 'Domain added - add the DNS records below, then verify.'
-            : ($result['error'] ?? 'Failed to authenticate domain.'));
+            ? __('email_marketing.flash.domain_added')
+            : ($result['error'] ?? __('email_marketing.flash.domain_failed')));
     }
 
     public function verifyDomain(VerifiedDomain $domain, SendGridDomainService $service)
@@ -83,7 +83,7 @@ class EmailSetupController extends Controller
 
         return back()->with(
             $result['valid'] ? 'success' : 'error',
-            $result['valid'] ? 'Domain verified.' : 'DNS records not detected yet - they can take up to 48 hours to propagate.'
+            $result['valid'] ? __('email_marketing.flash.domain_verified') : __('email_marketing.flash.dns_not_detected')
         );
     }
 
@@ -128,8 +128,8 @@ class EmailSetupController extends Controller
         $result = $service->create($subaccount, $validated);
 
         return back()->with($result['success'] ? 'success' : 'error', $result['success']
-            ? 'Verification email sent to ' . $validated['from_email'] . ' - click the link, then refresh status below.'
-            : ($result['error'] ?? 'Failed to create sender identity.'));
+            ? __('email_marketing.flash.sender_verification_sent', ['email' => $validated['from_email']])
+            : ($result['error'] ?? __('email_marketing.flash.sender_failed')));
     }
 
     public function refreshSenderStatus(SenderIdentity $sender, SendGridSenderService $service)
@@ -144,7 +144,7 @@ class EmailSetupController extends Controller
 
         return back()->with(
             $result['verified'] ? 'success' : 'error',
-            $result['verified'] ? 'Sender verified.' : 'Not verified yet - check the inbox for the verification email.'
+            $result['verified'] ? __('email_marketing.flash.sender_verified') : __('email_marketing.flash.sender_not_verified')
         );
     }
 
@@ -155,7 +155,7 @@ class EmailSetupController extends Controller
         $result = $service->resendVerification($sender);
 
         return back()->with($result['success'] ? 'success' : 'error', $result['success']
-            ? 'Verification email resent.'
-            : ($result['error'] ?? 'Failed to resend verification email.'));
+            ? __('email_marketing.flash.verification_resent')
+            : ($result['error'] ?? __('email_marketing.flash.verification_resend_failed')));
     }
 }

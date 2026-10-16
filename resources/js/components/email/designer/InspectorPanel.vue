@@ -2,7 +2,7 @@
   <div class="inspector-panel">
     <div v-if="!node" class="inspector-empty">
       <i class="bx bx-cursor"></i>
-      <p>Select a block to edit its properties.</p>
+      <p>{{ t('inspector.empty') }}</p>
     </div>
 
     <template v-else>
@@ -11,10 +11,10 @@
       </div>
 
       <div v-for="group in schema" :key="group.group" class="inspector-group">
-        <div class="inspector-group-title">{{ group.group }}</div>
+        <div class="inspector-group-title">{{ t(`groups.${group.group}`) }}</div>
 
         <div v-for="field in group.fields" :key="field.key" class="inspector-field">
-          <label>{{ field.label }}</label>
+          <label>{{ t(`fields.${field.label}`) }}</label>
 
           <template v-if="field.type === 'text' || field.type === 'url'">
             <input :type="field.type === 'url' ? 'url' : 'text'" class="dash-input w-100" :value="getValue(field)" @input="setValue(field, $event.target.value)" />
@@ -22,7 +22,7 @@
 
           <template v-else-if="field.type === 'textarea'">
             <textarea class="dash-input w-100" :rows="field.rows || 6" :value="getValue(field)" @input="setValue(field, $event.target.value)"></textarea>
-            <small v-if="field.note" class="inspector-note">{{ field.note }}</small>
+            <small v-if="field.note" class="inspector-note">{{ t(`fields.${field.note}`) }}</small>
           </template>
 
           <template v-else-if="field.type === 'number'">
@@ -34,7 +34,7 @@
 
           <template v-else-if="field.type === 'select'">
             <select class="dash-input w-100" :value="getValue(field)" @change="setValue(field, coerceSelect(field, $event.target.value))">
-              <option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              <option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.key ? t(`options.${opt.key}`) : opt.label }}</option>
             </select>
           </template>
 
@@ -47,7 +47,7 @@
           <template v-else-if="field.type === 'color'">
             <div class="d-flex align-items-center gap-2">
               <input type="color" class="inspector-color" :value="colorValue(field)" @input="setValue(field, $event.target.value)" />
-              <button v-if="field.allowTransparent" type="button" class="dash-btn dash-btn-ghost btn-sm" @click="setValue(field, 'transparent')">None</button>
+              <button v-if="field.allowTransparent" type="button" class="dash-btn dash-btn-ghost btn-sm" @click="setValue(field, 'transparent')">{{ t('inspector.none') }}</button>
             </div>
           </template>
 
@@ -68,7 +68,7 @@
 
           <template v-else-if="field.type === 'padding'">
             <div class="inspector-padding-grid">
-              <input v-for="side in paddingSides" :key="side" type="number" min="0" class="dash-input" :placeholder="side" :value="(node.settings.padding || {})[side]" @input="setPaddingSide(side, Number($event.target.value))" />
+              <input v-for="side in paddingSides" :key="side" type="number" min="0" class="dash-input" :placeholder="t(`inspector.padding.${side}`)" :title="t(`inspector.padding.${side}`)" :value="(node.settings.padding || {})[side]" @input="setPaddingSide(side, Number($event.target.value))" />
             </div>
           </template>
 
@@ -80,7 +80,7 @@
               </div>
               <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" class="d-none" @change="onImagePicked(field, $event)" />
               <button type="button" class="dash-btn dash-btn-ghost btn-sm" :disabled="uploading" @click="$event.target.closest('.inspector-image-field').querySelector('input[type=file]').click()">
-                {{ uploading ? 'Uploading...' : (getValue(field) ? 'Replace' : 'Upload') }}
+                {{ uploading ? t('inspector.uploading') : (getValue(field) ? t('inspector.replace') : t('inspector.upload')) }}
               </button>
             </div>
           </template>
@@ -91,7 +91,7 @@
                 <input type="checkbox" :checked="isAccountSelected(account)" @change="toggleAccount(account, $event.target.checked)" />
                 <span>{{ account.platform }} - {{ account.name }}</span>
               </label>
-              <p v-if="flatAccounts.length === 0" class="inspector-note">No connected social accounts yet.</p>
+              <p v-if="flatAccounts.length === 0" class="inspector-note">{{ t('inspector.no_social') }}</p>
             </div>
           </template>
         </div>
@@ -104,6 +104,7 @@
 import { computed, ref } from 'vue';
 import { INSPECTOR_SCHEMAS } from '../lib/inspectorSchemas';
 import { WEB_SAFE_FONTS } from '../lib/fonts';
+import { useEmailI18n } from '../lib/i18n';
 
 const props = defineProps({
   node: { type: Object, default: null },
@@ -113,6 +114,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['change']);
+
+const { t } = useEmailI18n();
 
 const fonts = WEB_SAFE_FONTS;
 const aligns = ['left', 'center', 'right'];
@@ -126,9 +129,9 @@ const schema = computed(() => {
 });
 
 const headerLabel = computed(() => {
-  if (props.nodeKind === 'section') return 'Section';
-  if (props.nodeKind === 'column') return 'Column';
-  return props.node?.type ? props.node.type.charAt(0).toUpperCase() + props.node.type.slice(1) : '';
+  if (props.nodeKind === 'section') return t('inspector.section');
+  if (props.nodeKind === 'column') return t('inspector.column');
+  return props.node?.type ? t(`blocks.${props.node.type}.label`) : '';
 });
 
 const flatAccounts = computed(() => {
@@ -239,7 +242,8 @@ async function onImagePicked(field, event) {
 .inspector-switch { position: relative; display: inline-block; width: 36px; height: 20px; }
 .inspector-switch input { opacity: 0; width: 0; height: 0; }
 .inspector-switch-track { position: absolute; inset: 0; background: var(--dash-border); border-radius: 20px; transition: .15s; }
-.inspector-switch-track::before { content: ''; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px; background: #fff; border-radius: 50%; transition: .15s; }
+.inspector-switch-track::before { content: ''; position: absolute; width: 16px; height: 16px; inset-inline-start: 2px; top: 2px; background: #fff; border-radius: 50%; transition: .15s; }
 .inspector-switch input:checked + .inspector-switch-track { background: var(--dash-primary); }
 .inspector-switch input:checked + .inspector-switch-track::before { transform: translateX(16px); }
+[dir="rtl"] .inspector-switch input:checked + .inspector-switch-track::before { transform: translateX(-16px); }
 </style>

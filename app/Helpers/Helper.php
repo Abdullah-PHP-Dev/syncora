@@ -128,3 +128,23 @@ if (! function_exists('dash_media_preview')) {
         };
     }
 }
+
+if (! function_exists('emailLabel')) {
+
+    /**
+     * Translated badge text for an Email Marketing enum value (campaign /
+     * subscriber / template status, SendGrid event type, ...) from
+     * lang/{locale}/email_marketing.php's $group. Values the lang file
+     * doesn't list yet fall back to the readable raw value.
+     */
+    function emailLabel(string $group, ?string $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        $key = "email_marketing.{$group}.{$value}";
+
+        return \Illuminate\Support\Facades\Lang::has($key) ? __($key) : ucfirst(str_replace('_', ' ', $value));
+    }
+}

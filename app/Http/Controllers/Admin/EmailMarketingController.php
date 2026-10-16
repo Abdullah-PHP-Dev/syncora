@@ -173,7 +173,7 @@ class EmailMarketingController extends Controller
 
         for ($i = $days - 1; $i >= 0; $i--) {
             $date = now()->subDays($i)->format('Y-m-d');
-            $labels[] = now()->subDays($i)->format('M j');
+            $labels[] = now()->subDays($i)->translatedFormat('M j');
             $dayRows = $rows->get($date, collect());
             $delivered[] = (int) ($dayRows->firstWhere('event_type', 'delivered')->c ?? 0);
             $opened[] = (int) ($dayRows->firstWhere('event_type', 'open')->c ?? 0);
@@ -243,16 +243,17 @@ class EmailMarketingController extends Controller
      */
     private function sourceBreakdown(int $userId, int $total): Collection
     {
-        $labels = ['manual' => 'Manually Added', 'import' => 'CSV Import'];
-
         $counts = EmailSubscriber::where('user_id', $userId)
             ->selectRaw('COALESCE(source, "unknown") as src, COUNT(*) as c')
             ->groupBy('src')
             ->pluck('c', 'src');
 
-        return $counts->map(function ($count, $key) use ($labels, $total) {
+        return $counts->map(function ($count, $src) use ($total) {
+            $key = in_array($src, ['manual', 'import'], true) ? $src : 'unknown';
+
             return [
-                'label'      => $labels[$key] ?? 'Unknown',
+                'key'        => $key,
+                'label'      => __("email_marketing.dashboard.sources.{$key}"),
                 'count'      => $count,
                 'percentage' => $total > 0 ? round(($count / $total) * 100, 1) : 0,
             ];
@@ -271,22 +272,22 @@ class EmailMarketingController extends Controller
         $newContacts = EmailSubscriber::where('user_id', $userId)
             ->whereNotNull('subscribed_at')
             ->latest('subscribed_at')->take(5)->get()
-            ->map(fn ($s) => ['type' => 'subscribed', 'title' => 'New contact subscribed', 'subtitle' => $s->email, 'at' => $s->subscribed_at]);
+            ->map(fn ($s) => ['type' => 'subscribed', 'title' => __('email_marketing.dashboard.activity.subscribed'), 'subtitle' => $s->email, 'at' => $s->subscribed_at]);
 
         $sentCampaigns = EmailCampaign::where('user_id', $userId)->where('status', 'sent')
             ->whereNotNull('sent_at')
             ->latest('sent_at')->take(5)->get()
-            ->map(fn ($c) => ['type' => 'sent', 'title' => 'Campaign sent', 'subtitle' => $c->name, 'at' => $c->sent_at]);
+            ->map(fn ($c) => ['type' => 'sent', 'title' => __('email_marketing.dashboard.activity.sent'), 'subtitle' => $c->name, 'at' => $c->sent_at]);
 
         $unsubscribed = EmailEvent::where('user_id', $userId)
             ->whereIn('event_type', ['unsubscribe', 'group_unsubscribe'])
             ->latest('event_at')->take(5)->get()
-            ->map(fn ($e) => ['type' => 'unsubscribed', 'title' => 'Contact unsubscribed', 'subtitle' => $e->recipient_email, 'at' => $e->event_at]);
+            ->map(fn ($e) => ['type' => 'unsubscribed', 'title' => __('email_marketing.dashboard.activity.unsubscribed'), 'subtitle' => $e->recipient_email, 'at' => $e->event_at]);
 
         $opened = EmailEvent::where('user_id', $userId)->where('event_type', 'open')
             ->with('campaign:id,name')
             ->latest('event_at')->take(5)->get()
-            ->map(fn ($e) => ['type' => 'opened', 'title' => 'Campaign opened', 'subtitle' => $e->campaign->name ?? $e->recipient_email, 'at' => $e->event_at]);
+            ->map(fn ($e) => ['type' => 'opened', 'title' => __('email_marketing.dashboard.activity.opened'), 'subtitle' => $e->campaign->name ?? $e->recipient_email, 'at' => $e->event_at]);
 
         return $newContacts->concat($sentCampaigns)->concat($unsubscribed)->concat($opened)
             ->filter(fn ($item) => $item['at'] !== null)

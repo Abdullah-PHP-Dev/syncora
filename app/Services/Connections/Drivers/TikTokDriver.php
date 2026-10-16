@@ -45,16 +45,16 @@ class TikTokDriver extends MirroredTokenDriver
     public function presentation(): array
     {
         return [
-            'subtitle' => 'Video posting · TikTok Ads',
+            'subtitle' => __('connections.platforms.tiktok.subtitle'),
             'icons' => [['icon' => 'bxl-tiktok', 'brand' => 'tiktok']],
-            'connect_label' => 'Connect with TikTok',
-            'empty_title' => 'Connect TikTok for posting and ads',
-            'empty_text' => 'TikTok uses two separate sign-ins: one for publishing videos to your account and one for your TikTok for Business advertiser accounts.',
+            'connect_label' => __('connections.platforms.tiktok.connect_label'),
+            'empty_title' => __('connections.platforms.tiktok.empty_title'),
+            'empty_text' => __('connections.platforms.tiktok.empty_text'),
             'benefits' => ['posting', 'engagement', 'ads'],
             'asset_groups' => [
-                'tiktok_account' => ['label' => 'TikTok accounts', 'icon' => 'bxl-tiktok', 'brand' => 'tiktok', 'capabilities' => ['posting', 'insights']],
-                'tiktok_ads' => ['label' => 'Advertiser accounts', 'icon' => 'bx-bullseye', 'brand' => 'tiktok', 'capabilities' => ['ads']],
-                'tiktok_comments' => ['label' => 'Comments', 'icon' => 'bx-message-rounded-dots', 'brand' => 'tiktok', 'capabilities' => ['engagement']],
+                'tiktok_account' => ['label' => __('connections.platforms.tiktok.groups.tiktok_account'), 'icon' => 'bxl-tiktok', 'brand' => 'tiktok', 'capabilities' => ['posting', 'insights']],
+                'tiktok_ads' => ['label' => __('connections.platforms.tiktok.groups.tiktok_ads'), 'icon' => 'bx-bullseye', 'brand' => 'tiktok', 'capabilities' => ['ads']],
+                'tiktok_comments' => ['label' => __('connections.platforms.tiktok.groups.tiktok_comments'), 'icon' => 'bx-message-rounded-dots', 'brand' => 'tiktok', 'capabilities' => ['engagement']],
             ],
             'step_icons' => [
                 self::LOGIN_KIT => ['icon' => 'bxl-tiktok', 'brand' => 'tiktok'],
@@ -83,26 +83,26 @@ class TikTokDriver extends MirroredTokenDriver
         return [
             [
                 'key' => self::LOGIN_KIT,
-                'label' => 'TikTok account',
-                'description' => 'Publish videos to your TikTok account.',
+                'label' => __('connections.platforms.tiktok.steps.login_kit.label'),
+                'description' => __('connections.platforms.tiktok.steps.login_kit.description'),
                 'primary' => true,
                 'available' => (bool) adminSetting('posts.tiktok.client_id'),
             ],
             [
                 'key' => self::BUSINESS,
-                'label' => 'TikTok for Business',
-                'description' => 'Advertiser accounts for TikTok Ads.',
+                'label' => __('connections.platforms.tiktok.steps.business.label'),
+                'description' => __('connections.platforms.tiktok.steps.business.description'),
                 'primary' => false,
                 'available' => (bool) adminSetting('ads.tiktok.client_id'),
-                'note' => 'TikTok uses a separate app and sign-in for ads.',
+                'note' => __('connections.platforms.tiktok.steps.business.note'),
             ],
             [
                 'key' => self::COMMENTS,
-                'label' => 'TikTok comments',
-                'description' => 'Read and reply to comments on your TikTok videos.',
+                'label' => __('connections.platforms.tiktok.steps.comments.label'),
+                'description' => __('connections.platforms.tiktok.steps.comments.description'),
                 'primary' => false,
                 'available' => (bool) adminSetting('ads.tiktok.client_id'),
-                'note' => 'Uses your TikTok for Business app - its comment permissions must be approved by TikTok.',
+                'note' => __('connections.platforms.tiktok.steps.comments.note'),
             ],
         ];
     }

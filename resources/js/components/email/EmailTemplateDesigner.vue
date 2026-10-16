@@ -1,24 +1,24 @@
 <template>
-  <div class="etd-root">
+  <div class="etd-root" :dir="i18n.dir">
 
     <div class="etd-toolbar">
       <div class="etd-toolbar-left">
-        <button type="button" class="etd-tool-btn" :disabled="!canUndo" title="Undo" @click="undo"><i class="bx bx-undo"></i></button>
-        <button type="button" class="etd-tool-btn" :disabled="!canRedo" title="Redo" @click="redo"><i class="bx bx-redo"></i></button>
+        <button type="button" class="etd-tool-btn" :disabled="!canUndo" :title="t('toolbar.undo')" @click="undo"><i class="bx bx-undo"></i></button>
+        <button type="button" class="etd-tool-btn" :disabled="!canRedo" :title="t('toolbar.redo')" @click="redo"><i class="bx bx-redo"></i></button>
         <span class="etd-toolbar-sep"></span>
         <div class="etd-settings-wrap">
-          <button type="button" class="etd-tool-btn" title="Global settings" @click.stop="showSettings = !showSettings"><i class="bx bx-slider-alt"></i></button>
+          <button type="button" class="etd-tool-btn" :title="t('toolbar.settings')" @click.stop="showSettings = !showSettings"><i class="bx bx-slider-alt"></i></button>
           <div v-if="showSettings" class="etd-settings-popover" @click.stop>
-            <label>Email width</label>
+            <label>{{ t('toolbar.email_width') }}</label>
             <div class="d-flex align-items-center gap-1 mb-2">
               <input type="number" class="dash-input" min="480" max="800" v-model.number="schema.settings.emailWidth" />
               <span class="inspector-suffix">px</span>
             </div>
-            <label>Font</label>
+            <label>{{ t('toolbar.font') }}</label>
             <select class="dash-input w-100 mb-2" v-model="schema.settings.fontFamily">
               <option v-for="f in fonts" :key="f.value" :value="f.value">{{ f.label }}</option>
             </select>
-            <label>Email background</label>
+            <label>{{ t('toolbar.email_background') }}</label>
             <input type="color" class="inspector-color" v-model="schema.settings.backgroundColor" />
           </div>
         </div>
@@ -28,8 +28,8 @@
         <span class="etd-autosave-status" :class="autosaveStatus">
           <i class="bx" :class="autosaveIcon"></i> {{ autosaveLabel }}
         </span>
-        <button type="button" class="dash-btn dash-btn-ghost" @click="fullscreenPreview = true"><i class="bx bx-show"></i> Preview Email</button>
-        <button v-if="sendTestUrl" type="button" class="dash-btn dash-btn-ghost" @click="openSendTest"><i class="bx bx-send"></i> Send Test</button>
+        <button type="button" class="dash-btn dash-btn-ghost" @click="fullscreenPreview = true"><i class="bx bx-show"></i> {{ t('toolbar.preview_email') }}</button>
+        <button v-if="sendTestUrl" type="button" class="dash-btn dash-btn-ghost" @click="openSendTest"><i class="bx bx-send"></i> {{ t('toolbar.send_test') }}</button>
       </div>
     </div>
 
@@ -38,7 +38,8 @@
         <BlockPanel @add-block="addBlock" @add-preset="addPreset" />
       </div>
 
-      <div class="etd-panel etd-panel-center">
+      <!-- The canvas mirrors the generated email HTML, which carries no dir - it stays LTR in Arabic too so it matches what recipients see. -->
+      <div class="etd-panel etd-panel-center" dir="ltr">
         <CanvasArea :sections="schema.sections" :selected-path="selectedPath" @select="onSelect" @change="onChange" />
       </div>
 
@@ -55,12 +56,12 @@
 
     <div v-if="fullscreenPreview" class="etd-fullscreen-preview">
       <div class="etd-fullscreen-header">
-        <strong>Email Preview</strong>
+        <strong>{{ t('preview.title') }}</strong>
         <div class="device-toggle">
-          <button type="button" class="device-btn" :class="{ active: fullscreenDevice === 'desktop' }" @click="fullscreenDevice = 'desktop'"><i class="bx bx-desktop"></i></button>
-          <button type="button" class="device-btn" :class="{ active: fullscreenDevice === 'mobile' }" @click="fullscreenDevice = 'mobile'"><i class="bx bx-mobile"></i></button>
+          <button type="button" class="device-btn" :class="{ active: fullscreenDevice === 'desktop' }" @click="fullscreenDevice = 'desktop'" :title="t('preview.desktop')"><i class="bx bx-desktop"></i></button>
+          <button type="button" class="device-btn" :class="{ active: fullscreenDevice === 'mobile' }" @click="fullscreenDevice = 'mobile'" :title="t('preview.mobile')"><i class="bx bx-mobile"></i></button>
         </div>
-        <button type="button" class="etd-tool-btn" @click="fullscreenPreview = false"><i class="bx bx-x"></i></button>
+        <button type="button" class="etd-tool-btn" :title="t('preview.close')" @click="fullscreenPreview = false"><i class="bx bx-x"></i></button>
       </div>
       <div class="etd-fullscreen-body">
         <iframe class="etd-fullscreen-frame" :style="{ width: fullscreenDevice === 'mobile' ? '375px' : '100%' }" :srcdoc="generatedHtml"></iframe>
@@ -72,7 +73,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from 'vue';
 import BlockPanel from './designer/BlockPanel.vue';
 import CanvasArea from './designer/CanvasArea.vue';
 import InspectorPanel from './designer/InspectorPanel.vue';
@@ -81,6 +82,7 @@ import { generateEmailHtml } from './lib/htmlGenerator';
 import { createHistory } from './lib/undoRedo';
 import { emptySchema, makeBlock, SECTION_PRESETS, wrapLegacyHtmlAsSchema } from './lib/blockFactory';
 import { WEB_SAFE_FONTS } from './lib/fonts';
+import { createTranslator } from './lib/i18n';
 
 /**
  * Root of the block-based email template designer. Owns the single
@@ -102,7 +104,13 @@ const props = defineProps({
   autosaveUrl: { type: String, default: '' },
   sendTestUrl: { type: String, default: '' },
   subject: { type: String, default: '' },
+  messages: { type: Object, default: () => ({}) },
+  locale: { type: String, default: 'en' },
 });
+
+const i18n = createTranslator(props.messages, props.locale);
+const { t } = i18n;
+provide('emailI18n', i18n);
 
 const fonts = WEB_SAFE_FONTS;
 
@@ -268,10 +276,10 @@ const autosaveIcon = computed(() => ({
 }[autosaveStatus.value]));
 
 const autosaveLabel = computed(() => ({
-  saved: 'Saved',
-  unsaved: 'Unsaved changes',
-  saving: 'Saving...',
-  failed: 'Failed to save - retrying',
+  saved: t('autosave.saved'),
+  unsaved: t('autosave.unsaved'),
+  saving: t('autosave.saving'),
+  failed: t('autosave.failed'),
 }[autosaveStatus.value]));
 
 function syncHiddenInputs() {
@@ -371,16 +379,16 @@ onBeforeUnmount(() => {
 .etd-tool-btn:disabled { opacity: .4; cursor: not-allowed; }
 .etd-tool-btn:not(:disabled):hover { border-color: var(--dash-primary); color: var(--dash-primary); }
 .etd-settings-wrap { position: relative; }
-.etd-settings-popover { position: absolute; top: 36px; left: 0; z-index: 20; width: 220px; background: var(--dash-card); border: 1px solid var(--dash-border); border-radius: .6rem; padding: .75rem; box-shadow: 0 8px 24px rgba(20,20,50,.12); }
+.etd-settings-popover { position: absolute; top: 36px; inset-inline-start: 0; z-index: 20; width: 220px; background: var(--dash-card); border: 1px solid var(--dash-border); border-radius: .6rem; padding: .75rem; box-shadow: 0 8px 24px rgba(20,20,50,.12); }
 .etd-settings-popover label { display: block; font-size: .72rem; color: var(--dash-muted); margin-bottom: .2rem; }
 .etd-autosave-status { display: inline-flex; align-items: center; gap: .3rem; font-size: .75rem; color: var(--dash-muted); }
 .etd-autosave-status.saved .bx { color: var(--dash-success, #16a34a); }
 .etd-autosave-status.failed .bx { color: var(--dash-danger, #e11d48); }
 .etd-body { flex: 1; display: flex; min-height: 0; }
 .etd-panel { overflow: hidden; }
-.etd-panel-left { width: 260px; border-right: 1px solid var(--dash-border); flex-shrink: 0; overflow-y: auto; }
+.etd-panel-left { width: 260px; border-inline-end: 1px solid var(--dash-border); flex-shrink: 0; overflow-y: auto; }
 .etd-panel-center { flex: 1; background: var(--dash-bg, #f5f5fa); overflow-y: auto; }
-.etd-panel-right { width: 300px; border-left: 1px solid var(--dash-border); flex-shrink: 0; overflow-y: auto; }
+.etd-panel-right { width: 300px; border-inline-start: 1px solid var(--dash-border); flex-shrink: 0; overflow-y: auto; }
 
 .etd-fullscreen-preview { position: fixed; inset: 0; background: #fff; z-index: 1090; display: flex; flex-direction: column; }
 .etd-fullscreen-header { display: flex; align-items: center; justify-content: space-between; padding: .75rem 1.25rem; border-bottom: 1px solid var(--dash-border); }

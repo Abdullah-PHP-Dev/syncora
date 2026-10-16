@@ -116,12 +116,12 @@ class HubPresenter
                 // Same Instagram account as a Page-linked one (InstagramDuplicates).
                 // X Ads approval (social_account_ad_details.account_status).
                 'provider_status' => $asset->platform === 'x' ? match ($asset->adDetails?->account_status) {
-                    'REJECTED' => 'Rejected by X',
-                    'PENDING', 'UNDER_REVIEW' => 'Under review at X',
-                    'deleted' => 'Deleted in X',
+                    'REJECTED' => __('connections.provider_status.x_rejected'),
+                    'PENDING', 'UNDER_REVIEW' => __('connections.provider_status.x_review'),
+                    'deleted' => __('connections.provider_status.x_deleted'),
                     default => null,
                 } : null,
-                'duplicate_of' => isset($asset->metadata['settings'][InstagramDuplicates::MARK]) ? 'the one linked to your Facebook Page' : null,
+                'duplicate_of' => isset($asset->metadata['settings'][InstagramDuplicates::MARK]) ? __('connections.duplicate_of_page') : null,
                 'available_capabilities' => $available,
                 // null = everything the connection allows is on
                 'enabled_capabilities' => $asset->enabled_capabilities === null

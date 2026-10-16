@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Email Marketing Setup')
+@section('title', __('email_marketing.setup.title'))
 
 @push('styles')
 @include('layouts.partials.dash-styles')
@@ -46,8 +46,8 @@
             <div class="d-flex align-items-center gap-3">
                 <div class="hero-icon-badge"><i class="bx bx-envelope"></i></div>
                 <div>
-                    <h4 class="mb-1">Email Marketing Setup</h4>
-                    <p>Connect your email service and configure the settings to start sending campaigns from your Socialeaz account.</p>
+                    <h4 class="mb-1">{{ __('email_marketing.setup.title') }}</h4>
+                    <p>{{ __('email_marketing.setup.subtitle') }}</p>
                 </div>
             </div>
             <div class="d-flex align-items-center gap-3 flex-wrap">
@@ -58,11 +58,11 @@
                         @else
                             <i class="bx bx-loader-circle" style="color:#6366f1;font-size:1.1rem;"></i>
                         @endif
-                        <strong style="font-size:.85rem;">{{ $completedCount }} of 4 steps completed</strong>
+                        <strong style="font-size:.85rem;">{{ __('email_marketing.setup.steps_completed', ['done' => $completedCount, 'total' => 4]) }}</strong>
                     </div>
                     <div class="progress"><div class="progress-bar" style="width: {{ $progressPct }}%"></div></div>
                 </div>
-                <a href="{{ route('admin.email.dashboard') }}" class="dash-btn dash-btn-ghost">Save &amp; Exit</a>
+                <a href="{{ route('admin.email.dashboard') }}" class="dash-btn dash-btn-ghost">{{ __('email_marketing.setup.save_exit') }}</a>
             </div>
         </div>
     </div>
@@ -76,12 +76,12 @@
 
     <div class="dash-card mb-3">
         <div class="dash-stepper">
-            @foreach ([
-                'subaccount' => ['1', 'Connect SendGrid', 'Link your SendGrid account'],
-                'domain'     => ['2', 'Authenticate Domain', 'Verify your domain'],
-                'sender'     => ['3', 'Verify Sender', 'Confirm sender identity'],
-                'ready'      => ['4', 'Ready', 'Start sending campaigns'],
-            ] as $key => [$number, $title, $desc])
+            @foreach (['subaccount', 'domain', 'sender', 'ready'] as $i => $key)
+                @php
+                    $number = $i + 1;
+                    $title = __("email_marketing.setup.steps.{$key}.title");
+                    $desc = __("email_marketing.setup.steps.{$key}.desc");
+                @endphp
                 <div class="dash-stepper-item {{ $stepStates[$key] === 'done' ? 'is-done' : ($stepStates[$key] === 'current' ? 'is-current' : '') }}">
                     <div class="dash-stepper-circle">
                         @if ($stepStates[$key] === 'done')
@@ -107,26 +107,26 @@
                 <div class="d-flex align-items-start gap-3 mb-3">
                     <div class="step-badge">1</div>
                     <div>
-                        <h6 style="color:var(--dash-heading);margin-bottom:.2rem;">Connect SendGrid</h6>
-                        <p class="dash-subtitle small mb-0">Connect your SendGrid account to send emails through your domain. You'll need your SendGrid API key to proceed.</p>
+                        <h6 style="color:var(--dash-heading);margin-bottom:.2rem;">{{ __('email_marketing.setup.connect_title') }}</h6>
+                        <p class="dash-subtitle small mb-0">{{ __('email_marketing.setup.connect_text') }}</p>
                     </div>
                 </div>
 
                 @if (!$subaccount)
                     <form method="POST" action="{{ route('admin.email.setup.subaccount') }}">
                         @csrf
-                        <button class="dash-btn dash-btn-primary"><i class="bx bx-link"></i> Connect SendGrid</button>
+                        <button class="dash-btn dash-btn-primary"><i class="bx bx-link"></i> {{ __('email_marketing.setup.connect_button') }}</button>
                     </form>
                 @elseif ($subaccount->status === 'provisioning')
-                    <span class="dash-badge dash-badge-info">Provisioning...</span>
+                    <span class="dash-badge dash-badge-info">{{ __('email_marketing.setup.provisioning') }}</span>
                 @elseif ($subaccount->status === 'failed')
-                    <div class="alert alert-danger">Your SendGrid account could not be connected. {{ $subaccount->error_message }}</div>
+                    <div class="alert alert-danger">{{ __('email_marketing.setup.connect_failed') }} {{ $subaccount->error_message }}</div>
                     <form method="POST" action="{{ route('admin.email.setup.subaccount') }}">
                         @csrf
-                        <button class="dash-btn dash-btn-primary">Retry</button>
+                        <button class="dash-btn dash-btn-primary">{{ __('email_marketing.common.retry') }}</button>
                     </form>
                 @else
-                    <div class="dash-status-pill"><span class="dot"></span> SendGrid Connected</div>
+                    <div class="dash-status-pill"><span class="dot"></span> {{ __('email_marketing.setup.connected') }}</div>
                     <span class="dash-subtitle small">({{ $subaccount->sendgrid_username }})</span>
                 @endif
             </div>
@@ -135,10 +135,10 @@
             <div class="dash-card h-100" style="background:var(--dash-card-hover);box-shadow:none;">
                 <div class="d-flex align-items-center gap-2 mb-2">
                     <div class="help-icon-badge"><i class="bx bx-info-circle"></i></div>
-                    <strong style="color:var(--dash-heading);font-size:.85rem;">Need help?</strong>
+                    <strong style="color:var(--dash-heading);font-size:.85rem;">{{ __('email_marketing.setup.help_title') }}</strong>
                 </div>
-                <p class="dash-subtitle small">You can find your SendGrid API key in your SendGrid account under Settings &gt; API Keys.</p>
-                <a href="https://docs.sendgrid.com/ui/account-and-settings/api-keys" target="_blank" rel="noopener" class="dash-link">View SendGrid Documentation <i class="bx bx-link-external"></i></a>
+                <p class="dash-subtitle small">{{ __('email_marketing.setup.help_text') }}</p>
+                <a href="https://docs.sendgrid.com/ui/account-and-settings/api-keys" target="_blank" rel="noopener" class="dash-link">{{ __('email_marketing.setup.help_link') }} <i class="bx bx-link-external"></i></a>
             </div>
         </div>
     </div>
@@ -148,8 +148,8 @@
         <div class="d-flex align-items-start gap-3 mb-3">
             <div class="step-badge">2</div>
             <div>
-                <h6 style="color:var(--dash-heading);margin-bottom:.2rem;">Sending Domain &amp; DNS</h6>
-                <p class="dash-subtitle small mb-0">Add your domain and verify it with SendGrid. This helps improve deliverability and avoid spam issues.</p>
+                <h6 style="color:var(--dash-heading);margin-bottom:.2rem;">{{ __('email_marketing.setup.domain_title') }}</h6>
+                <p class="dash-subtitle small mb-0">{{ __('email_marketing.setup.domain_text') }}</p>
             </div>
         </div>
 
@@ -157,33 +157,33 @@
             <form method="POST" action="{{ route('admin.email.setup.domain') }}" class="row g-2 align-items-end">
                 @csrf
                 <div class="col-auto">
-                    <label class="form-label small">Domain</label>
-                    <input type="text" name="domain" class="form-control" placeholder="yourdomain.com" required>
+                    <label class="form-label small">{{ __('email_marketing.setup.domain_label') }}</label>
+                    <input type="text" name="domain" class="form-control" placeholder="yourdomain.com" dir="ltr" required>
                 </div>
                 <div class="col-auto">
-                    <button class="dash-btn dash-btn-primary"><i class="bx bx-shield-quarter"></i> Authenticate Domain</button>
+                    <button class="dash-btn dash-btn-primary"><i class="bx bx-shield-quarter"></i> {{ __('email_marketing.setup.authenticate_domain') }}</button>
                 </div>
             </form>
         @else
             <p style="color:var(--dash-text);"><strong>{{ $domain->domain }}</strong> -
                 @if ($domain->isVerified())
-                    <span class="dash-badge dash-badge-success">Verified</span>
+                    <span class="dash-badge dash-badge-success">{{ __('email_marketing.statuses.verified') }}</span>
                 @else
-                    <span class="dash-badge dash-badge-warning">{{ str_replace('_', ' ', $domain->status) }}</span>
+                    <span class="dash-badge dash-badge-warning">{{ emailLabel('statuses', $domain->status) }}</span>
                 @endif
             </p>
 
             @if ($domain->dns_last_synced_at)
-                <p class="dash-subtitle small mb-2"><i class="bx bx-cloud"></i> DNS automatically configured via Cloudflare {{ $domain->dns_last_synced_at->diffForHumans() }}.</p>
+                <p class="dash-subtitle small mb-2"><i class="bx bx-cloud"></i> {{ __('email_marketing.setup.dns_auto_configured', ['when' => $domain->dns_last_synced_at->diffForHumans()]) }}</p>
             @endif
 
             @unless ($domain->isVerified())
                 @if (session('dnsConfigureResults'))
                     <div class="dash-card mb-3" style="background:var(--dash-card-hover);box-shadow:none;">
-                        <h6 style="color:var(--dash-heading);font-size:.85rem;">Cloudflare DNS Configuration Result</h6>
+                        <h6 style="color:var(--dash-heading);font-size:.85rem;">{{ __('email_marketing.setup.dns_result_title') }}</h6>
                         <div class="table-responsive">
                             <table class="dash-table mb-0">
-                                <thead><tr><th>Type</th><th>Hostname</th><th>Result</th></tr></thead>
+                                <thead><tr><th>{{ __('email_marketing.common.type') }}</th><th>{{ __('email_marketing.setup.hostname') }}</th><th>{{ __('email_marketing.setup.result') }}</th></tr></thead>
                                 <tbody>
                                     @foreach (session('dnsConfigureResults') as $r)
                                         <tr>
@@ -192,20 +192,20 @@
                                             <td>
                                                 @switch($r['outcome'])
                                                     @case('created')
-                                                        <span class="dash-badge dash-badge-success">Created</span>
+                                                        <span class="dash-badge dash-badge-success">{{ __('email_marketing.setup.outcomes.created') }}</span>
                                                         @break
                                                     @case('skipped')
-                                                        <span class="dash-badge dash-badge-muted">Already exists</span>
+                                                        <span class="dash-badge dash-badge-muted">{{ __('email_marketing.setup.outcomes.skipped') }}</span>
                                                         @break
                                                     @case('updated')
-                                                        <span class="dash-badge dash-badge-info">Fixed ({{ $r['reason'] ?? 'updated' }})</span>
+                                                        <span class="dash-badge dash-badge-info">{{ __('email_marketing.setup.outcomes.updated', ['reason' => $r['reason'] ?? __('email_marketing.setup.outcomes.updated_default')]) }}</span>
                                                         @break
                                                     @case('conflict')
-                                                        <span class="dash-badge dash-badge-danger">Conflict</span>
-                                                        <div class="dash-subtitle" style="font-size:.7rem;">Existing record points elsewhere - not changed automatically.</div>
+                                                        <span class="dash-badge dash-badge-danger">{{ __('email_marketing.setup.outcomes.conflict') }}</span>
+                                                        <div class="dash-subtitle" style="font-size:.7rem;">{{ __('email_marketing.setup.outcomes.conflict_note') }}</div>
                                                         @break
                                                     @default
-                                                        <span class="dash-badge dash-badge-danger">Error</span>
+                                                        <span class="dash-badge dash-badge-danger">{{ __('email_marketing.setup.outcomes.error') }}</span>
                                                         <div class="dash-subtitle" style="font-size:.7rem;">{{ $r['error'] ?? '' }}</div>
                                                 @endswitch
                                             </td>
@@ -219,7 +219,7 @@
 
                 <div class="table-responsive">
                     <table class="dash-table dns-table">
-                        <thead><tr><th>Type</th><th>Host / Name</th><th>Value</th><th>Status</th><th>Action</th></tr></thead>
+                        <thead><tr><th>{{ __('email_marketing.common.type') }}</th><th>{{ __('email_marketing.setup.host_name') }}</th><th>{{ __('email_marketing.setup.value') }}</th><th>{{ __('email_marketing.common.status') }}</th><th>{{ __('email_marketing.common.action') }}</th></tr></thead>
                         <tbody>
                             @foreach ($domain->dnsRecords as $record)
                                 <tr>
@@ -228,13 +228,13 @@
                                     <td><code>{{ $record->data }}</code></td>
                                     <td>
                                         @if ($record->valid)
-                                            <span class="dash-badge dash-badge-success">Verified</span>
+                                            <span class="dash-badge dash-badge-success">{{ __('email_marketing.statuses.verified') }}</span>
                                         @else
-                                            <span class="dash-badge dash-badge-muted">Pending</span>
+                                            <span class="dash-badge dash-badge-muted">{{ __('email_marketing.statuses.pending') }}</span>
                                         @endif
                                     </td>
                                     <td>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary dns-copy-btn" data-copy="{{ $record->data }}">Copy</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary dns-copy-btn" data-copy="{{ $record->data }}">{{ __('email_marketing.common.copy') }}</button>
                                     </td>
                                 </tr>
                             @endforeach
@@ -243,19 +243,19 @@
                 </div>
 
                 <div class="alert alert-info small mb-3">
-                    <strong>DMARC recommended:</strong> SendGrid doesn't generate a DMARC record for you - it's a separate DNS TXT policy record you manage yourself (eg. <code>_dmarc.{{ $domain->domain }}</code>). Optional, but recommended for deliverability.
+                    <strong>{{ __('email_marketing.setup.dmarc_title') }}</strong> {!! __('email_marketing.setup.dmarc_text', ['record' => '<code>' . e('_dmarc.' . $domain->domain) . '</code>']) !!}
                 </div>
 
                 <div class="d-flex gap-2 flex-wrap">
                     @if ($cloudflareConfigured)
                         <form method="POST" action="{{ route('admin.email.setup.domain.configureDns', $domain) }}">
                             @csrf
-                            <button class="dash-btn dash-btn-ghost"><i class="bx bxl-cloud"></i> Configure DNS Automatically</button>
+                            <button class="dash-btn dash-btn-ghost"><i class="bx bxl-cloud"></i> {{ __('email_marketing.setup.configure_dns') }}</button>
                         </form>
                     @endif
                     <form method="POST" action="{{ route('admin.email.setup.domain.verify', $domain) }}">
                         @csrf
-                        <button class="dash-btn dash-btn-primary">Verify DNS</button>
+                        <button class="dash-btn dash-btn-primary">{{ __('email_marketing.setup.verify_dns') }}</button>
                     </form>
                 </div>
             @endunless
@@ -268,57 +268,57 @@
             <div class="d-flex align-items-start gap-3">
                 <div class="step-badge">3</div>
                 <div>
-                    <h6 style="color:var(--dash-heading);margin-bottom:.2rem;">Sender Identities</h6>
-                    <p class="dash-subtitle small mb-0">Add and verify your sender identity (email address) to send emails from your domain.</p>
+                    <h6 style="color:var(--dash-heading);margin-bottom:.2rem;">{{ __('email_marketing.setup.senders_title') }}</h6>
+                    <p class="dash-subtitle small mb-0">{{ __('email_marketing.setup.senders_text') }}</p>
                 </div>
             </div>
             @if ($senders->isNotEmpty())
-                <button type="button" class="dash-btn dash-btn-ghost" data-bs-toggle="modal" data-bs-target="#addSenderModal"><i class="bx bx-plus"></i> Add Sender</button>
+                <button type="button" class="dash-btn dash-btn-ghost" data-bs-toggle="modal" data-bs-target="#addSenderModal"><i class="bx bx-plus"></i> {{ __('email_marketing.setup.add_sender') }}</button>
             @endif
         </div>
 
         @if ($senders->isEmpty())
             <form method="POST" action="{{ route('admin.email.setup.sender') }}" class="row g-3">
-                <div class="col-md-4"><label class="form-label small">Nickname *</label><input type="text" name="nickname" class="form-control" placeholder="e.g. Marketing Team" required></div>
-                <div class="col-md-4"><label class="form-label small">From Name *</label><input type="text" name="from_name" class="form-control" placeholder="Your Company Name" required></div>
-                <div class="col-md-4"><label class="form-label small">From Email *</label><input type="email" name="from_email" class="form-control" placeholder="noreply@yourdomain.com" required></div>
-                <div class="col-md-4"><label class="form-label small">Reply-To (optional)</label><input type="email" name="reply_to" class="form-control" placeholder="support@yourdomain.com"></div>
-                <div class="col-md-4"><label class="form-label small">Address *</label><input type="text" name="address" class="form-control" placeholder="Street Address" required></div>
-                <div class="col-md-4"><label class="form-label small">City *</label><input type="text" name="city" class="form-control" required></div>
-                <div class="col-md-4"><label class="form-label small">State</label><input type="text" name="state" class="form-control"></div>
-                <div class="col-md-4"><label class="form-label small">ZIP</label><input type="text" name="zip" class="form-control"></div>
-                <div class="col-md-4"><label class="form-label small">Country *</label><input type="text" name="country" class="form-control" required></div>
+                <div class="col-md-4"><label class="form-label small">{{ __('email_marketing.setup.required', ['field' => __('email_marketing.setup.nickname')]) }}</label><input type="text" name="nickname" class="form-control" placeholder="{{ __('email_marketing.setup.nickname_placeholder') }}" required></div>
+                <div class="col-md-4"><label class="form-label small">{{ __('email_marketing.setup.required', ['field' => __('email_marketing.common.from_name')]) }}</label><input type="text" name="from_name" class="form-control" placeholder="{{ __('email_marketing.setup.from_name_placeholder') }}" required></div>
+                <div class="col-md-4"><label class="form-label small">{{ __('email_marketing.setup.required', ['field' => __('email_marketing.common.from_email')]) }}</label><input type="email" name="from_email" class="form-control" placeholder="noreply@yourdomain.com" required></div>
+                <div class="col-md-4"><label class="form-label small">{{ __('email_marketing.setup.reply_to') }}</label><input type="email" name="reply_to" class="form-control" placeholder="support@yourdomain.com"></div>
+                <div class="col-md-4"><label class="form-label small">{{ __('email_marketing.setup.required', ['field' => __('email_marketing.setup.address')]) }}</label><input type="text" name="address" class="form-control" placeholder="{{ __('email_marketing.setup.address_placeholder') }}" required></div>
+                <div class="col-md-4"><label class="form-label small">{{ __('email_marketing.setup.required', ['field' => __('email_marketing.setup.city')]) }}</label><input type="text" name="city" class="form-control" required></div>
+                <div class="col-md-4"><label class="form-label small">{{ __('email_marketing.setup.state') }}</label><input type="text" name="state" class="form-control"></div>
+                <div class="col-md-4"><label class="form-label small">{{ __('email_marketing.setup.zip') }}</label><input type="text" name="zip" class="form-control"></div>
+                <div class="col-md-4"><label class="form-label small">{{ __('email_marketing.setup.required', ['field' => __('email_marketing.setup.country')]) }}</label><input type="text" name="country" class="form-control" required></div>
                 @csrf
-                <div class="col-12"><button class="dash-btn dash-btn-primary mt-2"><i class="bx bx-plus"></i> Create Sender Identity</button></div>
+                <div class="col-12"><button class="dash-btn dash-btn-primary mt-2"><i class="bx bx-plus"></i> {{ __('email_marketing.setup.create_sender') }}</button></div>
             </form>
         @else
             <div class="table-responsive">
                 <table class="dash-table">
-                    <thead><tr><th>From Name</th><th>From Email</th><th>Status</th><th>Created At</th><th></th></tr></thead>
+                    <thead><tr><th>{{ __('email_marketing.common.from_name') }}</th><th>{{ __('email_marketing.common.from_email') }}</th><th>{{ __('email_marketing.common.status') }}</th><th>{{ __('email_marketing.common.created_at') }}</th><th></th></tr></thead>
                     <tbody>
                         @foreach ($senders as $s)
                             <tr>
                                 <td>{{ $s->from_name }}</td>
-                                <td>{{ $s->from_email }}</td>
+                                <td dir="ltr">{{ $s->from_email }}</td>
                                 <td>
                                     @if ($s->isVerified())
-                                        <span class="dash-badge dash-badge-success">Verified</span>
+                                        <span class="dash-badge dash-badge-success">{{ __('email_marketing.statuses.verified') }}</span>
                                     @elseif ($s->status === 'failed')
-                                        <span class="dash-badge dash-badge-danger">Failed</span>
+                                        <span class="dash-badge dash-badge-danger">{{ __('email_marketing.statuses.failed') }}</span>
                                     @else
-                                        <span class="dash-badge dash-badge-warning">Pending Verification</span>
+                                        <span class="dash-badge dash-badge-warning">{{ __('email_marketing.setup.pending_verification') }}</span>
                                     @endif
                                 </td>
-                                <td>{{ $s->created_at->format('M j, Y') }}</td>
+                                <td>{{ $s->created_at->translatedFormat('M j, Y') }}</td>
                                 <td class="text-end">
                                     @unless ($s->isVerified())
                                         <form method="POST" action="{{ route('admin.email.setup.sender.refresh', $s) }}" class="d-inline">
                                             @csrf
-                                            <button class="btn btn-sm btn-outline-primary">Refresh</button>
+                                            <button class="btn btn-sm btn-outline-primary">{{ __('email_marketing.common.refresh') }}</button>
                                         </form>
                                         <form method="POST" action="{{ route('admin.email.setup.sender.resend', $s) }}" class="d-inline">
                                             @csrf
-                                            <button class="btn btn-sm btn-outline-secondary">Resend</button>
+                                            <button class="btn btn-sm btn-outline-secondary">{{ __('email_marketing.common.resend') }}</button>
                                         </form>
                                     @endunless
                                 </td>
@@ -335,13 +335,13 @@
         <div class="d-flex align-items-start gap-3">
             <div class="step-badge">4</div>
             <div class="flex-grow-1">
-                <h6 style="color:var(--dash-heading);margin-bottom:.2rem;">Ready</h6>
+                <h6 style="color:var(--dash-heading);margin-bottom:.2rem;">{{ __('email_marketing.setup.ready_title') }}</h6>
                 @if ($ready)
-                    <p class="mb-3" style="color:var(--dash-success);"><i class="bx bx-check-circle"></i> Email Marketing is Ready - your account is configured and ready to send campaigns.</p>
-                    <a href="{{ route('admin.email.campaigns.create') }}" class="dash-btn dash-btn-primary me-2">Create Campaign</a>
-                    <a href="{{ route('admin.email.dashboard') }}" class="dash-btn dash-btn-ghost">Go to Email Marketing</a>
+                    <p class="mb-3" style="color:var(--dash-success);"><i class="bx bx-check-circle"></i> {{ __('email_marketing.setup.ready_text') }}</p>
+                    <a href="{{ route('admin.email.campaigns.create') }}" class="dash-btn dash-btn-primary me-2">{{ __('email_marketing.setup.create_campaign') }}</a>
+                    <a href="{{ route('admin.email.dashboard') }}" class="dash-btn dash-btn-ghost">{{ __('email_marketing.setup.go_to_module') }}</a>
                 @else
-                    <p class="dash-subtitle small mb-0">Complete the steps above to unlock campaign sending.</p>
+                    <p class="dash-subtitle small mb-0">{{ __('email_marketing.setup.ready_locked') }}</p>
                 @endif
             </div>
         </div>
@@ -356,22 +356,22 @@
                 <form method="POST" action="{{ route('admin.email.setup.sender') }}">
                     @csrf
                     <div class="modal-header">
-                        <h5 class="modal-title">Add Sender Identity</h5>
+                        <h5 class="modal-title">{{ __('email_marketing.setup.add_sender_title') }}</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body row g-2">
-                        <div class="col-md-6"><label class="form-label small">Nickname</label><input type="text" name="nickname" class="form-control" required></div>
-                        <div class="col-md-6"><label class="form-label small">From Name</label><input type="text" name="from_name" class="form-control" required></div>
-                        <div class="col-md-6"><label class="form-label small">From Email</label><input type="email" name="from_email" class="form-control" required></div>
-                        <div class="col-md-6"><label class="form-label small">Reply-To (optional)</label><input type="email" name="reply_to" class="form-control"></div>
-                        <div class="col-12"><label class="form-label small">Address</label><input type="text" name="address" class="form-control" required></div>
-                        <div class="col-md-4"><label class="form-label small">City</label><input type="text" name="city" class="form-control" required></div>
-                        <div class="col-md-4"><label class="form-label small">State</label><input type="text" name="state" class="form-control"></div>
-                        <div class="col-md-4"><label class="form-label small">ZIP</label><input type="text" name="zip" class="form-control"></div>
-                        <div class="col-md-6"><label class="form-label small">Country</label><input type="text" name="country" class="form-control" required></div>
+                        <div class="col-md-6"><label class="form-label small">{{ __('email_marketing.setup.nickname') }}</label><input type="text" name="nickname" class="form-control" required></div>
+                        <div class="col-md-6"><label class="form-label small">{{ __('email_marketing.common.from_name') }}</label><input type="text" name="from_name" class="form-control" required></div>
+                        <div class="col-md-6"><label class="form-label small">{{ __('email_marketing.common.from_email') }}</label><input type="email" name="from_email" class="form-control" required></div>
+                        <div class="col-md-6"><label class="form-label small">{{ __('email_marketing.setup.reply_to') }}</label><input type="email" name="reply_to" class="form-control"></div>
+                        <div class="col-12"><label class="form-label small">{{ __('email_marketing.setup.address') }}</label><input type="text" name="address" class="form-control" required></div>
+                        <div class="col-md-4"><label class="form-label small">{{ __('email_marketing.setup.city') }}</label><input type="text" name="city" class="form-control" required></div>
+                        <div class="col-md-4"><label class="form-label small">{{ __('email_marketing.setup.state') }}</label><input type="text" name="state" class="form-control"></div>
+                        <div class="col-md-4"><label class="form-label small">{{ __('email_marketing.setup.zip') }}</label><input type="text" name="zip" class="form-control"></div>
+                        <div class="col-md-6"><label class="form-label small">{{ __('email_marketing.setup.country') }}</label><input type="text" name="country" class="form-control" required></div>
                     </div>
                     <div class="modal-footer">
-                        <button type="submit" class="btn btn-primary w-100">Create Sender Identity</button>
+                        <button type="submit" class="btn btn-primary w-100">{{ __('email_marketing.setup.create_sender') }}</button>
                     </div>
                 </form>
             </div>
@@ -392,7 +392,7 @@
             btn.addEventListener('click', function () {
                 navigator.clipboard.writeText(btn.dataset.copy);
                 var original = btn.textContent;
-                btn.textContent = 'Copied!';
+                btn.textContent = @json(__('email_marketing.common.copied'));
                 setTimeout(function () { btn.textContent = original; }, 1500);
             });
         });

@@ -37,19 +37,19 @@ class SendGridCampaignService
         $recipientCount = $this->audienceRecipientCount($audience);
 
         $checks = [
-            ['label' => 'SendGrid subaccount active', 'pass' => (bool) $subaccount?->isActive()],
-            ['label' => 'Sender verified', 'pass' => (bool) $sender?->isVerified()],
-            ['label' => 'Audience selected', 'pass' => (bool) $audience],
-            ['label' => 'Audience contains recipients', 'pass' => $recipientCount > 0],
-            ['label' => 'Subject provided', 'pass' => filled($campaign->subject)],
-            ['label' => 'Content provided', 'pass' => filled($campaign->body)],
+            ['label' => __('email_marketing.preflight.subaccount_active'), 'pass' => (bool) $subaccount?->isActive()],
+            ['label' => __('email_marketing.preflight.sender_verified'), 'pass' => (bool) $sender?->isVerified()],
+            ['label' => __('email_marketing.preflight.audience_selected'), 'pass' => (bool) $audience],
+            ['label' => __('email_marketing.preflight.audience_has_recipients'), 'pass' => $recipientCount > 0],
+            ['label' => __('email_marketing.preflight.subject_provided'), 'pass' => filled($campaign->subject)],
+            ['label' => __('email_marketing.preflight.content_provided'), 'pass' => filled($campaign->body)],
             // Every marketing send needs a real SendGrid unsubscribe
             // group attached (ASM) - a draft can be saved without one,
             // but Send Now/Schedule stay blocked until it's set. Never
             // silently falls back to a hardcoded/shared group id (see
             // SendGridSuppressionService's docblock for why a single
             // global value was wrong for this per-subaccount model).
-            ['label' => 'Unsubscribe group selected', 'pass' => (bool) $campaign->suppression_group_id],
+            ['label' => __('email_marketing.preflight.unsub_group_selected'), 'pass' => (bool) $campaign->suppression_group_id],
         ];
 
         return [

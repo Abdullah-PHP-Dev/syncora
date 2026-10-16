@@ -4,9 +4,10 @@
 // engine and none is needed here. The editor only needs to let a seller
 // insert the literal token text into a Text/Heading block.
 export const PERSONALIZATION_TOKENS = [
-  { label: 'First Name', token: '{{first_name}}' },
-  { label: 'Last Name', token: '{{last_name}}' },
-  { label: 'Email', token: '{{email}}' },
+  // key -> email_designer.php tokens.*
+  { key: 'first_name', token: '{{first_name}}' },
+  { key: 'last_name', token: '{{last_name}}' },
+  { key: 'email', token: '{{email}}' },
 ];
 
 /**
