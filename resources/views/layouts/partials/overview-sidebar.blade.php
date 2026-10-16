@@ -29,7 +29,6 @@
             ['admin.ai-copilot.knowledge-gaps.index', 'admin.sidebar.knowledge_gaps', 'bx-help-circle', []],
         ],
         'employees.index' => [['employees.index', 'overview.sidebar_employees', 'bx-user', []], ['employees.create', 'overview.add_employee', 'bx-user-plus', []]],
-        'plans.index' => [['plans.index', 'overview.sidebar_plans', 'bx-crown', []], ['plans.create', 'overview.create_plan', 'bx-plus', []]],
     ];
     if (!$team) {
         foreach ($platforms as $platform => [$platformLabel, $platformIcon]) {
@@ -47,6 +46,7 @@
         ], auth()->user()->hasRole('admin') ? [
             ['employees.index', 'overview.sidebar_employees', 'bx-user'],
             ['plans.index', 'overview.sidebar_plans', 'bx-crown'],
+            ['package-features.index', 'Feature catalog', 'bx-grid-alt'],
             ['admin.faqs.index', 'overview.sidebar_faqs', 'bx-book-open'],
             ['admin.apis.index', 'overview.integrations', 'bx-plug'],
         ] : []),
@@ -92,7 +92,10 @@
                 <li class="ov-sidebar-section"><span>{{ __($heading) }}</span></li>
                 @foreach($links as [$destination, $label, $icon])
                     @php
-                        $active = request()->routeIs($destination) || ($destination === 'dashboard' && request()->routeIs('dashboard.overview'));
+                        $active = request()->routeIs($destination)
+                            || ($destination === 'dashboard' && request()->routeIs('dashboard.overview'))
+                            || ($destination === 'plans.index' && request()->routeIs('plans.*'))
+                            || ($destination === 'package-features.index' && request()->routeIs('package-features.*'));
                         $submenu = $children[$destination] ?? [];
                         $submenuOpen = ($destination === 'admin.ads.dashboard' && request()->routeIs('admin.ads.*'))
                             || ($destination === 'admin.posts.dashboard' && request()->routeIs('admin.posts.*'));

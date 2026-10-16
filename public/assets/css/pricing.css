@@ -158,3 +158,39 @@
 .marketing-home .pricing-payment-method img[alt="Tabby"] { width: 118px; height: 40px; object-fit: cover; }
 .pricing-apple-pay { height: 32px; font-size: 26px; line-height: 1; }
 .marketing-home .pricing-apple-pay svg { width: 26px; height: 28px; }
+
+/* The catalog can include the trial alongside paid packages. */
+.pricing-plan-grid { max-width: 1280px; grid-template-columns: repeat(auto-fit,minmax(min(100%,250px),1fr)); }
+.pricing-additional-benefits { margin-top: 20px; font-size: 12px; color: var(--theme-muted); }
+.pricing-additional-benefits summary { cursor: pointer; color: var(--theme-purple); font-weight: 600; }
+.pricing-additional-benefits ul { padding-inline-start: 18px; margin-top: 12px; }
+.pricing-additional-benefits li { margin-bottom: 8px; line-height: 1.7; }
+@media(max-width:700px) { .pricing-plan-grid { grid-template-columns: 1fr; } }
+
+/* Match the homepage package cards, including the shared allowance rows. */
+.pricing-plan-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:20px}
+.pricing-plan{--package-color:#268773;--package-soft:#eaf6f1;padding:26px 22px 22px;border:1px solid var(--theme-border);border-radius:22px;box-shadow:0 5px 20px #6690dc09}
+.pricing-plan-blue{--package-color:#3973c3;--package-soft:#edf4ff}
+.pricing-plan-violet{--package-color:#8057c9;--package-soft:#f3edff}
+.pricing-plan-amber{--package-color:#aa7833;--package-soft:#fcf4e6}
+.pricing-plan-featured{border-color:var(--theme-purple);background:linear-gradient(180deg,#faf7ff,#fff 42%);box-shadow:0 8px 24px #720aff0a}
+.pricing-plan-header{display:grid;grid-template-columns:40px minmax(0,1fr);align-content:start;align-items:center;gap:16px 12px;min-height:0}
+.pricing-plan-icon,.pricing-plan-featured .pricing-plan-icon{width:40px;height:40px;border-radius:12px;margin:0;background:var(--package-soft);color:var(--package-color)}
+.pricing-plan-icon svg{width:22px;height:22px}
+.marketing-home .pricing-plan h2{font-size:19px;margin:0;letter-spacing:-.4px}
+.pricing-plan-header p{grid-column:1/-1;min-height:62px;margin:0;font-size:12px;line-height:1.7}
+.pricing-plan-cost{margin:0;padding:17px 0 19px;min-height:114px;border-bottom:1px solid var(--theme-border)}
+.pricing-currency{font-size:10px;font-weight:500}
+.pricing-amount-line{gap:6px}
+.pricing-amount-line strong{font-size:clamp(28px,2.5vw,36px);letter-spacing:-1px}
+.pricing-amount-line>span,.pricing-cost-note{font-size:10px}
+.pricing-plan-features{border:0;padding:0;margin:0;display:flex;flex-direction:column;flex:1}
+.pricing-plan .se-package-benefits{list-style:none;display:block;flex:1}
+.pricing-plan .se-package-benefits li{font-size:11px}
+.pricing-plan-cta{min-height:42px;padding:11px 12px;font-size:11px;border-radius:12px}
+.pricing-card-compare{margin-top:15px;font-size:10px}
+.pricing-plan-recommendation{font-size:10px;padding:6px 12px;inset-inline-end:18px;top:-13px}
+.pricing-plan-recommendation svg{width:13px;height:13px}
+.pricing-additional-benefits{margin-top:14px;font-size:11px}
+@media(max-width:1180px){.pricing-plan-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}.pricing-plan-header p{min-height:41px}}
+@media(max-width:640px){.pricing-plan-grid{grid-template-columns:minmax(0,1fr)}.pricing-plan{padding:24px}.pricing-plan-header p{min-height:0}.pricing-amount-line strong{font-size:34px}}

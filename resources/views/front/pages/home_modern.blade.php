@@ -5,6 +5,7 @@
 
 @push('styles')
 <link rel="stylesheet" href="{{ asset('assets/css/home-billing-workflow.css') }}?v={{ filemtime(public_path('assets/css/home-billing-workflow.css')) }}">
+<link rel="stylesheet" href="{{ asset('assets/css/package-cards.css') }}?v={{ filemtime(public_path('assets/css/package-cards.css')) }}">
 @endpush
 
 @section('content')
