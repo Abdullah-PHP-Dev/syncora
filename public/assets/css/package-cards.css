@@ -1,0 +1,13 @@
+/* Shared feature rows for homepage and pricing package cards. */
+.se-package-metrics{display:flex;flex-direction:column;gap:15px;margin:21px 0 18px}
+.se-package-metric{display:flex;align-items:center;justify-content:space-between;gap:14px;min-width:0}
+.se-package-metric>span{font-size:11px;line-height:1.5;color:var(--theme-muted)}
+.se-package-metric>span small{display:block;font-size:9px;color:#a2a4b7;margin-top:2px}
+.se-package-metric>strong{font-size:15px;font-weight:650;color:var(--theme-ink);flex-shrink:0}
+.se-package-card ul.se-package-benefits{padding:15px 0 0;margin:0 0 24px;border-top:1px solid var(--theme-border)}
+.se-package-benefits li{display:flex;align-items:center;gap:7px;padding:0;margin:0 0 13px;line-height:1.5}
+.se-package-benefits li:before{content:none}
+.se-package-benefit-icon{display:flex;align-items:center;color:var(--package-color);flex-shrink:0}
+.se-package-benefit-icon svg{width:13px;height:13px}
+.se-package-benefit-label{font-size:10px;color:var(--theme-muted);flex:1}
+.se-package-benefits li>strong{font-size:11px;font-weight:600;color:var(--theme-ink);max-width:45%;text-align:end}

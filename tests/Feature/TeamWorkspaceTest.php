@@ -34,7 +34,7 @@ class TeamWorkspaceTest extends TestCase
         // convention, guarded by class name (same technique as
         // CreatesSupportModuleTables) in case another test class in the
         // same PHPUnit process already declared them.
-        foreach (['0001_01_01_000000_create_users_table', '2026_06_13_213124_create_permission_tables', '2026_08_17_233010_create_bundles_table', '2026_08_17_234708_create_subscriptions_table', '2026_09_17_000001_create_team_support_workspace', '2026_09_05_143253_create_tickets_table', '2026_09_05_143254_create_ticket_messages_table'] as $migration) {
+        foreach (['0001_01_01_000000_create_users_table', '2026_06_13_213124_create_permission_tables', '2026_08_17_233010_create_bundles_table', '2026_08_17_234708_create_subscriptions_table', '2026_09_17_000001_create_team_support_workspace', '2026_09_05_143253_create_tickets_table', '2026_09_05_143254_create_ticket_messages_table', '2026_10_17_120000_create_package_entitlements'] as $migration) {
             (require database_path('migrations/'.$migration.'.php'))->up();
         }
         foreach ([
@@ -61,7 +61,7 @@ class TeamWorkspaceTest extends TestCase
     }
     private function planData(): array
     {
-        return ['name_en' => 'Growth', 'name_ar' => 'النمو', 'slug' => 'growth', 'price' => '49.50', 'yearly_price' => '499.00', 'currency' => 'SAR', 'description_en' => 'Grow your team', 'description_ar' => 'نمّ فريقك', 'features_en' => "Unlimited drafts\nPriority support", 'features_ar' => "مسودات غير محدودة\nدعم مميز", 'sort_order' => 2, 'is_active' => 1, 'is_free' => 0, 'is_popular' => 1, 'trial_days' => 15];
+        return ['version' => 0, 'entitlements' => collect(config('package_features'))->map(fn ($feature) => $feature['default'])->all(), 'name_en' => 'Growth', 'name_ar' => 'النمو', 'slug' => 'growth', 'price' => '49.50', 'yearly_price' => '499.00', 'currency' => 'SAR', 'description_en' => 'Grow your team', 'description_ar' => 'نمّ فريقك', 'features_en' => "Unlimited drafts\nPriority support", 'features_ar' => "مسودات غير محدودة\nدعم مميز", 'sort_order' => 2, 'is_active' => 1, 'is_free' => 0, 'is_popular' => 1, 'trial_days' => 15];
     }
     private function ticket(User $seller): Ticket
     {
@@ -148,7 +148,7 @@ class TeamWorkspaceTest extends TestCase
         $this->get('/pricing')->assertOk()->assertSee('Growth')->assertSee('49.50')->assertSee('Unlimited drafts');
         $this->actingAs($this->user('seller'))->get('/subscription/plans')->assertOk()->assertJsonPath('data.packages.0.monthly.price', 49.5)->assertJsonPath('data.packages.0.yearly.price', 499)->assertJsonPath('data.packages.0.display_features.1', 'Priority support');
         $this->get('/subscription/checkout-data?plan_id='.$plan->id)->assertOk()->assertJsonPath('data.name', 'Growth')->assertJsonPath('data.yearly.price', 499);
-        $this->actingAs($admin)->put('/plans/'.$plan->id, array_replace($this->planData(), ['price' => 79, 'is_active' => 0]))->assertRedirect();
+        $this->actingAs($admin)->put('/plans/'.$plan->id, array_replace($this->planData(), ['price' => 79, 'is_active' => 0, 'version' => $plan->version]))->assertRedirect();
         $this->actingAs($this->user('seller'))->get('/subscription/plans')->assertJsonCount(0, 'data.packages');
         $this->get('/subscription/checkout-data?plan_id='.$plan->id)->assertNotFound();
         $this->get('/pricing')->assertDontSee('Unlimited drafts');

@@ -67,7 +67,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	|--------------------------------------------------------------------------
 	*/
 
-	Route::view('/', 'front.pages.home_modern')->name('home');
+	Route::get('/', \App\Http\Controllers\Front\HomeController::class)->name('home');
     Route::view('/services', 'front.pages.services')->name('services');
 	Route::view('/yellow', 'front.pages.home_yellow')->name('home.yellow');
 	Route::view('/studio', 'front.pages.home_amber')->name('home.studio');
@@ -114,9 +114,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	|--------------------------------------------------------------------------
 	*/
 
-	Route::get('/pricing', function () {
-		return view('front.pages.pricing', ['plans' => \App\Models\Bundle::where('is_active', true)->where('is_free', false)->orderBy('sort_order')->get()]);
-	})->name('pricing');
+	Route::get('/pricing', \App\Http\Controllers\Front\PricingController::class)->name('pricing');
 
 
 	/*
@@ -194,6 +192,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
         Route::middleware('role:admin')->group(function () {
             Route::resource('employees', \App\Http\Controllers\Team\EmployeeController::class)->except(['show', 'destroy']);
             Route::resource('plans', \App\Http\Controllers\Team\PlanController::class)->except(['show', 'destroy']);
+            Route::resource('package-features', \App\Http\Controllers\Team\PackageFeatureController::class)
+                ->parameters(['package-features' => 'feature'])->except(['show', 'destroy']);
         });
         Route::get('/subscribers', [\App\Http\Controllers\Team\SubscriberController::class, 'index'])
             ->middleware('role:admin|customer_support')->name('subscribers.index');
