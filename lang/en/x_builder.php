@@ -392,7 +392,6 @@ return [
     'defaults' => [
         'lineitem' => 'Ad group - :date',
     ],
-    'picker' => [],
     'client' => [
         'x_error' => 'X returned an error.',
         'request_failed' => 'The request failed.',

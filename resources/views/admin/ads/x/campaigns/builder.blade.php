@@ -33,7 +33,7 @@
             ];
             $galleryUrls = ['index' => route('admin.media-gallery.index'), 'store' => route('admin.media-gallery.store'), 'file' => route('admin.media-gallery.file', ['mediaAsset' => 'MEDIA_ID'])];
             // The shared pickers (SearchPicker, MediaPicker) read their strings from ads_builder.picker.
-            $messages = array_merge(__('x_builder'), ['picker' => array_merge(__('ads_builder.picker'), __('x_builder.picker'))]);
+            $messages = array_merge(__('x_builder'), ['picker' => __('ads_builder.picker')]);
         @endphp
         <xads-campaign-builder
             :urls='@json($builderUrls)'

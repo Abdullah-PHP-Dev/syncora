@@ -392,7 +392,6 @@ return [
     'defaults' => [
         'lineitem' => 'مجموعة إعلانية - :date',
     ],
-    'picker' => [],
     'client' => [
         'x_error' => 'أرجع X خطأً.',
         'request_failed' => 'فشل الطلب.',
