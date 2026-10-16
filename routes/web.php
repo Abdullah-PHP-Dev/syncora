@@ -443,6 +443,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 						Route::get('countries', 'countries')->name('countries');
 						Route::get('regions', 'regions')->name('regions');
 						Route::get('languages', 'languages')->name('languages');
+						Route::get('options/{type}', 'options')->name('options')->where('type', '[a-z_]+');
 						Route::get('advanced-demographics', 'advancedDemographics')->name('advanced_demographics');
 						Route::get('interests', 'interests')->name('interests');
 						Route::get('os-versions', 'osVersions')->name('os_versions');

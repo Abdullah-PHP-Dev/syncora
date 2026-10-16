@@ -17,6 +17,7 @@
                 'countries' => route('admin.ads.snapchat.builder.countries'),
                 'regions' => route('admin.ads.snapchat.builder.regions'),
                 'languages' => route('admin.ads.snapchat.builder.languages'),
+                'options' => route('admin.ads.snapchat.builder.options', ['type' => 'TYPE']),
                 'advancedDemographics' => route('admin.ads.snapchat.builder.advanced_demographics'),
                 'interests' => route('admin.ads.snapchat.builder.interests'),
                 'osVersions' => route('admin.ads.snapchat.builder.os_versions'),

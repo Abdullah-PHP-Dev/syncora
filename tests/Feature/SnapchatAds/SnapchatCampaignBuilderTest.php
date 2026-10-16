@@ -90,6 +90,12 @@ class SnapchatCampaignBuilderTest extends TestCase
             $url = strtok($request->url(), '?');
             $method = $request->method();
 
+            if ($url === 'https://businessapi.snapchat.com/v1/adaccounts/acc1/sharing_policies') {
+                return Http::response(['request_status' => 'SUCCESS', 'sharing_policies' => [
+                    ['source' => ['resource_type' => 'pixels', 'resource_id' => self::PIXEL]],
+                    ['source' => ['resource_type' => 'public_profiles', 'resource_id' => self::PROFILE]],
+                ]]);
+            }
             if (str_starts_with($url, 'https://businessapi.snapchat.com/v1/organizations/org1/public_profiles')) {
                 return Http::response(['request_status' => 'SUCCESS', 'public_profiles' => [['sub_request_status' => 'SUCCESS', 'public_profile' => ['id' => self::PROFILE, 'display_name' => 'Acme']]]]);
             }
@@ -152,18 +158,22 @@ class SnapchatCampaignBuilderTest extends TestCase
             'gender' => 'MALE', 'min_age' => 13, 'max_age' => 34, 'languages' => ['ar'], 'advanced_demographics' => ['DLXD_1'],
             'interests' => ['SLC_1'], 'excluded_interests' => ['SLC_2'], 'os_types' => ['ANDROID'], 'os_versions' => ['ANDROID' => ['min' => '10', 'max' => null]],
             'connection_type' => 'WIFI', 'audiences' => ['222'], 'excluded_audiences' => ['111'], 'interest_expansion' => true,
+            'metros' => [['id' => '557', 'country' => 'ae']], 'excluded_metros' => [['id' => '641', 'country' => 'ae']],
+            'visitation' => ['VAC_1'], 'nielsen' => ['NLN_1000'], 'location_categories' => ['LOI_1000'], 'carriers' => ['US_ATT'], 'device_makes' => ['Apple/'],
         ]);
 
         $this->assertSame([
             ['country_code' => 'sa', 'region_id' => ['35000'], 'operation' => 'INCLUDE'],
             ['country_code' => 'sa', 'postal_code' => ['11564'], 'operation' => 'INCLUDE'],
-            ['country_code' => 'ae', 'operation' => 'INCLUDE'],
+            ['country_code' => 'ae', 'metro_id' => ['557'], 'operation' => 'INCLUDE'],
+            ['country_code' => 'ae', 'metro_id' => ['641'], 'operation' => 'EXCLUDE'],
             ['country_code' => 'ae', 'region_id' => ['9'], 'operation' => 'EXCLUDE'],
         ], $spec['geos']);
         // min_age 13 is Snap's default, so it is omitted.
         $this->assertSame([['gender' => 'MALE', 'max_age' => '34', 'languages' => ['ar'], 'advanced_demographics' => ['DLXD_1'], 'operation' => 'INCLUDE']], $spec['demographics']);
-        $this->assertSame([['category_id' => ['SLC_1'], 'operation' => 'INCLUDE'], ['category_id' => ['SLC_2'], 'operation' => 'EXCLUDE']], $spec['interests']);
-        $this->assertSame([['os_type' => 'ANDROID', 'os_version_min' => '10', 'connection_type' => 'WIFI', 'operation' => 'INCLUDE']], $spec['devices']);
+        $this->assertSame([['category_id' => ['SLC_1', 'VAC_1', 'NLN_1000'], 'operation' => 'INCLUDE'], ['category_id' => ['SLC_2'], 'operation' => 'EXCLUDE']], $spec['interests']);
+        $this->assertSame([['os_type' => 'ANDROID', 'os_version_min' => '10', 'connection_type' => 'WIFI', 'carrier_id' => ['US_ATT'], 'marketing_name' => ['Apple/'], 'operation' => 'INCLUDE']], $spec['devices']);
+        $this->assertSame(['categories_loi' => ['LOI_1000'], 'operation' => 'INCLUDE'], $spec['locations'][1]);
         $this->assertSame([['segment_id' => ['222'], 'operation' => 'INCLUDE'], ['segment_id' => ['111'], 'operation' => 'EXCLUDE']], $spec['segments']);
         $this->assertSame('KILOMETERS', $spec['locations'][0]['circles'][0]['unit']);
         $this->assertTrue($spec['enable_targeting_expansion']);
@@ -251,6 +261,11 @@ class SnapchatCampaignBuilderTest extends TestCase
             $this->assertSame('validation', $result['step']);
         }
         $this->assertSame([], $this->writes());
+    }
+
+    public function test_profiles_come_from_the_ad_account(): void
+    {
+        $this->assertSame([['id' => self::PROFILE, 'name' => 'Acme', 'logo' => null]], $this->builder()->profiles());
     }
 
     public function test_expired_token_is_refreshed_and_shared_with_sibling_accounts(): void

@@ -66,6 +66,15 @@ class SnapchatAdBuilderController extends Controller
         return $this->respond(fn ($b) => $b->regions($request->string('country_code')->value()));
     }
 
+    /** Metros, carriers, device makes, visitation / Nielsen interests, location categories. */
+    public function options(Request $request, string $type): JsonResponse
+    {
+        abort_unless(isset(B::OPTION_TYPES[$type]), 404);
+        $request->validate(['country_code' => ['nullable', 'alpha', 'size:2']]);
+
+        return $this->respond(fn ($b) => $b->optionList($type, $request->query('country_code')));
+    }
+
     public function languages(): JsonResponse
     {
         return $this->respond(fn ($b) => $b->languages());

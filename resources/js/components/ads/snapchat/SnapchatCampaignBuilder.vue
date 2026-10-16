@@ -298,6 +298,19 @@
                 </div>
                 <p v-if="lists.errors.regions" class="fb-field-err">{{ lists.errors.regions }}</p>
                 <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('audience.regions_hint') }}</p>
+                <div class="fb-grid-2 mt-2">
+                  <div>
+                    <label class="fb-label">{{ t('audience.metros') }} <span class="fb-opt">{{ t('common.optional') }}</span></label>
+                    <search-picker v-model="targeting.metros" :options="metroOptions" :min-chars="0" :max="500" :placeholder="lists.loading.metros ? t('common.loading') : (metroOptions.length ? t('audience.search_metros') : t('audience.no_metros'))">
+                      <template #option="{ item }"><span class="sp-opt-main"><strong>{{ item.name }}</strong></span><span class="fb-tag">{{ item.country.toUpperCase() }}</span></template>
+                    </search-picker>
+                  </div>
+                  <div>
+                    <label class="fb-label">{{ t('audience.excluded_metros') }} <span class="fb-opt">{{ t('common.optional') }}</span></label>
+                    <search-picker v-model="targeting.excluded_metros" :options="metroOptions" :min-chars="0" :max="500" chip-tone="exclude" :placeholder="t('audience.search_metros')" />
+                  </div>
+                </div>
+                <p v-if="lists.errors.metros" class="fb-field-err">{{ lists.errors.metros }}</p>
 
                 <details class="sb-details mt-2">
                   <summary><i class="bx bx-envelope"></i> {{ t('audience.postal_title') }} <span v-if="targeting.postal_codes.length" class="fb-tag">{{ targeting.postal_codes.length }}</span></summary>
@@ -327,6 +340,15 @@
                   <div v-if="targeting.circles.length" class="fb-chips mt-2">
                     <span v-for="(c, i) in targeting.circles" :key="i" class="fb-chip" dir="ltr">{{ c.latitude.toFixed(4) }}, {{ c.longitude.toFixed(4) }} · {{ c.radius }} km<button type="button" :aria-label="t('common.remove')" @click="targeting.circles.splice(i, 1)"><i class="bx bx-x"></i></button></span>
                   </div>
+                </details>
+
+                <details class="sb-details mt-2" @toggle="loadOption('location_categories')">
+                  <summary><i class="bx bx-store"></i> {{ t('audience.loi_title') }} <span v-if="targeting.location_categories.length" class="fb-tag">{{ targeting.location_categories.length }}</span></summary>
+                  <search-picker v-model="targeting.location_categories" class="mt-2" :options="lists.location_categories || []" :min-chars="0" :max="200" :placeholder="lists.loading.location_categories ? t('common.loading') : t('audience.search_loi')">
+                    <template #option="{ item }"><span class="sp-opt-main"><strong>{{ item.name }}</strong> <small v-if="item.path && item.path !== item.name" class="fb-muted">{{ item.path }}</small></span></template>
+                  </search-picker>
+                  <p v-if="lists.errors.location_categories" class="fb-field-err">{{ lists.errors.location_categories }}</p>
+                  <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('audience.loi_hint') }}</p>
                 </details>
               </template>
             </div>
@@ -377,6 +399,15 @@
                 <label class="fb-label mt-2">{{ t('audience.exclude') }}</label>
                 <search-picker v-model="targeting.excluded_interests" :options="lists.interests" :min-chars="0" :max="200" chip-tone="exclude" :placeholder="t('audience.search_interests')" />
                 <p v-if="lists.errors.interests" class="fb-field-err">{{ lists.errors.interests }}</p>
+                <label class="fb-label mt-2">{{ t('audience.visitation') }} <span class="fb-opt">{{ t('common.optional') }}</span></label>
+                <search-picker v-model="targeting.visitation" :options="lists.visitation || []" :min-chars="0" :max="200" :placeholder="lists.loading.visitation ? t('common.loading') : t('audience.search_visitation')">
+                  <template #option="{ item }"><span class="sp-opt-main"><strong>{{ item.name }}</strong> <small v-if="item.path && item.path !== item.name" class="fb-muted">{{ item.path }}</small></span></template>
+                </search-picker>
+                <p v-if="lists.errors.visitation" class="fb-field-err">{{ lists.errors.visitation }}</p>
+                <label class="fb-label mt-2">{{ t('audience.nielsen') }} <span class="fb-opt">{{ t('common.optional') }}</span></label>
+                <search-picker v-model="targeting.nielsen" :options="lists.nielsen || []" :min-chars="0" :max="200" :placeholder="lists.loading.nielsen ? t('common.loading') : t('audience.search_nielsen')" />
+                <p v-if="lists.errors.nielsen" class="fb-field-err">{{ lists.errors.nielsen }}</p>
+                <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('audience.partner_hint') }}</p>
               </template>
             </div>
 
@@ -428,6 +459,19 @@
                 <option :value="null">{{ t('audience.any_connection') }}</option>
                 <option v-for="c in lists.connectionTypes" :key="c.id" :value="c.id">{{ known('connection_types', c.id, c.name) }}</option>
               </select>
+              <div class="fb-grid-2 mt-2">
+                <div>
+                  <label class="fb-label">{{ t('audience.carriers') }} <span class="fb-opt">{{ t('common.optional') }}</span></label>
+                  <search-picker v-model="targeting.carriers" :options="carrierOptions" :min-chars="0" :max="100" :placeholder="lists.loading.carriers ? t('common.loading') : t('audience.search_carriers')">
+                    <template #option="{ item }"><span class="sp-opt-main"><strong>{{ item.name }}</strong></span><span v-if="item.country" class="fb-tag">{{ item.country.toUpperCase() }}</span></template>
+                  </search-picker>
+                </div>
+                <div>
+                  <label class="fb-label">{{ t('audience.device_makes') }} <span class="fb-opt">{{ t('common.optional') }}</span></label>
+                  <search-picker v-model="targeting.device_makes" :options="lists.device_makes || []" :min-chars="0" :max="200" :placeholder="lists.loading.device_makes ? t('common.loading') : t('audience.search_makes')" />
+                </div>
+              </div>
+              <p v-if="lists.errors.carriers || lists.errors.device_makes" class="fb-field-err">{{ lists.errors.carriers || lists.errors.device_makes }}</p>
               <p v-if="spec && destination === 'app_install' && !targeting.os_types.length" class="fb-hint"><i class="bx bx-bulb"></i> {{ t('audience.app_os_tip') }}</p>
             </div>
 
@@ -706,14 +750,14 @@ const adsquad = reactive({
   dayparting: false, schedule: {},
 });
 const targeting = reactive({
-  countries: [], regions: [], excluded_regions: [], postal_codes: [], circles: [], gender: 'ALL', min_age: 13, max_age: null,
+  countries: [], regions: [], excluded_regions: [], metros: [], excluded_metros: [], postal_codes: [], location_categories: [], visitation: [], nielsen: [], carriers: [], device_makes: [], circles: [], gender: 'ALL', min_age: 13, max_age: null,
   languages: [], advanced_demographics: [], interests: [], excluded_interests: [], os_types: [], os_versions: { iOS: { min: null, max: null }, ANDROID: { min: null, max: null } },
   connection_type: null, audiences: [], excluded_audiences: [], regulated_content: false, interest_expansion: false, audience_expansion: false,
 });
 const app = reactive({ app_name: '', ios_app_id: '', android_app_url: '', icon: null, deep_link_uri: '', web_fallback_url: '' });
 const ad = reactive({ name: '', profile_id: null, headline: '', brand_name: '', media: [], cta: null, url: '', shareable: true, block_preload: false });
 
-const lists = reactive({ campaigns: [], audiences: [], countries: [], languages: [], advanced: [], interests: [], regions: {}, osVersions: {}, connectionTypes: [], loading: {}, errors: {} });
+const lists = reactive({ campaigns: [], audiences: [], countries: [], languages: [], advanced: [], interests: [], regions: {}, metros: {}, osVersions: {}, connectionTypes: [], loading: {}, errors: {} });
 
 // ---------------------------------------------------------------- derived
 const opt = computed(() => (boot.value ? boot.value.options : {}));
@@ -733,6 +777,8 @@ const minAges = computed(() => (boot.value ? range(opt.value.min_age[0], opt.val
 const maxAges = computed(() => (boot.value ? range(Math.max(opt.value.max_age[0], targeting.min_age || 13), opt.value.max_age[1]) : []));
 const usableAudiences = computed(() => lists.audiences.filter((a) => a.usable));
 const notReadyAudiences = computed(() => lists.audiences.filter((a) => !a.usable).length);
+const metroOptions = computed(() => targeting.countries.flatMap((c) => lists.metros[c.id] || []));
+const carrierOptions = computed(() => { const cc = targeting.countries.map((c) => c.id); return (lists.carriers || []).filter((c) => !c.country || cc.includes(c.country)); });
 const regionOptions = computed(() => targeting.countries.flatMap((c) => lists.regions[c.id] || []));
 const interestCountry = computed(() => targeting.countries[0] || null);
 const selectedProfile = computed(() => (boot.value ? boot.value.profiles.find((p) => p.id === ad.profile_id) || null : null));
@@ -769,21 +815,27 @@ const summaryLines = computed(() => {
   out.push({ icon: 'bx-map', text: where || t('summary.no_location') });
   const narrow = [];
   if (targeting.regions.length) narrow.push(t('summary.regions', { count: targeting.regions.length }));
+  if (targeting.metros.length) narrow.push(t('summary.metros', { count: targeting.metros.length }));
+  if (targeting.location_categories.length) narrow.push(t('summary.loi', { count: targeting.location_categories.length }));
   if (targeting.postal_codes.length) narrow.push(t('summary.postal', { count: targeting.postal_codes.length }));
   if (targeting.circles.length) narrow.push(t('summary.radius', { count: targeting.circles.length }));
   if (narrow.length) out.push({ icon: 'bx-current-location', text: narrow.join(' ∪ ') });
   out.push({ icon: 'bx-user', text: [t('genders.' + targeting.gender), ageText()].join(' · ') + (targeting.languages.length ? ' · ' + targeting.languages.map((l) => l.name).join(', ') : '') });
   const include = [];
   if (targeting.interests.length) include.push(t('summary.interests', { count: targeting.interests.length }));
+  if (targeting.visitation.length || targeting.nielsen.length) include.push(t('summary.partner', { count: targeting.visitation.length + targeting.nielsen.length }));
   if (targeting.advanced_demographics.length) include.push(t('summary.advanced', { count: targeting.advanced_demographics.length }));
   if (targeting.audiences.length) include.push(t('summary.custom', { count: targeting.audiences.length }));
   if (include.length) out.push({ icon: 'bx-heart', text: include.join(' · ') });
   const exclude = [];
   if (targeting.excluded_regions.length) exclude.push(t('summary.regions', { count: targeting.excluded_regions.length }));
+  if (targeting.excluded_metros.length) exclude.push(t('summary.metros', { count: targeting.excluded_metros.length }));
   if (targeting.excluded_interests.length) exclude.push(t('summary.interests', { count: targeting.excluded_interests.length }));
   if (targeting.excluded_audiences.length) exclude.push(t('summary.custom', { count: targeting.excluded_audiences.length }));
   if (exclude.length) out.push({ icon: 'bx-block', text: t('summary.excluding', { list: exclude.join(', ') }) });
   const devices = targeting.os_types.map((os) => (os === 'iOS' ? 'iOS' : 'Android') + osRange(os));
+  if (targeting.carriers.length) devices.push(t('summary.carriers', { count: targeting.carriers.length }));
+  if (targeting.device_makes.length) devices.push(t('summary.makes', { count: targeting.device_makes.length }));
   if (targeting.connection_type) devices.push(known('connection_types', targeting.connection_type, targeting.connection_type));
   if (devices.length) out.push({ icon: 'bx-mobile', text: devices.join(', ') });
   const exp = [];
@@ -931,6 +983,14 @@ function loadRegions(cc) {
   lists.regions = { ...lists.regions, [cc]: [] };
   load('regions', props.urls.regions, { country_code: cc }, (data) => { lists.regions = { ...lists.regions, [cc]: data }; });
 }
+function loadOption(type, cc = null) {
+  const key = cc ? type + ':' + cc : type;
+  if (loadedOnce.has(key)) return;
+  loadedOnce.add(key);
+  const url = props.urls.options.replace('TYPE', type);
+  if (type === 'metros') load('metros', url, { country_code: cc }, (data) => { lists.metros = { ...lists.metros, [cc]: data }; });
+  else load(type, url, cc ? { country_code: cc } : {}, (data) => { lists[type] = data; });
+}
 let interestsFor = null;
 function loadInterests() {
   const cc = interestCountry.value ? interestCountry.value.id : null;
@@ -938,6 +998,9 @@ function loadInterests() {
   interestsFor = cc;
   lists.interests = [];
   load('interests', props.urls.interests, { country_code: cc });
+  loadedOnce.delete('visitation');
+  loadedOnce.add('visitation');
+  load('visitation', props.urls.options.replace('TYPE', 'visitation'), { country_code: cc }, (data) => { lists.visitation = data; });
 }
 function loadOsVersions(os) {
   if (lists.osVersions[os]) return;
@@ -1078,7 +1141,11 @@ function targetingPayload() {
     countries,
     regions: targeting.regions.filter(inCountries).map((r) => ({ id: r.id, country: r.country })),
     excluded_regions: targeting.excluded_regions.filter(inCountries).map((r) => ({ id: r.id, country: r.country })),
+    metros: targeting.metros.filter(inCountries).map((m) => ({ id: m.id, country: m.country })),
+    excluded_metros: targeting.excluded_metros.filter(inCountries).map((m) => ({ id: m.id, country: m.country })),
     postal_codes: targeting.postal_codes.filter(inCountries),
+    location_categories: ids(targeting.location_categories), visitation: ids(targeting.visitation), nielsen: ids(targeting.nielsen),
+    carriers: ids(targeting.carriers), device_makes: ids(targeting.device_makes),
     circles: targeting.circles,
     gender: targeting.gender, min_age: targeting.min_age, max_age: targeting.max_age || null,
     languages: ids(targeting.languages), advanced_demographics: ids(targeting.advanced_demographics),
@@ -1197,6 +1264,7 @@ function resumeDraft() {
   Object.assign(campaign, d.campaign);
   Object.assign(adsquad, d.adsquad);
   Object.assign(targeting, d.targeting);
+  ['metros', 'excluded_metros', 'location_categories', 'visitation', 'nielsen', 'carriers', 'device_makes'].forEach((k) => { if (!Array.isArray(targeting[k])) targeting[k] = []; });
   Object.assign(app, d.app || {});
   Object.assign(ad, d.ad);
   if (!goals.value.includes(adsquad.goal)) adsquad.goal = goals.value[0] || null;
@@ -1221,10 +1289,12 @@ watch(current, (c) => {
     ensure('connectionTypes', props.urls.connectionTypes);
     loadInterests();
     targeting.os_types.forEach(loadOsVersions);
+    ['nielsen', 'carriers', 'device_makes'].forEach((type) => loadOption(type));
+    targeting.countries.forEach((c) => loadOption('metros', c.id));
   }
 });
 watch(() => targeting.countries.map((c) => c.id).join(','), () => {
-  targeting.countries.forEach((c) => loadRegions(c.id));
+  targeting.countries.forEach((c) => { loadRegions(c.id); if (current.value === 'audience') loadOption('metros', c.id); });
   if (!targeting.countries.some((c) => c.id === postalCountry.value)) postalCountry.value = targeting.countries[0] ? targeting.countries[0].id : null;
   if (current.value === 'audience') loadInterests();
 });

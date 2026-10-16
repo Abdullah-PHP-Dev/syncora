@@ -204,28 +204,64 @@ class SnapchatCampaignBuilder
         if (isset($this->memo['profiles'])) {
             return $this->memo['profiles'];
         }
-        $org = $this->api->organizationId();
-        if (! $org) {
-            return $this->memo['profiles'] = [[], __('snapchat_builder.server.no_organization')];
-        }
+        $error = null;
+        $profiles = Cache::remember($this->cacheKey('profiles'), 600, function () use (&$error) {
+            $present = fn ($p) => [
+                'id' => (string) $p['id'],
+                'name' => $p['display_name'] ?? $p['id'],
+                'logo' => $p['logo_urls']['discover_feed_logo_url'] ?? $p['logo_urls']['original_logo_url'] ?? null,
+            ];
 
-        try {
-            $profiles = Cache::remember($this->cacheKey('profiles'), 600, fn () => collect($this->api->business('organizations/' . $org . '/public_profiles', ['limit' => 50])['public_profiles'] ?? [])
-                ->pluck('public_profile')->filter()
-                ->map(fn ($p) => [
-                    'id' => (string) $p['id'],
-                    'name' => $p['display_name'] ?? $p['id'],
-                    'logo' => $p['logo_urls']['discover_feed_logo_url'] ?? $p['logo_urls']['original_logo_url'] ?? null,
-                ])->values()->all());
-
-            return $this->memo['profiles'] = [$profiles, null];
-        } catch (SnapchatApiException $e) {
-            if ($e->isAuthError()) {
-                throw $e;
+            // 1. Public Profiles linked to this ad account (sharing policies).
+            $linked = [];
+            try {
+                $linked = collect($this->api->business('adaccounts/' . $this->api->adAccountId() . '/sharing_policies', ['shared_resource_types' => 'public_profiles'])['sharing_policies'] ?? [])
+                    ->filter(fn ($s) => ($s['source']['resource_type'] ?? null) === 'public_profiles')
+                    ->pluck('source.resource_id')->filter()->map(fn ($id) => (string) $id)->unique()->values()->all();
+            } catch (SnapchatApiException $e) {
+                if ($e->isAuthError()) {
+                    throw $e;
+                }
+                $error = $e->getMessage();
             }
 
-            return $this->memo['profiles'] = [[], $e->getMessage()];
+            // 2. The organization's profiles: names/logos, and the fallback list.
+            $org = [];
+            if ($orgId = $this->api->organizationId()) {
+                try {
+                    $org = collect($this->api->business('organizations/' . $orgId . '/public_profiles', ['limit' => 50])['public_profiles'] ?? [])
+                        ->pluck('public_profile')->filter()->map($present)->keyBy('id')->all();
+                } catch (SnapchatApiException $e) {
+                    if ($e->isAuthError()) {
+                        throw $e;
+                    }
+                    $error ??= $e->getMessage();
+                }
+            }
+
+            if (! $linked) {
+                return array_values($org);
+            }
+
+            return collect($linked)->map(function ($id) use ($org, $present) {
+                if (isset($org[$id])) {
+                    return $org[$id];
+                }
+                try {
+                    $p = $this->api->business('public_profiles/' . $id)['public_profiles'][0]['public_profile'] ?? null;
+
+                    return $p ? $present($p) : ['id' => $id, 'name' => $id, 'logo' => null];
+                } catch (SnapchatApiException) {
+                    return ['id' => $id, 'name' => $id, 'logo' => null];
+                }
+            })->values()->all();
+        });
+
+        if (! $profiles) {
+            Cache::forget($this->cacheKey('profiles'));
         }
+
+        return $this->memo['profiles'] = [$profiles, $profiles ? null : ($error ?? ($this->api->organizationId() ? null : __('snapchat_builder.server.no_organization')))];
     }
 
     /** Campaigns of this ad account, with their objective (a campaign has one). */
@@ -282,6 +318,38 @@ class SnapchatCampaignBuilder
             ->filter(fn ($r) => isset($r['id']))
             ->map(fn ($r) => ['id' => (string) $r['id'], 'name' => ucwords((string) ($r['name'] ?? $r['code'] ?? $r['id'])), 'country' => $cc])
             ->sortBy('name')->values()->all());
+    }
+
+    /** Extra targeting lists, by type: [path, item key, country-scoped?, query]. */
+    public const OPTION_TYPES = [
+        'metros' => ['targeting/geo/{cc}/metro', 'metro', true, []],
+        'carriers' => ['targeting/device/carrier', 'carrier', false, []],
+        'device_makes' => ['targeting/device/marketing_name', 'marketing_name', false, []],
+        'visitation' => ['targeting/v1/interests/vac', 'vac', true, ['country_code' => '{cc}']],
+        'nielsen' => ['targeting/interests/nln', 'nln', false, ['limit' => 1000]],
+        'location_categories' => ['targeting/location/categories_loi', 'categories_loi', false, []],
+    ];
+
+    /** One of OPTION_TYPES, normalized to {id, name, path?, country?}. */
+    public function optionList(string $type, ?string $countryCode = null): array
+    {
+        [$path, $item, $scoped, $query] = self::OPTION_TYPES[$type];
+        $cc = strtolower((string) $countryCode);
+        if ($scoped && strlen($cc) !== 2) {
+            throw new \InvalidArgumentException(__('snapchat_builder.server.country_needed'));
+        }
+        $fill = fn ($v) => str_replace('{cc}', $cc, $v);
+
+        return Cache::remember('snapchat-builder:opt:' . $type . ':' . ($scoped ? $cc : 'all'), 86400, fn () => collect($this->api->all($fill($path), 'targeting_dimensions', $item, array_map($fill, $query), 20))
+            ->map(fn ($o) => is_array($o[$item] ?? null) ? $o[$item] : $o)
+            ->filter(fn ($o) => isset($o['id']))
+            ->map(fn ($o) => array_filter([
+                'id' => (string) $o['id'],
+                'name' => ucwords((string) ($o['name'] ?? $o['id'])),
+                'path' => isset($o['path']) ? trim((string) $o['path'], '/') : null,
+                'country' => $scoped ? $cc : (isset($o['valid_country']) ? strtolower((string) $o['valid_country']) : null),
+            ], fn ($v) => $v !== null && $v !== ''))
+            ->unique('id')->values()->all());
     }
 
     public function languages(): array
@@ -370,12 +438,23 @@ class SnapchatCampaignBuilder
                 $spec['geos'][] = ['country_code' => $cc, 'region_id' => $regions[$cc]->pluck('id')->unique()->values()->all(), 'operation' => 'INCLUDE'];
                 $narrowed = true;
             }
+            if (collect($t['metros'] ?? [])->where('country', $cc)->isNotEmpty()) {
+                $narrowed = true;
+            }
             if ($postal->has($cc)) {
                 $spec['geos'][] = ['country_code' => $cc, 'postal_code' => $postal[$cc]->pluck('code')->unique()->values()->all(), 'operation' => 'INCLUDE'];
                 $narrowed = true;
             }
             if (! $narrowed) {
                 $spec['geos'][] = ['country_code' => $cc, 'operation' => 'INCLUDE'];
+            }
+            $metros = collect($t['metros'] ?? [])->where('country', $cc);
+            if ($metros->isNotEmpty()) {
+                $spec['geos'][] = ['country_code' => $cc, 'metro_id' => $metros->pluck('id')->unique()->values()->all(), 'operation' => 'INCLUDE'];
+            }
+            $excludedMetros = collect($t['excluded_metros'] ?? [])->where('country', $cc);
+            if ($excludedMetros->isNotEmpty()) {
+                $spec['geos'][] = ['country_code' => $cc, 'metro_id' => $excludedMetros->pluck('id')->unique()->values()->all(), 'operation' => 'EXCLUDE'];
             }
             if ($excludedRegions->has($cc)) {
                 $spec['geos'][] = ['country_code' => $cc, 'region_id' => $excludedRegions[$cc]->pluck('id')->unique()->values()->all(), 'operation' => 'EXCLUDE'];
@@ -393,25 +472,31 @@ class SnapchatCampaignBuilder
             $spec['demographics'] = [$demo + ['operation' => 'INCLUDE']];
         }
 
-        if (! empty($t['interests'])) {
-            $spec['interests'][] = ['category_id' => array_values(array_unique($t['interests'])), 'operation' => 'INCLUDE'];
+        // SLC, Snap visitation (VAC) and Nielsen (NLN) categories; only SLC can be excluded.
+        $interests = array_values(array_unique(array_merge($t['interests'] ?? [], $t['visitation'] ?? [], $t['nielsen'] ?? [])));
+        if ($interests) {
+            $spec['interests'][] = ['category_id' => $interests, 'operation' => 'INCLUDE'];
         }
         if (! empty($t['excluded_interests'])) {
             $spec['interests'][] = ['category_id' => array_values(array_unique($t['excluded_interests'])), 'operation' => 'EXCLUDE'];
         }
 
+        // One device entry per OS (entries OR); carrier, make and connection AND within each.
+        $shared = array_filter([
+            'connection_type' => $t['connection_type'] ?? null,
+            'carrier_id' => array_values(array_unique($t['carriers'] ?? [])) ?: null,
+            'marketing_name' => array_values(array_unique($t['device_makes'] ?? [])) ?: null,
+        ], fn ($v) => $v !== null && $v !== '');
         foreach (array_values(array_unique($t['os_types'] ?? [])) as $os) {
             $versions = $t['os_versions'][$os] ?? [];
             $spec['devices'][] = array_filter([
                 'os_type' => $os,
                 'os_version_min' => $versions['min'] ?? null,
                 'os_version_max' => $versions['max'] ?? null,
-                'connection_type' => $t['connection_type'] ?? null,
-                'operation' => 'INCLUDE',
-            ], fn ($v) => $v !== null && $v !== '');
+            ], fn ($v) => $v !== null && $v !== '') + $shared + ['operation' => 'INCLUDE'];
         }
-        if (empty($spec['devices']) && ! empty($t['connection_type'])) {
-            $spec['devices'][] = ['connection_type' => $t['connection_type'], 'operation' => 'INCLUDE'];
+        if (empty($spec['devices']) && $shared) {
+            $spec['devices'][] = $shared + ['operation' => 'INCLUDE'];
         }
 
         if (! empty($t['audiences'])) {
@@ -425,6 +510,10 @@ class SnapchatCampaignBuilder
             $spec['locations'][] = ['circles' => array_map(fn ($c) => [
                 'latitude' => (float) $c['latitude'], 'longitude' => (float) $c['longitude'], 'radius' => (float) $c['radius'], 'unit' => 'KILOMETERS',
             ], $t['circles']), 'operation' => 'INCLUDE'];
+        }
+
+        if (! empty($t['location_categories'])) {
+            $spec['locations'][] = ['categories_loi' => array_values(array_unique($t['location_categories'])), 'operation' => 'INCLUDE'];
         }
 
         $spec['regulated_content'] = (bool) ($t['regulated_content'] ?? false);
@@ -654,7 +743,7 @@ class SnapchatCampaignBuilder
         if (! empty($t['min_age']) && ! empty($t['max_age']) && (int) $t['max_age'] < (int) $t['min_age']) {
             throw new \InvalidArgumentException(__('snapchat_builder.server.age_range'));
         }
-        foreach (['regions', 'excluded_regions', 'postal_codes'] as $k) {
+        foreach (['regions', 'excluded_regions', 'postal_codes', 'metros', 'excluded_metros'] as $k) {
             foreach ($t[$k] ?? [] as $g) {
                 if (! in_array($g['country'], $t['countries'] ?? [], true)) {
                     throw new \InvalidArgumentException(__('snapchat_builder.server.geo_country'));
