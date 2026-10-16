@@ -2,28 +2,18 @@
   <div class="fb xb" :dir="i18n.dir">
 
     <!-- ===== Header ===== -->
-    <header class="xb-hero">
-      <div class="xb-hero-main">
-        <span class="xb-logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></span>
-        <div class="xb-hero-text">
-          <span class="xb-eyebrow"><i class="bx bxs-zap"></i> {{ t('header.eyebrow') }}</span>
+    <header class="fb-head">
+      <div class="fb-head-main">
+        <span class="fb-head-icon xb-head-icon"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></span>
+        <div>
           <h4>{{ t('header.title') }}</h4>
           <p>{{ t('header.subtitle') }}</p>
         </div>
       </div>
-      <div class="xb-hero-side">
-        <div v-if="boot" class="xb-hero-acct" :title="boot.account.id">
-          <span class="xb-hero-acct-ic"><i class="bx bx-briefcase-alt-2"></i></span>
-          <span><small>{{ t('header.ad_account') }}</small><strong>{{ boot.account.name }}</strong><small dir="ltr">{{ currency }} · {{ boot.account.timezone }}</small></span>
-        </div>
-        <a :href="urls.campaignsList" class="xb-hero-btn"><i class="bx bx-list-ul"></i> {{ t('header.campaigns') }}</a>
+      <div class="fb-head-actions">
+        <span v-if="boot" class="fb-acct" :title="boot.account.id"><i class="bx bx-briefcase-alt-2"></i> {{ boot.account.name }} · {{ currency }}</span>
+        <a :href="urls.campaignsList" class="btn btn-sm fb-btn-ghost"><i class="bx bx-list-ul"></i> {{ t('header.campaigns') }}</a>
       </div>
-      <ul class="xb-hero-flow">
-        <li><i class="bx bx-flag"></i> {{ t('header.flow_campaign') }}</li>
-        <li><i class="bx bx-target-lock"></i> {{ t('header.flow_targeting') }}</li>
-        <li><i class="bx bx-message-square-detail"></i> {{ t('header.flow_creative') }}</li>
-        <li><i class="bx bx-cloud-upload"></i> {{ t('header.flow_drafts') }}</li>
-      </ul>
     </header>
 
     <div v-if="draftOffer" class="fb-banner">
@@ -1175,34 +1165,8 @@ onMounted(async () => {
 <style scoped src="../facebook/builder.css"></style>
 <style scoped>
 .xb { --brand: #0f1419; --brand-2: #1d9bf0; --brand-soft: #e8f5fd; }
-.xb-hero { position: relative; overflow: hidden; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 18px; padding: 26px 26px 20px; margin-bottom: 16px; border-radius: 22px; color: #fff; background: radial-gradient(120% 140% at 100% 0%, #16202a 0%, #0b0f14 55%, #000 100%); box-shadow: 0 18px 40px rgba(0, 0, 0, .28); isolation: isolate; }
-.xb-hero::before { content: ''; position: absolute; inset: 0; z-index: -1; background-image: linear-gradient(rgba(255, 255, 255, .035) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .035) 1px, transparent 1px); background-size: 28px 28px; mask-image: radial-gradient(80% 90% at 80% 10%, #000, transparent); }
-.xb-hero-main { display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1 1 380px; }
-.xb-logo { flex-shrink: 0; width: 60px; height: 60px; border-radius: 18px; display: grid; place-items: center; color: #fff; background: #000; border: 1px solid rgba(255, 255, 255, .16); box-shadow: 0 10px 24px rgba(0, 0, 0, .5), 0 0 0 4px rgba(29, 155, 240, .12); }
-.xb-logo svg { width: 28px; height: 28px; }
-.xb-hero-text { min-width: 0; }
-.xb-eyebrow { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; margin-bottom: 6px; border-radius: 999px; font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8ecdf8; background: rgba(29, 155, 240, .12); border: 1px solid rgba(29, 155, 240, .3); }
-.xb-hero h4 { margin: 0; font-size: 1.55rem; font-weight: 800; letter-spacing: -.02em; color: #fff; }
-.xb-hero p { margin: 4px 0 0; max-width: 560px; font-size: .9rem; line-height: 1.5; color: rgba(255, 255, 255, .7); }
-.xb-hero-side { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.xb-hero-acct { display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 8px; border-radius: 14px; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .1); }
-[dir="rtl"] .xb-hero-acct { padding: 8px 8px 8px 14px; }
-.xb-hero-acct-ic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-size: 18px; background: #1d9bf0; color: #fff; }
-.xb-hero-acct > span:last-child { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
-.xb-hero-acct small { font-size: .68rem; color: rgba(255, 255, 255, .55); }
-.xb-hero-acct strong { font-size: .86rem; color: #fff; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.xb-hero-btn { display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 16px; border-radius: 999px; font-size: .84rem; font-weight: 700; color: #0f1419; background: #fff; text-decoration: none; transition: transform .15s ease, background .15s ease; }
-.xb-hero-btn:hover { color: #0f1419; background: #e7e9ea; transform: translateY(-1px); }
-.xb-hero-flow { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; margin: 4px 0 0; padding: 14px 0 0; list-style: none; border-top: 1px solid rgba(255, 255, 255, .08); }
-.xb-hero-flow li { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-size: .76rem; font-weight: 500; color: rgba(255, 255, 255, .82); background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .08); }
-.xb-hero-flow li i { color: #1d9bf0; font-size: 14px; }
-@media (max-width: 767.98px) {
-  .xb-hero { padding: 20px 16px 16px; border-radius: 18px; }
-  .xb-hero h4 { font-size: 1.25rem; }
-  .xb-logo { width: 50px; height: 50px; border-radius: 15px; }
-  .xb-hero-side, .xb-hero-acct { width: 100%; }
-  .xb-hero-btn { flex: 1; justify-content: center; }
-}
+.xb-head-icon { background: #0f1419; color: #fff; }
+.xb-head-icon svg { width: 20px; height: 20px; }
 .xb-types { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .fb-chip-btn.is-on { background: var(--ink); color: #fff; border-color: var(--ink); }
 .xb-inline { margin-bottom: 8px; }

@@ -9,12 +9,6 @@ return [
     'header' => [
         'title' => 'Create an X campaign',
         'subtitle' => 'Plan your campaign, ad group, audience and Promoted post in one guided flow - published straight to X Ads.',
-        'eyebrow' => 'X Ads',
-        'ad_account' => 'Ad account',
-        'flow_campaign' => 'Objective & funding',
-        'flow_targeting' => 'Live X targeting',
-        'flow_creative' => 'New or existing posts',
-        'flow_drafts' => 'Drafts save automatically',
         'campaigns' => 'Campaigns',
     ],
     'boot' => [
