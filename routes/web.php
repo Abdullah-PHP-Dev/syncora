@@ -433,6 +433,25 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 						Route::post('submit', 'submit')->name('submit')->middleware('throttle:10,1');
 					});
 
+				// Snapchat campaign builder (SnapchatCampaignBuilder): same
+				// pattern as the builders above.
+				Route::prefix('ads/snapchat/builder')->name('ads.snapchat.builder.')
+					->controller(\App\Http\Controllers\Admin\SnapchatAdBuilderController::class)->group(function () {
+						Route::get('bootstrap', 'bootstrap')->name('bootstrap');
+						Route::get('campaigns', 'campaigns')->name('campaigns');
+						Route::get('audiences', 'audiences')->name('audiences');
+						Route::get('countries', 'countries')->name('countries');
+						Route::get('regions', 'regions')->name('regions');
+						Route::get('languages', 'languages')->name('languages');
+						Route::get('advanced-demographics', 'advancedDemographics')->name('advanced_demographics');
+						Route::get('interests', 'interests')->name('interests');
+						Route::get('os-versions', 'osVersions')->name('os_versions');
+						Route::get('connection-types', 'connectionTypes')->name('connection_types');
+						Route::post('estimate', 'estimate')->name('estimate')->middleware('throttle:30,1');
+						Route::post('bid-estimate', 'bidEstimate')->name('bid_estimate')->middleware('throttle:30,1');
+						Route::post('submit', 'submit')->name('submit')->middleware('throttle:10,1');
+					});
+
 				Route::resource('ads/{platform}/campaigns', AdCampaignController::class)
 					->names('ads.campaigns');
 

@@ -30,6 +30,7 @@ class AdsBuilderTranslationsTest extends TestCase
         'ads_builder' => 'resources/js/components/ads/facebook/*.{vue,js}',
         'tiktok_builder' => 'resources/js/components/ads/tiktok/*.vue',
         'x_builder' => 'resources/js/components/ads/x/*.vue',
+        'snapchat_builder' => 'resources/js/components/ads/snapchat/*.vue',
         'ads_dashboard' => 'resources/js/components/ads/AdsDashboard.vue',
         'media_gallery' => 'resources/js/components/media/MediaGallery.vue',
         'composer' => 'resources/js/components/posts/composer/*.vue',

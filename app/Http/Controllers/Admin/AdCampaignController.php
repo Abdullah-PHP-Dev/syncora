@@ -182,6 +182,12 @@ class AdCampaignController extends Controller
             return view('admin.ads.x.campaigns.builder', compact('platform', 'account', 'adAccounts', 'promotePost'));
         }
 
+        // Snapchat: the campaign builder (SnapchatCampaignBuilder); the
+        // previous form stays at ?legacy=1.
+        if ($platform === 'snapchat' && ! request()->boolean('legacy')) {
+            return view('admin.ads.snapchat.campaigns.builder', compact('platform', 'account', 'adAccounts', 'promotePost'));
+        }
+
         return view('admin.ads.' . $this->viewPlatform($platform) . '.campaigns.create', compact('platform', 'account', 'adAccounts', 'countries', 'platformPages', 'promotePost'));
     }
 
