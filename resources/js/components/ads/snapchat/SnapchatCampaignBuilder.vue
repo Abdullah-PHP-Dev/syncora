@@ -1259,7 +1259,6 @@ onMounted(async () => {
 
 <style scoped src="../facebook/builder.css"></style>
 <style scoped>
-.sb { --brand: #111; --brand-2: #e0b900; --brand-soft: #fffbd6; }
 .sb-head-icon { background: #FFFC00; color: #111; font-size: 22px; }
 .sb-dests { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-bottom: 10px; }
 .sb-dest { display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; text-align: start; transition: border-color .15s ease, background .15s ease, box-shadow .15s ease; }
@@ -1268,7 +1267,7 @@ onMounted(async () => {
 .sb-dest strong { font-size: .86rem; color: var(--ink); }
 .sb-dest small { font-size: .74rem; color: var(--muted, #6b7280); line-height: 1.3; }
 .sb-dest:hover:not(:disabled) { border-color: #c9ced8; }
-.sb-dest.on { border-color: var(--brand-2); background: var(--brand-soft); box-shadow: 0 0 0 3px rgba(224, 185, 0, .18); }
+.sb-dest.on { border-color: var(--brand-2); background: var(--brand-soft); box-shadow: 0 0 0 3px rgba(0, 76, 255, .12); }
 .sb-dest:disabled { opacity: .45; cursor: not-allowed; }
 .sb-details summary { cursor: pointer; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 6px; }
 .sb-pos { align-items: flex-start; }

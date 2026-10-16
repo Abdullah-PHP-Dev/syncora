@@ -1146,7 +1146,6 @@ onMounted(async () => {
 
 <style scoped src="../facebook/builder.css"></style>
 <style scoped>
-.tt { --brand: #111827; --brand-2: #FE2C55; --brand-soft: #FFF0F3; }
 .tt-hero { position: relative; overflow: hidden; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 18px; padding: 26px 26px 20px; margin-bottom: 16px; border-radius: 22px; color: #fff; background: radial-gradient(120% 140% at 0% 0%, #1c1c24 0%, #0b0b10 55%, #050507 100%); box-shadow: 0 18px 40px rgba(5, 5, 7, .28); isolation: isolate; }
 .tt-hero-glow { position: absolute; width: 280px; height: 280px; border-radius: 50%; filter: blur(70px); opacity: .45; z-index: -1; pointer-events: none; }
 .tt-hero-glow.is-cyan { background: #25F4EE; top: -140px; inset-inline-start: -60px; }
