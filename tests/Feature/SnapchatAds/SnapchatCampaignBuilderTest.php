@@ -268,6 +268,14 @@ class SnapchatCampaignBuilderTest extends TestCase
         $this->assertSame([['id' => self::PROFILE, 'name' => 'Acme', 'logo' => null]], $this->builder()->profiles());
     }
 
+    public function test_profiles_saved_at_connect_are_used_without_calling_snap(): void
+    {
+        $this->account->forceFill(['metadata' => $this->account->metadata + ['public_profiles' => [['id' => '971b6883-2309-419a-b988-8f04d6436f49', 'name' => 'Socialeaz', 'logo' => null]]]])->save();
+
+        $this->assertSame('Socialeaz', $this->builder()->profiles()[0]['name']);
+        $this->assertFalse(collect(Http::recorded())->contains(fn ($p) => str_contains($p[0]->url(), 'businessapi')));
+    }
+
     public function test_expired_token_is_refreshed_and_shared_with_sibling_accounts(): void
     {
         $sibling = SocialAccount::create(['user_id' => 7, 'platform' => 'snapchat', 'name' => 'Other', 'platform_account_id' => 'acc2', 'access_token' => 'tok', 'refresh_token' => 'ref', 'expires_at' => now()->subMinute()]);

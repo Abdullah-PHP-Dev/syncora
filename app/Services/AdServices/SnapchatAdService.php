@@ -19,6 +19,8 @@ use App\Models\Country;
 use App\Services\ApiService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Snapchat Ads API (v1) integration.
@@ -85,7 +87,10 @@ class SnapchatAdService
             'client_id'     => $clientId,
             'redirect_uri'  => $this->getCallbackUrl(),
             'response_type' => 'code',
-            'scope'         => 'snapchat-marketing-api',
+            // Marketing API for ads + Public Profile API, so the profile a
+            // Snap ad must carry (profile_properties.profile_id) is read at
+            // connect time. Both scopes must be enabled on the Snap OAuth app.
+            'scope'         => adminSetting('ads.snapchat.scopes') ?: 'snapchat-marketing-api snapchat-profile-api',
             'state'         => $state,
         ]);
 
@@ -239,6 +244,8 @@ class SnapchatAdService
             return redirect()->route('admin.ads.dashboard')->with('error', 'Connected to Snapchat, but no usable Ad Account was found where you have a role.');
         }
 
+        $this->storePublicProfiles($accessToken, $assetIds);
+
         ConnectionRecorder::record((int) Auth::id(), 'snapchat', SnapchatDriver::MARKETING, null, [
             'provider_app' => 'ads.snapchat',
             'access_token' => $accessToken,
@@ -248,6 +255,55 @@ class SnapchatAdService
         ], $assetIds);
 
         return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('success', "Connected {$connected} Snapchat Ad Account(s).");
+    }
+
+    /**
+     * Saves each ad account's Public Profiles (metadata.public_profiles and
+     * metadata.profile_id): the profiles shared with the ad account, else
+     * its organization's. Needs the snapchat-profile-api scope; best-effort,
+     * so a missing scope never breaks the connection.
+     */
+    private function storePublicProfiles(string $accessToken, array $accountIds): void
+    {
+        $business = rtrim((string) (adminSetting('ads.snapchat.business_base_url') ?: 'https://businessapi.snapchat.com/v1/'), '/') . '/';
+        $http = fn () => Http::withToken($accessToken)->acceptJson()->timeout(20);
+        $present = fn ($p) => [
+            'id' => (string) $p['id'],
+            'name' => $p['display_name'] ?? $p['id'],
+            'logo' => $p['logo_urls']['discover_feed_logo_url'] ?? $p['logo_urls']['original_logo_url'] ?? null,
+        ];
+        $byOrg = [];
+
+        foreach (SocialAccount::whereIn('id', $accountIds)->get() as $account) {
+            try {
+                $orgId = $account->metadata['organization_id'] ?? null;
+                if ($orgId && ! array_key_exists($orgId, $byOrg)) {
+                    $response = $http()->get($business . "organizations/{$orgId}/public_profiles", ['limit' => 50]);
+                    $byOrg[$orgId] = $response->successful()
+                        ? collect($response->json('public_profiles') ?? [])->pluck('public_profile')->filter()->map($present)->keyBy('id')->all()
+                        : [];
+                }
+                $orgProfiles = $byOrg[$orgId] ?? [];
+
+                $response = $http()->get($business . "adaccounts/{$account->platform_account_id}/sharing_policies", ['shared_resource_types' => 'public_profiles']);
+                $linked = $response->successful()
+                    ? collect($response->json('sharing_policies') ?? [])->where('source.resource_type', 'public_profiles')->pluck('source.resource_id')->filter()->unique()->values()->all()
+                    : [];
+
+                $profiles = $linked
+                    ? array_map(fn ($id) => $orgProfiles[$id] ?? ['id' => (string) $id, 'name' => (string) $id, 'logo' => null], $linked)
+                    : array_values($orgProfiles);
+
+                if ($profiles) {
+                    $account->forceFill(['metadata' => array_merge($account->metadata ?? [], [
+                        'public_profiles' => $profiles,
+                        'profile_id' => $profiles[0]['id'],
+                    ])])->save();
+                }
+            } catch (\Throwable $e) {
+                Log::info('Snapchat Public Profiles not stored at connect.', ['account' => $account->id, 'error' => $e->getMessage()]);
+            }
+        }
     }
 
     public function store($platform, $request)

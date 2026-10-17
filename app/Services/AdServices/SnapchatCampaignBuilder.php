@@ -204,6 +204,12 @@ class SnapchatCampaignBuilder
         if (isset($this->memo['profiles'])) {
             return $this->memo['profiles'];
         }
+        // 1. Saved at connect time (SnapchatAdService::storePublicProfiles).
+        $saved = array_values(array_filter($this->api->account->metadata['public_profiles'] ?? [], fn ($p) => ! empty($p['id'])));
+        if ($saved) {
+            return $this->memo['profiles'] = [$saved, null];
+        }
+
         $error = null;
         $profiles = Cache::remember($this->cacheKey('profiles'), 600, function () use (&$error) {
             $present = fn ($p) => [
@@ -239,6 +245,27 @@ class SnapchatCampaignBuilder
                 }
             }
 
+            if (! $linked && ! $org) {
+                // 3. Without Profile API access: profiles the account's own Snap ads already use.
+                try {
+                    $used = collect($this->api->all('adaccounts/' . $this->api->adAccountId() . '/creatives', 'creatives', 'creative', [], 3))
+                        ->pluck('profile_properties.profile_id')->filter()->unique()->values();
+                    if ($used->isNotEmpty()) {
+                        $error = null;
+
+                        return $used->map(fn ($id) => ['id' => (string) $id, 'name' => $this->api->account->name ?: (string) $id, 'logo' => null])->all();
+                    }
+                } catch (SnapchatApiException $e) {
+                    if ($e->isAuthError()) {
+                        throw $e;
+                    }
+                }
+                if ($error && str_contains($error, '403')) {
+                    $error = __('snapchat_builder.server.profile_scope');
+                }
+
+                return [];
+            }
             if (! $linked) {
                 return array_values($org);
             }

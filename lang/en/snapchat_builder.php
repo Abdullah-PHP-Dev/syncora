@@ -430,6 +430,7 @@ return [
     ],
     'server' => [
         'country_needed' => 'Choose a country first.',
+        'profile_scope' => 'Snapchat did not grant Public Profile access. Reconnect Snapchat in the Connection Hub and approve Public Profile access.',
         'connect_first' => 'Connect a Snapchat Ads account first.',
         'reconnect' => 'Snapchat no longer accepts this connection - reconnect it in the Connection Hub. (:reason)',
         'network' => 'Could not reach Snapchat. Please try again.',
