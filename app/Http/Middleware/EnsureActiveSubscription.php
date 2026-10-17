@@ -19,6 +19,9 @@ class EnsureActiveSubscription
 
 
 		if (!$user->hasActiveSubscription()) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => __('package_access.expired'), 'code' => 'subscription_required', 'upgrade_url' => route('admin.subscription.select')], 403);
+            }
 			return redirect()->route('admin.subscription.select')
 				->with('error', 'Please choose a subscription plan');
 		}

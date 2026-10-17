@@ -283,7 +283,11 @@ class AiCopilotService
         array $recentMessages = [],
         ?int $autoThreshold = null,
         ?int $suggestedThreshold = null,
+        ?string $usageKey = null,
     ): array {
+        $owner = \App\Models\User::findOrFail($sellerUserId);
+        app(\App\Services\PackageAccessService::class)->authorize($owner, 'ai_agent');
+        app(\App\Services\PackageUsageService::class)->reserve($owner, 'ai_credits', 1, $usageKey);
         $candidates = Faq::ownedBy($sellerUserId)->published()->where('copilot_enabled', true)->whereNotNull('embedding')->get();
 
         return $this->scoreAgainstCandidates(

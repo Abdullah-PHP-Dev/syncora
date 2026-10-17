@@ -89,6 +89,12 @@
                 <div id="app"class="container-xxl flex-grow-1 container-p-y">
 
                     @include('team.feedback')
+                    @if($workspaceMember = request()->attributes->get('workspace_member'))
+                        <div class="alert alert-info d-flex align-items-center justify-content-between gap-3">
+                            <span>{{ __('seller_team.working_in', ['name' => $workspaceMember->owner->name]) }}</span>
+                            <a class="btn btn-sm btn-outline-primary" href="{{ route('seller-workspaces.index') }}">{{ __('seller_team.workspaces') }}</a>
+                        </div>
+                    @endif
                     @yield('content')
 
                 </div>

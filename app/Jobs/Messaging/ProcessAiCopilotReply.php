@@ -68,6 +68,12 @@ class ProcessAiCopilotReply implements ShouldQueue
         }
 
         $sellerUserId = $conversation->channel->user_id;
+        $owner = \App\Models\User::find($sellerUserId);
+        $access = app(\App\Services\PackageAccessService::class);
+        if (!$owner || !$access->allows($owner, 'ai_agent', true) || !$access->allows($owner, 'inbox', true)) {
+            return;
+        }
+
         $settings = AiCopilotSetting::forSeller($sellerUserId);
 
         if (!$settings->ai_enabled) {
@@ -82,6 +88,7 @@ class ProcessAiCopilotReply implements ShouldQueue
             $recentMessages,
             $settings->confidence_threshold_auto,
             $settings->confidence_threshold_suggested,
+            'copilot-message:'.$message->id,
         );
 
         $wasSent = false;

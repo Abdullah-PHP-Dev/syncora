@@ -186,10 +186,19 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 
 	Route::middleware(['auth', 'active.user'])->group(function () {
+        Route::prefix('workspaces')->name('seller-workspaces.')->controller(\App\Http\Controllers\Admin\SellerTeamController::class)->group(function () {
+            Route::get('/', 'workspaces')->name('index');
+            Route::get('invitations/{token}', 'invitation')->name('invitation');
+            Route::post('invitations/{token}', 'accept')->name('accept');
+            Route::post('leave', 'leave')->name('leave');
+            Route::post('{member}/enter', 'enter')->name('enter');
+        });
         Route::get('/dashboard', [\App\Http\Controllers\Admin\DashboardController::class, 'dashboard'])->name('dashboard');
         Route::get('/dashboard/overview', [\App\Http\Controllers\Admin\DashboardController::class, 'overview'])->name('dashboard.overview');
 
         Route::middleware('role:admin')->group(function () {
+            Route::post('coupons/{coupon}/restore', [\App\Http\Controllers\Team\CouponController::class, 'restore'])->withTrashed()->name('coupons.restore');
+            Route::resource('coupons', \App\Http\Controllers\Team\CouponController::class)->except('show')->withTrashed(['edit', 'update']);
             Route::resource('employees', \App\Http\Controllers\Team\EmployeeController::class)->except(['show', 'destroy']);
             Route::resource('plans', \App\Http\Controllers\Team\PlanController::class)->except(['show', 'destroy']);
             Route::resource('package-features', \App\Http\Controllers\Team\PackageFeatureController::class)
@@ -225,7 +234,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 		*/
 				// Sellers can manage plans without an active subscription.
 				Route::get('/subscription/select', [SubscriptionController::class, 'select'])->name('subscription.select');
-				Route::get('/subscription/plans', [SubscriptionController::class, 'plans']);
+				Route::get('/subscription/plans', [SubscriptionController::class, 'plans'])->name('subscription.plans');
+                Route::post('/subscription/coupon', [SubscriptionController::class, 'coupon'])->middleware('throttle:30,1')->name('subscription.coupon');
 				Route::get('/subscription/checkout', [SubscriptionController::class, 'showCheckout'])->name('subscription.checkout');
 				Route::post('/subscription/checkout', [SubscriptionController::class, 'checkoutProcess'])->name('subscription.checkout.process');
 				Route::get('/subscription/checkout-data', [SubscriptionController::class, 'checkoutData'])->name('subscription.checkout.data');
@@ -234,6 +244,10 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('subscription.checkout.process');*/
 				Route::post('/subscription/activate', [SubscriptionController::class, 'activate']);
 				Route::post('/subscription/cancel', [SubscriptionController::class, 'cancel']);
+                Route::resource('/profiles', ProfileController::class);
+                Route::get('/subscription/usage', \App\Http\Controllers\Admin\PackageUsageController::class)->name('subscription.usage');
+                Route::resource('seller-team', \App\Http\Controllers\Admin\SellerTeamController::class)
+                    ->parameters(['seller-team' => 'member'])->only(['index', 'store', 'update', 'destroy']);
 
 				Route::view('/dashboard/crm', 'admin.crm-dashboard')
 					->name('crm-dashboard');
@@ -331,7 +345,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 		| PROTECTED SAAS MODULES (SUBSCRIPTION REQUIRED)
 		|--------------------------------------------------------------------------
 		*/
-		Route::middleware(['seller', 'subscription'])
+		Route::middleware(['seller', 'subscription', 'package.feature'])
 			->name('admin.')
 			->group(function () {
 				// MEDIA GALLERY - seller's reusable images/videos, shared by
@@ -819,8 +833,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::post('email/campaigns/suppression-groups', [EmailCampaignController::class, 'storeSuppressionGroup'])->name('email.campaigns.suppressionGroups.store');
 
 
-				// SYSTEM
-				Route::resource('/profiles', ProfileController::class);
+
 			});
 	});
 	require __DIR__ . '/auth.php';

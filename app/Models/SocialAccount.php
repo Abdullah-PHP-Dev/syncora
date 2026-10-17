@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class SocialAccount extends Model
 {
+    use \App\Models\Concerns\ChecksPackageLimits;
+
     /**
      * followers_count/subscribers_count/likes_count/views_count/
      * impressions_count/following_count/media_count are NOT real columns

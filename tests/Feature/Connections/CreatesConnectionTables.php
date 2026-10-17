@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Schema;
  */
 trait CreatesConnectionTables
 {
+    use \Tests\Feature\Packages\Concerns\SubscribesFixtureSellers;
+
     protected function createConnectionTables(): void
     {
         foreach ([
@@ -23,6 +25,7 @@ trait CreatesConnectionTables
         ] as $migration) {
             (require database_path('migrations/' . $migration))->up();
         }
+        $this->subscribeFixtureSellers();
     }
 
     /** admin_settings, so adminSetting() can be set via Settings::set(). */

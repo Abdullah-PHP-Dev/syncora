@@ -38,6 +38,7 @@ return tap(
                                'seller' => \App\Http\Middleware\EnsureSeller::class,
                                'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
                                'subscription' => \App\Http\Middleware\EnsureActiveSubscription::class,
+                               'package.feature' => \App\Http\Middleware\EnsurePackageFeature::class,
 	                           ]);
 
             // RFC 8058 one-click unsubscribe requests are POSTed directly
@@ -49,6 +50,7 @@ return tap(
             $middleware->appendToGroup('web', \App\Http\Middleware\ReturnToOrigin::class);
             // Current platform/module for cross-module links (App\Support\WorkContext).
             $middleware->appendToGroup('web', \App\Http\Middleware\RememberWorkContext::class);
+            $middleware->appendToGroup('web', \App\Http\Middleware\UseSellerWorkspace::class);
 
             $middleware->validateCsrfTokens(except: [
                 'email/unsubscribe/*',

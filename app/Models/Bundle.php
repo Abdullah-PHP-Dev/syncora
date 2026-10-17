@@ -27,6 +27,7 @@ class Bundle extends Model
 		'limits',
 		'meta',
 		'entitlement_settings',
+		'access_settings',
 	];
 
 	/*
@@ -41,6 +42,7 @@ class Bundle extends Model
 		'limits' => 'array',
 		'meta' => 'array',
 		'entitlement_settings' => 'array',
+		'access_settings' => 'array',
 		'is_default' => 'boolean',
 		'is_free' => 'boolean',
 		'is_popular' => 'boolean',

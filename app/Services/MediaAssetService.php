@@ -22,6 +22,20 @@ class MediaAssetService
 
     public function store(UploadedFile $file, int $userId, ?UploadedFile $thumbnail = null): MediaAsset
     {
+        $owner = \App\Models\User::findOrFail($userId);
+        if ($owner->hasRole('seller') && !$owner->isTeamMember()) {
+            return app(PackageUsageService::class)->locked($owner, function ($subscription) use ($file, $userId, $thumbnail, $owner) {
+                app(PackageAccessService::class)->authorize($owner, 'media');
+                $used = (int) MediaAsset::withTrashed()->where('user_id', $userId)->selectRaw('COALESCE(SUM(size), 0) as total')->value('total');
+                app(PackageUsageService::class)->check($subscription, 'media_storage_gb', $used, $file->getSize(), 1024 ** 3);
+                return $this->storeFile($file, $userId, $thumbnail);
+            });
+        }
+        return $this->storeFile($file, $userId, $thumbnail);
+    }
+
+    private function storeFile(UploadedFile $file, int $userId, ?UploadedFile $thumbnail): MediaAsset
+    {
         $meta = $this->inspect($file);
 
         $base = "uploads/media-gallery/{$userId}/" . now()->format('Y/m') . '/' . Str::uuid();

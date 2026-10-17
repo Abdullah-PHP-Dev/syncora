@@ -33,14 +33,22 @@
                         @endforeach
                     </div>
                 </section>
+                <section class="package-panel"><h2>{{ __('package_access.settings') }}</h2><p class="package-muted">{{ __('package_access.settings_help') }}</p>
+                    @foreach(config('package_access.modules') as $module => $definition)
+                    <div class="package-feature-row"><div><label for="access_{{ $module }}">{{ __($definition['label']) }}</label></div><div class="package-feature-control">
+                        <select class="form-select" id="access_{{ $module }}" name="access[{{ $module }}][mode]">@foreach(['disabled', 'preview', 'included', 'addon_required'] as $mode)<option value="{{ $mode }}" @selected(old('access.'.$module.'.mode', $plan->access_settings[$module]['mode'] ?? 'disabled') === $mode)>{{ __('package_access.'.$mode) }}</option>@endforeach</select>
+                        <label class="mt-2" for="tier_{{ $module }}">{{ __('package_access.tier') }}</label><select class="form-select" id="tier_{{ $module }}" name="access[{{ $module }}][tier]">@foreach(['none', 'standard', 'basic', 'limited', 'expanded', 'full', 'advanced', 'preview', 'addon', 'included', 'multi_user'] as $tier)<option value="{{ $tier }}" @selected(old('access.'.$module.'.tier', $plan->access_settings[$module]['tier'] ?? 'standard') === $tier)>{{ __(ucfirst(str_replace('_', ' ', $tier))) }}</option>@endforeach</select>
+                    </div></div>
+                    @endforeach
+                </section>
                 <section class="package-panel"><div class="package-section-title"><span>03</span><div><h2>{{ __('Features & allowances') }}</h2><p>{{ __('Choose included features and configure how much this package allows.') }}</p></div></div>
-                    <div class="package-stage-note"><i class="bi bi-info-circle" aria-hidden="true"></i>{{ __('Settings are saved for this package. Seller access enforcement will follow in the next stage.') }}</div>
+                    <div class="package-stage-note"><i class="bi bi-info-circle" aria-hidden="true"></i>{{ __('Module access and supported allowances apply to sellers subscribed to this package.') }}</div>
                     <div class="package-period"><label for="allowance_period">{{ __('Allowance period') }}</label><select class="form-select" id="allowance_period" name="allowance_period">@foreach(['monthly' => 'Per month', 'billing_cycle' => 'Per billing cycle', 'trial' => 'Total during trial'] as $period => $label)<option value="{{ $period }}" @selected(old('allowance_period', data_get($plan->meta, 'allowance_period', 'billing_cycle')) === $period)>{{ __($label) }}</option>@endforeach</select><small>{{ __('Applies to usage allowances, not capacity limits.') }}</small></div>
                     <div class="package-feature-list">
                     @forelse($features as $feature)
                         @php($value = old('entitlements.'.$feature->key, $plan->entitlement_settings[$feature->key] ?? ($feature->type === 'boolean' ? false : ($feature->type === 'benefit' ? '' : 0))))
                         <div class="package-feature-row">
-                            <div><label for="entitlement_{{ $feature->key }}">{{ $feature->name }}</label><small>{{ $feature->description }}</small><span class="package-type">{{ __('feature_types.'.$feature->type) }}</span></div>
+                            <div><label for="entitlement_{{ $feature->key }}">{{ $feature->name }}</label><small>{{ $feature->description }}</small>@if($feature->key === 'team_members')<small>{{ __('seller_team.seat_help') }}</small>@endif<span class="package-type">{{ __('feature_types.'.$feature->type) }}</span></div>
                             <div class="package-feature-control">
                                 @if($feature->type === 'boolean')
                                     <input type="hidden" name="entitlements[{{ $feature->key }}]" value="0"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="entitlement_{{ $feature->key }}" name="entitlements[{{ $feature->key }}]" value="1" @checked($value)></div>

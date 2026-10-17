@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Bundle;
 use App\Models\PackageChange;
 use App\Models\PackageFeature;
+use App\Services\PackageAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -86,7 +87,13 @@ class PlanController extends Controller
             'is_active' => ['required', 'boolean'], 'is_popular' => ['required', 'boolean'], 'is_free' => ['required', 'boolean'],
             'trial_days' => ['required', 'integer', 'min:1', 'max:365'],
             'allowance_period' => ['sometimes', Rule::in(['monthly', 'billing_cycle', 'trial'])],
+            'access' => ['sometimes', 'array:'.implode(',', array_keys(config('package_access.modules')))],
         ];
+        foreach (config('package_access.modules') as $module => $definition) {
+            $rules['access.'.$module] = ['required_with:access', 'array:mode,tier'];
+            $rules['access.'.$module.'.mode'] = ['required_with:access', Rule::in(['disabled', 'preview', 'included', 'addon_required'])];
+            $rules['access.'.$module.'.tier'] = ['required_with:access', Rule::in(['none', 'standard', 'basic', 'limited', 'expanded', 'full', 'advanced', 'preview', 'addon', 'included', 'multi_user'])];
+        }
         foreach ($features as $feature) {
             $rules['entitlements.'.$feature->key] = match ($feature->type) {
                 'boolean' => ['required', 'boolean'],
@@ -145,6 +152,7 @@ class PlanController extends Controller
                 };
             }
             $plan->entitlement_settings = $settings;
+            $plan->access_settings = $data['access'] ?? $plan->access_settings ?? PackageAccessService::initialSettings($plan);
             if (! $plan->exists || $plan->isDirty()) {
                 $plan->version = $plan->exists ? $plan->version + 1 : 1;
                 $plan->save();

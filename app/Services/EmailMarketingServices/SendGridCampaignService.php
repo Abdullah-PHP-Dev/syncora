@@ -135,6 +135,8 @@ class SendGridCampaignService
      */
     public function sendOrSchedule(EmailCampaign $campaign, ?Carbon $sendAt = null): array
     {
+        app(\App\Services\PackageAccessService::class)->authorize(\App\Models\User::findOrFail($campaign->user_id), 'email_marketing');
+
         $preflight = $this->preflight($campaign);
        
         if (!$preflight['ready']) {

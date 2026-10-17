@@ -1044,6 +1044,7 @@ class PostController extends Controller
     {
         $validated = $request->validate([
             'prompt' => ['required', 'string', 'max:2000'],
+            'kind' => ['sometimes', \Illuminate\Validation\Rule::in(['all', 'title', 'description', 'hashtags'])],
         ]);
 
         $apiKey = adminSetting('gemini_api_key_free');
@@ -1150,13 +1151,11 @@ class PostController extends Controller
             ->map(fn ($tag) => str_starts_with($tag, '#') ? $tag : '#' . $tag)
             ->values();
 
+        $payload = ['title' => $data['title'], 'description' => $data['description'], 'hashtags' => $hashtags];
+        $kind = $validated['kind'] ?? 'all';
         return response()->json([
             'success' => true,
-            'data' => [
-                'title' => $data['title'],
-                'description' => $data['description'],
-                'hashtags' => $hashtags,
-            ],
+            'data' => $kind === 'all' ? $payload : [$kind => $payload[$kind]],
         ]);
     }
 

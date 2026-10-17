@@ -1065,5 +1065,13 @@
     "Additional benefits": "مزايا إضافية",
     "Simple, transparent pricing. Choose the plan that fits your growth.": "أسعار واضحة وشفافة. اختر الباقة المناسبة لنمو أعمالك.",
     "Example plan": "باقة توضيحية",
-    "Explore a package from our current plans.": "استكشف إحدى باقاتنا الحالية."
+    "Explore a package from our current plans.": "استكشف إحدى باقاتنا الحالية.",
+    "Module access and supported allowances apply to sellers subscribed to this package.": "تُطبّق صلاحيات الوحدات والحصص المدعومة على التجار المشتركين في هذه الباقة.",
+    "Configure seller module access in each package editor. Custom features require an application integration.": "اضبط صلاحيات وحدات التجار في محرر كل باقة. تتطلب الميزات المخصصة ربطاً بالتطبيق.",
+    "Social publishing": "النشر الاجتماعي",
+    "Unified inbox": "صندوق الوارد الموحد",
+    "AI content generation": "توليد المحتوى بالذكاء الاصطناعي",
+    "Post approval": "الموافقة على المنشورات",
+    "Media Gallery": "معرض الوسائط",
+    "Team management": "إدارة الفريق"
 }

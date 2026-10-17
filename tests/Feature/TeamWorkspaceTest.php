@@ -16,6 +16,7 @@ use Tests\TestCase;
 
 class TeamWorkspaceTest extends TestCase
 {
+    use \Tests\Feature\Coupons\Concerns\CreatesCouponPaymentTables;
     protected function setUp(): void
     {
         parent::setUp();
@@ -50,6 +51,10 @@ class TeamWorkspaceTest extends TestCase
         foreach (['ads', 'posts'] as $table) {
             Schema::create($table, function (Blueprint $table) { $table->id(); $table->timestamps(); });
         }
+        Schema::create('media_assets', function (Blueprint $table) {
+            $table->id(); $table->unsignedBigInteger('user_id'); $table->unsignedBigInteger('size')->default(0); $table->timestamps();
+        });
+        (require database_path('migrations/2026_10_18_120000_add_seller_package_access.php'))->up();
         foreach (['admin', 'customer_support', 'seller'] as $role) { Role::findOrCreate($role, 'web'); }
     }
 
@@ -98,13 +103,14 @@ class TeamWorkspaceTest extends TestCase
 
     public function test_checkout_uses_saved_yearly_price_and_customer_with_mocked_gateway(): void
     {
+        $this->createCouponPaymentTables();
         config(['services.payment.tap.secret_key' => 'test-key']);
         \Illuminate\Support\Facades\Http::preventStrayRequests();
         \Illuminate\Support\Facades\Http::fake(['api.tap.company/*' => \Illuminate\Support\Facades\Http::response(['id' => 'charge-test', 'transaction' => ['url' => 'https://payments.example.test/checkout']], 200)]);
         $this->actingAs($this->user('admin'))->post('/plans', $this->planData());
         $seller = $this->user('seller');
         $plan = Bundle::firstOrFail();
-        $this->actingAs($seller)->postJson('/subscription/checkout', ['bundle_id' => $plan->id, 'cycle' => 'yearly', 'payment_method' => 'card', 'amount' => 1])
+        $this->actingAs($seller)->postJson('/subscription/checkout', ['bundle_id' => $plan->id, 'cycle' => 'yearly', 'payment_method' => 'card', 'amount' => 1, 'checkout_key' => (string) \Illuminate\Support\Str::uuid()])
             ->assertOk()->assertJsonPath('checkout_url', 'https://payments.example.test/checkout');
         \Illuminate\Support\Facades\Http::assertSent(fn ($request) => (float) $request['amount'] === 499.0 && $request['currency'] === 'SAR' && $request['customer']['email'] === $seller->email);
     }

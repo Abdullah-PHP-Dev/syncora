@@ -54,6 +54,8 @@ class WalletTransaction extends Model
         'subject_type',
         'subject_id',
         'callback',
+        'checkout_key',
+        'fulfilled_at',
     ];
 
     protected $casts = [
@@ -68,6 +70,7 @@ class WalletTransaction extends Model
         'meta' => 'array',
         'processed_at' => 'datetime',
         'expires_at' => 'datetime',
+        'fulfilled_at' => 'datetime',
     ];
 
     /*
