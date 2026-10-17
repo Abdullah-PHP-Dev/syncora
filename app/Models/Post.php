@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Post extends Model
 {
+    use \App\Models\Concerns\ChecksPackageLimits;
+
     /**
      * Provider errors can be whole JSON documents. Keep the provider's own
      * message when there is one, collapse whitespace and cap the length.

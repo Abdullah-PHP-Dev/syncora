@@ -58,6 +58,9 @@ class MessagingManagerService
 
     public function send(Conversation $conversation, array $data)
     {
+        $owner = \App\Models\User::findOrFail($conversation->channel->user_id);
+        app(\App\Services\PackageAccessService::class)->authorize($owner, 'inbox');
+
         return $this->service($conversation->platform)->sendMessage($conversation, $data);
     }
 

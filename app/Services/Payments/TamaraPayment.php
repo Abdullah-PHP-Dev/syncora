@@ -39,7 +39,7 @@ class TamaraPayment implements PaymentInterface
 
             $client = $this->client();
 
-	        $amount = (float) "500";
+	        $amount = (float) $data['amount'];
 	        $vat              = ($amount * (15/100));
 	        $amount = round($amount, 2);
 

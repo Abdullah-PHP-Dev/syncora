@@ -163,6 +163,11 @@ class PinterestPostService
 
     public function publishPost($post)
     {
+        $owner = \App\Models\User::findOrFail($post->user_id);
+        app(\App\Services\PackageAccessService::class)->authorize($owner, 'publishing');
+        // Recheck pending legacy records too; the ledger prevents retry double charging.
+        app(\App\Services\PackageUsageService::class)->reserve($owner, 'scheduled_published_posts', 1, 'post:'.$post->id);
+
         if (!$this->ensureValidToken($post)) {
             $post->update(['status' => 'failed', 'error_message' => 'Failed to refresh access token']);
 

@@ -9,362 +9,200 @@ use App\Models\User;
 use App\Models\WalletTransaction;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 class SubscriptionService
 {
-	private const DEFAULT_TRIAL_DAYS = 15;
-	private const DEFAULT_DURATION_DAYS = 30;
-	private const DEFAULT_SUBSCRIPTION = 'subscription';
+    private const DEFAULT_TRIAL_DAYS = 15;
 
-	public function assignFreeTrial(User $user): Subscription
-	{
+    private const DEFAULT_DURATION_DAYS = 30;
 
+    private const DEFAULT_SUBSCRIPTION = 'subscription';
 
-		$this->ensureSeller($user);
+    public function assignFreeTrial(User $user): Subscription
+    {
 
-		$bundle = Bundle::query()->where('is_free', true)->where('is_active', true)->first();
+        $this->ensureSeller($user);
 
-		if (! $bundle) {
-			throw new RuntimeException('Free bundle not found.');
-		}
+        $bundle = Bundle::query()->where('is_free', true)->where('is_active', true)->first();
 
-		[$start, $end] = $this->resolveDates( data_get($bundle->meta, 'trial_days', self::DEFAULT_TRIAL_DAYS));
+        if (! $bundle) {
+            throw new RuntimeException('Free bundle not found.');
+        }
 
-		return DB::transaction(function () use ($user, $bundle, $start, $end) {
-			$subscription = Subscription::updateOrCreate(
-				['user_id' => $user->id],
-				[
-					'bundle_id'    => $bundle->id,
-					'bundle_name'  => $bundle->name_en,
-					'start_date'   => $start,
-					'end_date'     => $end,
-					'status'       => 'trial',
-					'is_active'    => true,
-				]
-			);
+        [$start, $end] = $this->resolveDates((int) data_get($bundle->meta, 'trial_days', self::DEFAULT_TRIAL_DAYS), true);
 
-			$this->createCycle($subscription, $bundle->id, 'trial', $start, $end);
+        return DB::transaction(function () use ($user, $bundle, $start, $end) {
+            $subscription = Subscription::updateOrCreate(
+                ['user_id' => $user->id],
+                [
+                    'bundle_id' => $bundle->id,
+                    'bundle_name' => $bundle->name_en,
+                    'start_date' => $start,
+                    'end_date' => $end,
+                    'status' => 'trial',
+                    'is_active' => true,
+                ]
+            );
 
-			return $subscription;
-		});
-	}
+            $this->createCycle($subscription, $bundle->id, 'trial', $start, $end);
 
-	public function renew(Subscription $subscription, string $cycle): Subscription
-	{
-		$this->ensureSeller($subscription->user);
+            return $subscription;
+        });
+    }
 
-		$bundle = Bundle::findOrFail($subscription->bundle_id);
+    public function renew(Subscription $subscription, string $cycle): Subscription
+    {
+        $this->ensureSeller($subscription->user);
 
-		$months = $this->resolveCycleToMonths($cycle);
+        $bundle = Bundle::findOrFail($subscription->bundle_id);
 
-		[$start, $end] = $this->resolveDates($months);
+        $months = $this->resolveCycleToMonths($cycle);
 
-		return DB::transaction(function () use ($subscription, $bundle, $start, $end) {
+        [$start, $end] = $this->resolveDates($months);
 
-			$subscription->update([
-				                      'start_date' => $start,
-				                      'end_date'   => $end,
-				                      'status'     => 'active',
-				                      'is_active'  => true,
-			                      ]);
+        return DB::transaction(function () use ($subscription, $bundle, $start, $end, $months) {
 
-			$this->createCycle(
-				$subscription,
-				$bundle->id,
-				'renewal',
-				$start,
-				$end
-			);
+            $subscription->update([
+                'start_date' => $start,
+                'end_date' => $end,
+                'billing_period' => $months,
+                'status' => 'active',
+                'is_active' => true,
+            ]);
 
-			return $subscription->fresh();
-		});
-	}
+            $this->createCycle(
+                $subscription,
+                $bundle->id,
+                'renewal',
+                $start,
+                $end
+            );
 
-	public function upgrade(
-		Subscription $subscription,
-		Bundle $newBundle,
-		string $cycle
-	): Subscription
-	{
-		$this->ensureSeller($subscription->user);
+            return $subscription->fresh();
+        });
+    }
 
-		$months = $this->resolveCycleToMonths($cycle);
+    public function upgrade(
+        Subscription $subscription,
+        Bundle $newBundle,
+        string $cycle
+    ): Subscription {
+        $this->ensureSeller($subscription->user);
 
-		[$start, $end] = $this->resolveDates($months);
+        $months = $this->resolveCycleToMonths($cycle);
 
-		return DB::transaction(function () use ($subscription, $newBundle, $start, $end) {
+        [$start, $end] = $this->resolveDates($months);
 
-			$subscription->update([
-				                      'bundle_id'   => $newBundle->id,
-				                      'bundle_name' => $newBundle->name_en,
-				                      'start_date'  => $start,
-				                      'end_date'    => $end,
-				                      'status'      => 'active',
-				                      'is_active'   => true,
-			                      ]);
+        return DB::transaction(function () use ($subscription, $newBundle, $start, $end, $months) {
 
-			$this->createCycle(
-				$subscription,
-				$newBundle->id,
-				'upgrade',
-				$start,
-				$end
-			);
+            $subscription->update([
+                'bundle_id' => $newBundle->id,
+                'bundle_name' => $newBundle->name_en,
+                'start_date' => $start,
+                'end_date' => $end,
+                'billing_period' => $months,
+                'status' => 'active',
+                'is_active' => true,
+            ]);
 
-			return $subscription->fresh();
-		});
-	}
+            $this->createCycle(
+                $subscription,
+                $newBundle->id,
+                'upgrade',
+                $start,
+                $end
+            );
+
+            return $subscription->fresh();
+        });
+    }
 
     private function ensureSeller(User $user): void
     {
-        abort_unless($user->hasRole('seller') && !$user->isTeamMember(), 403);
+        abort_unless($user->hasRole('seller') && ! $user->isTeamMember(), 403);
     }
 
-	private function createCycle(
-		Subscription $subscription,
-		int $bundleId,
-		string $type,
-		Carbon $start,
-		Carbon $end
-	): void {
-		SubscriptionCycle::create([
-			                          'subscription_id' => $subscription->id,
-			                          'user_id'         => $subscription->user_id,
-			                          'bundle_id'       => $bundleId,
-			                          'start_date'      => $start,
-			                          'end_date'        => $end,
-			                          'type'            => $type,
-			                          'status'          => 'active',
-		                          ]);
-	}
+    private function createCycle(
+        Subscription $subscription,
+        int $bundleId,
+        string $type,
+        Carbon $start,
+        Carbon $end
+    ): void {
+        SubscriptionCycle::create([
+            'subscription_id' => $subscription->id,
+            'user_id' => $subscription->user_id,
+            'bundle_id' => $bundleId,
+            'start_date' => $start,
+            'end_date' => $end,
+            'type' => $type,
+            'status' => 'active',
+        ]);
+    }
 
-	private function resolveDates(int $months): array
-	{
-		$start = now();
+    private function resolveDates(int $duration, bool $days = false): array
+    {
+        $start = now();
 
-		return [$start, $start->copy()->addDays($months)];
-	}
+        return [$start, $days ? $start->copy()->addDays($duration) : $start->copy()->addMonthsNoOverflow($duration)];
+    }
 
-	public function checkout(
-		User $user,
-		Bundle $bundle,
-		string $action,
-		string $paymentMethod,
-		string $cycle,
-		float $discount,
-		string $subjectType,
-		string $subjectId,
-		string $callback,
-        ?string $gateway = null
-	) {
+    public function checkout(
+        User $user, Bundle $bundle, string $action, string $paymentMethod,
+        string $cycle, float $discount, string $subjectType, string $subjectId,
+        string $callback, ?string $gateway = null, ?string $couponCode = null,
+        ?string $checkoutKey = null
+    ) {
+        // Discounts are always recomputed from the catalog and coupon rules.
+        return app(SubscriptionCheckoutService::class)->start($user, $bundle, $cycle, $paymentMethod, $gateway, $couponCode, $checkoutKey);
+    }
 
-		$this->ensureSeller($user);
-		$months = $this->resolveCycleToMonths($cycle);
-        $amount = $months === 12 ? $bundle->yearly_price : (float) $bundle->price;
-		$plan = $bundle;
-		$cycle = $cycle;
-		$this->validatePaymentAttempts($user);
+    private function resolveCycleToMonths(string $cycle): int
+    {
+        return match ($cycle) {
+            'monthly' => 1,
+            'yearly' => 12,
+            default => throw new \Exception("Invalid cycle: {$cycle}"),
+        };
+    }
 
+    private function validatePaymentAttempts(User $user): void
+    {
 
-		$transaction = WalletTransaction::create([
-			                                         'seller_id' => $user->id,
-			                                         'amount' => $amount,
-			                                         'direction' => 'debit',
-			                                         'category' => self::DEFAULT_SUBSCRIPTION,
-			                                         'status' => 'pending',
-			                                         'subject_type' => $subjectType,
-			                                         'subject_id' => $subjectId,
-			                                         'callback' => $callback,
-			                                         'meta' => [
-				                                         'plan' => $plan->slug,
-				                                         'bundle_id' => $plan->bundle_id,
-				                                         'cycle' => $cycle,
-				                                         'starts_at' => now()->toISOString(),
-			                                         ],
-		                                         ]);
+        $failedAttempts = WalletTransaction::where('seller_id', $user->id)
+            ->whereIn('status', ['pending', 'rejected'])
+            ->whereDate('created_at', today())
+            /* ->whereIn('failure_reason', [
+                 'insufficient_balance',
+                 'payment_declined',
+                 'abandoned'
+             ])*/
+            ->count();
 
-
-		$payment = app(PaymentManager::class)
-			->driver($paymentMethod)
-			->pay([
-				      'user' => $user,
-				      'amount' => $amount,
-				      'bundle' => $bundle,
-				      'cycle' => $cycle,
-				      'type' => self::DEFAULT_SUBSCRIPTION,
-				     'transaction' => $transaction,
-                      'gateway' => $gateway,
-			      ]);
-
-
-		/**
-		 * CASE 1: PAYMENT FAILED
-		 */
-		if ($payment['status'] === 'failed') {
-			return [
-				'success' => false,
-				'message' => $payment['message'] ?? 'Payment failed'
-			];
-		}
-
-		/**
-		 * CASE 2: CARD PAYMENT (REDIRECT FLOW)
-		 */
-		if ($payment['status'] === 'pending') {
-
-
-			return [
-				'success' => true,
-				'payment_type' => 'redirect',
-				'redirect_url' => $payment['redirect_url'],
-				'transaction_id' => $payment['transaction_id'] ?? null,
-				'message' => 'Redirecting to payment gateway'
-			];
-		}
-
-		/**
-		 * CASE 3: WALLET / INSTANT PAYMENT
-		 */
-		if ($payment['status'] === 'paid') {
-
-			$subscription = $user->subscription;
-
-
-			$action = 'upgrade';
-			$result = match ($action) {
-				'renew' => $this->renew($subscription),
-				'upgrade' => $this->upgrade($subscription, $bundle, $cycle),
-				default => throw new \Exception('Invalid action')
-			};
-
-			return [
-				'success' => true,
-				'payment_type' => 'instant',
-				'data' => $result,
-				'transaction_id' => $payment['transaction_id'],
-				'id' => $payment['id']
-			];
-		}
-
-		return [
-			'success' => false,
-			'message' => 'Unknown payment state'
-		];
-	}
-
-
-	private function resolveCycleToMonths(string $cycle): int
-	{
-		return match ($cycle) {
-			'monthly' => 1,
-			'yearly'  => 12,
-			default   => throw new \Exception("Invalid cycle: {$cycle}"),
-		};
-	}
-
-
-	private function validatePaymentAttempts(User $user): void
-	{
-
-		$failedAttempts = WalletTransaction::where('seller_id', $user->id)
-			->whereIn('status', ['pending', 'rejected'])
-			->whereDate('created_at', today())
-			/* ->whereIn('failure_reason', [
-				 'insufficient_balance',
-				 'payment_declined',
-				 'abandoned'
-			 ])*/
-			->count();
-
-
-
-		if ($failedAttempts >= 5) {
+        if ($failedAttempts >= 5) {
             throw ValidationException::withMessages([
                 'payment_method' => 'Too many failed payment attempts. Please try again tomorrow.',
             ]);
-		}
-	}
+        }
+    }
 
+    public function processSuccessfulPayment(WalletTransaction $transaction)
+    {
+        app(SubscriptionCheckoutService::class)->fulfill($transaction);
 
-	public function processSuccessfulPayment(WalletTransaction $transaction)
-	{
+        return redirect()->route('dashboard');
+    }
 
+    public function success($transaction)
+    {
+        return $this->processSuccessfulPayment($transaction);
+    }
 
-		/*return DB::transaction(function () use ($transaction) {*/
-
-		$user = $transaction->seller;
-        $this->ensureSeller($user);
-		$subscription = $user->subscription;
-
-
-		$bundle = Bundle::where('slug',$transaction->meta['plan'])->first();
-		$action = $transaction->meta['action'] ?? 'renew';
-		$cycle  = $transaction->meta['cycle'] ?? 'monthly';
-
-		// resolve subscription duration
-		[$start, $end] = $this->resolveDates(
-			data_get($bundle->meta, 'duration_days', 30)
-		);
-
-		switch ($action) {
-
-			case 'renew':
-
-				$subscription->update([
-					                      'start_date' => $start,
-					                      'end_date'   => $end,
-					                      'status'     => 'active',
-					                      'is_active'  => true,
-				                      ]);
-
-				$this->createCycle(
-					$subscription,
-					$bundle->id,
-					'renewal',
-					$start,
-					$end
-				);
-
-				break;
-
-			case 'upgrade':
-
-				$subscription->update([
-					                      'bundle_id'   => $bundle->id,
-					                      'bundle_name' => $bundle->name_en,
-					                      'start_date'  => $start,
-					                      'end_date'    => $end,
-					                      'status'      => 'active',
-					                      'is_active'   => true,
-				                      ]);
-
-				$this->createCycle(
-					$subscription,
-					$bundle->id,
-					'upgrade',
-					$start,
-					$end
-				);
-
-				break;
-
-			default:
-				throw new \RuntimeException('Invalid subscription action');
-		}
-
-		$transaction->fresh();
-		return redirect()->route('subscription.success',$transaction->id );
-
-		/* });*/
-	}
-
-	public function success($transaction) {
-		return redirect()->route('subscription.success', $transaction->id);
-	}
-
-	public function fail($transaction) {
-		return redirect()->route('subscription.failed');
-	}
+    public function fail($transaction)
+    {
+        app(SubscriptionCheckoutService::class)->fail($transaction, __('Payment failed.'));
+        return redirect()->route('admin.subscription.select')->withErrors(['payment' => __('Payment failed.')]);
+    }
 }

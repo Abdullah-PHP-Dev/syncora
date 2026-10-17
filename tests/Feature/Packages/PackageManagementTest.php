@@ -35,6 +35,10 @@ class PackageManagementTest extends TestCase
             (require database_path('migrations/'.$migration.'.php'))->up();
         }
         Schema::table('users', fn (Blueprint $table) => $table->boolean('is_active')->default(true));
+        Schema::create('media_assets', function (Blueprint $table) {
+            $table->id(); $table->unsignedBigInteger('user_id'); $table->unsignedBigInteger('size')->default(0); $table->timestamps();
+        });
+        (require database_path('migrations/2026_10_18_120000_add_seller_package_access.php'))->up();
         foreach (['admin', 'customer_support', 'seller'] as $role) {
             Role::findOrCreate($role, 'web');
         }

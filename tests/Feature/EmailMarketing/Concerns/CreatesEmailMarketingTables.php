@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\Schema;
  */
 trait CreatesEmailMarketingTables
 {
+    use \Tests\Feature\Packages\Concerns\SubscribesFixtureSellers;
+
     protected function createEmailMarketingTables(): void
     {
         if (Schema::hasTable('admin_settings')) {
@@ -62,5 +64,6 @@ trait CreatesEmailMarketingTables
         ] as $migration) {
             (require database_path('migrations/' . $migration . '.php'))->up();
         }
+        $this->subscribeFixtureSellers();
     }
 }

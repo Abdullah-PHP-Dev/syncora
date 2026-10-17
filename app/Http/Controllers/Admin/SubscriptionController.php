@@ -46,7 +46,7 @@ class SubscriptionController extends Controller
 
 	public function showCheckout(Request $request)
 	{
-		$planId = $request->get('plan_id');
+		$planId = $request->get('plan_id', $request->get('bundle_id'));
 		$cycle = $request->get('cycle', 'monthly');
 
 		$package = Bundle::where('is_active', true)->findOrFail($planId);
@@ -178,7 +178,7 @@ class SubscriptionController extends Controller
 
 	public function checkoutData(Request $request): JsonResponse
 	{
-		$planId = $request->get('plan_id');
+		$planId = $request->get('plan_id', $request->get('bundle_id'));
 		$cycle = in_array($request->get('cycle'), ['monthly', 'yearly'])
 			? $request->get('cycle')
 			: 'monthly';
@@ -247,51 +247,39 @@ class SubscriptionController extends Controller
 
 
 
-	public function checkoutProcess(Request $request)
-	{
+    public function coupon(Request $request, \App\Services\CouponService $coupons): JsonResponse
+    {
+        $data = $request->validate([
+            'bundle_id' => ['required', 'integer'],
+            'cycle' => ['required', \Illuminate\Validation\Rule::in(['monthly', 'yearly'])],
+            'coupon_code' => ['required', 'string', 'max:50'],
+            'payment_method' => ['required', \Illuminate\Validation\Rule::in(['card', 'wallet', 'cashback', 'tamara', 'tabby'])],
+        ]);
+        $bundle = Bundle::where('is_active', true)->where('is_free', false)->findOrFail($data['bundle_id']);
+        $quote = $coupons->quote($request->user(), $bundle, $data['cycle'], $data['coupon_code'], $data['payment_method']);
+        return response()->json(['success' => true, 'message' => __('coupons.applied')] + $quote)->header('Cache-Control', 'no-store');
+    }
+
+    public function checkoutProcess(Request $request)
+    {
         $data = $request->validate([
             'bundle_id' => ['required', 'integer'],
             'cycle' => ['required', \Illuminate\Validation\Rule::in(['monthly', 'yearly'])],
             'payment_method' => ['required', \Illuminate\Validation\Rule::in(['card', 'wallet', 'cashback', 'tamara', 'tabby'])],
+            'coupon_code' => ['nullable', 'string', 'max:50'],
+            'checkout_key' => ['required', 'uuid'],
+            'expected_total' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
         ]);
-        $bundleId = $data['bundle_id'];
-        $cycle = $data['cycle'];
-        $paymentMethod = $data['payment_method'];
-        $gateway = in_array($paymentMethod, ['tamara', 'tabby'], true) ? $paymentMethod : null;
-        if ($gateway !== null) {
-            $paymentMethod = 'installment';
+        $method = $data['payment_method'];
+        $gateway = in_array($method, ['tamara', 'tabby'], true) ? $method : null;
+        $bundle = Bundle::findOrFail($data['bundle_id']);
+        $result = app(\App\Services\SubscriptionCheckoutService::class)->start(
+            $request->user(), $bundle, $data['cycle'], $gateway ? 'installment' : $method,
+            $gateway, $data['coupon_code'] ?? null, $data['checkout_key'], $data['expected_total'] ?? null,
+        );
+        if (! ($result['success'] ?? false)) {
+            return response()->json($result, ($result['pending'] ?? false) ? 409 : 422);
         }
-
-
-		$couponCode = $request->coupon_code;
-		$discount = 0;
-		$action = 0;
-		$bundle = Bundle::where('is_active', true)->where('is_free', false)->findOrFail($bundleId);
-
-		$paymentResponse = $this->subscriptionService->checkout(
-			auth()->user(),
-			$bundle,
-			$action,
-			$paymentMethod,
-			$cycle,
-			$discount,
-			$bundle->getMorphClass(),
-			$bundle->id,
-			'App\Services\SubscriptionService',
-			$gateway,
-		);
-
-
-
-        if (!($paymentResponse['success'] ?? false)) {
-            return response()->json(['success' => false, 'message' => $paymentResponse['message'] ?? __('Payment failed.')], 422);
-        }
-
-		$checkoutUrl = $paymentResponse['redirect_url'] ?? route('dashboard');
-
-		return response()->json([
-			                        'success' => true,
-			                        'checkout_url' => $checkoutUrl
-		                        ]);
-	}
+        return response()->json(['success' => true, 'checkout_url' => $result['redirect_url'] ?? route('dashboard')]);
+    }
 }

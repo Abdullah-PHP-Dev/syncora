@@ -45,6 +45,10 @@ class IntegrationController extends Controller
      */
     public function store(Request $request, Integration $integration)
     {
+        if ($integration->slug === 'google_analytics') {
+            app(\App\Services\PackageAccessService::class)->authorize($request->user(), 'google_analytics');
+        }
+
         $existing = UserIntegration::where('user_id', Auth::id())
             ->where('integration_id', $integration->id)
             ->first();

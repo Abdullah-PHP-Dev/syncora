@@ -28,10 +28,23 @@ class SendScheduledEmailCampaigns extends Command
     public function handle(SendGridCampaignService $campaigns): int
     {
         $due = EmailCampaign::where('status', 'scheduled')
-            ->where('scheduled_at', '<=', now())
             ->get();
 
         foreach ($due as $campaign) {
+            $owner = \App\Models\User::find($campaign->user_id);
+            if (!$owner || !app(\App\Services\PackageAccessService::class)->allows($owner, 'email_marketing', true)) {
+                $cancelled = $campaigns->cancel($campaign);
+                if ($cancelled['success'] ?? false) {
+                    $campaign->update(['status' => 'draft', 'scheduled_at' => null]);
+                    $this->info("Campaign #{$campaign->id} returned to draft because package access ended.");
+                } else {
+                    $this->error("Campaign #{$campaign->id}: could not cancel its provider schedule.");
+                }
+                continue;
+            }
+            if ($campaign->scheduled_at?->isFuture()) {
+                continue;
+            }
             $result = $campaigns->checkStatus($campaign);
 
             if (!($result['success'] ?? false)) {

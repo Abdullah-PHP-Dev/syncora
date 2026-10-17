@@ -88,15 +88,10 @@
 
 <script setup>
 
-// Text generation (title/description/hashtags) is real - proxied through
-// PostController::generateAiContent() (admin.posts.generate-ai-content),
-// which calls Google Gemini server-side so the API key never reaches this
-// component. One call returns all three fields together (Gemini has no
-// separate "just hashtags" mode - the schema always asks for the full
-// set), so every text-flavored trigger below (the main Generate Content
-// button, and the Description/Hashtags/Title suggestion cards) makes the
-// same request and PostComposer.vue's onAiGenerated() picks out whichever
-// field(s) that trigger cares about.
+// Text generation runs server-side; the provider key never reaches the browser.
+// Send the requested kind so the server returns only the requested fields and
+// reserves a hashtag allowance only for full-content or hashtag generation.
+// PostComposer.vue's onAiGenerated() applies the fields for that trigger.
 //
 // Image generation is also real now - PostController::generateAiImage()
 // (admin.posts.generate-ai-image), Cloudflare Workers AI server-side, same
@@ -161,7 +156,7 @@ async function requestGeneration(kind) {
       isImage
         ? (props.urls?.image || '/posts/generate-ai-image')
         : (props.urls?.content || '/posts/generate-ai-content'),
-      { prompt: prompt.value }
+      { prompt: prompt.value, kind }
     );
 
     if (!data.success) {

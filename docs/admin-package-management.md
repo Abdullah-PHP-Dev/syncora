@@ -27,19 +27,74 @@ Every actual package or feature save writes a `package_changes` record in the sa
 transaction. Version checks reject stale forms. This history is for audit and future
 subscription snapshots; there is no automatic version restoration UI.
 
-## Stage boundary
+## Seller access and usage enforcement
 
-This stage manages settings only. It does not enforce seller permissions or
-allowances, modify subscriptions, or introduce merchant staff sharing. Existing
-pricing and checkout continue to consume the pricing and display-benefit fields
-as before. New custom feature definitions require a corresponding application
-integration before they can control seller actions. The next stage must define
-subscription snapshots, usage periods, renewal/upgrade behavior, and enforcement
-for every supported feature before activating restrictions.
+`PackageAccessService` reads the seller's latest subscription and the package's
+structured `access_settings`. The admin package editor exposes disabled, preview,
+included, and add-on-required modes. Preview permits reads; writes require included.
+Add-on-required access is denied until explicitly enabled; purchasing add-ons is
+not implemented. Tier labels remain descriptive metadata.
+
+`EnsurePackageFeature` protects mapped seller module routes, including direct JSON
+requests. Subscription expiry blocks module access while billing, profile, usage,
+and support remain accessible. Background publishing, messaging, AI replies, and
+scheduled email processing also check package access. Remote email cancellation
+is best effort; messages already sent cannot be recalled.
+
+`PackageUsageService` serializes reservations using the seller row and records
+idempotent usage events. Limits cover publishing and advertising accounts, content
+categories, gallery source-file storage, scheduled/published posts per destination,
+AI requests, and hashtag generation. Soft-deleted retained files consume storage;
+deleting posts does not refund usage. Failed HTTP AI requests refund reservations.
+Existing published history is not backfilled into the ledger.
+
+Monthly allowances reset from the subscription's original monthly anniversary,
+including yearly subscriptions. Trial allowances apply across the trial. Future
+paid renewals use calendar months; existing subscription dates are not rewritten.
+Package edits affect existing subscribers immediately. Retired packages continue
+serving existing subscriptions.
+
+Custom catalog features require application integration. Approval workflows,
+analytics history filtering, and differences between descriptive tiers are not
+enforced yet. Public benefit text and structured access should be
+kept consistent by the administrator.
+
+## Seller teams
+
+Sellers manage members at `/seller-team`; `/workspaces` lets an invited user select
+an accepted workspace or return to their own account. This is separate from
+platform employee and support roles. The package's `team_management` mode must be
+included, and `team_members` controls total seats including the owner. Pending
+unexpired invitations reserve seats. Zero denies access, one permits only the
+owner, and -1 is unlimited. Invitations expire after seven days, store only a token
+hash, and are accepted only by a logged-in account with the invited email address.
+The owner receives a private invitation URL to share; no email is sent automatically.
+
+Each member has none/read/write access per module. Shared workspace requests use
+the owner's resources and quotas for that request while preserving the member's
+login session. Both member permissions and live owner package settings apply.
+The request attributes `workspace_actor` and `workspace_member` retain the real
+actor for audit integrations. Billing, profile, platform administration, team
+administration, and provider connections remain owner-managed. Inbox broadcast
+authorization also checks member access and existing channel ownership.
+
+Removing a member immediately invalidates their workspace selection. Expiry or
+disabling team management blocks shared workspace access. A downgrade retains a
+deterministic subset of accepted members, oldest membership first, within the new
+seat allowance. Owners can still view and remove members after subscription expiry.
+Permissions and seats are enforced server-side for direct requests as well as forms.
+
+## Deployment
+
+Run `php artisan migrate --force`, build frontend assets with `npm run build`,
+refresh the deployment's application caches, and restart queue workers. The new
+migration backfills structured access from existing package settings. Review the
+Module Access settings after migration, especially preview and add-on modes.
+Do not rerun `ReferencePackageSeeder` unless intentionally restoring its allocation.
 
 ## Validation
 
-`php vendor/bin/phpunit tests/Feature/Packages/PackageManagementTest.php`
+`php vendor/bin/phpunit tests/Feature/Packages`
 
 The tests use an isolated SQLite database and cover admin authorization, typed
 settings, limits, unknown keys, immutable codes/types, archived values, edit
@@ -58,7 +113,7 @@ IDs and slugs. Unicorn is retained as inactive. The eight earlier generic contro
 are archived, with their stored values preserved. Existing yearly prices are
 retained; newly created packages use the application's existing 12-month default.
 Email access descriptions remain exactly as supplied because quantities were not
-specified. Tiered access is stored as text; seller-side interpretation is deferred.
+specified. Tier descriptions are stored as text; structured modes control seller access.
 
 The seeder records system changes in history and is idempotent. Run it explicitly
 only when applying or restoring the reference allocation; it overwrites the

@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PostCategory extends Model
 {
+    use \App\Models\Concerns\ChecksPackageLimits;
+
     protected $fillable = [
         'user_id',
         'name',

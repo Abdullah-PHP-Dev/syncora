@@ -46,6 +46,7 @@
         ], auth()->user()->hasRole('admin') ? [
             ['employees.index', 'overview.sidebar_employees', 'bx-user'],
             ['plans.index', 'overview.sidebar_plans', 'bx-crown'],
+            ['coupons.index', 'coupons.title', 'bx-purchase-tag'],
             ['package-features.index', 'Feature catalog', 'bx-grid-alt'],
             ['admin.faqs.index', 'overview.sidebar_faqs', 'bx-book-open'],
             ['admin.apis.index', 'overview.integrations', 'bx-plug'],
@@ -61,6 +62,8 @@
             ['admin.posts.dashboard', 'admin.sidebar.posts', 'bx-calendar-edit'],
         ],
         'overview.sidebar_workspace' => [
+            ['seller-workspaces.index', 'seller_team.workspaces', 'bx-buildings'],
+            ['admin.seller-team.index', 'seller_team.title', 'bx-group'],
             ['admin.connections.index', 'admin.sidebar.connections', 'bx-link'],
             ['admin.media-gallery.index', 'admin.sidebar.media_gallery', 'bx-images'],
             ['admin.email.dashboard', 'admin.sidebar.email_marketing', 'bx-envelope'],
@@ -77,6 +80,16 @@
             ['admin.tickets.index', 'admin.sidebar.tickets', 'bx-headphone'],
         ],
     ];
+    if ($workspaceMember = request()->attributes->get('workspace_member')) {
+        $access = app(\App\Services\PackageAccessService::class);
+        foreach ($groups as $heading => $links) {
+            $groups[$heading] = array_values(array_filter($links, function ($link) use ($workspaceMember, $access) {
+                if ($link[0] === 'seller-workspaces.index') return true;
+                $modules = $access->modulesForRoute($link[0]);
+                return $modules !== [] && collect($modules)->every(fn ($module) => in_array($workspaceMember->permissions[$module] ?? 'none', ['read', 'write'], true) && $access->allows(auth()->user(), $module));
+            }));
+        }
+    }
 @endphp
 <aside id="layout-menu" class="layout-menu menu-vertical admin-sidebar overview-sidebar" aria-label="{{ __('overview.sidebar_navigation') }}">
     <div class="admin-sidebar-header ov-sidebar-header">
@@ -95,6 +108,7 @@
                         $active = request()->routeIs($destination)
                             || ($destination === 'dashboard' && request()->routeIs('dashboard.overview'))
                             || ($destination === 'plans.index' && request()->routeIs('plans.*'))
+                            || ($destination === 'coupons.index' && request()->routeIs('coupons.*'))
                             || ($destination === 'package-features.index' && request()->routeIs('package-features.*'));
                         $submenu = $children[$destination] ?? [];
                         $submenuOpen = ($destination === 'admin.ads.dashboard' && request()->routeIs('admin.ads.*'))
@@ -140,8 +154,8 @@
         </ul>
     </nav>
     <div class="admin-sidebar-footer ov-sidebar-footer">
-        @unless($team)
-            <a class="ov-sidebar-plan" href="{{ route('admin.subscription.select') }}" title="{{ __('admin.sidebar.manage_your_plan') }}"><span class="ov-plan-icon"><i class="bx bx-crown" aria-hidden="true"></i></span><div><strong>{{ __('overview.sidebar_plan_title') }}</strong><small>{{ __('admin.sidebar.manage_your_plan') }}</small></div><i class="bx bx-arrow-back ov-plan-arrow" aria-hidden="true"></i></a>
+        @unless($team || request()->attributes->has('workspace_member'))
+            <a class="ov-sidebar-plan" href="{{ route('admin.subscription.usage') }}" title="{{ __('admin.sidebar.manage_your_plan') }}"><span class="ov-plan-icon"><i class="bx bx-crown" aria-hidden="true"></i></span><div><strong>{{ __('overview.sidebar_plan_title') }}</strong><small>{{ __('admin.sidebar.manage_your_plan') }}</small></div><i class="bx bx-arrow-back ov-plan-arrow" aria-hidden="true"></i></a>
         @endunless
     </div>
 </aside>

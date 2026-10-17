@@ -30,6 +30,14 @@
         <ul class="menu-inner admin-sidebar-menu">
 
             {{-- DASHBOARD --}}
+            <li class="menu-item {{ request()->routeIs('seller-workspaces.*') ? 'active' : '' }}">
+                <a href="{{ route('seller-workspaces.index') }}" class="menu-link"><i class="menu-icon tf-icons bx bx-buildings"></i><span>{{ __('seller_team.workspaces') }}</span></a>
+            </li>
+            @unless(request()->attributes->has('workspace_member'))
+            <li class="menu-item {{ request()->routeIs('admin.seller-team.*') ? 'active' : '' }}">
+                <a href="{{ route('admin.seller-team.index') }}" class="menu-link"><i class="menu-icon tf-icons bx bx-group"></i><span>{{ __('seller_team.title') }}</span></a>
+            </li>
+            @endunless
             <li class="menu-item {{ request()->routeIs('dashboard.overview') ? 'active' : '' }}">
                 <a href="{{ route('dashboard.overview') }}" class="menu-link">
                     <i class="menu-icon tf-icons bx bx-bar-chart-alt-2"></i>

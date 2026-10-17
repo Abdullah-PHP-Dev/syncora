@@ -286,7 +286,7 @@
 
 
                 <!-- Profile -->
-                @if(!auth()->user()->isTeamMember())
+                @if(!auth()->user()->isTeamMember() && !request()->attributes->has('workspace_member'))
                 <li>
 
                     <a class="dropdown-item admin-dropdown-item"

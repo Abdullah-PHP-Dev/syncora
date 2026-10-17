@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class MediaAsset extends Model
 {
+    use \App\Models\Concerns\ChecksPackageLimits;
+
     use SoftDeletes;
 
     protected $fillable = [

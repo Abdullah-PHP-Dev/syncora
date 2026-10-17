@@ -60,7 +60,7 @@ class PublishPosts extends Command
         // Only posts waiting to go out. "!= completed" also picked up failed
         // posts (retried every run, forever) and drafts (never meant to post).
         Post::with(['socialAccount', 'media'])
-            ->where('status', '!=', 'completed')
+            ->whereIn('status', ['pending', 'scheduled'])
             ->orderBy('id')
             ->chunkById(50, function ($posts) {
            
@@ -91,6 +91,12 @@ class PublishPosts extends Command
                         $this->info("Published Post #{$post->id}");
 
                     } catch (\Throwable $e) {
+
+                        if (($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface && $e->getStatusCode() === 403)
+                            || ($e instanceof \Illuminate\Validation\ValidationException && array_key_exists('package', $e->errors()))) {
+                            $this->info("Post #{$post->id} is waiting for package access or allowance.");
+                            continue;
+                        }
 
                         Log::error(
                             "Post {$post->id} Exception: {$e->getMessage()}",

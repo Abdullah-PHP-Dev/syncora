@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\Schema;
  */
 trait CreatesAiCopilotTables
 {
+    use \Tests\Feature\Packages\Concerns\SubscribesFixtureSellers;
+
     protected function createAiCopilotTables(): void
     {
         if (Schema::hasTable('ai_copilot_settings')) {
@@ -118,5 +120,6 @@ trait CreatesAiCopilotTables
         ] as $migration) {
             (require database_path('migrations/' . $migration . '.php'))->up();
         }
+        $this->subscribeFixtureSellers();
     }
 }

@@ -50,6 +50,9 @@ class ReferencePackageSeeder extends Seeder
                 }
                 $values = array_combine(array_keys($definitions), $definition['values']);
                 $bundle->entitlement_settings = array_replace($bundle->entitlement_settings ?? [], $values);
+                if ($bundle->access_settings === null) {
+                    $bundle->access_settings = \App\Services\PackageAccessService::initialSettings($bundle);
+                }
                 $meta = $bundle->meta ?? [];
                 $meta['yearly_price'] = $yearly;
                 $meta['trial_days'] = 14;

@@ -1,0 +1,6 @@
+@extends('layouts.app')
+@section('title', __('package_access.usage_title'))
+@section('content')
+<div class="d-flex align-items-start justify-content-between gap-3 mb-4"><div><h2>{{ __('package_access.usage_title') }}</h2><p class="text-muted">{{ $data['package'] ?? __('No subscription') }} · {{ $data['active'] ? __('Active') : __('package_access.expired_label') }}</p>@if($data['expires_at'])<p>{{ __('Expires') }}: {{ $data['expires_at'] }}</p>@endif</div><a href="{{ route('admin.subscription.select') }}" class="btn btn-primary">{{ __('package_access.view_packages') }}</a></div>
+<div class="card"><div class="card-body"><p class="text-muted">{{ __('package_access.usage_help') }}@if($data['period_start']) {{ __('package_access.period_start') }}: {{ $data['period_start'] }}.@endif</p><div class="table-responsive"><table class="table"><thead><tr><th>{{ __('Feature') }}</th><th>{{ __('package_access.used') }}</th><th>{{ __('package_access.allowed') }}</th></tr></thead><tbody>@foreach($data['usage'] as $item)<tr><td>{{ $item['name'] }}</td><td>{{ number_format($item['used'], is_float($item['used']) ? 3 : 0) }}</td><td>{{ $item['limit'] === -1 ? __('Unlimited') : number_format($item['limit']) }}</td></tr>@endforeach</tbody></table></div></div></div>
+@endsection
