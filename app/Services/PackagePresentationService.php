@@ -14,7 +14,16 @@ class PackagePresentationService
         $features = PackageFeature::where('is_active', true)->orderBy('sort_order')->orderBy('id')->get()
             ->filter(fn ($feature) => $plans->contains(fn ($plan) => array_key_exists($feature->key, $plan->entitlement_settings ?? [])));
 
-        return compact('plans', 'features');
+        $maxSaving = $plans->map(fn ($plan) => $this->yearlySaving($plan))->max() ?? 0;
+
+        return compact('plans', 'features', 'maxSaving');
+    }
+
+    public function yearlySaving(Bundle $plan): int
+    {
+        return ! $plan->is_free && $plan->price > 0
+            ? max(0, (int) floor((1 - $plan->yearly_price / ($plan->price * 12)) * 100))
+            : 0;
     }
 
     public function value(Bundle $plan, PackageFeature $feature): string

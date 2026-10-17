@@ -9,6 +9,8 @@ class HomeController extends Controller
 {
     public function __invoke(PackagePresentationService $presentation)
     {
-        return view('front.pages.home_modern', $presentation->catalog() + compact('presentation'));
+        $yearly = request('billing') === 'yearly';
+
+        return view('front.pages.home_modern', $presentation->catalog() + compact('presentation', 'yearly'));
     }
 }

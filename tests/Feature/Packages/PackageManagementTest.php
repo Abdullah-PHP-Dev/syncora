@@ -341,4 +341,26 @@ class PackageManagementTest extends TestCase
             ->assertRedirect(route('plans.edit', $first));
         $this->assertSame(0, Bundle::where('is_popular', true)->count());
     }
+
+    public function test_homepage_billing_toggle_renders_saved_yearly_prices_and_matching_checkout_links(): void
+    {
+        $this->seed(BundleSeeder::class);
+        $this->seed(ReferencePackageSeeder::class);
+        $plan = Bundle::where('slug', 'pro')->firstOrFail();
+        $plan->meta = array_replace($plan->meta, ['yearly_price' => 999]);
+        $plan->save();
+        $this->actingAs($this->user('seller'));
+        $yearly = $this->get('/?billing=yearly')->assertOk()
+            ->assertSee('data-billing="monthly"', false)->assertSee('data-billing="yearly" class="is-selected"', false)
+            ->assertSee('data-yearly="999.00">999.00</strong>', false)
+            ->assertSee('83.25 SAR / month, billed yearly')
+            ->assertSee('Save up to 44%')->assertSee('Save 44% with yearly billing')
+            ->assertSee('14-day free trial')->assertSee('Per month')->assertSee('Total during trial');
+        $this->assertStringContainsString('href="'.e(route('admin.subscription.checkout', ['plan_id' => $plan->id, 'cycle' => 'yearly'])).'"', $yearly->getContent());
+        $this->assertStringContainsString('href="'.e(route('pricing', ['billing' => 'yearly'])).'#plan-comparison"', $yearly->getContent());
+        $this->get('/pricing?billing=yearly')->assertOk()->assertSee('Save up to 44%')->assertSee('Save 44% with yearly billing');
+        $this->get('/?billing=monthly')->assertOk()
+            ->assertSee('data-billing="monthly" class="is-selected"', false)
+            ->assertSee('data-yearly="999.00">149.00</strong>', false);
+    }
 }

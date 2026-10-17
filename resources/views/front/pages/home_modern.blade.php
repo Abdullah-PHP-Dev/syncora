@@ -113,3 +113,7 @@
     </section>
 </div>
 @endsection
+
+@push('scripts')
+<script src="{{ asset('assets/js/pricing.js') }}?v={{ filemtime(public_path('assets/js/pricing.js')) }}" defer></script>
+@endpush

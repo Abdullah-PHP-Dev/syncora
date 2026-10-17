@@ -9,8 +9,6 @@
 @section('content')
 @php
     $yearly = request('billing') === 'yearly';
-    $maxSaving = $plans->filter(fn ($plan) => !$plan->is_free && $plan->price > 0)
-        ->map(fn ($plan) => max(0, (int) floor((1 - $plan->yearly_price / ($plan->price * 12)) * 100)))->max() ?? 0;
     $trial = $plans->firstWhere('is_free', true);
     $formatPrice = fn ($amount) => number_format((float) $amount, 2);
     $comparisonGroups = [
@@ -55,7 +53,7 @@
                     $palette = ['mint', 'blue', 'violet', 'amber'];
                     $planStyle = match ($plan->slug) { 'free_trial' => 'mint', 'basic', 'starter' => 'blue', 'pro' => 'violet', 'business', 'empire' => 'amber', default => $palette[$loop->index % 4] };
                     $planIcon = ['mint' => 'sprout', 'blue' => 'publish', 'violet' => 'spark', 'amber' => 'building'][$planStyle];
-                    $saving = !$plan->is_free && $plan->price > 0 ? max(0, (int) floor((1 - $plan->yearly_price / ($plan->price * 12)) * 100)) : 0;
+                    $saving = $presentation->yearlySaving($plan);
                     $highlights = $presentation->highlights($plan, $features);
                     $additionalBenefits = array_values(array_diff($presentation->additionalBenefits($plan), $highlights));
                     $canCheckout = auth()->check() && !auth()->user()->isTeamMember() && auth()->user()->hasRole('seller') && !$plan->is_free;
