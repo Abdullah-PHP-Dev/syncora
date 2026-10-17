@@ -76,3 +76,65 @@
 
 .se-bwp .se-bwp-everything-note svg { margin-left: 0; margin-inline-start: 35px; }
 .marketing-home:dir(rtl) .se-bwp-everything-note svg { transform: scaleX(-1); }
+
+/* Use the same live catalog as the full pricing page. */
+.se-bwp .se-bwp-pricing-grid { grid-template-columns: repeat(auto-fit,minmax(min(100%,260px),1fr)); }
+.se-bwp .se-bwp-price-card { display: flex; flex-direction: column; }
+.se-bwp .se-bwp-price-head { align-items: flex-start; }
+.se-bwp .se-bwp-price-head small { line-height: 1.6; }
+.se-bwp .se-bwp-price-card ul { flex: 1; }
+.se-bwp .se-bwp-price strong { overflow-wrap: anywhere; font-size: clamp(30px,3vw,40px); }
+.se-bwp-trial-duration { font-size: 12px; color: var(--theme-muted); }
+.se-bwp-pricing-more, .se-bwp-pricing-empty { grid-column: 1/-1; text-align: center; }
+.se-bwp-pricing-more { padding-top: 8px; }
+@media(max-width:820px) { .se-bwp .se-bwp-pricing-grid { grid-template-columns: minmax(0,1fr); } }
+.se-bwp .se-bwp-plan-stats > div { min-width: 0; }
+.se-bwp .se-bwp-plan-stats b { font-size: 18px; line-height: 1.5; overflow-wrap: anywhere; }
+
+
+.se-bwp .se-bwp-pricing-copy { padding-inline-end: 0; }
+
+/* Pricing follows the homepage's light cards, restrained accents, and spacing. */
+.se-bwp .se-bwp-pricing-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;align-items:stretch}
+.se-bwp .se-bwp-pricing-copy{padding-bottom:12px}
+.se-bwp .se-package-card{--package-color:#268773;--package-soft:#eaf6f1;padding:26px 22px 22px;border:1px solid var(--theme-border);border-radius:22px;background:#fff;box-shadow:0 5px 20px #6690dc09;min-height:0}
+.se-bwp .se-package-blue{--package-color:#3973c3;--package-soft:#edf4ff}
+.se-bwp .se-package-violet{--package-color:#8057c9;--package-soft:#f3edff}
+.se-bwp .se-package-amber{--package-color:#aa7833;--package-soft:#fcf4e6}
+.se-bwp .se-package-card.featured{border:1px solid var(--theme-purple);background:linear-gradient(180deg,#faf7ff,#fff 42%);box-shadow:0 8px 24px #720aff0a}
+.se-bwp .se-package-card .se-bwp-popular{background:var(--theme-gradient);font-size:10px;padding:6px 12px;inset-inline-end:18px;right:auto}
+.se-bwp .se-package-icon{width:40px;height:40px;border-radius:12px;background:var(--package-soft);color:var(--package-color);border:0;box-shadow:none}
+.se-bwp .se-package-icon svg{width:22px;height:22px;flex-shrink:0}
+.se-bwp .se-package-card .se-bwp-price-head{flex-direction:row;align-items:center;gap:12px}
+.se-bwp .se-package-card .se-bwp-price-head b{font-size:19px;letter-spacing:-.4px}
+.se-package-description{font-size:12px;color:var(--theme-muted);line-height:1.7;min-height:62px;margin:16px 0 0}
+.se-package-price-block{padding:17px 0 19px;border-bottom:1px solid var(--theme-border)}
+.se-bwp .se-package-price-block .se-bwp-price{margin:0 0 6px;white-space:nowrap}
+.se-bwp .se-package-price-block .se-bwp-price strong{font-size:clamp(28px,2.5vw,36px);letter-spacing:-1px;color:var(--theme-ink)}
+.se-bwp .se-package-price-block .se-bwp-price span{font-size:10px}
+.se-bwp .se-package-price-block .se-bwp-trial-duration{font-size:10px;color:#9698af;margin:0;line-height:1.6}
+.se-bwp .se-package-card .se-bwp-price-btn{min-height:42px;border-radius:12px;font-size:11px;margin-top:auto}
+.se-bwp .se-package-card .se-bwp-price-btn.outline{border:1px solid #e3e5f6;color:var(--theme-purple);background:#fff}
+.se-bwp .se-package-card .se-bwp-price-btn.gradient{background:var(--theme-gradient);box-shadow:none}
+.se-bwp .se-package-card .se-bwp-price-btn:hover{box-shadow:0 4px 12px #360bff12}
+.se-bwp .se-bwp-pricing-more{padding-top:6px}
+@media(max-width:1180px){.se-bwp .se-bwp-pricing-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}.se-package-description{min-height:41px}}
+@media(max-width:640px){.se-bwp .se-bwp-pricing-grid{grid-template-columns:minmax(0,1fr)}.se-bwp .se-package-card{padding:24px}.se-package-description{min-height:0}.se-bwp .se-package-price-block .se-bwp-price strong{font-size:34px}}
+
+.se-home-billing{display:inline-flex;align-items:center;gap:4px;padding:4px;margin-top:8px;border:1px solid #e4e5f5;border-radius:12px;background:#f3f1ff}
+.se-home-billing a{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:9px 24px;border-radius:9px;font-size:12px;font-weight:600;color:var(--theme-muted);text-decoration:none}
+.se-home-billing a.is-selected{background:var(--theme-gradient);color:#fff;box-shadow:0 4px 12px #360bff1a}
+.se-home-billing a:focus-visible{outline:3px solid #b9a2f5;outline-offset:3px}
+.se-bwp .se-package-price-block .se-bwp-trial-duration{min-height:32px}
+
+.se-bwp .se-bwp-pricing-copy{display:flex;align-items:center;justify-content:space-between;gap:32px}
+.se-home-pricing-heading{min-width:0}
+.se-bwp-pricing-copy .se-home-billing{flex-shrink:0;margin:0}
+.se-home-pricing-heading>p{margin-bottom:0}
+@media(max-width:700px){.se-bwp .se-bwp-pricing-copy{flex-direction:column;align-items:flex-start;gap:18px}}
+
+.se-home-billing a{gap:8px}
+.se-home-billing-saving{padding:4px 8px;border-radius:999px;background:#e7ddff;color:#6008ff;font-size:10px;white-space:nowrap}
+.se-home-plan-saving{align-self:flex-start;display:inline-block;font-size:9px;font-weight:600;color:#298365;background:#ecf7f1;border-radius:5px;padding:4px 7px;margin-top:10px}
+.se-home-plan-saving[hidden]{display:none}
+@media(max-width:420px){.se-home-billing a{padding-inline:14px}.se-home-billing-saving{font-size:8px}}

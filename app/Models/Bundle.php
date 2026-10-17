@@ -26,6 +26,7 @@ class Bundle extends Model
 		'allowed_product',
 		'limits',
 		'meta',
+		'entitlement_settings',
 	];
 
 	/*
@@ -39,6 +40,7 @@ class Bundle extends Model
 		'allowed_product' => 'array',
 		'limits' => 'array',
 		'meta' => 'array',
+		'entitlement_settings' => 'array',
 		'is_default' => 'boolean',
 		'is_free' => 'boolean',
 		'is_popular' => 'boolean',

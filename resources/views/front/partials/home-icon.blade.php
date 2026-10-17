@@ -1,5 +1,11 @@
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     @switch($icon)
+        @case('sprout')
+            <path d="M12 21v-9M12 16C5 16 3 12 3 6c6 0 9 3 9 8m0-3c0-5 3-8 9-8 0 6-3 10-9 10"/>
+            @break
+        @case('building')
+            <rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h1m4 0h1M9 11h1m4 0h1M9 15h1m4 0h1M10 21v-3h4v3"/>
+            @break
         @case('spark')
             <path d="m12 2 2.8 6.8L22 12l-7.2 3.2L12 22l-2.8-6.8L2 12l7.2-3.2Z"/><path d="m20 2 .5 1.5L22 4l-1.5.5L20 6l-.5-1.5L18 4l1.5-.5Z"/>
             @break

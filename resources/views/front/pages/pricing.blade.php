@@ -3,23 +3,18 @@
 @section('meta_description', __('Find the right plan for your social media workspace. Compare features, monthly pricing, and yearly billing.'))
 @push('styles')
 <link rel="stylesheet" href="{{ asset('assets/css/pricing.css') }}?v={{ filemtime(public_path('assets/css/pricing.css')) }}">
+<link rel="stylesheet" href="{{ asset('assets/css/package-cards.css') }}?v={{ filemtime(public_path('assets/css/package-cards.css')) }}">
 @endpush
 
 @section('content')
 @php
     $yearly = request('billing') === 'yearly';
-    $maxSaving = $plans->filter(fn ($plan) => !$plan->is_free && $plan->price > 0)
-        ->map(fn ($plan) => max(0, (int) floor((1 - $plan->yearly_price / ($plan->price * 12)) * 100)))->max() ?? 0;
     $trial = $plans->firstWhere('is_free', true);
     $formatPrice = fn ($amount) => number_format((float) $amount, 2);
-    $planLimits = fn ($plan) => (array) data_get($plan->features ?? [], 'limits', $plan->limits ?? []);
-    $planCapabilities = function ($plan) {
-        $raw = $plan->features ?? [];
-        return array_filter((array) data_get($raw, 'features', $raw), fn ($value) => is_bool($value));
-    };
-    $limitKeys = $plans->flatMap(fn ($plan) => array_keys($planLimits($plan)))->unique()->values();
-    $capabilityKeys = $plans->flatMap(fn ($plan) => array_keys($planCapabilities($plan)))->unique()->values();
-    $comparisonGroups = [__('Usage & capacity') => $limitKeys, __('Workspace features') => $capabilityKeys];
+    $comparisonGroups = [
+        __('Usage & capacity') => $features->whereIn('type', ['capacity', 'quota']),
+        __('Workspace features') => $features->whereIn('type', ['boolean', 'benefit']),
+    ];
 
 @endphp
 <div class="pricing-page theme-page" data-pricing-page>
@@ -55,30 +50,22 @@
             <div class="pricing-plan-grid">
             @forelse($plans as $plan)
                 @php
-                    $saving = !$plan->is_free && $plan->price > 0 ? max(0, (int) floor((1 - $plan->yearly_price / ($plan->price * 12)) * 100)) : 0;
-                    $features = $plan->display_features;
-                    if (!$features) {
-                        $raw = $plan->features ?? [];
-                        foreach (data_get($raw, 'limits', $plan->limits ?? []) as $key => $value) {
-                            if (is_numeric($value)) {
-                                $label = __(ucfirst(str_replace('_', ' ', $key)));
-                                $features[] = (int) $value === -1 ? __('Unlimited :feature', ['feature' => $label]) : __(':count :feature', ['count' => number_format($value), 'feature' => $label]);
-                            }
-                        }
-                        foreach (data_get($raw, 'features', $raw) as $key => $enabled) {
-                            if ($enabled === true) $features[] = __(ucfirst(str_replace('_', ' ', $key)));
-                        }
-                    }
+                    $palette = ['mint', 'blue', 'violet', 'amber'];
+                    $planStyle = match ($plan->slug) { 'free_trial' => 'mint', 'basic', 'starter' => 'blue', 'pro' => 'violet', 'business', 'empire' => 'amber', default => $palette[$loop->index % 4] };
+                    $planIcon = ['mint' => 'sprout', 'blue' => 'publish', 'violet' => 'spark', 'amber' => 'building'][$planStyle];
+                    $saving = $presentation->yearlySaving($plan);
+                    $highlights = $presentation->highlights($plan, $features);
+                    $additionalBenefits = array_values(array_diff($presentation->additionalBenefits($plan), $highlights));
                     $canCheckout = auth()->check() && !auth()->user()->isTeamMember() && auth()->user()->hasRole('seller') && !$plan->is_free;
                     $monthlyUrl = $canCheckout ? route('admin.subscription.checkout', ['plan_id' => $plan->id, 'cycle' => 'monthly']) : (auth()->check() ? route('dashboard') : route('register'));
                     $yearlyUrl = $canCheckout ? route('admin.subscription.checkout', ['plan_id' => $plan->id, 'cycle' => 'yearly']) : $monthlyUrl;
                     $cta = auth()->check() ? ($canCheckout ? __('Choose :plan', ['plan' => $plan->name]) : __('Open your workspace')) : ($plan->is_free ? __('Start free') : __('Get started'));
                     $trialDays = data_get($plan->meta, 'trial_days');
                 @endphp
-                <article class="pricing-plan {{ $plan->is_popular ? 'pricing-plan-featured' : '' }}" data-plan>
+                <article class="pricing-plan se-package-card pricing-plan-{{ $planStyle }} {{ $plan->is_popular ? 'pricing-plan-featured' : '' }}" data-plan>
                     @if($plan->is_popular)<div class="pricing-plan-recommendation">@include('front.partials.home-icon', ['icon' => 'spark']){{ __('Recommended plan') }}</div>@endif
                     <div class="pricing-plan-header">
-                        <span class="pricing-plan-icon">@include('front.partials.home-icon', ['icon' => $plan->is_popular ? 'spark' : 'chart'])</span>
+                        <span class="pricing-plan-icon">@include('front.partials.home-icon', ['icon' => $planIcon])</span>
                         <h2>{{ $plan->name }}</h2>
                         @if($plan->description)<p>{{ $plan->description }}</p>@endif
                     </div>
@@ -94,11 +81,11 @@
                         </div>
                         @if($saving > 0)<span class="pricing-saving" data-saving @if(!$yearly) hidden @endif>{{ __('Save :percent% with yearly billing', ['percent' => $saving]) }}</span>@endif
                     </div>
-                    <a class="pricing-plan-cta" data-plan-cta data-monthly="{{ $monthlyUrl }}" data-yearly="{{ $yearlyUrl }}" href="{{ $yearly ? $yearlyUrl : $monthlyUrl }}">{{ $cta }}<span aria-hidden="true">→</span></a>
-                    <div class="pricing-plan-features"><h3>{{ __('Inside your workspace') }}</h3>
-                        @if(count($features))<ul>@foreach(array_slice($features, 0, 6) as $feature)<li><span class="pricing-check" aria-hidden="true">✓</span><span>{{ $feature }}</span></li>@endforeach</ul>
-                        @else<p class="pricing-features-empty">{{ __('Plan details are being updated. Check back soon for the full feature list.') }}</p>@endif
+                    <div class="pricing-plan-features">
+                        @include('front.partials.package-allowances')
                     </div>
+                    <a class="pricing-plan-cta" data-plan-cta data-monthly="{{ $monthlyUrl }}" data-yearly="{{ $yearlyUrl }}" href="{{ $yearly ? $yearlyUrl : $monthlyUrl }}">{{ $cta }}<span aria-hidden="true">→</span></a>
+                    @if($additionalBenefits)<details class="pricing-additional-benefits"><summary>{{ __('Additional benefits') }}</summary><ul>@foreach($additionalBenefits as $benefit)<li>{{ $benefit }}</li>@endforeach</ul></details>@endif
                     <a class="pricing-card-compare" href="#plan-comparison">{{ __('Compare all features') }} <span aria-hidden="true">↓</span></a>
                 </article>
             @empty
@@ -125,8 +112,8 @@
                 <a href="{{ route('pricing', ['billing' => 'yearly']) }}" data-billing="yearly" class="{{ $yearly ? 'is-selected' : '' }}" @if($yearly) aria-current="true" @endif>{{ __('Yearly') }}</a>
             </div>
         </div>
-        @foreach($comparisonGroups as $groupLabel => $keys)
-            @if($keys->isNotEmpty())
+        @foreach($comparisonGroups as $groupLabel => $groupFeatures)
+            @if($groupFeatures->isNotEmpty())
             <details class="pricing-comparison-group" @if($loop->first) open @endif>
                 <summary>{{ $groupLabel }} <span aria-hidden="true">+</span></summary>
                 <div class="pricing-table-scroll" tabindex="0" role="region" aria-label="{{ $groupLabel }}">
@@ -141,24 +128,20 @@
                                     $comparisonYearlyUrl = $comparisonCanCheckout ? route('admin.subscription.checkout', ['plan_id' => $plan->id, 'cycle' => 'yearly']) : $comparisonMonthlyUrl;
                                 @endphp
                                 <strong>{{ $plan->name }}</strong>
-                                <div class="pricing-comparison-price"><span data-price data-monthly="{{ $formatPrice($plan->price) }}" data-yearly="{{ $formatPrice($plan->yearly_price) }}">{{ $formatPrice($yearly ? $plan->yearly_price : $plan->price) }}</span> {{ $plan->currency }} <span data-period data-monthly="{{ __('/ month') }}" data-yearly="{{ __('/ year') }}">{{ $yearly ? __('/ year') : __('/ month') }}</span></div>
+                                <div class="pricing-comparison-price"><span data-price data-monthly="{{ $formatPrice($plan->price) }}" data-yearly="{{ $formatPrice($plan->is_free ? $plan->price : $plan->yearly_price) }}">{{ $formatPrice($yearly && !$plan->is_free ? $plan->yearly_price : $plan->price) }}</span> {{ $plan->currency }} @if($plan->is_free)<span>{{ __(':days-day free trial', ['days' => data_get($plan->meta, 'trial_days')]) }}</span>@else<span data-period data-monthly="{{ __('/ month') }}" data-yearly="{{ __('/ year') }}">{{ $yearly ? __('/ year') : __('/ month') }}</span>@endif</div>
                                 <a class="pricing-comparison-cta" data-plan-cta data-monthly="{{ $comparisonMonthlyUrl }}" data-yearly="{{ $comparisonYearlyUrl }}" href="{{ $yearly ? $comparisonYearlyUrl : $comparisonMonthlyUrl }}">{{ auth()->check() && !$comparisonCanCheckout ? __('Open your workspace') : __('Choose :plan', ['plan' => $plan->name]) }}</a>
                             </th>
                             @endforeach
                         </tr></thead>
                         <tbody>
-                        @foreach($keys as $key)
-                            <tr><th scope="row">{{ __(ucfirst(str_replace('_', ' ', $key))) }}</th>
+                        @foreach($groupFeatures as $feature)
+                            <tr data-feature="{{ $feature->key }}"><th scope="row">{{ $feature->name }}</th>
                             @foreach($plans as $plan)
-                                @php
-                                    $value = $groupLabel === __('Usage & capacity') ? data_get($planLimits($plan), $key) : data_get($planCapabilities($plan), $key);
-                                @endphp
+                                @php($value = $plan->entitlement_settings[$feature->key] ?? null)
                                 <td class="{{ $plan->is_popular ? 'pricing-comparison-featured' : '' }}">
-                                    @if($value === true)<span class="pricing-table-check" aria-label="{{ __('Included') }}">✓</span>
-                                    @elseif($value === false)<span class="pricing-table-unavailable" aria-label="{{ __('Not included') }}">—</span>
-                                    @elseif($value === null)<span class="pricing-table-unavailable">{{ __('Not specified') }}</span>
-                                    @elseif(is_numeric($value)){{ (int) $value === -1 ? __('Unlimited') : number_format($value) }}
-                                    @else{{ $value }}@endif
+                                    @if($feature->type === 'boolean' && $value === true)<span class="pricing-table-check" aria-label="{{ __('Included') }}">✓</span>
+                                    @elseif($feature->type === 'boolean' && $value === false)<span class="pricing-table-unavailable" aria-label="{{ __('Not included') }}">—</span>
+                                    @else{{ $presentation->value($plan, $feature) }}@endif
                                 </td>
                             @endforeach
                             </tr>

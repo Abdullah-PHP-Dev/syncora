@@ -5,6 +5,7 @@
 
 @push('styles')
 <link rel="stylesheet" href="{{ asset('assets/css/home-billing-workflow.css') }}?v={{ filemtime(public_path('assets/css/home-billing-workflow.css')) }}">
+<link rel="stylesheet" href="{{ asset('assets/css/package-cards.css') }}?v={{ filemtime(public_path('assets/css/package-cards.css')) }}">
 @endpush
 
 @section('content')
@@ -112,3 +113,7 @@
     </section>
 </div>
 @endsection
+
+@push('scripts')
+<script src="{{ asset('assets/js/pricing.js') }}?v={{ filemtime(public_path('assets/js/pricing.js')) }}" defer></script>
+@endpush

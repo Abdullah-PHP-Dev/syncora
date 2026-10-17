@@ -34,31 +34,37 @@
                 </div>
             </div>
 
+            @php
+                $previewPlan = $plans->firstWhere('is_popular', true) ?? $plans->firstWhere('is_free', false) ?? $plans->first();
+                $previewFeatures = $previewPlan ? $features->whereIn('type', ['capacity', 'quota'])->filter(fn ($feature) => isset($previewPlan->entitlement_settings[$feature->key]))->take(3) : collect();
+            @endphp
+            @if($previewPlan)
             <div class="se-bwp-card se-bwp-plan-card">
                 <div class="se-bwp-plan-top">
                     <div class="se-bwp-card-head">
                         <div class="se-bwp-icon gold">♛</div>
                         <div>
-                            <strong>{{ __('Current Plan') }}</strong>
-                            <small>{{ __('You’re all set! Here’s your active subscription.') }}</small>
+                            <strong>{{ __('Example plan') }}</strong>
+                            <small>{{ __('Explore a package from our current plans.') }}</small>
                         </div>
                     </div>
-                    <span class="se-bwp-active">{{ __('Active') }}</span>
+                    <span class="se-bwp-active">{{ $previewPlan->is_free ? __('Free trial') : __('Monthly') }}</span>
                 </div>
                 <div class="se-bwp-plan-row">
                     <div>
-                        <h3>{{ __('Pro Plan') }}</h3>
-                        <strong>$19 <small>{{ __('/ month') }}</small></strong>
+                        <h3>{{ $previewPlan->name }}</h3>
+                        <strong>{{ number_format($previewPlan->price, 2) }} {{ $previewPlan->currency }} <small>{{ $previewPlan->is_free ? __(':days-day free trial', ['days' => data_get($previewPlan->meta, 'trial_days')]) : __('/ month') }}</small></strong>
                         <p>{{ __('Example monthly subscription') }}</p>
                     </div>
                     <a href="{{ route('pricing') }}" class="se-bwp-outline-btn">{{ __('Manage Plan') }}</a>
                 </div>
                 <div class="se-bwp-plan-stats">
-                    <div><b>500</b><span>{{ __('AI credits / month') }}</span></div>
-                    <div><b>20</b><span>{{ __('Social accounts') }}</span></div>
-                    <div><b>{{ __('Unlimited') }}</b><span>{{ __('Scheduling') }}</span></div>
+                    @foreach($previewFeatures as $feature)
+                    <div><b>{{ $presentation->value($previewPlan, $feature) }}</b><span>{{ $feature->name }}</span></div>
+                    @endforeach
                 </div>
             </div>
+            @endif
         </div>
 
         {{-- HOW IT WORKS --}}
@@ -108,61 +114,51 @@
         </div>
 
         {{-- PRICING --}}
-        <div class="se-bwp-pricing-grid">
+        <div class="se-bwp-pricing-grid" id="home-pricing" data-pricing-page>
             <div class="se-bwp-pricing-copy">
-                <span class="se-bwp-pill">{{ __('PRICING') }}</span>
-                <h2>{{ __('Plans for every') }}<br>{{ __('creator’s journey') }}</h2>
-                <p>{{ __('Start free and scale as you grow. Simple, transparent pricing — no hidden fees.') }}</p>
-                <div class="se-bwp-hand-note se-bwp-everything-note">{{ __('Everything you need') }}<br>{{ __('to grow on social') }}
-                    <svg viewBox="0 0 150 80" aria-hidden="true"><path d="M8 52 C55 60 95 60 140 42"/><path d="M128 35 L140 42 L130 51"/></svg>
+                <div class="se-home-pricing-heading">
+                    <span class="se-bwp-pill">{{ __('PRICING') }}</span>
+                    <h2>{{ __('Plans for every') }} <br>{{ __('creator’s journey') }}</h2>
+                    <p>{{ $plans->contains('is_free', true) ? __('Start free and scale as you grow. Simple, transparent pricing — no hidden fees.') : __('Simple, transparent pricing. Choose the plan that fits your growth.') }}</p>
                 </div>
+                @if($plans->contains('is_free', false))
+                <nav class="se-home-billing" aria-label="{{ __('Billing period') }}">
+                    <a href="{{ route('home', ['billing' => 'monthly']) }}#home-pricing" data-billing="monthly" class="{{ !$yearly ? 'is-selected' : '' }}" @if(!$yearly) aria-current="true" @endif>{{ __('Monthly') }}</a>
+                    <a href="{{ route('home', ['billing' => 'yearly']) }}#home-pricing" data-billing="yearly" class="{{ $yearly ? 'is-selected' : '' }}" @if($yearly) aria-current="true" @endif>{{ __('Yearly') }}@if($maxSaving > 0)<span class="se-home-billing-saving">{{ __('Save up to :percent%', ['percent' => $maxSaving]) }}</span>@endif</a>
+                </nav>
+                @endif
             </div>
 
-            <div class="se-bwp-price-card">
-                <div class="se-bwp-price-head"><span class="se-bwp-price-icon blue">➤</span><div><b>{{ __('Free') }}</b><small>{{ __('Perfect for getting started') }}</small></div></div>
-                <div class="se-bwp-price"><strong>$0</strong> <span>{{ __('forever') }}</span></div>
-                <ul>
-                    <li>{{ __('AI content generation (limited)') }}</li>
-                    <li>{{ __('Up to 3 social accounts') }}</li>
-                    <li>{{ __('10 scheduled posts / month') }}</li>
-                    <li>{{ __('Basic analytics') }}</li>
-                    <li>{{ __('Standard support') }}</li>
-                </ul>
-                <a href="{{ route('register') }}" class="se-bwp-price-btn outline">{{ __('Get Started Free') }}</a>
-            </div>
+            @forelse($plans as $plan)
+                @php
+                    $highlights = $presentation->highlights($plan, $features);
+                    $saving = $presentation->yearlySaving($plan);
+                    $palette = ['mint', 'blue', 'violet', 'amber'];
+                    $planStyle = match ($plan->slug) { 'free_trial' => 'mint', 'basic', 'starter' => 'blue', 'pro' => 'violet', 'business', 'empire' => 'amber', default => $palette[$loop->index % 4] };
+                    $planIcon = ['mint' => 'sprout', 'blue' => 'publish', 'violet' => 'spark', 'amber' => 'building'][$planStyle];
+                    $canCheckout = auth()->check() && !auth()->user()->isTeamMember() && auth()->user()->hasRole('seller') && !$plan->is_free;
+                    $planUrl = $canCheckout ? route('admin.subscription.checkout', ['plan_id' => $plan->id, 'cycle' => 'monthly']) : (auth()->check() ? route('dashboard') : route('register'));
+                    $yearlyUrl = $canCheckout ? route('admin.subscription.checkout', ['plan_id' => $plan->id, 'cycle' => 'yearly']) : $planUrl;
+                @endphp
+                <article class="se-bwp-price-card se-package-card se-package-{{ $planStyle }} {{ $plan->is_popular ? 'featured' : '' }}" data-home-plan="{{ $plan->id }}">
+                    @if($plan->is_popular)
+                    <div class="se-bwp-popular">
+                        {{ __('Recommended plan') }}
+                    </div>
+                    @endif
+                    <div class="se-bwp-price-head"><span class="se-bwp-price-icon se-package-icon" aria-hidden="true">@include('front.partials.home-icon', ['icon' => $planIcon])</span><b>{{ $plan->name }}</b></div>
+                    <p class="se-package-description">{{ $plan->description }}</p>
+                    <div class="se-package-price-block" aria-live="polite" aria-atomic="true"><div class="se-bwp-price"><strong data-price data-monthly="{{ number_format($plan->price, 2) }}" data-yearly="{{ number_format($plan->is_free ? $plan->price : $plan->yearly_price, 2) }}">{{ number_format($yearly && !$plan->is_free ? $plan->yearly_price : $plan->price, 2) }}</strong> <span>{{ $plan->currency }}@unless($plan->is_free) <span data-period data-monthly="{{ __('/ month') }}" data-yearly="{{ __('/ year') }}">{{ $yearly ? __('/ year') : __('/ month') }}</span>@endunless</span></div>
+                    <p class="se-bwp-trial-duration">@if($plan->is_free){{ __(':days-day free trial', ['days' => data_get($plan->meta, 'trial_days')]) }}@else<span data-billing-note data-monthly="{{ __('Billed monthly') }}" data-yearly="{{ __(':amount :currency / month, billed yearly', ['amount' => number_format($plan->yearly_price / 12, 2), 'currency' => $plan->currency]) }}">{{ $yearly ? __(':amount :currency / month, billed yearly', ['amount' => number_format($plan->yearly_price / 12, 2), 'currency' => $plan->currency]) : __('Billed monthly') }}</span>@endif</p></div>
+                    @if($saving > 0)<span class="se-home-plan-saving" data-saving @if(!$yearly) hidden @endif>{{ __('Save :percent% with yearly billing', ['percent' => $saving]) }}</span>@endif
+                    @include('front.partials.package-allowances')
+                    <a href="{{ $yearly ? $yearlyUrl : $planUrl }}" data-plan-cta data-monthly="{{ $planUrl }}" data-yearly="{{ $yearlyUrl }}" class="se-bwp-price-btn {{ $plan->is_popular ? 'gradient' : 'outline' }}">{{ auth()->check() ? ($canCheckout ? __('Choose :plan', ['plan' => $plan->name]) : __('Open your workspace')) : ($plan->is_free ? __('Start free') : __('Get started')) }}</a>
+                </article>
+            @empty
+                <div class="se-bwp-pricing-empty"><p>{{ __('Our plans are being updated. Please check back soon.') }}</p></div>
+            @endforelse
+            @if($plans->isNotEmpty())<div class="se-bwp-pricing-more"><a href="{{ route('pricing', ['billing' => $yearly ? 'yearly' : 'monthly']) }}#plan-comparison" data-plan-cta data-monthly="{{ route('pricing', ['billing' => 'monthly']) }}#plan-comparison" data-yearly="{{ route('pricing', ['billing' => 'yearly']) }}#plan-comparison" class="theme-button theme-button-outline">{{ __('Compare all features') }} <span aria-hidden="true">→</span></a></div>@endif
 
-            <div class="se-bwp-price-card featured">
-                <div class="se-bwp-popular">{{ __('Most Popular') }}</div>
-                <div class="se-bwp-price-head"><span class="se-bwp-price-icon purple">♛</span><div><b>{{ __('Pro') }}</b><small>{{ __('For creators and small teams') }}</small></div></div>
-                <div class="se-bwp-price"><strong>$19</strong> <span>{{ __('/ month') }}</span></div>
-                <ul>
-                    <li>{{ __('500 AI credits / month') }}</li>
-                    <li>{{ __('Up to 20 social accounts') }}</li>
-                    <li>{{ __('Unlimited scheduling') }}</li>
-                    <li>{{ __('Advanced analytics') }}</li>
-                    <li>{{ __('Team collaboration (up to 3 members)') }}</li>
-                    <li>{{ __('Priority support') }}</li>
-                </ul>
-                <a href="{{ route('pricing') }}" class="se-bwp-price-btn gradient">{{ __('Start Pro Plan →') }}</a>
-                <div class="se-bwp-hand-note se-bwp-popular-note">{{ __('Most popular plan') }}
-                    <svg viewBox="0 0 125 70" aria-hidden="true"><path d="M8 8 C58 9 90 18 100 54"/><path d="M92 45 L100 56 L109 45"/></svg>
-                </div>
-            </div>
-
-            <div class="se-bwp-price-card">
-                <div class="se-bwp-price-head"><span class="se-bwp-price-icon blue">▥</span><div><b>{{ __('Enterprise') }}</b><small>{{ __('For agencies and large teams') }}</small></div></div>
-                <div class="se-bwp-price"><strong class="custom">{{ __('Custom pricing') }}</strong></div>
-                <ul>
-                    <li>{{ __('Everything in Pro') }}</li>
-                    <li>{{ __('Unlimited social accounts') }}</li>
-                    <li>{{ __('Custom AI credits') }}</li>
-                    <li>{{ __('Advanced team management') }}</li>
-                    <li>{{ __('White-label options') }}</li>
-                    <li>{{ __('Dedicated account manager') }}</li>
-                    <li>{{ __('Custom integrations') }}</li>
-                </ul>
-                <a href="{{ route('help') }}" class="se-bwp-price-btn outline">{{ __('Contact Sales') }}</a>
-            </div>
         </div>
     </div>
 </section>
