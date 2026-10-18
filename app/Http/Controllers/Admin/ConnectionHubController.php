@@ -34,6 +34,7 @@ class ConnectionHubController extends Controller
         return view('admin.connections.index', [
             'hub' => $this->presenter->forUser((int) Auth::id()),
             'wizard' => $this->wizardPayload(),
+            'eligible' => Auth::user()->hasEligibleConnection(),
             'urls' => [
                 'whatsapp_manual' => route('admin.post-accounts.whatsapp.store'),
                 'openai_key' => route('admin.connections.openai.key'),

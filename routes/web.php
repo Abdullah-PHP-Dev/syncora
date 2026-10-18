@@ -492,8 +492,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				// POSTS
 				Route::get('posts/{platform}/redirect', [PostController::class, 'redirect'])
 					->name('posts.redirect');
-				Route::get('posts/dashboard', [PostController::class, 'dashboard'])->defaults('_config', ['view' => 'admin.posts.dashboard'])->name('posts.dashboard');
-				Route::get('posts/listing', [PostController::class, 'index_vue'])->name('posts.index');
+				Route::get('posts/dashboard', [PostController::class, 'dashboard'])->defaults('_config', ['view' => 'admin.posts.dashboard'])->middleware('connected')->name('posts.dashboard');
+				Route::get('posts/listing', [PostController::class, 'index_vue'])->middleware('connected')->name('posts.index');
 				Route::get('posts/data', [PostController::class, 'index'])->name('posts.data');
 				Route::get('posts/{post}/preview/{platform}', [PostController::class, 'preview'])->name('posts.preview');
 				Route::post('posts/quick', [PostController::class, 'quickStore'])->name('posts.quick');
@@ -507,13 +507,13 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				// them wasn't part of what was asked. Submits to the same
 				// admin.posts.store PostController::store() the legacy
 				// page already uses.
-				Route::get('posts/composer', [PostController::class, 'composer'])->name('posts.composer');
+				Route::get('posts/composer', [PostController::class, 'composer'])->middleware('connected')->name('posts.composer');
 				Route::post('posts/generate-ai-content', [PostController::class, 'generateAiContent'])->name('posts.generate-ai-content');
 				Route::post('posts/generate-ai-image', [PostController::class, 'generateAiImage'])->name('posts.generate-ai-image');
 					Route::get('posts/{post}/quick-view', [PostController::class, 'quickView'])->name('posts.quick-view');
 				Route::post('posts/listing/comments/{comment}/replies', [PostController::class, 'storeReply'])->name('posts.comments.reply');
 				Route::post('posts/listing/{post}/comments', [PostController::class, 'storeComment'])->name('posts.comments.store');
-				Route::get('posts', [PostController::class, 'dashboard']);
+				Route::get('posts', [PostController::class, 'dashboard'])->middleware('connected');
 				// ->except(['index']) - an unrestricted Route::resource()
 				// here auto-generates its own GET posts/index (named
 				// posts.index, prefixed admin.posts.index by this group),
@@ -637,6 +637,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				// CHATS - unified messaging inbox (Facebook Messenger,
 				// Instagram Direct, WhatsApp, Telegram, X DMs)
 				Route::get('chats/dashboard', [ChatController::class, 'dashboard'])
+					->middleware('connected')
 					->name('chats.dashboard');
 				Route::get('platform/chats/{conversation}', [ChatController::class, 'show'])
 					->name('chats.show');
@@ -734,6 +735,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				// COMMENTS
 				Route::resource('/platform/comments', PostCommentController::class);
 				Route::get('comments/dashboard', [PostCommentController::class, 'dashboard'])
+					->middleware('connected')
 					->name('comments.dashboard');
 
 

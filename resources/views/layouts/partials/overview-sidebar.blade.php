@@ -1,5 +1,9 @@
 @php
     $team = auth()->user()->isTeamMember();
+    // EnsureConnectedAccount sends these to the Connection Hub until an account
+    // is connected. Only a hint, so it never breaks the page (rescue → no lock).
+    $connectionLocked = auth()->user()->hasRole('seller') && rescue(fn () => ! auth()->user()->hasEligibleConnection(), false);
+    $connectionGated = ['admin.posts.dashboard', 'admin.posts.composer', 'admin.posts.index', 'admin.chats.dashboard', 'admin.comments.dashboard'];
     $platforms = [
         'facebook' => ['Facebook', 'bxl-facebook-circle'],
         'instagram' => ['Instagram', 'bxl-instagram'],
@@ -125,6 +129,7 @@
                             <span class="ov-sidebar-icon"><i class="bx {{ $icon }}" aria-hidden="true"></i></span>
                             <span class="ov-sidebar-label">{{ __($label) }}</span>
                             @if($destination === 'admin.chats.dashboard' && ($unread ?? 0) > 0)<span class="ov-sidebar-badge">{{ $unread > 99 ? '99+' : $unread }}</span>@endif
+                            @if($connectionLocked && in_array($destination, $connectionGated, true))<i class="bx bx-lock-alt ov-sidebar-badge ov-sidebar-lock" title="{{ __('connections.gate.locked') }}" aria-label="{{ __('connections.gate.locked') }}"></i>@endif
                             @if($destination === 'admin.tickets.index' && ($openTickets ?? $ticketCounts['open'] ?? 0) > 0)<span class="ov-sidebar-badge">{{ min(99, $openTickets ?? $ticketCounts['open']) }}</span>@endif
                         @if($submenu)
                                 <span class="ov-sidebar-dropdown-toggle" aria-hidden="true"><i class="bx bx-chevron-down"></i></span>

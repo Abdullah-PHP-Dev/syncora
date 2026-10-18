@@ -25,6 +25,7 @@
 .overview-sidebar .active .ov-sidebar-icon { background:#ffffff20; color:#fff; border-color:#ffffff20; }
 .overview-sidebar .ov-sidebar-active-dot { width:5px; height:5px; flex:0 0 5px; border-radius:50%; background:#d9ccff; box-shadow:0 0 7px #ffffff70; margin-inline-end:4px; }
 .overview-sidebar .ov-sidebar-badge { display:grid; place-items:center; min-width:20px; height:20px; padding:0 5px; border-radius:6px; background:#eee4ff; color:#7f50c2; font-size:9px; }
+.overview-sidebar .ov-sidebar-lock { font-size:12px; }
 .overview-sidebar .ov-sidebar-footer { padding:12px 16px 16px; border-top:1px solid var(--theme-border); background:transparent; }
 .overview-sidebar .ov-sidebar-plan { display:flex; align-items:center; gap:9px; padding:12px 10px; border:1px solid #e6d9f8; border-radius:13px; background:radial-gradient(ellipse at 95% 0,#e6d5ff,transparent 70%),linear-gradient(125deg,#f3edff,#eef1ff); margin-bottom:8px; }
 .overview-sidebar .ov-plan-icon { display:grid; place-items:center; width:31px; height:31px; flex:0 0 31px; border-radius:9px; background:#ffffffa6; color:#9670ce; font-size:20px; }

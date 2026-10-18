@@ -9,6 +9,7 @@
         :hub='@json($hub)'
         :urls='@json($urls)'
         :wizard='@json($wizard)'
+        :eligible='@json($eligible)'
         :flash='@json(array_filter(['success' => session('success'), 'error' => session('error')]))'
         :messages='@json(__('connections'))'
         locale="{{ app()->getLocale() }}"

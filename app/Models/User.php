@@ -64,6 +64,12 @@ class User extends Authenticatable
         return $this->hasRole('admin') || $this->hasRole('customer_support');
     }
 
+    /** At least one connected account Posts / Inbox / Comments can use (SocialAccount::scopeEligible). */
+    public function hasEligibleConnection(): bool
+    {
+        return SocialAccount::where('user_id', $this->id)->eligible()->exists();
+    }
+
     public function aiCopilotSetting()
     {
         return $this->hasOne(AiCopilotSetting::class);

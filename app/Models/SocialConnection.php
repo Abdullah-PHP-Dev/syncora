@@ -33,6 +33,9 @@ class SocialConnection extends Model
     /** Statuses that put a warning in the Hub and the notification bell. */
     public const ATTENTION = [self::EXPIRING, self::EXPIRED, self::NEEDS_REAUTH, self::REVOKED, self::ERROR];
 
+    /** Statuses whose tokens still work (expiring = still valid, just soon). */
+    public const USABLE = [self::ACTIVE, self::EXPIRING];
+
     /** Days before expiry a connection shows as "expiring" in the Hub. */
     public const EXPIRING_WITHIN_DAYS = 7;
 
@@ -81,7 +84,7 @@ class SocialConnection extends Model
 
     public function isUsable(): bool
     {
-        return in_array($this->status, [self::ACTIVE, self::EXPIRING], true);
+        return in_array($this->status, self::USABLE, true);
     }
 
     public function hasCapability(string $capability): bool

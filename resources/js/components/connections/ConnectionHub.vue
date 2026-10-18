@@ -15,6 +15,15 @@
       <button type="button" class="ch-flash-x" @click="flashMessage = null" :aria-label="t('dismiss')"><i class="bx bx-x"></i></button>
     </div>
 
+    <!-- Onboarding: Posts / Inbox / Comments stay locked (EnsureConnectedAccount) until one account works. -->
+    <div v-if="!eligible" class="ch-wizard is-gate" role="note">
+      <span class="ch-wizard-icon"><i class="bx bx-lock-alt"></i></span>
+      <div class="ch-wizard-text">
+        <strong>{{ t('gate.title') }}</strong>
+        <span>{{ t('gate.body') }}</span>
+      </div>
+    </div>
+
     <!-- "Connect all recommended": one consent per step, back here between them. -->
     <div v-if="wizardState" class="ch-wizard" :class="{ 'is-done': !wizardState.next }">
       <span class="ch-wizard-icon"><i class="bx" :class="wizardState.next ? 'bx-rocket' : 'bx-check-double'"></i></span>
@@ -481,6 +490,8 @@ export default {
     urls: { type: Object, required: true },
     flash: { type: [Object, Array], default: () => ({}) },
     wizard: { type: Object, default: () => ({ state: null, available: false }) },
+    // Has an account Posts / Inbox / Comments can use (User::hasEligibleConnection).
+    eligible: { type: Boolean, default: true },
     // __('connections') for the current locale.
     messages: { type: Object, default: () => ({}) },
     locale: { type: String, default: 'en' }
@@ -1019,6 +1030,8 @@ export default {
 .ch-wizard-bar span { display: block; height: 100%; background: #0866FF; border-radius: 6px; transition: width .3s; }
 .ch-wizard.is-done .ch-wizard-bar { display: none; }
 .ch-wizard-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ch-wizard.is-gate { background: #FFF8EB; border-color: #FBE3B5; }
+.ch-wizard.is-gate .ch-wizard-icon { background: #F59E0B; }
 
 .ch-card { background: #fff; border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.04); padding: 22px 24px; display: flex; flex-direction: column; gap: 18px; }
 .ch-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }

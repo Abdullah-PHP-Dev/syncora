@@ -50,6 +50,8 @@ class RegisteredUserController extends Controller
 
         Auth::login($user);
 
-        return redirect(app(\App\Services\DashboardService::class)->url($request->user()));
+        // Onboarding: connect a social account first - Posts, Inbox and
+        // Comments stay locked until one is (EnsureConnectedAccount).
+        return redirect()->route('admin.connections.index');
     }
 }

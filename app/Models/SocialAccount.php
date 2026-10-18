@@ -298,6 +298,23 @@ class SocialAccount extends Model
         return $query->where("has_{$capability}_permission", true)->enabledFor($capability);
     }
 
+    /**
+     * A social account the seller can actually work with in Posts, Inbox or
+     * Comments: token still valid (disconnect / revoke / needs-reauth clear
+     * is_token_valid), its Hub consent still usable (not expired / error),
+     * and usable for posting or messaging - an ad-only account doesn't
+     * count. Assets with no consent row (connected before the Hub, or
+     * manually like a Telegram bot) are judged on the token alone.
+     */
+    public function scopeEligible($query)
+    {
+        return $query->active()
+            ->whereNotNull('access_token')
+            ->where(fn ($q) => $q->usableFor('posting')->orWhere(fn ($q) => $q->usableFor('messaging')))
+            ->where(fn ($q) => $q->whereNull('social_connection_id')
+                ->orWhereHas('connection', fn ($c) => $c->whereIn('status', SocialConnection::USABLE)));
+    }
+
     public function isEnabledFor(string $capability): bool
     {
         return $this->enabled_capabilities === null || in_array($capability, $this->enabled_capabilities, true);

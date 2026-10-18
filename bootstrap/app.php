@@ -39,6 +39,7 @@ return tap(
                                'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
                                'subscription' => \App\Http\Middleware\EnsureActiveSubscription::class,
                                'package.feature' => \App\Http\Middleware\EnsurePackageFeature::class,
+                               'connected' => \App\Http\Middleware\EnsureConnectedAccount::class,
 	                           ]);
 
             // RFC 8058 one-click unsubscribe requests are POSTed directly

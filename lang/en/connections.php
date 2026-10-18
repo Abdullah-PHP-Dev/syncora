@@ -10,6 +10,14 @@ return [
         'subtitle' => 'Manage your social media accounts, ad accounts and chat connections all in one place.',
     ],
 
+    'gate' => [
+        'required' => 'Connect at least one social account to use Posts, Inbox and Comments.',
+        'workspace' => 'This workspace has no connected social account yet. Ask its owner to connect one to use Posts, Inbox and Comments.',
+        'title' => 'Connect your first social account',
+        'body' => 'Posts, Inbox and Comments unlock as soon as one account is connected and working.',
+        'locked' => 'Connect a social account to unlock',
+    ],
+
     'dismiss' => 'Dismiss',
     'close' => 'Close',
     'cancel' => 'Cancel',
