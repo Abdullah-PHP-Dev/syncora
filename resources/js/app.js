@@ -25,6 +25,7 @@ import FacebookCampaignBuilder from './components/ads/facebook/FacebookCampaignB
 import TiktokCampaignBuilder from './components/ads/tiktok/TiktokCampaignBuilder.vue';
 import XCampaignBuilder from './components/ads/x/XCampaignBuilder.vue';
 import SnapchatCampaignBuilder from './components/ads/snapchat/SnapchatCampaignBuilder.vue';
+import GoogleCampaignBuilder from './components/ads/google/GoogleCampaignBuilder.vue';
 import EmailTemplateDesigner from './components/email/EmailTemplateDesigner.vue';
 
 window.Alpine = Alpine;
@@ -58,6 +59,7 @@ Vue.component('facebook-campaign-builder', FacebookCampaignBuilder);
 Vue.component('tiktok-campaign-builder', TiktokCampaignBuilder);
 Vue.component('xads-campaign-builder', XCampaignBuilder);
 Vue.component('snapchat-campaign-builder', SnapchatCampaignBuilder);
+Vue.component('google-campaign-builder', GoogleCampaignBuilder);
 Vue.component('email-template-designer', EmailTemplateDesigner);
 Vue.component('connection-hub', ConnectionHub);
 

@@ -467,6 +467,20 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 						Route::post('submit', 'submit')->name('submit')->middleware('throttle:10,1');
 					});
 
+				// Google campaign builder (GoogleCampaignBuilder): Search,
+				// Display and Performance Max - same pattern as above.
+				Route::prefix('ads/google/builder')->name('ads.google.builder.')
+					->controller(\App\Http\Controllers\Admin\GoogleAdBuilderController::class)->group(function () {
+						Route::get('bootstrap', 'bootstrap')->name('bootstrap');
+						Route::get('locations', 'locations')->name('locations')->middleware('throttle:60,1');
+						Route::get('languages', 'languages')->name('languages');
+						Route::get('audiences', 'audiences')->name('audiences');
+						Route::get('interests', 'interests')->name('interests');
+						Route::get('topics', 'topics')->name('topics');
+						Route::post('keyword-ideas', 'keywordIdeas')->name('keyword_ideas')->middleware('throttle:20,1');
+						Route::post('submit', 'submit')->name('submit')->middleware('throttle:10,1');
+					});
+
 				Route::resource('ads/{platform}/campaigns', AdCampaignController::class)
 					->names('ads.campaigns');
 

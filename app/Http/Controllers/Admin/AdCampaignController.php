@@ -188,6 +188,12 @@ class AdCampaignController extends Controller
             return view('admin.ads.snapchat.campaigns.builder', compact('platform', 'account', 'adAccounts', 'promotePost'));
         }
 
+        // Google: the campaign builder (GoogleCampaignBuilder - Search,
+        // Display, Performance Max); the previous form stays at ?legacy=1.
+        if ($platform === 'google' && ! request()->boolean('legacy')) {
+            return view('admin.ads.google.campaigns.builder', compact('platform', 'account', 'adAccounts', 'promotePost'));
+        }
+
         return view('admin.ads.' . $this->viewPlatform($platform) . '.campaigns.create', compact('platform', 'account', 'adAccounts', 'countries', 'platformPages', 'promotePost'));
     }
 
