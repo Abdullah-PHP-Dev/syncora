@@ -4,7 +4,9 @@
      backed by App\Http\Controllers\Admin\GoogleAdBuilderController. The YouTube page
      ($platform === 'youtube') is the same builder in YouTube mode (Demand Gen on the
      same Google Ads account). --}}
-@php($youtube = ($platform ?? 'google') === 'youtube')
+@php
+    $youtube = ($platform ?? 'google') === 'youtube';
+@endphp
 
 @section('title', $youtube ? __('google_builder.youtube.page_title') : __('google_builder.page_title'))
 
