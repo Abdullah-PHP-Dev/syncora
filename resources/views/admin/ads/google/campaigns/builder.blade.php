@@ -8,7 +8,7 @@
     $youtube = ($platform ?? 'google') === 'youtube';
 @endphp
 
-@section('title', $youtube ? __('google_builder.youtube.page_title') : __('google_builder.page_title'))
+@section('title', isset($edit) ? __('google_builder.edit.page_title') : ($youtube ? __('google_builder.youtube.page_title') : __('google_builder.page_title')))
 
 @section('content')
     @include('admin.ads.partials.account-switcher', ['platform' => $youtube ? 'youtube' : 'google'])
@@ -25,6 +25,7 @@
                 'options' => route('admin.ads.google.builder.options', ['type' => 'TYPE']),
                 'keywordIdeas' => route('admin.ads.google.builder.keyword_ideas'),
                 'submit' => route('admin.ads.google.builder.submit'),
+                'update' => isset($edit) ? route('admin.ads.google.builder.update', ['campaign' => $edit['id']]) : null,
                 'campaignsList' => route('admin.ads.campaigns.index', ['platform' => $youtube ? 'youtube' : 'google']),
                 'youtube' => route('admin.ads.campaigns.create', ['platform' => 'youtube']),
                 'google' => route('admin.ads.campaigns.create', ['platform' => 'google']),
@@ -42,6 +43,7 @@
             :messages='@json($messages)'
             :media-messages='@json(__('media_gallery'))'
             mode="{{ $youtube ? 'youtube' : 'google' }}"
+            :edit='@json($edit ?? null)'
             locale="{{ app()->getLocale() }}"
         ></google-campaign-builder>
     @else

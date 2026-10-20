@@ -92,6 +92,48 @@ class GoogleAdBuilderController extends Controller
         return $this->respond(fn ($b) => $b->keywordIdeas((array) $request->input('keywords', []), $request->input('url'), (array) $request->input('locations', []), $request->input('language')));
     }
 
+    /** Edit mode: name, status, dates, budget amount and ad copy of an existing campaign. */
+    public function update(Request $request, \App\Models\Admin\AdCampaign $campaign): JsonResponse
+    {
+        $builder = $this->builder();
+        abort_unless(in_array($campaign->platform, ['google', 'youtube'], true), 404);
+        if ((int) $campaign->social_account_id !== (int) $builder->api()->account->id) {
+            return response()->json(['success' => false, 'message' => __('google_builder.server.other_account')], 409);
+        }
+        $campaign->load(['adGroups.creatives', 'ads']);
+        $type = B::editData($campaign)['campaign_type'];
+        $limits = B::LIMITS[B::limitKey($type)];
+        $copy = $type !== 'PERFORMANCE_MAX';
+        $text = fn (string $key) => $copy && isset($limits[$key]) ? ['required', 'array', 'min:' . $limits[$key][0], 'max:' . $limits[$key][1]] : ['nullable', 'array'];
+
+        $data = $request->validate([
+            'status' => ['required', 'in:PAUSED,ACTIVE'],
+            'campaign.name' => ['required', 'string', 'max:255'],
+            'campaign.budget' => ['required', 'numeric', 'min:' . B::MIN_DAILY_BUDGET, 'max:10000000'],
+            'campaign.start_date' => ['nullable', 'date_format:Y-m-d'],
+            'campaign.end_date' => [$campaign->budget_mode === 'total' ? 'required' : 'nullable', 'date_format:Y-m-d', 'after_or_equal:today'],
+            'ad.final_url' => ['required', 'url', 'starts_with:http://,https://', 'max:2048'],
+            'ad.headlines' => $text('headlines'),
+            'ad.headlines.*' => ['string', 'distinct:ignore_case', 'max:' . ($limits['headlines'][2] ?? 30)],
+            'ad.descriptions' => $text('descriptions'),
+            'ad.descriptions.*' => ['string', 'distinct:ignore_case', 'max:' . ($limits['descriptions'][2] ?? 90)],
+            'ad.long_headlines' => $text('long_headlines'),
+            'ad.long_headlines.*' => ['string', 'max:90'],
+            'ad.business_name' => [$copy && isset($limits['business_name']) ? 'required' : 'nullable', 'string', 'max:25'],
+        ]);
+        if (! empty($data['campaign']['start_date']) && ! empty($data['campaign']['end_date']) && $data['campaign']['end_date'] < $data['campaign']['start_date']) {
+            return response()->json(['success' => false, 'message' => __('google_builder.server.end_before_start')], 422);
+        }
+
+        try {
+            $result = $builder->updateCampaign($campaign, $data);
+        } catch (GoogleAdsApiException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage(), 'reconnect' => $e->isAuthError()], 422);
+        }
+        $result['redirect_url'] = route('admin.ads.campaigns.index', ['platform' => $campaign->platform]);
+
+        return response()->json($result);
+    }
     public function submit(GoogleAdBuilderRequest $request): JsonResponse
     {
         $result = $this->builder()->submit($request->builderInput(), $request->string('idempotency_key')->value());

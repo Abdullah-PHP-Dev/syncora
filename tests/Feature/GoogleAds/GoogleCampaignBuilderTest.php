@@ -125,6 +125,9 @@ class GoogleCampaignBuilderTest extends TestCase
                         ['operatingSystemVersionConstant' => ['id' => '630000', 'name' => 'Android', 'operatorType' => 'EQUALS_TO']],
                     ]]);
                 }
+                if (str_contains($q, 'FROM asset_group')) {
+                    return Http::response(['results' => [['assetGroup' => ['resourceName' => 'customers/1234567890/assetGroups/555']]]]);
+                }
                 if (str_contains($q, 'FROM life_event')) {
                     return Http::response(['results' => [['lifeEvent' => ['resourceName' => 'customers/1234567890/lifeEvents/1001', 'name' => 'Recently moved']]]]);
                 }
@@ -781,5 +784,75 @@ class GoogleCampaignBuilderTest extends TestCase
         $this->assertTrue($service->destroy('google', $campaign->id)['success']);
         Http::assertSent(fn ($r) => ($r->data()['operations'][0] ?? null) === ['remove' => 'customers/1234567890/campaigns/24383575678']);
         $this->assertNull(AdCampaign::find($campaign->id));
+    }
+
+    public function test_edit_data_and_update_for_a_search_campaign(): void
+    {
+        $this->assertTrue($this->builder()->submit($this->searchInput(), 'key-edit-000000001')['success']);
+        $campaign = AdCampaign::with(['adGroups.creatives', 'ads'])->first();
+
+        $data = GoogleCampaignBuilder::editData($campaign);
+        $this->assertSame('SEARCH', $data['campaign_type']);
+        $this->assertSame('PAUSED', $data['status']);
+        $this->assertSame(50.0, $data['campaign']['budget']);
+        $this->assertSame('https://acme.test/shoes', $data['ad']['final_url']);
+        $this->assertCount(3, $data['ad']['headlines']);
+        $this->assertTrue($data['copy_editable']);
+        $this->assertSame('Saudi Arabia', $data['targeting']['locations'][0]['name']);
+
+        $result = $this->builder()->updateCampaign($campaign, [
+            'status' => 'ACTIVE',
+            'campaign' => ['name' => 'Renamed', 'budget' => 75, 'start_date' => $data['campaign']['start_date'], 'end_date' => null],
+            'ad' => ['final_url' => 'https://acme.test/new', 'headlines' => ['One', 'Two', 'Three', 'Four'], 'descriptions' => ['Desc one here.', 'Desc two here.']],
+        ]);
+        $this->assertTrue($result['success']);
+        $m = end($this->mutates);
+
+        $c = $m[0]['campaignOperation'];
+        $this->assertSame('customers/1234567890/campaigns/92', $c['update']['resourceName']);
+        $this->assertSame('ENABLED', $c['update']['status']);
+        $this->assertSame('name,status,endDateTime', $c['updateMask']);
+        $this->assertArrayNotHasKey('endDateTime', $c['update']); // cleared = runs indefinitely
+
+        $this->assertSame(['resourceName' => 'customers/1234567890/campaignBudgets/91', 'amountMicros' => 75_000_000], $m[1]['campaignBudgetOperation']['update']);
+        $this->assertSame('amountMicros', $m[1]['campaignBudgetOperation']['updateMask']);
+
+        $ad = $m[2]['adOperation'];
+        $this->assertSame('finalUrls,responsiveSearchAd.headlines,responsiveSearchAd.descriptions', $ad['updateMask']);
+        $this->assertSame(['https://acme.test/new'], $ad['update']['finalUrls']);
+        $this->assertCount(4, $ad['update']['responsiveSearchAd']['headlines']);
+        $this->assertStringStartsWith('customers/1234567890/ads/', $ad['update']['resourceName']);
+
+        $campaign->refresh();
+        $this->assertSame('Renamed', $campaign->name);
+        $this->assertTrue((bool) $campaign->status);
+        $this->assertSame('https://acme.test/new', AdCreative::first()->url);
+    }
+
+    public function test_edit_update_for_youtube_and_performance_max(): void
+    {
+        $this->assertTrue($this->builder()->submit($this->youtubeInput(), 'key-edit-000000002')['success']);
+        $yt = AdCampaign::with(['adGroups.creatives', 'ads'])->where('platform', 'youtube')->first();
+        $this->builder()->updateCampaign($yt, [
+            'status' => 'PAUSED',
+            'campaign' => ['name' => 'YT', 'budget' => 20, 'start_date' => null, 'end_date' => null],
+            'ad' => ['final_url' => 'https://acme.test/yt', 'headlines' => ['New headline'], 'descriptions' => ['New description'], 'long_headlines' => ['New long headline'], 'business_name' => 'Acme 2'],
+        ]);
+        $ad = collect(end($this->mutates))->firstWhere('adOperation')['adOperation'];
+        $this->assertSame('finalUrls,demandGenVideoResponsiveAd.headlines,demandGenVideoResponsiveAd.longHeadlines,demandGenVideoResponsiveAd.descriptions,demandGenVideoResponsiveAd.businessName', $ad['updateMask']);
+        $this->assertSame(['text' => 'Acme 2'], $ad['update']['demandGenVideoResponsiveAd']['businessName']);
+
+        $input = $this->searchInput(['campaign_type' => 'PERFORMANCE_MAX', 'campaign' => ['bidding' => 'MAXIMIZE_CONVERSIONS'], 'ad' => ['long_headlines' => ['The best running shoes in the Kingdom'], 'business_name' => 'Acme', 'images' => $this->images()]]);
+        unset($input['ad']['path1'], $input['ad']['path2']);
+        $input['targeting'] = ['locations' => [['id' => '2682', 'name' => 'Saudi Arabia', 'negative' => false]]];
+        $input['ad_group'] = [];
+        $this->assertTrue($this->builder()->submit($input, 'key-edit-000000003')['success']);
+        $pmax = AdCampaign::with(['adGroups.creatives', 'ads'])->where('advertising_channel_type', 'PERFORMANCE_MAX')->first();
+        $this->assertFalse(GoogleCampaignBuilder::editData($pmax)['copy_editable']);
+
+        $this->builder()->updateCampaign($pmax, ['status' => 'PAUSED', 'campaign' => ['name' => 'PM', 'budget' => 50, 'start_date' => null, 'end_date' => null], 'ad' => ['final_url' => 'https://acme.test/pm']]);
+        $last = end($this->mutates);
+        $this->assertSame(['update' => ['resourceName' => 'customers/1234567890/assetGroups/555', 'finalUrls' => ['https://acme.test/pm']], 'updateMask' => 'finalUrls'], $last[1]['assetGroupOperation']);
+        $this->assertCount(2, $last); // campaign + asset group, no ad / budget change
     }
 }

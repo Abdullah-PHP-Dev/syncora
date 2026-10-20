@@ -1027,6 +1027,119 @@ class GoogleCampaignBuilder
         return array_filter(['dimensions' => $dimensions, 'exclusionDimension' => $exclusions ? ['exclusions' => $exclusions] : null]);
     }
 
+    // ------------------------------------------------------------------
+    // Edit (the builder's edit mode)
+    // ------------------------------------------------------------------
+
+    /**
+     * What the edit screen starts from - read from the local rows the
+     * builder (or the legacy forms) saved, so it opens without a Google call.
+     */
+    public static function editData(AdCampaign $campaign): array
+    {
+        $type = $campaign->advertising_channel_type ?: ($campaign->platform === 'youtube' ? 'DEMAND_GEN' : 'SEARCH');
+        $group = $campaign->adGroups->first();
+        $creative = $group?->creatives->first();
+        $ad = $campaign->ads->first();
+        $list = fn ($v) => is_array($v) ? $v : (json_decode((string) $v, true) ?: []);
+        $lifetime = $campaign->budget_mode === 'total';
+
+        return [
+            'id' => $campaign->id,
+            'campaign_type' => isset(self::TYPES[$type]) ? $type : 'SEARCH',
+            'status' => $campaign->status ? 'ACTIVE' : 'PAUSED',
+            'campaign' => [
+                'name' => $campaign->name,
+                'budget' => (float) ($lifetime ? $campaign->budget : ($campaign->daily_budget ?? $campaign->budget)),
+                'budget_type' => $lifetime ? 'lifetime' : 'daily',
+                'bidding' => $campaign->bidding_strategy,
+                'start_date' => $campaign->start_time ? \Carbon\Carbon::parse($campaign->start_time)->toDateString() : '',
+                'end_date' => $campaign->end_time ? \Carbon\Carbon::parse($campaign->end_time)->toDateString() : '',
+            ],
+            'targeting' => $list($group?->targeting_criteria),
+            'ad' => [
+                'final_url' => $creative?->url ?? ($list($ad?->final_urls)[0] ?? ''),
+                'headlines' => $list($creative?->headlines ?? $ad?->headlines),
+                'descriptions' => $creative ? $list($creative->descriptions) : array_values(array_filter(preg_split('/\r\n|\r|\n/', (string) $ad?->text))),
+                'long_headlines' => $list($creative?->long_headlines),
+                'business_name' => $creative?->business_name ?? '',
+            ],
+            // Performance Max text assets are immutable - only the final URL can change here.
+            'copy_editable' => $type !== 'PERFORMANCE_MAX' && (bool) $ad,
+        ];
+    }
+
+    /**
+     * Saves the edit screen: campaign (name, status, dates), budget amount and
+     * the ad copy, in one atomic googleAds:mutate. Campaign type, budget type,
+     * bidding and targeting stay as created.
+     */
+    public function updateCampaign(AdCampaign $campaign, array $input): array
+    {
+        $type = $campaign->advertising_channel_type ?: ($campaign->platform === 'youtube' ? 'DEMAND_GEN' : 'SEARCH');
+        $c = $input['campaign'];
+        $ad = $input['ad'] ?? [];
+        $campaignResource = str_contains((string) $campaign->ad_campaign_id, 'customers/') ? $campaign->ad_campaign_id : $this->api->resource('campaigns', $campaign->ad_campaign_id);
+        $ops = [];
+
+        $body = ['resourceName' => $campaignResource, 'name' => mb_substr($c['name'], 0, 255), 'status' => $input['status'] === 'ACTIVE' ? 'ENABLED' : 'PAUSED'];
+        $mask = ['name', 'status'];
+        $oldStart = $campaign->start_time ? \Carbon\Carbon::parse($campaign->start_time)->toDateString() : null;
+        // A start date can only move while the campaign hasn't started yet.
+        if (! empty($c['start_date']) && $c['start_date'] !== $oldStart) {
+            $body['startDateTime'] = $c['start_date'] . ' 00:00:00';
+            $mask[] = 'startDateTime';
+        }
+        if (! empty($c['end_date'])) {
+            $body['endDateTime'] = $c['end_date'] . ' 23:59:59';
+        }
+        // An empty end date in the mask clears it: the campaign runs indefinitely.
+        $mask[] = 'endDateTime';
+        $ops[] = ['campaignOperation' => ['update' => $body, 'updateMask' => implode(',', $mask)]];
+
+        $lifetime = $campaign->budget_mode === 'total';
+        if ($campaign->budget_resource_id && (float) $c['budget'] !== (float) ($lifetime ? $campaign->budget : ($campaign->daily_budget ?? $campaign->budget))) {
+            $field = $lifetime ? 'totalAmountMicros' : 'amountMicros';
+            $ops[] = ['campaignBudgetOperation' => ['update' => ['resourceName' => $campaign->budget_resource_id, $field => $this->micro($c['budget'])], 'updateMask' => $field]];
+        }
+
+        $text = fn ($list) => array_map(fn ($v) => ['text' => $v], array_values($list));
+        $adRow = $campaign->ads->first();
+        if ($type === 'PERFORMANCE_MAX') {
+            $group = $this->api->search('SELECT asset_group.resource_name FROM asset_group WHERE campaign.id = ' . (int) basename($campaignResource) . " AND asset_group.status != 'REMOVED' LIMIT 1")[0]['assetGroup']['resourceName'] ?? null;
+            if ($group && ! empty($ad['final_url'])) {
+                $ops[] = ['assetGroupOperation' => ['update' => ['resourceName' => $group, 'finalUrls' => [$ad['final_url']]], 'updateMask' => 'finalUrls']];
+            }
+        } elseif ($adRow && ! empty($ad['headlines'])) {
+            // Ad copy is immutable through AdGroupAdService - it's edited on the Ad itself.
+            $adResource = $this->api->resource('ads', substr($adRow->ad_id, strrpos($adRow->ad_id, '~') + 1));
+            [$field, $info, $fields] = match ($type) {
+                'DISPLAY' => ['responsiveDisplayAd', ['headlines' => $text($ad['headlines']), 'longHeadline' => ['text' => $ad['long_headlines'][0] ?? ''], 'descriptions' => $text($ad['descriptions']), 'businessName' => $ad['business_name'] ?? ''], ['headlines', 'longHeadline', 'descriptions', 'businessName']],
+                'DEMAND_GEN' => ['demandGenVideoResponsiveAd', ['headlines' => $text($ad['headlines']), 'longHeadlines' => $text($ad['long_headlines']), 'descriptions' => $text($ad['descriptions']), 'businessName' => ['text' => $ad['business_name'] ?? '']], ['headlines', 'longHeadlines', 'descriptions', 'businessName']],
+                default => ['responsiveSearchAd', ['headlines' => $text($ad['headlines']), 'descriptions' => $text($ad['descriptions'])], ['headlines', 'descriptions']],
+            };
+                        $ops[] = ['adOperation' => ['update' => ['resourceName' => $adResource, 'finalUrls' => [$ad['final_url']], $field => $info], 'updateMask' => implode(',', ['finalUrls', ...array_map(fn ($f) => $field . '.' . $f, $fields)])]];
+        }
+
+        $this->api->mutate($ops);
+
+        $campaign->update([
+            'name' => $c['name'], 'status' => $input['status'] === 'ACTIVE',
+            'start_time' => $c['start_date'] ?: $campaign->start_time, 'end_time' => $c['end_date'] ?: null,
+            'budget' => $c['budget'], 'daily_budget' => $lifetime ? null : $c['budget'],
+        ]);
+        if (! empty($ad['final_url'])) {
+            $creative = $campaign->adGroups->first()?->creatives->first();
+            $creative?->update(array_filter([
+                'url' => $ad['final_url'], 'final_urls' => json_encode([$ad['final_url']]),
+                'headlines' => isset($ad['headlines']) ? json_encode($ad['headlines']) : null, 'descriptions' => isset($ad['descriptions']) ? json_encode($ad['descriptions']) : null,
+                'long_headlines' => isset($ad['long_headlines']) ? json_encode($ad['long_headlines']) : null, 'business_name' => $ad['business_name'] ?? null,
+            ], fn ($v) => $v !== null));
+            $adRow?->update(array_filter(['final_urls' => json_encode([$ad['final_url']]), 'headlines' => isset($ad['headlines']) ? json_encode($ad['headlines']) : null, 'text' => isset($ad['descriptions']) ? implode("\n", $ad['descriptions']) : null, 'status' => $input['status'] === 'ACTIVE']));
+        }
+
+        return ['success' => true, 'message' => __('google_builder.server.updated')];
+    }
     /** Campaign conversion goals: only the chosen category/origin pairs stay biddable. */
     private function goalStep(AdBuilderRun $run, array $input): void
     {

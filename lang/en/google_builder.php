@@ -229,6 +229,18 @@ return [
         'VISIT_SITE' => 'Visit site',
         'WATCH_NOW' => 'Watch now',
     ],
+    'edit' => [
+        'page_title' => 'Edit campaign',
+        'title' => 'Edit “:name”',
+        'subtitle' => 'Update the name, status, budget, schedule and ad copy. Changes go straight to your Google Ads account.',
+        'locked_note' => 'Campaign type, bidding strategy, budget type and targeting stay as created. To change them, create a new campaign.',
+        'locked' => 'Locked',
+        'media_note' => 'Images and videos can\'t be changed here. Create a new ad in Google Ads to use different media.',
+        'pmax_note' => 'Performance Max text and image assets can\'t be edited through the API. You can change the final URL here.',
+        'editing' => 'Editing an existing campaign',
+        'save' => 'Save changes',
+        'saving' => 'Saving…',
+    ],
     'audience' => [
         'grouped_hint' => 'YouTube campaigns reach the people in these segments, combined with the demographics below, as one Google Ads audience.',
         'optimized_targeting' => 'Optimized targeting',
@@ -418,6 +430,8 @@ return [
     'defaults' => ['ad_group' => 'Ad group', 'asset_group' => 'Asset group'],
     'client' => ['request_failed' => 'The request failed.', 'google_error' => 'Google Ads returned an error.', 'server_error' => 'Something went wrong on our side. Please try again.', 'network' => 'Network error. Check your connection and try again.'],
     'server' => [
+        'updated' => 'Campaign updated in Google Ads.',
+        'other_account' => 'This campaign belongs to another Google Ads account. Switch to that account at the top of the page.',
         'channels_required' => 'Choose at least one placement for the YouTube campaign.',
         'videos_invalid' => 'Add between :min and :max valid YouTube videos.',
         'demographic_all' => 'You can\'t exclude every :group group.',

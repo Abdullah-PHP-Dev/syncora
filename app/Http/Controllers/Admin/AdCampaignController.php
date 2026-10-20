@@ -294,6 +294,16 @@ class AdCampaignController extends Controller
         $campaign = $this->adCampaignModel->with(['socialAccount', 'adGroups', 'adGroups.creatives', 'adGroups.creatives.media', 'ads'])->findOrFail($id);
         if (in_array($platform, ['google', 'youtube'], true)) {
             $this->restoreGoogleCreative($campaign);
+
+            // The campaign builder in edit mode (same design as the create page);
+            // the previous edit form stays at ?legacy=1.
+            if (! request()->boolean('legacy')) {
+                [$account, $adAccounts] = $this->selectedAdAccount($platform);
+                $edit = \App\Services\AdServices\GoogleCampaignBuilder::editData($campaign);
+                $promotePost = null;
+
+                return view('admin.ads.google.campaigns.builder', compact('platform', 'account', 'adAccounts', 'promotePost', 'edit'));
+            }
         }
         $platformPages = $this->platformPages($platform);
 

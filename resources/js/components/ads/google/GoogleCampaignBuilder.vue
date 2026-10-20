@@ -6,8 +6,8 @@
       <div class="fb-head-main">
         <span class="fb-head-icon gb-head-icon"><i class="bx" :class="isYoutube ? 'bxl-youtube' : 'bxl-google'"></i></span>
         <div>
-          <h4>{{ isYoutube ? t('youtube.title') : t('header.title') }}</h4>
-          <p>{{ isYoutube ? t('youtube.subtitle') : t('header.subtitle') }}</p>
+          <h4>{{ isEdit ? t('edit.title', { name: edit.campaign.name }) : (isYoutube ? t('youtube.title') : t('header.title')) }}</h4>
+          <p>{{ isEdit ? t('edit.subtitle') : (isYoutube ? t('youtube.subtitle') : t('header.subtitle')) }}</p>
         </div>
       </div>
       <div class="fb-head-actions">
@@ -16,7 +16,7 @@
       </div>
     </header>
 
-    <div v-if="draftOffer" class="fb-banner">
+    <div v-if="draftOffer && !isEdit" class="fb-banner">
       <i class="bx bx-history"></i>
       <span>{{ t('draft.unfinished', { date: draftOffer.savedAt }) }}</span>
       <button type="button" class="btn btn-primary btn-sm" @click="resumeDraft">{{ t('draft.continue') }}</button>
@@ -53,7 +53,8 @@
           <div v-show="current === 'campaign'" class="fb-card">
             <div class="fb-card-h"><h5>{{ t('campaign.title') }}</h5></div>
 
-            <template v-if="!isYoutube">
+            <div v-if="isEdit" class="fb-guide gb-edit-note"><i class="bx bx-lock-alt"></i><span><strong>{{ t('types.' + type + '.label') }}</strong> · {{ t('edit.locked_note') }}</span></div>
+            <template v-if="!isYoutube && !isEdit">
             <label class="fb-label">{{ t('campaign.goal') }} <span class="fb-opt">{{ t('common.optional') }}</span></label>
             <div class="fb-goals">
               <button v-for="(g, key) in boot.goals" :key="key" type="button" class="fb-goal" :class="{ on: goal === key }" @click="setGoal(key)">
@@ -64,8 +65,8 @@
             </div>
 
             </template>
-            <label v-if="!isYoutube" class="fb-label mt-3">{{ t('campaign.type') }}</label>
-            <div v-if="!isYoutube" class="gb-types">
+            <label v-if="!isYoutube && !isEdit" class="fb-label mt-3">{{ t('campaign.type') }}</label>
+            <div v-if="!isYoutube && !isEdit" class="gb-types">
               <button v-for="(spec, key) in visibleTypes" :key="key" type="button" class="gb-type" :class="{ on: type === key }" @click="setType(key)">
                 <i class="bx" :class="spec.icon"></i>
                 <span><strong>{{ t('types.' + key + '.label') }}</strong><small>{{ t('types.' + key + '.summary') }}</small></span>
@@ -77,8 +78,8 @@
                 <i class="bx bx-link-external gb-ext"></i>
               </a>
             </div>
-            <div v-if="type" class="fb-guide"><i class="bx bx-bulb"></i><span><strong>{{ t('types.' + type + '.label') }}:</strong> {{ t('types.' + type + '.guidance') }}</span></div>
-            <p v-if="isYoutube" class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('youtube.video_note') }} <a :href="urls.google" class="fb-link">{{ t('youtube.google_link') }}</a></p>
+            <div v-if="type && !isEdit" class="fb-guide"><i class="bx bx-bulb"></i><span><strong>{{ t('types.' + type + '.label') }}:</strong> {{ t('types.' + type + '.guidance') }}</span></div>
+            <p v-if="isYoutube && !isEdit" class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('youtube.video_note') }} <a :href="urls.google" class="fb-link">{{ t('youtube.google_link') }}</a></p>
 
             <template v-if="type">
               <label class="fb-label" for="gbName">{{ t('campaign.name') }}</label>
@@ -87,9 +88,9 @@
               <div class="fb-group">
                 <div class="gb-group-h">
                   <h6><i class="bx bx-wallet"></i> {{ t('campaign.budget_schedule') }}</h6>
-                  <div class="fb-seg" role="tablist" :aria-label="t('campaign.budget_type')">
-                    <button type="button" role="tab" :aria-selected="campaign.budget_type === 'daily'" :class="{ on: campaign.budget_type === 'daily' }" @click="campaign.budget_type = 'daily'"><i class="bx bx-calendar-event"></i> {{ t('campaign.budget_daily') }}</button>
-                    <button type="button" role="tab" :aria-selected="campaign.budget_type === 'lifetime'" :class="{ on: campaign.budget_type === 'lifetime' }" :disabled="!spec.lifetime_budget" :title="spec.lifetime_budget ? '' : t('campaign.lifetime_unavailable')" @click="campaign.budget_type = 'lifetime'"><i class="bx bx-wallet-alt"></i> {{ t('campaign.budget_lifetime') }}</button>
+                  <div class="fb-seg" role="tablist" :aria-label="t('campaign.budget_type')" :class="{ 'gb-locked': isEdit }">
+                    <button type="button" role="tab" :aria-selected="campaign.budget_type === 'daily'" :class="{ on: campaign.budget_type === 'daily' }" :disabled="isEdit" @click="campaign.budget_type = 'daily'"><i class="bx bx-calendar-event"></i> {{ t('campaign.budget_daily') }}</button>
+                    <button type="button" role="tab" :aria-selected="campaign.budget_type === 'lifetime'" :class="{ on: campaign.budget_type === 'lifetime' }" :disabled="isEdit || !spec.lifetime_budget" :title="spec.lifetime_budget ? '' : t('campaign.lifetime_unavailable')" @click="campaign.budget_type = 'lifetime'"><i class="bx bx-wallet-alt"></i> {{ t('campaign.budget_lifetime') }}</button>
                   </div>
                 </div>
                 <div class="fb-grid-3">
@@ -97,7 +98,7 @@
                     <label class="fb-label" for="gbBudget">{{ campaign.budget_type === 'lifetime' ? t('campaign.budget_total', { currency }) : t('campaign.budget', { currency }) }}</label>
                     <input id="gbBudget" v-model.number="campaign.budget" type="number" :min="opt.min_daily_budget" step="0.01" class="form-control">
                   </div>
-                  <div><label class="fb-label" for="gbStart">{{ t('campaign.start_date') }}</label><input id="gbStart" v-model="campaign.start_date" type="date" :min="today" class="form-control"></div>
+                  <div><label class="fb-label" for="gbStart">{{ t('campaign.start_date') }}</label><input id="gbStart" v-model="campaign.start_date" type="date" :min="today" class="form-control" :disabled="startLocked"></div>
                   <div><label class="fb-label" for="gbEnd">{{ t('campaign.end_date') }} <span v-if="campaign.budget_type !== 'lifetime'" class="fb-opt">{{ t('common.optional') }}</span></label><input id="gbEnd" v-model="campaign.end_date" type="date" :min="campaign.start_date || today" class="form-control"></div>
                 </div>
                 <p v-if="campaign.budget_type === 'lifetime'" class="fb-hint" :class="{ 'is-warn': !campaignDays }"><i class="bx bx-info-circle"></i> {{ campaignDays ? t('campaign.lifetime_hint', { days: campaignDays, daily: money((campaign.budget || 0) / campaignDays) }) : t('campaign.lifetime_needs_dates') }}</p>
@@ -107,8 +108,8 @@
                 <budget-summary :summary="budgetSummary" :money="money" />
               </div>
 
-              <div class="fb-group">
-                <h6><i class="bx bx-trending-up"></i> {{ t('campaign.bidding') }}</h6>
+              <fieldset :disabled="isEdit" class="fb-group" :class="{ 'gb-locked': isEdit }">
+                <h6><i class="bx bx-trending-up"></i> {{ t('campaign.bidding') }} <span v-if="isEdit" class="fb-opt"><i class="bx bx-lock-alt"></i> {{ t('edit.locked') }}</span></h6>
                 <div class="gb-bids">
                   <label v-for="b in spec.bidding" :key="b" class="fb-check gb-bid" :class="{ on: campaign.bidding === b }">
                     <input v-model="campaign.bidding" type="radio" :value="b">
@@ -149,9 +150,9 @@
                     <input id="gbCeil" v-model.number="campaign.cpc_ceiling" type="number" min="0.01" step="0.01" class="form-control">
                   </div>
                 </div>
-              </div>
+              </fieldset>
 
-              <div v-if="conversionBidding" class="fb-group">
+              <div v-if="conversionBidding && !isEdit" class="fb-group">
                 <h6><i class="bx bx-target-lock"></i> {{ t('campaign.conversion_goals') }}</h6>
                 <div v-if="!boot.conversion_goals.length" class="fb-hint is-warn"><i class="bx bx-info-circle"></i> {{ t('campaign.no_goals') }}</div>
                 <template v-else>
@@ -170,7 +171,7 @@
               </div>
 
 
-              <div v-if="has('channels')" class="fb-group">
+              <div v-if="has('channels') && !isEdit" class="fb-group">
                 <h6><i class="bx bx-play-circle"></i> {{ t('channels.title') }}</h6>
                 <div class="gb-channels">
                   <label v-for="ch in opt.channels" :key="ch" class="fb-check gb-bid" :class="{ on: targeting.channels.includes(ch) }">
@@ -181,7 +182,7 @@
                 <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('channels.hint') }}</p>
               </div>
 
-              <div v-if="has('networks')" class="fb-group">
+              <div v-if="has('networks') && !isEdit" class="fb-group">
                 <h6><i class="bx bx-network-chart"></i> {{ t('campaign.networks') }}</h6>
                 <label class="fb-check"><input type="checkbox" checked disabled><span><strong>{{ t('campaign.google_search') }}</strong><small>{{ t('campaign.google_search_hint') }}</small></span></label>
                 <label class="fb-check"><input v-model="campaign.search_partners" type="checkbox"><span><strong>{{ t('campaign.search_partners') }}</strong><small>{{ t('campaign.search_partners_hint') }}</small></span></label>
@@ -453,7 +454,8 @@
             <p class="fb-sub">{{ t('ad.sub_' + (type || 'SEARCH')) }}</p>
 
             <div class="fb-grid-2">
-              <div v-if="has('dg_video')" class="fb-span-2">
+              <div v-if="isEdit" class="fb-span-2 fb-hint gb-edit-note"><i class="bx bx-info-circle"></i> {{ edit.copy_editable ? t('edit.media_note') : t('edit.pmax_note') }}</div>
+              <div v-if="has('dg_video') && !isEdit" class="fb-span-2">
                 <label class="fb-label">{{ t('ad.videos') }} <small class="fb-muted">{{ t('ad.count_short_videos', { min: limits.videos[0], max: limits.videos[1] }) }}</small></label>
                 <div v-for="(v, i) in ad.videos" :key="'v' + i" class="gb-text-row">
                   <input v-model.trim="ad.videos[i]" class="form-control" dir="ltr" :placeholder="t('ad.video_placeholder')" :aria-label="t('ad.videos') + ' ' + (i + 1)">
@@ -467,7 +469,7 @@
                 <label class="fb-label" for="gbUrl">{{ t('ad.final_url') }}</label>
                 <input id="gbUrl" v-model.trim="ad.final_url" type="url" class="form-control" dir="ltr" placeholder="https://example.com/offer">
               </div>
-              <template v-if="type === 'SEARCH'">
+              <template v-if="type === 'SEARCH' && !isEdit">
                 <div class="gb-paths">
                   <div><label class="fb-label" for="gbP1">{{ t('ad.path1') }}</label><input id="gbP1" v-model.trim="ad.path1" class="form-control" dir="ltr" :maxlength="limits.path"></div>
                   <div><label class="fb-label" for="gbP2">{{ t('ad.path2') }}</label><input id="gbP2" v-model.trim="ad.path2" class="form-control" dir="ltr" :maxlength="limits.path" :disabled="!ad.path1"></div>
@@ -475,9 +477,9 @@
               </template>
               <div v-else>
                 <label class="fb-label" for="gbBiz">{{ t('ad.business_name') }}</label>
-                <input id="gbBiz" v-model.trim="ad.business_name" class="form-control" :maxlength="limits.business_name">
+                <input id="gbBiz" v-model.trim="ad.business_name" class="form-control" :maxlength="limits.business_name" :disabled="copyLocked">
               </div>
-              <template v-if="has('dg_video')">
+              <template v-if="has('dg_video') && !isEdit">
                 <div>
                   <label class="fb-label" for="gbCta">{{ t('ad.call_to_action') }} <span class="fb-opt">{{ t('common.optional') }}</span></label>
                   <select id="gbCta" v-model="ad.call_to_action" class="form-control">
@@ -490,7 +492,7 @@
                   <div><label class="fb-label" for="gbB2">{{ t('ad.breadcrumb2') }}</label><input id="gbB2" v-model.trim="ad.breadcrumb2" class="form-control" dir="ltr" :maxlength="limits.breadcrumb" :disabled="!ad.breadcrumb1"></div>
                 </div>
               </template>
-              <div v-if="type !== 'SEARCH'">
+              <div v-if="type !== 'SEARCH' && !isEdit">
                 <label class="fb-label" for="gbAg">{{ type === 'PERFORMANCE_MAX' ? t('ad.asset_group_name') : t('ad.ad_group_name') }} <span class="fb-opt">{{ t('common.optional') }}</span></label>
                 <input id="gbAg" v-model.trim="adGroup.name" class="form-control" maxlength="255">
               </div>
@@ -499,14 +501,14 @@
             <div v-for="list in textLists" :key="list.key" class="fb-group">
               <h6>{{ t('ad.' + list.key) }} <small class="fb-muted">{{ t('ad.count_range', { min: list.min, max: list.max, n: list.len }) }}</small></h6>
               <div v-for="(v, i) in ad[list.key]" :key="i" class="gb-text-row">
-                <input v-model="ad[list.key][i]" class="form-control" :maxlength="list.len" :aria-label="t('ad.' + list.key) + ' ' + (i + 1)">
+                <input v-model="ad[list.key][i]" class="form-control" :maxlength="list.len" :disabled="copyLocked" :aria-label="t('ad.' + list.key) + ' ' + (i + 1)">
                 <span class="gb-count" :class="{ 'is-full': (v || '').length >= list.len }">{{ (v || '').length }}/{{ list.len }}</span>
-                <button type="button" class="fb-icon-btn" :disabled="ad[list.key].length <= Math.max(1, list.min)" :aria-label="t('common.remove')" @click="ad[list.key].splice(i, 1)"><i class="bx bx-x"></i></button>
+                <button v-if="!copyLocked" type="button" class="fb-icon-btn" :disabled="ad[list.key].length <= Math.max(1, list.min)" :aria-label="t('common.remove')" @click="ad[list.key].splice(i, 1)"><i class="bx bx-x"></i></button>
               </div>
-              <button v-if="ad[list.key].length < list.max" type="button" class="btn btn-sm fb-btn-ghost" @click="ad[list.key].push('')"><i class="bx bx-plus"></i> {{ t('ad.add_' + list.key) }}</button>
+              <button v-if="ad[list.key].length < list.max && !copyLocked" type="button" class="btn btn-sm fb-btn-ghost" @click="ad[list.key].push('')"><i class="bx bx-plus"></i> {{ t('ad.add_' + list.key) }}</button>
             </div>
 
-            <template v-if="type !== 'SEARCH'">
+            <template v-if="type !== 'SEARCH' && !isEdit">
               <div v-for="slot in imageSlots" :key="slot.key" class="fb-group">
                 <h6><i class="bx bx-image"></i> {{ t('ad.images_' + slot.key) }} <small class="fb-muted">{{ slot.ratio }} · {{ t('ad.count_short', { min: slot.min, max: slot.max }) }}</small></h6>
                 <div class="gb-images">
@@ -551,9 +553,9 @@
               <i class="bx bx-check-circle"></i>
               <div>
                 <strong>{{ result.message }}</strong>
-                <p>{{ result.status === 'ACTIVE' ? t('result.live') : t('result.saved_paused') }} {{ t('result.campaign_id', { id: result.campaign_id }) }}</p>
+                <p v-if="!isEdit">{{ result.status === 'ACTIVE' ? t('result.live') : t('result.saved_paused') }} {{ t('result.campaign_id', { id: result.campaign_id }) }}</p>
                 <a :href="result.redirect_url || urls.campaignsList" class="btn btn-primary btn-sm">{{ t('result.go_campaigns') }}</a>
-                <button type="button" class="btn btn-sm fb-btn-ghost" @click="startAnother">{{ t('result.another') }}</button>
+                <button v-if="!isEdit" type="button" class="btn btn-sm fb-btn-ghost" @click="startAnother">{{ t('result.another') }}</button>
               </div>
             </div>
             <div v-else-if="result" class="fb-result is-err">
@@ -572,11 +574,13 @@
 
           <div class="fb-foot">
             <button type="button" class="btn btn-sm fb-btn-ghost" :disabled="step === 0 || submitting" @click="back"><i class="bx bx-chevron-left"></i> {{ t('common.back') }}</button>
-            <span class="fb-saved" :class="{ on: savedAt }"><i class="bx bx-cloud-upload"></i> {{ savedAt ? t('draft.saved', { time: savedAt }) : t('draft.auto') }}</span>
+            <span v-if="isEdit" class="fb-saved"><i class="bx bx-edit-alt"></i> {{ t('edit.editing') }}</span>
+            <span v-else class="fb-saved" :class="{ on: savedAt }"><i class="bx bx-cloud-upload"></i> {{ savedAt ? t('draft.saved', { time: savedAt }) : t('draft.auto') }}</span>
             <button v-if="current !== 'review'" type="button" class="btn btn-primary btn-sm" :disabled="!type" @click="next">{{ t('common.continue') }} <i class="bx bx-chevron-right"></i></button>
-            <button v-else type="button" class="btn btn-primary btn-sm" :disabled="submitting || blockers.length > 0 || (result && result.success) || boot.account.manager" @click="submit">
-              <span v-if="submitting" class="spinner-border spinner-border-sm"></span><i v-else class="bx bx-rocket"></i>
-              {{ submitting ? t('foot.creating') : (result && !result.success ? t('foot.try_again') : (status === 'ACTIVE' ? t('foot.publish') : t('foot.create'))) }}
+            <button v-else type="button" class="btn btn-primary btn-sm" :disabled="submitting || blockers.length > 0 || (result && result.success && !isEdit) || boot.account.manager" @click="isEdit ? saveEdit() : submit()">
+              <span v-if="submitting" class="spinner-border spinner-border-sm"></span><i v-else class="bx" :class="isEdit ? 'bx-save' : 'bx-rocket'"></i>
+              <template v-if="isEdit">{{ submitting ? t('edit.saving') : t('edit.save') }}</template>
+              <template v-else>{{ submitting ? t('foot.creating') : (result && !result.success ? t('foot.try_again') : (status === 'ACTIVE' ? t('foot.publish') : t('foot.create'))) }}</template>
             </button>
           </div>
         </section>
@@ -657,6 +661,8 @@ const props = defineProps({
   locale: { type: String, default: 'en' },
   // 'youtube' = the YouTube page: Demand Gen only, YouTube header and copy.
   mode: { type: String, default: 'google' },
+  // Edit mode: GoogleCampaignBuilder::editData() of an existing campaign.
+  edit: { type: Object, default: null },
 });
 
 const i18n = createTranslator(props.messages, props.locale);
@@ -718,6 +724,11 @@ const currency = computed(() => (boot.value ? boot.value.account.currency : 'USD
 const spec = computed(() => (boot.value && type.value ? boot.value.types[type.value] : null));
 const has = (f) => !!(spec.value && spec.value.features.includes(f));
 const isYoutube = props.mode === 'youtube';
+const isEdit = !!props.edit;
+const edit = props.edit || {};
+// Performance Max text assets can't be edited; a running campaign's start date is fixed.
+const copyLocked = computed(() => isEdit && !edit.copy_editable);
+const startLocked = computed(() => isEdit && !!edit.campaign.start_date && edit.campaign.start_date <= today);
 // The Google page lists Search / Display / PMax; the YouTube page only YouTube (Demand Gen) types.
 const visibleTypes = computed(() => Object.fromEntries(Object.entries(boot.value ? boot.value.types : {}).filter(([, s]) => !!s.youtube === isYoutube)));
 function youtubeId(v) {
@@ -769,7 +780,8 @@ const steps = computed(() => {
     { key: 'ad', label: type.value === 'PERFORMANCE_MAX' ? t('steps.assets') : t('steps.ad'), summary: ad.final_url ? domain(ad.final_url) : t('steps.ad_hint') },
     { key: 'review', label: t('steps.review'), summary: status.value === 'ACTIVE' ? t('review.publish') : t('review.save_paused') },
   ];
-  return all.filter((s) => s.show !== false);
+  // Edit mode changes the campaign and its ad; targeting is shown in the summary.
+  return all.filter((s) => s.show !== false && (!isEdit || ['campaign', 'ad', 'review'].includes(s.key)));
 });
 const current = computed(() => (steps.value[step.value] || steps.value[0]).key);
 const stepIndex = (key) => Math.max(0, steps.value.findIndex((s) => s.key === key));
@@ -1032,7 +1044,24 @@ function validate() {
   }
   return out;
 }
-const blockers = computed(() => validate().filter((b) => steps.value.some((s) => s.key === b.step)));
+function validateEdit() {
+  const out = [];
+  const add = (s, text) => out.push({ step: s, text });
+  if (!(campaign.budget >= opt.value.min_daily_budget)) add('campaign', t('errors.budget', { amount: money(opt.value.min_daily_budget) }));
+  if (campaign.budget_type === 'lifetime' && !campaign.end_date) add('campaign', t('errors.lifetime_dates'));
+  if (campaign.end_date && campaign.start_date && campaign.end_date < campaign.start_date) add('campaign', t('errors.dates'));
+  if (!isUrl(ad.final_url)) add('ad', t('errors.url'));
+  if (!copyLocked.value) {
+    textLists.value.forEach((l) => {
+      const v = filled(l.key);
+      if (v.length < l.min) add('ad', t('errors.text_min', { field: t('ad.' + l.key), n: l.min }));
+      if (v.some((x) => x.length > l.len)) add('ad', t('errors.text_len', { field: t('ad.' + l.key), n: l.len }));
+    });
+    if (type.value !== 'SEARCH' && !ad.business_name.trim()) add('ad', t('errors.business_name'));
+  }
+  return out;
+}
+const blockers = computed(() => (isEdit ? validateEdit() : validate()).filter((b) => steps.value.some((s) => s.key === b.step)));
 function showStepErrors(key) {
   const msgs = blockers.value.filter((b) => b.step === key).map((b) => b.text);
   stepErrors[key] = msgs.length > 0;
@@ -1045,6 +1074,24 @@ function goTo(i) {
   if (i < 0 || i >= steps.value.length || i > maxReached.value) return;
   step.value = i;
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+// Edit mode: fill the form from the saved campaign. Language IDs get their names for the summary.
+async function hydrateEdit() {
+  setType(edit.campaign_type);
+  Object.assign(campaign, edit.campaign);
+  status.value = edit.status;
+  const tg = edit.targeting || {};
+  Object.keys(targeting).forEach((k) => { if (k in tg && k !== 'locations' && k !== 'languages' && tg[k] !== null) targeting[k] = k === 'devices' ? { ...targeting.devices, ...tg.devices } : tg[k]; });
+  targeting.locations = (tg.locations || []).filter((l) => !l.negative);
+  targeting.excluded_locations = (tg.locations || []).filter((l) => l.negative);
+  if (tg.languages && tg.languages.length) {
+    try { lists.languages = await api(props.urls.languages); } catch (e) { /* ids are shown instead */ }
+    targeting.languages = tg.languages.map((id) => lists.languages.find((l) => l.id === String(id)) || { id: String(id), name: String(id) });
+  }
+  ['headlines', 'descriptions', 'long_headlines'].forEach((k) => { if ((edit.ad[k] || []).length) ad[k] = [...edit.ad[k]]; });
+  ad.final_url = edit.ad.final_url || '';
+  ad.business_name = edit.ad.business_name || '';
+  maxReached.value = steps.value.length - 1;
 }
 function next() {
   if (!showStepErrors(current.value)) return;
@@ -1185,6 +1232,24 @@ function stepForField(f) {
   if (f.startsWith('targeting')) return 'targeting';
   return 'ad';
 }
+async function saveEdit() {
+  if (submitting.value || blockers.value.length) return;
+  submitting.value = true;
+  result.value = null;
+  try {
+    const { data } = await window.axios.put(props.urls.update, {
+      status: status.value,
+      campaign: { name: campaign.name || edit.campaign.name, budget: campaign.budget, start_date: campaign.start_date || null, end_date: campaign.end_date || null },
+      ad: { final_url: ad.final_url, ...(copyLocked.value ? {} : { headlines: filled('headlines'), descriptions: filled('descriptions'), long_headlines: type.value === 'SEARCH' ? [] : filled('long_headlines'), business_name: ad.business_name || null }) },
+    });
+    result.value = data;
+  } catch (e) {
+    const data = (e.response && e.response.data) || {};
+    result.value = { success: false, ...data, message: data.message || (data.errors ? Object.values(data.errors).flat().join(' ') : t('client.server_error')) };
+  } finally {
+    submitting.value = false;
+  }
+}
 async function submit() {
   if (submitting.value) return;
   const problems = validate();
@@ -1286,7 +1351,7 @@ watch(current, (c) => {
   if (c === 'keywords' && type.value === 'DISPLAY') { ensure('topics', props.urls.topics); option('app_categories'); }
 });
 watch([goal, type, status, campaign, targeting, adGroup, ad, placementText, excludedPlacementText, ipText], () => {
-  if (boot.value && !draftOffer.value && !(result.value && result.value.success)) saveDraft();
+  if (boot.value && !isEdit && !draftOffer.value && !(result.value && result.value.success)) saveDraft();
   if (result.value && !result.value.success) result.value = null;
 }, { deep: true });
 
@@ -1294,6 +1359,7 @@ onMounted(async () => {
   try {
     boot.value = await api(props.urls.bootstrap);
     // The YouTube page has exactly one campaign type - pick it straight away.
+    if (isEdit) { await hydrateEdit(); return; }
     if (isYoutube) { const only = Object.keys(visibleTypes.value)[0]; if (only) setType(only); }
     const d = readDraft();
     if (d && d.type) draftOffer.value = { savedAt: new Date(d.savedAt).toLocaleString(i18n.intl) };
@@ -1307,6 +1373,10 @@ onMounted(async () => {
 <style scoped>
 .gb-head-icon { background: #fff; color: #4285F4; font-size: 24px; border: 1px solid var(--line); }
 .gb-yt .gb-head-icon { color: #FF0000; }
+.gb-locked { opacity: .65; }
+.gb-edit-note { align-items: center; }
+/* A fieldset (locked bidding in edit mode) styled like the .fb-group div. */
+fieldset.fb-group { border: 0; border-top: 1px solid var(--line-soft); min-width: 0; margin: 16px 0 0; padding: 4px 0 0; }
 .gb-channels { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
 .gb-channels strong .bx { color: var(--brand-2); margin-inline-end: 4px; }
 .gb-ok { color: #15803D; font-size: 16px; }

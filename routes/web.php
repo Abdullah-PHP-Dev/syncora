@@ -480,6 +480,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 						Route::get('options/{type}', 'options')->name('options')->where('type', '[a-z_]+');
 						Route::post('keyword-ideas', 'keywordIdeas')->name('keyword_ideas')->middleware('throttle:20,1');
 						Route::post('submit', 'submit')->name('submit')->middleware('throttle:10,1');
+						Route::put('campaigns/{campaign}', 'update')->name('update')->whereNumber('campaign')->middleware('throttle:20,1');
 					});
 
 				Route::resource('ads/{platform}/campaigns', AdCampaignController::class)
