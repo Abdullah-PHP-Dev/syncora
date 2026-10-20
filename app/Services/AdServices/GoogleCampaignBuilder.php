@@ -39,7 +39,7 @@ class GoogleCampaignBuilder
             'bidding' => ['MAXIMIZE_CONVERSIONS', 'MAXIMIZE_CONVERSION_VALUE', 'MAXIMIZE_CLICKS', 'TARGET_IMPRESSION_SHARE', 'MANUAL_CPC'],
             'lifetime_budget' => true,
             'devices' => ['DESKTOP', 'MOBILE', 'TABLET'],
-            'features' => ['networks', 'keywords', 'negative_keywords', 'audiences', 'demographics', 'devices', 'schedule_bids', 'rsa'],
+            'features' => ['networks', 'keywords', 'negative_keywords', 'audiences', 'audience_exclusions', 'demographics', 'devices', 'schedule_bids', 'ip_exclusions', 'rsa'],
             'ad_group_type' => 'SEARCH_STANDARD',
         ],
         'DISPLAY' => [
@@ -48,7 +48,10 @@ class GoogleCampaignBuilder
             // Campaign total budgets aren't available for Display.
             'lifetime_budget' => false,
             'devices' => ['DESKTOP', 'MOBILE', 'TABLET', 'CONNECTED_TV'],
-            'features' => ['keywords', 'negative_keywords', 'audiences', 'custom_segments', 'demographics', 'devices', 'schedule_bids', 'placements', 'topics', 'content_labels', 'rda'],
+            'features' => [
+                'keywords', 'negative_keywords', 'audiences', 'custom_segments', 'audience_exclusions', 'optimized_targeting', 'demographics', 'devices', 'schedule_bids',
+                'placements', 'topics', 'excluded_topics', 'content_labels', 'app_categories', 'operating_systems', 'carriers', 'ip_exclusions', 'frequency_cap', 'rda',
+            ],
             'ad_group_type' => 'DISPLAY_STANDARD',
         ],
         'PERFORMANCE_MAX' => [
@@ -56,7 +59,8 @@ class GoogleCampaignBuilder
             'bidding' => ['MAXIMIZE_CONVERSIONS', 'MAXIMIZE_CONVERSION_VALUE'],
             'lifetime_budget' => true,
             'devices' => [],
-            'features' => ['asset_group'],
+            // Signals guide Google's AI; they don't restrict who sees the ads.
+            'features' => ['asset_group', 'search_themes', 'audience_signal'],
             'ad_group_type' => null,
         ],
     ];
@@ -79,6 +83,20 @@ class GoogleCampaignBuilder
     /** Display content exclusions (campaign-level negative content_label criteria). */
     public const CONTENT_LABELS = ['SEXUALLY_SUGGESTIVE', 'PROFANITY', 'TRAGEDY', 'JUVENILE', 'BELOW_THE_FOLD', 'PARKED_DOMAIN', 'EMBEDDED_VIDEO', 'LIVE_STREAMING_VIDEO'];
     public const GEO_MODES = ['PRESENCE_OR_INTEREST', 'PRESENCE'];
+    public const FREQUENCY_UNITS = ['DAY', 'WEEK', 'MONTH'];
+    public const MAX_SEARCH_THEMES = 25;
+
+    /** Input key => feature flag in TYPES; anything sent for a type without the flag is rejected. */
+    public const FEATURE_KEYS = [
+        'negative_keywords' => 'negative_keywords', 'audiences' => 'audiences', 'audience_exclusions' => 'audience_exclusions',
+        'ages' => 'demographics', 'genders' => 'demographics', 'parental' => 'demographics', 'incomes' => 'demographics',
+        'placements' => 'placements', 'excluded_placements' => 'placements', 'topics' => 'topics', 'excluded_topics' => 'excluded_topics',
+        'content_labels' => 'content_labels', 'app_categories' => 'app_categories', 'operating_systems' => 'operating_systems', 'carriers' => 'carriers',
+        'ip_exclusions' => 'ip_exclusions', 'frequency_cap' => 'frequency_cap', 'search_themes' => 'search_themes', 'audience_signal' => 'audience_signal',
+    ];
+
+    /** Lookup lists for the option pickers: GAQL + how to label a row. */
+    public const OPTION_TYPES = ['operating_systems', 'carriers', 'app_categories', 'pmax_audiences'];
 
     /** Asset limits (RSA, responsive display ad, Performance Max asset group). */
     public const LIMITS = [
@@ -143,6 +161,8 @@ class GoogleCampaignBuilder
                 'impression_share_locations' => self::IMPRESSION_SHARE_LOCATIONS,
                 'content_labels' => self::CONTENT_LABELS,
                 'geo_modes' => self::GEO_MODES,
+                'frequency_units' => self::FREQUENCY_UNITS,
+                'max_search_themes' => self::MAX_SEARCH_THEMES,
                 'limits' => self::LIMITS,
                 'min_daily_budget' => self::MIN_DAILY_BUDGET,
                 'max_image_mb' => self::MAX_IMAGE_BYTES / 1048576,
@@ -206,13 +226,41 @@ class GoogleCampaignBuilder
         return $lists->concat($custom)->values()->all();
     }
 
-    /** Affinity and in-market segments (Google's taxonomy, the same for every customer). */
+    /** Google's audience taxonomy: affinity, in-market, life events and detailed demographics. */
     public function interests(): array
     {
-        return Cache::remember('google-builder:interests:' . $this->api->customerId(), 86400, fn () => collect($this->api->search(
-            "SELECT user_interest.resource_name, user_interest.name, user_interest.taxonomy_type FROM user_interest WHERE user_interest.taxonomy_type IN ('AFFINITY', 'IN_MARKET') AND user_interest.launched_to_all = TRUE"
-        ))->map(fn ($r) => ['id' => $r['userInterest']['resourceName'], 'name' => $r['userInterest']['name'] ?? '', 'kind' => 'user_interest', 'type' => $r['userInterest']['taxonomyType'] ?? ''])
-            ->filter(fn ($i) => $i['name'] !== '')->sortBy('name')->values()->all());
+        return Cache::remember('google-builder:interests:' . $this->api->customerId(), 86400, function () {
+            $interests = collect($this->api->search(
+                "SELECT user_interest.resource_name, user_interest.name, user_interest.taxonomy_type FROM user_interest WHERE user_interest.taxonomy_type IN ('AFFINITY', 'IN_MARKET') AND user_interest.launched_to_all = TRUE"
+            ))->map(fn ($r) => ['id' => $r['userInterest']['resourceName'], 'name' => $r['userInterest']['name'] ?? '', 'kind' => 'user_interest', 'type' => $r['userInterest']['taxonomyType'] ?? '']);
+            $events = collect($this->api->search('SELECT life_event.resource_name, life_event.name FROM life_event WHERE life_event.launched_to_all = TRUE'))
+                ->map(fn ($r) => ['id' => $r['lifeEvent']['resourceName'], 'name' => $r['lifeEvent']['name'] ?? '', 'kind' => 'life_event', 'type' => 'LIFE_EVENT']);
+            $detailed = collect($this->api->search('SELECT detailed_demographic.resource_name, detailed_demographic.name FROM detailed_demographic WHERE detailed_demographic.launched_to_all = TRUE'))
+                ->map(fn ($r) => ['id' => $r['detailedDemographic']['resourceName'], 'name' => $r['detailedDemographic']['name'] ?? '', 'kind' => 'detailed_demographic', 'type' => 'DETAILED_DEMOGRAPHIC']);
+
+            return $interests->concat($events)->concat($detailed)->filter(fn ($i) => $i['name'] !== '')->sortBy('name')->values()->all();
+        });
+    }
+
+    /** Operating systems, carriers, app categories (Google constants) and Performance Max audiences (this customer). */
+    public function optionList(string $type): array
+    {
+        if ($type === 'pmax_audiences') {
+            return collect($this->api->search("SELECT audience.resource_name, audience.name, audience.description FROM audience WHERE audience.status = 'ENABLED'"))
+                ->map(fn ($r) => ['id' => $r['audience']['resourceName'], 'name' => $r['audience']['name'] ?? '', 'description' => $r['audience']['description'] ?? ''])
+                ->filter(fn ($a) => $a['name'] !== '')->sortBy('name')->values()->all();
+        }
+
+        return Cache::remember('google-builder:options:' . $type, 86400, fn () => (match ($type) {
+            'operating_systems' => collect($this->api->search('SELECT operating_system_version_constant.id, operating_system_version_constant.name, operating_system_version_constant.os_major_version, operating_system_version_constant.os_minor_version, operating_system_version_constant.operator_type FROM operating_system_version_constant'))
+                ->map(fn ($r) => $r['operatingSystemVersionConstant'])
+                ->map(fn ($o) => ['id' => (string) $o['id'], 'name' => trim(($o['name'] ?? '') . (($o['operatorType'] ?? '') === 'GREATER_THAN_EQUALS_TO' ? ' +' : ''))]),
+            'carriers' => collect($this->api->search('SELECT carrier_constant.id, carrier_constant.name, carrier_constant.country_code FROM carrier_constant'))
+                ->map(fn ($r) => $r['carrierConstant'])
+                ->map(fn ($c) => ['id' => (string) $c['id'], 'name' => ($c['name'] ?? '') . (! empty($c['countryCode']) ? ' (' . $c['countryCode'] . ')' : ''), 'country' => $c['countryCode'] ?? '']),
+            'app_categories' => collect($this->api->search('SELECT mobile_app_category_constant.id, mobile_app_category_constant.name FROM mobile_app_category_constant'))
+                ->map(fn ($r) => ['id' => (string) $r['mobileAppCategoryConstant']['id'], 'name' => $r['mobileAppCategoryConstant']['name'] ?? '']),
+        })->filter(fn ($o) => $o['id'] !== '' && trim($o['name']) !== '')->sortBy('name')->values()->all());
     }
 
     public function topics(): array
@@ -367,6 +415,11 @@ class GoogleCampaignBuilder
             throw new \InvalidArgumentException(__('google_builder.server.goals_none'));
         }
         $prefix = 'customers/' . $this->api->customerId() . '/';
+        foreach ([...($t['audience_exclusions'] ?? []), ...(isset($t['audience_signal']['id']) ? [$t['audience_signal']] : [])] as $a) {
+            if (! str_starts_with($a['id'], $prefix)) {
+                throw new \InvalidArgumentException(__('google_builder.server.audience_not_owned', ['name' => $a['name'] ?? $a['id']]));
+            }
+        }
         foreach ($t['audiences'] ?? [] as $a) {
             if (! str_starts_with($a['id'], $prefix)) {
                 throw new \InvalidArgumentException(__('google_builder.server.audience_not_owned', ['name' => $a['name'] ?? $a['id']]));
@@ -380,11 +433,13 @@ class GoogleCampaignBuilder
                 throw new \InvalidArgumentException(__('google_builder.server.device_unsupported', ['device' => $device]));
             }
         }
-        if ($type === 'PERFORMANCE_MAX') {
-            $unsupported = array_filter(['keywords', 'negative_keywords', 'audiences', 'placements', 'topics', 'content_labels', 'ages', 'genders', 'parental', 'incomes'], fn ($k) => ! empty($t[$k]) || ! empty($input['ad_group'][$k]));
-            if ($unsupported) {
-                throw new \InvalidArgumentException(__('google_builder.server.pmax_unsupported', ['fields' => implode(', ', $unsupported)]));
-            }
+        // Every targeting option must be supported by the campaign type (TYPES[...]['features']).
+        $unsupported = array_keys(array_filter(self::FEATURE_KEYS, fn ($feature, $key) => ! empty($t[$key]) && ! in_array($feature, $spec['features'], true), ARRAY_FILTER_USE_BOTH));
+        if (! empty($input['ad_group']['keywords']) && ! in_array('keywords', $spec['features'], true)) {
+            $unsupported[] = 'keywords';
+        }
+        if ($unsupported) {
+            throw new \InvalidArgumentException(__('google_builder.server.feature_unsupported', ['fields' => implode(', ', $unsupported), 'type' => __('google_builder.types.' . $type . '.label')]));
         }
         if ($type === 'SEARCH' && empty($input['ad_group']['keywords'])) {
             throw new \InvalidArgumentException(__('google_builder.server.keywords_required'));
@@ -532,6 +587,13 @@ class GoogleCampaignBuilder
             // Business name and logo go in the asset group, not campaign assets.
             $campaignBody['brandGuidelinesEnabled'] = false;
         }
+        if ($type === 'DISPLAY' && ! empty($t['frequency_cap']['cap'])) {
+            // At most N impressions per person per day / week / month, across the campaign.
+            $campaignBody['frequencyCaps'] = [[
+                'key' => ['level' => 'CAMPAIGN', 'eventType' => 'IMPRESSION', 'timeUnit' => $t['frequency_cap']['unit'] ?? 'DAY', 'timeLength' => 1],
+                'cap' => (int) $t['frequency_cap']['cap'],
+            ]];
+        }
         $ops[] = ['campaignOperation' => ['create' => $campaignBody + $this->bidding($c)]];
 
         foreach ($this->campaignCriteria($campaign, $type, $c, $t) as $criterion) {
@@ -555,6 +617,10 @@ class GoogleCampaignBuilder
         if (! empty($t['audiences'])) {
             // Observation (bidOnly) keeps reach and only adjusts reporting / bids; targeting narrows to the segments.
             $adGroupBody['targetingSetting'] = ['targetRestrictions' => [['targetingDimension' => 'AUDIENCE', 'bidOnly' => ($t['audience_mode'] ?? 'observation') === 'observation']]];
+        }
+        if ($type === 'DISPLAY') {
+            // Optimized targeting (the replacement for audience expansion) finds similar converting people.
+            $adGroupBody['optimizedTargetingEnabled'] = (bool) ($t['optimized_targeting'] ?? false);
         }
         $ops[] = ['adGroupOperation' => ['create' => $adGroupBody]];
 
@@ -615,6 +681,14 @@ class GoogleCampaignBuilder
             foreach ($t['negative_keywords'] ?? [] as $k) {
                 $out[] = ['campaign' => $campaign, 'negative' => true, 'keyword' => ['text' => $k['text'], 'matchType' => $k['match_type']]];
             }
+            // Audience exclusions: people on these lists never see the ads.
+            foreach ($t['audience_exclusions'] ?? [] as $a) {
+                $out[] = ['campaign' => $campaign, 'negative' => true, 'userList' => ['userList' => $a['id']]];
+            }
+            // IP exclusions (e.g. your own office) - Google only accepts these as negatives.
+            foreach ($t['ip_exclusions'] ?? [] as $ip) {
+                $out[] = ['campaign' => $campaign, 'negative' => true, 'ipBlock' => ['ipAddress' => $ip]];
+            }
         }
         if ($type === 'DISPLAY') {
             foreach ($t['content_labels'] ?? [] as $label) {
@@ -622,6 +696,16 @@ class GoogleCampaignBuilder
             }
             foreach ($t['excluded_placements'] ?? [] as $url) {
                 $out[] = ['campaign' => $campaign, 'negative' => true, 'placement' => ['url' => $url]];
+            }
+            foreach ($t['app_categories'] ?? [] as $cat) {
+                $out[] = ['campaign' => $campaign, 'negative' => true, 'mobileAppCategory' => ['mobileAppCategoryConstant' => 'mobileAppCategoryConstants/' . $cat['id']]];
+            }
+            // Operating systems and carriers narrow delivery to the chosen ones (campaign-level only).
+            foreach ($t['operating_systems'] ?? [] as $os) {
+                $out[] = ['campaign' => $campaign, 'operatingSystemVersion' => ['operatingSystemVersionConstant' => 'operatingSystemVersionConstants/' . $os['id']]];
+            }
+            foreach ($t['carriers'] ?? [] as $carrier) {
+                $out[] = ['campaign' => $campaign, 'carrier' => ['carrierConstant' => 'carrierConstants/' . $carrier['id']]];
             }
         }
 
@@ -645,6 +729,9 @@ class GoogleCampaignBuilder
             $out[] = ['adGroup' => $adGroup, 'status' => 'ENABLED'] + match ($a['kind']) {
                 'user_list' => ['userList' => ['userList' => $a['id']]],
                 'user_interest' => ['userInterest' => ['userInterestCategory' => $a['id']]],
+                // Life events / detailed demographics take the taxonomy ID, not the resource name.
+                'life_event' => ['lifeEvent' => ['lifeEventId' => basename($a['id'])]],
+                'detailed_demographic' => ['extendedDemographic' => ['extendedDemographicId' => basename($a['id'])]],
                 default => ['customAudience' => ['customAudience' => $a['id']]],
             };
         }
@@ -654,6 +741,9 @@ class GoogleCampaignBuilder
             }
             foreach ($t['topics'] ?? [] as $topic) {
                 $out[] = ['adGroup' => $adGroup, 'status' => 'ENABLED', 'topic' => ['topicConstant' => 'topicConstants/' . $topic['id']]];
+            }
+            foreach ($t['excluded_topics'] ?? [] as $topic) {
+                $out[] = ['adGroup' => $adGroup, 'negative' => true, 'topic' => ['topicConstant' => 'topicConstants/' . $topic['id']]];
             }
         }
 
@@ -724,6 +814,14 @@ class GoogleCampaignBuilder
             foreach ($assets[$slot] ?? [] as $resource) {
                 $link($resource, $field);
             }
+        }
+
+        // Signals: search themes and one audience signal steer Google's AI (they don't limit reach).
+        foreach ($input['targeting']['search_themes'] ?? [] as $theme) {
+            $ops[] = ['assetGroupSignalOperation' => ['create' => ['assetGroup' => $assetGroup, 'searchTheme' => ['text' => $theme]]]];
+        }
+        if (! empty($input['targeting']['audience_signal']['id'])) {
+            $ops[] = ['assetGroupSignalOperation' => ['create' => ['assetGroup' => $assetGroup, 'audience' => ['audience' => $input['targeting']['audience_signal']['id']]]]];
         }
 
         // The asset group must be created before the links that reference it.

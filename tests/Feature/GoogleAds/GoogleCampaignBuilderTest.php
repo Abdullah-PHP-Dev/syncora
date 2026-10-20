@@ -115,6 +115,15 @@ class GoogleCampaignBuilderTest extends TestCase
                 if (str_contains($q, 'FROM customer ')) {
                     return Http::response(['results' => [['customer' => ['id' => '1234567890', 'descriptiveName' => 'Acme', 'currencyCode' => 'SAR', 'timeZone' => 'Asia/Riyadh', 'status' => 'ENABLED', 'manager' => false]]]]);
                 }
+                if (str_contains($q, 'FROM operating_system_version_constant')) {
+                    return Http::response(['results' => [
+                        ['operatingSystemVersionConstant' => ['id' => '630152', 'name' => 'iOS', 'osMajorVersion' => 17, 'osMinorVersion' => 0, 'operatorType' => 'GREATER_THAN_EQUALS_TO']],
+                        ['operatingSystemVersionConstant' => ['id' => '630000', 'name' => 'Android', 'operatorType' => 'EQUALS_TO']],
+                    ]]);
+                }
+                if (str_contains($q, 'FROM life_event')) {
+                    return Http::response(['results' => [['lifeEvent' => ['resourceName' => 'customers/1234567890/lifeEvents/1001', 'name' => 'Recently moved']]]]);
+                }
                 if (str_contains($q, 'FROM customer_conversion_goal')) {
                     return Http::response(['results' => [['customerConversionGoal' => ['category' => 'PURCHASE', 'origin' => 'WEBSITE', 'biddable' => true]]]]);
                 }
@@ -462,5 +471,111 @@ class GoogleCampaignBuilderTest extends TestCase
         $rules = fn (array $data) => Validator::make($data, (new GoogleAdBuilderRequest())->merge($data)->rules());
         $base = $this->searchInput(['campaign' => ['budget_type' => 'lifetime']]) + ['idempotency_key' => 'key-rules-00000002'];
         $this->assertTrue($rules($base)->errors()->has('campaign.end_date'));
+    }
+
+    public function test_extra_display_and_search_targeting_is_mapped(): void
+    {
+        $images = $this->images();
+        $input = $this->searchInput([
+            'campaign_type' => 'DISPLAY',
+            'campaign' => ['bidding' => 'MAXIMIZE_CLICKS', 'target_cpa' => null],
+            'targeting' => [
+                'devices' => ['TABLET' => null, 'MOBILE' => null],
+                'audience_exclusions' => [['id' => 'customers/1234567890/userLists/66', 'name' => 'Buyers']],
+                'ip_exclusions' => ['203.0.113.10', '198.51.100.0/24'],
+                'excluded_topics' => [['id' => '44']],
+                'app_categories' => [['id' => '60008']],
+                'operating_systems' => [['id' => '630152']],
+                'carriers' => [['id' => '70092']],
+                'frequency_cap' => ['cap' => 3, 'unit' => 'WEEK'],
+                'optimized_targeting' => true,
+                'audiences' => [
+                    ['id' => 'customers/1234567890/lifeEvents/1001', 'kind' => 'life_event', 'name' => 'Recently moved'],
+                    ['id' => 'customers/1234567890/detailedDemographics/2002', 'kind' => 'detailed_demographic', 'name' => 'Homeowners'],
+                ],
+            ],
+            'ad' => ['path1' => null, 'path2' => null, 'long_headlines' => ['The best running shoes in the Kingdom'], 'business_name' => 'Acme', 'images' => $images],
+        ]);
+
+        $result = $this->builder()->submit($input, 'key-extra-00000001');
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+        $m = $this->mutates[0];
+        $camp = 'customers/1234567890/campaigns/-2';
+        $grp = 'customers/1234567890/adGroups/-3';
+
+        $c = $this->ops($m, 'campaignOperation')[0];
+        $this->assertSame([['key' => ['level' => 'CAMPAIGN', 'eventType' => 'IMPRESSION', 'timeUnit' => 'WEEK', 'timeLength' => 1], 'cap' => 3]], $c['frequencyCaps']);
+        $this->assertTrue($this->ops($m, 'adGroupOperation')[0]['optimizedTargetingEnabled']);
+
+        $cc = $this->ops($m, 'campaignCriterionOperation');
+        $this->assertContains(['campaign' => $camp, 'negative' => true, 'userList' => ['userList' => 'customers/1234567890/userLists/66']], $cc);
+        $this->assertContains(['campaign' => $camp, 'negative' => true, 'ipBlock' => ['ipAddress' => '198.51.100.0/24']], $cc);
+        $this->assertContains(['campaign' => $camp, 'negative' => true, 'mobileAppCategory' => ['mobileAppCategoryConstant' => 'mobileAppCategoryConstants/60008']], $cc);
+        $this->assertContains(['campaign' => $camp, 'operatingSystemVersion' => ['operatingSystemVersionConstant' => 'operatingSystemVersionConstants/630152']], $cc);
+        $this->assertContains(['campaign' => $camp, 'carrier' => ['carrierConstant' => 'carrierConstants/70092']], $cc);
+
+        $agc = $this->ops($m, 'adGroupCriterionOperation');
+        $this->assertContains(['adGroup' => $grp, 'negative' => true, 'topic' => ['topicConstant' => 'topicConstants/44']], $agc);
+        $this->assertContains(['adGroup' => $grp, 'status' => 'ENABLED', 'lifeEvent' => ['lifeEventId' => '1001']], $agc);
+        $this->assertContains(['adGroup' => $grp, 'status' => 'ENABLED', 'extendedDemographic' => ['extendedDemographicId' => '2002']], $agc);
+    }
+
+    public function test_performance_max_signals_are_linked_to_the_asset_group(): void
+    {
+        $input = $this->searchInput([
+            'campaign_type' => 'PERFORMANCE_MAX',
+            'campaign' => ['bidding' => 'MAXIMIZE_CONVERSIONS'],
+            'ad' => ['long_headlines' => ['The best running shoes in the Kingdom'], 'business_name' => 'Acme', 'images' => $this->images()],
+        ]);
+        unset($input['ad']['path1'], $input['ad']['path2']);
+        $input['targeting'] = [
+            'locations' => [['id' => '2682', 'name' => 'Saudi Arabia', 'negative' => false]],
+            'search_themes' => ['running shoes', 'marathon training'],
+            'audience_signal' => ['id' => 'customers/1234567890/audiences/77', 'name' => 'Runners'],
+        ];
+        $input['ad_group'] = [];
+
+        $this->assertTrue($this->builder()->submit($input, 'key-signals-000001')['success']);
+        $m = $this->mutates[0];
+        $signals = $this->ops($m, 'assetGroupSignalOperation');
+        $this->assertSame([
+            ['assetGroup' => 'customers/1234567890/assetGroups/-4', 'searchTheme' => ['text' => 'running shoes']],
+            ['assetGroup' => 'customers/1234567890/assetGroups/-4', 'searchTheme' => ['text' => 'marathon training']],
+            ['assetGroup' => 'customers/1234567890/assetGroups/-4', 'audience' => ['audience' => 'customers/1234567890/audiences/77']],
+        ], $signals);
+        $kinds = array_map('array_key_first', $m);
+        $this->assertLessThan(array_search('assetGroupSignalOperation', $kinds), array_search('assetGroupOperation', $kinds));
+    }
+
+    public function test_options_a_campaign_type_does_not_support_are_rejected(): void
+    {
+        $freqOnSearch = $this->searchInput(['targeting' => ['frequency_cap' => ['cap' => 3, 'unit' => 'DAY']]]);
+        $result = $this->builder()->submit($freqOnSearch, 'key-gate-000000001');
+        $this->assertSame('validation', $result['step']);
+        $this->assertStringContainsString('frequency_cap', $result['message']);
+
+        $themesOnSearch = $this->searchInput(['targeting' => ['search_themes' => ['shoes']]]);
+        $this->assertFalse($this->builder()->submit($themesOnSearch, 'key-gate-000000002')['success']);
+
+        $foreignExclusion = $this->searchInput(['targeting' => ['audience_exclusions' => [['id' => 'customers/999/userLists/1', 'name' => 'X']]]]);
+        $this->assertFalse($this->builder()->submit($foreignExclusion, 'key-gate-000000003')['success']);
+        $this->assertCount(0, $this->mutates);
+
+        $rules = fn (array $data) => (new GoogleAdBuilderRequest())->merge($data);
+        $base = $this->searchInput(['targeting' => ['ip_exclusions' => ['999.1.1.1']]]) + ['idempotency_key' => 'key-rules-00000003'];
+        $request = $rules($base);
+        $v = Validator::make($base, $request->rules());
+        $request->withValidator($v);
+        $v->fails();
+        $this->assertTrue($v->errors()->has('targeting.ip_exclusions.0'));
+    }
+
+    public function test_option_lists_and_life_events_are_read_from_google(): void
+    {
+        $os = $this->builder()->optionList('operating_systems');
+        $this->assertSame([['id' => '630000', 'name' => 'Android'], ['id' => '630152', 'name' => 'iOS +']], $os);
+
+        $segments = collect($this->builder()->interests());
+        $this->assertSame('life_event', $segments->firstWhere('name', 'Recently moved')['kind']);
     }
 }

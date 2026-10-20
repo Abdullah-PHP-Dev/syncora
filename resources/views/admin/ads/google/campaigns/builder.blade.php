@@ -17,6 +17,7 @@
                 'audiences' => route('admin.ads.google.builder.audiences'),
                 'interests' => route('admin.ads.google.builder.interests'),
                 'topics' => route('admin.ads.google.builder.topics'),
+                'options' => route('admin.ads.google.builder.options', ['type' => 'TYPE']),
                 'keywordIdeas' => route('admin.ads.google.builder.keyword_ideas'),
                 'submit' => route('admin.ads.google.builder.submit'),
                 'campaignsList' => route('admin.ads.campaigns.index', ['platform' => 'google']),

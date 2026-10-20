@@ -247,13 +247,73 @@
               </div>
               <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('targeting.devices_hint') }}</p>
             </div>
+
+            <div v-if="has('operating_systems') || has('carriers')" class="fb-group">
+              <h6><i class="bx bx-mobile-vibration"></i> {{ t('targeting.mobile') }} <span class="fb-opt">{{ t('common.optional') }}</span></h6>
+              <div class="fb-grid-2">
+                <div v-if="has('operating_systems')">
+                  <label class="fb-label">{{ t('targeting.operating_systems') }}</label>
+                  <search-picker v-model="targeting.operating_systems" :options="lists.operating_systems" :min-chars="0" :max="100" :placeholder="lists.loading.operating_systems ? t('common.loading') : t('targeting.all_os')" />
+                  <p v-if="lists.errors.operating_systems" class="fb-field-err">{{ lists.errors.operating_systems }}</p>
+                </div>
+                <div v-if="has('carriers')">
+                  <label class="fb-label">{{ t('targeting.carriers') }}</label>
+                  <search-picker v-model="targeting.carriers" :options="lists.carriers" :min-chars="0" :max="200" :placeholder="lists.loading.carriers ? t('common.loading') : t('targeting.all_carriers')" />
+                  <p v-if="lists.errors.carriers" class="fb-field-err">{{ lists.errors.carriers }}</p>
+                </div>
+              </div>
+              <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('targeting.mobile_hint') }}</p>
+            </div>
+
+            <div v-if="has('frequency_cap')" class="fb-group">
+              <h6><i class="bx bx-repeat"></i> {{ t('targeting.frequency_cap') }} <span class="fb-opt">{{ t('common.optional') }}</span></h6>
+              <div class="gb-freq">
+                <input v-model.number="targeting.frequency_cap.cap" type="number" min="1" max="1000" class="form-control" :placeholder="t('targeting.no_limit')" :aria-label="t('targeting.frequency_cap')">
+                <span>{{ t('targeting.impressions_per') }}</span>
+                <select v-model="targeting.frequency_cap.unit" class="form-control" :aria-label="t('targeting.frequency_unit')">
+                  <option v-for="u in opt.frequency_units" :key="u" :value="u">{{ t('frequency_units.' + u) }}</option>
+                </select>
+              </div>
+              <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('targeting.frequency_hint') }}</p>
+            </div>
+
+            <div v-if="has('ip_exclusions')" class="fb-group">
+              <h6><i class="bx bx-shield-x"></i> {{ t('targeting.ip_exclusions') }} <span class="fb-opt">{{ t('common.optional') }}</span></h6>
+              <textarea v-model="ipText" class="form-control" rows="2" dir="ltr" :placeholder="t('targeting.ip_placeholder')"></textarea>
+              <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('targeting.ip_hint', { n: ipList.length }) }}</p>
+            </div>
           </div>
 
           <!-- ============ 3. Audiences & demographics ============ -->
           <div v-show="current === 'audience'" class="fb-card">
-            <div class="fb-card-h"><h5>{{ t('audience.title') }}</h5></div>
-            <p class="fb-sub">{{ t('audience.sub') }}</p>
+            <div class="fb-card-h"><h5>{{ type === 'PERFORMANCE_MAX' ? t('signals.title') : t('audience.title') }}</h5></div>
+            <p class="fb-sub">{{ type === 'PERFORMANCE_MAX' ? t('signals.sub') : t('audience.sub') }}</p>
 
+            <!-- Performance Max: signals steer Google's AI (they don't limit reach). -->
+            <template v-if="type === 'PERFORMANCE_MAX'">
+              <div class="fb-group">
+                <h6><i class="bx bx-search-alt"></i> {{ t('signals.search_themes') }} <span class="fb-opt">{{ t('common.optional') }}</span></h6>
+                <div class="gb-theme-add">
+                  <input v-model="themeDraft" class="form-control" maxlength="80" :placeholder="t('signals.theme_placeholder')" @keydown.enter.prevent="addThemes">
+                  <button type="button" class="btn btn-sm fb-btn-ghost" :disabled="!themeDraft.trim() || targeting.search_themes.length >= opt.max_search_themes" @click="addThemes"><i class="bx bx-plus"></i> {{ t('common.add') }}</button>
+                </div>
+                <div v-if="targeting.search_themes.length" class="fb-chips mt-2">
+                  <span v-for="(s, i) in targeting.search_themes" :key="s" class="fb-chip">{{ s }}<button type="button" :aria-label="t('common.remove')" @click="targeting.search_themes.splice(i, 1)">×</button></span>
+                </div>
+                <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('signals.themes_hint', { n: targeting.search_themes.length, max: opt.max_search_themes }) }}</p>
+              </div>
+              <div class="fb-group">
+                <h6><i class="bx bx-group"></i> {{ t('signals.audience_signal') }} <span class="fb-opt">{{ t('common.optional') }}</span></h6>
+                <select v-model="targeting.audience_signal_id" class="form-control" :disabled="lists.loading.pmax_audiences">
+                  <option :value="null">{{ lists.loading.pmax_audiences ? t('common.loading') : t('signals.no_signal') }}</option>
+                  <option v-for="a in lists.pmax_audiences" :key="a.id" :value="a.id">{{ a.name }}</option>
+                </select>
+                <p v-if="lists.errors.pmax_audiences" class="fb-field-err">{{ lists.errors.pmax_audiences }}</p>
+                <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ lists.pmax_audiences.length || lists.loading.pmax_audiences ? t('signals.audience_hint') : t('signals.no_audiences') }}</p>
+              </div>
+            </template>
+
+            <template v-else>
             <div class="fb-group">
               <h6><i class="bx bx-group"></i> {{ t('audience.segments') }} <span class="fb-opt">{{ t('common.optional') }}</span></h6>
               <search-picker v-model="targeting.audiences" :options="audienceOptions" :min-chars="0" :max="200" :placeholder="lists.loading.audiences || lists.loading.interests ? t('common.loading') : t('audience.search_segments')">
@@ -269,6 +329,13 @@
                 <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('audience.' + targeting.audience_mode + '_hint') }}</p>
               </template>
               <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ type === 'DISPLAY' ? t('audience.display_hint') : t('audience.search_hint') }}</p>
+              <label v-if="has('optimized_targeting')" class="fb-check mt-2"><input v-model="targeting.optimized_targeting" type="checkbox"><span><strong>{{ t('audience.optimized_targeting') }}</strong><small>{{ t('audience.optimized_targeting_hint') }}</small></span></label>
+            </div>
+
+            <div v-if="has('audience_exclusions')" class="fb-group">
+              <h6><i class="bx bx-user-x"></i> {{ t('audience.exclusions') }} <span class="fb-opt">{{ t('common.optional') }}</span></h6>
+              <search-picker v-model="targeting.audience_exclusions" :options="exclusionOptions" :min-chars="0" :max="200" chip-tone="exclude" :placeholder="lists.loading.audiences ? t('common.loading') : t('audience.search_exclusions')" />
+              <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ exclusionOptions.length || lists.loading.audiences ? t('audience.exclusions_hint') : t('audience.no_lists') }}</p>
             </div>
 
             <div class="fb-group">
@@ -281,6 +348,7 @@
                 </div>
               </div>
             </div>
+            </template>
           </div>
 
           <!-- ============ 4. Keywords & placements ============ -->
@@ -328,6 +396,14 @@
                 <h6><i class="bx bx-category"></i> {{ t('keywords.topics') }} <span class="fb-opt">{{ t('common.optional') }}</span></h6>
                 <search-picker v-model="targeting.topics" :options="lists.topics" :min-chars="0" :max="200" :placeholder="lists.loading.topics ? t('common.loading') : t('keywords.search_topics')" />
                 <p v-if="lists.errors.topics" class="fb-field-err">{{ lists.errors.topics }}</p>
+                <label class="fb-label mt-2">{{ t('keywords.excluded_topics') }} <span class="fb-opt">{{ t('common.optional') }}</span></label>
+                <search-picker v-model="targeting.excluded_topics" :options="lists.topics" :min-chars="0" :max="200" chip-tone="exclude" :placeholder="lists.loading.topics ? t('common.loading') : t('keywords.search_topics')" />
+              </div>
+              <div class="fb-group">
+                <h6><i class="bx bx-grid-alt"></i> {{ t('keywords.app_categories') }} <span class="fb-opt">{{ t('common.optional') }}</span></h6>
+                <search-picker v-model="targeting.app_categories" :options="lists.app_categories" :min-chars="0" :max="200" chip-tone="exclude" :placeholder="lists.loading.app_categories ? t('common.loading') : t('keywords.search_app_categories')" />
+                <p v-if="lists.errors.app_categories" class="fb-field-err">{{ lists.errors.app_categories }}</p>
+                <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('keywords.app_categories_hint') }}</p>
               </div>
               <div class="fb-group">
                 <h6><i class="bx bx-window-alt"></i> {{ t('keywords.placements') }} <span class="fb-opt">{{ t('common.optional') }}</span></h6>
@@ -542,6 +618,7 @@ const negativeDraft = ref('');
 const keywordMatch = ref('PHRASE');
 const placementText = ref('');
 const excludedPlacementText = ref('');
+const ipList = computed(() => lines(ipText.value));
 const ideas = reactive({ items: [], loading: false, error: '' });
 const radiusDraft = reactive({ latitude: null, longitude: null, radius: 10, unit: 'KILOMETERS' });
 
@@ -558,10 +635,14 @@ const targeting = reactive({
   devices: { DESKTOP: null, MOBILE: null, TABLET: null, CONNECTED_TV: null },
   ages: [], genders: [], parental: [], incomes: [], audiences: [], audience_mode: 'observation',
   negative_keywords: [], topics: [], content_labels: [],
+  audience_exclusions: [], optimized_targeting: false, excluded_topics: [], app_categories: [], operating_systems: [], carriers: [],
+  frequency_cap: { cap: null, unit: 'DAY' }, search_themes: [], audience_signal_id: null,
 });
 const adGroup = reactive({ name: '', keywords: [] });
 const ad = reactive({ final_url: '', path1: '', path2: '', headlines: ['', '', ''], descriptions: ['', ''], long_headlines: [''], business_name: '', images: { marketing: [], square: [], logo: [] } });
-const lists = reactive({ languages: [], audiences: [], interests: [], topics: [], loading: {}, errors: {} });
+const lists = reactive({ languages: [], audiences: [], interests: [], topics: [], operating_systems: [], carriers: [], app_categories: [], pmax_audiences: [], loading: {}, errors: {} });
+const ipText = ref('');
+const themeDraft = ref('');
 
 const today = new Date().toISOString().slice(0, 10);
 const opt = computed(() => (boot.value ? boot.value.options : {}));
@@ -602,7 +683,9 @@ const steps = computed(() => {
   const all = [
     { key: 'campaign', label: t('steps.campaign'), summary: type.value ? t('types.' + type.value + '.label') : t('steps.campaign_hint') },
     { key: 'targeting', label: t('steps.targeting'), summary: t('steps.locations_n', { n: targeting.locations.length + targeting.radius.length }) },
-    { key: 'audience', label: t('steps.audience'), summary: t('steps.segments_n', { n: targeting.audiences.length }), show: type.value !== 'PERFORMANCE_MAX' },
+    type.value === 'PERFORMANCE_MAX'
+      ? { key: 'audience', label: t('steps.signals'), summary: t('steps.themes_n', { n: targeting.search_themes.length }) }
+      : { key: 'audience', label: t('steps.audience'), summary: t('steps.segments_n', { n: targeting.audiences.length }) },
     { key: 'keywords', label: type.value === 'DISPLAY' ? t('steps.keywords_display') : t('steps.keywords'), summary: t('steps.keywords_n', { n: adGroup.keywords.length }), show: type.value !== 'PERFORMANCE_MAX' },
     { key: 'ad', label: type.value === 'PERFORMANCE_MAX' ? t('steps.assets') : t('steps.ad'), summary: ad.final_url ? domain(ad.final_url) : t('steps.ad_hint') },
     { key: 'review', label: t('steps.review'), summary: status.value === 'ACTIVE' ? t('review.publish') : t('review.save_paused') },
@@ -638,6 +721,8 @@ const demographicGroups = computed(() => [
   { key: 'parental', values: opt.value.parental || [] },
   { key: 'incomes', values: opt.value.incomes || [] },
 ]);
+// Exclusions can only be user lists (campaign-level negative userList criteria).
+const exclusionOptions = computed(() => lists.audiences.filter((a) => a.kind === 'user_list' && (type.value === 'DISPLAY' ? a.display : a.search)));
 const audienceOptions = computed(() => {
   const own = lists.audiences.filter((a) => (type.value === 'DISPLAY' ? a.display : a.kind === 'user_list' && a.search));
   return [...own, ...lists.interests];
@@ -758,6 +843,13 @@ function parseKeyword(raw, fallback) {
   if (/^".+"$/.test(s)) return { text: s.slice(1, -1).trim(), match_type: 'PHRASE' };
   return { text: s, match_type: fallback };
 }
+function addThemes() {
+  lines(themeDraft.value).forEach((theme) => {
+    const v = theme.slice(0, 80);
+    if (targeting.search_themes.length < opt.value.max_search_themes && !targeting.search_themes.some((x) => x.toLowerCase() === v.toLowerCase())) targeting.search_themes.push(v);
+  });
+  themeDraft.value = '';
+}
 function addKeywords(which) {
   const isNeg = which === 'negative';
   const fallback = isNeg ? 'PHRASE' : (type.value === 'DISPLAY' ? 'BROAD' : keywordMatch.value);
@@ -825,6 +917,11 @@ function validate() {
   if (!targeting.locations.length && !targeting.radius.length) add('targeting', t('errors.locations'));
   if (targeting.locations.some((l) => targeting.excluded_locations.some((x) => x.id === l.id))) add('targeting', t('errors.location_both'));
   if (targeting.schedule.some((s) => s.end_hour <= s.start_hour)) add('targeting', t('errors.schedule'));
+  if (has('ip_exclusions')) ipList.value.filter((ip) => !isIp(ip)).slice(0, 1).forEach((ip) => add('targeting', t('errors.ip', { ip })));
+  if (has('ip_exclusions') && ipList.value.length > 500) add('targeting', t('errors.ip_max'));
+  if (has('frequency_cap') && targeting.frequency_cap.cap !== null && targeting.frequency_cap.cap !== '' && !(targeting.frequency_cap.cap >= 1 && targeting.frequency_cap.cap <= 1000)) add('targeting', t('errors.frequency'));
+  if (has('audience_exclusions') && targeting.audience_exclusions.some((x) => targeting.audiences.some((a) => a.id === x.id))) add('audience', t('errors.audience_both'));
+  if (has('topics') && targeting.excluded_topics.some((x) => targeting.topics.some((a) => a.id === x.id))) add('keywords', t('errors.topic_both'));
   Object.entries(targeting.devices).forEach(([d, v]) => { if (v !== null && v !== '' && v !== -100 && (v < -90 || v > 900)) add('targeting', t('errors.device', { device: t('devices.' + d) })); });
   if (type.value !== 'PERFORMANCE_MAX') {
     ['ages', 'genders'].forEach((k) => { if (targeting[k].length >= (opt.value[k] || []).length) add('audience', t('errors.demographic_all', { group: t('audience.' + k) })); });
@@ -902,6 +999,11 @@ const summaryLines = computed(() => {
   if (targeting.excluded_locations.length) out.push({ icon: 'bx-block', text: t('summary.excluded_n', { n: targeting.excluded_locations.length }) });
   out.push({ icon: 'bx-globe', text: targeting.languages.map((l) => l.name).join(', ') || t('summary.all_languages') });
   if (targeting.schedule.length) out.push({ icon: 'bx-time-five', text: t('summary.slots_n', { n: targeting.schedule.length }) });
+  if (type.value === 'PERFORMANCE_MAX' && targeting.search_themes.length) out.push({ icon: 'bx-search-alt', text: t('steps.themes_n', { n: targeting.search_themes.length }) });
+  if (type.value === 'PERFORMANCE_MAX' && targeting.audience_signal_id) out.push({ icon: 'bx-group', text: t('summary.audience_signal') });
+  if (has('audience_exclusions') && targeting.audience_exclusions.length) out.push({ icon: 'bx-user-x', text: t('summary.exclusions_n', { n: targeting.audience_exclusions.length }) });
+  if (has('frequency_cap') && targeting.frequency_cap.cap) out.push({ icon: 'bx-repeat', text: t('summary.frequency', { n: targeting.frequency_cap.cap, unit: t('frequency_units.' + targeting.frequency_cap.unit) }) });
+  if (has('ip_exclusions') && ipList.value.length) out.push({ icon: 'bx-shield-x', text: t('summary.ips_n', { n: ipList.value.length }) });
   if (type.value && type.value !== 'PERFORMANCE_MAX') {
     if (targeting.audiences.length) out.push({ icon: 'bx-group', text: t('summary.segments_n', { n: targeting.audiences.length }) });
     const ex = targeting.ages.length + targeting.genders.length + targeting.parental.length + targeting.incomes.length;
@@ -912,6 +1014,12 @@ const summaryLines = computed(() => {
 });
 
 // ---------------------------------------------------------------- submit
+function isIp(v) {
+  const [ip, bits] = v.split('/');
+  const v4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(ip);
+  const v6 = !v4 && /^[0-9a-f:]+$/i.test(ip) && ip.includes(':');
+  return (v4 || v6) && (bits === undefined || (/^\d+$/.test(bits) && Number(bits) <= (v4 ? 32 : 128)));
+}
 function urlList(text) { return lines(text).map((u) => u.replace(/^https?:\/\//i, '').replace(/\/$/, '')); }
 function payload() {
   const nonPmax = type.value !== 'PERFORMANCE_MAX';
@@ -950,10 +1058,19 @@ function payload() {
         ages: targeting.ages, genders: targeting.genders, parental: targeting.parental, incomes: targeting.incomes,
         audiences: targeting.audiences.map((a) => ({ id: a.id, kind: a.kind, name: a.name })), audience_mode: targeting.audience_mode,
         negative_keywords: targeting.negative_keywords,
-      } : {}),
+        audience_exclusions: targeting.audience_exclusions.map((a) => ({ id: a.id, name: a.name })),
+        ip_exclusions: ipList.value,
+      } : {
+        search_themes: targeting.search_themes,
+        audience_signal: targeting.audience_signal_id ? { id: targeting.audience_signal_id, name: (lists.pmax_audiences.find((a) => a.id === targeting.audience_signal_id) || {}).name || null } : null,
+      }),
       ...(type.value === 'DISPLAY' ? {
         topics: targeting.topics.map((x) => ({ id: x.id })), content_labels: targeting.content_labels,
         placements: urlList(placementText.value), excluded_placements: urlList(excludedPlacementText.value),
+        excluded_topics: targeting.excluded_topics.map((x) => ({ id: x.id })), app_categories: targeting.app_categories.map((x) => ({ id: x.id })),
+        operating_systems: targeting.operating_systems.map((x) => ({ id: x.id })), carriers: targeting.carriers.map((x) => ({ id: x.id })),
+        optimized_targeting: targeting.optimized_targeting,
+        frequency_cap: targeting.frequency_cap.cap ? { cap: targeting.frequency_cap.cap, unit: targeting.frequency_cap.unit } : null,
       } : {}),
     },
     ad_group: { name: adGroup.name || null, ...(nonPmax ? { keywords: adGroup.keywords } : {}) },
@@ -970,8 +1087,8 @@ function payload() {
 }
 function stepForField(f) {
   if (f.startsWith('campaign')) return 'campaign';
-  if (/^targeting\.(ages|genders|parental|incomes|audiences|audience_mode)/.test(f)) return type.value === 'PERFORMANCE_MAX' ? 'targeting' : 'audience';
-  if (/^targeting\.(negative_keywords|placements|excluded_placements|topics|content_labels)/.test(f) || f.startsWith('ad_group')) return type.value === 'PERFORMANCE_MAX' ? 'ad' : 'keywords';
+  if (/^targeting\.(ages|genders|parental|incomes|audiences|audience_mode|audience_exclusions|optimized_targeting|search_themes|audience_signal)/.test(f)) return 'audience';
+  if (/^targeting\.(negative_keywords|placements|excluded_placements|topics|excluded_topics|content_labels|app_categories)/.test(f) || f.startsWith('ad_group')) return type.value === 'PERFORMANCE_MAX' ? 'ad' : 'keywords';
   if (f.startsWith('targeting')) return 'targeting';
   return 'ad';
 }
@@ -1016,7 +1133,7 @@ const draftKey = computed(() => `google-ad-builder:${props.accountId}`);
 function snapshot() {
   return JSON.parse(JSON.stringify({
     step: step.value, maxReached: maxReached.value, goal: goal.value, type: type.value, status: status.value,
-    campaign, targeting, adGroup, ad, placementText: placementText.value, excludedPlacementText: excludedPlacementText.value, key: idempotencyKey.value,
+    campaign, targeting, adGroup, ad, placementText: placementText.value, excludedPlacementText: excludedPlacementText.value, ipText: ipText.value, key: idempotencyKey.value,
   }));
 }
 let saveTimer = null;
@@ -1049,6 +1166,8 @@ function resumeDraft() {
   Object.assign(ad, d.ad || {}, { images: { marketing: [], square: [], logo: [], ...((d.ad || {}).images || {}) } });
   placementText.value = d.placementText || '';
   excludedPlacementText.value = d.excludedPlacementText || '';
+  ipText.value = d.ipText || '';
+  targeting.frequency_cap = { cap: null, unit: 'DAY', ...((d.targeting || {}).frequency_cap || {}) };
   if (type.value) setType(type.value);
   idempotencyKey.value = d.key || newKey();
   step.value = Math.min(d.step || 0, steps.value.length - 1);
@@ -1061,11 +1180,17 @@ function discardDraft() {
 
 // ---------------------------------------------------------------- watchers & boot
 watch(current, (c) => {
-  if (c === 'targeting') ensure('languages', props.urls.languages);
-  if (c === 'audience') { ensure('audiences', props.urls.audiences); ensure('interests', props.urls.interests); }
-  if (c === 'keywords' && type.value === 'DISPLAY') ensure('topics', props.urls.topics);
+  const option = (name) => ensure(name, props.urls.options.replace('TYPE', name));
+  if (c === 'targeting') {
+    ensure('languages', props.urls.languages);
+    if (has('operating_systems')) option('operating_systems');
+    if (has('carriers')) option('carriers');
+  }
+  if (c === 'audience' && type.value === 'PERFORMANCE_MAX') option('pmax_audiences');
+  else if (c === 'audience') { ensure('audiences', props.urls.audiences); ensure('interests', props.urls.interests); }
+  if (c === 'keywords' && type.value === 'DISPLAY') { ensure('topics', props.urls.topics); option('app_categories'); }
 });
-watch([goal, type, status, campaign, targeting, adGroup, ad, placementText, excludedPlacementText], () => {
+watch([goal, type, status, campaign, targeting, adGroup, ad, placementText, excludedPlacementText, ipText], () => {
   if (boot.value && !draftOffer.value && !(result.value && result.value.success)) saveDraft();
   if (result.value && !result.value.success) result.value = null;
 }, { deep: true });
@@ -1108,6 +1233,9 @@ onMounted(async () => {
 .gb-radius { display: grid; grid-template-columns: 1fr 1fr 90px 80px auto; gap: 8px; }
 .gb-quick, .gb-row-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
 .gb-sched-row { display: grid; grid-template-columns: minmax(110px, 1.4fr) 1fr 1fr 110px auto; gap: 8px; align-items: center; margin-top: 8px; }
+.gb-freq { display: grid; grid-template-columns: 140px auto 160px; gap: 8px; align-items: center; max-width: 480px; }
+.gb-freq span { color: var(--muted, #6b7280); font-size: .84rem; white-space: nowrap; }
+.gb-theme-add { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .gb-adj { display: flex; align-items: center; gap: 4px; }
 .gb-adj span { color: var(--muted, #6b7280); font-size: .8rem; }
 .gb-device { display: grid; grid-template-columns: 1fr 120px auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px dashed var(--line); }
@@ -1161,6 +1289,7 @@ onMounted(async () => {
 @media (max-width: 767.98px) {
   .gb-radius { grid-template-columns: 1fr 1fr; }
   .gb-sched-row { grid-template-columns: 1fr 1fr; }
+  .gb-freq { grid-template-columns: 1fr; }
   .gb-device { grid-template-columns: 1fr 100px; }
   .gb-device .fb-chip-btn { grid-column: 1 / -1; justify-self: start; }
   .gb-paths { grid-template-columns: 1fr; }

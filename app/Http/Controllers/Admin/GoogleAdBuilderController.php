@@ -70,6 +70,14 @@ class GoogleAdBuilderController extends Controller
         return $this->respond(fn ($b) => $b->topics());
     }
 
+    /** Operating systems, carriers, app categories, Performance Max audiences. */
+    public function options(string $type): JsonResponse
+    {
+        abort_unless(in_array($type, B::OPTION_TYPES, true), 404);
+
+        return $this->respond(fn ($b) => $b->optionList($type));
+    }
+
     public function keywordIdeas(Request $request): JsonResponse
     {
         $request->validate([

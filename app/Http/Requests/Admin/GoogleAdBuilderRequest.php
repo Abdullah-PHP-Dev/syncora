@@ -83,8 +83,8 @@ class GoogleAdBuilderRequest extends FormRequest
             'targeting.incomes' => ['nullable', 'array'],
             'targeting.incomes.*' => [Rule::in(B::INCOMES)],
             'targeting.audiences' => ['nullable', 'array', 'max:200'],
-            'targeting.audiences.*.id' => ['required', 'string', 'regex:#^customers/\d+/(userLists|userInterests|customAudiences)/\d+$#'],
-            'targeting.audiences.*.kind' => ['required', 'in:user_list,user_interest,custom_audience'],
+            'targeting.audiences.*.id' => ['required', 'string', 'regex:#^customers/\d+/(userLists|userInterests|customAudiences|lifeEvents|detailedDemographics)/\d+$#'],
+            'targeting.audiences.*.kind' => ['required', 'in:user_list,user_interest,custom_audience,life_event,detailed_demographic'],
             'targeting.audiences.*.name' => ['nullable', 'string', 'max:255'],
             'targeting.audience_mode' => ['nullable', 'in:observation,targeting'],
             'targeting.negative_keywords' => ['nullable', 'array', 'max:5000'],
@@ -98,6 +98,29 @@ class GoogleAdBuilderRequest extends FormRequest
             'targeting.topics.*.id' => ['required', 'regex:/^\d+$/'],
             'targeting.content_labels' => ['nullable', 'array'],
             'targeting.content_labels.*' => [Rule::in(B::CONTENT_LABELS)],
+            'targeting.audience_exclusions' => ['nullable', 'array', 'max:200'],
+            'targeting.audience_exclusions.*.id' => ['required', 'string', 'regex:#^customers/\d+/userLists/\d+$#'],
+            'targeting.audience_exclusions.*.name' => ['nullable', 'string', 'max:255'],
+            'targeting.optimized_targeting' => ['nullable', 'boolean'],
+            'targeting.excluded_topics' => ['nullable', 'array', 'max:200'],
+            'targeting.excluded_topics.*.id' => ['required', 'regex:/^\d+$/'],
+            'targeting.app_categories' => ['nullable', 'array', 'max:200'],
+            'targeting.app_categories.*.id' => ['required', 'regex:/^\d+$/'],
+            'targeting.operating_systems' => ['nullable', 'array', 'max:100'],
+            'targeting.operating_systems.*.id' => ['required', 'regex:/^\d+$/'],
+            'targeting.carriers' => ['nullable', 'array', 'max:200'],
+            'targeting.carriers.*.id' => ['required', 'regex:/^\d+$/'],
+            // Single addresses or CIDR ranges; Google allows up to 500 per campaign.
+            'targeting.ip_exclusions' => ['nullable', 'array', 'max:500'],
+            'targeting.ip_exclusions.*' => ['string', 'max:64', 'distinct', 'regex:#^[0-9a-fA-F:.]+(/\d{1,3})?$#'],
+            'targeting.frequency_cap' => ['nullable', 'array'],
+            'targeting.frequency_cap.cap' => ['nullable', 'integer', 'min:1', 'max:1000'],
+            'targeting.frequency_cap.unit' => ['nullable', 'required_with:targeting.frequency_cap.cap', Rule::in(B::FREQUENCY_UNITS)],
+            'targeting.search_themes' => ['nullable', 'array', 'max:' . B::MAX_SEARCH_THEMES],
+            'targeting.search_themes.*' => ['string', 'max:80', 'distinct:ignore_case'],
+            'targeting.audience_signal' => ['nullable', 'array'],
+            'targeting.audience_signal.id' => ['nullable', 'string', 'regex:#^customers/\d+/audiences/\d+$#'],
+            'targeting.audience_signal.name' => ['nullable', 'string', 'max:255'],
 
             'ad_group' => ['nullable', 'array'],
             'ad_group.name' => ['nullable', 'string', 'max:255'],
@@ -145,6 +168,11 @@ class GoogleAdBuilderRequest extends FormRequest
             $end = $this->input('campaign.end_date');
             if ($start && $end && $end < $start) {
                 $v->errors()->add('campaign.end_date', __('google_builder.server.end_before_start'));
+            }
+            foreach ((array) $this->input('targeting.ip_exclusions', []) as $i => $ip) {
+                if (! filter_var(explode('/', (string) $ip)[0], FILTER_VALIDATE_IP)) {
+                    $v->errors()->add("targeting.ip_exclusions.{$i}", __('google_builder.server.ip_invalid', ['ip' => $ip]));
+                }
             }
             if (empty($this->input('targeting.locations')) && empty($this->input('targeting.radius'))) {
                 $v->errors()->add('targeting.locations', __('google_builder.server.locations_required'));

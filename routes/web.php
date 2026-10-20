@@ -477,6 +477,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 						Route::get('audiences', 'audiences')->name('audiences');
 						Route::get('interests', 'interests')->name('interests');
 						Route::get('topics', 'topics')->name('topics');
+						Route::get('options/{type}', 'options')->name('options')->where('type', '[a-z_]+');
 						Route::post('keyword-ideas', 'keywordIdeas')->name('keyword_ideas')->middleware('throttle:20,1');
 						Route::post('submit', 'submit')->name('submit')->middleware('throttle:10,1');
 					});
