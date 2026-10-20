@@ -270,6 +270,7 @@ class AdsDashboardService
             'platform'       => $campaign->platform,
             'status'         => $campaign->status,
             'objective'      => $campaign->objective,
+            'channel_type'   => $campaign->advertising_channel_type,
             'daily_budget'   => $campaign->daily_budget !== null ? (float) $campaign->daily_budget : null,
             'lifetime_budget' => $campaign->budget !== null ? (float) $campaign->budget : null,
             'start_time'     => optional($campaign->start_time)->toIso8601String(),
