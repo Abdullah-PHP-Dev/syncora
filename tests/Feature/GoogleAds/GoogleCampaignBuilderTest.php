@@ -715,4 +715,28 @@ class GoogleCampaignBuilderTest extends TestCase
         $noCpc['campaign']['target_cpc'] = null;
         $this->assertTrue(Validator::make($noCpc, (new GoogleAdBuilderRequest())->merge($noCpc)->rules())->errors()->has('campaign.target_cpc'));
     }
+
+    public function test_youtube_targets_use_standalone_target_cpa_and_roas(): void
+    {
+        // The case that failed live: Maximise conversions + target CPA 10 on Demand Gen.
+        $cpa = $this->youtubeInput();
+        $cpa['campaign'] = array_merge($cpa['campaign'], ['bidding' => 'MAXIMIZE_CONVERSIONS', 'target_cpa' => 10, 'target_cpc' => null]);
+        $this->assertTrue($this->builder()->submit($cpa, 'key-yt-bid-0000001')['success']);
+        $c = $this->ops($this->mutates[0], 'campaignOperation')[0];
+        $this->assertSame(['targetCpaMicros' => 10_000_000], $c['targetCpa']);
+        $this->assertArrayNotHasKey('maximizeConversions', $c);
+
+        $roas = $this->youtubeInput();
+        $roas['campaign'] = array_merge($roas['campaign'], ['bidding' => 'MAXIMIZE_CONVERSION_VALUE', 'target_roas' => 350, 'target_cpc' => null]);
+        $this->assertTrue($this->builder()->submit($roas, 'key-yt-bid-0000002')['success']);
+        $c = $this->ops($this->mutates[1], 'campaignOperation')[0];
+        $this->assertSame(['targetRoas' => 3.5], $c['targetRoas']);
+        $this->assertArrayNotHasKey('maximizeConversionValue', $c);
+
+        // Without a target, plain Maximise conversions (as before).
+        $plain = $this->youtubeInput();
+        $plain['campaign'] = array_merge($plain['campaign'], ['bidding' => 'MAXIMIZE_CONVERSIONS', 'target_cpa' => null, 'target_cpc' => null]);
+        $this->assertTrue($this->builder()->submit($plain, 'key-yt-bid-0000003')['success']);
+        $this->assertArrayHasKey('maximizeConversions', $this->ops($this->mutates[2], 'campaignOperation')[0]);
+    }
 }

@@ -650,7 +650,7 @@ class GoogleCampaignBuilder
                 'cap' => (int) $t['frequency_cap']['cap'],
             ]];
         }
-        $ops[] = ['campaignOperation' => ['create' => $campaignBody + $this->bidding($c)]];
+        $ops[] = ['campaignOperation' => ['create' => $campaignBody + $this->bidding($c, $type)]];
 
         foreach ($this->campaignCriteria($campaign, $type, $c, $t) as $criterion) {
             $ops[] = ['campaignCriterionOperation' => ['create' => $criterion]];
@@ -692,8 +692,19 @@ class GoogleCampaignBuilder
         return $ops;
     }
 
-    private function bidding(array $c): array
+    private function bidding(array $c, string $type = ''): array
     {
+        // Demand Gen rejects a target inside maximizeConversions /
+        // maximizeConversionValue ("operation is not allowed for the given
+        // context" on maximize_conversions.target_cpa_micros, seen live) - it
+        // takes the standalone Target CPA / Target ROAS strategies instead.
+        if ($type === 'DEMAND_GEN' && $c['bidding'] === 'MAXIMIZE_CONVERSIONS' && ! empty($c['target_cpa'])) {
+            return ['targetCpa' => ['targetCpaMicros' => $this->micro($c['target_cpa'])]];
+        }
+        if ($type === 'DEMAND_GEN' && $c['bidding'] === 'MAXIMIZE_CONVERSION_VALUE' && ! empty($c['target_roas'])) {
+            return ['targetRoas' => ['targetRoas' => round($c['target_roas'] / 100, 4)]];
+        }
+
         return match ($c['bidding']) {
             // Target CPA / ROAS are the optional targets of these two strategies.
             'MAXIMIZE_CONVERSIONS' => ['maximizeConversions' => ! empty($c['target_cpa']) ? ['targetCpaMicros' => $this->micro($c['target_cpa'])] : (object) []],
