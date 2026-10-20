@@ -84,9 +84,15 @@
                   <input id="gbName" v-model.trim="campaign.name" class="form-control" maxlength="255" :placeholder="defaultName">
                 </div>
                 <div>
-                  <label class="fb-label" for="gbBudget">{{ t('campaign.budget', { currency }) }}</label>
+                  <div class="fb-seg gb-budget-seg" role="tablist" :aria-label="t('campaign.budget_type')">
+                    <button type="button" role="tab" :aria-selected="campaign.budget_type === 'daily'" :class="{ on: campaign.budget_type === 'daily' }" @click="campaign.budget_type = 'daily'">{{ t('campaign.budget_daily') }}</button>
+                    <button type="button" role="tab" :aria-selected="campaign.budget_type === 'lifetime'" :class="{ on: campaign.budget_type === 'lifetime' }" :disabled="!spec.lifetime_budget" :title="spec.lifetime_budget ? '' : t('campaign.lifetime_unavailable')" @click="campaign.budget_type = 'lifetime'">{{ t('campaign.budget_lifetime') }}</button>
+                  </div>
+                  <label class="fb-label" for="gbBudget">{{ campaign.budget_type === 'lifetime' ? t('campaign.budget_total', { currency }) : t('campaign.budget', { currency }) }}</label>
                   <input id="gbBudget" v-model.number="campaign.budget" type="number" :min="opt.min_daily_budget" step="0.01" class="form-control">
-                  <small class="fb-muted">{{ t('campaign.budget_hint', { month: money((campaign.budget || 0) * 30.4) }) }}</small>
+                  <small v-if="campaign.budget_type === 'lifetime'" class="fb-muted">{{ campaignDays ? t('campaign.lifetime_hint', { days: campaignDays, daily: money((campaign.budget || 0) / campaignDays) }) : t('campaign.lifetime_needs_dates') }}</small>
+                  <small v-else class="fb-muted">{{ t('campaign.budget_hint', { month: money((campaign.budget || 0) * 30.4) }) }}</small>
+                  <small v-if="!spec.lifetime_budget" class="fb-muted d-block">{{ t('campaign.lifetime_unavailable') }}</small>
                 </div>
               </div>
 
@@ -152,7 +158,7 @@
                 <h6><i class="bx bx-calendar"></i> {{ t('campaign.schedule') }}</h6>
                 <div class="fb-grid-2">
                   <div><label class="fb-label" for="gbStart">{{ t('campaign.start_date') }}</label><input id="gbStart" v-model="campaign.start_date" type="date" :min="today" class="form-control"></div>
-                  <div><label class="fb-label" for="gbEnd">{{ t('campaign.end_date') }} <span class="fb-opt">{{ t('common.optional') }}</span></label><input id="gbEnd" v-model="campaign.end_date" type="date" :min="campaign.start_date || today" class="form-control"></div>
+                  <div><label class="fb-label" for="gbEnd">{{ t('campaign.end_date') }} <span v-if="campaign.budget_type !== 'lifetime'" class="fb-opt">{{ t('common.optional') }}</span></label><input id="gbEnd" v-model="campaign.end_date" type="date" :min="campaign.start_date || today" class="form-control"></div>
                 </div>
                 <p class="fb-hint"><i class="bx bx-time"></i> {{ t('campaign.timezone_hint', { tz: boot.account.timezone }) }}</p>
                 <budget-summary :summary="budgetSummary" :money="money" />
@@ -544,7 +550,7 @@ const goal = ref(null);
 const type = ref(null);
 const status = ref('PAUSED');
 const campaign = reactive({
-  name: '', budget: 20, bidding: null, target_cpa: null, target_roas: null, max_cpc: null, cpc_ceiling: null,
+  name: '', budget: 20, budget_type: 'daily', bidding: null, target_cpa: null, target_roas: null, max_cpc: null, cpc_ceiling: null,
   is_location: 'TOP_OF_PAGE', is_fraction: 50, start_date: '', end_date: '', geo_mode: 'PRESENCE_OR_INTEREST',
   search_partners: false, display_expansion: false, goal_mode: 'account', goals: [],
 });
@@ -569,21 +575,26 @@ const limits = computed(() => (opt.value.limits ? opt.value.limits[limitKey.valu
 // Budget + VAT + total, as on the Facebook builder. Google budgets are an
 // average daily amount; with an end date the total covers every day from
 // the start date (or today) to the end date, both inclusive.
+// A lifetime budget is the total itself (Google paces it over the dates).
+const campaignDays = computed(() => {
+  if (!campaign.end_date) return null;
+  const start = new Date((campaign.start_date || today) + 'T00:00:00');
+  const end = new Date(campaign.end_date + 'T00:00:00');
+  return end >= start ? Math.round((end - start) / 86400000) + 1 : null;
+});
 const budgetSummary = computed(() => {
   const amount = Number(campaign.budget);
   if (!boot.value || !(amount > 0)) return null;
   const vatRate = Number(boot.value.vat_rate || 0);
-  let days = null;
-  if (campaign.end_date) {
-    const start = new Date((campaign.start_date || today) + 'T00:00:00');
-    const end = new Date(campaign.end_date + 'T00:00:00');
-    if (end >= start) days = Math.round((end - start) / 86400000) + 1;
-  }
+  const lifetime = campaign.budget_type === 'lifetime';
+  const days = lifetime ? null : campaignDays.value;
   const budget = days ? Math.round(amount * days * 100) / 100 : amount;
   const vat = Math.round(budget * vatRate) / 100;
-  return { type: 'daily', amount, days, budget, vatRate, vat, total: Math.round((budget + vat) * 100) / 100, perDay: !days };
+  return { type: lifetime ? 'lifetime' : 'daily', amount, days, budget, vatRate, vat, total: Math.round((budget + vat) * 100) / 100, perDay: !lifetime && !days };
 });
+function budgetText() { return campaign.budget_type === 'lifetime' ? t('review.budget_lifetime', { amount: money(campaign.budget) }) : money(campaign.budget) + t('steps.per_day'); }
 function totalText(sum) {
+  if (sum.type === 'lifetime') return campaignDays.value ? t('review.lifetime_total', { amount: money(sum.total), days: campaignDays.value }) : money(sum.total);
   return sum.days ? i18n.tc('review.total_for_days', sum.days, { amount: money(sum.total) }) : t('review.total_per_day', { amount: money(sum.total) });
 }
 const defaultName = computed(() => (type.value ? t('types.' + type.value + '.label') + ' - ' + today : ''));
@@ -705,6 +716,7 @@ function setGoal(key) {
 function setType(key) {
   type.value = key;
   if (!spec.value.bidding.includes(campaign.bidding)) campaign.bidding = spec.value.bidding[0];
+  if (!spec.value.lifetime_budget) campaign.budget_type = 'daily';
   Object.keys(targeting.devices).forEach((d) => { if (!spec.value.devices.includes(d)) targeting.devices[d] = null; });
   if (key !== 'SEARCH' && ad.long_headlines.length === 0) ad.long_headlines.push('');
   const l = limits.value;
@@ -806,6 +818,7 @@ function validate() {
   const add = (s, text) => out.push({ step: s, text });
   if (!type.value) { add('campaign', t('errors.type')); return out; }
   if (!(campaign.budget >= opt.value.min_daily_budget)) add('campaign', t('errors.budget', { amount: money(opt.value.min_daily_budget) }));
+  if (campaign.budget_type === 'lifetime' && (!campaign.start_date || !campaign.end_date)) add('campaign', t('errors.lifetime_dates'));
   if (campaign.bidding === 'MANUAL_CPC' && !(campaign.max_cpc > 0)) add('campaign', t('errors.max_cpc'));
   if (campaign.bidding === 'TARGET_IMPRESSION_SHARE' && !(campaign.cpc_ceiling > 0)) add('campaign', t('errors.cpc_ceiling'));
   if (campaign.end_date && campaign.start_date && campaign.end_date < campaign.start_date) add('campaign', t('errors.dates'));
@@ -867,7 +880,7 @@ const reviewRows = computed(() => {
   const rows = [
     { step: stepIndex('campaign'), label: t('review.type'), value: type.value ? t('types.' + type.value + '.label') : '-' },
     { step: stepIndex('campaign'), label: t('review.name'), value: campaign.name || defaultName.value },
-    { step: stepIndex('campaign'), label: t('review.budget'), value: money(campaign.budget) + t('steps.per_day') },
+    { step: stepIndex('campaign'), label: t('review.budget'), value: budgetText() },
     { step: stepIndex('campaign'), label: t('review.bidding'), value: campaign.bidding ? t('bidding.' + campaign.bidding + '.label') : '-' },
     ...(budgetSummary.value ? [{ step: stepIndex('campaign'), label: t('review.total_vat', { rate: budgetSummary.value.vatRate }), value: totalText(budgetSummary.value) }] : []),
     { step: stepIndex('campaign'), label: t('review.dates'), value: (campaign.start_date || t('review.asap')) + ' → ' + (campaign.end_date || t('review.no_end')) },
@@ -884,7 +897,7 @@ const reviewRows = computed(() => {
 const summaryLines = computed(() => {
   const out = [];
   if (type.value) out.push({ icon: spec.value.icon, text: t('types.' + type.value + '.label') });
-  if (campaign.budget) out.push({ icon: 'bx-wallet', text: money(campaign.budget) + t('steps.per_day') + ' · ' + (campaign.bidding ? t('bidding.' + campaign.bidding + '.label') : '') });
+  if (campaign.budget) out.push({ icon: 'bx-wallet', text: budgetText() + ' · ' + (campaign.bidding ? t('bidding.' + campaign.bidding + '.label') : '') });
   if (budgetSummary.value) out.push({ icon: 'bx-receipt', text: t('review.total_vat', { rate: budgetSummary.value.vatRate }) + ': ' + totalText(budgetSummary.value) });
   out.push({ icon: 'bx-map', text: locationText.value });
   if (targeting.excluded_locations.length) out.push({ icon: 'bx-block', text: t('summary.excluded_n', { n: targeting.excluded_locations.length }) });
@@ -913,6 +926,7 @@ function payload() {
     campaign: {
       name: campaign.name || defaultName.value,
       budget: campaign.budget,
+      budget_type: campaign.budget_type,
       bidding: campaign.bidding,
       target_cpa: campaign.bidding === 'MAXIMIZE_CONVERSIONS' ? campaign.target_cpa || null : null,
       target_roas: campaign.bidding === 'MAXIMIZE_CONVERSION_VALUE' ? campaign.target_roas || null : null,
@@ -1083,6 +1097,7 @@ onMounted(async () => {
 .gb-type-link { border-style: dashed; }
 .gb-type-link .bxl-youtube { color: #FF0000 !important; }
 .gb-ext { margin-inline-start: auto; color: var(--muted, #6b7280); }
+.gb-budget-seg { margin-bottom: 8px; }
 .gb-bids { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
 .gb-bid { align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
 .gb-bid.on { border-color: var(--brand-2); background: var(--brand-soft); }

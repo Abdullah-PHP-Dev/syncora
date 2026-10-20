@@ -37,6 +37,7 @@ class GoogleCampaignBuilder
         'SEARCH' => [
             'icon' => 'bx-search-alt',
             'bidding' => ['MAXIMIZE_CONVERSIONS', 'MAXIMIZE_CONVERSION_VALUE', 'MAXIMIZE_CLICKS', 'TARGET_IMPRESSION_SHARE', 'MANUAL_CPC'],
+            'lifetime_budget' => true,
             'devices' => ['DESKTOP', 'MOBILE', 'TABLET'],
             'features' => ['networks', 'keywords', 'negative_keywords', 'audiences', 'demographics', 'devices', 'schedule_bids', 'rsa'],
             'ad_group_type' => 'SEARCH_STANDARD',
@@ -44,6 +45,8 @@ class GoogleCampaignBuilder
         'DISPLAY' => [
             'icon' => 'bx-image-alt',
             'bidding' => ['MAXIMIZE_CONVERSIONS', 'MAXIMIZE_CONVERSION_VALUE', 'MAXIMIZE_CLICKS', 'MANUAL_CPC'],
+            // Campaign total budgets aren't available for Display.
+            'lifetime_budget' => false,
             'devices' => ['DESKTOP', 'MOBILE', 'TABLET', 'CONNECTED_TV'],
             'features' => ['keywords', 'negative_keywords', 'audiences', 'custom_segments', 'demographics', 'devices', 'schedule_bids', 'placements', 'topics', 'content_labels', 'rda'],
             'ad_group_type' => 'DISPLAY_STANDARD',
@@ -51,6 +54,7 @@ class GoogleCampaignBuilder
         'PERFORMANCE_MAX' => [
             'icon' => 'bx-rocket',
             'bidding' => ['MAXIMIZE_CONVERSIONS', 'MAXIMIZE_CONVERSION_VALUE'],
+            'lifetime_budget' => true,
             'devices' => [],
             'features' => ['asset_group'],
             'ad_group_type' => null,
@@ -347,6 +351,14 @@ class GoogleCampaignBuilder
         if (! in_array($c['bidding'], $spec['bidding'], true)) {
             throw new \InvalidArgumentException(__('google_builder.server.bidding_unsupported'));
         }
+        if (($c['budget_type'] ?? 'daily') === 'lifetime') {
+            if (empty($spec['lifetime_budget'])) {
+                throw new \InvalidArgumentException(__('google_builder.server.lifetime_unsupported'));
+            }
+            if (empty($c['start_date']) || empty($c['end_date'])) {
+                throw new \InvalidArgumentException(__('google_builder.server.lifetime_dates'));
+            }
+        }
         if (! empty($c['goals']) && ! in_array($c['bidding'], ['MAXIMIZE_CONVERSIONS', 'MAXIMIZE_CONVERSION_VALUE'], true)) {
             // Goals only steer conversion-based bidding; harmless otherwise but say so instead of silently ignoring.
             throw new \InvalidArgumentException(__('google_builder.server.goals_need_conversion_bidding'));
@@ -487,12 +499,16 @@ class GoogleCampaignBuilder
         $assetGroup = $this->api->resource('assetGroups', -4);
         $ops = [];
 
+        $lifetime = ($c['budget_type'] ?? 'daily') === 'lifetime';
         $ops[] = ['campaignBudgetOperation' => ['create' => [
             'resourceName' => $budget,
             'name' => mb_substr($c['name'], 0, 200) . ' · ' . now()->format('Y-m-d H:i:s'),
-            'amountMicros' => $this->micro($c['budget']),
-            'deliveryMethod' => 'STANDARD',
-            // Performance Max and smart bidding need a campaign-owned budget.
+            // Lifetime = campaign total budget: CUSTOM_PERIOD + totalAmountMicros
+            // (needs the campaign's start and end date); daily = average daily amount.
+            ...($lifetime
+                ? ['period' => 'CUSTOM_PERIOD', 'totalAmountMicros' => $this->micro($c['budget'])]
+                : ['amountMicros' => $this->micro($c['budget']), 'deliveryMethod' => 'STANDARD']),
+            // Performance Max, smart bidding and total budgets need a campaign-owned budget.
             'explicitlyShared' => false,
         ]]];
 
@@ -748,7 +764,7 @@ class GoogleCampaignBuilder
         $local = AdCampaign::updateOrCreate(['ad_campaign_id' => $campaignId, 'platform' => 'google'], [
             'user_id' => $run->user_id, 'social_account_id' => $this->api->account->id, 'name' => $c['name'],
             'objective' => $input['goal'] ?? null, 'advertising_channel_type' => $input['campaign_type'],
-            'budget_mode' => 'daily', 'budget' => $c['budget'], 'daily_budget' => $c['budget'], 'budget_resource_id' => $budget,
+            'budget_mode' => ($c['budget_type'] ?? 'daily') === 'lifetime' ? 'total' : 'daily', 'budget' => $c['budget'], 'daily_budget' => ($c['budget_type'] ?? 'daily') === 'lifetime' ? null : $c['budget'], 'budget_resource_id' => $budget,
             'bidding_strategy' => $c['bidding'], 'bidding_amount' => $c['target_cpa'] ?? $c['target_roas'] ?? $c['max_cpc'] ?? $c['cpc_ceiling'] ?? null,
             'start_time' => $c['start_date'] ?? null, 'end_time' => $c['end_date'] ?? null, 'status' => $status === 'ACTIVE',
         ]);

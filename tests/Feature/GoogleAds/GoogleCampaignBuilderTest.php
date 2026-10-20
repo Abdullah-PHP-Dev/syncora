@@ -432,4 +432,35 @@ class GoogleCampaignBuilderTest extends TestCase
         $noKeywords['ad_group']['keywords'] = [];
         $this->assertTrue($rules($noKeywords)->errors()->has('ad_group.keywords'));
     }
+
+    public function test_lifetime_budget_becomes_a_campaign_total_budget(): void
+    {
+        $end = now()->addDays(10)->toDateString();
+        $input = $this->searchInput(['campaign' => ['budget' => 500, 'budget_type' => 'lifetime', 'end_date' => $end]]);
+
+        $result = $this->builder()->submit($input, 'key-lifetime-00001');
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+
+        $budget = $this->ops($this->mutates[0], 'campaignBudgetOperation')[0];
+        $this->assertSame('CUSTOM_PERIOD', $budget['period']);
+        $this->assertSame(500_000_000, $budget['totalAmountMicros']);
+        $this->assertArrayNotHasKey('amountMicros', $budget);
+        $this->assertFalse($budget['explicitlyShared']);
+        $this->assertSame($end . ' 23:59:59', $this->ops($this->mutates[0], 'campaignOperation')[0]['endDateTime']);
+        $this->assertSame('total', AdCampaign::first()->budget_mode);
+    }
+
+    public function test_lifetime_budget_needs_dates_and_a_supported_type(): void
+    {
+        $noEnd = $this->searchInput(['campaign' => ['budget_type' => 'lifetime']]);
+        $this->assertSame('validation', $this->builder()->submit($noEnd, 'key-lifetime-00002')['step']);
+
+        $display = $this->searchInput(['campaign_type' => 'DISPLAY', 'campaign' => ['budget_type' => 'lifetime', 'bidding' => 'MAXIMIZE_CLICKS', 'end_date' => now()->addDays(5)->toDateString()]]);
+        $this->assertSame(__('google_builder.server.lifetime_unsupported'), $this->builder()->submit($display, 'key-lifetime-00003')['message']);
+        $this->assertCount(0, $this->mutates);
+
+        $rules = fn (array $data) => Validator::make($data, (new GoogleAdBuilderRequest())->merge($data)->rules());
+        $base = $this->searchInput(['campaign' => ['budget_type' => 'lifetime']]) + ['idempotency_key' => 'key-rules-00000002'];
+        $this->assertTrue($rules($base)->errors()->has('campaign.end_date'));
+    }
 }
