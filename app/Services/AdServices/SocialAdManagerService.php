@@ -101,10 +101,21 @@ class SocialAdManagerService
         $platform = $this->resolvePlatform($platform);
         $this->validatePlatform($platform);
 
-        [$state] = $this->setSession($platform);
+        // Keep the state/verifier issued at redirect() (regenerating them here
+        // made them impossible to verify) and check the state the provider
+        // echoes back - a mismatch is a forged or stale callback.
+        $state = Session::get('ad_state');
+        $returned = request()->input('state');
+        if ($returned !== null && $state !== null && ! hash_equals((string) $state, (string) $returned)) {
+            Session::forget(['ad_state', 'ad_codeverifier']);
 
-        return $this->service($platform)
-            ->callback($platform, $state);
+            return redirect()->route('admin.ads.dashboard')->with('error', __('The connection session expired or was started in another tab. Please try connecting again.'));
+        }
+
+        $response = $this->service($platform)->callback($platform, $state);
+        Session::forget(['ad_state', 'ad_codeverifier']);
+
+        return $response;
     }
 
     /**

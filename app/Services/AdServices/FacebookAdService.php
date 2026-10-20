@@ -55,7 +55,16 @@ class FacebookAdService
             'instagram_basic',
         ]);
 
-        return redirect("https://www.facebook.com/v25.0/dialog/oauth?client_id={$clientId}&redirect_uri={$this->getCallbackUrl()}&state={$this->state}&code_verifier={$this->codeVerifier}&scope={$scopes}");
+        // Encoded properly; redirect_uri must match a "Valid OAuth Redirect URI" in the
+        // Meta app exactly (https://<host>/ads/facebook/callback - no locale prefix).
+        // No code_verifier: Facebook's dialog doesn't use PKCE, and it's a session secret.
+        return redirect('https://www.facebook.com/v25.0/dialog/oauth?' . http_build_query([
+            'client_id' => $clientId,
+            'redirect_uri' => $this->getCallbackUrl(),
+            'state' => $this->state,
+            'response_type' => 'code',
+            'scope' => $scopes,
+        ]));
     }
 
     protected function getCallbackUrl()
@@ -67,6 +76,11 @@ class FacebookAdService
     {
         $redirectUri = $this->getCallbackUrl();
         $code = request()->input('code');
+
+        // Cancelled / denied on Facebook: it returns error=... instead of a code.
+        if (request()->filled('error') || ! $code) {
+            return redirect()->route('admin.ads.dashboard')->with('error', request()->input('error_description') ?: request()->input('error_message') ?: 'Facebook did not return an authorization code. Please try connecting again.');
+        }
         $endpoint = adminSetting('ads.facebook.access_token');
 
         $response = $this->apiService->get($endpoint, [], [

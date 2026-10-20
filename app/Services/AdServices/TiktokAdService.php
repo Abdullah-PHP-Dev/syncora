@@ -95,12 +95,8 @@ class TiktokAdService
      * ad_accounts row here, matching how a single Meta/Google OAuth grant
      * fans out into multiple rows elsewhere in this app.
      *
-     * $state isn't validated against session here - SocialAdManagerService
-     * ::callback() (the only caller) regenerates 'ad_state' via
-     * setSession() on every callback before invoking this method, so by
-     * the time this runs the session no longer holds the value that was
-     * actually issued to TikTok during redirect(). Comparing against it
-     * would reject every real callback, not just forged ones.
+     * $state is validated by SocialAdManagerService::callback() (the only
+     * caller) against the value issued at redirect(), before this runs.
      */
     public function callback($platform, $state)
     {
