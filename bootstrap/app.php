@@ -92,7 +92,30 @@ return tap(
             $schedule->command('tiktok:sync-comments')->hourly()->withoutOverlapping();
         })
         ->withExceptions(function (Exceptions $exceptions) {
-            //
+            // OAuth callbacks (…/callback): a plan-limit ValidationException or
+            // a "module not in your plan" 403 thrown while saving the new
+            // accounts must not use Laravel's default redirect()->back() - on a
+            // callback "back" is the Referer, i.e. facebook.com / google.com,
+            // which dumped users on the provider's site. Send them to an app
+            // page with the reason instead.
+            $oauthLanding = function (\Illuminate\Http\Request $request, string $message) {
+                if ($request->expectsJson() || ! str_ends_with((string) $request->route()?->getName(), '.callback')) {
+                    return null;
+                }
+                $name = (string) $request->route()->getName();
+                $target = match (true) {
+                    str_contains($name, '.ads.') => 'admin.ads.dashboard',
+                    str_contains($name, '.messaging.') => 'admin.chats.dashboard',
+                    \Illuminate\Support\Facades\Route::has('admin.connections.index') => 'admin.connections.index',
+                    default => 'admin.posts.create',
+                };
+
+                return redirect()->route($target)->with('error', $message);
+            };
+            $exceptions->render(fn (\Illuminate\Validation\ValidationException $e, \Illuminate\Http\Request $request) => $oauthLanding($request, collect($e->errors())->flatten()->first() ?: $e->getMessage()));
+            $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\HttpException $e, \Illuminate\Http\Request $request) use ($oauthLanding) {
+                return $e->getStatusCode() === 403 ? $oauthLanding($request, $e->getMessage() ?: __('This action is not included in your plan.')) : null;
+            });
         })
         ->create(),
     function ($app) {
