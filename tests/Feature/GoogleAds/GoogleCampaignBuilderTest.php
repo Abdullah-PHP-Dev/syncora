@@ -184,6 +184,7 @@ class GoogleCampaignBuilderTest extends TestCase
 
         $this->assertSame('SAR', $boot['account']['currency']);
         $this->assertSame('Asia/Riyadh', $boot['account']['timezone']);
+        $this->assertSame(15, $boot['vat_rate']);
         $this->assertTrue($boot['account']['active']);
         $this->assertSame([['category' => 'PURCHASE', 'origin' => 'WEBSITE', 'biddable' => true]], $boot['conversion_goals']);
         $this->assertSame(['MAXIMIZE_CONVERSIONS', 'MAXIMIZE_CONVERSION_VALUE'], $boot['types']['PERFORMANCE_MAX']['bidding']);

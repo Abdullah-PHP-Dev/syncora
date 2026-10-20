@@ -228,6 +228,7 @@ return [
         'fix_before' => 'Fix these before creating the campaign:',
         'type' => 'Type', 'name' => 'Name', 'budget' => 'Budget', 'bidding' => 'Bidding', 'dates' => 'Dates', 'asap' => 'As soon as possible', 'no_end' => 'No end date',
         'locations' => 'Locations', 'languages' => 'Languages', 'audiences' => 'Audiences', 'keywords' => 'Keywords', 'final_url' => 'Final URL',
+        'total_vat' => 'Total incl. VAT (:rate%)', 'total_per_day' => ':amount per day', 'total_for_days' => '{1} :amount for :count day|[2,*] :amount for :count days',
     ],
     'result' => [
         'live' => 'The campaign is enabled.',

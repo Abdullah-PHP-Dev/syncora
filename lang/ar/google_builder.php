@@ -228,6 +228,7 @@ return [
         'fix_before' => 'أصلح ما يلي قبل إنشاء الحملة:',
         'type' => 'النوع', 'name' => 'الاسم', 'budget' => 'الميزانية', 'bidding' => 'عروض الأسعار', 'dates' => 'التواريخ', 'asap' => 'في أقرب وقت', 'no_end' => 'بدون تاريخ انتهاء',
         'locations' => 'المواقع', 'languages' => 'اللغات', 'audiences' => 'الجماهير', 'keywords' => 'الكلمات الرئيسية', 'final_url' => 'الرابط النهائي',
+        'total_vat' => 'الإجمالي شامل ضريبة القيمة المضافة (:rate%)', 'total_per_day' => ':amount يومياً', 'total_for_days' => '{1} :amount ليوم واحد|{2} :amount ليومين|[3,10] :amount لمدة :count أيام|[11,*] :amount لمدة :count يوماً',
     ],
     'result' => [
         'live' => 'الحملة مفعّلة.',

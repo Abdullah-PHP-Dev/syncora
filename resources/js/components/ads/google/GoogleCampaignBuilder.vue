@@ -155,6 +155,7 @@
                   <div><label class="fb-label" for="gbEnd">{{ t('campaign.end_date') }} <span class="fb-opt">{{ t('common.optional') }}</span></label><input id="gbEnd" v-model="campaign.end_date" type="date" :min="campaign.start_date || today" class="form-control"></div>
                 </div>
                 <p class="fb-hint"><i class="bx bx-time"></i> {{ t('campaign.timezone_hint', { tz: boot.account.timezone }) }}</p>
+                <budget-summary :summary="budgetSummary" :money="money" />
               </div>
 
               <div v-if="has('networks')" class="fb-group">
@@ -497,6 +498,7 @@
 // a campaign type supports (boot.types[type].features) is shown.
 import { ref, reactive, computed, watch, onMounted, nextTick, provide } from 'vue';
 import SearchPicker from '../facebook/SearchPicker.vue';
+import BudgetSummary from '../facebook/BudgetSummary.vue';
 import MediaPicker from '../../media/MediaPicker.vue';
 import { createTranslator } from '../facebook/i18n';
 import { setMediaTranslator } from '../../media/mediaShared';
@@ -564,6 +566,26 @@ const has = (f) => !!(spec.value && spec.value.features.includes(f));
 const conversionBidding = computed(() => ['MAXIMIZE_CONVERSIONS', 'MAXIMIZE_CONVERSION_VALUE'].includes(campaign.bidding));
 const limitKey = computed(() => ({ DISPLAY: 'rda', PERFORMANCE_MAX: 'pmax' })[type.value] || 'rsa');
 const limits = computed(() => (opt.value.limits ? opt.value.limits[limitKey.value] : { headlines: [3, 15, 30], descriptions: [2, 4, 90], path: 15 }));
+// Budget + VAT + total, as on the Facebook builder. Google budgets are an
+// average daily amount; with an end date the total covers every day from
+// the start date (or today) to the end date, both inclusive.
+const budgetSummary = computed(() => {
+  const amount = Number(campaign.budget);
+  if (!boot.value || !(amount > 0)) return null;
+  const vatRate = Number(boot.value.vat_rate || 0);
+  let days = null;
+  if (campaign.end_date) {
+    const start = new Date((campaign.start_date || today) + 'T00:00:00');
+    const end = new Date(campaign.end_date + 'T00:00:00');
+    if (end >= start) days = Math.round((end - start) / 86400000) + 1;
+  }
+  const budget = days ? Math.round(amount * days * 100) / 100 : amount;
+  const vat = Math.round(budget * vatRate) / 100;
+  return { type: 'daily', amount, days, budget, vatRate, vat, total: Math.round((budget + vat) * 100) / 100, perDay: !days };
+});
+function totalText(sum) {
+  return sum.days ? i18n.tc('review.total_for_days', sum.days, { amount: money(sum.total) }) : t('review.total_per_day', { amount: money(sum.total) });
+}
 const defaultName = computed(() => (type.value ? t('types.' + type.value + '.label') + ' - ' + today : ''));
 
 const steps = computed(() => {
@@ -847,6 +869,7 @@ const reviewRows = computed(() => {
     { step: stepIndex('campaign'), label: t('review.name'), value: campaign.name || defaultName.value },
     { step: stepIndex('campaign'), label: t('review.budget'), value: money(campaign.budget) + t('steps.per_day') },
     { step: stepIndex('campaign'), label: t('review.bidding'), value: campaign.bidding ? t('bidding.' + campaign.bidding + '.label') : '-' },
+    ...(budgetSummary.value ? [{ step: stepIndex('campaign'), label: t('review.total_vat', { rate: budgetSummary.value.vatRate }), value: totalText(budgetSummary.value) }] : []),
     { step: stepIndex('campaign'), label: t('review.dates'), value: (campaign.start_date || t('review.asap')) + ' → ' + (campaign.end_date || t('review.no_end')) },
     { step: stepIndex('targeting'), label: t('review.locations'), value: locationText.value },
     { step: stepIndex('targeting'), label: t('review.languages'), value: targeting.languages.map((l) => l.name).join(', ') || t('summary.all_languages') },
@@ -862,6 +885,7 @@ const summaryLines = computed(() => {
   const out = [];
   if (type.value) out.push({ icon: spec.value.icon, text: t('types.' + type.value + '.label') });
   if (campaign.budget) out.push({ icon: 'bx-wallet', text: money(campaign.budget) + t('steps.per_day') + ' · ' + (campaign.bidding ? t('bidding.' + campaign.bidding + '.label') : '') });
+  if (budgetSummary.value) out.push({ icon: 'bx-receipt', text: t('review.total_vat', { rate: budgetSummary.value.vatRate }) + ': ' + totalText(budgetSummary.value) });
   out.push({ icon: 'bx-map', text: locationText.value });
   if (targeting.excluded_locations.length) out.push({ icon: 'bx-block', text: t('summary.excluded_n', { n: targeting.excluded_locations.length }) });
   out.push({ icon: 'bx-globe', text: targeting.languages.map((l) => l.name).join(', ') || t('summary.all_languages') });

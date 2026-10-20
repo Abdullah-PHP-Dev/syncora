@@ -25,8 +25,8 @@
                 'connections' => \App\Support\Connections\HubLink::for('google') ?? route('admin.connections.index'),
             ];
             $galleryUrls = ['index' => route('admin.media-gallery.index'), 'store' => route('admin.media-gallery.store'), 'file' => route('admin.media-gallery.file', ['mediaAsset' => 'MEDIA_ID'])];
-            // The shared pickers (SearchPicker, MediaPicker) read their strings from ads_builder.picker.
-            $messages = array_merge(__('google_builder'), ['picker' => __('ads_builder.picker')]);
+            // The shared pickers (SearchPicker, MediaPicker) read their strings from ads_builder.picker, BudgetSummary from ads_builder.budget_summary.
+            $messages = array_merge(__('google_builder'), ['picker' => __('ads_builder.picker'), 'budget_summary' => __('ads_builder.budget_summary')]);
         @endphp
         <google-campaign-builder
             :urls='@json($builderUrls)'

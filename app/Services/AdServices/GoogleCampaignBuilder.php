@@ -124,6 +124,8 @@ class GoogleCampaignBuilder
                 'manager' => (bool) ($c['manager'] ?? false),
                 'test' => (bool) ($c['testAccount'] ?? false),
             ],
+            // Same VAT the Facebook builder shows in its budget summary.
+            'vat_rate' => FacebookCampaignBuilder::VAT_RATE,
             'conversion_goals' => $this->conversionGoals(),
             'types' => self::TYPES,
             'goals' => self::GOALS,
