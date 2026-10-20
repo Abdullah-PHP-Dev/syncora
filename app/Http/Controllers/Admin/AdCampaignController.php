@@ -292,6 +292,16 @@ class AdCampaignController extends Controller
         $account = $this->adAccountModel->where('user_id', Auth::id())->usableFor('ads')->where('platform', $platform === 'youtube' ? 'google' : $platform)->with('adDetails')->first();
         $countries = $this->countryModel->all();
         $campaign = $this->adCampaignModel->with(['socialAccount', 'adGroups', 'adGroups.creatives', 'adGroups.creatives.media', 'ads'])->findOrFail($id);
+        // Facebook / Instagram: the campaign builder in edit mode (same design
+        // as the create page); the previous edit form stays at ?legacy=1.
+        if (in_array($platform, ['facebook', 'instagram'], true) && ! request()->boolean('legacy')) {
+            [$account, $adAccounts] = $this->selectedAdAccount('facebook');
+            $edit = \App\Services\AdServices\FacebookCampaignBuilder::editData($campaign);
+            $promotePost = null;
+
+            return view('admin.ads.facebook.campaigns.builder', compact('platform', 'account', 'adAccounts', 'promotePost', 'edit'));
+        }
+
         if (in_array($platform, ['google', 'youtube'], true)) {
             $this->restoreGoogleCreative($campaign);
 

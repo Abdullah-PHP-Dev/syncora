@@ -404,6 +404,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 						Route::get('locales', 'locales')->name('locales');
 						Route::post('estimate', 'estimate')->name('estimate')->middleware('throttle:30,1');
 						Route::post('submit', 'submit')->name('submit')->middleware('throttle:10,1');
+						Route::put('campaigns/{campaign}', 'update')->name('update')->whereNumber('campaign')->middleware('throttle:20,1');
 					});
 
 				// TikTok campaign builder (TiktokCampaignBuilder): same pattern

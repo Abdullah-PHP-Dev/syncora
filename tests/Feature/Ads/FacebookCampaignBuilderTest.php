@@ -942,4 +942,89 @@ class FacebookCampaignBuilderTest extends TestCase
         $service = app(\App\Services\AdServices\FacebookAdService::class);
         $this->assertSame(5000, (new \ReflectionMethod($service, 'toMinorUnits'))->invoke($service, 5000));
     }
+
+    // ---- edit mode -------------------------------------------------------
+
+    private function createdCampaign(): AdCampaign
+    {
+        $this->assertTrue($this->builder()->submit($this->input(), 'key-edit-00000001')['success']);
+
+        return AdCampaign::with(['adGroups.creatives', 'ads'])->sole();
+    }
+
+    public function test_edit_data_reopens_the_wizard_as_created(): void
+    {
+        $data = FacebookCampaignBuilder::editData($this->createdCampaign());
+
+        $this->assertSame(['traffic', 'WEBSITE', 'PAUSED'], [$data['goal'], $data['destination'], $data['status']]);
+        $this->assertSame('Spring sale', $data['campaign']['name']);
+        $this->assertFalse($data['campaign']['campaign_budget']);
+        $this->assertSame(['daily', 50.0], [$data['adset']['budget_type'], $data['adset']['budget']]);
+        $this->assertSame([25, 45], [$data['targeting']['age_min'], $data['targeting']['age_max']]);
+        $this->assertSame('advantage', $data['placements']['mode']);
+        $this->assertSame(['Up to 30% off this week.', 'Spring sale', 'https://socialeaz.com/sale', 'SHOP_NOW'], [$data['creative']['primary_text'], $data['creative']['headline'], $data['creative']['link'], $data['creative']['cta']]);
+    }
+
+    public function test_edit_updates_campaign_ad_set_audience_and_swaps_in_a_new_creative(): void
+    {
+        $campaign = $this->createdCampaign();
+        $this->route('POST 9001', ['success' => true]);
+        $this->route('POST 9002', ['success' => true]);
+        $this->route('POST 9004', ['success' => true]);
+        $this->route('GET 9003', ['id' => '9003', 'object_story_spec' => ['page_id' => '500', 'link_data' => ['link' => 'https://socialeaz.com/sale', 'image_hash' => 'HASH1', 'name' => 'Spring sale', 'message' => 'Up to 30% off this week.']]]);
+        $this->route('POST act_111/adcreatives', ['id' => '9005']);
+        $before = count($this->posts('act_111/adcreatives'));
+
+        $data = FacebookCampaignBuilder::editData($campaign);
+        $targeting = array_merge($data['targeting'], ['age_min' => 30, 'age_max' => 50]);
+        $end = now()->addDays(10)->format('Y-m-d\TH:i');
+        $result = $this->builder()->updateCampaign($campaign, [
+            'status' => 'ACTIVE',
+            'campaign' => ['name' => 'Spring sale v2', 'budget' => null],
+            'adset' => ['name' => 'KSA 30-50', 'budget' => 80, 'start_time' => null, 'end_time' => $end],
+            'targeting' => $targeting,
+            'placements' => $data['placements'],
+            'creative' => ['primary_text' => 'Now 40% off!', 'headline' => 'Bigger sale', 'link' => 'https://socialeaz.com/sale', 'cta' => 'SHOP_NOW'],
+            'ad' => ['name' => 'Spring sale - Ad 1'],
+        ]);
+        $this->assertTrue($result['success']);
+
+        [, , $c] = $this->posts('9001')[0];
+        $this->assertSame(['Spring sale v2', 'ACTIVE'], [$c['name'], $c['status']]);
+        $this->assertArrayNotHasKey('daily_budget', $c); // budget lives on the ad set
+
+        [, , $s] = $this->posts('9002')[0];
+        $this->assertSame(['KSA 30-50', '8000', 'ACTIVE'], [$s['name'], $s['daily_budget'], $s['status']]);
+        $this->assertSame([30, 50], [$s['targeting']['age_min'], $s['targeting']['age_max']]);
+        $this->assertSame(['countries' => ['SA'], 'cities' => [['key' => '2420605', 'radius' => 25, 'distance_unit' => 'kilometer']]], $s['targeting']['geo_locations']);
+        $this->assertNotEmpty($s['end_time']);
+
+        $creatives = $this->posts('act_111/adcreatives');
+        $this->assertCount($before + 1, $creatives);
+        $story = end($creatives)[2]['object_story_spec'];
+        $this->assertSame(['Now 40% off!', 'Bigger sale', 'HASH1'], [$story['link_data']['message'], $story['link_data']['name'], $story['link_data']['image_hash']]);
+
+        $adPosts = $this->posts('9004');
+        $this->assertSame(['creative_id' => '9005'], $adPosts[0][2]['creative']);
+        $this->assertSame('ACTIVE', end($adPosts)[2]['status']);
+
+        $this->assertSame('9005', AdCreative::sole()->ad_creative_id);
+        $this->assertSame('Spring sale v2', $campaign->fresh()->name);
+        $this->assertSame(80.0, (float) AdAdGroup::sole()->budget);
+    }
+
+    public function test_edit_without_text_changes_keeps_the_creative(): void
+    {
+        $campaign = $this->createdCampaign();
+        $this->route('POST 9001', ['success' => true]);
+        $this->route('POST 9002', ['success' => true]);
+        $this->route('POST 9004', ['success' => true]);
+        $before = count($this->posts('act_111/adcreatives'));
+        $data = FacebookCampaignBuilder::editData($campaign);
+
+        $this->builder()->updateCampaign($campaign, ['status' => 'PAUSED', 'campaign' => ['name' => 'Renamed'], 'adset' => ['name' => 'KSA', 'budget' => 50], 'creative' => $data['creative'], 'ad' => ['name' => 'Ad']]);
+
+        $this->assertCount($before, $this->posts('act_111/adcreatives'));
+        $this->assertSame('9003', AdCreative::sole()->ad_creative_id);
+    }
 }

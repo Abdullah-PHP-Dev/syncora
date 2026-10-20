@@ -123,6 +123,56 @@ class FacebookAdBuilderController extends Controller
         return $this->respond(fn ($b) => $b->estimate($request->all()));
     }
 
+    /** Edit mode: campaign, ad set (budget, schedule, audience, placements) and ad copy. */
+    public function update(Request $request, \App\Models\Admin\AdCampaign $campaign): JsonResponse
+    {
+        $builder = $this->builder();
+        abort_unless(in_array($campaign->platform, ['facebook', 'instagram'], true), 404);
+        if ((int) $campaign->social_account_id !== (int) $builder->graph()->account->id) {
+            return response()->json(['success' => false, 'message' => __('ads_builder.server.other_account')], 409);
+        }
+        $campaign->load(['adGroups.creatives', 'ads']);
+
+        $data = $request->validate([
+            'status' => ['required', 'in:PAUSED,ACTIVE'],
+            'campaign.name' => ['required', 'string', 'max:400'],
+            'campaign.budget' => ['nullable', 'numeric', 'min:1'],
+            'adset' => ['nullable', 'array'],
+            'adset.name' => ['nullable', 'string', 'max:400'],
+            'adset.budget' => ['nullable', 'numeric', 'min:1'],
+            'adset.start_time' => ['nullable', 'date'],
+            'adset.end_time' => ['nullable', 'date', 'after:now'],
+            'targeting' => ['nullable', 'array'],
+            'targeting.locations' => ['nullable', 'array', 'max:1000'],
+            'targeting.age_min' => ['nullable', 'integer', 'between:13,65'],
+            'targeting.age_max' => ['nullable', 'integer', 'between:13,65', 'gte:targeting.age_min'],
+            'placements' => ['nullable', 'array'],
+            'placements.mode' => ['nullable', 'in:advantage,manual'],
+            'creative' => ['nullable', 'array'],
+            'creative.primary_text' => ['nullable', 'string', 'max:2200'],
+            'creative.headline' => ['nullable', 'string', 'max:255'],
+            'creative.link' => ['nullable', 'url', 'max:2048'],
+            'creative.cta' => ['nullable', 'string', 'max:40'],
+            'ad' => ['nullable', 'array'],
+            'ad.name' => ['nullable', 'string', 'max:400'],
+        ]);
+        // Targeting keeps every builder key (interests, narrow, audiences...), not only the validated ones.
+        $data['targeting'] = $request->input('targeting');
+        $data['placements'] = $request->input('placements');
+        $group = $campaign->adGroups->first();
+        if ($group?->budget_mode === 'lifetime_budget' && empty($data['adset']['end_time'])) {
+            return response()->json(['success' => false, 'message' => __('ads_builder.server.lifetime_end')], 422);
+        }
+
+        try {
+            $result = $builder->updateCampaign($campaign, $data);
+        } catch (MetaApiException|\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+        $result['redirect_url'] = route('admin.ads.campaigns.index', ['platform' => $campaign->platform]);
+
+        return response()->json($result);
+    }
     public function submit(FacebookAdBuilderRequest $request): JsonResponse
     {
         $result = $this->builder()->submit($request->builderInput(), $request->string('idempotency_key')->value());

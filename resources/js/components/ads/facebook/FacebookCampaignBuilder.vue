@@ -6,8 +6,8 @@
       <div class="fb-head-main">
         <span class="fb-head-icon"><i class="bx bxl-meta"></i></span>
         <div>
-          <h4>{{ isInstagram ? t('header.title_instagram') : t('header.title') }}</h4>
-          <p>{{ isInstagram ? t('header.subtitle_instagram') : t('header.subtitle') }}</p>
+          <h4>{{ isEdit ? t('edit.title', { name: edit.campaign.name }) : (isInstagram ? t('header.title_instagram') : t('header.title')) }}</h4>
+          <p>{{ isEdit ? t('edit.subtitle') : (isInstagram ? t('header.subtitle_instagram') : t('header.subtitle')) }}</p>
         </div>
       </div>
       <div class="fb-head-actions">
@@ -17,7 +17,7 @@
     </header>
 
     <!-- ===== Draft banner ===== -->
-    <div v-if="draftOffer" class="fb-banner">
+    <div v-if="draftOffer && !isEdit" class="fb-banner">
       <i class="bx bx-history"></i>
       <span>{{ t('draft.unfinished', { date: draftOffer.savedAt }) }}</span>
       <button type="button" class="btn btn-primary btn-sm" @click="resumeDraft">{{ t('draft.continue') }}</button>
@@ -53,7 +53,7 @@
           <div v-show="current === 'campaign'" class="fb-card">
             <div class="fb-card-h">
               <h5>{{ t('campaign.title') }}</h5>
-              <div class="fb-seg" role="tablist">
+              <div v-if="!isEdit" class="fb-seg" role="tablist">
                 <button type="button" role="tab" :class="{ on: campaign.mode === 'new' }" @click="setMode('campaign', 'new')"><i class="bx bx-plus"></i> {{ t('common.create_new') }}</button>
                 <button type="button" role="tab" :class="{ on: campaign.mode === 'existing' }" @click="setMode('campaign', 'existing')"><i class="bx bx-folder-open"></i> {{ t('common.use_existing') }}</button>
               </div>
@@ -87,15 +87,16 @@
             </template>
 
             <template v-else>
-              <label class="fb-label">{{ t('campaign.achieve') }}</label>
-              <div class="fb-goals">
+              <div v-if="isEdit" class="fb-guide"><i class="bx bx-lock-alt"></i><span><strong>{{ goal ? goals[goal].label : t('edit.goal') }}<template v-if="destRules"> · {{ destRules.label }}</template></strong> · {{ t('edit.locked_note') }}</span></div>
+              <label v-if="!isEdit" class="fb-label">{{ t('campaign.achieve') }}</label>
+              <div v-if="!isEdit" class="fb-goals">
                 <button v-for="(g, key) in goals" :key="key" type="button" class="fb-goal" :class="{ on: goal === key }" @click="setGoal(key)">
                   <span class="fb-goal-ic"><i class="bx" :class="g.icon"></i></span>
                   <strong>{{ g.label }}</strong>
                   <small>{{ g.summary }}</small>
                 </button>
               </div>
-              <div v-if="goal" class="fb-guide"><i class="bx bx-bulb"></i><span><strong>{{ goals[goal].label }}:</strong> {{ goals[goal].guidance }}</span></div>
+              <div v-if="goal && !isEdit" class="fb-guide"><i class="bx bx-bulb"></i><span><strong>{{ goals[goal].label }}:</strong> {{ goals[goal].guidance }}</span></div>
 
               <div class="fb-grid-2">
                 <div>
@@ -104,7 +105,7 @@
                 </div>
                 <div>
                   <label class="fb-label" for="fbSpecial">{{ t('campaign.special_label') }} <span class="fb-opt">{{ t('campaign.if_applies') }}</span></label>
-                  <select id="fbSpecial" v-model="campaign.special_ad_category" class="form-control">
+                  <select id="fbSpecial" v-model="campaign.special_ad_category" class="form-control" :disabled="isEdit">
                     <option :value="null">{{ t('campaign.special_none') }}</option>
                     <option v-for="code in specialCategories" :key="code" :value="code">{{ t('campaign.special_options.' + code) }}</option>
                   </select>
@@ -113,15 +114,15 @@
               <p v-if="campaign.special_ad_category" class="fb-hint is-warn"><i class="bx bx-shield-quarter"></i> {{ t('campaign.special_warn') }}</p>
 
               <label class="fb-toggle">
-                <input v-model="campaign.campaign_budget" type="checkbox">
+                <input v-model="campaign.campaign_budget" type="checkbox" :disabled="isEdit">
                 <span><strong>{{ t('campaign.cbo_title') }}</strong><small>{{ t('campaign.cbo_desc') }}</small></span>
               </label>
               <div v-if="campaign.campaign_budget" class="fb-grid-3">
                 <div>
                   <label class="fb-label">{{ t('common.budget_type') }}</label>
                   <div class="fb-seg fb-seg-full">
-                    <button type="button" :class="{ on: campaign.budget_type === 'daily' }" @click="campaign.budget_type = 'daily'">{{ t('common.daily') }}</button>
-                    <button type="button" :class="{ on: campaign.budget_type === 'lifetime' }" @click="campaign.budget_type = 'lifetime'">{{ t('common.lifetime') }}</button>
+                    <button type="button" :class="{ on: campaign.budget_type === 'daily' }" :disabled="isEdit" @click="campaign.budget_type = 'daily'">{{ t('common.daily') }}</button>
+                    <button type="button" :class="{ on: campaign.budget_type === 'lifetime' }" :disabled="isEdit" @click="campaign.budget_type = 'lifetime'">{{ t('common.lifetime') }}</button>
                   </div>
                 </div>
                 <div>
@@ -130,7 +131,7 @@
                 </div>
                 <div>
                   <label class="fb-label" for="fbCampBid">{{ t('common.bid_strategy') }}</label>
-                  <select id="fbCampBid" v-model="campaign.bid_strategy" class="form-control">
+                  <select id="fbCampBid" v-model="campaign.bid_strategy" class="form-control" :disabled="isEdit">
                     <option value="LOWEST_COST_WITHOUT_CAP">{{ t('common.highest_volume') }}</option>
                     <option value="COST_CAP">{{ t('common.cost_cap') }}</option>
                     <option value="LOWEST_COST_WITH_BID_CAP">{{ t('common.bid_cap') }}</option>
@@ -140,7 +141,7 @@
               <budget-summary v-if="campaign.campaign_budget" :summary="budgetSummary" :money="money" />
             </template>
 
-            <template v-if="goal">
+            <template v-if="goal && !isEdit">
               <label class="fb-label mt-3">{{ t('campaign.where_go') }} <span class="fb-opt">{{ t('campaign.conversion_location') }}</span></label>
               <div class="fb-dests">
                 <button v-for="(d, key) in goals[goal].destinations" :key="key" type="button" class="fb-dest" :class="{ on: destination === key }" @click="setDestination(key)">
@@ -156,7 +157,7 @@
           <div v-show="current === 'adset'" class="fb-card">
             <div class="fb-card-h">
               <h5>{{ t('adset.title') }}</h5>
-              <div class="fb-seg">
+              <div v-if="!isEdit" class="fb-seg">
                 <button type="button" :class="{ on: adset.mode === 'new' }" @click="setMode('adset', 'new')"><i class="bx bx-plus"></i> {{ t('common.create_new') }}</button>
                 <button type="button" :class="{ on: adset.mode === 'existing' }" :disabled="campaign.mode !== 'existing'" :title="campaign.mode !== 'existing' ? t('adset.no_sets_new_campaign') : ''" @click="setMode('adset', 'existing')"><i class="bx bx-folder-open"></i> {{ t('common.use_existing') }}</button>
               </div>
@@ -189,14 +190,14 @@
                 </div>
                 <div v-if="destRules">
                   <label class="fb-label" for="fbOptGoal">{{ t('adset.optimize_for') }} <i class="bx bx-help-circle fb-tip" :title="t('adset.optimize_tip')"></i></label>
-                  <select id="fbOptGoal" v-model="adset.optimization_goal" class="form-control">
+                  <select id="fbOptGoal" v-model="adset.optimization_goal" class="form-control" :disabled="isEdit">
                     <option v-for="(label, key) in destRules.optimization_goals" :key="key" :value="key">{{ label }}</option>
                   </select>
                 </div>
               </div>
 
               <!-- Tracking / promoted object -->
-              <div v-if="destRules && (destRules.needs_pixel || destRules.needs_app || needsPage)" class="fb-group">
+              <div v-if="!isEdit && destRules && (destRules.needs_pixel || destRules.needs_app || needsPage)" class="fb-group">
                 <h6><i class="bx bx-target-lock"></i> {{ t('adset.tracking') }}</h6>
                 <div v-if="needsPage" class="fb-ident">
                   <label class="fb-label">{{ t('common.facebook_page') }}</label>
@@ -246,8 +247,8 @@
                   <div>
                     <label class="fb-label">{{ t('common.budget_type') }}</label>
                     <div class="fb-seg fb-seg-full">
-                      <button type="button" :class="{ on: adset.budget_type === 'daily' }" @click="adset.budget_type = 'daily'">{{ t('common.daily') }}</button>
-                      <button type="button" :class="{ on: adset.budget_type === 'lifetime' }" @click="adset.budget_type = 'lifetime'">{{ t('common.lifetime') }}</button>
+                      <button type="button" :class="{ on: adset.budget_type === 'daily' }" :disabled="isEdit" @click="adset.budget_type = 'daily'">{{ t('common.daily') }}</button>
+                      <button type="button" :class="{ on: adset.budget_type === 'lifetime' }" :disabled="isEdit" @click="adset.budget_type = 'lifetime'">{{ t('common.lifetime') }}</button>
                     </div>
                   </div>
                   <div>
@@ -257,7 +258,7 @@
                   </div>
                   <div>
                     <label class="fb-label" for="fbBid">{{ t('common.bid_strategy') }}</label>
-                    <select id="fbBid" v-model="adset.bid_strategy" class="form-control">
+                    <select id="fbBid" v-model="adset.bid_strategy" class="form-control" :disabled="isEdit">
                       <option value="LOWEST_COST_WITHOUT_CAP">{{ t('common.highest_volume') }}</option>
                       <option value="COST_CAP">{{ t('common.cost_cap') }}</option>
                       <option value="LOWEST_COST_WITH_BID_CAP">{{ t('common.bid_cap') }}</option>
@@ -268,14 +269,14 @@
                 <div v-if="!campaignHasBudget && adset.bid_strategy !== 'LOWEST_COST_WITHOUT_CAP'" class="fb-grid-3">
                   <div>
                     <label class="fb-label" for="fbBidAmount">{{ t(adset.bid_strategy === 'COST_CAP' ? 'adset.cost_goal_amount' : 'adset.bid_cap_amount', { currency: boot.account.currency }) }}</label>
-                    <input id="fbBidAmount" v-model.number="adset.bid_amount" type="number" min="0.01" step="0.01" class="form-control">
+                    <input id="fbBidAmount" v-model.number="adset.bid_amount" type="number" min="0.01" step="0.01" class="form-control" :disabled="isEdit">
                   </div>
                   <p class="fb-hint fb-span-2"><i class="bx bx-info-circle"></i> {{ t('adset.cap_hint') }}</p>
                 </div>
                 <div class="fb-grid-2">
                   <div>
                     <label class="fb-label" for="fbStart">{{ t('adset.start') }}</label>
-                    <input id="fbStart" v-model="adset.start_time" type="datetime-local" class="form-control" :min="nowLocal">
+                    <input id="fbStart" v-model="adset.start_time" type="datetime-local" class="form-control" :min="nowLocal" :disabled="startLocked">
                   </div>
                   <div>
                     <label class="fb-label" for="fbEnd">{{ t('adset.end') }} <span class="fb-opt">{{ adset.budget_type === 'lifetime' && !campaignHasBudget ? t('adset.end_required') : t('adset.end_optional') }}</span></label>
@@ -296,8 +297,8 @@
               <label class="fb-switch"><input v-model="ui.advanced" type="checkbox"><span>{{ t('audience.advanced') }}</span></label>
             </div>
 
-            <template v-if="adset.mode === 'existing'">
-              <div class="fb-mini-empty is-info"><i class="bx bx-group"></i><span>{{ t('audience.existing_info') }}</span></div>
+            <template v-if="adset.mode === 'existing' || (isEdit && !audienceEditable)">
+              <div class="fb-mini-empty is-info"><i class="bx bx-group"></i><span>{{ isEdit ? t('edit.audience_locked') : t('audience.existing_info') }}</span></div>
             </template>
 
             <template v-else>
@@ -479,7 +480,7 @@
           <div v-show="current === 'creative'" class="fb-card">
             <div class="fb-card-h">
               <h5>{{ t('creative.title') }}</h5>
-              <div class="fb-seg">
+              <div v-if="!isEdit" class="fb-seg">
                 <button type="button" :class="{ on: creative.mode === 'new' }" @click="setMode('creative', 'new')"><i class="bx bx-plus"></i> {{ t('common.create_new') }}</button>
                 <button type="button" :class="{ on: creative.mode === 'existing' }" @click="setMode('creative', 'existing')"><i class="bx bx-folder-open"></i> {{ t('common.use_existing') }}</button>
               </div>
@@ -501,12 +502,13 @@
             </template>
 
             <template v-else>
-              <div class="fb-ident">
+              <div v-if="isEdit" class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('edit.creative_note') }}</div>
+              <div v-if="!isEdit" class="fb-ident">
                 <label class="fb-label">{{ t('creative.page') }} <span class="fb-opt">{{ t('creative.page_sub') }}</span></label>
                 <identity-cards v-model="creative.page_id" :items="pageCards" :label="t('creative.page')" />
                 <p v-if="!boot.pages.length" class="fb-field-err">{{ t('common.no_pages') }}</p>
               </div>
-              <div class="fb-ident">
+              <div v-if="!isEdit" class="fb-ident">
                 <label class="fb-label">{{ t('creative.instagram') }} <span class="fb-opt">{{ isInstagram ? t('creative.instagram_required') : t('creative.instagram_sub') }}</span></label>
                 <div v-if="lists.loading.instagram" class="fb-inline-load"><span class="spinner-border spinner-border-sm"></span> {{ t('creative.loading_instagram') }}</div>
                 <identity-cards v-else-if="isInstagram" v-model="creative.instagram_user_id" :items="instagramCards" platform="instagram" :label="t('creative.instagram')" />
@@ -515,7 +517,7 @@
                 <p v-if="isInstagram && !lists.loading.instagram && !lists.instagram.length" class="fb-field-err">{{ lists.errors.instagram || t('creative.no_instagram') }}</p>
               </div>
 
-              <div v-if="destRules && destRules.needs_lead_form" class="fb-group">
+              <div v-if="!isEdit && destRules && destRules.needs_lead_form" class="fb-group">
                 <h6><i class="bx bx-id-card"></i> {{ t('creative.instant_form') }}</h6>
                 <select v-model="creative.lead_form_id" class="form-control" :disabled="lists.loading.leadForms || !creative.page_id">
                   <option :value="null" disabled>{{ !creative.page_id ? t('creative.choose_page_first') : (lists.loading.leadForms ? t('creative.loading_forms') : t('creative.choose_form')) }}</option>
@@ -525,15 +527,15 @@
                 <p v-else-if="creative.page_id && !lists.loading.leadForms && !lists.leadForms.length" class="fb-hint is-warn"><i class="bx bx-error"></i> {{ t('creative.no_forms') }}</p>
               </div>
 
-              <label class="fb-label">{{ t('creative.format') }}</label>
-              <div class="fb-seg">
+              <label v-if="!isEdit" class="fb-label">{{ t('creative.format') }}</label>
+              <div v-if="!isEdit" class="fb-seg">
                 <button type="button" :class="{ on: creative.format === 'IMAGE' }" @click="setFormat('IMAGE')"><i class="bx bx-image"></i> {{ t('creative.single_image') }}</button>
                 <button type="button" :class="{ on: creative.format === 'VIDEO' }" @click="setFormat('VIDEO')"><i class="bx bx-video"></i> {{ t('creative.video') }}</button>
                 <button type="button" :class="{ on: creative.format === 'CAROUSEL' }" :disabled="destRules && (destRules.message_app || destRules.needs_lead_form)" @click="setFormat('CAROUSEL')"><i class="bx bx-carousel"></i> {{ t('creative.carousel') }}</button>
               </div>
 
               <!-- Media -->
-              <div class="fb-group">
+              <div v-if="!isEdit" class="fb-group">
                 <h6><i class="bx bx-photo-album"></i> {{ creative.format === 'CAROUSEL' ? t('creative.cards') : t('creative.media') }}</h6>
                 <div v-if="creative.format !== 'CAROUSEL'" class="fb-media-row">
                   <div v-if="creative.media[0]" class="fb-media">
@@ -645,9 +647,9 @@
               <i class="bx bx-check-circle"></i>
               <div>
                 <strong>{{ result.message }}</strong>
-                <p>{{ result.status === 'ACTIVE' ? t('result.in_review') : t('result.saved_paused') }} {{ t('result.ad_id', { id: result.ad_id }) }}</p>
+                <p v-if="!isEdit">{{ result.status === 'ACTIVE' ? t('result.in_review') : t('result.saved_paused') }} {{ t('result.ad_id', { id: result.ad_id }) }}</p>
                 <a :href="result.redirect_url || urls.campaignsList" class="btn btn-primary btn-sm">{{ t('result.go_campaigns') }}</a>
-                <button type="button" class="btn btn-sm fb-btn-ghost" @click="startAnother">{{ t('result.another') }}</button>
+                <button v-if="!isEdit" type="button" class="btn btn-sm fb-btn-ghost" @click="startAnother">{{ t('result.another') }}</button>
               </div>
             </div>
             <div v-else-if="result" class="fb-result is-err">
@@ -666,11 +668,13 @@
           <!-- ===== Footer nav ===== -->
           <div class="fb-foot">
             <button type="button" class="btn btn-sm fb-btn-ghost" :disabled="step === 0 || submitting" @click="back"><i class="bx bx-chevron-left"></i> {{ t('common.back') }}</button>
-            <span class="fb-saved" :class="{ on: savedAt }"><i class="bx bx-cloud-upload"></i> {{ savedAt ? t('draft.saved', { time: savedAt }) : t('draft.auto') }}</span>
+            <span v-if="isEdit" class="fb-saved"><i class="bx bx-edit-alt"></i> {{ t('edit.editing') }}</span>
+            <span v-else class="fb-saved" :class="{ on: savedAt }"><i class="bx bx-cloud-upload"></i> {{ savedAt ? t('draft.saved', { time: savedAt }) : t('draft.auto') }}</span>
             <button v-if="current !== 'review'" type="button" class="btn btn-primary btn-sm" @click="next">{{ t('common.continue') }} <i class="bx bx-chevron-right"></i></button>
-            <button v-else type="button" class="btn btn-primary btn-sm" :disabled="submitting || blockers.length > 0 || (result && result.success)" @click="submit">
-              <span v-if="submitting" class="spinner-border spinner-border-sm"></span><i v-else class="bx bx-rocket"></i>
-              {{ submitting ? t('foot.creating') : (result && !result.success ? t('foot.try_again') : t('foot.create_ad')) }}
+            <button v-else type="button" class="btn btn-primary btn-sm" :disabled="submitting || blockers.length > 0 || (result && result.success && !isEdit)" @click="isEdit ? saveEdit() : submit()">
+              <span v-if="submitting" class="spinner-border spinner-border-sm"></span><i v-else class="bx" :class="isEdit ? 'bx-save' : 'bx-rocket'"></i>
+              <template v-if="isEdit">{{ submitting ? t('edit.saving') : t('edit.save') }}</template>
+              <template v-else>{{ submitting ? t('foot.creating') : (result && !result.success ? t('foot.try_again') : t('foot.create_ad')) }}</template>
             </button>
           </div>
         </section>
@@ -755,8 +759,12 @@ const props = defineProps({
   locale: { type: String, default: 'en' },
   // 'instagram' = the Instagram ads page (same builder, Instagram-only rules).
   channel: { type: String, default: 'facebook' },
+  // Edit mode: FacebookCampaignBuilder::editData() of an existing campaign.
+  edit: { type: Object, default: null },
 });
 const isInstagram = props.channel === 'instagram';
+const isEdit = !!props.edit;
+const edit = props.edit || {};
 
 const i18n = createTranslator(props.messages, props.locale);
 const { t, tc } = i18n;
@@ -936,7 +944,29 @@ const reviewRows = computed(() => {
   ];
 });
 
-const blockers = computed(() => validate().flatMap((v) => v.errors.map((text) => ({ step: v.step, text }))));
+// Edit mode: a running ad set's start is fixed; the audience is editable when the builder's input was saved.
+const startLocked = computed(() => isEdit && !!edit.adset && !!edit.adset.start_time && new Date(edit.adset.start_time) <= new Date());
+const audienceEditable = computed(() => isEdit && !!edit.targeting && !!edit.adset);
+function validateEdit() {
+  const out = [];
+  const add = (stepIndex, errors) => { if (errors.length) out.push({ step: stepIndex, errors }); };
+  const c = [];
+  if (!campaign.name) c.push(t('edit.name_required'));
+  if (campaign.campaign_budget && !(campaign.budget > 0)) c.push(t('edit.budget_required'));
+  add(0, c);
+  const a = [];
+  if (edit.adset && !campaign.campaign_budget && !(adset.budget > 0)) a.push(t('edit.budget_required'));
+  if (edit.adset && (adset.budget_type === 'lifetime' || campaign.budget_type === 'lifetime') && !adset.end_time) a.push(t('edit.end_required'));
+  if (adset.end_time && adset.start_time && adset.end_time <= adset.start_time) a.push(t('edit.end_after_start'));
+  add(1, a);
+  if (audienceEditable.value && !targeting.locations.length && !targeting.saved_audience_id) add(2, [t('edit.locations_required')]);
+  const cr = [];
+  if (edit.creative && !creative.primary_text.trim()) cr.push(t('edit.text_required'));
+  if (edit.creative && creative.link && !/^https?:\/\/\S+\.\S+/.test(creative.link)) cr.push(t('edit.link_invalid'));
+  add(3, cr);
+  return out;
+}
+const blockers = computed(() => (isEdit ? validateEdit() : validate()).flatMap((v) => v.errors.map((text) => ({ step: v.step, text }))));
 
 // ---------------------------------------------------------------- helpers
 function newKey() {
@@ -1275,6 +1305,49 @@ async function loadPreview() {
 }
 
 // ---------------------------------------------------------------- submit
+async function saveEdit() {
+  if (submitting.value || blockers.value.length) return;
+  submitting.value = true;
+  result.value = null;
+  const tg = audienceEditable.value ? payload().adset : null;
+  try {
+    const { data } = await window.axios.put(props.urls.update, {
+      channel: props.channel,
+      status: ad.status,
+      campaign: { name: campaign.name, budget: campaign.campaign_budget ? campaign.budget : null },
+      adset: edit.adset ? { name: adset.name, budget: campaign.campaign_budget ? null : adset.budget, start_time: startLocked.value ? null : adset.start_time || null, end_time: adset.end_time || null } : null,
+      targeting: tg ? tg.targeting : null,
+      placements: tg ? tg.placements : null,
+      creative: edit.creative ? { primary_text: creative.primary_text, headline: creative.headline || null, link: creative.link || null, cta: creative.cta } : null,
+      ad: { name: ad.name },
+    });
+    result.value = data;
+  } catch (e) {
+    const data = (e.response && e.response.data) || {};
+    result.value = { success: false, message: data.message || (data.errors ? Object.values(data.errors).flat().join(' ') : t('client.server_error')) };
+  } finally {
+    submitting.value = false;
+  }
+}
+// Edit mode: fill the wizard from the saved campaign. goal/destination are set
+// directly (setGoal/setDestination would reset the saved choices).
+function hydrateEdit() {
+  goal.value = edit.goal;
+  destination.value = edit.destination;
+  Object.assign(campaign, edit.campaign, { mode: 'new', id: null });
+  if (edit.adset) Object.assign(adset, edit.adset, { mode: 'new', id: null });
+  if (edit.targeting) {
+    const tg = edit.targeting;
+    Object.keys(targeting).forEach((k) => { if (k in tg && tg[k] !== null) targeting[k] = tg[k]; });
+    ui.includeAudiences = (tg.custom_audiences || []).map((id) => ({ id, name: id }));
+    ui.excludeAudiences = (tg.excluded_custom_audiences || []).map((id) => ({ id, name: id }));
+  }
+  Object.assign(placements, edit.placements || {});
+  if (edit.creative) Object.assign(creative, edit.creative, { mode: 'new', id: null });
+  ad.name = edit.ad.name || '';
+  ad.status = edit.status;
+  maxReached.value = steps.value.length - 1;
+}
 async function submit() {
   const problems = validate();
   if (problems.length) {
@@ -1373,6 +1446,13 @@ watch(() => [campaign.mode, campaign.id], () => {
   if (campaign.mode === 'existing' && campaign.id) load('adsets', props.urls.adsets.replace('CAMPAIGN_ID', campaign.id));
 });
 watch(() => lists.instagram, pickInstagram);
+// Edit mode: saved custom audiences come back as ids - show their names once the list loads.
+watch(() => lists.audiences.custom, (list) => {
+  if (!isEdit || !list || !list.length) return;
+  const named = (a) => list.find((x) => String(x.id) === String(a.id)) || a;
+  ui.includeAudiences = ui.includeAudiences.map(named);
+  ui.excludeAudiences = ui.excludeAudiences.map(named);
+});
 watch(() => creative.page_id, (pageId) => {
   lists.leadForms = [];
   creative.lead_form_id = null;
@@ -1387,7 +1467,7 @@ watch(() => [current.value, ui.advanced], () => {
   if (current.value === 'creative' && !lists.instagram.length && !lists.loading.instagram) load('instagram', props.urls.instagram);
 });
 watch(() => JSON.stringify([goal.value, destination.value, adset.optimization_goal, adset.mode, targeting, ui.includeAudiences, ui.excludeAudiences, placements, campaign.special_ad_category]), refreshEstimate);
-watch(() => JSON.stringify(snapshot()), () => { if (boot.value && !(result.value && result.value.success)) saveDraft(); });
+watch(() => JSON.stringify(snapshot()), () => { if (boot.value && !isEdit && !(result.value && result.value.success)) saveDraft(); });
 watch(() => JSON.stringify(validate()), () => {
   // Clear a step's error flag as soon as it's fixed.
   steps.value.forEach((s, i) => { if (stepErrors[s.key] && !validate().some((v) => v.step === i)) { stepErrors[s.key] = false; fieldErrors[s.key] = ''; } });
@@ -1400,6 +1480,7 @@ onMounted(async () => {
     bootError.value = e.message;
     return;
   }
+  if (isEdit) { hydrateEdit(); return; }
   if (boot.value.pages.length === 1) creative.page_id = boot.value.pages[0].id;
   if (isInstagram) load('instagram', props.urls.instagram, {}, (data) => { lists.instagram = data; pickInstagram(); });
   const draft = readDraft();

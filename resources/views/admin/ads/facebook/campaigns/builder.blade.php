@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', ($platform ?? 'facebook') === 'instagram' ? __('ads_builder.page_title_instagram') : __('ads_builder.page_title'))
+@section('title', isset($edit) ? __('ads_builder.edit.page_title') : (($platform ?? 'facebook') === 'instagram' ? __('ads_builder.page_title_instagram') : __('ads_builder.page_title')))
 
 {{-- Facebook campaign builder - resources/js/components/ads/facebook/FacebookCampaignBuilder.vue,
      backed by App\Http\Controllers\Admin\FacebookAdBuilderController. --}}
@@ -30,6 +30,7 @@
                 'locales' => route('admin.ads.facebook.builder.locales'),
                 'estimate' => route('admin.ads.facebook.builder.estimate'),
                 'submit' => route('admin.ads.facebook.builder.submit'),
+                'update' => isset($edit) ? route('admin.ads.facebook.builder.update', ['campaign' => $edit['id']]) : null,
                 'campaignsList' => route('admin.ads.campaigns.index', ['platform' => $channel]),
                 'connections' => \App\Support\Connections\HubLink::for('facebook') ?? route('admin.connections.index'),
             ];
@@ -42,6 +43,7 @@
             :messages='@json(__('ads_builder'))'
             locale="{{ app()->getLocale() }}"
             channel="{{ $channel }}"
+            :edit='@json($edit ?? null)'
         ></facebook-campaign-builder>
     @else
         <div class="card"><div class="card-body text-center py-5">

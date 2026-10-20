@@ -291,6 +291,25 @@ return [
         'default_name' => 'Creative',
     ],
 
+    'edit' => [
+        'page_title' => 'Edit campaign',
+        'title' => 'Edit “:name”',
+        'subtitle' => 'Update the campaign, budget, schedule, audience and ad text. Changes go straight to your Meta ad account.',
+        'goal' => 'Campaign goal',
+        'locked_note' => 'The goal, destination, budget type and bid strategy stay as created. To change them, create a new campaign.',
+        'creative_note' => 'The Page, Instagram account, format and media stay as created. Changing the text below creates a new version of the ad on Meta.',
+        'audience_locked' => 'This campaign\'s audience was set outside the builder, so it can\'t be edited here. Edit it in Meta Ads Manager.',
+        'editing' => 'Editing an existing campaign',
+        'save' => 'Save changes',
+        'saving' => 'Saving…',
+        'name_required' => 'Enter a campaign name.',
+        'budget_required' => 'Enter a budget.',
+        'end_required' => 'A lifetime budget needs an end date.',
+        'end_after_start' => 'The end must be after the start.',
+        'locations_required' => 'Add at least one location.',
+        'text_required' => 'Enter the primary text.',
+        'link_invalid' => 'Enter a valid website URL.',
+    ],
     'review' => [
         'title' => 'Ad & review',
         'ad_name' => 'Ad name',
@@ -549,6 +568,10 @@ return [
 
     // FacebookCampaignBuilder / MetaAdsGraph / MetaApiException
     'server' => [
+        'updated' => 'Campaign updated on Meta.',
+        'other_account' => 'This campaign belongs to another Meta ad account. Switch to that account at the top of the page.',
+        'lifetime_end' => 'A lifetime budget needs an end date.',
+        'creative_not_editable' => 'This ad\'s text can\'t be changed here. Edit it in Meta Ads Manager.',
         'connect_first' => 'Connect a Facebook ad account first.',
         'work_type' => 'That work or education search type is not supported.',
         'instagram_destination' => "Instagram ads can't send people to Messenger - choose Instagram Direct or WhatsApp.",

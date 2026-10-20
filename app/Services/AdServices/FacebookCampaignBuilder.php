@@ -1213,6 +1213,189 @@ class FacebookCampaignBuilder
     // ------------------------------------------------------------------
 
     /** A campaign of THIS ad account, or an error. */
+    // ------------------------------------------------------------------
+    // Edit (the builder's edit mode)
+    // ------------------------------------------------------------------
+
+    /**
+     * What the edit screen starts from - the local rows the builder (or the
+     * legacy form / sync) saved. The ad set keeps the builder's own targeting
+     * input (targeting_criteria.builder), so the audience step re-opens as it
+     * was created.
+     */
+    public static function editData(AdCampaign $campaign): array
+    {
+        $group = $campaign->adGroups->first();
+        $creative = $group?->creatives->first();
+        $ad = $campaign->ads->first();
+        $criteria = json_decode((string) $group?->targeting_criteria, true) ?: [];
+        $spec = $criteria['targeting'] ?? [];
+        $builder = $criteria['builder'] ?? [];
+        $time = fn ($v) => $v ? Carbon::parse($v)->format('Y-m-d\TH:i') : '';
+        $campaignBudget = (bool) $campaign->budget_mode;
+        // Goal + destination back from the objective and the ad set's destination type.
+        $destination = $group?->destination_type ?: 'NONE';
+        $goals = $campaign->objective ? \App\Support\Ads\MetaGoals::forObjective((string) $campaign->objective) : [];
+        $goal = collect($goals)->first(fn ($g) => \App\Support\Ads\MetaGoals::destination($g, $destination)) ?? ($goals[0] ?? null);
+        if ($goal && ! \App\Support\Ads\MetaGoals::destination($goal, $destination)) {
+            $destination = array_key_first(\App\Support\Ads\MetaGoals::find($goal)['destinations'] ?? []);
+        }
+
+        return [
+            'id' => $campaign->id,
+            'goal' => $goal,
+            'destination' => $goal ? $destination : null,
+            'channel' => $campaign->platform === 'instagram' ? 'instagram' : 'facebook',
+            'status' => in_array(strtolower((string) $campaign->status), ['active', '1', 'true'], true) ? 'ACTIVE' : 'PAUSED',
+            'objective' => $campaign->objective,
+            'campaign' => [
+                'name' => $campaign->name,
+                'special_ad_category' => $campaign->special_ad_category,
+                'campaign_budget' => $campaignBudget,
+                'budget_type' => $campaign->budget_mode === 'lifetime_budget' ? 'lifetime' : 'daily',
+                'budget' => $campaignBudget ? (float) ($campaign->daily_budget ?? $campaign->budget) : null,
+            ],
+            'adset' => $group ? [
+                'name' => $group->name,
+                'budget_type' => $group->budget_mode === 'lifetime_budget' ? 'lifetime' : 'daily',
+                'budget' => $group->budget !== null ? (float) $group->budget : null,
+                'optimization_goal' => $group->optimization_goal,
+                'start_time' => $time($group->schedule_start_time),
+                'end_time' => $time($group->schedule_end_time),
+            ] : null,
+            // Audience is editable only when the builder's input was kept.
+            'targeting' => $builder ?: null,
+            'placements' => [
+                'mode' => isset($spec['publisher_platforms']) ? 'manual' : 'advantage',
+                'publisher_platforms' => $spec['publisher_platforms'] ?? ['facebook', 'instagram'],
+                'facebook_positions' => $spec['facebook_positions'] ?? [],
+                'instagram_positions' => $spec['instagram_positions'] ?? [],
+                'device_platforms' => $spec['device_platforms'] ?? ['mobile', 'desktop'],
+            ],
+            'creative' => $creative ? [
+                'format' => $creative->type ?: 'IMAGE',
+                'page_id' => $creative->page_id,
+                'primary_text' => $creative->message ?? '',
+                'headline' => $creative->headline ?? '',
+                'link' => $creative->url ?? '',
+                'cta' => $creative->call_to_action ?: 'LEARN_MORE',
+            ] : null,
+            'ad' => ['name' => $ad?->name ?? $campaign->name],
+        ];
+    }
+
+    /**
+     * Saves the edit screen on Meta: campaign (name, status, campaign budget),
+     * ad set (name, budget, schedule, targeting + placements), and the ad's
+     * text. Creatives are immutable on Meta, so changed text becomes a new
+     * creative (the old one's media, copied from its object_story_spec) that
+     * the ad is switched to.
+     */
+    public function updateCampaign(AdCampaign $campaign, array $input): array
+    {
+        $status = $input['status'] === 'ACTIVE' ? 'ACTIVE' : 'PAUSED';
+        $group = $campaign->adGroups->first();
+        $creativeRow = $group?->creatives->first();
+        $adRow = $campaign->ads->first();
+        $c = $input['campaign'];
+
+        // 1. Campaign
+        $params = ['name' => mb_substr($c['name'], 0, 400), 'status' => $status];
+        if ($campaign->budget_mode && isset($c['budget'])) {
+            $params[$campaign->budget_mode] = $this->graph->toMinor($c['budget']);
+        }
+        $this->graph->post((string) $campaign->ad_campaign_id, $params);
+
+        // 2. Ad set
+        if ($group && ! empty($input['adset'])) {
+            $a = $input['adset'];
+            $params = array_filter(['name' => isset($a['name']) ? mb_substr($a['name'], 0, 400) : null, 'status' => $status], fn ($v) => $v !== null);
+            if (! $campaign->budget_mode && $group->budget_mode && isset($a['budget'])) {
+                $params[$group->budget_mode] = $this->graph->toMinor($a['budget']);
+            }
+            $oldStart = $group->schedule_start_time ? Carbon::parse($group->schedule_start_time) : null;
+            if (! empty($a['start_time']) && (! $oldStart || $oldStart->isFuture())) {
+                $params['start_time'] = Carbon::parse($a['start_time'])->toIso8601String();
+            }
+            if (array_key_exists('end_time', $a)) {
+                // Meta clears an end time with 0; a lifetime budget needs one.
+                $params['end_time'] = ! empty($a['end_time']) ? Carbon::parse($a['end_time'])->toIso8601String() : 0;
+            }
+            if (! empty($input['targeting'])) {
+                $params['targeting'] = $this->targeting([
+                    'adset' => ['targeting' => $input['targeting'], 'placements' => $input['placements'] ?? []],
+                    'campaign' => ['special_ad_category' => $campaign->special_ad_category],
+                ]);
+            }
+            $this->graph->post((string) $group->ad_adgroup_id, $params);
+
+            $criteria = json_decode((string) $group->targeting_criteria, true) ?: [];
+            $group->update(array_filter([
+                'name' => $a['name'] ?? null,
+                'budget' => (! $campaign->budget_mode && $group->budget_mode) ? ($a['budget'] ?? null) : null,
+                'schedule_start_time' => isset($params['start_time']) ? Carbon::parse($a['start_time']) : null,
+                'schedule_end_time' => ! empty($a['end_time']) ? Carbon::parse($a['end_time']) : null,
+                'targeting_criteria' => isset($params['targeting']) ? json_encode(['targeting' => $params['targeting'], 'builder' => $input['targeting']] + $criteria) : null,
+                'publisher_platforms' => isset($params['targeting']) ? json_encode($params['targeting']['publisher_platforms'] ?? ['automatic']) : null,
+                'status' => $status === 'ACTIVE',
+            ], fn ($v) => $v !== null));
+            if (array_key_exists('end_time', $a) && empty($a['end_time'])) {
+                $group->update(['schedule_end_time' => null]);
+            }
+        }
+
+        // 3. Ad copy -> new creative (only when the text actually changed)
+        $cr = $input['creative'] ?? null;
+        if ($cr && $creativeRow && $adRow && $this->creativeChanged($creativeRow, $cr)) {
+            $story = $this->graph->get((string) $creativeRow->ad_creative_id, ['fields' => 'object_story_spec'])['object_story_spec'] ?? null;
+            if (! $story) {
+                throw new \InvalidArgumentException(__('ads_builder.server.creative_not_editable'));
+            }
+            $cta = ['type' => $cr['cta'] ?? 'LEARN_MORE', 'value' => ['link' => $cr['link'] ?? null]];
+            if (isset($story['video_data'])) {
+                $story['video_data']['message'] = $cr['primary_text'] ?? '';
+                $story['video_data']['title'] = ($cr['headline'] ?? '') ?: ($story['video_data']['title'] ?? null);
+                $story['video_data']['call_to_action'] = $cta;
+            } elseif (isset($story['link_data'])) {
+                $story['link_data']['message'] = $cr['primary_text'] ?? '';
+                if (! empty($cr['link'])) {
+                    $story['link_data']['link'] = $cr['link'];
+                }
+                if (empty($story['link_data']['child_attachments'])) {
+                    $story['link_data']['name'] = $cr['headline'] ?? ($story['link_data']['name'] ?? null);
+                }
+                $story['link_data']['call_to_action'] = $cta;
+            } else {
+                throw new \InvalidArgumentException(__('ads_builder.server.creative_not_editable'));
+            }
+            $created = $this->graph->post($this->graph->actId() . '/adcreatives', ['name' => mb_substr(($creativeRow->name ?: $campaign->name) . ' · ' . now()->format('Y-m-d H:i'), 0, 100), 'object_story_spec' => $story]);
+            $this->graph->post((string) $adRow->ad_id, ['creative' => ['creative_id' => $created['id']]]);
+            $creativeRow->update(['ad_creative_id' => $created['id'], 'message' => $cr['primary_text'] ?? null, 'headline' => $cr['headline'] ?? null, 'url' => $cr['link'] ?? $creativeRow->url, 'call_to_action' => $cr['cta'] ?? $creativeRow->call_to_action]);
+        }
+
+        // 4. Ad
+        if ($adRow) {
+            $this->graph->post((string) $adRow->ad_id, array_filter(['name' => isset($input['ad']['name']) ? mb_substr($input['ad']['name'], 0, 400) : null, 'status' => $status]));
+            $adRow->update(array_filter(['name' => $input['ad']['name'] ?? null, 'status' => strtolower($status)]));
+        }
+
+        $campaign->update(array_filter([
+            'name' => $c['name'],
+            'status' => strtolower($status),
+            'daily_budget' => $campaign->budget_mode === 'daily_budget' ? ($c['budget'] ?? null) : null,
+            'budget' => $campaign->budget_mode === 'lifetime_budget' ? ($c['budget'] ?? null) : null,
+        ], fn ($v) => $v !== null));
+
+        return ['success' => true, 'message' => __('ads_builder.server.updated')];
+    }
+
+    private function creativeChanged(AdCreative $row, array $cr): bool
+    {
+        return (string) ($cr['primary_text'] ?? '') !== (string) $row->message
+            || (string) ($cr['headline'] ?? '') !== (string) $row->headline
+            || (string) ($cr['link'] ?? '') !== (string) $row->url
+            || (string) ($cr['cta'] ?? '') !== (string) $row->call_to_action;
+    }
     private function ownedCampaign(string $id): array
     {
         return $this->ownedObject($id, 'campaign', 'id,name,account_id,objective,status,effective_status,special_ad_categories,daily_budget,lifetime_budget,bid_strategy');
