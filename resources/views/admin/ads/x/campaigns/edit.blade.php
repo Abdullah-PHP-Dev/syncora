@@ -145,10 +145,10 @@
 @section('content')
     @php
         $adGroup = $campaign->adGroups->first();
-        $creative = $adGroup->creatives->first();
-        $selectedCountryIds = json_decode($adGroup->location_ids ?? '[]') ?: [];
-        $selectedLanguages = json_decode($adGroup->languages ?? '[]') ?: [];
-        $selectedPlacements = json_decode($adGroup->placements ?? '[]') ?: [];
+        $creative = $adGroup?->creatives->first();
+        $selectedCountryIds = json_decode($adGroup?->location_ids ?? '[]') ?: [];
+        $selectedLanguages = json_decode($adGroup?->languages ?? '[]') ?: [];
+        $selectedPlacements = json_decode($adGroup?->placements ?? '[]') ?: [];
     @endphp
 
     <div class="col-xxl-12 mb-0">
@@ -221,17 +221,17 @@
                                                     </div>
                                                     <div class="col-md-6">
                                                         <label>Budget</label>
-                                                        <input type="text" class="form-control" value="{{ $account->metadata['currency'] ?? 'USD' }} {{ $campaign->budget }}" disabled>
+                                                        <input type="text" class="form-control" value="{{ $account?->metadata['currency'] ?? 'USD' }} {{ $campaign->budget }}" disabled>
                                                     </div>
                                                 </div>
                                                 <div class="row mt-3">
                                                     <div class="col-md-6">
                                                         <label>Objective</label>
-                                                        <input type="text" class="form-control" value="{{ Str::title(str_replace('_', ' ', $adGroup->objective)) }}" disabled>
+                                                        <input type="text" class="form-control" value="{{ Str::title(str_replace('_', ' ', $adGroup?->objective)) }}" disabled>
                                                     </div>
                                                     <div class="col-md-6">
                                                         <label>Bid Type</label>
-                                                        <input type="text" class="form-control" value="{{ Str::title($adGroup->bid_type ?? '') }}" disabled>
+                                                        <input type="text" class="form-control" value="{{ Str::title($adGroup?->bid_type ?? '') }}" disabled>
                                                     </div>
                                                 </div>
                                                 <div class="row mt-3">
@@ -250,13 +250,13 @@
                                                 <div class="row">
                                                     <div class="col-md-12">
                                                         <label>Tweet Text</label>
-                                                        <textarea class="form-control" rows="4" disabled>{{ $creative->message }}</textarea>
+                                                        <textarea class="form-control" rows="4" disabled>{{ $creative?->message }}</textarea>
                                                     </div>
                                                 </div>
                                                 <div class="row mt-3">
                                                     <div class="col-md-12">
                                                         <label>Landing Page URL</label>
-                                                        <input type="text" class="form-control" value="{{ $creative->url }}" disabled>
+                                                        <input type="text" class="form-control" value="{{ $creative?->url }}" disabled>
                                                     </div>
                                                 </div>
                                             </div>
@@ -269,7 +269,7 @@
                                                 <div class="row">
                                                     <div class="col-md-4">
                                                         <label>Gender</label>
-                                                        <input type="text" class="form-control" value="{{ Str::title($adGroup->gender ?? 'Both') }}" disabled>
+                                                        <input type="text" class="form-control" value="{{ Str::title($adGroup?->gender ?? 'Both') }}" disabled>
                                                     </div>
                                                     <div class="col-md-8">
                                                         <label>Countries</label>
@@ -308,11 +308,11 @@
                                             <div class="tweet-top">
                                                 <div class="avatar"></div>
                                                 <div>
-                                                    <strong>{{ $account->name ?? 'Your Account' }}</strong>
+                                                    <strong>{{ $account?->name ?? 'Your Account' }}</strong>
                                                     <div class="text-muted" style="font-size:0.85rem">Promoted</div>
                                                 </div>
                                             </div>
-                                            <div class="tweet-text">{{ $creative->message }}</div>
+                                            <div class="tweet-text">{{ $creative?->message }}</div>
                                         </div>
                                     </div>
                                 </div>

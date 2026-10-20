@@ -6,6 +6,7 @@ use App\Models\Admin\Ad;
 use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdBuilderRun;
 use App\Models\Admin\AdCampaign;
+use App\Models\Admin\AdCreative;
 use App\Models\MediaAsset;
 use App\Support\Ads\GoogleAdsApi;
 use App\Support\Ads\GoogleAdsApiException;
@@ -1073,9 +1074,20 @@ class GoogleCampaignBuilder
                 'keywords' => json_encode($input['ad_group']['keywords'] ?? []), 'targeting_criteria' => json_encode($t),
             ]);
             if ($adResource) {
-                Ad::updateOrCreate(['ad_id' => $adResource, 'platform' => $platform], [
+                $adType = ['SEARCH' => 'RESPONSIVE_SEARCH_AD', 'DEMAND_GEN' => 'DEMAND_GEN_VIDEO_RESPONSIVE_AD'][$input['campaign_type']] ?? 'RESPONSIVE_DISPLAY_AD';
+                // The edit pages and GoogleAdService / YoutubeAdService::update()
+                // read the ad copy from this creative row (same shape the
+                // legacy forms stored).
+                $creative = AdCreative::updateOrCreate(['ad_creative_id' => $adResource, 'platform' => $platform], [
                     'ad_adgroup_id' => $group->id, 'ad_campaign_id' => $local->id, 'social_account_id' => $this->api->account->id, 'user_id' => $run->user_id,
-                    'name' => $c['name'], 'type' => ['SEARCH' => 'RESPONSIVE_SEARCH_AD', 'DEMAND_GEN' => 'DEMAND_GEN_VIDEO_RESPONSIVE_AD'][$input['campaign_type']] ?? 'RESPONSIVE_DISPLAY_AD',
+                    'name' => $c['name'], 'type' => $adType, 'url' => $input['ad']['final_url'], 'final_urls' => json_encode([$input['ad']['final_url']]),
+                    'headlines' => json_encode($input['ad']['headlines']), 'descriptions' => json_encode($input['ad']['descriptions']),
+                    'long_headlines' => json_encode($input['ad']['long_headlines'] ?? []), 'business_name' => $input['ad']['business_name'] ?? null,
+                    'call_to_action' => $input['ad']['call_to_action'] ?? null,
+                ]);
+                Ad::updateOrCreate(['ad_id' => $adResource, 'platform' => $platform], [
+                    'ad_adgroup_id' => $group->id, 'ad_campaign_id' => $local->id, 'ad_creative_id' => $creative->id, 'social_account_id' => $this->api->account->id, 'user_id' => $run->user_id,
+                    'name' => $c['name'], 'type' => $adType,
                     'status' => $status === 'ACTIVE', 'final_urls' => json_encode([$input['ad']['final_url']]), 'headlines' => json_encode($input['ad']['headlines']),
                     'text' => implode("\n", $input['ad']['descriptions']),
                 ]);

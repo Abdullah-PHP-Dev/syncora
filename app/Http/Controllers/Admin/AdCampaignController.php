@@ -291,10 +291,37 @@ class AdCampaignController extends Controller
     {
         $account = $this->adAccountModel->where('user_id', Auth::id())->usableFor('ads')->where('platform', $platform === 'youtube' ? 'google' : $platform)->with('adDetails')->first();
         $countries = $this->countryModel->all();
-        $campaign = $this->adCampaignModel->with(['socialAccount', 'adGroups', 'adGroups.creatives', 'adGroups.creatives.media', 'ads'])->find($id);
+        $campaign = $this->adCampaignModel->with(['socialAccount', 'adGroups', 'adGroups.creatives', 'adGroups.creatives.media', 'ads'])->findOrFail($id);
+        if (in_array($platform, ['google', 'youtube'], true)) {
+            $this->restoreGoogleCreative($campaign);
+        }
         $platformPages = $this->platformPages($platform);
 
        return view('admin.ads.' . $this->viewPlatform($platform) . '.campaigns.edit', compact('platform', 'account', 'countries', 'campaign', 'platformPages'));
+    }
+
+    /**
+     * Campaigns from the Google/YouTube builder before 2026-10-22 were saved
+     * without the ad-creative row the edit page and update() read the ad copy
+     * from. Rebuild it (locally) from the saved ad so those campaigns open.
+     */
+    private function restoreGoogleCreative(\App\Models\Admin\AdCampaign $campaign): void
+    {
+        $group = $campaign->adGroups->first();
+        $ad = $campaign->ads->first();
+        if (! $group || ! $ad || $group->creatives->isNotEmpty()) {
+            return;
+        }
+
+        $urls = json_decode($ad->final_urls ?? '[]', true) ?: [];
+        \App\Models\Admin\AdCreative::create([
+            'ad_creative_id' => $ad->ad_id, 'ad_adgroup_id' => $group->id, 'ad_campaign_id' => $campaign->id,
+            'user_id' => $campaign->user_id, 'social_account_id' => $campaign->social_account_id, 'platform' => $campaign->platform,
+            'name' => $campaign->name, 'type' => $ad->type, 'url' => $urls[0] ?? null, 'final_urls' => $ad->final_urls,
+            'headlines' => $ad->headlines,
+            'descriptions' => json_encode(array_values(array_filter(preg_split('/\r\n|\r|\n/', (string) $ad->text)))),
+        ]);
+        $campaign->load(['adGroups', 'adGroups.creatives', 'adGroups.creatives.media']);
     }
 
     /**

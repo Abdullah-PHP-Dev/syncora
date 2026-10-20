@@ -1994,7 +1994,8 @@ class FacebookAdService
         $adGroup = $campaign->adGroups->first();
 
         $creative = $adGroup?->creatives->first();
-        $media =  $creative->media;
+        // Synced campaigns may have no creative (or ad set) locally.
+        $media = $creative?->media ?? collect();
 
         $ad = $campaign->ads->first();
 

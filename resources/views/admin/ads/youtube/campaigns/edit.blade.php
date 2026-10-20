@@ -145,14 +145,14 @@
 @section('content')
     @php
         $adGroup = $campaign->adGroups->first();
-        $creative = $adGroup->creatives->first();
-        $selectedCountryIds = json_decode($adGroup->location_ids ?? '[]') ?: [];
-        $selectedLanguages = json_decode($adGroup->languages ?? '[]') ?: [];
-        $selectedAgeRanges = json_decode($adGroup->age_groups ?? '[]') ?: [];
-        $headlineLines = implode("\n", json_decode($creative->headlines ?? '[]') ?: []);
-        $descriptionLines = implode("\n", json_decode($creative->descriptions ?? '[]') ?: []);
-        $firstHeadline = json_decode($creative->headlines ?? '[]')[0] ?? '';
-        $firstDescription = json_decode($creative->descriptions ?? '[]')[0] ?? '';
+        $creative = $adGroup?->creatives->first();
+        $selectedCountryIds = json_decode($adGroup?->location_ids ?? '[]') ?: [];
+        $selectedLanguages = json_decode($adGroup?->languages ?? '[]') ?: [];
+        $selectedAgeRanges = json_decode($adGroup?->age_groups ?? '[]') ?: [];
+        $headlineLines = implode("\n", json_decode($creative?->headlines ?? '[]') ?: []);
+        $descriptionLines = implode("\n", json_decode($creative?->descriptions ?? '[]') ?: []);
+        $firstHeadline = json_decode($creative?->headlines ?? '[]')[0] ?? '';
+        $firstDescription = json_decode($creative?->descriptions ?? '[]')[0] ?? '';
     @endphp
 
     <div class="col-xxl-12 mb-0">
@@ -231,7 +231,7 @@
                                                     </div>
                                                     <div class="col-md-6">
                                                         <label>Budget</label>
-                                                        <input type="text" class="form-control" value="{{ $account->metadata['currency'] ?? 'USD' }} {{ $campaign->budget }}" disabled>
+                                                        <input type="text" class="form-control" value="{{ $account?->metadata['currency'] ?? 'USD' }} {{ $campaign->budget }}" disabled>
                                                     </div>
                                                 </div>
                                                 <div class="row mt-3">
@@ -263,14 +263,14 @@
                                                 <div class="row">
                                                     <div class="col-md-12">
                                                         <label>Business Name *</label>
-                                                        <input type="text" name="business_name" id="business_name" class="form-control" required maxlength="25" value="{{ $creative->business_name }}">
+                                                        <input type="text" name="business_name" id="business_name" class="form-control" required maxlength="25" value="{{ $creative?->business_name }}">
                                                         <p class="error-message error-business_name"></p>
                                                     </div>
                                                 </div>
                                                 <div class="row mt-3">
                                                     <div class="col-md-12">
                                                         <label>Final URL *</label>
-                                                        <input type="url" name="target_link" id="target_link" class="form-control" required value="{{ $creative->url }}">
+                                                        <input type="url" name="target_link" id="target_link" class="form-control" required value="{{ $creative?->url }}">
                                                         <p class="error-message error-target_link"></p>
                                                     </div>
                                                 </div>
@@ -298,7 +298,7 @@
                                                 <div class="row">
                                                     <div class="col-md-4">
                                                         <label>Gender</label>
-                                                        <input type="text" class="form-control" value="{{ Str::title($adGroup->gender ?? 'Both') }}" disabled>
+                                                        <input type="text" class="form-control" value="{{ Str::title($adGroup?->gender ?? 'Both') }}" disabled>
                                                     </div>
                                                     <div class="col-md-4">
                                                         <label>Age Range</label>
@@ -339,7 +339,7 @@
                                         <div class="preview-header">YouTube Ad Preview</div>
                                         <div class="youtube-preview">
                                             <div class="d-flex align-items-center gap-2 mb-2">
-                                                <strong id="previewBusinessName">{{ $creative->business_name }}</strong>
+                                                <strong id="previewBusinessName">{{ $creative?->business_name }}</strong>
                                             </div>
                                             <h6 id="previewHeadline">{{ $firstHeadline ?: 'Your Headline Here' }}</h6>
                                             <p id="previewDescription" class="text-muted">{{ $firstDescription ?: 'Your ad description will appear here as you type.' }}</p>

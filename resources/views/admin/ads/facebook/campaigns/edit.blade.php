@@ -259,18 +259,18 @@
                                             <div class="row">
                                                 @php
                                                     $adGroup = $campaign->adGroups->first();
-                                                    $ageGroup = json_decode($adGroup->age_groups);
-                                                    $creative = $adGroup->creatives->first();
-                                                    $ad = $creative->ads->first();
-                                                    $media = $creative->media;
-                                                    $publisherPlatforms = json_decode($adGroup->publisher_platforms);
-                                                    $languages = json_decode($adGroup->languages);
-                                                    $selectedCountries = json_decode($adGroup->location_ids);
+                                                    $ageGroup = json_decode($adGroup?->age_groups ?? "") ?: (object) ["age_from" => null, "age_to" => null];
+                                                    $creative = $adGroup?->creatives->first();
+                                                    $ad = $creative?->ads->first();
+                                                    $media = $creative?->media ?? collect();
+                                                    $publisherPlatforms = (json_decode($adGroup?->publisher_platforms ?? "[]") ?: []);
+                                                    $languages = (json_decode($adGroup?->languages ?? "[]") ?: []);
+                                                    $selectedCountries = (json_decode($adGroup?->location_ids ?? "[]") ?: []);
                                                     // targeting_criteria holds the full resolved Detailed Targeting
                                                     // payload plus every raw local selection needed to re-populate
                                                     // this form - see FacebookAdService::buildDetailedTargeting().
-                                                    $targetingLocal = json_decode($adGroup->targeting_criteria ?? '{}', true)['local'] ?? [];
-                                                    $selectedDevicePlatforms = json_decode($adGroup->targeting_criteria ?? '{}', true)['device_platforms'] ?? ['mobile', 'desktop'];
+                                                    $targetingLocal = json_decode($adGroup?->targeting_criteria ?? '{}', true)['local'] ?? [];
+                                                    $selectedDevicePlatforms = json_decode($adGroup?->targeting_criteria ?? '{}', true)['device_platforms'] ?? ['mobile', 'desktop'];
                                                     // Special Ad Category forbids age/gender/detailed-targeting
                                                     // narrowing - see FacebookAdService::storeAdGroup()'s docblock.
                                                     // No JS toggle needed here (unlike create.blade.php's wizard)
@@ -387,9 +387,9 @@
                                                 <div class="col-md-4">
                                                     <label>Budget</label>
                                                     <div class="input-group">
-                                                        <span class="input-group-text">{{ $account->metadata['currency'] ?? null }}</span>
+                                                        <span class="input-group-text">{{ $account?->metadata['currency'] ?? null }}</span>
                                                         <input class="form-control" name="budget" id="budget"
-                                                            type="number" step="0.01" value="{{$adGroup->budget}}">
+                                                            type="number" step="0.01" value="{{$adGroup?->budget}}">
                                                     </div>
                                                     <p class="error-message error-budget"></p>
                                                 </div>
@@ -398,8 +398,8 @@
                                                 <div class="col-md-4">
                                                     <label>Bid Amount</label>
                                                     <div class="input-group">
-                                                        <span class="input-group-text">{{ $account->metadata['currency'] ?? null }}</span>
-                                                        <input class="form-control" name="bid_amount" value="{{$adGroup->bid_price}}" id="bid_amount"
+                                                        <span class="input-group-text">{{ $account?->metadata['currency'] ?? null }}</span>
+                                                        <input class="form-control" name="bid_amount" value="{{$adGroup?->bid_price}}" id="bid_amount"
                                                             type="number" step="0.01">
                                                     </div>
                                                     <p class="error-message error-bid_amount"></p>
@@ -420,7 +420,7 @@
                                                             <div class="d-flex justify-content-between mb-2">
                                                                 <span>Budget</span>
                                                                 <strong>
-                                                                    {{ $account->metadata['currency'] ?? null }}
+                                                                    {{ $account?->metadata['currency'] ?? null }}
                                                                     <span id="budget_amount">0.00</span>
                                                                 </strong>
                                                             </div>
@@ -428,7 +428,7 @@
                                                             <div class="d-flex justify-content-between mb-2 text-muted">
                                                                 <span>VAT (15%)</span>
                                                                 <strong>
-                                                                    {{ $account->metadata['currency'] ?? null }}
+                                                                    {{ $account?->metadata['currency'] ?? null }}
                                                                     <span id="vat_amount">0.00</span>
                                                                 </strong>
                                                             </div>
@@ -441,7 +441,7 @@
                                                             <div class="d-flex justify-content-between">
                                                                 <h5 class="mb-0">Total Budget</h5>
                                                                 <h5 class="mb-0 text-primary">
-                                                                    {{ $account->metadata['currency'] ?? null }}
+                                                                    {{ $account?->metadata['currency'] ?? null }}
                                                                     
                                                                     <span id="total_budget">0.00</span>
                                                                 </h5>
@@ -499,10 +499,10 @@
                                                     <label>Page</label>
                                                     <div class="page-select-group">
                                                         @forelse ($platformPages as $page)
-                                                            <label class="page-card {{ $page->page_id == $creative->page_id ? 'active' : '' }}">
+                                                            <label class="page-card {{ $page->page_id == $creative?->page_id ? 'active' : '' }}">
                                                                 <input class="page-radio" type="radio"
                                                                     name="page_id" value="{{ $page->page_id }}"
-                                                                    {{ $page->page_id == $creative->page_id ? 'checked' : '' }}>
+                                                                    {{ $page->page_id == $creative?->page_id ? 'checked' : '' }}>
                                                                 <img class="page-avatar"
                                                                     src="{{ $page->picture ?: asset('assets/img/avatars/1.png') }}"
                                                                     alt="{{ $page->name }}"
@@ -517,14 +517,14 @@
                                                         @empty
                                                             <p class="text-muted mb-0">No connected Facebook pages found. Please reconnect Facebook to import your pages.</p>
                                                         @endforelse
-                                                        @if ($creative->page_id && !$connectedPages->contains('page_id', $creative->page_id))
+                                                        @if ($creative?->page_id && !$connectedPages->contains('page_id', $creative?->page_id))
                                                             <label class="page-card active">
                                                                 <input class="page-radio" type="radio"
-                                                                    name="page_id" value="{{ $creative->page_id }}" checked>
+                                                                    name="page_id" value="{{ $creative?->page_id }}" checked>
                                                                 <img class="page-avatar"
-                                                                    src="{{ asset('assets/img/avatars/1.png') }}" alt="{{ $creative->page_id }}">
+                                                                    src="{{ asset('assets/img/avatars/1.png') }}" alt="{{ $creative?->page_id }}">
                                                                 <div class="page-info">
-                                                                    <span class="page-name">{{ $creative->page_id }}</span>
+                                                                    <span class="page-name">{{ $creative?->page_id }}</span>
                                                                 </div>
                                                             </label>
                                                         @endif
@@ -581,13 +581,13 @@
 
                                                 <label>Description</label>
 
-                                                <textarea id="adDescription" name="description" rows="4" class="form-control">{{$creative->message}}</textarea>
+                                                <textarea id="adDescription" name="description" rows="4" class="form-control">{{$creative?->message}}</textarea>
                                                 <p class="error-message error-description"></p>
                                             </div>
                                             <div class="mt-4">
                                                 <label>Target URL</label>
 
-                                                <input type="url" name="target_link" id="targetLink" value="{{$creative->url}}" class="form-control" placeholder="https://example.com">
+                                                <input type="url" name="target_link" id="targetLink" value="{{$creative?->url}}" class="form-control" placeholder="https://example.com">
                                                 <p class="error-message error-target_link"></p>
                                             </div>
 
@@ -613,9 +613,9 @@
                                                 <div class="col-md-6">
                                                     <select id="gender" name="gender" class="form-control">
                                                         <option value="">Gender</option>
-                                                        <option value="male" @selected(old('gender', $adGroup->gender) == 'male')>Male</option>
-                                                        <option value="female" @selected(old('gender', $adGroup->gender) == 'female')>Female</option>
-                                                        <option value="both" @selected(old('gender', $adGroup->gender) == 'both')>Both</option>
+                                                        <option value="male" @selected(old('gender', $adGroup?->gender) == 'male')>Male</option>
+                                                        <option value="female" @selected(old('gender', $adGroup?->gender) == 'female')>Female</option>
+                                                        <option value="both" @selected(old('gender', $adGroup?->gender) == 'both')>Both</option>
                                                     </select>
                                                     <p class="error-message error-gender"></p>
                                                     @if ($isSpecialCategoryLocked)
@@ -651,7 +651,7 @@
                                                         @endfor
                                                 
                                                         <option value="45+"
-                                                            @selected(old('age_to', $adGroup->age_to) == '65+')>
+                                                            @selected(old('age_to', $adGroup?->age_to) == '65+')>
                                                             65+
                                                         </option>
                                                 
@@ -806,12 +806,12 @@
                                             <div class="preview-top">
                                                 <div class="avatar"></div>
                                                 <div>
-                                                    <strong>{{ $account->name }}</strong>
+                                                    <strong>{{ $account?->name }}</strong>
                                                     <div>Sponsored</div>
                                                 </div>
                                             </div>
-                                            <img @if ($media->first()->type === 'IMAGE') src="{{$media->first()->url}}"  style="display:block" @else  style="display:none" @endif id="previewImage" class="preview-image">
-                                            <video @if ($media->first()->type === 'VIDEO') src="{{$media->first()->url}}" style="display:block;width:100%;border-radius:12px;" @else  style="display:none;width:100%;border-radius:12px;" @endif id="previewVideo" class="preview-image" controls>
+                                            <img @if ($media->first()?->type === 'IMAGE') src="{{$media->first()?->url}}"  style="display:block" @else  style="display:none" @endif id="previewImage" class="preview-image">
+                                            <video @if ($media->first()?->type === 'VIDEO') src="{{$media->first()?->url}}" style="display:block;width:100%;border-radius:12px;" @else  style="display:none;width:100%;border-radius:12px;" @endif id="previewVideo" class="preview-image" controls>
                                             </video>
                                             <div id="carouselPreview" style="display:none">
                                                 <img id="carouselImage" class="preview-image">
@@ -822,7 +822,7 @@
                                                 </div>
                                                 <div class="mt-3">
                                                     <label>Description</label>
-                                                    <textarea id="carouselDescription" class="form-control" rows="3" placeholder="Card description">{{$creative->message}}</textarea>
+                                                    <textarea id="carouselDescription" class="form-control" rows="3" placeholder="Card description">{{$creative?->message}}</textarea>
                                                 </div>
                                                 <div class="mt-3">
                                                     <label>Card URL</label>
@@ -844,12 +844,12 @@
                                                     {{$campaign->name}}
                                                 </h6>
                                                 <p id="previewDescription">
-                                                    {{$creative->message}}
+                                                    {{$creative?->message}}
                                                 </p>
                                             </div>
                                             <a id="previewCTA" href="#" target="_blank"
                                                 class="btn btn-primary w-100">
-                                                {{ ucwords(strtolower(str_replace('_', ' ', $ad->call_to_action))) }}
+                                                {{ ucwords(strtolower(str_replace('_', ' ', $ad?->call_to_action))) }}
                                             </a>
                                         </div>
                                     </div>
@@ -868,10 +868,10 @@
         var campaignId = @json($campaign->id);
         var areYouSure = "{{ __('admin.sweet-alert.are-you-sure') }}";
         var selectedObjective = "{{ $campaign->objective }}";
-        var selectedDestinationType = "{{ $adGroup->destination_type }}";
-        var selectedOptimizationGoal = "{{ $adGroup->optimization_goal }}";
-        var selectedBillingEvent = "{{ $adGroup->billing_event }}";
-        var selectedCTA = "{{ $ad->call_to_action }}";
+        var selectedDestinationType = "{{ $adGroup?->destination_type }}";
+        var selectedOptimizationGoal = "{{ $adGroup?->optimization_goal }}";
+        var selectedBillingEvent = "{{ $adGroup?->billing_event }}";
+        var selectedCTA = "{{ $ad?->call_to_action }}";
         var YouWontBeAbleToRevertThis = "{{ __('admin.sweet-alert.you-wont-be-able-to-revert-this') }}";
         var YesDeleteIt = "{{ __('admin.sweet-alert.yes-delete-it') }}";
         var recordHasBeenDelete = "{{ __('admin.sweet-alert.record-has-been-deleted') }}";
@@ -1286,10 +1286,10 @@
         calculateBudget();
         
         function calculateBudget() {
-            let budgetMode = document.getElementById('budget_mode').value ?? '{{$adGroup->budget_mode}}';
-            let budget = parseFloat(document.getElementById('budget').value) || {{ $adGroup->budget ?? 0 }};
-            let startDate = document.getElementById('start_time').value ?? '{{$adGroup->start_time}}';
-            let endDate = document.getElementById('end_time').value ?? '{{$adGroup->end_time}}';
+            let budgetMode = document.getElementById('budget_mode').value ?? '{{$adGroup?->budget_mode}}';
+            let budget = parseFloat(document.getElementById('budget').value) || {{ $adGroup?->budget ?? 0 }};
+            let startDate = document.getElementById('start_time').value ?? '{{$adGroup?->start_time}}';
+            let endDate = document.getElementById('end_time').value ?? '{{$adGroup?->end_time}}';
             let allocatedBudget = budget;
             // Daily Budget Calculation
             if (budgetMode === 'daily' && startDate && endDate) {

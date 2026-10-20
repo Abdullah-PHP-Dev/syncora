@@ -7,6 +7,7 @@ use App\Models\Admin\Ad;
 use App\Models\Admin\AdAdGroup;
 use App\Models\Admin\AdBuilderRun;
 use App\Models\Admin\AdCampaign;
+use App\Models\Admin\AdCreative;
 use App\Models\MediaAsset;
 use App\Models\SocialAccount;
 use App\Services\AdServices\GoogleCampaignBuilder;
@@ -38,7 +39,7 @@ class GoogleCampaignBuilderTest extends TestCase
     {
         parent::setUp();
 
-        foreach ([AdCampaign::class, AdAdGroup::class, Ad::class, AdBuilderRun::class, SocialAccount::class, MediaAsset::class] as $model) {
+        foreach ([AdCampaign::class, AdAdGroup::class, AdCreative::class, Ad::class, AdBuilderRun::class, SocialAccount::class, MediaAsset::class] as $model) {
             $instance = new $model();
             Schema::dropIfExists($instance->getTable());
             Schema::create($instance->getTable(), function (Blueprint $table) use ($instance) {
@@ -106,6 +107,9 @@ class GoogleCampaignBuilderTest extends TestCase
             }
             if (str_ends_with($url, 'assets:mutate')) {
                 return Http::response(['results' => [['resourceName' => 'customers/1234567890/assets/' . (500 + count($this->mutates) + random_int(1, 99999))]]]);
+            }
+            if (str_ends_with($url, '/campaigns:mutate')) {
+                return Http::response(['results' => [['resourceName' => 'customers/1234567890/campaigns/24383575678']]]);
             }
             if (str_ends_with($url, 'campaignConversionGoals:mutate')) {
                 return Http::response(['results' => array_map(fn ($o) => ['resourceName' => $o['update']['resourceName']], $body['operations'])]);
@@ -738,5 +742,44 @@ class GoogleCampaignBuilderTest extends TestCase
         $plain['campaign'] = array_merge($plain['campaign'], ['bidding' => 'MAXIMIZE_CONVERSIONS', 'target_cpa' => null, 'target_cpc' => null]);
         $this->assertTrue($this->builder()->submit($plain, 'key-yt-bid-0000003')['success']);
         $this->assertArrayHasKey('maximizeConversions', $this->ops($this->mutates[2], 'campaignOperation')[0]);
+    }
+
+    public function test_builder_saves_the_creative_the_edit_page_reads(): void
+    {
+        $this->assertTrue($this->builder()->submit($this->youtubeInput(), 'key-creative-00001')['success']);
+
+        $creative = AdCreative::first();
+        $this->assertSame('youtube', $creative->platform);
+        $this->assertSame('Acme', $creative->business_name);
+        $this->assertSame('https://acme.test/shoes', $creative->url);
+        $this->assertSame((string) AdAdGroup::first()->id, (string) $creative->ad_adgroup_id);
+        $this->assertSame((string) $creative->id, (string) Ad::first()->ad_creative_id);
+        $this->assertCount(2, json_decode($creative->descriptions, true));
+    }
+
+    public function test_delete_and_pause_use_the_full_campaign_resource_name(): void
+    {
+        $campaign = AdCampaign::create(['ad_campaign_id' => '24383575678', 'platform' => 'google', 'user_id' => 7, 'name' => 'Old', 'status' => true]);
+        $service = new class {
+            use \App\Services\AdServices\Concerns\GoogleAdsApiTrait;
+
+            public function boot(SocialAccount $account): static
+            {
+                $this->account = $account;
+                $this->config = 'https://googleads.googleapis.com/v24/';
+                $this->apiService = app(\App\Services\ApiService::class);
+                $this->header = ['Authorization' => 'Bearer tok'];
+
+                return $this;
+            }
+        };
+        $service->boot($this->account->fresh());
+
+        $this->assertTrue($service->updateStatus($campaign->id, 'PAUSED')['success']);
+        Http::assertSent(fn ($r) => ($r->data()['operations'][0]['update']['resourceName'] ?? null) === 'customers/1234567890/campaigns/24383575678');
+
+        $this->assertTrue($service->destroy('google', $campaign->id)['success']);
+        Http::assertSent(fn ($r) => ($r->data()['operations'][0] ?? null) === ['remove' => 'customers/1234567890/campaigns/24383575678']);
+        $this->assertNull(AdCampaign::find($campaign->id));
     }
 }

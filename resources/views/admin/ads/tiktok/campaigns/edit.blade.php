@@ -195,16 +195,16 @@
                                             <h5>Campaign Information</h5>
                                             @php
                                                 $adGroup = $campaign->adGroups->first();
-                                                $ageGroup = json_decode($adGroup->age_groups);
-                                                $creative = $adGroup->creatives->first();
-                                                $ad = $creative->ads->first();
-                                                $media = $creative->media;
-                                                $languages = json_decode($adGroup->languages);
-                                                $selectedCountries = json_decode($adGroup->location_ids);
+                                                $ageGroup = (json_decode($adGroup?->age_groups ?? "[]") ?: []);
+                                                $creative = $adGroup?->creatives->first();
+                                                $ad = $creative?->ads->first();
+                                                $media = $creative?->media ?? collect();
+                                                $languages = (json_decode($adGroup?->languages ?? "[]") ?: []);
+                                                $selectedCountries = (json_decode($adGroup?->location_ids ?? "[]") ?: []);
                                                 // targeting_criteria holds the resolved TikTok-side IDs plus
                                                 // every raw local selection needed to re-populate this form -
                                                 // see TiktokAdService::buildAudienceTargeting().
-                                                $targetingLocal = json_decode($adGroup->targeting_criteria ?? '{}', true)['local'] ?? [];
+                                                $targetingLocal = json_decode($adGroup?->targeting_criteria ?? '{}', true)['local'] ?? [];
                                             @endphp
                                             <div class="row">
                                                 <div class="col-md-6">
@@ -265,9 +265,9 @@
                                                 <div class="col-md-4">
                                                     <label>Budget</label>
                                                     <div class="input-group">
-                                                        <span class="input-group-text">{{ $account->metadata['currency'] ?? null }}</span>
+                                                        <span class="input-group-text">{{ $account?->metadata['currency'] ?? null }}</span>
                                                         <input class="form-control" name="budget" id="budget"
-                                                            type="number" step="0.01" value="{{$adGroup->budget}}">
+                                                            type="number" step="0.01" value="{{$adGroup?->budget}}">
                                                     </div>
                                                     <p class="error-message error-budget"></p>
                                                 </div>
@@ -276,8 +276,8 @@
                                                 <div class="col-md-4">
                                                     <label>Bid Amount</label>
                                                     <div class="input-group">
-                                                        <span class="input-group-text">{{ $account->metadata['currency'] ?? null }}</span>
-                                                        <input class="form-control" name="bid_amount" value="{{$adGroup->bid_price}}" id="bid_amount"
+                                                        <span class="input-group-text">{{ $account?->metadata['currency'] ?? null }}</span>
+                                                        <input class="form-control" name="bid_amount" value="{{$adGroup?->bid_price}}" id="bid_amount"
                                                             type="number" step="0.01">
                                                     </div>
                                                     <p class="error-message error-bid_amount"></p>
@@ -298,7 +298,7 @@
                                                             <div class="d-flex justify-content-between mb-2">
                                                                 <span>Budget</span>
                                                                 <strong>
-                                                                    {{ $account->metadata['currency'] ?? null }}
+                                                                    {{ $account?->metadata['currency'] ?? null }}
                                                                     <span id="budget_amount">0.00</span>
                                                                 </strong>
                                                             </div>
@@ -306,7 +306,7 @@
                                                             <div class="d-flex justify-content-between mb-2 text-muted">
                                                                 <span>VAT (15%)</span>
                                                                 <strong>
-                                                                    {{ $account->metadata['currency'] ?? null }}
+                                                                    {{ $account?->metadata['currency'] ?? null }}
                                                                     <span id="vat_amount">0.00</span>
                                                                 </strong>
                                                             </div>
@@ -319,7 +319,7 @@
                                                             <div class="d-flex justify-content-between">
                                                                 <h5 class="mb-0">Total Budget</h5>
                                                                 <h5 class="mb-0 text-primary">
-                                                                    {{ $account->metadata['currency'] ?? null }}
+                                                                    {{ $account?->metadata['currency'] ?? null }}
                                                                     
                                                                     <span id="total_budget">0.00</span>
                                                                 </h5>
@@ -375,8 +375,8 @@
                                             <div class="row">
                                                 <div class="col-md-6">
                                                     <label>TikTok Identity *</label>
-                                                    <select name="page_id" id="page_id" class="form-control" data-current="{{ $creative->page_id }}" required>
-                                                        <option value="{{ $creative->page_id }}">-- Loading identities... --</option>
+                                                    <select name="page_id" id="page_id" class="form-control" data-current="{{ $creative?->page_id }}" required>
+                                                        <option value="{{ $creative?->page_id }}">-- Loading identities... --</option>
                                                     </select>
                                                     <input type="hidden" name="identity_type" id="identity_type" value="TT_USER">
                                                     <small class="text-muted">A TikTok account linked to this ad account. If none are listed, link one in TikTok Ads Manager → Assets → Identity (or via Business Center) first - this can't be created from here.</small>
@@ -445,13 +445,13 @@
 
                                                 <label>Description</label>
 
-                                                <textarea id="adDescription" name="description" rows="4" class="form-control">{{$creative->message}}</textarea>
+                                                <textarea id="adDescription" name="description" rows="4" class="form-control">{{$creative?->message}}</textarea>
                                                 <p class="error-message error-description"></p>
                                             </div>
                                             <div class="mt-4">
                                                 <label>Target URL</label>
 
-                                                <input type="url" name="target_link" id="targetLink" value="{{$creative->url}}" class="form-control" placeholder="https://example.com">
+                                                <input type="url" name="target_link" id="targetLink" value="{{$creative?->url}}" class="form-control" placeholder="https://example.com">
                                                 <p class="error-message error-target_link"></p>
                                             </div>
 
@@ -459,7 +459,7 @@
                                         <div class="builder-card">
                                             <h5>Audience</h5>
                                             @php
-                                                $selectedAgeRanges = json_decode($adGroup->age_groups ?? '[]', true) ?: [];
+                                                $selectedAgeRanges = json_decode($adGroup?->age_groups ?? '[]', true) ?: [];
                                             @endphp
                                             <div class="row">
                                                 <div class="col-md-6">
@@ -479,9 +479,9 @@
                                                 </div>
                                                 <div class="col-md-6">
                                                     <select id="gender" name="gender" class="form-control">
-                                                        <option value="GENDER_UNLIMITED" @selected(old('gender', $adGroup->gender) == 'GENDER_UNLIMITED')>All</option>
-                                                        <option value="GENDER_MALE" @selected(old('gender', $adGroup->gender) == 'GENDER_MALE')>Male</option>
-                                                        <option value="GENDER_FEMALE" @selected(old('gender', $adGroup->gender) == 'GENDER_FEMALE')>Female</option>
+                                                        <option value="GENDER_UNLIMITED" @selected(old('gender', $adGroup?->gender) == 'GENDER_UNLIMITED')>All</option>
+                                                        <option value="GENDER_MALE" @selected(old('gender', $adGroup?->gender) == 'GENDER_MALE')>Male</option>
+                                                        <option value="GENDER_FEMALE" @selected(old('gender', $adGroup?->gender) == 'GENDER_FEMALE')>Female</option>
                                                     </select>
                                                     <p class="error-message error-gender"></p>
                                                 </div>
@@ -637,12 +637,12 @@
                                             <div class="preview-top">
                                                 <div class="avatar"></div>
                                                 <div>
-                                                    <strong>{{ $account->name }}</strong>
+                                                    <strong>{{ $account?->name }}</strong>
                                                     <div>Sponsored</div>
                                                 </div>
                                             </div>
-                                            <img @if ($media->first()->type === 'IMAGE') src="{{$media->first()->url}}"  style="display:block" @else  style="display:none" @endif id="previewImage" class="preview-image">
-                                            <video @if ($media->first()->type === 'VIDEO') src="{{$media->first()->url}}" style="display:block;width:100%;border-radius:12px;" @else  style="display:none;width:100%;border-radius:12px;" @endif id="previewVideo" class="preview-image" controls>
+                                            <img @if ($media->first()?->type === 'IMAGE') src="{{$media->first()?->url}}"  style="display:block" @else  style="display:none" @endif id="previewImage" class="preview-image">
+                                            <video @if ($media->first()?->type === 'VIDEO') src="{{$media->first()?->url}}" style="display:block;width:100%;border-radius:12px;" @else  style="display:none;width:100%;border-radius:12px;" @endif id="previewVideo" class="preview-image" controls>
                                             </video>
                                             <div id="carouselPreview" style="display:none">
                                                 <img id="carouselImage" class="preview-image">
@@ -662,12 +662,12 @@
                                                     {{$campaign->name}}
                                                 </h6>
                                                 <p id="previewDescription">
-                                                    {{$creative->message}}
+                                                    {{$creative?->message}}
                                                 </p>
                                             </div>
                                             <a id="previewCTA" href="#" target="_blank"
                                                 class="btn btn-primary w-100">
-                                                {{ ucwords(strtolower(str_replace('_', ' ', $ad->call_to_action))) }}
+                                                {{ ucwords(strtolower(str_replace('_', ' ', $ad?->call_to_action))) }}
                                             </a>
                                         </div>
                                     </div>
@@ -686,10 +686,10 @@
         var campaignId = @json($campaign->id);
         var areYouSure = "{{ __('admin.sweet-alert.are-you-sure') }}";
         var selectedObjective = "{{ $campaign->objective }}";
-        var selectedDestinationType = "{{ $adGroup->destination_type }}";
-        var selectedOptimizationGoal = "{{ $adGroup->optimization_goal }}";
-        var selectedBillingEvent = "{{ $adGroup->billing_event }}";
-        var selectedCTA = "{{ $ad->call_to_action }}";
+        var selectedDestinationType = "{{ $adGroup?->destination_type }}";
+        var selectedOptimizationGoal = "{{ $adGroup?->optimization_goal }}";
+        var selectedBillingEvent = "{{ $adGroup?->billing_event }}";
+        var selectedCTA = "{{ $ad?->call_to_action }}";
         var YouWontBeAbleToRevertThis = "{{ __('admin.sweet-alert.you-wont-be-able-to-revert-this') }}";
         var YesDeleteIt = "{{ __('admin.sweet-alert.yes-delete-it') }}";
         var recordHasBeenDelete = "{{ __('admin.sweet-alert.record-has-been-deleted') }}";
@@ -789,7 +789,7 @@
         // defaulting to IMAGE - without this, opening an existing
         // Carousel ad never set creativeType to 'CAROUSEL' unless the
         // admin manually re-clicked the Carousel button.
-        let creativeType = @json($creative->type ?? 'IMAGE');
+        let creativeType = @json($creative?->type ?? 'IMAGE');
         let carouselItems = @json($media->map(fn($m) => [
             'image' => $m->url,
         ])->values());
@@ -1157,10 +1157,10 @@
         calculateBudget();
         
         function calculateBudget() {
-            let budgetMode = document.getElementById('budget_mode').value ?? '{{$adGroup->budget_mode}}';
-            let budget = parseFloat(document.getElementById('budget').value) || {{ $adGroup->budget ?? 0 }};
-            let startDate = document.getElementById('start_time').value ?? '{{$adGroup->start_time}}';
-            let endDate = document.getElementById('end_time').value ?? '{{$adGroup->end_time}}';
+            let budgetMode = document.getElementById('budget_mode').value ?? '{{$adGroup?->budget_mode}}';
+            let budget = parseFloat(document.getElementById('budget').value) || {{ $adGroup?->budget ?? 0 }};
+            let startDate = document.getElementById('start_time').value ?? '{{$adGroup?->start_time}}';
+            let endDate = document.getElementById('end_time').value ?? '{{$adGroup?->end_time}}';
             let allocatedBudget = budget;
             // Daily Budget Calculation
             if (budgetMode === 'daily' && startDate && endDate) {

@@ -234,21 +234,21 @@
                         </div>
                         @php
                             $adGroup = $campaign->adGroups->first();
-                            $ageGroup = json_decode($adGroup->age_groups) ?: [];
-                            $creative = $adGroup->creatives->first();
-                            $ad = $creative->ads->first();
-                            $media = $creative->media;
-                            $languages = json_decode($adGroup->languages) ?: [];
-                            $selectedCountryCodes = json_decode($adGroup->location_ids) ?: [];
+                            $ageGroup = json_decode($adGroup?->age_groups) ?: [];
+                            $creative = $adGroup?->creatives->first();
+                            $ad = $creative?->ads->first();
+                            $media = $creative?->media ?? collect();
+                            $languages = json_decode($adGroup?->languages) ?: [];
+                            $selectedCountryCodes = json_decode($adGroup?->location_ids) ?: [];
                             $selectedCountryIds = $selectedCountryCodes
                                 ? \App\Models\Country::whereIn('code', $selectedCountryCodes)->pluck('id')->toArray()
                                 : [];
-                            $webViewProps = json_decode($creative->web_view_properties ?? '{}', true) ?: [];
-                            $appInstallProps = json_decode($creative->app_install_properties ?? '{}', true) ?: [];
-                            $deepLinkProps = json_decode($creative->deep_link_properties ?? '{}', true) ?: [];
-                            $callProps = json_decode($creative->ad_to_call_properties ?? '{}', true) ?: [];
-                            $messageProps = json_decode($creative->ad_to_message_properties ?? '{}', true) ?: [];
-                            $lensProps = json_decode($creative->ad_to_lens_properties ?? '{}', true) ?: [];
+                            $webViewProps = json_decode($creative?->web_view_properties ?? '{}', true) ?: [];
+                            $appInstallProps = json_decode($creative?->app_install_properties ?? '{}', true) ?: [];
+                            $deepLinkProps = json_decode($creative?->deep_link_properties ?? '{}', true) ?: [];
+                            $callProps = json_decode($creative?->ad_to_call_properties ?? '{}', true) ?: [];
+                            $messageProps = json_decode($creative?->ad_to_message_properties ?? '{}', true) ?: [];
+                            $lensProps = json_decode($creative?->ad_to_lens_properties ?? '{}', true) ?: [];
                         @endphp
                         <div class="campaign-builder">
                             <div class="builder-header">
@@ -440,7 +440,7 @@
                                                 </div>
                                             </div>
                                             <br>
-                                            <div class="row bid_amount" @if (!in_array($adGroup->bid_strategy, ['TARGET_COST', 'LOWEST_COST_WITH_MAX_BID'])) style="display:none" @endif>
+                                            <div class="row bid_amount" @if (!in_array($adGroup?->bid_strategy, ['TARGET_COST', 'LOWEST_COST_WITH_MAX_BID'])) style="display:none" @endif>
                                                 <div class="col-md-4">
                                                     <label>Bid Amount</label>
                                                     <div class="input-group">
@@ -465,18 +465,18 @@
                                                 <div class="col-md-6">
                                                     <label>Creative Type</label>
                                                     <select name="creative_type" id="creative_type" class="form-control">
-                                                        <option value="SNAP_AD" @if ($creative->type == 'SNAP_AD') selected @endif>Snap Ad</option>
-                                                        <option value="APP_INSTALL" @if ($creative->type == 'APP_INSTALL') selected @endif>App Install</option>
-                                                        <option value="LENS_APP_INSTALL"  @if ($creative->type == 'LENS_APP_INSTALL') selected @endif>Lens App Install</option>
-                                                        <option value="DEEP_LINK"  @if ($creative->type == 'DEEP_LINK') selected @endif>Deep Link</option>
-                                                        <option value="LEAD_GENERATION"  @if ($creative->type == 'LEAD_GENERATION') selected @endif>Lead Generation</option>
-                                                        <option value="LENS_DEEP_LINK"  @if ($creative->type == 'LENS_DEEP_LINK') selected @endif>Lens Deep Link</option>
-                                                        <option value="WEB_VIEW"  @if ($creative->type == 'WEB_VIEW') selected @endif>Web View</option>
-                                                        <option value="LENS_WEB_VIEW"  @if ($creative->type == 'LENS_WEB_VIEW') selected @endif>Lens Web View</option>
-                                                        <option value="AD_TO_MESSAGE"  @if ($creative->type == 'AD_TO_MESSAGE') selected @endif>Ad To Message</option>
-                                                        <option value="AD_TO_LENS"  @if ($creative->type == 'AD_TO_LENS') selected @endif>Ad To Lens</option>
-                                                        <option value="AD_TO_CALL"  @if ($creative->type == 'AD_TO_CALL') selected @endif>Ad To Call</option>
-                                                        <option value="REMINDER"  @if ($creative->type == 'REMINDER') selected @endif>Reminder</option>
+                                                        <option value="SNAP_AD" @if ($creative?->type == 'SNAP_AD') selected @endif>Snap Ad</option>
+                                                        <option value="APP_INSTALL" @if ($creative?->type == 'APP_INSTALL') selected @endif>App Install</option>
+                                                        <option value="LENS_APP_INSTALL"  @if ($creative?->type == 'LENS_APP_INSTALL') selected @endif>Lens App Install</option>
+                                                        <option value="DEEP_LINK"  @if ($creative?->type == 'DEEP_LINK') selected @endif>Deep Link</option>
+                                                        <option value="LEAD_GENERATION"  @if ($creative?->type == 'LEAD_GENERATION') selected @endif>Lead Generation</option>
+                                                        <option value="LENS_DEEP_LINK"  @if ($creative?->type == 'LENS_DEEP_LINK') selected @endif>Lens Deep Link</option>
+                                                        <option value="WEB_VIEW"  @if ($creative?->type == 'WEB_VIEW') selected @endif>Web View</option>
+                                                        <option value="LENS_WEB_VIEW"  @if ($creative?->type == 'LENS_WEB_VIEW') selected @endif>Lens Web View</option>
+                                                        <option value="AD_TO_MESSAGE"  @if ($creative?->type == 'AD_TO_MESSAGE') selected @endif>Ad To Message</option>
+                                                        <option value="AD_TO_LENS"  @if ($creative?->type == 'AD_TO_LENS') selected @endif>Ad To Lens</option>
+                                                        <option value="AD_TO_CALL"  @if ($creative?->type == 'AD_TO_CALL') selected @endif>Ad To Call</option>
+                                                        <option value="REMINDER"  @if ($creative?->type == 'REMINDER') selected @endif>Reminder</option>
                                                     </select>
                                                     <p class="error-message error-creative_type"></p>
                                                 </div>
@@ -485,14 +485,14 @@
                                                     <select name="call_to_action" id="call_to_action"
                                                         class="form-control">
                                                         <option value="">-- Select CTA --</option>
-                                                        <option value="LEARN_MORE" @if ($creative->call_to_action == 'LEARN_MORE') selected @endif>Learn More</option>
-                                                        <option value="SHOP_NOW" @if ($creative->call_to_action == 'SHOP_NOW') selected @endif>Shop Now</option>
-                                                        <option value="SIGN_UP" @if ($creative->call_to_action == 'SIGN_UP') selected @endif>Sign Up</option>
-                                                        <option value="BOOK_NOW" @if ($creative->call_to_action == 'BOOK_NOW') selected @endif>Book Now</option>
-                                                        <option value="CONTACT_US" @if ($creative->call_to_action == 'CONTACT_US') selected @endif>Contact Us</option>
-                                                        <option value="CALL_NOW" @if ($creative->call_to_action == 'CALL_NOW') selected @endif>Call Now</option>
-                                                        <option value="SEND_MESSAGE" @if ($creative->call_to_action == 'SEND_MESSAGE') selected @endif>Send Message</option>
-                                                        <option value="DOWNLOAD" @if ($creative->call_to_action == 'DOWNLOAD') selected @endif>Download</option>
+                                                        <option value="LEARN_MORE" @if ($creative?->call_to_action == 'LEARN_MORE') selected @endif>Learn More</option>
+                                                        <option value="SHOP_NOW" @if ($creative?->call_to_action == 'SHOP_NOW') selected @endif>Shop Now</option>
+                                                        <option value="SIGN_UP" @if ($creative?->call_to_action == 'SIGN_UP') selected @endif>Sign Up</option>
+                                                        <option value="BOOK_NOW" @if ($creative?->call_to_action == 'BOOK_NOW') selected @endif>Book Now</option>
+                                                        <option value="CONTACT_US" @if ($creative?->call_to_action == 'CONTACT_US') selected @endif>Contact Us</option>
+                                                        <option value="CALL_NOW" @if ($creative?->call_to_action == 'CALL_NOW') selected @endif>Call Now</option>
+                                                        <option value="SEND_MESSAGE" @if ($creative?->call_to_action == 'SEND_MESSAGE') selected @endif>Send Message</option>
+                                                        <option value="DOWNLOAD" @if ($creative?->call_to_action == 'DOWNLOAD') selected @endif>Download</option>
                                                     </select>
                                                     <p class="error-message error-call_to_action"></p>
                                                 </div>
@@ -501,7 +501,7 @@
                                             <div class="row">
                                                 <div class="col-md-6">
                                                     <label>Target URL (Landing Page)</label>
-                                                    <input type="url" name="target_link" value="{{$creative->url}}" id="target_link"
+                                                    <input type="url" name="target_link" value="{{$creative?->url}}" id="target_link"
                                                         class="form-control" placeholder="https://example.com">
                                                     <p class="error-message error-target_link"></p>
                                                 </div>
@@ -611,7 +611,7 @@
                                             </div>
                                             <div class="mt-4">
                                                 <label>Description (headline, max 34 chars)</label>
-                                                <textarea id="ad_description" name="description" rows="4" class="form-control" maxlength="34">{{$creative->message}}</textarea>
+                                                <textarea id="ad_description" name="description" rows="4" class="form-control" maxlength="34">{{$creative?->message}}</textarea>
                                                 <p class="error-message error-description"></p>
                                             </div>
                                         </div>
@@ -627,9 +627,9 @@
                                                 <div class="col-md-4">
                                                     <label>Gender</label>
                                                     <select name="gender" id="gender" class="form-control">
-                                                        <option value="both" @if ($adGroup->gender == 'both') selected @endif>All</option>
-                                                        <option value="male" @if ($adGroup->gender == 'male') selected @endif>Male</option>
-                                                        <option value="female" @if ($adGroup->gender == 'female') selected @endif>Female</option>
+                                                        <option value="both" @if ($adGroup?->gender == 'both') selected @endif>All</option>
+                                                        <option value="male" @if ($adGroup?->gender == 'male') selected @endif>Male</option>
+                                                        <option value="female" @if ($adGroup?->gender == 'female') selected @endif>Female</option>
                                                     </select>
                                                     <p class="error-message error-gender"></p>
                                                 </div>
@@ -708,12 +708,12 @@
                                             <div class="preview-top">
                                                 <div class="avatar"></div>
                                                 <div>
-                                                    <strong>{{ $account->name ?? 'Brand' }}</strong>
+                                                    <strong>{{ $account?->name ?? 'Brand' }}</strong>
                                                     <div>Sponsored</div>
                                                 </div>
                                             </div>
-                                            <img @if ($media->first()->type === 'IMAGE') src="{{$media->first()->url}}"  style="display:block" @else  style="display:none" @endif id="previewImage" class="preview-image">
-                                            <video @if ($media->first()->type === 'VIDEO') src="{{$media->first()->url}}" style="display:block;width:100%;border-radius:12px;" @else  style="display:none;width:100%;border-radius:12px;" @endif id="previewVideo" class="preview-image" controls>
+                                            <img @if ($media->first()?->type === 'IMAGE') src="{{$media->first()?->url}}"  style="display:block" @else  style="display:none" @endif id="previewImage" class="preview-image">
+                                            <video @if ($media->first()?->type === 'VIDEO') src="{{$media->first()?->url}}" style="display:block;width:100%;border-radius:12px;" @else  style="display:none;width:100%;border-radius:12px;" @endif id="previewVideo" class="preview-image" controls>
                                             </video>
                                             <div id="carouselPreview" style="display:none">
                                                 <img id="carouselImage" class="preview-image">
@@ -722,7 +722,7 @@
                                                         id="carouselTitle" class="form-control" placeholder="Card headline" maxlength="34">
                                                 </div>
                                                 <div class="mt-3"><label>Description (internal reference)</label>
-                                                    <textarea id="carouselDescription" class="form-control" rows="3" placeholder="Card description">{{$creative->message}}</textarea>
+                                                    <textarea id="carouselDescription" class="form-control" rows="3" placeholder="Card description">{{$creative?->message}}</textarea>
                                                 </div>
                                                 <div class="d-flex justify-content-between mt-3">
                                                     <button type="button" class="btn btn-primary"
@@ -734,10 +734,10 @@
                                             </div>
                                             <div class="preview-content">
                                                 <h6 id="previewTitle">{{$campaign->name}}</h6>
-                                                <p id="previewDescription">{{$creative->message}}</p>
+                                                <p id="previewDescription">{{$creative?->message}}</p>
                                             </div>
                                             <a id="previewCTA" href="#" target="_blank"
-                                                class="btn btn-primary w-100">{{ ucwords(strtolower(str_replace('_', ' ', $ad->call_to_action))) }}</a>
+                                                class="btn btn-primary w-100">{{ ucwords(strtolower(str_replace('_', ' ', $ad?->call_to_action))) }}</a>
                                         </div>
                                     </div>
                                 </div>
@@ -766,12 +766,12 @@
         var areYouSure = "{{ __('admin.sweet-alert.are-you-sure') }}";
         var selectedObjective = "{{ $campaign->objective }}";
         var selectedPromotionType = "{{ $campaign->app_promotion_type }}";
-        var selectedConversionLocation = "{{ $adGroup->conversion_location ?? '' }}";
-        var selectedBidStrategy= "{{ $adGroup->bid_strategy }}";
-        var selectedCreativeType= "{{ $creative->type }}";
-        var selectedOptimizationGoal = "{{ $adGroup->optimization_goal }}";
-        var selectedBillingEvent = "{{ $adGroup->billing_event }}";
-        var selectedCTA = "{{ $creative->call_to_action }}";
+        var selectedConversionLocation = "{{ $adGroup?->conversion_location ?? '' }}";
+        var selectedBidStrategy= "{{ $adGroup?->bid_strategy }}";
+        var selectedCreativeType= "{{ $creative?->type }}";
+        var selectedOptimizationGoal = "{{ $adGroup?->optimization_goal }}";
+        var selectedBillingEvent = "{{ $adGroup?->billing_event }}";
+        var selectedCTA = "{{ $creative?->call_to_action }}";
         $('#bid_strategy').on('change', function() {
             var bidStrategy = $(this).val();
             $('.bid_amount').hide();
@@ -1287,11 +1287,11 @@
         // ------------------------------------------------------------------
         calculateBudget();
         function calculateBudget() {
-            let budgetMode = document.getElementById('budget_mode').value ?? '{{$adGroup->budget_mode}}';
+            let budgetMode = document.getElementById('budget_mode').value ?? '{{$adGroup?->budget_mode}}';
             console.log(budgetMode);
-            let budget = parseFloat(document.getElementById('budget').value) || {{ $adGroup->budget ?? 0 }};
-            let startDate = document.getElementById('start_time').value ?? '{{$adGroup->start_time}}';
-            let endDate = document.getElementById('end_time').value ?? '{{$adGroup->end_time}}';
+            let budget = parseFloat(document.getElementById('budget').value) || {{ $adGroup?->budget ?? 0 }};
+            let startDate = document.getElementById('start_time').value ?? '{{$adGroup?->start_time}}';
+            let endDate = document.getElementById('end_time').value ?? '{{$adGroup?->end_time}}';
             let allocatedBudget = budget;
 
             if (budgetMode === 'daily' && startDate && endDate) {

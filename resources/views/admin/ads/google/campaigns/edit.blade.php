@@ -164,13 +164,13 @@
 @section('content')
     @php
         $adGroup = $campaign->adGroups->first();
-        $creative = $adGroup->creatives->first();
-        $selectedCountryIds = json_decode($adGroup->location_ids ?? '[]') ?: [];
-        $selectedLanguages = json_decode($adGroup->languages ?? '[]') ?: [];
-        $selectedAgeRanges = json_decode($adGroup->age_groups ?? '[]') ?: [];
-        $keywordLines = collect(json_decode($adGroup->keywords ?? '[]') ?: [])->pluck('text')->implode("\n");
-        $headlineLines = implode("\n", json_decode($creative->headlines ?? '[]') ?: []);
-        $descriptionLines = implode("\n", json_decode($creative->descriptions ?? '[]') ?: []);
+        $creative = $adGroup?->creatives->first();
+        $selectedCountryIds = json_decode($adGroup?->location_ids ?? '[]') ?: [];
+        $selectedLanguages = json_decode($adGroup?->languages ?? '[]') ?: [];
+        $selectedAgeRanges = json_decode($adGroup?->age_groups ?? '[]') ?: [];
+        $keywordLines = collect(json_decode($adGroup?->keywords ?? '[]') ?: [])->pluck('text')->implode("\n");
+        $headlineLines = implode("\n", json_decode($creative?->headlines ?? '[]') ?: []);
+        $descriptionLines = implode("\n", json_decode($creative?->descriptions ?? '[]') ?: []);
     @endphp
 
     <div class="col-xxl-12 mb-0">
@@ -249,7 +249,7 @@
                                                     </div>
                                                     <div class="col-md-6">
                                                         <label>Budget</label>
-                                                        <input type="text" class="form-control" value="{{ $account->metadata['currency'] ?? 'USD' }} {{ $campaign->budget }}" disabled>
+                                                        <input type="text" class="form-control" value="{{ $account?->metadata['currency'] ?? 'USD' }} {{ $campaign->budget }}" disabled>
                                                     </div>
                                                 </div>
                                                 <div class="row mt-3">
@@ -284,7 +284,7 @@
                                                 <div class="row">
                                                     <div class="col-md-12">
                                                         <label>Final URL *</label>
-                                                        <input type="url" name="target_link" id="target_link" class="form-control" required value="{{ $creative->url }}">
+                                                        <input type="url" name="target_link" id="target_link" class="form-control" required value="{{ $creative?->url }}">
                                                         <p class="error-message error-target_link"></p>
                                                     </div>
                                                 </div>
@@ -312,7 +312,7 @@
                                                 <div class="row">
                                                     <div class="col-md-4">
                                                         <label>Gender</label>
-                                                        <input type="text" class="form-control" value="{{ Str::title($adGroup->gender ?? 'Both') }}" disabled>
+                                                        <input type="text" class="form-control" value="{{ Str::title($adGroup?->gender ?? 'Both') }}" disabled>
                                                     </div>
                                                     <div class="col-md-4">
                                                         <label>Age Range</label>
@@ -352,9 +352,9 @@
                                     <div class="preview-card">
                                         <div class="preview-header">Search Ad Preview</div>
                                         <div class="search-preview">
-                                            <div class="search-ad-label">Ad · <span id="previewUrl">{{ parse_url($creative->url ?? '', PHP_URL_HOST) ?: 'example.com' }}</span></div>
-                                            <div class="search-ad-headline" id="previewHeadline">{{ json_decode($creative->headlines ?? '[]')[0] ?? 'Your Headline Here' }}</div>
-                                            <div class="search-ad-desc" id="previewDescription">{{ json_decode($creative->descriptions ?? '[]')[0] ?? 'Your ad description will appear here as you type.' }}</div>
+                                            <div class="search-ad-label">Ad · <span id="previewUrl">{{ parse_url($creative?->url ?? '', PHP_URL_HOST) ?: 'example.com' }}</span></div>
+                                            <div class="search-ad-headline" id="previewHeadline">{{ json_decode($creative?->headlines ?? '[]')[0] ?? 'Your Headline Here' }}</div>
+                                            <div class="search-ad-desc" id="previewDescription">{{ json_decode($creative?->descriptions ?? '[]')[0] ?? 'Your ad description will appear here as you type.' }}</div>
                                         </div>
                                     </div>
                                 </div>

@@ -701,6 +701,17 @@ trait GoogleAdsApiTrait
     }
 
     /**
+     * ad_campaign_id holds the bare campaign ID (builder + legacy forms) or,
+     * on older rows, the full resource name - Google needs the full one.
+     */
+    protected function campaignResourceName(\App\Models\Admin\AdCampaign $campaign): string
+    {
+        return str_contains((string) $campaign->ad_campaign_id, 'customers/')
+            ? $campaign->ad_campaign_id
+            : 'customers/' . $this->customerId() . '/campaigns/' . $campaign->ad_campaign_id;
+    }
+
+    /**
      * Pause/reactivate. Google's campaign.status accepts ENABLED/PAUSED/
      * REMOVED via the same update-mutate pattern used everywhere else here.
      */
@@ -712,7 +723,7 @@ trait GoogleAdsApiTrait
         $result = $this->mutate(
             $this->config . 'customers/' . $this->customerId() . '/campaigns:mutate',
             ['operations' => [[
-                'update'     => ['resourceName' => $campaign->ad_campaign_id, 'status' => $googleStatus],
+                'update'     => ['resourceName' => $this->campaignResourceName($campaign), 'status' => $googleStatus],
                 'updateMask' => 'status',
             ]]]
         );
@@ -727,10 +738,10 @@ trait GoogleAdsApiTrait
     }
 
     /**
-     * Google Ads has no hard delete for campaigns - the real mechanism
-     * (matching what the Ads UI itself does) is an update-mutate setting
-     * status to REMOVED, which is permanent and irreversible via the API
-     * but keeps the resource's history/reporting intact on Google's side.
+     * Google Ads deletes a campaign with a `remove` operation (it ends up
+     * with status REMOVED, permanently, keeping its reporting history).
+     * Setting status REMOVED through an `update` is rejected: "Enum value
+     * 'REMOVED' cannot be used."
      */
     public function destroy($platform, $id)
     {
@@ -738,10 +749,7 @@ trait GoogleAdsApiTrait
 
         $result = $this->mutate(
             $this->config . 'customers/' . $this->customerId() . '/campaigns:mutate',
-            ['operations' => [[
-                'update'     => ['resourceName' => $campaign->ad_campaign_id, 'status' => 'REMOVED'],
-                'updateMask' => 'status',
-            ]]]
+            ['operations' => [['remove' => $this->campaignResourceName($campaign)]]]
         );
 
         if (!$result['success']) {

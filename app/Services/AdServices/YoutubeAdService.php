@@ -482,8 +482,10 @@ class YoutubeAdService
     public function update($platform, $id, $request)
     {
         $campaign = AdCampaign::findOrFail($id);
-        $adGroup = AdAdGroup::whereAdCampaignId($id)->firstOrFail();
-        $creative = $adGroup->creatives->first();
+        // Performance Max (and some synced campaigns) have no ad group - then only
+        // the campaign name and dates are updated.
+        $adGroup = AdAdGroup::whereAdCampaignId($id)->first();
+        $creative = $adGroup?->creatives->first();
         $ad = Ad::whereAdCampaignId($id)->first();
 
         $result = $this->updateCampaignNameAndDates($campaign, $request);
