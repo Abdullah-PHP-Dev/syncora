@@ -33,7 +33,6 @@
         </button>
         <a v-if="data.connected" :href="data.urls.connect" class="pc-btn ghost"><i class="bx bx-refresh"></i> Reconnect</a>
         <a v-if="data.connected" :href="data.urls.create" class="pc-btn primary"><i class="bx bx-plus"></i> Create campaign</a>
-        <a v-else :href="data.urls.connect" class="pc-btn primary"><i class="bx bx-plug"></i> Connect {{ data.label }}</a>
       </div>
     </section>
 
@@ -44,16 +43,40 @@
     </div>
 
     <!-- ================= NOT CONNECTED ================= -->
-    <section v-if="!data.connected" class="pc-card pc-connect">
-      <span class="pc-connect-ic"><i class="bx" :class="data.icon"></i></span>
-      <h5>Connect {{ data.label }} to get started</h5>
-      <p>Link your {{ data.label }} ad account to create campaigns, sync existing ones and manage them from one place.</p>
-      <ul class="pc-connect-list">
-        <li><i class="bx bx-check"></i> Create campaigns with full targeting</li>
-        <li><i class="bx bx-check"></i> Sync and manage existing campaigns</li>
-        <li><i class="bx bx-check"></i> Pause, activate and edit in one click</li>
-      </ul>
-      <a :href="data.urls.connect" class="pc-btn primary lg"><i class="bx bx-plug"></i> Connect {{ data.label }}</a>
+    <section v-if="!data.connected" class="pc-connect">
+      <div class="pc-connect-main">
+        <div class="pc-connect-logos" aria-hidden="true">
+          <span class="pc-connect-ic"><i class="bx" :class="data.icon"></i></span>
+          <span class="pc-connect-link"><i class="bx bx-transfer-alt"></i></span>
+          <span class="pc-connect-app"><i class="bx bx-rocket"></i></span>
+        </div>
+        <span class="pc-eyebrow">Ads Manager · {{ data.label }}</span>
+        <h3>Connect {{ data.label }} and launch your first campaign</h3>
+        <p>Link your {{ data.label }} ad account once. Then create, sync and manage every campaign here, with full targeting, live status and one-click controls.</p>
+        <div class="pc-connect-cta">
+          <a :href="data.urls.connect" class="pc-btn primary lg"><i class="bx bx-plug"></i> Connect {{ data.label }}</a>
+          <a :href="data.urls.dashboard" class="pc-btn ghost lg"><i class="bx bx-grid-alt"></i> All platforms</a>
+        </div>
+        <ul class="pc-trust">
+          <li><i class="bx bx-lock-alt"></i> Secure sign-in with {{ data.label }}</li>
+          <li><i class="bx bx-shield-quarter"></i> We never see your password</li>
+          <li><i class="bx bx-reset"></i> Disconnect any time</li>
+        </ul>
+      </div>
+
+      <div class="pc-connect-side">
+        <h6>How it works</h6>
+        <ol class="pc-steps">
+          <li><span class="n">1</span><div><strong>Sign in to {{ data.label }}</strong><small>Approve access in a secure {{ data.label }} window.</small></div></li>
+          <li><span class="n">2</span><div><strong>Choose your ad account</strong><small>Pick the account you want to manage from here.</small></div></li>
+          <li><span class="n">3</span><div><strong>Create or sync campaigns</strong><small>Launch new campaigns or pull in the ones you already run.</small></div></li>
+        </ol>
+        <div class="pc-benefits">
+          <div><i class="bx bx-target-lock"></i><strong>Full targeting</strong><small>Audiences, locations, placements</small></div>
+          <div><i class="bx bx-sync"></i><strong>Two-way sync</strong><small>Keep campaigns up to date</small></div>
+          <div><i class="bx bx-pointer"></i><strong>One-click control</strong><small>Pause, activate and edit</small></div>
+        </div>
+      </div>
     </section>
 
     <template v-else>
@@ -603,14 +626,45 @@ function destroy(c) {
 .pc-empty p { color: var(--muted); font-size: .85rem; margin: 0 0 1rem; }
 .pc-empty-a { display: flex; gap: .5rem; justify-content: center; flex-wrap: wrap; }
 
-/* connect */
-.pc-connect { text-align: center; padding: 2.75rem 1.5rem; }
-.pc-connect-ic { width: 72px; height: 72px; margin: 0 auto 1rem; border-radius: 20px; display: grid; place-items: center; font-size: 2.1rem; color: var(--pc-on); background: var(--pc); box-shadow: 0 10px 24px var(--pc-line); }
-.pc-connect h5 { font-weight: 800; color: var(--ink); }
-.pc-connect > p { color: var(--ink2); font-size: .9rem; max-width: 460px; margin: .4rem auto 1rem; }
-.pc-connect-list { list-style: none; padding: 0; margin: 0 auto 1.4rem; display: inline-flex; flex-direction: column; gap: .4rem; text-align: start; font-size: .85rem; color: var(--ink2); }
-.pc-connect-list .bx { color: #12b76a; margin-inline-end: .35rem; }
-
+/* connect (no account yet) */
+.pc-connect { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 0; border: 1px solid var(--ln); border-radius: 20px; overflow: hidden; background: #fff; box-shadow: var(--shadow); }
+.pc-connect-main { padding: 2.5rem 2.25rem; background: radial-gradient(120% 120% at 0% 0%, var(--pc-soft) 0%, transparent 60%), #fff; }
+.pc-connect-logos { display: flex; align-items: center; gap: .6rem; margin-bottom: 1.4rem; }
+.pc-connect-ic, .pc-connect-app { width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; font-size: 1.7rem; }
+.pc-connect-ic { color: var(--pc-on); background: var(--pc); box-shadow: 0 10px 24px var(--pc-line); }
+.pc-connect-app { color: #fff; background: linear-gradient(135deg, #6d5bff, #4a3ae6); box-shadow: 0 10px 24px rgba(91, 75, 255, .25); }
+.pc-connect-link { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); background: var(--ln-soft); border: 1px dashed #cfd4dd; font-size: 1.1rem; }
+.pc-eyebrow { display: inline-block; font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--pc-ink); background: var(--pc-soft); padding: .25rem .6rem; border-radius: 999px; }
+.pc-connect h3 { font-size: 1.6rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.25; color: var(--ink); margin: .8rem 0 .6rem; max-width: 520px; }
+.pc-connect-main > p { color: var(--ink2); font-size: .92rem; line-height: 1.6; max-width: 500px; margin: 0 0 1.5rem; }
+.pc-connect-cta { display: flex; flex-wrap: wrap; gap: .6rem; }
+.pc-trust { list-style: none; padding: 0; margin: 1.4rem 0 0; display: flex; flex-wrap: wrap; gap: .5rem 1.2rem; font-size: .78rem; color: var(--muted); }
+.pc-trust li { display: inline-flex; align-items: center; gap: .35rem; }
+.pc-trust .bx { color: #12b76a; font-size: 1rem; }
+.pc-connect-side { padding: 2.25rem 2rem; background: #fafbfe; border-inline-start: 1px solid var(--ln-soft); display: flex; flex-direction: column; gap: 1.4rem; }
+.pc-connect-side h6 { margin: 0; font-size: .74rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.pc-steps { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0; }
+.pc-steps li { position: relative; display: flex; gap: .85rem; padding-bottom: 1.1rem; }
+.pc-steps li:last-child { padding-bottom: 0; }
+.pc-steps li:not(:last-child)::before { content: ''; position: absolute; inset-inline-start: 15px; top: 32px; bottom: 2px; width: 2px; background: linear-gradient(var(--pc-line), var(--ln)); }
+.pc-steps .n { width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; font-size: .8rem; font-weight: 800; color: var(--pc-ink); background: #fff; border: 2px solid var(--pc-line); }
+.pc-steps strong { display: block; font-size: .88rem; color: var(--ink); margin-top: .3rem; }
+.pc-steps small { display: block; font-size: .76rem; color: var(--muted); margin-top: .15rem; line-height: 1.45; }
+.pc-benefits { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; }
+.pc-benefits > div { display: flex; flex-direction: column; gap: .2rem; padding: .8rem .75rem; border-radius: 12px; background: #fff; border: 1px solid var(--ln); min-width: 0; }
+.pc-benefits .bx { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--pc-soft); color: var(--pc-ink); font-size: 1rem; margin-bottom: .3rem; }
+.pc-benefits strong { font-size: .8rem; color: var(--ink); }
+.pc-benefits small { font-size: .7rem; color: var(--muted); line-height: 1.35; }
+@media (max-width: 991.98px) {
+  .pc-connect { grid-template-columns: minmax(0, 1fr); }
+  .pc-connect-side { border-inline-start: 0; border-top: 1px solid var(--ln-soft); }
+}
+@media (max-width: 575.98px) {
+  .pc-connect-main, .pc-connect-side { padding: 1.5rem 1.15rem; }
+  .pc-connect h3 { font-size: 1.3rem; }
+  .pc-connect-cta .pc-btn { flex: 1; justify-content: center; }
+  .pc-benefits { grid-template-columns: minmax(0, 1fr); }
+}
 /* accounts */
 .pc-acc { list-style: none; margin: 0; padding: 0; }
 .pc-acc li { display: flex; gap: .7rem; align-items: flex-start; padding: .7rem 0; border-bottom: 1px solid var(--ln-soft); }
