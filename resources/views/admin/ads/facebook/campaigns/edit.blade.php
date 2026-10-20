@@ -517,7 +517,7 @@
                                                         @empty
                                                             <p class="text-muted mb-0">No connected Facebook pages found. Please reconnect Facebook to import your pages.</p>
                                                         @endforelse
-                                                        @if ($creative?->page_id && !$connectedPages->contains('page_id', $creative?->page_id))
+                                                        @if ($creative?->page_id && !$platformPages->contains('page_id', $creative?->page_id))
                                                             <label class="page-card active">
                                                                 <input class="page-radio" type="radio"
                                                                     name="page_id" value="{{ $creative?->page_id }}" checked>
