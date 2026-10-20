@@ -78,22 +78,30 @@
             <div v-if="type" class="fb-guide"><i class="bx bx-bulb"></i><span><strong>{{ t('types.' + type + '.label') }}:</strong> {{ t('types.' + type + '.guidance') }}</span></div>
 
             <template v-if="type">
-              <div class="fb-grid-2">
-                <div>
-                  <label class="fb-label" for="gbName">{{ t('campaign.name') }}</label>
-                  <input id="gbName" v-model.trim="campaign.name" class="form-control" maxlength="255" :placeholder="defaultName">
-                </div>
-                <div>
-                  <div class="fb-seg gb-budget-seg" role="tablist" :aria-label="t('campaign.budget_type')">
-                    <button type="button" role="tab" :aria-selected="campaign.budget_type === 'daily'" :class="{ on: campaign.budget_type === 'daily' }" @click="campaign.budget_type = 'daily'">{{ t('campaign.budget_daily') }}</button>
-                    <button type="button" role="tab" :aria-selected="campaign.budget_type === 'lifetime'" :class="{ on: campaign.budget_type === 'lifetime' }" :disabled="!spec.lifetime_budget" :title="spec.lifetime_budget ? '' : t('campaign.lifetime_unavailable')" @click="campaign.budget_type = 'lifetime'">{{ t('campaign.budget_lifetime') }}</button>
+              <label class="fb-label" for="gbName">{{ t('campaign.name') }}</label>
+              <input id="gbName" v-model.trim="campaign.name" class="form-control" maxlength="255" :placeholder="defaultName">
+
+              <div class="fb-group">
+                <div class="gb-group-h">
+                  <h6><i class="bx bx-wallet"></i> {{ t('campaign.budget_schedule') }}</h6>
+                  <div class="fb-seg" role="tablist" :aria-label="t('campaign.budget_type')">
+                    <button type="button" role="tab" :aria-selected="campaign.budget_type === 'daily'" :class="{ on: campaign.budget_type === 'daily' }" @click="campaign.budget_type = 'daily'"><i class="bx bx-calendar-event"></i> {{ t('campaign.budget_daily') }}</button>
+                    <button type="button" role="tab" :aria-selected="campaign.budget_type === 'lifetime'" :class="{ on: campaign.budget_type === 'lifetime' }" :disabled="!spec.lifetime_budget" :title="spec.lifetime_budget ? '' : t('campaign.lifetime_unavailable')" @click="campaign.budget_type = 'lifetime'"><i class="bx bx-wallet-alt"></i> {{ t('campaign.budget_lifetime') }}</button>
                   </div>
-                  <label class="fb-label" for="gbBudget">{{ campaign.budget_type === 'lifetime' ? t('campaign.budget_total', { currency }) : t('campaign.budget', { currency }) }}</label>
-                  <input id="gbBudget" v-model.number="campaign.budget" type="number" :min="opt.min_daily_budget" step="0.01" class="form-control">
-                  <small v-if="campaign.budget_type === 'lifetime'" class="fb-muted">{{ campaignDays ? t('campaign.lifetime_hint', { days: campaignDays, daily: money((campaign.budget || 0) / campaignDays) }) : t('campaign.lifetime_needs_dates') }}</small>
-                  <small v-else class="fb-muted">{{ t('campaign.budget_hint', { month: money((campaign.budget || 0) * 30.4) }) }}</small>
-                  <small v-if="!spec.lifetime_budget" class="fb-muted d-block">{{ t('campaign.lifetime_unavailable') }}</small>
                 </div>
+                <div class="fb-grid-3">
+                  <div>
+                    <label class="fb-label" for="gbBudget">{{ campaign.budget_type === 'lifetime' ? t('campaign.budget_total', { currency }) : t('campaign.budget', { currency }) }}</label>
+                    <input id="gbBudget" v-model.number="campaign.budget" type="number" :min="opt.min_daily_budget" step="0.01" class="form-control">
+                  </div>
+                  <div><label class="fb-label" for="gbStart">{{ t('campaign.start_date') }}</label><input id="gbStart" v-model="campaign.start_date" type="date" :min="today" class="form-control"></div>
+                  <div><label class="fb-label" for="gbEnd">{{ t('campaign.end_date') }} <span v-if="campaign.budget_type !== 'lifetime'" class="fb-opt">{{ t('common.optional') }}</span></label><input id="gbEnd" v-model="campaign.end_date" type="date" :min="campaign.start_date || today" class="form-control"></div>
+                </div>
+                <p v-if="campaign.budget_type === 'lifetime'" class="fb-hint" :class="{ 'is-warn': !campaignDays }"><i class="bx bx-info-circle"></i> {{ campaignDays ? t('campaign.lifetime_hint', { days: campaignDays, daily: money((campaign.budget || 0) / campaignDays) }) : t('campaign.lifetime_needs_dates') }}</p>
+                <p v-else class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('campaign.budget_hint', { month: money((campaign.budget || 0) * 30.4) }) }}</p>
+                <p v-if="!spec.lifetime_budget" class="fb-hint"><i class="bx bx-lock-alt"></i> {{ t('campaign.lifetime_unavailable') }}</p>
+                <p class="fb-hint"><i class="bx bx-time"></i> {{ t('campaign.timezone_hint', { tz: boot.account.timezone }) }}</p>
+                <budget-summary :summary="budgetSummary" :money="money" />
               </div>
 
               <div class="fb-group">
@@ -154,15 +162,6 @@
                 </template>
               </div>
 
-              <div class="fb-group">
-                <h6><i class="bx bx-calendar"></i> {{ t('campaign.schedule') }}</h6>
-                <div class="fb-grid-2">
-                  <div><label class="fb-label" for="gbStart">{{ t('campaign.start_date') }}</label><input id="gbStart" v-model="campaign.start_date" type="date" :min="today" class="form-control"></div>
-                  <div><label class="fb-label" for="gbEnd">{{ t('campaign.end_date') }} <span v-if="campaign.budget_type !== 'lifetime'" class="fb-opt">{{ t('common.optional') }}</span></label><input id="gbEnd" v-model="campaign.end_date" type="date" :min="campaign.start_date || today" class="form-control"></div>
-                </div>
-                <p class="fb-hint"><i class="bx bx-time"></i> {{ t('campaign.timezone_hint', { tz: boot.account.timezone }) }}</p>
-                <budget-summary :summary="budgetSummary" :money="money" />
-              </div>
 
               <div v-if="has('networks')" class="fb-group">
                 <h6><i class="bx bx-network-chart"></i> {{ t('campaign.networks') }}</h6>
@@ -1097,7 +1096,8 @@ onMounted(async () => {
 .gb-type-link { border-style: dashed; }
 .gb-type-link .bxl-youtube { color: #FF0000 !important; }
 .gb-ext { margin-inline-start: auto; color: var(--muted, #6b7280); }
-.gb-budget-seg { margin-bottom: 8px; }
+.gb-group-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.gb-group-h h6 { margin: 0; }
 .gb-bids { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
 .gb-bid { align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
 .gb-bid.on { border-color: var(--brand-2); background: var(--brand-soft); }

@@ -31,6 +31,7 @@ return [
         'name' => 'اسم الحملة',
         'budget' => 'متوسط الميزانية اليومية (:currency)',
         'budget_hint' => 'قد تنفق Google حتى ضعف الميزانية في بعض الأيام، ولن تتجاوز الرسوم الشهرية نحو :month.',
+        'budget_schedule' => 'الميزانية والجدولة',
         'budget_type' => 'نوع الميزانية',
         'budget_daily' => 'يومية',
         'budget_lifetime' => 'إجمالية',

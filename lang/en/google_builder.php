@@ -31,6 +31,7 @@ return [
         'name' => 'Campaign name',
         'budget' => 'Average daily budget (:currency)',
         'budget_hint' => 'Google may spend up to 2× on some days; the monthly charge won\'t exceed about :month.',
+        'budget_schedule' => 'Budget & schedule',
         'budget_type' => 'Budget type',
         'budget_daily' => 'Daily',
         'budget_lifetime' => 'Lifetime',
