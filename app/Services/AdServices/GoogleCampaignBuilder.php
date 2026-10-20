@@ -39,7 +39,9 @@ class GoogleCampaignBuilder
             'bidding' => ['MAXIMIZE_CONVERSIONS', 'MAXIMIZE_CONVERSION_VALUE', 'MAXIMIZE_CLICKS', 'TARGET_IMPRESSION_SHARE', 'MANUAL_CPC'],
             'lifetime_budget' => true,
             'devices' => ['DESKTOP', 'MOBILE', 'TABLET'],
-            'features' => ['networks', 'keywords', 'negative_keywords', 'audiences', 'audience_exclusions', 'demographics', 'devices', 'schedule_bids', 'ip_exclusions', 'rsa'],
+            // No 'languages': Google removed campaign-level language targeting for Search
+            // (late September 2026) - new language criteria are rejected there.
+            'features' => ['networks', 'radius', 'schedule', 'keywords', 'negative_keywords', 'audiences', 'audience_exclusions', 'demographics', 'devices', 'schedule_bids', 'ip_exclusions', 'rsa'],
             'ad_group_type' => 'SEARCH_STANDARD',
         ],
         'DISPLAY' => [
@@ -49,7 +51,7 @@ class GoogleCampaignBuilder
             'lifetime_budget' => false,
             'devices' => ['DESKTOP', 'MOBILE', 'TABLET', 'CONNECTED_TV'],
             'features' => [
-                'keywords', 'negative_keywords', 'audiences', 'custom_segments', 'audience_exclusions', 'optimized_targeting', 'demographics', 'devices', 'schedule_bids',
+                'languages', 'radius', 'schedule', 'keywords', 'negative_keywords', 'audiences', 'custom_segments', 'audience_exclusions', 'optimized_targeting', 'demographics', 'devices', 'schedule_bids',
                 'placements', 'topics', 'excluded_topics', 'content_labels', 'app_categories', 'operating_systems', 'carriers', 'ip_exclusions', 'frequency_cap', 'rda',
             ],
             'ad_group_type' => 'DISPLAY_STANDARD',
@@ -60,7 +62,21 @@ class GoogleCampaignBuilder
             'lifetime_budget' => true,
             'devices' => [],
             // Signals guide Google's AI; they don't restrict who sees the ads.
-            'features' => ['asset_group', 'search_themes', 'audience_signal'],
+            'features' => ['languages', 'radius', 'schedule', 'asset_group', 'search_themes', 'audience_signal'],
+            'ad_group_type' => null,
+        ],
+        // YouTube page (Demand Gen - the only API-creatable YouTube video campaign; Video
+        // campaigns are read-only). Targeting follows the Demand Gen guides: location and
+        // language on the ad group (upgradedTargeting), audiences + demographics through one
+        // Audience resource (useAudienceGrouped), channel controls for YouTube surfaces.
+        // Devices, ad schedule, placements, topics and keywords aren't Demand Gen targeting.
+        'DEMAND_GEN' => [
+            'icon' => 'bxl-youtube',
+            'youtube' => true,
+            'bidding' => ['MAXIMIZE_CONVERSIONS', 'MAXIMIZE_CONVERSION_VALUE', 'TARGET_CPC'],
+            'lifetime_budget' => true,
+            'devices' => [],
+            'features' => ['languages', 'audiences', 'custom_segments', 'audience_exclusions', 'optimized_targeting', 'demographics', 'grouped_audience', 'channels', 'dg_video'],
             'ad_group_type' => null,
         ],
     ];
@@ -74,6 +90,13 @@ class GoogleCampaignBuilder
     ];
 
     public const MATCH_TYPES = ['BROAD', 'PHRASE', 'EXACT'];
+    /** Demand Gen channel controls (selected_channels). */
+    public const CHANNELS = ['youtubeInStream', 'youtubeInFeed', 'youtubeShorts', 'discover', 'gmail', 'display', 'maps'];
+    public const YOUTUBE_CHANNELS = ['youtubeInStream', 'youtubeInFeed', 'youtubeShorts'];
+    /** Call-to-action asset values (CallToActionTypeEnum). */
+    public const CTAS = ['LEARN_MORE', 'SHOP_NOW', 'BUY_NOW', 'SIGN_UP', 'SUBSCRIBE', 'BOOK_NOW', 'ORDER_NOW', 'GET_QUOTE', 'APPLY_NOW', 'CONTACT_US', 'DOWNLOAD', 'DONATE_NOW', 'PLAY_NOW', 'SEE_MORE', 'START_NOW', 'VISIT_SITE', 'WATCH_NOW'];
+    /** Age ranges as Audience AgeSegment min/max (65+ has no max). */
+    public const AGE_SEGMENTS = ['AGE_RANGE_18_24' => [18, 24], 'AGE_RANGE_25_34' => [25, 34], 'AGE_RANGE_35_44' => [35, 44], 'AGE_RANGE_45_54' => [45, 54], 'AGE_RANGE_55_64' => [55, 64], 'AGE_RANGE_65_UP' => [65, null]];
     public const AGES = ['AGE_RANGE_18_24', 'AGE_RANGE_25_34', 'AGE_RANGE_35_44', 'AGE_RANGE_45_54', 'AGE_RANGE_55_64', 'AGE_RANGE_65_UP', 'AGE_RANGE_UNDETERMINED'];
     public const GENDERS = ['MALE', 'FEMALE', 'UNDETERMINED'];
     public const PARENTAL = ['PARENT', 'NOT_A_PARENT', 'UNDETERMINED'];
@@ -93,6 +116,7 @@ class GoogleCampaignBuilder
         'placements' => 'placements', 'excluded_placements' => 'placements', 'topics' => 'topics', 'excluded_topics' => 'excluded_topics',
         'content_labels' => 'content_labels', 'app_categories' => 'app_categories', 'operating_systems' => 'operating_systems', 'carriers' => 'carriers',
         'ip_exclusions' => 'ip_exclusions', 'frequency_cap' => 'frequency_cap', 'search_themes' => 'search_themes', 'audience_signal' => 'audience_signal',
+        'languages' => 'languages', 'radius' => 'radius', 'schedule' => 'schedule', 'channels' => 'channels',
     ];
 
     /** Lookup lists for the option pickers: GAQL + how to label a row. */
@@ -103,7 +127,14 @@ class GoogleCampaignBuilder
         'rsa' => ['headlines' => [3, 15, 30], 'descriptions' => [2, 4, 90], 'path' => 15],
         'rda' => ['headlines' => [1, 5, 30], 'long_headlines' => [1, 1, 90], 'descriptions' => [1, 5, 90], 'business_name' => 25, 'marketing' => [1, 15], 'square' => [1, 15], 'logo' => [0, 5]],
         'pmax' => ['headlines' => [3, 15, 30], 'long_headlines' => [1, 5, 90], 'descriptions' => [2, 5, 90], 'business_name' => 25, 'marketing' => [1, 20], 'square' => [1, 20], 'logo' => [1, 5]],
+        // Demand Gen video responsive ad (the existing YouTube integration's limits).
+        'dg' => ['headlines' => [1, 5, 40], 'long_headlines' => [1, 5, 90], 'descriptions' => [1, 5, 90], 'business_name' => 25, 'logo' => [1, 5], 'videos' => [1, 5], 'breadcrumb' => 15],
     ];
+
+    public static function limitKey(string $type): string
+    {
+        return ['DISPLAY' => 'rda', 'PERFORMANCE_MAX' => 'pmax', 'DEMAND_GEN' => 'dg'][$type] ?? 'rsa';
+    }
 
     public const MAX_IMAGE_BYTES = 5_242_880;
     public const MIN_DAILY_BUDGET = 1;
@@ -163,6 +194,9 @@ class GoogleCampaignBuilder
                 'geo_modes' => self::GEO_MODES,
                 'frequency_units' => self::FREQUENCY_UNITS,
                 'max_search_themes' => self::MAX_SEARCH_THEMES,
+                'channels' => self::CHANNELS,
+                'youtube_channels' => self::YOUTUBE_CHANNELS,
+                'ctas' => self::CTAS,
                 'limits' => self::LIMITS,
                 'min_daily_budget' => self::MIN_DAILY_BUDGET,
                 'max_image_mb' => self::MAX_IMAGE_BYTES / 1048576,
@@ -445,11 +479,28 @@ class GoogleCampaignBuilder
             throw new \InvalidArgumentException(__('google_builder.server.keywords_required'));
         }
 
-        // Gallery images for Display / Performance Max.
+        if ($type === 'DEMAND_GEN') {
+            if (empty(array_filter($t['channels'] ?? []))) {
+                throw new \InvalidArgumentException(__('google_builder.server.channels_required'));
+            }
+            $videos = $input['ad']['videos'] ?? [];
+            [$vMin, $vMax] = self::LIMITS['dg']['videos'];
+            if (count($videos) < $vMin || count($videos) > $vMax || collect($videos)->contains(fn ($v) => ! preg_match('/^[A-Za-z0-9_-]{11}$/', (string) $v))) {
+                throw new \InvalidArgumentException(__('google_builder.server.videos_invalid', ['min' => $vMin, 'max' => $vMax]));
+            }
+            // An Audience needs at least one included value per dimension.
+            foreach (['ages' => self::AGES, 'genders' => self::GENDERS, 'parental' => self::PARENTAL, 'incomes' => self::INCOMES] as $key => $all) {
+                if (count(array_unique($t[$key] ?? [])) >= count($all)) {
+                    throw new \InvalidArgumentException(__('google_builder.server.demographic_all', ['group' => __('google_builder.audience.' . $key)]));
+                }
+            }
+        }
+
+        // Gallery images for Display / Performance Max / Demand Gen (logo).
         $refs = [];
         if ($type !== 'SEARCH') {
-            $limits = self::LIMITS[$type === 'DISPLAY' ? 'rda' : 'pmax'];
-            foreach (['marketing' => 1.91, 'square' => 1.0, 'logo' => 1.0] as $slot => $ratio) {
+            $limits = self::LIMITS[self::limitKey($type)];
+            foreach (array_intersect_key(['marketing' => 1.91, 'square' => 1.0, 'logo' => 1.0], $limits) as $slot => $ratio) {
                 $ids = array_values(array_unique(array_map('intval', $input['ad']['images'][$slot] ?? [])));
                 [$min, $max] = $limits[$slot];
                 if (count($ids) < $min || count($ids) > $max) {
@@ -575,7 +626,8 @@ class GoogleCampaignBuilder
             'campaignBudget' => $budget,
             'startDateTime' => ! empty($c['start_date']) ? $c['start_date'] . ' 00:00:00' : null,
             'endDateTime' => ! empty($c['end_date']) ? $c['end_date'] . ' 23:59:59' : null,
-            'geoTargetTypeSetting' => ['positiveGeoTargetType' => $c['geo_mode'] ?? 'PRESENCE_OR_INTEREST', 'negativeGeoTargetType' => 'PRESENCE'],
+            // Demand Gen rejects geoTargetTypeSetting (confirmed live in YoutubeAdService).
+            'geoTargetTypeSetting' => $type === 'DEMAND_GEN' ? null : ['positiveGeoTargetType' => $c['geo_mode'] ?? 'PRESENCE_OR_INTEREST', 'negativeGeoTargetType' => 'PRESENCE'],
             'containsEuPoliticalAdvertising' => 'DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING',
             'networkSettings' => match ($type) {
                 'SEARCH' => ['targetGoogleSearch' => true, 'targetSearchNetwork' => (bool) ($c['search_partners'] ?? false), 'targetContentNetwork' => (bool) ($c['display_expansion'] ?? false), 'targetPartnerSearchNetwork' => false],
@@ -586,6 +638,10 @@ class GoogleCampaignBuilder
         if ($type === 'PERFORMANCE_MAX') {
             // Business name and logo go in the asset group, not campaign assets.
             $campaignBody['brandGuidelinesEnabled'] = false;
+        }
+        if ($type === 'DEMAND_GEN') {
+            // Location / language targeting on the ad group instead of the campaign.
+            $campaignBody['demandGenCampaignSettings'] = ['upgradedTargeting' => true];
         }
         if ($type === 'DISPLAY' && ! empty($t['frequency_cap']['cap'])) {
             // At most N impressions per person per day / week / month, across the campaign.
@@ -602,6 +658,9 @@ class GoogleCampaignBuilder
 
         if ($type === 'PERFORMANCE_MAX') {
             return array_merge($ops, $this->assetGroupOperations($campaign, $assetGroup, $input, $assets));
+        }
+        if ($type === 'DEMAND_GEN') {
+            return array_merge($ops, $this->demandGenOperations($campaign, $adGroup, $input, $assets));
         }
 
         $adGroupBody = [
@@ -639,6 +698,7 @@ class GoogleCampaignBuilder
             // Target CPA / ROAS are the optional targets of these two strategies.
             'MAXIMIZE_CONVERSIONS' => ['maximizeConversions' => ! empty($c['target_cpa']) ? ['targetCpaMicros' => $this->micro($c['target_cpa'])] : (object) []],
             'MAXIMIZE_CONVERSION_VALUE' => ['maximizeConversionValue' => ! empty($c['target_roas']) ? ['targetRoas' => round($c['target_roas'] / 100, 4)] : (object) []],
+            'TARGET_CPC' => ['targetCpc' => ['targetCpcMicros' => $this->micro($c['target_cpc'])]],
             'MAXIMIZE_CLICKS' => ['targetSpend' => ! empty($c['cpc_ceiling']) ? ['cpcBidCeilingMicros' => $this->micro($c['cpc_ceiling'])] : (object) []],
             'TARGET_IMPRESSION_SHARE' => ['targetImpressionShare' => [
                 'location' => $c['is_location'] ?? 'ANYWHERE_ON_PAGE',
@@ -653,6 +713,9 @@ class GoogleCampaignBuilder
     private function campaignCriteria(string $campaign, string $type, array $c, array $t): array
     {
         $out = [];
+        if ($type === 'DEMAND_GEN') {
+            return $out; // everything sits on the ad group / Audience
+        }
         foreach ($t['locations'] ?? [] as $l) {
             $out[] = ['campaign' => $campaign, 'negative' => (bool) ($l['negative'] ?? false), 'location' => ['geoTargetConstant' => 'geoTargetConstants/' . $l['id']]];
         }
@@ -831,6 +894,127 @@ class GoogleCampaignBuilder
         return array_values(array_merge($groups, $rest));
     }
 
+    /**
+     * Demand Gen (YouTube): Audience (demographics + segments + exclusions) ->
+     * audience-grouped ad group with channel controls -> location / language /
+     * audience criteria -> YouTube video (+ CTA) assets -> video responsive ad.
+     */
+    private function demandGenOperations(string $campaign, string $adGroup, array $input, array $assets): array
+    {
+        $c = $input['campaign'];
+        $t = $input['targeting'] ?? [];
+        $ad = $input['ad'];
+        $ops = [];
+
+        $audience = $this->audienceBody($t);
+        $audienceResource = $this->api->resource('audiences', -5);
+        if ($audience) {
+            $ops[] = ['audienceOperation' => ['create' => ['resourceName' => $audienceResource, 'name' => mb_substr($c['name'], 0, 200) . ' · ' . now()->format('Y-m-d H:i:s'), 'scope' => 'CUSTOMER'] + $audience]];
+        }
+
+        $channels = [];
+        foreach (self::CHANNELS as $channel) {
+            // Every field is sent explicitly (Google: "explicitly specify all fields").
+            $channels[$channel] = in_array($channel, $t['channels'] ?? [], true);
+        }
+        $ops[] = ['adGroupOperation' => ['create' => [
+            'resourceName' => $adGroup,
+            'campaign' => $campaign,
+            'name' => mb_substr(($input['ad_group']['name'] ?? '') ?: $c['name'] . ' · ' . __('google_builder.defaults.ad_group'), 0, 255),
+            'status' => 'ENABLED',
+            // No ad_group.type for Demand Gen; the settings below identify it.
+            'audienceSetting' => ['useAudienceGrouped' => true],
+            'demandGenAdGroupSettings' => ['channelControls' => ['selectedChannels' => $channels]],
+            'optimizedTargetingEnabled' => (bool) ($t['optimized_targeting'] ?? false),
+        ]]];
+
+        foreach ($t['locations'] ?? [] as $l) {
+            $ops[] = ['adGroupCriterionOperation' => ['create' => ['adGroup' => $adGroup, 'negative' => (bool) ($l['negative'] ?? false), 'location' => ['geoTargetConstant' => 'geoTargetConstants/' . $l['id']]]]];
+        }
+        foreach ($t['languages'] ?? [] as $id) {
+            $ops[] = ['adGroupCriterionOperation' => ['create' => ['adGroup' => $adGroup, 'language' => ['languageConstant' => 'languageConstants/' . $id]]]];
+        }
+        if ($audience) {
+            $ops[] = ['adGroupCriterionOperation' => ['create' => ['adGroup' => $adGroup, 'audience' => ['audience' => $audienceResource]]]];
+        }
+
+        $temp = -10;
+        $videos = [];
+        foreach ($ad['videos'] as $videoId) {
+            $resource = $this->api->resource('assets', $temp--);
+            $ops[] = ['assetOperation' => ['create' => ['resourceName' => $resource, 'name' => 'YouTube ' . $videoId . ' · ' . now()->format('YmdHis'), 'type' => 'YOUTUBE_VIDEO', 'youtubeVideoAsset' => ['youtubeVideoId' => $videoId]]]];
+            $videos[] = ['asset' => $resource];
+        }
+        $ctas = [];
+        if (! empty($ad['call_to_action'])) {
+            $resource = $this->api->resource('assets', $temp--);
+            $ops[] = ['assetOperation' => ['create' => ['resourceName' => $resource, 'callToActionAsset' => ['callToAction' => $ad['call_to_action']]]]];
+            $ctas[] = ['asset' => $resource];
+        }
+        $text = fn ($list) => array_map(fn ($v) => ['text' => $v], array_values($list));
+
+        $ops[] = ['adGroupAdOperation' => ['create' => ['adGroup' => $adGroup, 'status' => 'ENABLED', 'ad' => [
+            'name' => mb_substr($c['name'], 0, 200),
+            'finalUrls' => [$ad['final_url']],
+            'demandGenVideoResponsiveAd' => array_filter([
+                'videos' => $videos,
+                'logoImages' => array_map(fn ($r) => ['asset' => $r], $assets['logo'] ?? []),
+                'headlines' => $text($ad['headlines']),
+                'longHeadlines' => $text($ad['long_headlines']),
+                'descriptions' => $text($ad['descriptions']),
+                'businessName' => ['text' => $ad['business_name']],
+                'callToActions' => $ctas,
+                'breadcrumb1' => $ad['breadcrumb1'] ?? null,
+                'breadcrumb2' => ! empty($ad['breadcrumb1']) ? ($ad['breadcrumb2'] ?? null) : null,
+            ]),
+        ]]]];
+
+        return $ops;
+    }
+
+    /**
+     * Audience dimensions from the builder's targeting. Demographic groups are
+     * stored as exclusions (everything targeted by default); an Audience lists
+     * what's included, so a dimension is only sent when something is excluded.
+     */
+    public function audienceBody(array $t): ?array
+    {
+        $dimensions = [];
+        $excludedAges = $t['ages'] ?? [];
+        if ($excludedAges) {
+            $dimensions[] = ['age' => [
+                'ageRanges' => array_values(array_map(fn ($r) => array_filter(['minAge' => $r[0], 'maxAge' => $r[1]], fn ($v) => $v !== null), array_diff_key(self::AGE_SEGMENTS, array_flip($excludedAges)))),
+                'includeUndetermined' => ! in_array('AGE_RANGE_UNDETERMINED', $excludedAges, true),
+            ]];
+        }
+        foreach (['genders' => ['gender', 'genders', self::GENDERS, 'UNDETERMINED'], 'parental' => ['parentalStatus', 'parentalStatuses', self::PARENTAL, 'UNDETERMINED'], 'incomes' => ['householdIncome', 'incomeRanges', self::INCOMES, 'INCOME_RANGE_UNDETERMINED']] as $key => [$dim, $field, $all, $unknown]) {
+            $excluded = $t[$key] ?? [];
+            if ($excluded) {
+                $dimensions[] = [$dim => [
+                    $field => array_values(array_diff($all, $excluded, [$unknown])),
+                    'includeUndetermined' => ! in_array($unknown, $excluded, true),
+                ]];
+            }
+        }
+        $segments = array_map(fn ($a) => match ($a['kind']) {
+            'user_list' => ['userList' => ['userList' => $a['id']]],
+            'user_interest' => ['userInterest' => ['userInterestCategory' => $a['id']]],
+            'life_event' => ['lifeEvent' => ['lifeEvent' => $a['id']]],
+            'detailed_demographic' => ['detailedDemographic' => ['detailedDemographic' => $a['id']]],
+            default => ['customAudience' => ['customAudience' => $a['id']]],
+        }, $t['audiences'] ?? []);
+        if ($segments) {
+            $dimensions[] = ['audienceSegments' => ['segments' => $segments]];
+        }
+        $exclusions = array_map(fn ($a) => ['userList' => ['userList' => $a['id']]], $t['audience_exclusions'] ?? []);
+
+        if (! $dimensions && ! $exclusions) {
+            return null;
+        }
+
+        return array_filter(['dimensions' => $dimensions, 'exclusionDimension' => $exclusions ? ['exclusions' => $exclusions] : null]);
+    }
+
     /** Campaign conversion goals: only the chosen category/origin pairs stay biddable. */
     private function goalStep(AdBuilderRun $run, array $input): void
     {
@@ -859,17 +1043,18 @@ class GoogleCampaignBuilder
     {
         $c = $input['campaign'];
         $t = $input['targeting'] ?? [];
-        $local = AdCampaign::updateOrCreate(['ad_campaign_id' => $campaignId, 'platform' => 'google'], [
+        $platform = $input['campaign_type'] === 'DEMAND_GEN' ? 'youtube' : 'google';
+        $local = AdCampaign::updateOrCreate(['ad_campaign_id' => $campaignId, 'platform' => $platform], [
             'user_id' => $run->user_id, 'social_account_id' => $this->api->account->id, 'name' => $c['name'],
             'objective' => $input['goal'] ?? null, 'advertising_channel_type' => $input['campaign_type'],
             'budget_mode' => ($c['budget_type'] ?? 'daily') === 'lifetime' ? 'total' : 'daily', 'budget' => $c['budget'], 'daily_budget' => ($c['budget_type'] ?? 'daily') === 'lifetime' ? null : $c['budget'], 'budget_resource_id' => $budget,
-            'bidding_strategy' => $c['bidding'], 'bidding_amount' => $c['target_cpa'] ?? $c['target_roas'] ?? $c['max_cpc'] ?? $c['cpc_ceiling'] ?? null,
+            'bidding_strategy' => $c['bidding'], 'bidding_amount' => $c['target_cpa'] ?? $c['target_roas'] ?? $c['max_cpc'] ?? $c['cpc_ceiling'] ?? $c['target_cpc'] ?? null,
             'start_time' => $c['start_date'] ?? null, 'end_time' => $c['end_date'] ?? null, 'status' => $status === 'ACTIVE',
         ]);
         $run->remember('campaign.local', $local->id);
 
         if ($adGroup && $input['campaign_type'] !== 'PERFORMANCE_MAX') {
-            $group = AdAdGroup::updateOrCreate(['ad_adgroup_id' => basename($adGroup), 'platform' => 'google'], [
+            $group = AdAdGroup::updateOrCreate(['ad_adgroup_id' => basename($adGroup), 'platform' => $platform], [
                 'ad_campaign_id' => $local->id, 'user_id' => $run->user_id, 'social_account_id' => $this->api->account->id,
                 'name' => ($input['ad_group']['name'] ?? '') ?: $c['name'], 'status' => $status === 'ACTIVE', 'bid_strategy' => $c['bidding'],
                 'bid_price' => $c['max_cpc'] ?? null, 'gender' => json_encode($t['genders'] ?? []), 'age_groups' => json_encode($t['ages'] ?? []),
@@ -877,9 +1062,9 @@ class GoogleCampaignBuilder
                 'keywords' => json_encode($input['ad_group']['keywords'] ?? []), 'targeting_criteria' => json_encode($t),
             ]);
             if ($adResource) {
-                Ad::updateOrCreate(['ad_id' => $adResource, 'platform' => 'google'], [
+                Ad::updateOrCreate(['ad_id' => $adResource, 'platform' => $platform], [
                     'ad_adgroup_id' => $group->id, 'ad_campaign_id' => $local->id, 'social_account_id' => $this->api->account->id, 'user_id' => $run->user_id,
-                    'name' => $c['name'], 'type' => $input['campaign_type'] === 'SEARCH' ? 'RESPONSIVE_SEARCH_AD' : 'RESPONSIVE_DISPLAY_AD',
+                    'name' => $c['name'], 'type' => ['SEARCH' => 'RESPONSIVE_SEARCH_AD', 'DEMAND_GEN' => 'DEMAND_GEN_VIDEO_RESPONSIVE_AD'][$input['campaign_type']] ?? 'RESPONSIVE_DISPLAY_AD',
                     'status' => $status === 'ACTIVE', 'final_urls' => json_encode([$input['ad']['final_url']]), 'headlines' => json_encode($input['ad']['headlines']),
                     'text' => implode("\n", $input['ad']['descriptions']),
                 ]);

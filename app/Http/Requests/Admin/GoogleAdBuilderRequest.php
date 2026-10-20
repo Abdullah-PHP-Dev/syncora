@@ -22,7 +22,8 @@ class GoogleAdBuilderRequest extends FormRequest
     public function rules(): array
     {
         $type = $this->input('campaign_type');
-        $limits = B::LIMITS[match ($type) { 'DISPLAY' => 'rda', 'PERFORMANCE_MAX' => 'pmax', default => 'rsa' }];
+        $limits = B::LIMITS[B::limitKey((string) $type)];
+        $dg = $type === 'DEMAND_GEN';
         $text = fn (string $key) => [$limits[$key][0], $limits[$key][1], $limits[$key][2]];
         [$hMin, $hMax, $hLen] = $text('headlines');
         [$dMin, $dMax, $dLen] = $text('descriptions');
@@ -42,6 +43,7 @@ class GoogleAdBuilderRequest extends FormRequest
             'campaign.target_cpa' => ['nullable', 'numeric', 'min:0.01'],
             'campaign.target_roas' => ['nullable', 'numeric', 'min:1', 'max:100000'],
             'campaign.max_cpc' => ['nullable', 'required_if:campaign.bidding,MANUAL_CPC', 'numeric', 'min:0.01'],
+            'campaign.target_cpc' => ['nullable', 'required_if:campaign.bidding,TARGET_CPC', 'numeric', 'min:0.01'],
             'campaign.cpc_ceiling' => ['nullable', 'required_if:campaign.bidding,TARGET_IMPRESSION_SHARE', 'numeric', 'min:0.01'],
             'campaign.is_location' => ['nullable', 'required_if:campaign.bidding,TARGET_IMPRESSION_SHARE', Rule::in(B::IMPRESSION_SHARE_LOCATIONS)],
             'campaign.is_fraction' => ['nullable', 'required_if:campaign.bidding,TARGET_IMPRESSION_SHARE', 'numeric', 'min:1', 'max:100'],
@@ -121,6 +123,8 @@ class GoogleAdBuilderRequest extends FormRequest
             'targeting.audience_signal' => ['nullable', 'array'],
             'targeting.audience_signal.id' => ['nullable', 'string', 'regex:#^customers/\d+/audiences/\d+$#'],
             'targeting.audience_signal.name' => ['nullable', 'string', 'max:255'],
+            'targeting.channels' => [$dg ? 'required' : 'nullable', 'array', 'min:' . ($dg ? 1 : 0)],
+            'targeting.channels.*' => [Rule::in(B::CHANNELS)],
 
             'ad_group' => ['nullable', 'array'],
             'ad_group.name' => ['nullable', 'string', 'max:255'],
@@ -146,7 +150,33 @@ class GoogleAdBuilderRequest extends FormRequest
             'ad.images.square.*' => ['integer'],
             'ad.images.logo' => ['nullable', 'array'],
             'ad.images.logo.*' => ['integer'],
+            // Demand Gen video responsive ad: YouTube video IDs (URLs are normalised in prepareForValidation).
+            'ad.videos' => $dg ? ['required', 'array', 'min:' . B::LIMITS['dg']['videos'][0], 'max:' . B::LIMITS['dg']['videos'][1]] : ['prohibited'],
+            'ad.videos.*' => ['string', 'distinct', 'regex:/^[A-Za-z0-9_-]{11}$/'],
+            'ad.call_to_action' => $dg ? ['nullable', Rule::in(B::CTAS)] : ['prohibited'],
+            'ad.breadcrumb1' => $dg ? ['nullable', 'string', 'max:' . B::LIMITS['dg']['breadcrumb']] : ['prohibited'],
+            'ad.breadcrumb2' => $dg ? ['nullable', 'string', 'max:' . B::LIMITS['dg']['breadcrumb']] : ['prohibited'],
         ];
+    }
+
+    /** Pasted watch / share / Shorts URLs become bare 11-character video IDs. */
+    protected function prepareForValidation(): void
+    {
+        if (is_array($this->input('ad.videos'))) {
+            $ad = $this->input('ad');
+            $ad['videos'] = array_values(array_filter(array_map(fn ($v) => self::youtubeId((string) $v), $ad['videos'])));
+            $this->merge(['ad' => $ad]);
+        }
+    }
+
+    public static function youtubeId(string $input): string
+    {
+        $input = trim($input);
+        if (preg_match('/^[A-Za-z0-9_-]{11}$/', $input)) {
+            return $input;
+        }
+
+        return preg_match('/(?:v=|youtu\.be\/|shorts\/|embed\/)([A-Za-z0-9_-]{11})/', $input, $m) ? $m[1] : $input;
     }
 
     public function withValidator($validator): void

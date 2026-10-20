@@ -157,7 +157,6 @@ class GoogleCampaignBuilderTest extends TestCase
             'targeting' => [
                 'locations' => [['id' => '2682', 'name' => 'Saudi Arabia', 'negative' => false], ['id' => '1012088', 'name' => 'Jeddah', 'negative' => true]],
                 'radius' => [['latitude' => 24.7136, 'longitude' => 46.6753, 'radius' => 15, 'unit' => 'KILOMETERS']],
-                'languages' => ['1019', '1000'],
                 'schedule' => [['day' => 'MONDAY', 'start_hour' => 9, 'end_hour' => 18, 'bid_adjustment' => 20]],
                 'devices' => ['TABLET' => -100, 'MOBILE' => 25],
                 'ages' => ['AGE_RANGE_65_UP'], 'genders' => [], 'parental' => [], 'incomes' => ['INCOME_RANGE_0_50'],
@@ -237,7 +236,8 @@ class GoogleCampaignBuilderTest extends TestCase
 
         $criteria = $this->ops($m, 'campaignCriterionOperation');
         $this->assertContains(['campaign' => 'customers/1234567890/campaigns/-2', 'negative' => true, 'location' => ['geoTargetConstant' => 'geoTargetConstants/1012088']], $criteria);
-        $this->assertContains(['campaign' => 'customers/1234567890/campaigns/-2', 'language' => ['languageConstant' => 'languageConstants/1019']], $criteria);
+        // Search no longer takes campaign-level language targeting (Google, Sept 2026).
+        $this->assertEmpty(array_filter($criteria, fn ($c) => isset($c['language'])));
         $this->assertContains(['campaign' => 'customers/1234567890/campaigns/-2', 'device' => ['type' => 'TABLET'], 'bidModifier' => 0.0], $criteria);
         $this->assertContains(['campaign' => 'customers/1234567890/campaigns/-2', 'device' => ['type' => 'MOBILE'], 'bidModifier' => 1.25], $criteria);
         $this->assertContains(['campaign' => 'customers/1234567890/campaigns/-2', 'negative' => true, 'keyword' => ['text' => 'free', 'matchType' => 'BROAD']], $criteria);
@@ -577,5 +577,142 @@ class GoogleCampaignBuilderTest extends TestCase
 
         $segments = collect($this->builder()->interests());
         $this->assertSame('life_event', $segments->firstWhere('name', 'Recently moved')['kind']);
+    }
+    private function youtubeInput(): array
+    {
+        $images = $this->images();
+        $input = $this->searchInput([
+            'campaign_type' => 'DEMAND_GEN',
+            'goal' => null,
+            'campaign' => ['bidding' => 'TARGET_CPC', 'target_cpa' => null, 'target_cpc' => 0.4],
+            'ad' => ['long_headlines' => ['The best running shoes in the Kingdom'], 'business_name' => 'Acme', 'images' => ['logo' => $images['logo']], 'videos' => ['dQw4w9WgXcQ', 'M7lc1UVf-VE'], 'call_to_action' => 'SHOP_NOW', 'breadcrumb1' => 'shoes', 'breadcrumb2' => 'sale'],
+        ]);
+        unset($input['ad']['path1'], $input['ad']['path2']);
+        $input['ad_group'] = ['name' => 'Runners'];
+        $input['targeting'] = [
+            'locations' => [['id' => '2682', 'name' => 'Saudi Arabia', 'negative' => false], ['id' => '1012088', 'name' => 'Jeddah', 'negative' => true]],
+            'languages' => ['1019'],
+            'channels' => ['youtubeInStream', 'youtubeShorts'],
+            'ages' => ['AGE_RANGE_65_UP'], 'genders' => ['FEMALE'], 'parental' => [], 'incomes' => [],
+            'audiences' => [
+                ['id' => 'customers/1234567890/userLists/55', 'kind' => 'user_list', 'name' => 'Visitors'],
+                ['id' => 'customers/1234567890/lifeEvents/1001', 'kind' => 'life_event', 'name' => 'Recently moved'],
+                ['id' => 'customers/1234567890/detailedDemographics/2002', 'kind' => 'detailed_demographic', 'name' => 'Homeowners'],
+                ['id' => 'customers/1234567890/customAudiences/77', 'kind' => 'custom_audience', 'name' => 'Runners'],
+            ],
+            'audience_exclusions' => [['id' => 'customers/1234567890/userLists/66', 'name' => 'Buyers']],
+            'optimized_targeting' => true,
+        ];
+
+        return $input;
+    }
+
+    public function test_youtube_demand_gen_campaign_is_created_with_grouped_audience(): void
+    {
+        $result = $this->builder()->submit($this->youtubeInput(), 'key-youtube-000001');
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+        $m = $this->mutates[0];
+        $grp = 'customers/1234567890/adGroups/-3';
+        $aud = 'customers/1234567890/audiences/-5';
+
+        $c = $this->ops($m, 'campaignOperation')[0];
+        $this->assertSame('DEMAND_GEN', $c['advertisingChannelType']);
+        $this->assertSame(['upgradedTargeting' => true], $c['demandGenCampaignSettings']);
+        $this->assertSame(['targetCpcMicros' => 400_000], $c['targetCpc']);
+        $this->assertArrayNotHasKey('geoTargetTypeSetting', $c);
+        $this->assertArrayNotHasKey('networkSettings', $c);
+        $this->assertEmpty($this->ops($m, 'campaignCriterionOperation'));
+
+        $audience = $this->ops($m, 'audienceOperation')[0];
+        $this->assertSame('CUSTOMER', $audience['scope']);
+        $this->assertSame([
+            ['age' => ['ageRanges' => [['minAge' => 18, 'maxAge' => 24], ['minAge' => 25, 'maxAge' => 34], ['minAge' => 35, 'maxAge' => 44], ['minAge' => 45, 'maxAge' => 54], ['minAge' => 55, 'maxAge' => 64]], 'includeUndetermined' => true]],
+            ['gender' => ['genders' => ['MALE'], 'includeUndetermined' => true]],
+            ['audienceSegments' => ['segments' => [
+                ['userList' => ['userList' => 'customers/1234567890/userLists/55']],
+                ['lifeEvent' => ['lifeEvent' => 'customers/1234567890/lifeEvents/1001']],
+                ['detailedDemographic' => ['detailedDemographic' => 'customers/1234567890/detailedDemographics/2002']],
+                ['customAudience' => ['customAudience' => 'customers/1234567890/customAudiences/77']],
+            ]]],
+        ], $audience['dimensions']);
+        $this->assertSame(['exclusions' => [['userList' => ['userList' => 'customers/1234567890/userLists/66']]]], $audience['exclusionDimension']);
+
+        $group = $this->ops($m, 'adGroupOperation')[0];
+        $this->assertArrayNotHasKey('type', $group);
+        $this->assertSame(['useAudienceGrouped' => true], $group['audienceSetting']);
+        $this->assertTrue($group['optimizedTargetingEnabled']);
+        $this->assertSame(['youtubeInStream' => true, 'youtubeInFeed' => false, 'youtubeShorts' => true, 'discover' => false, 'gmail' => false, 'display' => false, 'maps' => false], $group['demandGenAdGroupSettings']['channelControls']['selectedChannels']);
+
+        $agc = $this->ops($m, 'adGroupCriterionOperation');
+        $this->assertContains(['adGroup' => $grp, 'negative' => true, 'location' => ['geoTargetConstant' => 'geoTargetConstants/1012088']], $agc);
+        $this->assertContains(['adGroup' => $grp, 'language' => ['languageConstant' => 'languageConstants/1019']], $agc);
+        $this->assertContains(['adGroup' => $grp, 'audience' => ['audience' => $aud]], $agc);
+
+        $kinds = array_map('array_key_first', $m);
+        $this->assertLessThan(array_search('adGroupOperation', $kinds), array_search('audienceOperation', $kinds));
+
+        $assets = $this->ops($m, 'assetOperation');
+        $this->assertSame(['youtubeVideoId' => 'dQw4w9WgXcQ'], $assets[0]['youtubeVideoAsset']);
+        $this->assertSame(['callToAction' => 'SHOP_NOW'], $assets[2]['callToActionAsset']);
+
+        $ad = $this->ops($m, 'adGroupAdOperation')[0]['ad'];
+        $dg = $ad['demandGenVideoResponsiveAd'];
+        $this->assertCount(2, $dg['videos']);
+        $this->assertCount(1, $dg['logoImages']);
+        $this->assertCount(1, $dg['callToActions']);
+        $this->assertSame(['text' => 'Acme'], $dg['businessName']);
+        $this->assertSame(['shoes', 'sale'], [$dg['breadcrumb1'], $dg['breadcrumb2']]);
+        $this->assertSame(['https://acme.test/shoes'], $ad['finalUrls']);
+
+        $this->assertSame('youtube', AdCampaign::first()->platform);
+        $this->assertSame('DEMAND_GEN_VIDEO_RESPONSIVE_AD', Ad::first()->type);
+    }
+
+    public function test_youtube_rejects_targeting_demand_gen_does_not_support(): void
+    {
+        $noChannels = $this->youtubeInput();
+        $noChannels['targeting']['channels'] = [];
+        $this->assertSame('validation', $this->builder()->submit($noChannels, 'key-yt-reject-0001')['step']);
+
+        $badVideo = $this->youtubeInput();
+        $badVideo['ad']['videos'] = ['https://example.com/clip'];
+        $this->assertSame('validation', $this->builder()->submit($badVideo, 'key-yt-reject-0002')['step']);
+
+        $schedule = $this->youtubeInput();
+        $schedule['targeting']['schedule'] = [['day' => 'MONDAY', 'start_hour' => 9, 'end_hour' => 18]];
+        $this->assertStringContainsString('schedule', $this->builder()->submit($schedule, 'key-yt-reject-0003')['message']);
+
+        $keywords = $this->youtubeInput();
+        $keywords['ad_group']['keywords'] = [['text' => 'shoes', 'match_type' => 'BROAD']];
+        $this->assertStringContainsString('keywords', $this->builder()->submit($keywords, 'key-yt-reject-0004')['message']);
+
+        $allGenders = $this->youtubeInput();
+        $allGenders['targeting']['genders'] = ['MALE', 'FEMALE', 'UNDETERMINED'];
+        $this->assertSame('validation', $this->builder()->submit($allGenders, 'key-yt-reject-0005')['step']);
+
+        $searchLanguages = $this->searchInput(['targeting' => ['languages' => ['1019']]]);
+        $this->assertStringContainsString('languages', $this->builder()->submit($searchLanguages, 'key-yt-reject-0006')['message']);
+
+        $this->assertCount(0, $this->mutates);
+    }
+
+    public function test_youtube_request_rules_and_video_links(): void
+    {
+        $this->assertSame('dQw4w9WgXcQ', GoogleAdBuilderRequest::youtubeId('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10'));
+        $this->assertSame('dQw4w9WgXcQ', GoogleAdBuilderRequest::youtubeId('https://youtu.be/dQw4w9WgXcQ'));
+        $this->assertSame('M7lc1UVf-VE', GoogleAdBuilderRequest::youtubeId('https://youtube.com/shorts/M7lc1UVf-VE'));
+
+        $data = $this->youtubeInput() + ['idempotency_key' => 'key-rules-00000009'];
+        $data['ad']['images'] = ['logo' => [1]];
+        $v = Validator::make($data, (new GoogleAdBuilderRequest())->merge($data)->rules());
+        $this->assertFalse($v->fails(), json_encode($v->errors()->all()));
+
+        $long = $data;
+        $long['ad']['headlines'][0] = str_repeat('x', 41);
+        $this->assertTrue(Validator::make($long, (new GoogleAdBuilderRequest())->merge($long)->rules())->errors()->has('ad.headlines.0'));
+
+        $noCpc = $data;
+        $noCpc['campaign']['target_cpc'] = null;
+        $this->assertTrue(Validator::make($noCpc, (new GoogleAdBuilderRequest())->merge($noCpc)->rules())->errors()->has('campaign.target_cpc'));
     }
 }

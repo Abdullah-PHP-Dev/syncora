@@ -26,6 +26,7 @@ return [
     'common' => ['optional' => 'Optional', 'add' => 'Add', 'remove' => 'Remove', 'loading' => 'Loading…', 'edit' => 'Edit', 'back' => 'Back', 'continue' => 'Continue'],
 
     'campaign' => [
+        'target_cpc' => 'Target cost per click (:currency)',
         'title' => 'Campaign setup',
         'goal' => 'What matters most?',
         'type' => 'Campaign type',
@@ -73,12 +74,14 @@ return [
         'AWARENESS' => ['label' => 'Awareness & reach', 'summary' => 'Get seen by more people'],
     ],
     'types' => [
+        'DEMAND_GEN' => ['label' => 'YouTube (Demand Gen)', 'summary' => 'Video ads on YouTube in-stream, in-feed and Shorts', 'guidance' => 'Demand Gen is how YouTube video campaigns are created through the Google Ads API. Your videos run across YouTube in-stream, in-feed and Shorts, and optionally Discover, Gmail, Display and Maps.'],
         'SEARCH' => ['label' => 'Search', 'summary' => 'Text ads on Google Search results', 'guidance' => 'Reach people searching for what you offer. You choose keywords and write a responsive search ad.'],
         'DISPLAY' => ['label' => 'Display', 'summary' => 'Image ads across 3M+ sites and apps', 'guidance' => 'Visual ads on the Google Display Network. Target by audience, topic, placement and contextual keywords.'],
         'PERFORMANCE_MAX' => ['label' => 'Performance Max', 'summary' => 'One campaign across all Google channels', 'guidance' => 'Google\'s AI serves your assets on Search, YouTube, Display, Discover, Gmail and Maps. It needs conversion tracking. Keywords, audiences and placements are handled automatically.'],
         'VIDEO' => ['label' => 'Video (YouTube)', 'summary' => 'Video campaigns run as Demand Gen on the YouTube page'],
     ],
     'bidding' => [
+        'TARGET_CPC' => ['label' => 'Target CPC', 'hint' => 'Get clicks at or around the cost per click you set.'],
         'MAXIMIZE_CONVERSIONS' => ['label' => 'Maximise conversions', 'hint' => 'Get the most conversions for your budget; optional target CPA.'],
         'MAXIMIZE_CONVERSION_VALUE' => ['label' => 'Maximise conversion value', 'hint' => 'Get the most value for your budget; optional target ROAS.'],
         'MAXIMIZE_CLICKS' => ['label' => 'Maximise clicks', 'hint' => 'Get as many clicks as possible; optional CPC limit.'],
@@ -96,6 +99,7 @@ return [
     'origins' => ['WEBSITE' => 'Website', 'APP' => 'App', 'CALL_FROM_ADS' => 'Calls from ads', 'STORE' => 'Store', 'YOUTUBE_HOSTED' => 'YouTube', 'GOOGLE_HOSTED' => 'Google'],
 
     'targeting' => [
+        'languages_search' => 'Google now matches Search ads to the language of each search automatically, so Search campaigns no longer take language targeting.',
         'mobile' => 'Mobile operating systems & carriers',
         'operating_systems' => 'Operating systems',
         'all_os' => 'All operating systems (or pick some)',
@@ -166,7 +170,67 @@ return [
         'audience_hint' => 'Pick an audience you built in Google Ads (customer lists, interests, custom segments).',
         'no_audiences' => 'No audiences in this account yet. Create one in Google Ads (Tools > Audience manager) to use it as a signal.',
     ],
+    'youtube' => [
+        'page_title' => 'Create YouTube campaign',
+        'title' => 'Create a YouTube campaign',
+        'subtitle' => 'Video ads on YouTube in-stream, in-feed and Shorts, with full audience targeting, created directly in your Google Ads account.',
+        'no_account_text' => 'YouTube campaigns run on your Google Ads account. Connect it in the Connection Hub to create campaigns here.',
+        'video_note' => 'Google Ads API can\'t create classic Video campaigns, so YouTube campaigns are created as Demand Gen. Keyword, topic and channel placement targeting aren\'t available for Demand Gen.',
+        'google_link' => 'Create a Search, Display or Performance Max campaign instead',
+    ],
+    'channels' => [
+        'title' => 'Where your ads run',
+        'hint' => 'YouTube placements are selected by default. Adding Discover, Gmail, Display or Maps can lower costs and widen reach.',
+        'youtubeInStream' => [
+            'label' => 'YouTube in-stream',
+            'hint' => 'Before, during or after other videos',
+        ],
+        'youtubeInFeed' => [
+            'label' => 'YouTube in-feed',
+            'hint' => 'Home feed, search results and Watch Next',
+        ],
+        'youtubeShorts' => [
+            'label' => 'YouTube Shorts',
+            'hint' => 'Between Shorts in the vertical feed',
+        ],
+        'discover' => [
+            'label' => 'Discover',
+            'hint' => 'Google app and Discover feed',
+        ],
+        'gmail' => [
+            'label' => 'Gmail',
+            'hint' => 'Promotions and Social tabs',
+        ],
+        'display' => [
+            'label' => 'Display',
+            'hint' => 'Google Display Network sites and apps',
+        ],
+        'maps' => [
+            'label' => 'Google Maps',
+            'hint' => 'Maps search results and places',
+        ],
+    ],
+    'ctas' => [
+        'LEARN_MORE' => 'Learn more',
+        'SHOP_NOW' => 'Shop now',
+        'BUY_NOW' => 'Buy now',
+        'SIGN_UP' => 'Sign up',
+        'SUBSCRIBE' => 'Subscribe',
+        'BOOK_NOW' => 'Book now',
+        'ORDER_NOW' => 'Order now',
+        'GET_QUOTE' => 'Get quote',
+        'APPLY_NOW' => 'Apply now',
+        'CONTACT_US' => 'Contact us',
+        'DOWNLOAD' => 'Download',
+        'DONATE_NOW' => 'Donate now',
+        'PLAY_NOW' => 'Play now',
+        'SEE_MORE' => 'See more',
+        'START_NOW' => 'Start now',
+        'VISIT_SITE' => 'Visit site',
+        'WATCH_NOW' => 'Watch now',
+    ],
     'audience' => [
+        'grouped_hint' => 'YouTube campaigns reach the people in these segments, combined with the demographics below, as one Google Ads audience.',
         'optimized_targeting' => 'Optimized targeting',
         'optimized_targeting_hint' => 'Let Google also reach people beyond your segments who are likely to convert.',
         'exclusions' => 'Audience exclusions',
@@ -238,6 +302,17 @@ return [
     ],
 
     'ad' => [
+        'title_DEMAND_GEN' => 'YouTube video ad',
+        'sub_DEMAND_GEN' => 'Add your YouTube videos and text. Google builds ads for in-stream, in-feed and Shorts placements.',
+        'videos' => 'YouTube videos',
+        'count_short_videos' => ':min–:max videos',
+        'video_placeholder' => 'https://www.youtube.com/watch?v=… or video ID',
+        'add_video' => 'Add video',
+        'videos_hint' => 'Paste a YouTube link or 11-character video ID. Videos must be public or unlisted on YouTube. Add landscape, square and vertical versions to fit every placement.',
+        'call_to_action' => 'Call to action',
+        'cta_auto' => 'Automatic (chosen by Google)',
+        'breadcrumb1' => 'Breadcrumb 1',
+        'breadcrumb2' => 'Breadcrumb 2',
         'title_SEARCH' => 'Responsive search ad',
         'title_DISPLAY' => 'Responsive display ad',
         'title_PERFORMANCE_MAX' => 'Asset group',
@@ -294,8 +369,10 @@ return [
     ],
     'result_steps' => ['validation' => 'Checks', 'assets' => 'Image upload', 'campaign' => 'Campaign', 'goals' => 'Conversion goals'],
     'foot' => ['creating' => 'Creating…', 'try_again' => 'Try again', 'publish' => 'Create & publish', 'create' => 'Create campaign'],
-    'side' => ['preview' => 'Ad preview', 'approximate' => 'Approximate', 'headline_placeholder' => 'Your headline appears here', 'description_placeholder' => 'Your description appears here.', 'sponsored' => 'Sponsored', 'summary' => 'Summary'],
+    'side' => ['ad' => 'Ad', 'preview' => 'Ad preview', 'approximate' => 'Approximate', 'headline_placeholder' => 'Your headline appears here', 'description_placeholder' => 'Your description appears here.', 'sponsored' => 'Sponsored', 'summary' => 'Summary'],
     'summary' => [
+        'languages_auto' => 'Language: automatic',
+        'videos_n' => ':n videos',
         'audience_signal' => 'Audience signal set',
         'exclusions_n' => ':n audiences excluded',
         'frequency' => 'Max :n impressions per :unit',
@@ -304,6 +381,11 @@ return [
         'negatives_n' => ':n negatives', 'excluded_n' => ':n locations excluded', 'slots_n' => ':n schedule slots', 'demo_excluded_n' => ':n demographic groups excluded',
     ],
     'errors' => [
+        'target_cpc' => 'Enter a target cost per click.',
+        'channels' => 'Choose at least one placement.',
+        'videos' => 'Add at least :min YouTube video.',
+        'video_invalid' => 'One of the videos isn\'t a valid YouTube link or ID.',
+        'video_dupe' => 'Each video can only be added once.',
         'ip' => '":ip" isn\'t a valid IP address or range.',
         'ip_max' => 'You can exclude at most 500 IP addresses.',
         'frequency' => 'The frequency cap must be between 1 and 1000.',
@@ -336,6 +418,9 @@ return [
     'defaults' => ['ad_group' => 'Ad group', 'asset_group' => 'Asset group'],
     'client' => ['request_failed' => 'The request failed.', 'google_error' => 'Google Ads returned an error.', 'server_error' => 'Something went wrong on our side. Please try again.', 'network' => 'Network error. Check your connection and try again.'],
     'server' => [
+        'channels_required' => 'Choose at least one placement for the YouTube campaign.',
+        'videos_invalid' => 'Add between :min and :max valid YouTube videos.',
+        'demographic_all' => 'You can\'t exclude every :group group.',
         'feature_unsupported' => ':fields aren\'t available for :type campaigns.',
         'ip_invalid' => '":ip" isn\'t a valid IP address or range.',
         'connect_first' => 'Connect a Google Ads account first.',

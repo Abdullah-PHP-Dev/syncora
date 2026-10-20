@@ -98,7 +98,7 @@ class GoogleAdBuilderController extends Controller
         $status = $result['success'] ? 200 : ($result['status'] ?? 422);
 
         if ($result['success']) {
-            $result['redirect_url'] = route('admin.ads.campaigns.index', ['platform' => 'google']);
+            $result['redirect_url'] = route('admin.ads.campaigns.index', ['platform' => $request->input('campaign_type') === 'DEMAND_GEN' ? 'youtube' : 'google']);
         }
 
         return response()->json($result, $status);

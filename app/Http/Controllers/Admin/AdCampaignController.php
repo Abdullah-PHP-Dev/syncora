@@ -188,9 +188,10 @@ class AdCampaignController extends Controller
             return view('admin.ads.snapchat.campaigns.builder', compact('platform', 'account', 'adAccounts', 'promotePost'));
         }
 
-        // Google: the campaign builder (GoogleCampaignBuilder - Search,
-        // Display, Performance Max); the previous form stays at ?legacy=1.
-        if ($platform === 'google' && ! request()->boolean('legacy')) {
+        // Google + YouTube: the campaign builder (GoogleCampaignBuilder - Search,
+        // Display, Performance Max; YouTube = Demand Gen on the same Google Ads
+        // account); the previous forms stay at ?legacy=1.
+        if (in_array($platform, ['google', 'youtube'], true) && ! request()->boolean('legacy')) {
             return view('admin.ads.google.campaigns.builder', compact('platform', 'account', 'adAccounts', 'promotePost'));
         }
 

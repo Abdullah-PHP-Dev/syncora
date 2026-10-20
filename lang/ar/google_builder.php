@@ -26,6 +26,7 @@ return [
     'common' => ['optional' => 'اختياري', 'add' => 'إضافة', 'remove' => 'إزالة', 'loading' => 'جارٍ التحميل…', 'edit' => 'تعديل', 'back' => 'رجوع', 'continue' => 'متابعة'],
 
     'campaign' => [
+        'target_cpc' => 'التكلفة المستهدفة لكل نقرة (:currency)',
         'title' => 'إعداد الحملة',
         'goal' => 'ما الأهم بالنسبة لك؟',
         'type' => 'نوع الحملة',
@@ -73,12 +74,14 @@ return [
         'AWARENESS' => ['label' => 'الوعي والوصول', 'summary' => 'الظهور لعدد أكبر من الأشخاص'],
     ],
     'types' => [
+        'DEMAND_GEN' => ['label' => 'YouTube (Demand Gen)', 'summary' => 'إعلانات فيديو على YouTube في البث والخلاصة وShorts', 'guidance' => 'حملات Demand Gen هي طريقة إنشاء حملات فيديو YouTube عبر واجهة Google Ads البرمجية. تُعرض فيديوهاتك في البث والخلاصة وShorts على YouTube، ويمكن إضافة Discover وGmail والشبكة الإعلانية والخرائط.'],
         'SEARCH' => ['label' => 'البحث', 'summary' => 'إعلانات نصية في نتائج بحث Google', 'guidance' => 'تصل إلى الأشخاص الذين يبحثون عمّا تقدّمه. تختار الكلمات الرئيسية وتكتب إعلان بحث متجاوباً.'],
         'DISPLAY' => ['label' => 'الشبكة الإعلانية', 'summary' => 'إعلانات مصوّرة على أكثر من 3 ملايين موقع وتطبيق', 'guidance' => 'إعلانات مرئية على شبكة Google الإعلانية. استهدف حسب الجمهور والموضوع والموضع والكلمات السياقية.'],
         'PERFORMANCE_MAX' => ['label' => 'Performance Max', 'summary' => 'حملة واحدة على كل قنوات Google', 'guidance' => 'يعرض ذكاء Google الاصطناعي موادك على البحث وYouTube والشبكة الإعلانية وDiscover وGmail والخرائط. تحتاج إلى تتبّع الإحالات، وتُدار الكلمات الرئيسية والجماهير والمواضع تلقائياً.'],
         'VIDEO' => ['label' => 'فيديو (YouTube)', 'summary' => 'تُنشأ حملات الفيديو كحملات Demand Gen من صفحة YouTube'],
     ],
     'bidding' => [
+        'TARGET_CPC' => ['label' => 'تكلفة النقرة المستهدفة', 'hint' => 'الحصول على نقرات بالتكلفة التي تحددها لكل نقرة أو قريباً منها.'],
         'MAXIMIZE_CONVERSIONS' => ['label' => 'زيادة الإحالات الناجحة', 'hint' => 'أكبر عدد من الإحالات ضمن ميزانيتك، مع تكلفة مستهدفة اختيارية.'],
         'MAXIMIZE_CONVERSION_VALUE' => ['label' => 'زيادة قيمة الإحالات', 'hint' => 'أعلى قيمة ضمن ميزانيتك، مع عائد مستهدف اختياري.'],
         'MAXIMIZE_CLICKS' => ['label' => 'زيادة النقرات', 'hint' => 'أكبر عدد ممكن من النقرات، مع حد اختياري لتكلفة النقرة.'],
@@ -96,6 +99,7 @@ return [
     'origins' => ['WEBSITE' => 'الموقع', 'APP' => 'التطبيق', 'CALL_FROM_ADS' => 'مكالمات من الإعلانات', 'STORE' => 'المتجر', 'YOUTUBE_HOSTED' => 'YouTube', 'GOOGLE_HOSTED' => 'Google'],
 
     'targeting' => [
+        'languages_search' => 'تطابق Google الآن إعلانات البحث مع لغة كل عملية بحث تلقائياً، لذا لم تعد حملات البحث تستخدم استهداف اللغة.',
         'mobile' => 'أنظمة التشغيل وشركات الاتصالات',
         'operating_systems' => 'أنظمة التشغيل',
         'all_os' => 'كل أنظمة التشغيل (أو اختر بعضها)',
@@ -166,7 +170,67 @@ return [
         'audience_hint' => 'اختر جمهوراً أنشأته في Google Ads (قوائم العملاء، الاهتمامات، الشرائح المخصصة).',
         'no_audiences' => 'لا توجد جماهير في هذا الحساب بعد. أنشئ جمهوراً في Google Ads (الأدوات > مدير الجمهور) لاستخدامه كإشارة.',
     ],
+    'youtube' => [
+        'page_title' => 'إنشاء حملة YouTube',
+        'title' => 'إنشاء حملة YouTube',
+        'subtitle' => 'إعلانات فيديو على YouTube في البث والخلاصة وShorts مع استهداف كامل للجمهور، تُنشأ مباشرة في حسابك على Google Ads.',
+        'no_account_text' => 'تعمل حملات YouTube على حساب Google Ads. اربطه من مركز الربط لإنشاء الحملات هنا.',
+        'video_note' => 'لا تتيح واجهة Google Ads البرمجية إنشاء حملات الفيديو الكلاسيكية، لذا تُنشأ حملات YouTube كحملات Demand Gen. استهداف الكلمات الرئيسية والمواضيع ومواضع القنوات غير متاح في Demand Gen.',
+        'google_link' => 'أنشئ حملة بحث أو شبكة إعلانية أو Performance Max بدلاً من ذلك',
+    ],
+    'channels' => [
+        'title' => 'أين تُعرض إعلاناتك',
+        'hint' => 'مواضع YouTube محددة افتراضياً. إضافة Discover أو Gmail أو الشبكة الإعلانية أو الخرائط قد تخفض التكلفة وتوسّع الوصول.',
+        'youtubeInStream' => [
+            'label' => 'YouTube داخل البث',
+            'hint' => 'قبل الفيديوهات الأخرى أو أثناءها أو بعدها',
+        ],
+        'youtubeInFeed' => [
+            'label' => 'YouTube في الخلاصة',
+            'hint' => 'الصفحة الرئيسية ونتائج البحث والفيديوهات التالية',
+        ],
+        'youtubeShorts' => [
+            'label' => 'YouTube Shorts',
+            'hint' => 'بين مقاطع Shorts في الخلاصة العمودية',
+        ],
+        'discover' => [
+            'label' => 'Discover',
+            'hint' => 'تطبيق Google وخلاصة Discover',
+        ],
+        'gmail' => [
+            'label' => 'Gmail',
+            'hint' => 'علامتا تبويب العروض الترويجية والتواصل الاجتماعي',
+        ],
+        'display' => [
+            'label' => 'الشبكة الإعلانية',
+            'hint' => 'مواقع وتطبيقات شبكة Google الإعلانية',
+        ],
+        'maps' => [
+            'label' => 'خرائط Google',
+            'hint' => 'نتائج البحث والأماكن في الخرائط',
+        ],
+    ],
+    'ctas' => [
+        'LEARN_MORE' => 'مزيد من المعلومات',
+        'SHOP_NOW' => 'تسوّق الآن',
+        'BUY_NOW' => 'اشترِ الآن',
+        'SIGN_UP' => 'اشترك',
+        'SUBSCRIBE' => 'اشترك في القناة',
+        'BOOK_NOW' => 'احجز الآن',
+        'ORDER_NOW' => 'اطلب الآن',
+        'GET_QUOTE' => 'احصل على عرض سعر',
+        'APPLY_NOW' => 'قدّم الآن',
+        'CONTACT_US' => 'تواصل معنا',
+        'DOWNLOAD' => 'تنزيل',
+        'DONATE_NOW' => 'تبرّع الآن',
+        'PLAY_NOW' => 'العب الآن',
+        'SEE_MORE' => 'عرض المزيد',
+        'START_NOW' => 'ابدأ الآن',
+        'VISIT_SITE' => 'زيارة الموقع',
+        'WATCH_NOW' => 'شاهد الآن',
+    ],
     'audience' => [
+        'grouped_hint' => 'تصل حملات YouTube إلى الأشخاص في هذه الشرائح، مع الخصائص الديموغرافية أدناه، كجمهور واحد في Google Ads.',
         'optimized_targeting' => 'الاستهداف المحسّن',
         'optimized_targeting_hint' => 'اسمح لـ Google بالوصول أيضاً إلى أشخاص خارج شرائحك من المرجح أن يتفاعلوا.',
         'exclusions' => 'استبعاد الجماهير',
@@ -238,6 +302,17 @@ return [
     ],
 
     'ad' => [
+        'title_DEMAND_GEN' => 'إعلان فيديو YouTube',
+        'sub_DEMAND_GEN' => 'أضف فيديوهات YouTube والنصوص، وستنشئ Google إعلانات لمواضع البث والخلاصة وShorts.',
+        'videos' => 'فيديوهات YouTube',
+        'count_short_videos' => ':min–:max فيديوهات',
+        'video_placeholder' => 'https://www.youtube.com/watch?v=… أو معرّف الفيديو',
+        'add_video' => 'إضافة فيديو',
+        'videos_hint' => 'الصق رابط YouTube أو معرّف الفيديو المكوّن من 11 حرفاً. يجب أن تكون الفيديوهات عامة أو غير مدرجة على YouTube. أضف نسخاً أفقية ومربعة وعمودية لتناسب كل المواضع.',
+        'call_to_action' => 'عبارة الحث على اتخاذ إجراء',
+        'cta_auto' => 'تلقائي (تختاره Google)',
+        'breadcrumb1' => 'مسار التنقل 1',
+        'breadcrumb2' => 'مسار التنقل 2',
         'title_SEARCH' => 'إعلان بحث متجاوب',
         'title_DISPLAY' => 'إعلان صوري متجاوب',
         'title_PERFORMANCE_MAX' => 'مجموعة مواد العرض',
@@ -294,8 +369,10 @@ return [
     ],
     'result_steps' => ['validation' => 'التحقق', 'assets' => 'رفع الصور', 'campaign' => 'الحملة', 'goals' => 'أهداف الإحالات'],
     'foot' => ['creating' => 'جارٍ الإنشاء…', 'try_again' => 'إعادة المحاولة', 'publish' => 'إنشاء ونشر', 'create' => 'إنشاء الحملة'],
-    'side' => ['preview' => 'معاينة الإعلان', 'approximate' => 'تقريبية', 'headline_placeholder' => 'سيظهر عنوانك هنا', 'description_placeholder' => 'سيظهر وصفك هنا.', 'sponsored' => 'إعلان ممول', 'summary' => 'الملخص'],
+    'side' => ['ad' => 'إعلان', 'preview' => 'معاينة الإعلان', 'approximate' => 'تقريبية', 'headline_placeholder' => 'سيظهر عنوانك هنا', 'description_placeholder' => 'سيظهر وصفك هنا.', 'sponsored' => 'إعلان ممول', 'summary' => 'الملخص'],
     'summary' => [
+        'languages_auto' => 'اللغة: تلقائية',
+        'videos_n' => ':n فيديوهات',
         'audience_signal' => 'تم تحديد إشارة جمهور',
         'exclusions_n' => ':n جماهير مستبعدة',
         'frequency' => 'بحد أقصى :n مرات ظهور لكل :unit',
@@ -304,6 +381,11 @@ return [
         'negatives_n' => ':n كلمات سلبية', 'excluded_n' => ':n مواقع مستبعدة', 'slots_n' => ':n فترات زمنية', 'demo_excluded_n' => ':n فئات ديموغرافية مستبعدة',
     ],
     'errors' => [
+        'target_cpc' => 'أدخل التكلفة المستهدفة لكل نقرة.',
+        'channels' => 'اختر موضع عرض واحداً على الأقل.',
+        'videos' => 'أضف :min فيديو YouTube على الأقل.',
+        'video_invalid' => 'أحد الفيديوهات ليس رابط YouTube أو معرّفاً صالحاً.',
+        'video_dupe' => 'يمكن إضافة كل فيديو مرة واحدة فقط.',
         'ip' => '":ip" ليس عنوان IP أو نطاقاً صالحاً.',
         'ip_max' => 'يمكنك استبعاد 500 عنوان IP كحد أقصى.',
         'frequency' => 'يجب أن يكون حد التكرار بين 1 و1000.',
@@ -336,6 +418,9 @@ return [
     'defaults' => ['ad_group' => 'مجموعة إعلانية', 'asset_group' => 'مجموعة مواد العرض'],
     'client' => ['request_failed' => 'فشل الطلب.', 'google_error' => 'أعادت Google Ads خطأ.', 'server_error' => 'حدث خطأ من جهتنا. يُرجى المحاولة مرة أخرى.', 'network' => 'خطأ في الشبكة. تحقق من اتصالك وحاول مرة أخرى.'],
     'server' => [
+        'channels_required' => 'اختر موضع عرض واحداً على الأقل لحملة YouTube.',
+        'videos_invalid' => 'أضف بين :min و:max من فيديوهات YouTube الصالحة.',
+        'demographic_all' => 'لا يمكن استبعاد كل فئات :group.',
         'feature_unsupported' => ':fields غير متاحة لحملات :type.',
         'ip_invalid' => '":ip" ليس عنوان IP أو نطاقاً صالحاً.',
         'connect_first' => 'اربط حساب إعلانات Google أولاً.',

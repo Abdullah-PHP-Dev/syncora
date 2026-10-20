@@ -1,12 +1,15 @@
 @extends('layouts.app')
 
-@section('title', __('google_builder.page_title'))
-
 {{-- Google campaign builder - resources/js/components/ads/google/GoogleCampaignBuilder.vue,
-     backed by App\Http\Controllers\Admin\GoogleAdBuilderController. --}}
+     backed by App\Http\Controllers\Admin\GoogleAdBuilderController. The YouTube page
+     ($platform === 'youtube') is the same builder in YouTube mode (Demand Gen on the
+     same Google Ads account). --}}
+@php($youtube = ($platform ?? 'google') === 'youtube')
+
+@section('title', $youtube ? __('google_builder.youtube.page_title') : __('google_builder.page_title'))
 
 @section('content')
-    @include('admin.ads.partials.account-switcher', ['platform' => 'google'])
+    @include('admin.ads.partials.account-switcher', ['platform' => $youtube ? 'youtube' : 'google'])
 
     @if ($account)
         @php
@@ -20,9 +23,10 @@
                 'options' => route('admin.ads.google.builder.options', ['type' => 'TYPE']),
                 'keywordIdeas' => route('admin.ads.google.builder.keyword_ideas'),
                 'submit' => route('admin.ads.google.builder.submit'),
-                'campaignsList' => route('admin.ads.campaigns.index', ['platform' => 'google']),
+                'campaignsList' => route('admin.ads.campaigns.index', ['platform' => $youtube ? 'youtube' : 'google']),
                 'youtube' => route('admin.ads.campaigns.create', ['platform' => 'youtube']),
-                'legacy' => route('admin.ads.campaigns.create', ['platform' => 'google', 'legacy' => 1]),
+                'google' => route('admin.ads.campaigns.create', ['platform' => 'google']),
+                'legacy' => route('admin.ads.campaigns.create', ['platform' => $youtube ? 'youtube' : 'google', 'legacy' => 1]),
                 'connections' => \App\Support\Connections\HubLink::for('google') ?? route('admin.connections.index'),
             ];
             $galleryUrls = ['index' => route('admin.media-gallery.index'), 'store' => route('admin.media-gallery.store'), 'file' => route('admin.media-gallery.file', ['mediaAsset' => 'MEDIA_ID'])];
@@ -35,12 +39,13 @@
             :account-id="{{ (int) $account->id }}"
             :messages='@json($messages)'
             :media-messages='@json(__('media_gallery'))'
+            mode="{{ $youtube ? 'youtube' : 'google' }}"
             locale="{{ app()->getLocale() }}"
         ></google-campaign-builder>
     @else
         <div class="card"><div class="card-body text-center py-5">
             <h5>{{ __('google_builder.no_account_title') }}</h5>
-            <p class="text-muted">{{ __('google_builder.no_account_text') }}</p>
+            <p class="text-muted">{{ $youtube ? __('google_builder.youtube.no_account_text') : __('google_builder.no_account_text') }}</p>
             <a href="{{ \App\Support\Connections\HubLink::for('google') ?? route('admin.connections.index') }}" class="btn btn-primary">{{ __('google_builder.boot.go_connections') }}</a>
         </div></div>
     @endif

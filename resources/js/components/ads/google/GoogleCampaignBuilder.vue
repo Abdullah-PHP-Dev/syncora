@@ -1,13 +1,13 @@
 <template>
-  <div class="fb gb" :dir="i18n.dir">
+  <div class="fb gb" :class="{ 'gb-yt': isYoutube }" :dir="i18n.dir">
 
     <!-- ===== Header ===== -->
     <header class="fb-head">
       <div class="fb-head-main">
-        <span class="fb-head-icon gb-head-icon"><i class="bx bxl-google"></i></span>
+        <span class="fb-head-icon gb-head-icon"><i class="bx" :class="isYoutube ? 'bxl-youtube' : 'bxl-google'"></i></span>
         <div>
-          <h4>{{ t('header.title') }}</h4>
-          <p>{{ t('header.subtitle') }}</p>
+          <h4>{{ isYoutube ? t('youtube.title') : t('header.title') }}</h4>
+          <p>{{ isYoutube ? t('youtube.subtitle') : t('header.subtitle') }}</p>
         </div>
       </div>
       <div class="fb-head-actions">
@@ -53,6 +53,7 @@
           <div v-show="current === 'campaign'" class="fb-card">
             <div class="fb-card-h"><h5>{{ t('campaign.title') }}</h5></div>
 
+            <template v-if="!isYoutube">
             <label class="fb-label">{{ t('campaign.goal') }} <span class="fb-opt">{{ t('common.optional') }}</span></label>
             <div class="fb-goals">
               <button v-for="(g, key) in boot.goals" :key="key" type="button" class="fb-goal" :class="{ on: goal === key }" @click="setGoal(key)">
@@ -62,9 +63,10 @@
               </button>
             </div>
 
-            <label class="fb-label mt-3">{{ t('campaign.type') }}</label>
-            <div class="gb-types">
-              <button v-for="(spec, key) in boot.types" :key="key" type="button" class="gb-type" :class="{ on: type === key }" @click="setType(key)">
+            </template>
+            <label v-if="!isYoutube" class="fb-label mt-3">{{ t('campaign.type') }}</label>
+            <div v-if="!isYoutube" class="gb-types">
+              <button v-for="(spec, key) in visibleTypes" :key="key" type="button" class="gb-type" :class="{ on: type === key }" @click="setType(key)">
                 <i class="bx" :class="spec.icon"></i>
                 <span><strong>{{ t('types.' + key + '.label') }}</strong><small>{{ t('types.' + key + '.summary') }}</small></span>
                 <span v-if="goal && boot.goals[goal].type === key" class="fb-tag">{{ t('campaign.recommended') }}</span>
@@ -76,6 +78,7 @@
               </a>
             </div>
             <div v-if="type" class="fb-guide"><i class="bx bx-bulb"></i><span><strong>{{ t('types.' + type + '.label') }}:</strong> {{ t('types.' + type + '.guidance') }}</span></div>
+            <p v-if="isYoutube" class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('youtube.video_note') }} <a :href="urls.google" class="fb-link">{{ t('youtube.google_link') }}</a></p>
 
             <template v-if="type">
               <label class="fb-label" for="gbName">{{ t('campaign.name') }}</label>
@@ -137,6 +140,10 @@
                       <input id="gbIsPct" v-model.number="campaign.is_fraction" type="number" min="1" max="100" class="form-control">
                     </div>
                   </template>
+                  <div v-if="campaign.bidding === 'TARGET_CPC'">
+                    <label class="fb-label" for="gbTcpc">{{ t('campaign.target_cpc', { currency }) }}</label>
+                    <input id="gbTcpc" v-model.number="campaign.target_cpc" type="number" min="0.01" step="0.01" class="form-control">
+                  </div>
                   <div v-if="campaign.bidding === 'MAXIMIZE_CLICKS' || campaign.bidding === 'TARGET_IMPRESSION_SHARE'">
                     <label class="fb-label" for="gbCeil">{{ t('campaign.cpc_ceiling', { currency }) }} <span v-if="campaign.bidding === 'MAXIMIZE_CLICKS'" class="fb-opt">{{ t('common.optional') }}</span></label>
                     <input id="gbCeil" v-model.number="campaign.cpc_ceiling" type="number" min="0.01" step="0.01" class="form-control">
@@ -162,6 +169,17 @@
                 </template>
               </div>
 
+
+              <div v-if="has('channels')" class="fb-group">
+                <h6><i class="bx bx-play-circle"></i> {{ t('channels.title') }}</h6>
+                <div class="gb-channels">
+                  <label v-for="ch in opt.channels" :key="ch" class="fb-check gb-bid" :class="{ on: targeting.channels.includes(ch) }">
+                    <input v-model="targeting.channels" type="checkbox" :value="ch">
+                    <span><strong><i class="bx" :class="channelIcon(ch)"></i> {{ t('channels.' + ch + '.label') }}</strong><small>{{ t('channels.' + ch + '.hint') }}</small></span>
+                  </label>
+                </div>
+                <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('channels.hint') }}</p>
+              </div>
 
               <div v-if="has('networks')" class="fb-group">
                 <h6><i class="bx bx-network-chart"></i> {{ t('campaign.networks') }}</h6>
@@ -189,7 +207,7 @@
                 <template #option="{ item }"><span class="sp-opt-main"><strong>{{ item.name }}</strong></span><span class="fb-tag">{{ known('geo_types', item.type, item.type) }}</span></template>
               </search-picker>
 
-              <details class="fb-group gb-details" :open="targeting.radius.length > 0">
+              <details v-if="has('radius')" class="fb-group gb-details" :open="targeting.radius.length > 0">
                 <summary><i class="bx bx-current-location"></i> {{ t('targeting.radius') }} <span class="fb-opt">{{ t('common.optional') }}</span></summary>
                 <div class="gb-radius mt-2">
                   <input v-model.number="radiusDraft.latitude" type="number" step="0.000001" min="-90" max="90" class="form-control" :placeholder="t('targeting.latitude')" :aria-label="t('targeting.latitude')">
@@ -204,22 +222,28 @@
                 <p v-if="radiusError" class="fb-field-err">{{ radiusError }}</p>
               </details>
 
+              <template v-if="type !== 'DEMAND_GEN'">
               <label class="fb-label mt-2">{{ t('targeting.geo_mode') }}</label>
               <div class="fb-seg">
                 <button v-for="m in opt.geo_modes" :key="m" type="button" :class="{ on: campaign.geo_mode === m }" @click="campaign.geo_mode = m">{{ t('geo_modes.' + m + '.label') }}</button>
               </div>
               <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('geo_modes.' + campaign.geo_mode + '.hint') }}</p>
+              </template>
               <p v-if="fieldErrors.targeting" class="fb-field-err">{{ fieldErrors.targeting }}</p>
             </div>
 
-            <div class="fb-group">
+            <div v-if="type === 'SEARCH'" class="fb-group">
+              <h6><i class="bx bx-globe"></i> {{ t('targeting.languages') }}</h6>
+              <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('targeting.languages_search') }}</p>
+            </div>
+            <div v-if="has('languages')" class="fb-group">
               <h6><i class="bx bx-globe"></i> {{ t('targeting.languages') }}</h6>
               <search-picker v-model="targeting.languages" :options="lists.languages" :min-chars="0" :max="100" :placeholder="lists.loading.languages ? t('common.loading') : t('targeting.search_languages')" />
               <p v-if="lists.errors.languages" class="fb-field-err">{{ lists.errors.languages }}</p>
               <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('targeting.languages_hint') }}</p>
             </div>
 
-            <div class="fb-group">
+            <div v-if="has('schedule')" class="fb-group">
               <h6><i class="bx bx-time-five"></i> {{ t('targeting.ad_schedule') }} <span class="fb-opt">{{ t('common.optional') }}</span></h6>
               <div class="gb-quick">
                 <button type="button" class="fb-chip-btn" @click="presetSchedule('weekdays')">{{ t('targeting.preset_weekdays') }}</button>
@@ -320,7 +344,8 @@
                 <template #option="{ item }"><span class="sp-opt-main"><strong>{{ item.name }}</strong></span><span class="fb-tag">{{ known('segment_types', item.type, humanize(item.type)) }}</span></template>
               </search-picker>
               <p v-if="lists.errors.audiences || lists.errors.interests" class="fb-field-err">{{ lists.errors.audiences || lists.errors.interests }}</p>
-              <template v-if="targeting.audiences.length">
+              <p v-if="has('grouped_audience')" class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('audience.grouped_hint') }}</p>
+              <template v-if="targeting.audiences.length && !has('grouped_audience')">
                 <label class="fb-label mt-2">{{ t('audience.mode') }}</label>
                 <div class="fb-seg">
                   <button type="button" :class="{ on: targeting.audience_mode === 'observation' }" @click="targeting.audience_mode = 'observation'"><i class="bx bx-show"></i> {{ t('audience.observation') }}</button>
@@ -428,6 +453,16 @@
             <p class="fb-sub">{{ t('ad.sub_' + (type || 'SEARCH')) }}</p>
 
             <div class="fb-grid-2">
+              <div v-if="has('dg_video')" class="fb-span-2">
+                <label class="fb-label">{{ t('ad.videos') }} <small class="fb-muted">{{ t('ad.count_short_videos', { min: limits.videos[0], max: limits.videos[1] }) }}</small></label>
+                <div v-for="(v, i) in ad.videos" :key="'v' + i" class="gb-text-row">
+                  <input v-model.trim="ad.videos[i]" class="form-control" dir="ltr" :placeholder="t('ad.video_placeholder')" :aria-label="t('ad.videos') + ' ' + (i + 1)">
+                  <span class="gb-count" :class="{ 'is-full': ad.videos[i] && !youtubeId(ad.videos[i]) }"><i class="bx" :class="youtubeId(ad.videos[i]) ? 'bx-check-circle gb-ok' : 'bx-video'"></i></span>
+                  <button type="button" class="fb-icon-btn" :disabled="ad.videos.length <= 1" :aria-label="t('common.remove')" @click="ad.videos.splice(i, 1)"><i class="bx bx-x"></i></button>
+                </div>
+                <button v-if="ad.videos.length < limits.videos[1]" type="button" class="btn btn-sm fb-btn-ghost" @click="ad.videos.push('')"><i class="bx bx-plus"></i> {{ t('ad.add_video') }}</button>
+                <p class="fb-hint"><i class="bx bx-info-circle"></i> {{ t('ad.videos_hint') }}</p>
+              </div>
               <div :class="{ 'fb-span-2': type !== 'SEARCH' }">
                 <label class="fb-label" for="gbUrl">{{ t('ad.final_url') }}</label>
                 <input id="gbUrl" v-model.trim="ad.final_url" type="url" class="form-control" dir="ltr" placeholder="https://example.com/offer">
@@ -442,6 +477,19 @@
                 <label class="fb-label" for="gbBiz">{{ t('ad.business_name') }}</label>
                 <input id="gbBiz" v-model.trim="ad.business_name" class="form-control" :maxlength="limits.business_name">
               </div>
+              <template v-if="has('dg_video')">
+                <div>
+                  <label class="fb-label" for="gbCta">{{ t('ad.call_to_action') }} <span class="fb-opt">{{ t('common.optional') }}</span></label>
+                  <select id="gbCta" v-model="ad.call_to_action" class="form-control">
+                    <option :value="null">{{ t('ad.cta_auto') }}</option>
+                    <option v-for="c in opt.ctas" :key="c" :value="c">{{ t('ctas.' + c) }}</option>
+                  </select>
+                </div>
+                <div class="gb-paths">
+                  <div><label class="fb-label" for="gbB1">{{ t('ad.breadcrumb1') }}</label><input id="gbB1" v-model.trim="ad.breadcrumb1" class="form-control" dir="ltr" :maxlength="limits.breadcrumb"></div>
+                  <div><label class="fb-label" for="gbB2">{{ t('ad.breadcrumb2') }}</label><input id="gbB2" v-model.trim="ad.breadcrumb2" class="form-control" dir="ltr" :maxlength="limits.breadcrumb" :disabled="!ad.breadcrumb1"></div>
+                </div>
+              </template>
               <div v-if="type !== 'SEARCH'">
                 <label class="fb-label" for="gbAg">{{ type === 'PERFORMANCE_MAX' ? t('ad.asset_group_name') : t('ad.ad_group_name') }} <span class="fb-opt">{{ t('common.optional') }}</span></label>
                 <input id="gbAg" v-model.trim="adGroup.name" class="form-control" maxlength="255">
@@ -537,8 +585,24 @@
         <aside class="fb-side">
           <div class="fb-card">
             <div class="fb-side-h"><strong><i class="bx bx-show"></i> {{ t('side.preview') }}</strong><small>{{ t('side.approximate') }}</small></div>
-            <div v-if="type !== 'SEARCH' && type" class="gb-dpreview">
-              <img v-if="ad.images.marketing[0]" :src="ad.images.marketing[0].url" alt="" class="gb-dpreview-img">
+            <div v-if="type === 'DEMAND_GEN'" class="gb-ytpreview">
+              <div class="gb-yt-video">
+                <img v-if="firstVideoId" :src="'https://i.ytimg.com/vi/' + firstVideoId + '/hqdefault.jpg'" alt="">
+                <div v-else class="gb-dpreview-ph"><i class="bx bxl-youtube"></i></div>
+                <span class="gb-yt-play"><i class="bx bx-play"></i></span>
+                <span class="gb-yt-ad">{{ t('side.ad') }}</span>
+              </div>
+              <div class="gb-dpreview-body">
+                <span class="gb-dpreview-logo"><img v-if="ad.images.logo[0]" :src="ad.images.logo[0].url" alt=""><i v-else class="bx bxl-youtube"></i></span>
+                <div>
+                  <strong>{{ firstText('headlines') || t('side.headline_placeholder') }}</strong>
+                  <small>{{ t('side.sponsored') }} · {{ ad.business_name || boot.account.name }}</small>
+                </div>
+                <span class="gb-yt-cta">{{ ad.call_to_action ? t('ctas.' + ad.call_to_action) : t('ctas.LEARN_MORE') }}</span>
+              </div>
+            </div>
+            <div v-else-if="type !== 'SEARCH' && type" class="gb-dpreview">
+              <img v-if="ad.images.marketing && ad.images.marketing[0]" :src="ad.images.marketing[0].url" alt="" class="gb-dpreview-img">
               <div v-else class="gb-dpreview-ph"><i class="bx bx-image"></i></div>
               <div class="gb-dpreview-body">
                 <span class="gb-dpreview-logo"><img v-if="ad.images.logo[0]" :src="ad.images.logo[0].url" alt=""><i v-else class="bx bxl-google"></i></span>
@@ -591,6 +655,8 @@ const props = defineProps({
   messages: { type: Object, default: () => ({}) },
   mediaMessages: { type: Object, default: () => ({}) },
   locale: { type: String, default: 'en' },
+  // 'youtube' = the YouTube page: Demand Gen only, YouTube header and copy.
+  mode: { type: String, default: 'google' },
 });
 
 const i18n = createTranslator(props.messages, props.locale);
@@ -627,7 +693,7 @@ const type = ref(null);
 const status = ref('PAUSED');
 const campaign = reactive({
   name: '', budget: 20, budget_type: 'daily', bidding: null, target_cpa: null, target_roas: null, max_cpc: null, cpc_ceiling: null,
-  is_location: 'TOP_OF_PAGE', is_fraction: 50, start_date: '', end_date: '', geo_mode: 'PRESENCE_OR_INTEREST',
+  target_cpc: null, is_location: 'TOP_OF_PAGE', is_fraction: 50, start_date: '', end_date: '', geo_mode: 'PRESENCE_OR_INTEREST',
   search_partners: false, display_expansion: false, goal_mode: 'account', goals: [],
 });
 const targeting = reactive({
@@ -637,9 +703,11 @@ const targeting = reactive({
   negative_keywords: [], topics: [], content_labels: [],
   audience_exclusions: [], optimized_targeting: false, excluded_topics: [], app_categories: [], operating_systems: [], carriers: [],
   frequency_cap: { cap: null, unit: 'DAY' }, search_themes: [], audience_signal_id: null,
+  // Demand Gen channel controls - YouTube surfaces by default on the YouTube page.
+  channels: ['youtubeInStream', 'youtubeInFeed', 'youtubeShorts'],
 });
 const adGroup = reactive({ name: '', keywords: [] });
-const ad = reactive({ final_url: '', path1: '', path2: '', headlines: ['', '', ''], descriptions: ['', ''], long_headlines: [''], business_name: '', images: { marketing: [], square: [], logo: [] } });
+const ad = reactive({ final_url: '', path1: '', path2: '', headlines: ['', '', ''], descriptions: ['', ''], long_headlines: [''], business_name: '', images: { marketing: [], square: [], logo: [] }, videos: [''], call_to_action: null, breadcrumb1: '', breadcrumb2: '' });
 const lists = reactive({ languages: [], audiences: [], interests: [], topics: [], operating_systems: [], carriers: [], app_categories: [], pmax_audiences: [], loading: {}, errors: {} });
 const ipText = ref('');
 const themeDraft = ref('');
@@ -649,8 +717,19 @@ const opt = computed(() => (boot.value ? boot.value.options : {}));
 const currency = computed(() => (boot.value ? boot.value.account.currency : 'USD'));
 const spec = computed(() => (boot.value && type.value ? boot.value.types[type.value] : null));
 const has = (f) => !!(spec.value && spec.value.features.includes(f));
+const isYoutube = props.mode === 'youtube';
+// The Google page lists Search / Display / PMax; the YouTube page only YouTube (Demand Gen) types.
+const visibleTypes = computed(() => Object.fromEntries(Object.entries(boot.value ? boot.value.types : {}).filter(([, s]) => !!s.youtube === isYoutube)));
+function youtubeId(v) {
+  const s = (v || '').trim();
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  const m = s.match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : '';
+}
+const firstVideoId = computed(() => ad.videos.map(youtubeId).find(Boolean) || '');
+function channelIcon(c) { return ({ youtubeInStream: 'bx-play-circle', youtubeInFeed: 'bx-list-ul', youtubeShorts: 'bx-mobile', discover: 'bx-compass', gmail: 'bx-envelope', display: 'bx-image-alt', maps: 'bx-map' })[c] || 'bx-check'; }
 const conversionBidding = computed(() => ['MAXIMIZE_CONVERSIONS', 'MAXIMIZE_CONVERSION_VALUE'].includes(campaign.bidding));
-const limitKey = computed(() => ({ DISPLAY: 'rda', PERFORMANCE_MAX: 'pmax' })[type.value] || 'rsa');
+const limitKey = computed(() => ({ DISPLAY: 'rda', PERFORMANCE_MAX: 'pmax', DEMAND_GEN: 'dg' })[type.value] || 'rsa');
 const limits = computed(() => (opt.value.limits ? opt.value.limits[limitKey.value] : { headlines: [3, 15, 30], descriptions: [2, 4, 90], path: 15 }));
 // Budget + VAT + total, as on the Facebook builder. Google budgets are an
 // average daily amount; with an end date the total covers every day from
@@ -686,7 +765,7 @@ const steps = computed(() => {
     type.value === 'PERFORMANCE_MAX'
       ? { key: 'audience', label: t('steps.signals'), summary: t('steps.themes_n', { n: targeting.search_themes.length }) }
       : { key: 'audience', label: t('steps.audience'), summary: t('steps.segments_n', { n: targeting.audiences.length }) },
-    { key: 'keywords', label: type.value === 'DISPLAY' ? t('steps.keywords_display') : t('steps.keywords'), summary: t('steps.keywords_n', { n: adGroup.keywords.length }), show: type.value !== 'PERFORMANCE_MAX' },
+    { key: 'keywords', label: type.value === 'DISPLAY' ? t('steps.keywords_display') : t('steps.keywords'), summary: t('steps.keywords_n', { n: adGroup.keywords.length }), show: !['PERFORMANCE_MAX', 'DEMAND_GEN'].includes(type.value) },
     { key: 'ad', label: type.value === 'PERFORMANCE_MAX' ? t('steps.assets') : t('steps.ad'), summary: ad.final_url ? domain(ad.final_url) : t('steps.ad_hint') },
     { key: 'review', label: t('steps.review'), summary: status.value === 'ACTIVE' ? t('review.publish') : t('review.save_paused') },
   ];
@@ -704,12 +783,12 @@ const textLists = computed(() => {
 });
 const imageSlots = computed(() => {
   const l = limits.value;
-  if (!l.marketing) return [];
+  // Only the image slots this type's ad uses (Demand Gen video ads: logo only).
   return [
-    { key: 'marketing', ratio: '1.91:1', value: 1.91, min: l.marketing[0], max: l.marketing[1] },
-    { key: 'square', ratio: '1:1', value: 1, min: l.square[0], max: l.square[1] },
-    { key: 'logo', ratio: '1:1', value: 1, min: l.logo[0], max: l.logo[1] },
-  ];
+    { key: 'marketing', ratio: '1.91:1', value: 1.91 },
+    { key: 'square', ratio: '1:1', value: 1 },
+    { key: 'logo', ratio: '1:1', value: 1 },
+  ].filter((s) => l[s.key]).map((s) => ({ ...s, min: l[s.key][0], max: l[s.key][1] }));
 });
 const pickerMax = computed(() => {
   const slot = imageSlots.value.find((s) => s.key === pickerFor.value);
@@ -722,9 +801,9 @@ const demographicGroups = computed(() => [
   { key: 'incomes', values: opt.value.incomes || [] },
 ]);
 // Exclusions can only be user lists (campaign-level negative userList criteria).
-const exclusionOptions = computed(() => lists.audiences.filter((a) => a.kind === 'user_list' && (type.value === 'DISPLAY' ? a.display : a.search)));
+const exclusionOptions = computed(() => lists.audiences.filter((a) => a.kind === 'user_list' && (type.value === 'SEARCH' ? a.search : a.display)));
 const audienceOptions = computed(() => {
-  const own = lists.audiences.filter((a) => (type.value === 'DISPLAY' ? a.display : a.kind === 'user_list' && a.search));
+  const own = lists.audiences.filter((a) => (type.value === 'SEARCH' ? a.kind === 'user_list' && a.search : a.display));
   return [...own, ...lists.interests];
 });
 
@@ -908,6 +987,15 @@ function validate() {
   const out = [];
   const add = (s, text) => out.push({ step: s, text });
   if (!type.value) { add('campaign', t('errors.type')); return out; }
+  if (campaign.bidding === 'TARGET_CPC' && !(campaign.target_cpc > 0)) add('campaign', t('errors.target_cpc'));
+  if (has('channels') && !targeting.channels.length) add('campaign', t('errors.channels'));
+  if (has('dg_video')) {
+    const ids = ad.videos.map((v) => v.trim()).filter(Boolean);
+    if (ids.length < limits.value.videos[0]) add('ad', t('errors.videos', { min: limits.value.videos[0] }));
+    if (ids.some((v) => !youtubeId(v))) add('ad', t('errors.video_invalid'));
+    if (new Set(ids.map(youtubeId)).size !== ids.length) add('ad', t('errors.video_dupe'));
+  }
+  if (has('grouped_audience')) ['parental', 'incomes'].forEach((k) => { if (targeting[k].length >= (opt.value[k] || []).length) add('audience', t('errors.demographic_all', { group: t('audience.' + k) })); });
   if (!(campaign.budget >= opt.value.min_daily_budget)) add('campaign', t('errors.budget', { amount: money(opt.value.min_daily_budget) }));
   if (campaign.budget_type === 'lifetime' && (!campaign.start_date || !campaign.end_date)) add('campaign', t('errors.lifetime_dates'));
   if (campaign.bidding === 'MANUAL_CPC' && !(campaign.max_cpc > 0)) add('campaign', t('errors.max_cpc'));
@@ -981,7 +1069,7 @@ const reviewRows = computed(() => {
     ...(budgetSummary.value ? [{ step: stepIndex('campaign'), label: t('review.total_vat', { rate: budgetSummary.value.vatRate }), value: totalText(budgetSummary.value) }] : []),
     { step: stepIndex('campaign'), label: t('review.dates'), value: (campaign.start_date || t('review.asap')) + ' → ' + (campaign.end_date || t('review.no_end')) },
     { step: stepIndex('targeting'), label: t('review.locations'), value: locationText.value },
-    { step: stepIndex('targeting'), label: t('review.languages'), value: targeting.languages.map((l) => l.name).join(', ') || t('summary.all_languages') },
+    { step: stepIndex('targeting'), label: t('review.languages'), value: has('languages') ? targeting.languages.map((l) => l.name).join(', ') || t('summary.all_languages') : t('summary.languages_auto') },
   ];
   if (type.value !== 'PERFORMANCE_MAX') {
     rows.push({ step: stepIndex('audience'), label: t('review.audiences'), value: targeting.audiences.length ? t('summary.segments_n', { n: targeting.audiences.length }) + ' · ' + t('audience.' + targeting.audience_mode) : t('summary.no_segments') });
@@ -997,7 +1085,9 @@ const summaryLines = computed(() => {
   if (budgetSummary.value) out.push({ icon: 'bx-receipt', text: t('review.total_vat', { rate: budgetSummary.value.vatRate }) + ': ' + totalText(budgetSummary.value) });
   out.push({ icon: 'bx-map', text: locationText.value });
   if (targeting.excluded_locations.length) out.push({ icon: 'bx-block', text: t('summary.excluded_n', { n: targeting.excluded_locations.length }) });
-  out.push({ icon: 'bx-globe', text: targeting.languages.map((l) => l.name).join(', ') || t('summary.all_languages') });
+  out.push({ icon: 'bx-globe', text: has('languages') ? targeting.languages.map((l) => l.name).join(', ') || t('summary.all_languages') : t('summary.languages_auto') });
+  if (has('channels')) out.push({ icon: 'bx-play-circle', text: targeting.channels.map((c) => t('channels.' + c + '.label')).join(', ') || '-' });
+  if (has('dg_video') && firstVideoId.value) out.push({ icon: 'bx-video', text: t('summary.videos_n', { n: ad.videos.map(youtubeId).filter(Boolean).length }) });
   if (targeting.schedule.length) out.push({ icon: 'bx-time-five', text: t('summary.slots_n', { n: targeting.schedule.length }) });
   if (type.value === 'PERFORMANCE_MAX' && targeting.search_themes.length) out.push({ icon: 'bx-search-alt', text: t('steps.themes_n', { n: targeting.search_themes.length }) });
   if (type.value === 'PERFORMANCE_MAX' && targeting.audience_signal_id) out.push({ icon: 'bx-group', text: t('summary.audience_signal') });
@@ -1038,6 +1128,7 @@ function payload() {
       target_cpa: campaign.bidding === 'MAXIMIZE_CONVERSIONS' ? campaign.target_cpa || null : null,
       target_roas: campaign.bidding === 'MAXIMIZE_CONVERSION_VALUE' ? campaign.target_roas || null : null,
       max_cpc: campaign.bidding === 'MANUAL_CPC' ? campaign.max_cpc : null,
+      target_cpc: campaign.bidding === 'TARGET_CPC' ? campaign.target_cpc : null,
       cpc_ceiling: ['MAXIMIZE_CLICKS', 'TARGET_IMPRESSION_SHARE'].includes(campaign.bidding) ? campaign.cpc_ceiling || null : null,
       is_location: campaign.bidding === 'TARGET_IMPRESSION_SHARE' ? campaign.is_location : null,
       is_fraction: campaign.bidding === 'TARGET_IMPRESSION_SHARE' ? campaign.is_fraction : null,
@@ -1050,9 +1141,10 @@ function payload() {
     },
     targeting: {
       locations: [...targeting.locations.map((l) => ({ id: l.id, name: l.name, negative: false })), ...targeting.excluded_locations.map((l) => ({ id: l.id, name: l.name, negative: true }))],
-      radius: targeting.radius,
-      languages: targeting.languages.map((l) => l.id),
-      schedule: targeting.schedule.map((s) => ({ ...s, bid_adjustment: has('schedule_bids') && s.bid_adjustment ? s.bid_adjustment : null })),
+      ...(has('radius') ? { radius: targeting.radius } : {}),
+      ...(has('languages') ? { languages: targeting.languages.map((l) => l.id) } : {}),
+      ...(has('channels') ? { channels: targeting.channels } : {}),
+      schedule: !has('schedule') ? [] : targeting.schedule.map((s) => ({ ...s, bid_adjustment: has('schedule_bids') && s.bid_adjustment ? s.bid_adjustment : null })),
       devices,
       ...(nonPmax ? {
         ages: targeting.ages, genders: targeting.genders, parental: targeting.parental, incomes: targeting.incomes,
@@ -1080,7 +1172,8 @@ function payload() {
       descriptions: filled('descriptions'),
       ...(type.value === 'SEARCH' ? { path1: ad.path1 || null, path2: ad.path1 ? ad.path2 || null : null } : {
         long_headlines: filled('long_headlines'), business_name: ad.business_name,
-        images: { marketing: ad.images.marketing.map((m) => m.id), square: ad.images.square.map((m) => m.id), logo: ad.images.logo.map((m) => m.id) },
+        images: Object.fromEntries(imageSlots.value.map((sl) => [sl.key, ad.images[sl.key].map((m) => m.id)])),
+        ...(has('dg_video') ? { videos: ad.videos.map(youtubeId).filter(Boolean), call_to_action: ad.call_to_action || null, breadcrumb1: ad.breadcrumb1 || null, breadcrumb2: ad.breadcrumb1 ? ad.breadcrumb2 || null : null } : {}),
       }),
     },
   };
@@ -1129,7 +1222,7 @@ function startAnother() {
 }
 
 // ---------------------------------------------------------------- drafts
-const draftKey = computed(() => `google-ad-builder:${props.accountId}`);
+const draftKey = computed(() => `${isYoutube ? 'youtube' : 'google'}-ad-builder:${props.accountId}`);
 function snapshot() {
   return JSON.parse(JSON.stringify({
     step: step.value, maxReached: maxReached.value, goal: goal.value, type: type.value, status: status.value,
@@ -1158,12 +1251,14 @@ function resumeDraft() {
   draftOffer.value = null;
   if (!d) return;
   goal.value = d.goal && boot.value.goals[d.goal] ? d.goal : null;
-  if (d.type && boot.value.types[d.type]) type.value = d.type;
+  if (d.type && visibleTypes.value[d.type]) type.value = d.type;
   status.value = d.status === 'ACTIVE' ? 'ACTIVE' : 'PAUSED';
   Object.assign(campaign, d.campaign || {});
   Object.assign(targeting, d.targeting || {}, { devices: { ...targeting.devices, ...((d.targeting || {}).devices || {}) } });
   Object.assign(adGroup, d.adGroup || {});
   Object.assign(ad, d.ad || {}, { images: { marketing: [], square: [], logo: [], ...((d.ad || {}).images || {}) } });
+  if (!Array.isArray(ad.videos) || !ad.videos.length) ad.videos = [''];
+  if (!Array.isArray(targeting.channels)) targeting.channels = ['youtubeInStream', 'youtubeInFeed', 'youtubeShorts'];
   placementText.value = d.placementText || '';
   excludedPlacementText.value = d.excludedPlacementText || '';
   ipText.value = d.ipText || '';
@@ -1198,6 +1293,8 @@ watch([goal, type, status, campaign, targeting, adGroup, ad, placementText, excl
 onMounted(async () => {
   try {
     boot.value = await api(props.urls.bootstrap);
+    // The YouTube page has exactly one campaign type - pick it straight away.
+    if (isYoutube) { const only = Object.keys(visibleTypes.value)[0]; if (only) setType(only); }
     const d = readDraft();
     if (d && d.type) draftOffer.value = { savedAt: new Date(d.savedAt).toLocaleString(i18n.intl) };
   } catch (e) {
@@ -1209,6 +1306,18 @@ onMounted(async () => {
 <style scoped src="../facebook/builder.css"></style>
 <style scoped>
 .gb-head-icon { background: #fff; color: #4285F4; font-size: 24px; border: 1px solid var(--line); }
+.gb-yt .gb-head-icon { color: #FF0000; }
+.gb-channels { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.gb-channels strong .bx { color: var(--brand-2); margin-inline-end: 4px; }
+.gb-ok { color: #15803D; font-size: 16px; }
+.gb-ytpreview { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #fff; }
+.gb-yt-video { position: relative; aspect-ratio: 16 / 9; background: #0f0f0f; }
+.gb-yt-video img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gb-yt-video .gb-dpreview-ph { height: 100%; aspect-ratio: auto; background: #0f0f0f; color: #FF0000; }
+.gb-yt-play { position: absolute; inset: 0; margin: auto; width: 48px; height: 34px; border-radius: 10px; background: rgba(255, 0, 0, .9); color: #fff; display: grid; place-items: center; font-size: 22px; }
+.gb-yt-ad { position: absolute; bottom: 8px; inset-inline-start: 8px; padding: 1px 6px; border-radius: 4px; background: #fbc02d; color: #111; font-size: .66rem; font-weight: 700; }
+.gb-yt-cta { padding: 5px 10px; border-radius: 999px; background: #065fd4; color: #fff; font-size: .7rem; font-weight: 600; white-space: nowrap; }
+.gb-ytpreview .gb-dpreview-body { grid-template-columns: 34px 1fr auto; }
 .gb-types { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; margin-bottom: 10px; }
 .gb-type { position: relative; display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; text-align: start; color: inherit; text-decoration: none; transition: border-color .15s ease, background .15s ease, box-shadow .15s ease; }
 .gb-type > .bx:first-child { font-size: 21px; color: var(--ink); margin-top: 1px; }
