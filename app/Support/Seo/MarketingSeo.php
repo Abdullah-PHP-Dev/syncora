@@ -38,10 +38,35 @@ class MarketingSeo
         return $this->url($locale.($pages[$route] === '' ? '' : '/'.$pages[$route]));
     }
 
+    /** The live site's host (seo.base_url) - analytics only runs there. */
+    public function isProductionHost(string $host): bool
+    {
+        return strcasecmp($host, (string) parse_url($this->url(), PHP_URL_HOST)) === 0;
+    }
+
     public function indexableHost(string $host): bool
     {
         return (bool) config('seo.indexable') && strcasecmp($host, (string) parse_url($this->url(), PHP_URL_HOST)) === 0;
     }
+
+    /**
+     * Search-intent titles for product / solution pages (the page's own H1
+     * stays the short product name). Each describes what that page covers -
+     * no claims beyond the page content. [en, ar]
+     */
+    public const PAGE_TITLES = [
+        'product.content-creation' => ['AI Social Media Post & Caption Creator', 'صانع منشورات التواصل الاجتماعي بالذكاء الاصطناعي'],
+        'product.ai-assistant' => ['AI Assistant for Social Captions, Hashtags & Ideas', 'مساعد ذكي لأفكار المنشورات والتعليقات والوسوم'],
+        'product.engagement' => ['Social Media Inbox for Comments & Messages', 'صندوق وارد موحد للتعليقات والرسائل الاجتماعية'],
+        'product.analytics' => ['Social Media Analytics & Content Performance', 'تحليلات التواصل الاجتماعي وأداء المحتوى'],
+        'product.scheduling-publishing' => ['Social Media Scheduler & Content Calendar', 'جدولة منشورات التواصل الاجتماعي وتقويم المحتوى'],
+        'product.integrations' => ['Social Media Integrations & Connected Accounts', 'تكاملات التواصل الاجتماعي والحسابات المتصلة'],
+        'product.collaboration' => ['Social Media Team Collaboration Workspace', 'مساحة عمل لتعاون فرق التواصل الاجتماعي'],
+        'solutions.creators' => ['Social Media Tools for Content Creators', 'أدوات التواصل الاجتماعي لصنّاع المحتوى'],
+        'solutions.teams' => ['Social Media Management for Marketing Teams', 'إدارة التواصل الاجتماعي لفرق التسويق'],
+        'solutions.agencies' => ['Social Media Management Platform for Agencies', 'منصة إدارة التواصل الاجتماعي للوكالات'],
+        'solutions.brands' => ['Social Media Management for Brands & Businesses', 'إدارة التواصل الاجتماعي للعلامات التجارية'],
+    ];
 
     public function metadata(string $route, string $locale): array
     {
@@ -75,7 +100,7 @@ class MarketingSeo
                 $slug = substr($route, strlen($prefix));
                 $page = config($config.'.'.$slug);
                 if ($page) {
-                    $title = ($page['title'][$locale] ?? $page['title']['en']).' | '.($arabic ? 'سوشيال إيز' : 'Socialeaz');
+                    $title = (self::PAGE_TITLES[$route][$arabic ? 1 : 0] ?? ($page['title'][$locale] ?? $page['title']['en'])).' | '.($arabic ? 'سوشيال إيز' : 'Socialeaz');
                     $description = $page['description'][$locale] ?? $page['description']['en'];
                     if ($prefix === 'solutions.') {
                         $image = 'solution-'.$slug.'.jpg';
@@ -86,7 +111,7 @@ class MarketingSeo
 
         return [
             'title' => $title,
-            'description' => $description ? Str::limit($description, 160, '…') : null,
+            'description' => $description ? Str::limit($description, 155, '…') : null,
             'image' => $this->url('assets/images/home-theme/'.$image),
         ];
     }
@@ -115,10 +140,51 @@ class MarketingSeo
         if ($route !== 'home') {
             $graph[] = ['@type' => 'BreadcrumbList', 'itemListElement' => [
                 ['@type' => 'ListItem', 'position' => 1, 'name' => $locale === 'ar' ? 'الرئيسية' : 'Home', 'item' => $home],
-                ['@type' => 'ListItem', 'position' => 2, 'name' => $title, 'item' => $canonical],
+                ['@type' => 'ListItem', 'position' => 2, 'name' => trim(preg_replace('/\s*\|\s*(Socialeaz|سوشيال إيز)$/u', '', $title)), 'item' => $canonical],
             ]];
+        }
+        if ($route === 'home' || $route === 'pricing' || str_starts_with($route, 'product.')) {
+            $graph[] = $this->softwareApplication($locale, $organizationId);
         }
 
         return ['@context' => 'https://schema.org', '@graph' => $graph];
+    }
+
+    /**
+     * The product itself. offers come from the real active plans (no ratings,
+     * reviews or invented numbers); left out when prices aren't available.
+     */
+    public function softwareApplication(string $locale, string $organizationId): array
+    {
+        $app = [
+            '@type' => 'SoftwareApplication', '@id' => $this->url().'#software',
+            'name' => 'Socialeaz', 'url' => $this->localizedUrl('home', $locale),
+            'applicationCategory' => 'BusinessApplication', 'applicationSubCategory' => 'Social media management',
+            'operatingSystem' => 'Web', 'inLanguage' => config('seo.locales'), 'publisher' => ['@id' => $organizationId],
+        ];
+        if ($offers = $this->planOffers()) {
+            $app['offers'] = $offers + ['url' => $this->localizedUrl('pricing', $locale)];
+        }
+
+        return $app;
+    }
+
+    /** AggregateOffer from the active plans' monthly prices (cached; null on any failure). */
+    public function planOffers(): ?array
+    {
+        try {
+            return \Illuminate\Support\Facades\Cache::remember('seo:plan-offers', 3600, function () {
+                $plans = \App\Models\Bundle::where('is_active', true)->get(['price', 'currency', 'is_free']);
+                $currencies = $plans->pluck('currency')->filter()->unique();
+                if ($plans->isEmpty() || $currencies->count() !== 1) {
+                    return null;
+                }
+                $prices = $plans->map(fn ($p) => $p->is_free ? 0.0 : (float) $p->price);
+
+                return ['@type' => 'AggregateOffer', 'priceCurrency' => $currencies->first(), 'lowPrice' => round($prices->min(), 2), 'highPrice' => round($prices->max(), 2), 'offerCount' => $plans->count()];
+            });
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }

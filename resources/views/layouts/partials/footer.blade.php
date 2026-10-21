@@ -6,7 +6,7 @@
         <div class="admin-footer-left">
 
             <div class="admin-footer-brand">
-                <img class="admin-footer-logo" src="{{ asset('assets/images/home-theme/logo.png') }}" alt="Socialeaz" width="105" height="35">
+                <img class="admin-footer-logo" src="{{ asset('assets/images/home-theme/logo.webp') }}" alt="Socialeaz" width="105" height="35">
             </div>
 
             <span class="admin-footer-divider"></span>

@@ -1,7 +1,7 @@
 <header class="theme-header">
     <div class="theme-nav">
         <a href="{{ route('home') }}" class="theme-brand" aria-label="{{ __('Socialeaz home') }}">
-            <img src="{{ asset('assets/images/home-theme/logo.png') }}" alt="Socialeaz" width="145" height="40">
+            <img src="{{ asset('assets/images/home-theme/logo.webp') }}" alt="Socialeaz" width="145" height="40">
         </a>
         <button class="theme-menu-toggle" type="button" aria-controls="primary-navigation" aria-expanded="false" aria-label="{{ __('Toggle menu') }}"><span aria-hidden="true">☰</span></button>
         <nav id="primary-navigation" class="theme-links" aria-label="{{ __('Primary navigation') }}">

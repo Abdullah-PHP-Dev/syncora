@@ -25,7 +25,7 @@
             <p>{{ __('Managing multiple brands or a growing team? Talk to us about the right plan for your workflow.') }}</p>
             <a href="{{ route('contact') }}" class="theme-button theme-button-primary">{{ __('Talk to our team') }} <span aria-hidden="true">→</span></a>
         </div>
-        <img class="hero-illustration" src="{{ asset('assets/images/home-theme/pricing-hero.jpg') }}" width="1536" height="1024" alt="{{ __('Creator presenting subscription plans with a wallet and billing calendar') }}" loading="lazy">
+        <img class="hero-illustration" src="{{ asset('assets/images/home-theme/pricing-hero.webp') }}" width="1536" height="1024" alt="{{ __('Creator presenting subscription plans with a wallet and billing calendar') }}" loading="lazy">
     </section>
     <section class="pricing-intro" aria-labelledby="pricing-title">
         <div class="pricing-hero-copy">
@@ -183,7 +183,7 @@
         <p class="pricing-payment-note">{{ __('Installment payments are subject to provider approval and availability.') }}</p>
         </div>
         <div class="pricing-payments-art">
-            <img class="hero-illustration" src="{{ asset('assets/images/home-theme/pricing-payments.jpg') }}" width="1536" height="1024" alt="{{ __('Illustration of a wallet, payment cards and billing calendar') }}" loading="lazy">
+            <img class="hero-illustration" src="{{ asset('assets/images/home-theme/pricing-payments.webp') }}" width="1536" height="1024" alt="{{ __('Illustration of a wallet, payment cards and billing calendar') }}" loading="lazy">
         </div>
     </section>
 

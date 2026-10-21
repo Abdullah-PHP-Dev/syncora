@@ -1,5 +1,5 @@
 <footer class="theme-footer theme-page">
-    <div class="theme-footer-brand"><a href="{{ route('home') }}"><img src="{{ asset('assets/images/home-theme/logo.png') }}" alt="Socialeaz" width="145" height="40"></a><p>{{ __('The AI-powered social media workspace') }}<br>{{ __('for creators, teams and agencies.') }}</p><x-footer-social-links /></div>
+    <div class="theme-footer-brand"><a href="{{ route('home') }}"><img src="{{ asset('assets/images/home-theme/logo.webp') }}" alt="Socialeaz" width="145" height="40"></a><p>{{ __('The AI-powered social media workspace') }}<br>{{ __('for creators, teams and agencies.') }}</p><x-footer-social-links /></div>
     <div>
         <h2>{{ __('Product') }}</h2>
         @foreach(config('marketing-products') as $slug => $product)

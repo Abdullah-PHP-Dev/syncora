@@ -20,12 +20,12 @@
                 <a href="#copilot" class="theme-button theme-button-outline">@include('front.partials.home-icon', ['icon' => 'play']) {{ __('Watch demo') }}</a>
             </div>
             <div class="theme-proof">
-                <img src="{{ asset('assets/images/home-theme/avatars.png') }}" width="137" height="45" alt="{{ __('Creators using Socialeaz') }}">
+                <img src="{{ asset('assets/images/home-theme/avatars.webp') }}" width="137" height="45" alt="{{ __('Creators using Socialeaz') }}">
                 <div><span class="theme-stars" aria-label="{{ __('5 stars') }}">★★★★★</span><p>{{ __('10K+ creators and teams') }}<br>{{ __('already growing with Socialeaz') }}</p></div>
             </div>
         </div>
         <div class="theme-hero-art">
-            <img class="hero-illustration" src="{{ asset('assets/images/home-theme/hero.png') }}" width="546" height="309" alt="{{ __('Creator surrounded by social platforms, engagement and follower growth') }}" fetchpriority="high">
+            <img class="hero-illustration" src="{{ asset('assets/images/home-theme/hero.webp') }}" width="546" height="309" alt="{{ __('Creator surrounded by social platforms, engagement and follower growth') }}" fetchpriority="high">
         </div>
     </section>
 
@@ -47,8 +47,8 @@
         </div>
         <div class="theme-copilot-art">
             <span class="theme-copilot-note" aria-hidden="true">{{ __('Create amazing') }}<br>{{ __('content in seconds') }} <span>⤵</span></span>
-            <img class="theme-composer-image" src="{{ asset('assets/images/home-theme/copilot-composer.png') }}" width="438" height="113" alt="{{ __('AI Copilot composer with Generate, Rewrite, Social ideas and Hashtags tools') }}" loading="lazy">
-            <img class="theme-post-image" src="{{ asset('assets/images/home-theme/copilot-post.png') }}" width="509" height="131" alt="{{ __('Generated product post with a caption and social platform icons') }}" loading="lazy">
+            <img class="theme-composer-image" src="{{ asset('assets/images/home-theme/copilot-composer.webp') }}" width="438" height="113" alt="{{ __('AI Copilot composer with Generate, Rewrite, Social ideas and Hashtags tools') }}" loading="lazy">
+            <img class="theme-post-image" src="{{ asset('assets/images/home-theme/copilot-post.webp') }}" width="509" height="131" alt="{{ __('Generated product post with a caption and social platform icons') }}" loading="lazy">
         </div>
     </section>
 
@@ -59,7 +59,7 @@
                 <div><h2>{{ __('Plan. Schedule. Stay consistent.') }}</h2><p>{{ __('Organize your content, schedule across all platforms') }}<br class="theme-desktop-break"> {{ __('and never miss a post again.') }}</p></div>
                 <a href="{{ route('register') }}" class="theme-learn">{{ __('Learn more') }} <span>→</span></a>
             </div>
-            <img src="{{ asset('assets/images/home-theme/planner.png') }}" width="496" height="226" alt="{{ __('Content planner with a monthly calendar of Instagram, TikTok and LinkedIn posts') }}" loading="lazy">
+            <img src="{{ asset('assets/images/home-theme/planner.webp') }}" width="496" height="226" alt="{{ __('Content planner with a monthly calendar of Instagram, TikTok and LinkedIn posts') }}" loading="lazy">
         </article>
         <article class="theme-product-card" id="analytics">
             <div class="theme-card-heading">
@@ -67,7 +67,7 @@
                 <div><h2>{{ __('Analytics that drive growth.') }}</h2><p>{{ __('Track performance, understand your audience,') }}<br class="theme-desktop-break"> {{ __('and make better decisions.') }}</p></div>
                 <a href="{{ route('register') }}" class="theme-learn">{{ __('Learn more') }} <span>→</span></a>
             </div>
-            <img src="{{ asset('assets/images/home-theme/analytics.png') }}" width="420" height="226" alt="{{ __('Analytics showing 125K followers, 8.4 percent engagement and an audience growth chart') }}" loading="lazy">
+            <img src="{{ asset('assets/images/home-theme/analytics.webp') }}" width="420" height="226" alt="{{ __('Analytics showing 125K followers, 8.4 percent engagement and an audience growth chart') }}" loading="lazy">
         </article>
     </section>
 
@@ -85,7 +85,7 @@
             </ul>
             <a href="{{ route('register') }}" class="theme-learn">{{ __('Learn more') }} <span>→</span></a>
         </div>
-        <img src="{{ asset('assets/images/home-theme/approvals.png') }}" width="516" height="155" alt="{{ __('Team workspace showing content approvals and review requests') }}" loading="lazy">
+        <img src="{{ asset('assets/images/home-theme/approvals.webp') }}" width="516" height="155" alt="{{ __('Team workspace showing content approvals and review requests') }}" loading="lazy">
     </section>
 
     @include('front.pages.sections.billing-workflow-pricing')

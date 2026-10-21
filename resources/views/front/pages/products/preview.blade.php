@@ -1,25 +1,25 @@
 @switch($visual)
     @case('content')
         <div class="feature-preview-heading"><span class="theme-icon theme-icon-purple">@include('front.partials.home-icon', ['icon' => 'spark'])</span><div><strong>{{ __('Create something worth sharing.') }}</strong><small>{{ __('From first draft to your next post.') }}</small></div></div>
-        <img src="{{ asset('assets/images/home-theme/copilot-composer.png') }}" width="438" height="113" alt="{{ __('AI Copilot composer with Generate, Rewrite, Social ideas and Hashtags tools') }}">
-        <img src="{{ asset('assets/images/home-theme/copilot-post.png') }}" width="509" height="131" alt="{{ __('Generated product post with a caption and social platform icons') }}">
+        <img src="{{ asset('assets/images/home-theme/copilot-composer.webp') }}" width="438" height="113" alt="{{ __('AI Copilot composer with Generate, Rewrite, Social ideas and Hashtags tools') }}">
+        <img src="{{ asset('assets/images/home-theme/copilot-post.webp') }}" width="509" height="131" alt="{{ __('Generated product post with a caption and social platform icons') }}">
         @break
     @case('ai')
         <div class="feature-ai-orb">@include('front.partials.home-icon', ['icon' => 'spark'])</div>
         <div class="feature-ai-prompt"><strong>{{ __('Your next idea starts here.') }}</strong><p>{{ __('Ideas · Captions · Hashtags') }}</p></div>
-        <img src="{{ asset('assets/images/home-theme/copilot-composer.png') }}" width="438" height="113" alt="{{ __('AI Copilot composer with Generate, Rewrite, Social ideas and Hashtags tools') }}">
+        <img src="{{ asset('assets/images/home-theme/copilot-composer.webp') }}" width="438" height="113" alt="{{ __('AI Copilot composer with Generate, Rewrite, Social ideas and Hashtags tools') }}">
         @break
     @case('analytics')
         <div class="feature-preview-heading"><span class="theme-icon theme-icon-green">@include('front.partials.home-icon', ['icon' => 'chart'])</span><div><strong>{{ __('Analytics that drive growth.') }}</strong><small>{{ __('Understand the story behind your results.') }}</small></div></div>
-        <img src="{{ asset('assets/images/home-theme/analytics.png') }}" width="420" height="226" alt="{{ __('Analytics showing 125K followers, 8.4 percent engagement and an audience growth chart') }}">
+        <img src="{{ asset('assets/images/home-theme/analytics.webp') }}" width="420" height="226" alt="{{ __('Analytics showing 125K followers, 8.4 percent engagement and an audience growth chart') }}">
         @break
     @case('scheduling')
         <div class="feature-preview-heading"><span class="theme-icon theme-icon-blue">@include('front.partials.home-icon', ['icon' => 'calendar'])</span><div><strong>{{ __('Your next month, organized.') }}</strong><small>{{ __('Create today. Publish on your schedule.') }}</small></div></div>
-        <img src="{{ asset('assets/images/home-theme/planner.png') }}" width="496" height="226" alt="{{ __('Content planner with a monthly calendar of Instagram, TikTok and LinkedIn posts') }}">
+        <img src="{{ asset('assets/images/home-theme/planner.webp') }}" width="496" height="226" alt="{{ __('Content planner with a monthly calendar of Instagram, TikTok and LinkedIn posts') }}">
         @break
     @case('collaboration')
         <div class="feature-preview-heading"><span class="theme-icon theme-icon-blue">@include('front.partials.home-icon', ['icon' => 'team'])</span><div><strong>{{ __('A shared space for great work.') }}</strong><small>{{ __('Create · Review · Approve') }}</small></div></div>
-        <img src="{{ asset('assets/images/home-theme/approvals.png') }}" width="516" height="155" alt="{{ __('Team workspace showing content approvals and review requests') }}">
+        <img src="{{ asset('assets/images/home-theme/approvals.webp') }}" width="516" height="155" alt="{{ __('Team workspace showing content approvals and review requests') }}">
         <div class="feature-team-row">@foreach(['sarah','james','emma'] as $person)<img src="{{ asset('assets/images/home-theme/'.$person.'.png') }}" width="48" height="48" alt="">@endforeach<span>{{ __('Keep everyone in sync') }}</span></div>
         @break
     @case('engagement')

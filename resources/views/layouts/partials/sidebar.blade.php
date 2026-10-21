@@ -7,7 +7,7 @@
 
         <a href="{{ LaravelLocalization::getLocalizedURL(app()->getLocale(), route('dashboard'), [], true) }}" class="admin-sidebar-brand">
 
-            <img class="admin-sidebar-logo" src="{{ asset('assets/images/home-theme/logo.png') }}" alt="Socialeaz" width="145" height="48">
+            <img class="admin-sidebar-logo" src="{{ asset('assets/images/home-theme/logo.webp') }}" alt="Socialeaz" width="145" height="48">
             <img class="admin-sidebar-logo-compact" src="{{ asset('assets/images/home-theme/apple-touch-icon.png') }}" alt="Socialeaz" width="34" height="34">
 
         </a>

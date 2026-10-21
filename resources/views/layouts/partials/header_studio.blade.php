@@ -1,7 +1,7 @@
 <header class="theme-header">
     <div class="theme-nav">
         <a href="{{ route('home.studio') }}" class="theme-brand" aria-label="Socialeaz home">
-            <img src="{{ asset('assets/images/home-theme/logo.png') }}" alt="Socialeaz" width="145" height="40">
+            <img src="{{ asset('assets/images/home-theme/logo.webp') }}" alt="Socialeaz" width="145" height="40">
         </a>
         <nav class="theme-links" aria-label="Primary navigation">
             <a href="#product">Product <span>⌄</span></a>

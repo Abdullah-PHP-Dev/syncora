@@ -3,6 +3,7 @@
 
 <head>
 
+    @include('layouts.partials.google-analytics')
     <meta charset="UTF-8">
 
     <meta

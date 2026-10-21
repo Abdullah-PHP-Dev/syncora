@@ -84,4 +84,103 @@ class MarketingSeoTest extends TestCase
         $this->assertSame('support@socialeaz.com', $schema['@graph'][0]['email']);
         $this->assertArrayNotHasKey('aggregateRating', $schema['@graph'][0]);
     }
+
+    public function test_every_indexable_page_has_a_unique_title_and_description_within_serp_limits(): void
+    {
+        $seo = new MarketingSeo();
+        $titles = [];
+        foreach (array_keys($seo->pages()) as $route) {
+            foreach (['en', 'ar'] as $locale) {
+                $meta = $seo->metadata($route, $locale);
+                $this->assertNotEmpty($meta['title'], "$route/$locale title");
+                $this->assertLessThanOrEqual(62, mb_strlen($meta['title']), "$route/$locale title length");
+                $this->assertGreaterThanOrEqual(70, mb_strlen((string) $meta['description']), "$route/$locale description too short");
+                $this->assertLessThanOrEqual(160, mb_strlen((string) $meta['description']), "$route/$locale description length");
+                $titles[] = $meta['title'];
+            }
+        }
+        $this->assertCount(count($titles), array_unique($titles), 'duplicate titles');
+        $this->assertSame('Social Media Scheduler & Content Calendar | Socialeaz', $seo->metadata('product.scheduling-publishing', 'en')['title']);
+    }
+
+    public function test_software_application_schema_uses_real_plan_prices_and_no_invented_ratings(): void
+    {
+        $seo = $this->partialMock(MarketingSeo::class, fn ($m) => $m->shouldReceive('planOffers')->andReturn(['@type' => 'AggregateOffer', 'priceCurrency' => 'SAR', 'lowPrice' => 0.0, 'highPrice' => 299.0, 'offerCount' => 3]));
+        $graph = $seo->schema('product.analytics', 'en', 'Analytics | Socialeaz', 'Description')['@graph'];
+        $app = collect($graph)->firstWhere('@type', 'SoftwareApplication');
+        $this->assertSame(['BusinessApplication', 'Web', 'SAR', 299.0], [$app['applicationCategory'], $app['operatingSystem'], $app['offers']['priceCurrency'], $app['offers']['highPrice']]);
+        $this->assertSame('https://socialeaz.com/en/pricing', $app['offers']['url']);
+        $this->assertArrayNotHasKey('aggregateRating', $app);
+        $this->assertArrayNotHasKey('review', $app);
+        $this->assertSame('Analytics', collect($graph)->firstWhere('@type', 'BreadcrumbList')['itemListElement'][1]['name']);
+        $this->assertNull(collect($seo->schema('about', 'en', 'About', 'Description')['@graph'])->firstWhere('@type', 'SoftwareApplication'));
+    }
+
+    public function test_sitemap_lists_hreflang_alternates_for_every_url(): void
+    {
+        $xml = simplexml_load_string((new SeoController())->sitemap(new MarketingSeo())->getContent());
+        $xml->registerXPathNamespace('s', 'http://www.sitemaps.org/schemas/sitemap/0.9');
+        $xml->registerXPathNamespace('x', 'http://www.w3.org/1999/xhtml');
+        foreach ($xml->xpath('//s:url') as $url) {
+            $url->registerXPathNamespace('x', 'http://www.w3.org/1999/xhtml');
+            $links = $url->xpath('x:link');
+            $this->assertCount(3, $links);
+            $byLang = collect($links)->mapWithKeys(fn ($l) => [(string) $l['hreflang'] => (string) $l['href']]);
+            $this->assertSame($byLang['en'], $byLang['x-default']);
+            $this->assertContains((string) $url->loc, [$byLang['en'], $byLang['ar']]);
+        }
+    }
+
+    public function test_robots_keeps_private_areas_out_of_search(): void
+    {
+        $live = (new SeoController())->robots(Request::create('https://socialeaz.com/robots.txt'), new MarketingSeo())->getContent();
+        foreach (['/dashboard', '/admin/', '/api/', '/en/dashboard', '/ar/admin/'] as $path) {
+            $this->assertStringContainsString("Disallow: {$path}\n", $live);
+        }
+    }
+
+    public function test_security_headers_are_added_without_overriding_the_edge(): void
+    {
+        $middleware = new \App\Http\Middleware\SecurityHeaders();
+        $https = $middleware->handle(Request::create('https://socialeaz.com/en'), fn () => response('ok'));
+        $this->assertSame('max-age=31536000', $https->headers->get('Strict-Transport-Security'));
+        $this->assertSame('strict-origin-when-cross-origin', $https->headers->get('Referrer-Policy'));
+
+        $http = $middleware->handle(Request::create('http://socialeaz.com/en'), fn () => response('ok')->header('Referrer-Policy', 'no-referrer'));
+        $this->assertFalse($http->headers->has('Strict-Transport-Security'));
+        $this->assertSame('no-referrer', $http->headers->get('Referrer-Policy'));
+    }
+
+    public function test_marketing_pages_reference_optimized_images_that_exist(): void
+    {
+        $views = ['front/pages/home_modern', 'front/pages/pricing', 'front/pages/about', 'front/pages/services', 'layouts/partials/header_modern', 'layouts/partials/footer_modern'];
+        foreach ($views as $view) {
+            $source = file_get_contents(resource_path("views/{$view}.blade.php"));
+            $this->assertDoesNotMatchRegularExpression('#home-theme/(hero|logo|avatars|planner|approvals|analytics|copilot-[a-z]+)(-studio)?\.png#', $source, "$view still uses a heavy PNG");
+            preg_match_all('#home-theme/([a-z0-9_-]+\.webp)#', $source, $m);
+            foreach ($m[1] as $file) {
+                $this->assertFileExists(public_path('assets/images/home-theme/'.$file));
+                $this->assertLessThan(150 * 1024, filesize(public_path('assets/images/home-theme/'.$file)), "$file is too large");
+            }
+        }
+    }
+
+    public function test_google_analytics_tag_renders_only_on_the_production_host(): void
+    {
+        $render = function (string $url, ?string $id) {
+            config(['seo.google_analytics_id' => $id]);
+            $this->app->instance('request', Request::create($url));
+
+            return view('layouts.partials.google-analytics')->render();
+        };
+
+        $live = $render('https://socialeaz.com/en', 'G-7L4307MDTL');
+        $this->assertStringContainsString('https://www.googletagmanager.com/gtag/js?id=G-7L4307MDTL', $live);
+        $this->assertStringContainsString("gtag('config', 'G-7L4307MDTL');", $live);
+        $this->assertSame(1, substr_count($live, 'gtag/js'));
+
+        $this->assertStringNotContainsString('gtag', $render('https://labs.socialeaz.com/en', 'G-7L4307MDTL'));
+        $this->assertStringNotContainsString('gtag', $render('https://socialeaz.com/en', null));
+        $this->assertStringNotContainsString('gtag', $render('https://socialeaz.com/en', "G-1');alert(1);//"));
+    }
 }

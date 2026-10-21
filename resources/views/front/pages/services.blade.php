@@ -12,7 +12,7 @@
 <div class="theme-page services-page">
     <section class="services-hero" aria-labelledby="services-title">
         <div><span class="theme-label">@include('front.partials.home-icon', ['icon' => 'team']) {{ __('SOCIALEAZ SERVICES') }}</span><h1 id="services-title">{{ __('Big ideas.') }}<br><span>{{ __('A little extra help.') }}</span></h1><p>{{ __('Explore creative and marketing support for the work behind your brand. Tell us what you want to achieve and shape a service brief around your goals.') }}</p><div class="theme-actions"><a href="{{ route('contact') }}" class="theme-button theme-button-primary">{{ __('Discuss your project') }} <span aria-hidden="true">→</span></a><a href="#service-categories" class="theme-button theme-button-outline">{{ __('Explore services') }} <span aria-hidden="true">↓</span></a></div></div>
-        <div class="services-hero-art"><img class="hero-illustration" src="{{ asset('assets/images/home-theme/services-hero.jpg') }}" width="1536" height="1024" alt="{{ __('Illustration of a creative team planning content, campaigns and a website') }}" fetchpriority="high"></div>
+        <div class="services-hero-art"><img class="hero-illustration" src="{{ asset('assets/images/home-theme/services-hero.webp') }}" width="1536" height="1024" alt="{{ __('Illustration of a creative team planning content, campaigns and a website') }}" fetchpriority="high"></div>
     </section>
     <nav class="services-category-nav" id="service-categories" aria-label="{{ __('Service categories') }}">@foreach($services as $slug => $service)<a href="#{{ $slug }}">@include('front.partials.home-icon', ['icon' => $service['icon']])<span>{{ $copy($service['title']) }}</span></a>@endforeach</nav>
     <div class="services-sections">

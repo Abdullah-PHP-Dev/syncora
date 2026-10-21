@@ -15,10 +15,19 @@ class SeoController extends Controller
         $xml->startDocument('1.0', 'UTF-8');
         $xml->startElement('urlset');
         $xml->writeAttribute('xmlns', 'http://www.sitemaps.org/schemas/sitemap/0.9');
+        $xml->writeAttribute('xmlns:xhtml', 'http://www.w3.org/1999/xhtml');
         foreach (array_keys($seo->pages()) as $route) {
             foreach (config('seo.locales') as $locale) {
                 $xml->startElement('url');
                 $xml->writeElement('loc', $seo->localizedUrl($route, $locale));
+                // Language alternates (same set as the page's <link rel="alternate" hreflang>).
+                foreach ([...config('seo.locales'), 'x-default'] as $lang) {
+                    $xml->startElement('xhtml:link');
+                    $xml->writeAttribute('rel', 'alternate');
+                    $xml->writeAttribute('hreflang', $lang);
+                    $xml->writeAttribute('href', $seo->localizedUrl($route, $lang === 'x-default' ? config('seo.default_locale') : $lang));
+                    $xml->endElement();
+                }
                 $xml->endElement();
             }
         }

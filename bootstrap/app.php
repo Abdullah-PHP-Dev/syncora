@@ -49,6 +49,7 @@ return tap(
             // any true webhook endpoint would need to be.
             // Return-to-origin for every OAuth connect flow (see the class).
             $middleware->appendToGroup('web', \App\Http\Middleware\ReturnToOrigin::class);
+            $middleware->appendToGroup('web', \App\Http\Middleware\SecurityHeaders::class);
             // Current platform/module for cross-module links (App\Support\WorkContext).
             $middleware->appendToGroup('web', \App\Http\Middleware\RememberWorkContext::class);
             $middleware->appendToGroup('web', \App\Http\Middleware\UseSellerWorkspace::class);

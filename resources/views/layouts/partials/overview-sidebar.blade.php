@@ -98,7 +98,7 @@
 <aside id="layout-menu" class="layout-menu menu-vertical admin-sidebar overview-sidebar" aria-label="{{ __('overview.sidebar_navigation') }}">
     <div class="admin-sidebar-header ov-sidebar-header">
         <a href="{{ LaravelLocalization::getLocalizedURL(app()->getLocale(), route('dashboard'), [], true) }}" class="admin-sidebar-brand" aria-label="Socialeaz">
-            <img class="admin-sidebar-logo" src="{{ asset('assets/images/home-theme/logo.png') }}" alt="Socialeaz" width="145" height="48">
+            <img class="admin-sidebar-logo" src="{{ asset('assets/images/home-theme/logo.webp') }}" alt="Socialeaz" width="145" height="48">
             <img class="admin-sidebar-logo-compact" src="{{ asset('assets/images/home-theme/apple-touch-icon.png') }}" alt="Socialeaz" width="34" height="34">
         </a>
         <button type="button" class="admin-sidebar-collapse layout-menu-toggle" aria-label="{{ __('admin.navbar.toggle_sidebar') }}" title="{{ __('admin.navbar.toggle_sidebar') }}"><i class="bx bx-chevron-left" aria-hidden="true"></i></button>
