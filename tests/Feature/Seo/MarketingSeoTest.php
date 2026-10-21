@@ -202,4 +202,14 @@ class MarketingSeoTest extends TestCase
             $cache->setValue(null, null);
         }
     }
+
+    public function test_static_robots_file_matches_the_production_rules(): void
+    {
+        $file = file_get_contents(public_path('robots.txt'));
+        $rules = trim(preg_replace('/^#.*\n/m', '', $file));
+        $live = trim((new SeoController())->robots(Request::create('https://socialeaz.com/robots.txt'), new MarketingSeo())->getContent());
+
+        $this->assertSame($live, $rules, 'public/robots.txt is out of sync with SeoController::robots()');
+        $this->assertStringContainsString('Sitemap: https://socialeaz.com/sitemap.xml', $file);
+    }
 }

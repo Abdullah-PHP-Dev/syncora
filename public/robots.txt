@@ -1,0 +1,14 @@
+# socialeaz.com - static copy of SeoController::robots() for the production host
+# (served directly by the web server; MarketingSeoTest keeps the two in sync)
+
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /admin/
+Disallow: /api/
+Disallow: /en/dashboard
+Disallow: /ar/dashboard
+Disallow: /en/admin/
+Disallow: /ar/admin/
+
+Sitemap: https://socialeaz.com/sitemap.xml
