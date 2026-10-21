@@ -183,4 +183,23 @@ class MarketingSeoTest extends TestCase
         $this->assertStringNotContainsString('gtag', $render('https://socialeaz.com/en', null));
         $this->assertStringNotContainsString('gtag', $render('https://socialeaz.com/en', "G-1');alert(1);//"));
     }
+
+    public function test_google_analytics_id_comes_from_the_admin_setting_first(): void
+    {
+        $cache = new \ReflectionProperty(\App\Support\Settings::class, 'requestCache');
+        $cache->setValue(null, ['google.analytics.measurement_id' => 'G-ADMIN123']);
+        config(['seo.google_analytics_id' => 'G-ENV456']);
+        $this->app->instance('request', Request::create('https://socialeaz.com/en'));
+
+        try {
+            $html = view('layouts.partials.google-analytics')->render();
+            $this->assertStringContainsString("gtag('config', 'G-ADMIN123');", $html);
+            $this->assertStringNotContainsString('G-ENV456', $html);
+
+            $cache->setValue(null, ['google.analytics.measurement_id' => null]);
+            $this->assertStringContainsString("gtag('config', 'G-ENV456');", view('layouts.partials.google-analytics')->render());
+        } finally {
+            $cache->setValue(null, null);
+        }
+    }
 }
