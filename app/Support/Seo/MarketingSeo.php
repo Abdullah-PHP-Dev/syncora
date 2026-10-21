@@ -125,6 +125,8 @@ class MarketingSeo
         $organization = [
             '@type' => 'Organization', '@id' => $organizationId,
             'name' => 'Socialeaz', 'url' => $this->url(),
+            // Own spellings only ("SocialEZ" is an unrelated company).
+            'alternateName' => ['SocialEaz', 'Social Eaz', 'سوشيال إيز'],
             'logo' => $this->url('assets/images/home-theme/apple-touch-icon.png'),
             'email' => 'support@socialeaz.com',
         ];
