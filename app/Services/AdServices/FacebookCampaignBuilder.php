@@ -1279,6 +1279,8 @@ class FacebookCampaignBuilder
                 'headline' => $creative->headline ?? '',
                 'link' => $creative->url ?? '',
                 'cta' => $creative->call_to_action ?: 'LEARN_MORE',
+                // For the side preview (the media itself can't change in edit mode).
+                'media' => $creative->media->map(fn ($m) => ['id' => $m->id, 'type' => strtolower((string) $m->type) === 'video' ? 'video' : 'image', 'url' => $m->url, 'thumbnail_url' => $m->thumbnail_url, 'original_name' => $m->name ?: $m->file_name])->filter(fn ($m) => $m['url'] || $m['thumbnail_url'])->values()->all(),
             ] : null,
             'ad' => ['name' => $ad?->name ?? $campaign->name],
         ];

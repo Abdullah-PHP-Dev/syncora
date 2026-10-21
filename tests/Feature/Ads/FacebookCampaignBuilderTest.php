@@ -962,6 +962,8 @@ class FacebookCampaignBuilderTest extends TestCase
         $this->assertSame(['daily', 50.0], [$data['adset']['budget_type'], $data['adset']['budget']]);
         $this->assertSame([25, 45], [$data['targeting']['age_min'], $data['targeting']['age_max']]);
         $this->assertSame('advantage', $data['placements']['mode']);
+        $this->assertSame('image', $data['creative']['media'][0]['type'] ?? null);
+        $this->assertNotEmpty($data['creative']['media'][0]['url'] ?? $data['creative']['media'][0]['thumbnail_url'] ?? null);
         $this->assertSame(['Up to 30% off this week.', 'Spring sale', 'https://socialeaz.com/sale', 'SHOP_NOW'], [$data['creative']['primary_text'], $data['creative']['headline'], $data['creative']['link'], $data['creative']['cta']]);
     }
 
