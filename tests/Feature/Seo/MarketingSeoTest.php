@@ -134,7 +134,7 @@ class MarketingSeoTest extends TestCase
     public function test_robots_keeps_private_areas_out_of_search(): void
     {
         $live = (new SeoController())->robots(Request::create('https://socialeaz.com/robots.txt'), new MarketingSeo())->getContent();
-        foreach (['/dashboard', '/admin/', '/api/', '/en/dashboard', '/ar/admin/'] as $path) {
+        foreach (['/dashboard', '/admin/', '/api/', '/en/dashboard', '/ar/dashboard', '/en/admin/', '/ar/admin/'] as $path) {
             $this->assertStringContainsString("Disallow: {$path}\n", $live);
         }
     }
