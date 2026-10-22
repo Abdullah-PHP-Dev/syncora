@@ -103,3 +103,30 @@ php artisan test tests/Feature/Seo
 ```
 
 These cover unique titles and descriptions within SERP limits (both languages), canonical and hreflang, sitemap contents and alternates, robots rules, SoftwareApplication offers without invented ratings, security headers, and that marketing views only reference existing optimized images (< 150 KB).
+
+## Search Console fixes (Oct 2026)
+
+What the code now does: `/{locale}/product` 301s to `/{locale}/services`; legacy aliases (`/help`, `/channels`, `/tools`, `/ai-copilot`) are 301s and nothing links to them; any GET path with a trailing slash 301s to the slashless URL (`RemoveTrailingSlash`); sitemap URLs carry `<lastmod>` (newest mtime of the page's view/config files); FAQ items a page shows are also emitted as FAQPage JSON-LD; `public/ads.txt` exists.
+
+### Server-side checks (not fixable in code)
+
+Googlebot got 21 4XX responses on Oct 19 for pages that return 200 now. Nothing in the app throttles or blocks public pages (`MarketingRoutesTest` locks that in), so check the edge:
+
+1. **Cloudflare > Security > Events**, filter Oct 19 and user agent contains `Googlebot`: look for Managed Challenge / Block / Rate limit actions and note the rule ID.
+2. **Cloudflare > Security > Bots**: Bot Fight Mode (free plan) challenges some verified bots; turn it off or use Super Bot Fight Mode with "Verified bots: Allow".
+3. **Cloudflare > Security > WAF**: custom and rate-limiting rules should skip `cf.client.bot` (verified bots) and must not cover `GET /en/*`, `/ar/*`.
+4. **Forge / Nginx**: `grep ' 4[0-9][0-9] ' /var/log/nginx/socialeaz.com-access.log* | grep -i googlebot` for Oct 19. 429 = `limit_req` in the Nginx site config; 403 = `deny` rules or fail2ban. Also check `storage/logs/laravel-2026-10-19.log` for exceptions.
+5. If the origin logs show no 4XX for those hits, the edge answered them: it's Cloudflare.
+
+### Search Console housekeeping
+
+- Remove the stale `/en/sitemap.xml` submission (Sitemaps report) and keep only `https://socialeaz.com/sitemap.xml`. Nothing in the code references locale sitemaps.
+- `login.socialeaz.com` no longer resolves, but Google still retries `http://login.socialeaz.com/login`. Either add a DNS record that 301s to `https://socialeaz.com/en/login`, or leave it to drop out (DNS failures on a dead subdomain don't hurt the main site).
+
+### Thin pages: content to write (EN + AR, no invented claims)
+
+Add answered questions to the page's existing FAQ list (`faq` in `config/marketing-products.php` / `marketing-solutions.php`, or `config/marketing-faqs.php` for contact). They render visibly and as FAQPage schema automatically. Arabic word counts are below 300 for:
+
+- **/ar/contact** (290): response times and support hours; what billing questions support can help with; how to request a demo or team onboarding; where to report a connected-account problem.
+- **/ar/product/scheduling-publishing** (294): which platforms support scheduling; how time zones work; whether you can edit or cancel a scheduled post; what happens when publishing fails; approvals before scheduling (if available on the plan).
+- **/ar/solutions/teams** (293): roles and permissions; approvals workflow; how many members per plan (link pricing); handing work between members; a short real customer scenario if one is available.

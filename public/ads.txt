@@ -1,0 +1,2 @@
+# socialeaz.com does not sell ad inventory through authorized sellers.
+# Present so ad crawlers (AdsBot) get a 200 instead of a 404.
