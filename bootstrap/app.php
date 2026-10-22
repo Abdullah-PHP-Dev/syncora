@@ -48,6 +48,8 @@ return tap(
             // CSRF token to send, so this route is exempted the same way
             // any true webhook endpoint would need to be.
             // Return-to-origin for every OAuth connect flow (see the class).
+            // Global (before routing): /en/ and /en/pricing/ 301 to the slashless URL.
+            $middleware->prepend(\App\Http\Middleware\RemoveTrailingSlash::class);
             $middleware->appendToGroup('web', \App\Http\Middleware\ReturnToOrigin::class);
             $middleware->appendToGroup('web', \App\Http\Middleware\SecurityHeaders::class);
             // Current platform/module for cross-module links (App\Support\WorkContext).

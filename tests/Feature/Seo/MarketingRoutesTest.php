@@ -119,6 +119,20 @@ class MarketingRoutesTest extends TestCase
         $this->get('/en/api')->assertNotFound();
     }
 
+    public function test_trailing_slashes_permanently_redirect_to_the_slashless_url(): void
+    {
+        $this->bootLocale('en');
+        // The test client trims trailing slashes, so send raw requests through the kernel.
+        $send = fn (string $uri, string $method = 'GET') => $this->app->make(\Illuminate\Contracts\Http\Kernel::class)
+            ->handle(\Illuminate\Http\Request::create('https://socialeaz.com'.$uri, $method));
+
+        $this->assertSame([301, '/en'], [$send('/en/')->getStatusCode(), $send('/en/')->headers->get('Location')]);
+        $this->assertSame('/en/pricing?billing=yearly', $send('/en/pricing/?billing=yearly')->headers->get('Location'));
+        $this->assertSame('/evil.example', $send('//evil.example/')->headers->get('Location'));
+        $this->assertNotSame(301, $send('/en/login/', 'POST')->getStatusCode());
+        $this->get('/en/pricing')->assertOk();
+    }
+
     public function test_auth_pages_stay_noindex(): void
     {
         $this->bootLocale('en');
