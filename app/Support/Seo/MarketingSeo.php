@@ -23,6 +23,26 @@ class MarketingSeo
         return $pages;
     }
 
+    /**
+     * Sitemap <lastmod>: the newest mtime of the files a page renders its
+     * content from. Deploys only rewrite changed files, so this moves when
+     * the page actually changes - not on every request.
+     */
+    public function lastModified(string $route): ?string
+    {
+        $sources = match (true) {
+            $route === 'home' => ['views/front/pages/home_modern.blade.php'],
+            str_starts_with($route, 'product.') => ['views/front/pages/products/show.blade.php', '../config/marketing-products.php'],
+            str_starts_with($route, 'solutions.') => ['views/front/pages/solutions/show.blade.php', '../config/marketing-solutions.php'],
+            $route === 'services' => ['views/front/pages/services.blade.php', '../config/marketing-services.php'],
+            in_array($route, ['privacy', 'terms'], true) => ['views/front/pages/'.$route.'.blade.php', 'views/front/pages/legal/'.$route.'-en.blade.php', 'views/front/pages/legal/'.$route.'-ar.blade.php'],
+            default => ['views/front/pages/'.$route.'.blade.php'],
+        };
+        $times = array_filter(array_map(fn ($file) => @filemtime(resource_path($file)), $sources));
+
+        return $times ? date('Y-m-d', max($times)) : null;
+    }
+
     public function url(string $path = ''): string
     {
         return rtrim(config('seo.base_url'), '/').($path === '' ? '' : '/'.ltrim($path, '/'));

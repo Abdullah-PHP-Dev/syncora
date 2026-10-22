@@ -51,6 +51,53 @@ class MarketingRoutesTest extends TestCase
         }
     }
 
+    public function test_every_sitemap_url_is_an_indexable_self_canonical_page_with_reciprocal_hreflang(): void
+    {
+        $this->bootLocale(null);
+        $response = $this->get('/sitemap.xml')->assertOk();
+        $this->assertStringStartsWith('application/xml', $response->headers->get('Content-Type'));
+        $xml = simplexml_load_string($response->getContent());
+        $xml->registerXPathNamespace('s', 'http://www.sitemaps.org/schemas/sitemap/0.9');
+
+        $entries = [];
+        foreach ($xml->xpath('//s:url') as $url) {
+            $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}$/', (string) $url->lastmod, "{$url->loc} has no lastmod");
+            $this->assertDoesNotMatchRegularExpression('#/(login|register|dashboard|admin|password|forgot)#', (string) $url->loc);
+            $alternates = [];
+            foreach ($url->children('http://www.w3.org/1999/xhtml')->link as $link) {
+                $alternates[(string) $link->attributes()->hreflang] = (string) $link->attributes()->href;
+            }
+            $entries[(string) $url->loc] = $alternates;
+        }
+        $this->assertNotEmpty($entries);
+
+        foreach (['en', 'ar'] as $locale) {
+            $this->bootLocale($locale);
+            foreach ($entries as $loc => $alternates) {
+                if (! str_starts_with($loc, "https://socialeaz.com/{$locale}")) {
+                    continue;
+                }
+                $html = $this->get($loc)->assertOk()->getContent();
+                $this->assertStringContainsString('<link rel="canonical" href="'.$loc.'">', $html, "$loc canonical");
+                $this->assertStringContainsString('content="index, follow', $html, "$loc is not indexable");
+                $this->assertStringNotContainsString('noindex', $html, "$loc sends noindex");
+                foreach ($alternates as $lang => $href) {
+                    $this->assertStringContainsString('hreflang="'.$lang.'" href="'.$href.'"', $html, "$loc hreflang $lang");
+                    // Reciprocal: the alternate lists this URL back under the same set.
+                    $this->assertSame($alternates, $entries[$href] ?? null, "$href does not reciprocate $loc");
+                }
+            }
+        }
+    }
+
+    public function test_auth_pages_stay_noindex(): void
+    {
+        $this->bootLocale('en');
+        foreach (['/en/login', '/en/register'] as $path) {
+            $this->get('https://socialeaz.com'.$path)->assertOk()->assertSee('<meta name="robots" content="noindex, follow">', false);
+        }
+    }
+
     public function test_homepage_organization_schema_and_footer_share_the_public_social_links(): void
     {
         $this->bootLocale('en');

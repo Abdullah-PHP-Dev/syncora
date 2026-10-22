@@ -20,6 +20,9 @@ class SeoController extends Controller
             foreach (config('seo.locales') as $locale) {
                 $xml->startElement('url');
                 $xml->writeElement('loc', $seo->localizedUrl($route, $locale));
+                if ($lastmod = $seo->lastModified($route)) {
+                    $xml->writeElement('lastmod', $lastmod);
+                }
                 // Language alternates (same set as the page's <link rel="alternate" hreflang>).
                 foreach ([...config('seo.locales'), 'x-default'] as $lang) {
                     $xml->startElement('xhtml:link');
