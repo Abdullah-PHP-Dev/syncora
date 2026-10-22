@@ -81,6 +81,16 @@ class MarketingRoutesTest extends TestCase
                 $this->assertStringContainsString('<link rel="canonical" href="'.$loc.'">', $html, "$loc canonical");
                 $this->assertStringContainsString('content="index, follow', $html, "$loc is not indexable");
                 $this->assertStringNotContainsString('noindex', $html, "$loc sends noindex");
+                $this->assertSame(1, preg_match_all('#<h1[\s>]#', $html), "$loc must have exactly one H1");
+                foreach (['og:title', 'og:description', 'og:image'] as $og) {
+                    $this->assertMatchesRegularExpression('#<meta property="'.$og.'" content="[^"]+">#', $html, "$loc $og");
+                }
+                $this->assertStringContainsString('<meta property="og:locale" content="'.($locale === 'ar' ? 'ar_SA' : 'en_US').'">', $html);
+                preg_match('#<script type="application/ld\+json">(.*?)</script>#s', $html, $m);
+                $faqPage = collect(json_decode($m[1], true, flags: JSON_THROW_ON_ERROR)['@graph'])->firstWhere('@type', 'FAQPage');
+                foreach ($faqPage['mainEntity'] ?? [] as $question) {
+                    $this->assertStringContainsString(e($question['name']), $html, "$loc FAQ schema question is not visible");
+                }
                 foreach ($alternates as $lang => $href) {
                     $this->assertStringContainsString('hreflang="'.$lang.'" href="'.$href.'"', $html, "$loc hreflang $lang");
                     // Reciprocal: the alternate lists this URL back under the same set.
@@ -131,6 +141,19 @@ class MarketingRoutesTest extends TestCase
         $this->assertSame('/evil.example', $send('//evil.example/')->headers->get('Location'));
         $this->assertNotSame(301, $send('/en/login/', 'POST')->getStatusCode());
         $this->get('/en/pricing')->assertOk();
+    }
+
+    public function test_faq_pages_emit_faqpage_schema_from_their_visible_faqs(): void
+    {
+        $seo = app(\App\Support\Seo\MarketingSeo::class);
+        foreach (['contact', 'product.scheduling-publishing', 'solutions.teams'] as $route) {
+            $graph = collect($seo->schema($route, 'ar', 'Title', 'Description')['@graph']);
+            $faq = $graph->firstWhere('@type', 'FAQPage');
+            $this->assertNotNull($faq, "$route has no FAQPage");
+            $this->assertSame(count($seo->faqs($route, 'ar')), count($faq['mainEntity']));
+            $this->assertSame('Answer', $faq['mainEntity'][0]['acceptedAnswer']['@type']);
+        }
+        $this->assertNull(collect($seo->schema('pricing', 'en', 'Title', 'Description')['@graph'])->firstWhere('@type', 'FAQPage'));
     }
 
     public function test_auth_pages_stay_noindex(): void

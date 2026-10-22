@@ -22,8 +22,8 @@
 <meta property="og:site_name" content="Socialeaz">
 <meta property="og:title" content="{{ $seoTitle }}">
 <meta property="og:description" content="{{ $seoDescription }}">
-<meta property="og:locale" content="{{ $seoLocale === 'ar' ? 'ar_AR' : 'en_US' }}">
-<meta property="og:locale:alternate" content="{{ $seoLocale === 'ar' ? 'en_US' : 'ar_AR' }}">
+<meta property="og:locale" content="{{ $seoLocale === 'ar' ? 'ar_SA' : 'en_US' }}">
+<meta property="og:locale:alternate" content="{{ $seoLocale === 'ar' ? 'en_US' : 'ar_SA' }}">
 @if($seoCanonical)<meta property="og:url" content="{{ $seoCanonical }}">@endif
 <meta property="og:image" content="{{ $seoMetadata['image'] }}">
 <meta property="og:image:alt" content="{{ $seoTitle }}">

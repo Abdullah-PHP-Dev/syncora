@@ -75,8 +75,8 @@ class MarketingSeo
      * no claims beyond the page content. [en, ar]
      */
     public const PAGE_TITLES = [
-        'product.content-creation' => ['AI Social Media Post & Caption Creator', 'صانع منشورات التواصل الاجتماعي بالذكاء الاصطناعي'],
-        'product.ai-assistant' => ['AI Assistant for Social Captions, Hashtags & Ideas', 'مساعد ذكي لأفكار المنشورات والتعليقات والوسوم'],
+        'product.content-creation' => ['AI Social Media Post & Caption Creator', 'صانع محتوى التواصل الاجتماعي بالذكاء الاصطناعي'],
+        'product.ai-assistant' => ['AI Social Assistant: Captions, Hashtags & Ideas', 'مساعد ذكي لأفكار المنشورات والتعليقات والوسوم'],
         'product.engagement' => ['Social Media Inbox for Comments & Messages', 'صندوق وارد موحد للتعليقات والرسائل الاجتماعية'],
         'product.analytics' => ['Social Media Analytics & Content Performance', 'تحليلات التواصل الاجتماعي وأداء المحتوى'],
         'product.scheduling-publishing' => ['Social Media Scheduler & Content Calendar', 'جدولة منشورات التواصل الاجتماعي وتقويم المحتوى'],
@@ -92,9 +92,9 @@ class MarketingSeo
     {
         $arabic = $locale === 'ar';
         $titles = [
-            'home' => ['Socialeaz | AI Social Media Management & Scheduling', 'سوشيال إيز | إدارة وجدولة التواصل الاجتماعي بالذكاء الاصطناعي'],
+            'home' => ['Socialeaz | AI Social Media Management & Scheduling', 'سوشيال إيز: إدارة وجدولة التواصل الاجتماعي بالذكاء الاصطناعي'],
             'pricing' => ['Social Media Management Plans & Pricing | Socialeaz', 'خطط وأسعار إدارة التواصل الاجتماعي | سوشيال إيز'],
-            'about' => ['About Socialeaz | Your AI Social Media Workspace', 'عن سوشيال إيز | مساحة عمل التواصل الاجتماعي بالذكاء الاصطناعي'],
+            'about' => ['About Socialeaz | Your AI Social Media Workspace', 'عن سوشيال إيز: مساحة عمل التواصل الاجتماعي بالذكاء الاصطناعي'],
             'contact' => ['Contact & Support | Socialeaz', 'التواصل والدعم | سوشيال إيز'],
             'services' => ['Social Media & Marketing Services | Socialeaz', 'خدمات التواصل الاجتماعي والتسويق | سوشيال إيز'],
             'privacy' => ['Privacy Policy | Socialeaz', 'سياسة الخصوصية | سوشيال إيز'],
@@ -167,11 +167,39 @@ class MarketingSeo
                 ['@type' => 'ListItem', 'position' => 2, 'name' => trim(preg_replace('/\s*\|\s*(Socialeaz|سوشيال إيز)$/u', '', $title)), 'item' => $canonical],
             ]];
         }
+        if ($faqs = $this->faqs($route, $locale)) {
+            $graph[] = ['@type' => 'FAQPage', '@id' => $canonical.'#faq', 'url' => $canonical, 'inLanguage' => $locale, 'isPartOf' => ['@id' => $websiteId], 'mainEntity' => array_map(
+                fn ($faq) => ['@type' => 'Question', 'name' => $faq['question'], 'acceptedAnswer' => ['@type' => 'Answer', 'text' => $faq['answer']]],
+                $faqs,
+            )];
+        }
         if ($route === 'home' || $route === 'pricing' || str_starts_with($route, 'product.')) {
             $graph[] = $this->softwareApplication($locale, $organizationId);
         }
 
         return ['@context' => 'https://schema.org', '@graph' => $graph];
+    }
+
+    /**
+     * The FAQ items a page shows visibly, as plain [question, answer] text
+     * in $locale - product/solution FAQs live in their page config, other
+     * pages' in config/marketing-faqs.php.
+     */
+    public function faqs(string $route, string $locale): array
+    {
+        foreach (['product.' => 'marketing-products', 'solutions.' => 'marketing-solutions'] as $prefix => $config) {
+            if (str_starts_with($route, $prefix)) {
+                return array_map(fn ($faq) => [
+                    'question' => $faq['question'][$locale] ?? $faq['question']['en'],
+                    'answer' => $faq['answer'][$locale] ?? $faq['answer']['en'],
+                ], config($config.'.'.substr($route, strlen($prefix)).'.faq', []));
+            }
+        }
+
+        return array_map(fn ($faq) => [
+            'question' => __($faq['question'], [], $locale),
+            'answer' => __($faq['answer'], [], $locale),
+        ], config('marketing-faqs.'.$route, []));
     }
 
     /**

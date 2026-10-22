@@ -38,9 +38,9 @@
     <section class="contact-faq" id="support-faq" aria-labelledby="contact-faq-title">
         <div><p class="theme-eyebrow">{{ __('A GOOD PLACE TO START') }}</p><h2 id="contact-faq-title">{{ __('How can we help?') }}</h2><p>{{ __('Find a quick answer or reach out to our team.') }}</p></div>
         <div>
-            <details open><summary>{{ __('How do I contact support?') }}<span aria-hidden="true">+</span></summary><p>{{ __('Sign in and open a support ticket to keep your request and replies in one place. You can also contact us by email.') }}</p></details>
-            <details><summary>{{ __('Where can I compare subscription plans?') }}<span aria-hidden="true">+</span></summary><p>{{ __('Visit our pricing page to compare features and monthly or yearly billing.') }} <a href="{{ route('pricing') }}">{{ __('Compare plans') }} →</a></p></details>
-            <details><summary>{{ __('What should I include in a support request?') }}<span aria-hidden="true">+</span></summary><p>{{ __('Describe what you were trying to do, what happened and the affected channel. Include a screenshot if helpful, and keep passwords and payment details private.') }}</p></details>
+            @foreach(config('marketing-faqs.contact') as $faq)
+            <details @if($loop->first) open @endif><summary>{{ __($faq['question']) }}<span aria-hidden="true">+</span></summary><p>{{ __($faq['answer']) }}@isset($faq['link']) <a href="{{ route($faq['link']['route']) }}">{{ __($faq['link']['label']) }} →</a>@endisset</p></details>
+            @endforeach
         </div>
     </section>
 </div>

@@ -93,7 +93,7 @@ class MarketingSeoTest extends TestCase
             foreach (['en', 'ar'] as $locale) {
                 $meta = $seo->metadata($route, $locale);
                 $this->assertNotEmpty($meta['title'], "$route/$locale title");
-                $this->assertLessThanOrEqual(62, mb_strlen($meta['title']), "$route/$locale title length");
+                $this->assertLessThanOrEqual(60, mb_strlen($meta['title']), "$route/$locale title length");
                 $this->assertGreaterThanOrEqual(70, mb_strlen((string) $meta['description']), "$route/$locale description too short");
                 $this->assertLessThanOrEqual(160, mb_strlen((string) $meta['description']), "$route/$locale description length");
                 $titles[] = $meta['title'];
