@@ -127,8 +127,10 @@ class MarketingSeo
             'name' => 'Socialeaz', 'url' => $this->url(),
             // Own spellings only ("SocialEZ" is an unrelated company).
             'alternateName' => ['SocialEaz', 'Social Eaz', 'سوشيال إيز'],
-            'logo' => $this->url('assets/images/home-theme/apple-touch-icon.png'),
+            'logo' => ['@type' => 'ImageObject', 'url' => $this->url('assets/images/home-theme/logo-square-1024.png'), 'width' => 1024, 'height' => 1024],
             'email' => 'support@socialeaz.com',
+            'address' => ['@type' => 'PostalAddress', 'addressLocality' => 'Riyadh', 'addressCountry' => 'SA'],
+            'contactPoint' => ['@type' => 'ContactPoint', 'contactType' => 'customer support', 'email' => 'support@socialeaz.com', 'availableLanguage' => ['en', 'ar']],
         ];
         $social = array_values(array_filter(config('social', []), fn ($url) => is_string($url) && filter_var($url, FILTER_VALIDATE_URL) && str_starts_with($url, 'https://')));
         if ($social) {

@@ -1,5 +1,8 @@
 <?php
 
+// Public brand profiles - the single source for both the footer icons
+// (<x-footer-social-links>) and the Organization JSON-LD sameAs
+// (MarketingSeo::schema()). Public page URLs only, never admin links.
 return [
     'Instagram' => env('SOCIAL_INSTAGRAM_URL', 'https://www.instagram.com/social.eaz/'),
     'Facebook' => env('SOCIAL_FACEBOOK_URL', 'https://www.facebook.com/profile.php?id=61593075300084'),

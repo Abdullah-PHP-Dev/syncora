@@ -17,6 +17,10 @@ class MarketingRoutesTest extends TestCase
         $this->refreshApplication();
         $this->withoutVite();
         config(['seo.base_url' => 'https://socialeaz.com', 'seo.locales' => ['en', 'ar'], 'seo.indexable' => true]);
+        // Home and pricing read plans from the legacy bundles table, which
+        // has no migration - render them with an empty catalog.
+        $this->partialMock(\App\Services\PackagePresentationService::class, fn ($m) => $m->shouldReceive('catalog')
+            ->andReturn(['plans' => collect(), 'features' => collect(), 'maxSaving' => 0]));
     }
 
     protected function tearDown(): void
@@ -33,5 +37,28 @@ class MarketingRoutesTest extends TestCase
             $this->get("/{$locale}/product/analytics")->assertOk();
         }
         $this->assertFileDoesNotExist(resource_path('views/front/pages/product.blade.php'));
+    }
+
+    public function test_homepage_organization_schema_and_footer_share_the_public_social_links(): void
+    {
+        $this->bootLocale('en');
+        $html = $this->get('https://socialeaz.com/en')->assertOk()->getContent();
+
+        preg_match('#<script type="application/ld\+json">(.*?)</script>#s', $html, $m);
+        $schema = json_decode($m[1] ?? '', true, flags: JSON_THROW_ON_ERROR);
+        $org = collect($schema['@graph'])->firstWhere('@type', 'Organization');
+        $this->assertSame('Socialeaz', $org['name']);
+        $this->assertSame(['SocialEaz', 'Social Eaz', 'سوشيال إيز'], $org['alternateName']);
+        $this->assertSame('ImageObject', $org['logo']['@type']);
+        $this->assertGreaterThanOrEqual(512, getimagesize(public_path('assets/images/home-theme/logo-square-1024.png'))[0]);
+        $this->assertSame(['@type' => 'PostalAddress', 'addressLocality' => 'Riyadh', 'addressCountry' => 'SA'], $org['address']);
+        $this->assertSame(['en', 'ar'], $org['contactPoint']['availableLanguage']);
+
+        $expected = array_values(array_filter(config('social'), fn ($url) => is_string($url) && str_starts_with($url, 'https://')));
+        $this->assertSame($expected, $org['sameAs']);
+        foreach ($org['sameAs'] as $url) {
+            $this->assertStringNotContainsString('/admin/', $url);
+            $this->assertStringContainsString('href="'.$url.'"', $html, "footer is missing $url");
+        }
     }
 }
