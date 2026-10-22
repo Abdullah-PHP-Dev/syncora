@@ -85,8 +85,10 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
             ->name('product.'.$productKey);
     }
 
+	// The old "marketplace" product page was retired; it was still indexed,
+	// so keep the URL alive as a permanent redirect to the services page.
 	Route::get('/product', function () {
-		return view('front.pages.product');
+		return redirect()->route('services', [], 301);
 	})->name('product');
 
 
