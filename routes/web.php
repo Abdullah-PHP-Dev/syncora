@@ -94,19 +94,20 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 	// These are sections on the homepage itself (no standalone
 	// product.ai-copilot / product.channels / product.tools views exist),
-	// so route to the matching in-page anchor instead of a 404.
+	// so route to the matching in-page anchor instead of a 404. Permanent:
+	// these are legacy aliases, never link targets.
 	Route::get('/ai-copilot', function () {
-		return redirect(route('home') . '#ai-copilot');
+		return redirect(route('home') . '#ai-copilot', 301);
 	})->name('ai-copilot');
 
 
 	Route::get('/channels', function () {
-		return redirect(route('home') . '#channels');
+		return redirect(route('home') . '#channels', 301);
 	})->name('channels');
 
 
 	Route::get('/tools', function () {
-		return redirect(route('home') . '#tools');
+		return redirect(route('home') . '#tools', 301);
 	})->name('tools');
 
 
@@ -141,19 +142,10 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	|--------------------------------------------------------------------------
 	*/
 
-	Route::get('/guides', function () {
-		return view('guides');
-	})->name('guides');
-
-
+	// Legacy alias - link to route('contact') directly.
 	Route::get('/help', function () {
-		return redirect(route('contact') . '#support-faq');
+		return redirect(route('contact') . '#support-faq', 301);
 	})->name('help');
-
-
-	Route::get('/api', function () {
-		return view('api');
-	})->name('api');
 
 
 	/*

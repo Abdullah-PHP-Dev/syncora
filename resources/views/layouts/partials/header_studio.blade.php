@@ -6,7 +6,7 @@
         <nav class="theme-links" aria-label="Primary navigation">
             <a href="#product">Product <span>⌄</span></a>
             <a href="#solutions">Solutions <span>⌄</span></a>
-            <a href="{{ route('help') }}">Resources <span>⌄</span></a>
+            <a href="{{ route('contact') }}#support-faq">Resources <span>⌄</span></a>
             <a href="{{ route('pricing') }}">Pricing</a>
         </nav>
         <div class="theme-nav-actions">

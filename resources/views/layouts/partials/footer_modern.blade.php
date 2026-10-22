@@ -7,7 +7,7 @@
         @endforeach
     </div>
     <div><h2>{{ __('Solutions') }}</h2>@foreach(config('marketing-solutions') as $slug => $solution)<a href="{{ route('solutions.'.$slug) }}">{{ $solution['title'][app()->getLocale()] ?? $solution['title']['en'] }}</a>@endforeach</div>
-    <div><h2>{{ __('Resources') }}</h2><a href="{{ route('help') }}">{{ __('Help Center') }}</a><a href="{{ route('services') }}">{{ __('Services') }}</a><a href="{{ route('contact') }}">{{ __('Contact') }}</a><a href="{{ route('pricing') }}">{{ __('Pricing') }}</a></div>
+    <div><h2>{{ __('Resources') }}</h2><a href="{{ route('contact') }}#support-faq">{{ __('Help Center') }}</a><a href="{{ route('services') }}">{{ __('Services') }}</a><a href="{{ route('contact') }}">{{ __('Contact') }}</a><a href="{{ route('pricing') }}">{{ __('Pricing') }}</a></div>
     <div><h2>{{ __('Company') }}</h2><a href="{{ route('about') }}">{{ __('About Us') }}</a><a href="{{ route('contact') }}">{{ __('Contact') }}</a><a href="{{ route('privacy') }}">{{ __('Privacy Policy') }}</a><a href="{{ route('terms') }}">{{ __('Terms of Service') }}</a></div>
     <p class="theme-copyright">© {{ date('Y') }} {{ __('Socialeaz. All rights reserved.') }}</p>
 </footer>

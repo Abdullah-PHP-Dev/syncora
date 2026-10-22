@@ -90,6 +90,35 @@ class MarketingRoutesTest extends TestCase
         }
     }
 
+    public function test_homepage_internal_links_never_hit_a_redirect(): void
+    {
+        foreach (['en', 'ar'] as $locale) {
+            $this->bootLocale($locale);
+            $html = $this->get("https://socialeaz.com/{$locale}")->assertOk()->getContent();
+            preg_match_all('#href="(https://socialeaz\.com/[^"\#?]*|/[^/"\#?][^"\#?]*)#', $html, $m);
+            $paths = collect($m[1])->map(fn ($href) => parse_url($href, PHP_URL_PATH))
+                ->filter(fn ($path) => str_starts_with($path, "/{$locale}"))
+                ->unique();
+            $this->assertGreaterThan(10, $paths->count());
+            foreach ($paths as $path) {
+                $status = $this->get('https://socialeaz.com'.$path)->getStatusCode();
+                $this->assertSame(200, $status, "homepage ($locale) links to $path, which returns $status");
+            }
+        }
+    }
+
+    public function test_legacy_aliases_are_permanent_redirects(): void
+    {
+        $this->bootLocale('en');
+        $this->get('/en/help')->assertStatus(301)->assertRedirect(url('/en/contact').'#support-faq');
+        $this->get('/en/channels')->assertStatus(301)->assertRedirect(url('/en').'#channels');
+        $this->get('/en/tools')->assertStatus(301);
+        $this->get('/en/ai-copilot')->assertStatus(301);
+        $this->get('/en/amber')->assertStatus(301);
+        $this->get('/en/guides')->assertNotFound();
+        $this->get('/en/api')->assertNotFound();
+    }
+
     public function test_auth_pages_stay_noindex(): void
     {
         $this->bootLocale('en');
