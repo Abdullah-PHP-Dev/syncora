@@ -39,6 +39,18 @@ class MarketingRoutesTest extends TestCase
         $this->assertFileDoesNotExist(resource_path('views/front/pages/product.blade.php'));
     }
 
+    public function test_public_marketing_pages_are_never_rate_limited(): void
+    {
+        $this->bootLocale('en');
+        for ($i = 0; $i < 100; $i++) {
+            $this->get('/en/services', ['User-Agent' => 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'])->assertOk();
+        }
+        foreach (array_keys(app(\App\Support\Seo\MarketingSeo::class)->pages()) as $name) {
+            $middleware = implode(',', app('router')->gatherRouteMiddleware(app('router')->getRoutes()->getByName($name)));
+            $this->assertStringNotContainsString('throttle', strtolower($middleware), "$name is throttled");
+        }
+    }
+
     public function test_homepage_organization_schema_and_footer_share_the_public_social_links(): void
     {
         $this->bootLocale('en');
