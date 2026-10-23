@@ -2029,7 +2029,9 @@
                             return;
                         }
 
-                        var shareUrl = quickPostSnapchatShareUrl(data.results);
+                        // Scheduled posts aren't public yet, so the share-preview
+                        // page 404s for them (Post::scopeShareable) - no button.
+                        var shareUrl = formData.has('schedule_at') ? null : quickPostSnapchatShareUrl(data.results);
 
                         // Snapchat has no auto-publish API (Ads only, plus a
                         // read-only Public Profile API - see

@@ -4,8 +4,7 @@
 @section('meta_description', __('The all-in-one AI social media workspace for creators, teams and agencies. Create, collaborate and grow with Socialeaz.'))
 
 @push('styles')
-<link rel="stylesheet" href="{{ asset('assets/css/home-billing-workflow.css') }}?v={{ filemtime(public_path('assets/css/home-billing-workflow.css')) }}">
-<link rel="stylesheet" href="{{ asset('assets/css/package-cards.css') }}?v={{ filemtime(public_path('assets/css/package-cards.css')) }}">
+@vite('resources/css/marketing-home.css')
 @endpush
 
 @section('content')

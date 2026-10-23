@@ -12,15 +12,14 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Arabic:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    {{-- Only Arabic pages use Noto Sans Arabic (.marketing-home:dir(rtl)); Inter
+         still covers their Latin text. Both are variable fonts, so the
+         400-800 range is one file per script, not one per weight. --}}
+    <link href="https://fonts.googleapis.com/css2?{{ app()->getLocale() === 'ar' ? 'family=Noto+Sans+Arabic:wght@400..800&' : '' }}family=Inter:wght@400..800&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="{{ asset('assets/css/home-assets.css') }}?v={{ filemtime(public_path('assets/css/home-assets.css')) }}">
-    @vite(['resources/css/apps.css', 'resources/js/apps.js'])
-    <link rel="stylesheet" href="{{ asset('assets/css/footer-social.css') }}?v={{ filemtime(public_path('assets/css/footer-social.css')) }}">
-    <link rel="stylesheet" href="{{ asset('assets/css/marketing-header.css') }}?v={{ filemtime(public_path('assets/css/marketing-header.css')) }}">
+    {{-- One bundle for the layout's stylesheets (see resources/css/marketing.css). --}}
+    @vite(['resources/css/marketing.css', 'resources/js/apps.js'])
     @stack('styles')
-    <link rel="stylesheet" href="{{ asset('assets/css/hero-illustrations.css') }}?v={{ filemtime(public_path('assets/css/hero-illustrations.css')) }}">
-    <link rel="stylesheet" href="{{ asset('assets/css/brand-theme.css') }}?v={{ filemtime(public_path('assets/css/brand-theme.css')) }}" />
 </head>
 <body class="marketing-home">
 @include('layouts.partials.header_modern')

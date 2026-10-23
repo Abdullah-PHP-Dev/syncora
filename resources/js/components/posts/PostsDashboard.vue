@@ -1299,7 +1299,9 @@ export default {
         this.fetchPosts();
 
         const message = this.t(formData.has('schedule_at') ? 'alerts.scheduled' : 'alerts.published');
-        const shareUrl = this.snapchatShareUrl(data.results);
+        // Scheduled posts aren't public yet, so the share-preview page 404s
+        // for them (Post::scopeShareable) - don't offer a share that can't work.
+        const shareUrl = formData.has('schedule_at') ? null : this.snapchatShareUrl(data.results);
 
         if (window.Swal) {
           if (shareUrl) {

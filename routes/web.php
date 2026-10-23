@@ -69,11 +69,14 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 	Route::get('/', \App\Http\Controllers\Front\HomeController::class)->name('home');
     Route::view('/services', 'front.pages.services')->name('services');
-	Route::view('/yellow', 'front.pages.home_yellow')->name('home.yellow');
-	Route::view('/studio', 'front.pages.home_amber')->name('home.studio');
-	Route::get('/amber', function () {
-		return redirect()->route('home.studio', [], 301);
-	})->name('home.amber');
+	// Retired homepage designs: they were served as indexable 200 duplicates
+	// of the homepage, so send them (and the older /amber alias, in one hop)
+	// to the canonical homepage in the same locale. Names kept for old links.
+	foreach (['yellow' => 'home.yellow', 'studio' => 'home.studio', 'amber' => 'home.amber'] as $retiredPath => $retiredName) {
+		Route::get('/'.$retiredPath, function () {
+			return redirect()->route('home', [], 301);
+		})->name($retiredName);
+	}
 
     foreach (array_keys(config('marketing-solutions')) as $solutionKey) {
         Route::view('/solutions/'.$solutionKey, 'front.pages.solutions.show', ['solutionKey' => $solutionKey])

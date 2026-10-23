@@ -355,6 +355,23 @@ class Post extends Model
     }
 
     /**
+     * Scope a query to posts the public share-preview page may show: public
+     * posts that are live, or that are being published right now. Posts are
+     * created 'pending' and published by a background job, and the Snap
+     * share button is offered straight after creation - so a pending post
+     * due now counts, while drafts, failed, private and future-scheduled
+     * posts never do (their content isn't public yet).
+     */
+    public function scopeShareable($query)
+    {
+        return $query
+            ->where(fn ($q) => $q->whereNull('visibility')->orWhere('visibility', 'public'))
+            ->where(fn ($q) => $q->whereIn('status', ['completed', 'published'])
+                ->orWhere(fn ($q) => $q->where('status', 'pending')
+                    ->where(fn ($q) => $q->whereNull('schedule_at')->orWhere('schedule_at', '<=', now()))));
+    }
+
+    /**
      * Scope a query to only include failed posts.
      */
     public function scopeFailed($query)

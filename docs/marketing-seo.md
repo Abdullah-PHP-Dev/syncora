@@ -21,14 +21,14 @@ New product or solution pages added to `config/marketing-products.php` / `config
 
 | # | Finding | Impact | Status |
 |---|---|---|---|
-| 1 | **`/robots.txt` returns 404 in production** (nginx error page, so the request never reaches Laravel). `sitemap.xml` from the same controller works. Crawlers get no robots rules and no sitemap pointer | High | **Needs a server change**, see Deployment step 1 |
+| 1 | **`/robots.txt` returns 404 in production** (nginx error page, so the request never reaches Laravel). `sitemap.xml` from the same controller works. Crawlers get no robots rules and no sitemap pointer | High | **Fixed**: a static `public/robots.txt` with the production rules is live (`MarketingSeoTest` keeps it in sync with `SeoController::robots()`) |
 | 2 | Marketing images 1–1.8 MB each (hero, the LCP image, was 1.78 MB at 546×309; the logo was 746 KB on every page). About 22 MB of PNG/JPG across the pages | High (LCP, mobile) | **Fixed**: WebP at 2× display size, 0.75 MB total |
 | 3 | Product / solution titles were the bare product name ("Engagement \| Socialeaz"), with no search intent | Medium–High | **Fixed**: keyword titles in EN/AR, all ≤ 62 characters, unique |
 | 4 | Server time about 0.6 s per HTML page (TTFB 1.5–1.9 s from Europe). The app renders these pages in 5–11 ms with 2–4 queries locally, so the time is server / network | Medium | **Needs server checks**, see Performance |
 | 5 | No `SoftwareApplication` schema; breadcrumb names repeated "\| Socialeaz" | Medium | **Fixed** |
 | 6 | No HSTS / Referrer-Policy header | Low–Medium | **Fixed** (app middleware) |
 | 7 | Sitemap had no hreflang alternates (they were only in the HTML) | Low | **Fixed** |
-| 8 | 7 separate small render-blocking CSS files + the Vite bundle on the home page | Low–Medium | Recommendation |
+| 8 | 7 separate small render-blocking CSS files + the Vite bundle on the home page | Low–Medium | **Fixed** (Oct 23): one `marketing.css` bundle, plus `marketing-home.css` on the homepage |
 | 9 | The home page shows named testimonials (e.g. "Sarah Kim, Content Creator"). If these aren't real customers, they hurt trust and can breach consumer-protection rules | Trust / compliance | **Confirm with the business**; replace with real quotes or remove |
 | 10 | `/` → `/en` is a 302 | Info | Fine: language selection, with x-default = `/en` |
 
@@ -36,7 +36,7 @@ Already correct: HTTPS + HTTP→HTTPS and www→apex 301s, HTTP/2 + HTTP/3 and B
 
 ## Deployment
 
-1. **Fix robots.txt (server).** On the production nginx site (Forge-style configs have this block), back up the config file, then change
+1. **robots.txt (done; kept for reference).** On the production nginx site (Forge-style configs have this block), back up the config file, then change
 
    ```nginx
    location = /robots.txt  { access_log off; log_not_found off; }
@@ -48,7 +48,7 @@ Already correct: HTTPS + HTTP→HTTPS and www→apex 301s, HTTP/2 + HTTP/3 and B
    location = /robots.txt  { access_log off; log_not_found off; try_files $uri /index.php?$query_string; }
    ```
 
-   Run `nginx -t && systemctl reload nginx`. Check that `curl -s https://socialeaz.com/robots.txt` shows `Allow: /` and the `Sitemap:` line. Rollback: restore the backed-up file and reload nginx. Don't add a static `public/robots.txt`: labs and other hosts would then lose their `Disallow: /`.
+   Run `nginx -t && systemctl reload nginx`. Check that `curl -s https://socialeaz.com/robots.txt` shows `Allow: /` and the `Sitemap:` line. Rollback: restore the backed-up file and reload nginx. Production now serves the static `public/robots.txt` instead; staging and labs still get `noindex` from the robots meta tag (`seo.indexable` + host check).
 2. **Deploy the code** (WebP files in `public/assets/images/home-theme/`, views, `MarketingSeo`, middleware). No migration and no JS build. Then `php artisan config:cache && php artisan view:cache && php artisan event:cache`. Don't run `route:cache`: it currently fails in this repo because LaravelLocalization creates duplicate route names per locale.
 3. **Production `.env`**
 
@@ -79,9 +79,9 @@ The app itself renders marketing pages in ~10 ms, so the ~0.6 s server time come
 
 1. Confirm OPcache is enabled with `opcache.validate_timestamps=0` in production (and reset on deploy), and that `config:cache` / `view:cache` run on every deploy.
 2. Check the origin's region and PHP-FPM pool saturation. For GCC users, an origin or Cloudflare tiered cache close to Riyadh/Dubai/Bahrain lowers latency.
-3. Static assets: set a long `Cache-Control` (e.g. `public, max-age=31536000, immutable` for `/build/*`, `max-age=2592000` for `/assets/images/*`). They currently get `max-age=14400`.
+3. Static assets: proposed nginx config under *Oct 23 fixes*. They currently get `max-age=14400`.
 4. Optional, larger change: guest marketing pages start a session on every request (`Cache-Control: no-cache, private`), so Cloudflare can't cache the HTML. Serving them without a session for anonymous visitors, plus a Cloudflare cache rule, would make TTFB near-instant. That requires reviewing forms (CSRF) and the language switcher first.
-5. Combine the 7 small marketing CSS files into the Vite bundle to cut render-blocking requests.
+5. ~~Combine the marketing CSS files into the Vite bundle~~ (done Oct 23).
 
 ## Growth roadmap (content, needs real product copy)
 
@@ -130,3 +130,54 @@ Add answered questions to the page's existing FAQ list (`faq` in `config/marketi
 - **/ar/contact** (290): response times and support hours; what billing questions support can help with; how to request a demo or team onboarding; where to report a connected-account problem.
 - **/ar/product/scheduling-publishing** (294): which platforms support scheduling; how time zones work; whether you can edit or cancel a scheduled post; what happens when publishing fails; approvals before scheduling (if available on the plan).
 - **/ar/solutions/teams** (293): roles and permissions; approvals workflow; how many members per plan (link pricing); handing work between members; a short real customer scenario if one is available.
+
+## Oct 23 fixes
+
+In the code:
+
+- `/{locale}/yellow`, `/studio` and `/amber` (retired homepage designs, served as indexable 200 duplicates) 301 to `/{locale}` in one hop.
+- `/index.php/...` and `/index.php?...` 301 to the clean URL for GET/HEAD (`RemoveIndexPhp` middleware), query string kept.
+- `/{locale}/share/posts/{id}` only shows public posts that are live or being published now (`Post::scopeShareable`); drafts, failed, private and future-scheduled posts and missing IDs are 404. The page sends `X-Robots-Tag: noindex` and a robots meta tag; share-button crawlers ignore both. The dashboard no longer offers the Snap share button after *scheduling* a post.
+- Marketing layout CSS is one Vite bundle (`resources/css/marketing.css`, homepage adds `marketing-home.css`). The sources stay in `public/assets/css` because other layouts link them; **run `npm run build` and commit `public/build` after editing one**.
+- Google Fonts: Noto Sans Arabic only on Arabic pages, and a `wght@400..800` range (both are variable fonts, so the files downloaded are the same; the font CSS drops from 37 KB to 2.5 KB on English pages and 7.5 KB on Arabic ones).
+
+### Proposed nginx config (not deployed)
+
+Tested on nginx 1.27 with a Forge-style server block: GET/HEAD redirect in one hop, POST untouched, no loop through `try_files`' internal `/index.php`, 404s never get the immutable header. The app's `RemoveIndexPhp` does the same, so (1) is optional and only saves a PHP round trip.
+
+```nginx
+# Top of the site file, outside server { }:
+map "$request_method $request_uri" $socialeaz_clean_index_php {
+    default "";
+    "~^(?:GET|HEAD) /index\.php/+(?<ixp_path>[^?]*?)/*(?<ixp_query>\?.*)?$" "/$ixp_path$ixp_query";
+    "~^(?:GET|HEAD) /index\.php(?<ixp_query_only>\?.*)?$"                   "/$ixp_query_only";
+}
+
+# Inside server { }, above the location blocks:
+if ($socialeaz_clean_index_php) { return 301 $socialeaz_clean_index_php; }
+
+# Content-hashed Vite output. add_header here replaces the server-level
+# headers, so the Forge security headers are repeated.
+location ^~ /build/assets/ {
+    try_files $uri =404;
+    access_log off;
+    add_header Cache-Control "public, max-age=31536000, immutable";
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-XSS-Protection "1; mode=block";
+    add_header X-Content-Type-Options "nosniff";
+}
+
+# Images keep their names when replaced: 7 days. `expires` keeps the inherited headers.
+location ~* ^/assets/images/.+\.(?:png|jpe?g|webp|gif|svg|ico|avif)$ {
+    try_files $uri =404;
+    access_log off;
+    expires 7d;
+}
+```
+
+### Guest pages, sessions and HTML caching (findings, nothing changed)
+
+- From Zurich, a Cloudflare cache HIT answers in ~0.10–0.15 s, while any origin fetch, even a static `.txt` that never reaches PHP, takes ~1.1 s. PHP pages take 0.45–1.6 s. So TTFB is mostly the edge-to-origin round trip; edge caching of guest HTML is the lever, PHP tuning is secondary.
+- Every cookieless guest request starts a session (one `sessions` row per hit with the database driver locally), and sets `locale`, `XSRF-TOKEN` and the session cookie with `Cache-Control: no-cache, private`. Cloudflare won't cache responses that set cookies.
+- Session/user-dependent output on guest-reachable pages: the CSRF meta tag in `layouts/apps.blade.php`; pricing CTAs and checkout URLs (`pricing.blade.php`, `sections/billing-workflow-pricing.blade.php`) and the contact page ticket button depend on `auth()`. No marketing page has a form. Locale comes from the URL prefix; `/` uses Accept-Language plus the `locale` cookie/session.
+- A safe design, if wanted: a `stateless-marketing` middleware stack for GET marketing routes when the request has no session cookie (no StartSession, no CSRF cookie, no locale cookie; `Cache-Control: public, s-maxage=600`), guests always see the guest CTAs, and a Cloudflare Cache Rule that caches `/en*` and `/ar*` HTML only when the request has no `socialeaz-session` / `remember_web_*` cookie. `/`, `/login`, `/register`, `/dashboard*`, `/admin*`, `/share/*` and anything non-GET stay uncached. Needs its own approval and tests.

@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ $title }}</title>
+    <meta name="robots" content="noindex">
 
     {{-- Server-side-fetched by share-button crawlers (Snap's Creative Kit,
          and any other og:-reading share button) - no session cookie is

@@ -1,0 +1,6 @@
+/*
+ * Homepage-only stylesheets as one file (see marketing.css). package-cards.css
+ * is also linked directly by the pricing page.
+ */
+@import '../../public/assets/css/home-billing-workflow.css';
+@import '../../public/assets/css/package-cards.css';

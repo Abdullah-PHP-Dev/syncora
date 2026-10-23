@@ -636,17 +636,20 @@ class PostController extends Controller
      * session - the same reason any social share button needs a public
      * URL rather than the real admin.posts.show page. Deliberately
      * exposes only this one post's own public-facing content (caption +
-     * first media item) - no owner/account data.
+     * first media item) - no owner/account data - and only for posts
+     * that are public (Post::scopeShareable); anything else is a 404.
+     * noindex: share-button crawlers ignore it, search engines must not
+     * index a page per post.
      */
     public function sharePreview(int $postId)
     {
-        $post = Post::with('media')->find($postId);
+        $post = Post::with('media')->shareable()->findOrFail($postId);
 
-        return view('share.post', [
-            'title' => $post ? Str::limit($post->content ?: 'SocialEaz post', 90) : 'SocialEaz post',
-            'description' => $post ? Str::limit($post->content ?: '', 200) : null,
-            'media' => $post?->media->first(),
-        ]);
+        return response()->view('share.post', [
+            'title' => Str::limit($post->content ?: 'SocialEaz post', 90),
+            'description' => Str::limit($post->content ?: '', 200),
+            'media' => $post->media->first(),
+        ])->header('X-Robots-Tag', 'noindex');
     }
 
     /**

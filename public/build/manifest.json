@@ -1,6 +1,6 @@
 {
   "resources/css/app.css": {
-    "file": "assets/app-DipwoIHH.css",
+    "file": "assets/app-LfZbRXbl.css",
     "src": "resources/css/app.css",
     "isEntry": true,
     "name": "app",
@@ -17,13 +17,31 @@
       "apps.css"
     ]
   },
+  "resources/css/marketing-home.css": {
+    "file": "assets/marketing-home-Bo6zdeJi.css",
+    "src": "resources/css/marketing-home.css",
+    "isEntry": true,
+    "name": "marketing-home",
+    "names": [
+      "marketing-home.css"
+    ]
+  },
+  "resources/css/marketing.css": {
+    "file": "assets/marketing-BDVb99xZ.css",
+    "src": "resources/css/marketing.css",
+    "isEntry": true,
+    "name": "marketing",
+    "names": [
+      "marketing.css"
+    ]
+  },
   "resources/js/app.js": {
-    "file": "assets/app-k8nYBHN0.js",
+    "file": "assets/app-yDx9kJlI.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
     "css": [
-      "assets/app-Dcs3L-5A.css"
+      "assets/app-C8pqOMXS.css"
     ]
   },
   "resources/js/apps.js": {

@@ -129,6 +129,37 @@ class MarketingRoutesTest extends TestCase
         $this->get('/en/api')->assertNotFound();
     }
 
+    public function test_retired_homepage_designs_permanently_redirect_to_the_homepage_in_their_locale(): void
+    {
+        foreach (['en', 'ar'] as $locale) {
+            $this->bootLocale($locale);
+            foreach (['yellow', 'studio', 'amber'] as $retired) {
+                // One hop, straight to the canonical homepage (no /amber -> /studio chain).
+                $this->get("https://socialeaz.com/{$locale}/{$retired}")->assertStatus(301)->assertRedirect("https://socialeaz.com/{$locale}");
+            }
+            $this->get("https://socialeaz.com/{$locale}")->assertOk();
+        }
+    }
+
+    public function test_index_php_urls_permanently_redirect_to_the_clean_url(): void
+    {
+        $this->bootLocale('en');
+        $send = fn (string $uri, string $method = 'GET') => $this->app->make(\Illuminate\Contracts\Http\Kernel::class)
+            ->handle(\Illuminate\Http\Request::create('https://socialeaz.com'.$uri, $method, server: ['SCRIPT_NAME' => '/index.php', 'SCRIPT_FILENAME' => public_path('index.php')]));
+        $location = fn (string $uri) => [$send($uri)->getStatusCode(), $send($uri)->headers->get('Location')];
+
+        $this->assertSame([301, '/en/pricing'], $location('/index.php/en/pricing'));
+        $this->assertSame([301, '/en/pricing?billing=yearly'], $location('/index.php/en/pricing?billing=yearly'));
+        $this->assertSame([301, '/en'], $location('/index.php/en/'));
+        $this->assertSame([301, '/'], $location('/index.php'));
+        $this->assertSame([301, '/?x=1'], $location('/index.php?x=1'));
+        $this->assertSame([301, '/evil.example'], $location('/index.php//evil.example/'));
+        $this->assertNotSame(301, $send('/index.php/en/login', 'POST')->getStatusCode());
+        // The clean URL itself is served, not redirected again.
+        $this->assertSame(200, $send('/en/pricing')->getStatusCode());
+        $this->assertSame(404, $send('/index.phpx')->getStatusCode());
+    }
+
     public function test_trailing_slashes_permanently_redirect_to_the_slashless_url(): void
     {
         $this->bootLocale('en');

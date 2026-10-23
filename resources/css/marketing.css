@@ -1,0 +1,17 @@
+/*
+ * Every stylesheet layouts/apps.blade.php loads on all marketing and auth
+ * pages, as one render-blocking file, in the order the layout linked them.
+ * The sources stay in public/assets/css because other layouts still link
+ * them directly - after editing one, run `npm run build`.
+ *
+ * Page stylesheets (@stack('styles')) used to sit between
+ * marketing-header.css and hero-illustrations.css; they now load after
+ * this file. Every rule they share with hero-illustrations.css /
+ * brand-theme.css loses on specificity anyway, so the result is unchanged.
+ */
+@import '../../public/assets/css/home-assets.css';
+@import './apps.css';
+@import '../../public/assets/css/footer-social.css';
+@import '../../public/assets/css/marketing-header.css';
+@import '../../public/assets/css/hero-illustrations.css';
+@import '../../public/assets/css/brand-theme.css';
