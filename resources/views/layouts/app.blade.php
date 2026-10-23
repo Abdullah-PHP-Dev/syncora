@@ -18,13 +18,7 @@
     <link rel="apple-touch-icon" href="{{ asset('assets/images/home-theme/apple-touch-icon.png') }}" />
 
     <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-
-    <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
-            rel="stylesheet"
-    />
+    @include('layouts.partials.fonts')
 
     @php
         // rtlcss-generated mirrors of the theme's own layout CSS - only for
@@ -69,6 +63,7 @@
     <link rel="stylesheet" href="{{ asset('assets/css/dashboard-theme.css') }}?v={{ filemtime(public_path('assets/css/dashboard-theme.css')) }}" />
     <link rel="stylesheet" href="{{ asset('assets/css/overview-sidebar.css') }}?v={{ filemtime(public_path('assets/css/overview-sidebar.css')) }}" />
     <link rel="stylesheet" href="{{ asset('assets/css/brand-theme.css') }}?v={{ filemtime(public_path('assets/css/brand-theme.css')) }}" />
+    <link rel="stylesheet" href="{{ asset('assets/css/typography.css') }}?v={{ filemtime(public_path('assets/css/typography.css')) }}" />
 </head>
 
 <body class="socialeaz-app">

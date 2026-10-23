@@ -1,6 +1,6 @@
 .feature-hero { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.05fr); align-items: center; gap: 48px; padding: 64px 0 48px; }
 .feature-hero .theme-label { background: #f1eaff; }
-.marketing-home .feature-hero h1 { font-size: clamp(36px,4vw,54px); line-height: 1.12; letter-spacing: -1.8px; margin: 24px 0 20px; }
+.marketing-home .feature-hero h1 { font-size: var(--text-display); line-height: var(--leading-display); letter-spacing: var(--tracking-display); margin: 24px 0 20px; }
 .feature-hero h1 > span { background: var(--theme-gradient); background-clip: text; -webkit-background-clip: text; color: transparent; }
 .feature-hero-copy > p { color: var(--theme-muted); font-size: 17px; line-height: 1.8; }
 .feature-hero .theme-actions { margin-top: 28px; }
@@ -15,7 +15,7 @@
 .feature-benefits p,.feature-steps p { color: var(--theme-muted); font-size: 14px; line-height: 1.8; }
 .feature-workflow { margin-top: 56px; padding: 40px; border-radius: 28px; background: linear-gradient(125deg,#f1edff,#eff5ff); }
 .feature-section-heading .theme-eyebrow { color: var(--theme-purple); font-size: 11px; }
-.marketing-home .feature-section-heading h2 { font-size: clamp(28px,3vw,36px); line-height: 1.2; letter-spacing: -1px; margin-top: 14px; }
+.marketing-home .feature-section-heading h2 { font-size: var(--text-h2); line-height: var(--leading-heading); letter-spacing: var(--tracking-heading); margin-top: 14px; }
 .feature-steps { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 32px; margin-top: 32px; }
 .feature-step-number { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--theme-gradient); color: #fff; font-size: 16px; font-weight: 700; }
 .feature-steps h3 { font-size: 18px; line-height: 1.5; margin: 18px 0 10px; }
@@ -51,7 +51,6 @@
 @media(max-width:900px) { .feature-hero { gap: 28px; } .feature-benefits article { padding: 24px; } }
 @media(max-width:700px) {
  .feature-hero { grid-template-columns: minmax(0,1fr); padding: 40px 0 36px; }
- .marketing-home .feature-hero h1 { font-size: 38px; }
  .feature-hero-copy > p { font-size: 15px; }
  .feature-preview { padding: 24px 20px; }
  .feature-benefits,.feature-steps,.feature-faq { grid-template-columns: minmax(0,1fr); }

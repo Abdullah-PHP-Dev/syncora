@@ -10,12 +10,7 @@
 
     @include('layouts.partials.marketing-seo')
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    {{-- Only Arabic pages use Noto Sans Arabic (.marketing-home:dir(rtl)); Inter
-         still covers their Latin text. Both are variable fonts, so the
-         400-800 range is one file per script, not one per weight. --}}
-    <link href="https://fonts.googleapis.com/css2?{{ app()->getLocale() === 'ar' ? 'family=Noto+Sans+Arabic:wght@400..800&' : '' }}family=Inter:wght@400..800&display=swap" rel="stylesheet">
+    @include('layouts.partials.fonts')
 
     {{-- One bundle for the layout's stylesheets (see resources/css/marketing.css). --}}
     @vite(['resources/css/marketing.css', 'resources/js/apps.js'])

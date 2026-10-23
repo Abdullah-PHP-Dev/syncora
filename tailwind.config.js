@@ -12,7 +12,9 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Figtree', ...defaultTheme.fontFamily.sans],
+                // Inter has no Arabic glyphs, so Arabic falls through to IBM Plex Sans
+                // Arabic (see public/assets/css/typography.css).
+                sans: ['Inter', 'IBM Plex Sans Arabic', ...defaultTheme.fontFamily.sans],
             },
         },
     },

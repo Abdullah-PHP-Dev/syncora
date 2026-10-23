@@ -1,7 +1,7 @@
 .about-page { padding-bottom: 12px; }
 .about-page .theme-label { background: #f1eaff; font-size: 11px; }
 .about-hero { display: grid; grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr); gap: 40px; align-items: center; padding: 64px 0 48px; }
-.marketing-home .about-hero h1 { margin: 24px 0 20px; font-size: clamp(42px,4.8vw,64px); line-height: 1.1; letter-spacing: -2px; }
+.marketing-home .about-hero h1 { margin: 24px 0 20px; font-size: var(--text-display); line-height: var(--leading-display); letter-spacing: var(--tracking-display); }
 .about-hero h1 span { background: var(--theme-gradient); background-clip: text; -webkit-background-clip: text; color: transparent; }
 .about-hero-copy > p { font-size: 18px; line-height: 1.8; color: var(--theme-muted); }
 .about-hero .theme-actions { margin-top: 28px; }
@@ -16,7 +16,7 @@
 .about-strengths,.about-audiences,.about-values { margin-top: 72px; }
 .about-section-heading { max-width: 720px; text-align: center; margin: 0 auto 32px; }
 .about-section-heading .theme-eyebrow,.about-story-copy .theme-eyebrow { font-size: 10px; color: var(--theme-purple); letter-spacing: 1.5px; }
-.marketing-home .about-section-heading h2 { font-size: clamp(30px,3.3vw,42px); line-height: 1.15; letter-spacing: -1.3px; margin: 16px 0; }
+.marketing-home .about-section-heading h2 { font-size: var(--text-h2); line-height: var(--leading-heading); letter-spacing: var(--tracking-heading); margin: 16px 0; }
 .about-section-heading > p:not(.theme-eyebrow) { color: var(--theme-muted); font-size: 16px; line-height: 1.8; }
 .about-strength-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 24px; }
 .about-strength-card { display: flex; flex-direction: column; align-items: start; padding: 28px; border: 1px solid #edf1fb; border-radius: 24px; background: #fff; }
@@ -43,7 +43,7 @@
 .about-story-art > p strong { color: var(--theme-purple); }
 .about-story-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 24px; }
 .about-story-tags span { padding: 8px 12px; border-radius: 999px; background: #ffffffb0; color: var(--theme-muted); font-size: 11px; font-weight: 600; }
-.marketing-home .about-story-copy h2 { font-size: clamp(30px,3.3vw,42px); line-height: 1.15; letter-spacing: -1.2px; margin: 18px 0 24px; }
+.marketing-home .about-story-copy h2 { font-size: var(--text-h2); line-height: var(--leading-heading); letter-spacing: var(--tracking-heading); margin: 18px 0 24px; }
 .marketing-home .about-story-copy > p:not(.theme-eyebrow) { font-size: 15px; line-height: 1.9; color: var(--theme-muted); margin-bottom: 16px; }
 .about-story-copy .theme-learn { margin-top: 8px; }
 .about-value-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 24px; }
@@ -69,7 +69,6 @@
 @media(max-width:1000px) { .about-hero { gap: 24px; } .about-principles-strip { padding: 20px 12px; } .about-principles-strip > div { padding-inline: 10px; gap: 8px; } .about-strength-card,.about-audience-card { padding: 24px; } .about-audiences { padding: 32px 24px; } .about-story { gap: 40px; } .about-value-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media(max-width:700px) {
  .about-hero { grid-template-columns: minmax(0,1fr); padding: 40px 0 36px; gap: 28px; }
- .marketing-home .about-hero h1 { font-size: 44px; }
  .about-hero-copy > p { font-size: 16px; }
  .about-principles-strip { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px 0; }
  .about-principles-strip > div:nth-child(2) { border: 0; }

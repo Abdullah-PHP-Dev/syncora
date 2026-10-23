@@ -1,7 +1,7 @@
 .solution-page { padding-bottom: 12px; }
 .solution-hero { display: grid; grid-template-columns: minmax(0,.95fr) minmax(0,1.05fr); gap: 40px; align-items: center; padding: 64px 0 48px; }
 .solution-page .theme-label { background: #f1eaff; }
-.marketing-home .solution-hero h1 { font-size: clamp(38px,4.5vw,58px); line-height: 1.12; letter-spacing: -1.8px; margin: 24px 0 20px; }
+.marketing-home .solution-hero h1 { font-size: var(--text-display); line-height: var(--leading-display); letter-spacing: var(--tracking-display); margin: 24px 0 20px; }
 .solution-hero h1 > span { background: var(--theme-gradient); background-clip: text; -webkit-background-clip: text; color: transparent; }
 .solution-hero > div > p { color: var(--theme-muted); font-size: 17px; line-height: 1.8; }
 .solution-hero .theme-actions { margin-top: 28px; }
@@ -9,7 +9,7 @@
 .solution-hero-art img { width: 100%; height: auto; }
 .solution-section-heading { margin-bottom: 28px; max-width: 720px; }
 .solution-section-heading .theme-eyebrow { color: var(--theme-purple); font-size: 11px; }
-.marketing-home .solution-section-heading h2 { font-size: clamp(28px,3vw,38px); line-height: 1.2; letter-spacing: -1px; margin: 14px 0; }
+.marketing-home .solution-section-heading h2 { font-size: var(--text-h2); line-height: var(--leading-heading); letter-spacing: var(--tracking-heading); margin: 14px 0; }
 .solution-section-heading > p:not(.theme-eyebrow) { color: var(--theme-muted); font-size: 15px; line-height: 1.8; }
 .solution-benefit-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 24px; }
 .solution-benefit-grid article { display: flex; flex-direction: column; align-items: start; padding: 28px; border: 1px solid #edf1fb; border-radius: 24px; background: #fff; box-shadow: 0 8px 24px #6690dc09; }
@@ -43,7 +43,6 @@
 @media(max-width:1000px) { .solution-hero { gap: 24px; } .solution-benefit-grid article,.solution-step-grid article { padding: 24px; } .solution-workflow { padding: 32px; } }
 @media(max-width:700px) {
  .solution-hero { grid-template-columns: minmax(0,1fr); gap: 28px; padding: 40px 0 36px; }
- .marketing-home .solution-hero h1 { font-size: 38px; }
  .solution-hero > div > p { font-size: 15px; }
  .solution-benefit-grid,.solution-step-grid,.solution-faq,.solution-explore-grid { grid-template-columns: minmax(0,1fr); }
  .solution-workflow { padding: 28px 20px; margin-top: 40px; }

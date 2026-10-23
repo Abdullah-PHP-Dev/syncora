@@ -1,7 +1,7 @@
 .services-page { padding-bottom: 12px; }
 .services-page .theme-label { background: #f1eaff; font-size: 11px; }
 .services-hero { display: grid; grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr); gap: 40px; align-items: center; padding: 64px 0 48px; }
-.marketing-home .services-hero h1 { font-size: clamp(40px,4.5vw,60px); line-height: 1.12; letter-spacing: -2px; margin: 24px 0 20px; }
+.marketing-home .services-hero h1 { font-size: var(--text-display); line-height: var(--leading-display); letter-spacing: var(--tracking-display); margin: 24px 0 20px; }
 .services-hero h1 > span { background: var(--theme-gradient); background-clip: text; -webkit-background-clip: text; color: transparent; }
 .services-hero > div > p { color: var(--theme-muted); font-size: 17px; line-height: 1.8; }
 .services-hero .theme-actions { margin-top: 28px; }
@@ -14,7 +14,7 @@
 .service-detail { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 64px; align-items: center; padding: 56px 0; border-bottom: 1px solid #edf0fa; scroll-margin-top: 125px; }
 .service-detail:nth-child(even) .service-detail-copy { order: 2; }
 .service-detail:nth-child(even) .service-detail-visual { order: 1; }
-.marketing-home .service-detail h2 { font-size: clamp(28px,3vw,38px); line-height: 1.2; letter-spacing: -1px; margin: 20px 0 18px; }
+.marketing-home .service-detail h2 { font-size: var(--text-h2); line-height: var(--leading-heading); letter-spacing: var(--tracking-heading); margin: 20px 0 18px; }
 .service-detail-copy > p { color: var(--theme-muted); font-size: 16px; line-height: 1.8; }
 .service-detail ul { list-style: none; padding: 0; margin: 22px 0 28px; }
 .service-detail li { position: relative; padding-inline-start: 26px; margin-bottom: 12px; color: var(--theme-muted); font-size: 14px; line-height: 1.7; }
@@ -34,7 +34,7 @@
 .services-process { margin-top: 56px; padding: 40px; border-radius: 28px; background: linear-gradient(125deg,#f8f6ff,#f2f8ff); }
 .services-section-heading { max-width: 720px; margin-bottom: 28px; }
 .services-section-heading .theme-eyebrow { font-size: 10px; color: var(--theme-purple); letter-spacing: 1.5px; }
-.marketing-home .services-section-heading h2 { font-size: clamp(28px,3vw,38px); line-height: 1.2; letter-spacing: -1px; margin: 14px 0; }
+.marketing-home .services-section-heading h2 { font-size: var(--text-h2); line-height: var(--leading-heading); letter-spacing: var(--tracking-heading); margin: 14px 0; }
 .services-section-heading > p:not(.theme-eyebrow) { color: var(--theme-muted); font-size: 15px; line-height: 1.8; }
 .services-process > .services-section-heading { text-align: center; margin-inline: auto; }
 .services-process-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 24px; }
@@ -58,4 +58,4 @@
 .services-faq summary:focus-visible { outline: 3px solid var(--theme-purple); outline-offset: 4px; }
 .services-page .theme-final-cta { margin-top: 56px; }
 @media(max-width:1000px) { .services-hero { gap: 24px; } .service-detail { gap: 36px; } .service-detail-visual { padding: 28px 20px; } .services-process { padding: 32px; } .services-process-grid article { padding: 24px; } }
-@media(max-width:700px) { .services-hero { grid-template-columns: minmax(0,1fr); gap: 28px; padding: 40px 0 36px; } .marketing-home .services-hero h1 { font-size: 40px; } .services-hero > div > p { font-size: 15px; } .services-category-nav { padding: 16px; gap: 8px; justify-content: start; } .service-detail { grid-template-columns: minmax(0,1fr); gap: 28px; padding: 40px 0; scroll-margin-top: 180px; } .service-detail:nth-child(even) .service-detail-copy,.service-detail:nth-child(even) .service-detail-visual { order: initial; } .services-process { margin-top: 40px; padding: 28px 20px; } .services-process-grid,.services-faq { grid-template-columns: minmax(0,1fr); } .services-brief { flex-direction: column; align-items: start; margin-top: 40px; padding: 28px 20px; } .services-faq { margin-top: 44px; gap: 16px; } }
+@media(max-width:700px) { .services-hero { grid-template-columns: minmax(0,1fr); gap: 28px; padding: 40px 0 36px; } .services-hero > div > p { font-size: 15px; } .services-category-nav { padding: 16px; gap: 8px; justify-content: start; } .service-detail { grid-template-columns: minmax(0,1fr); gap: 28px; padding: 40px 0; scroll-margin-top: 180px; } .service-detail:nth-child(even) .service-detail-copy,.service-detail:nth-child(even) .service-detail-visual { order: initial; } .services-process { margin-top: 40px; padding: 28px 20px; } .services-process-grid,.services-faq { grid-template-columns: minmax(0,1fr); } .services-brief { flex-direction: column; align-items: start; margin-top: 40px; padding: 28px 20px; } .services-faq { margin-top: 44px; gap: 16px; } }

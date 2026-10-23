@@ -108,8 +108,7 @@
 }
 
 /* Arabic typography and direction for the shared marketing layout. */
-.marketing-home:dir(rtl) { font-family: 'Noto Sans Arabic', 'Inter', sans-serif; }
-.marketing-home:dir(rtl) :is(h1,h2,h3,.theme-eyebrow,.theme-label,.se-bwp-pill) { letter-spacing: normal; }
+/* Font and letter-spacing come from typography.css for both directions. */
 .marketing-home:dir(rtl) .theme-nav-actions { margin-left: 0; }
 .marketing-home:dir(rtl) .theme-links span { margin-left: 0; margin-right: 4px; }
 .marketing-home:dir(rtl) .theme-feature-pill { border-right: 0; border-inline-end: 1px solid #edf0fa; }

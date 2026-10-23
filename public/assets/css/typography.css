@@ -1,0 +1,83 @@
+/*
+ * Shared typography tokens for the marketing site (bundled through
+ * resources/css/marketing.css) and the dashboard (linked by layouts/app).
+ *
+ * One font stack serves both locales: Inter has no Arabic glyphs, so Arabic
+ * text falls through to IBM Plex Sans Arabic while Latin words, brand names
+ * and digits inside Arabic copy stay in Inter. Layouts load Plex only on
+ * Arabic pages (layouts/partials/fonts). Plex ships 400-700, so weight 800
+ * renders as its 700 in Arabic.
+ *
+ * Arabic overrides key off <html lang="ar">, which every layout sets.
+ */
+:root {
+    --font-latin: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-arabic: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, 'Geeza Pro', sans-serif;
+    --font-sans: 'Inter', 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Tahoma, Arial, sans-serif;
+
+    --weight-regular: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+    --weight-bold: 700;
+    --weight-extrabold: 800;
+
+    --text-body: 16px;
+    --text-lead: clamp(16px, .4vw + 14.5px, 18px);
+    --text-nav: 15px;
+    --text-button: 15px;
+    --text-small: 14px;
+    /* Home hero: ~57px at 1024px, 68px from 1460px, 40px on phones. */
+    --text-hero: clamp(38px, 2.6vw + 30px, 68px);
+    /* Inner-page heroes (pricing, about, auth, products...). */
+    --text-display: clamp(34px, 2vw + 27px, 58px);
+    /* Section headings: 28px on phones, 37px at 1024px, 46px max. */
+    --text-h2: clamp(28px, 1.5vw + 22px, 46px);
+
+    --leading-body: 1.65;
+    --leading-display: 1.08;
+    --leading-heading: 1.18;
+
+    --tracking-display: -.035em;
+    --tracking-heading: -.025em;
+    --tracking-tight: -.011em;
+    --tracking-eyebrow: .16em;
+
+    /* Bootstrap (dashboard core.css) reads these; Public Sans was never loaded. */
+    --bs-font-sans-serif: var(--font-sans);
+    --bs-body-font-family: var(--font-sans);
+}
+
+/* Arabic needs taller lines for its ascenders and diacritics, and must never
+   be letter-spaced: tracking breaks the joins between connected letters. */
+:root:lang(ar) {
+    --leading-body: 1.8;
+    --leading-display: 1.32;
+    --leading-heading: 1.4;
+    --tracking-display: 0;
+    --tracking-heading: 0;
+    --tracking-tight: 0;
+    --tracking-eyebrow: 0;
+}
+
+body {
+    font-family: var(--font-sans);
+    font-kerning: normal;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+:where(h1, h2, h3) { text-wrap: balance; }
+:where(p, li, blockquote) { text-wrap: pretty; }
+:where(button, input, select, textarea) { font-family: inherit; }
+
+/* Page stylesheets still carry px letter-spacing on many headings and labels;
+   this keeps every one of them off Arabic text without editing each rule. */
+:root:lang(ar) body, :root:lang(ar) body * { letter-spacing: 0 !important; }
+
+/* Reusable type classes. */
+.type-hero { font-size: var(--text-hero); line-height: var(--leading-display); letter-spacing: var(--tracking-display); font-weight: var(--weight-extrabold); }
+.type-display { font-size: var(--text-display); line-height: var(--leading-display); letter-spacing: var(--tracking-display); font-weight: var(--weight-extrabold); }
+.type-h2 { font-size: var(--text-h2); line-height: var(--leading-heading); letter-spacing: var(--tracking-heading); font-weight: var(--weight-bold); }
+.type-lead { font-size: var(--text-lead); line-height: var(--leading-body); }
+.type-eyebrow { font-size: 12px; font-weight: var(--weight-extrabold); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; }
+.text-gradient { background: var(--theme-gradient); -webkit-background-clip: text; background-clip: text; color: transparent; }
