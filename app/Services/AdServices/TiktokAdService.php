@@ -39,6 +39,14 @@ use App\Models\Country;
  */
 class TiktokAdService
 {
+    /**
+     * Connecting always talks to production: the advertiser authorization
+     * page is production-only, and sandbox-ads.tiktok.com answers
+     * oauth2/access_token/ with "The interface is not supported by sandbox"
+     * (40008). ads.tiktok.base_url may still point campaign calls at sandbox.
+     */
+    private const PRODUCTION_BASE = 'https://business-api.tiktok.com/open_api/v1.3/';
+
     protected $account, $config, $apiService, $header;
 
     public function __construct(SocialAccount $account, ApiService $apiService)
@@ -52,7 +60,7 @@ class TiktokAdService
         // are built by appending the resource path to it directly (TikTok
         // carries the advertiser id as a body/query field, never in the URL
         // path, unlike Facebook's /act_{accountId}/... convention).
-        $this->config = adminSetting('ads.tiktok.base_url');
+        $this->config = rtrim((string) (adminSetting('ads.tiktok.base_url') ?: self::PRODUCTION_BASE), '/') . '/';
 
         if ($this->account) {
             $this->header = $this->getHeaders();
@@ -103,10 +111,10 @@ class TiktokAdService
         $authCode = request()->input('auth_code') ?: request()->input('code');
 
         if (!$authCode) {
-            return redirect()->route('admin.ads.dashboard')->with('error', 'TikTok did not return an authorization code.');
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', 'TikTok did not return an authorization code.');
         }
 
-        $tokenResponse = $this->apiService->post($this->config . 'oauth2/access_token/', ['Content-Type' => "application/json"], [
+        $tokenResponse = $this->apiService->post(self::PRODUCTION_BASE . 'oauth2/access_token/', ['Content-Type' => "application/json"], [
             'app_id'    => (string) adminSetting('ads.tiktok.client_id'),
             'secret'    => (string) adminSetting('ads.tiktok.client_secret'),
             'grant_type'    => 'authorization_code',
@@ -116,7 +124,9 @@ class TiktokAdService
         $token = $this->parseTikTokResponse($tokenResponse);
 
         if (!$token['success']) {
-            return redirect()->route('admin.ads.dashboard')->with('error', $token['error']);
+            \Illuminate\Support\Facades\Log::warning('TikTok for Business token exchange failed.', ['url' => self::PRODUCTION_BASE . 'oauth2/access_token/', 'error' => $token['error']]);
+
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', 'TikTok did not issue a token: ' . $token['error']);
         }
 
         $accessToken = $token['data']['access_token'] ?? null;
@@ -124,13 +134,13 @@ class TiktokAdService
         $advertiserIds = $token['data']['advertiser_ids'] ?? [];
 
         if (!$accessToken || empty($advertiserIds)) {
-            return redirect()->route('admin.ads.dashboard')->with('error', 'TikTok did not return an access token or any advertiser accounts to connect.');
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', 'TikTok did not return an access token or any advertiser accounts to connect.');
         }
 
         // Best-effort - a failure here still leaves every advertiser id
         // connectable below (with its id as a fallback name), rather than
         // aborting the whole connection over what's just display metadata.
-        $infoResponse = $this->apiService->get($this->config . 'advertiser/info/', [
+        $infoResponse = $this->apiService->get(self::PRODUCTION_BASE . 'advertiser/info/', [
             'Access-Token' => $accessToken,
             'Content-Type' => 'application/json',
         ], [
