@@ -40,9 +40,16 @@ class TiktokCommentsService
 
     private const MAX_PAGES = 10;
 
+    /**
+     * Fixed, not ads.tiktok.base_url: that setting serves the Marketing API
+     * and may point at sandbox-ads.tiktok.com, which has no tt_user/ or
+     * business/ endpoints (plain 404 - seen live on the token exchange).
+     */
+    private const BASE = 'https://business-api.tiktok.com/open_api/v1.3/';
+
     private function base(): string
     {
-        return rtrim(adminSetting('ads.tiktok.base_url') ?: 'https://business-api.tiktok.com/open_api/v1.3/', '/') . '/';
+        return self::BASE;
     }
 
     /** https://socialeaz.com/messaging/auth/tiktok/callback - see scopes(). */
@@ -104,7 +111,7 @@ class TiktokCommentsService
         $token = $response->json('data') ?? [];
 
         if (! $this->ok($response) || empty($token['access_token']) || empty($token['open_id'])) {
-            Log::warning('TikTok comments token exchange failed.', ['body' => $response->json() ?? $response->body()]);
+            Log::warning('TikTok comments token exchange failed.', ['url' => $this->base() . 'tt_user/oauth2/token/', 'status' => $response->status(), 'body' => $response->json() ?? $response->body()]);
 
             return ['success' => false, 'message' => 'TikTok did not issue a token: ' . ($response->json('message') ?: 'HTTP ' . $response->status())];
         }

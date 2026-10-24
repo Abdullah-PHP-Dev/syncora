@@ -168,6 +168,22 @@ class TiktokCommentsTest extends TestCase
         Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), '/tt_user/oauth2/token/') && $r['redirect_uri'] === url('/messaging/auth/tiktok/callback'));
     }
 
+    public function test_token_exchange_ignores_a_sandbox_ads_base_url(): void
+    {
+        Settings::set('ads.tiktok.base_url', 'https://sandbox-ads.tiktok.com/open_api/v1.3/');
+        Http::fake([
+            self::API . '/tt_user/oauth2/token/' => $this->ok(['access_token' => 'act.biz', 'open_id' => 'BIZ1', 'expires_in' => 86400]),
+            self::API . '/business/get/*' => $this->ok(['username' => 'socialeaz']),
+            '*' => Http::response('Not Found', 404),
+        ]);
+        app(TiktokCommentsService::class)->redirect();
+
+        $result = app(TiktokCommentsService::class)->handleCallback(new Request(['code' => 'auth-code', 'state' => session('tiktok_comments_state')]));
+
+        $this->assertTrue($result['success'], $result['message']);
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === 'https://business-api.tiktok.com/open_api/v1.3/tt_user/oauth2/token/');
+    }
+
     public function test_portal_callback_url_reports_a_declined_consent(): void
     {
         Http::fake();
