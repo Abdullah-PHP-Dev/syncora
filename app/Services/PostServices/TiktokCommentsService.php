@@ -55,7 +55,7 @@ class TiktokCommentsService
     /** https://socialeaz.com/messaging/auth/tiktok/callback - see scopes(). */
     public function callbackUrl(): string
     {
-        return oauthCallbackUrl('admin.messaging.auth.tiktok.callback');
+        return oauthCallbackUrl('admin.post-accounts.tiktok.comments.portal-callback');
     }
 
     /**
@@ -179,11 +179,11 @@ class TiktokCommentsService
     // Comments
     // ------------------------------------------------------------------
 
-    /** The comments connection for a post's TikTok account, if there is one. */
+    /** The comments connection for a post's TikTok account, if there is one (and not paused in the Hub). */
     public function accountFor(Post $post): ?SocialAccount
     {
         $candidates = SocialAccount::where('user_id', $post->user_id)->where('platform', 'tiktok')
-            ->where('account_type', self::ACCOUNT_TYPE)->where('is_token_valid', true)->get();
+            ->where('account_type', self::ACCOUNT_TYPE)->where('is_token_valid', true)->enabledFor('engagement')->get();
 
         return $candidates->first(fn ($a) => (int) ($a->metadata['posting_account_id'] ?? 0) === (int) $post->social_account_id)
             ?? ($candidates->count() === 1 && empty($candidates->first()->metadata['posting_account_id']) ? $candidates->first() : null);

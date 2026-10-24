@@ -48,7 +48,7 @@ class ConnectionRecorder
                 'provider_account_id' => $providerAccountId ?? $connection->provider_account_id,
                 'expires_at' => $expiresAt,
                 'granted_scopes' => $scopes,
-                'capabilities' => self::capabilities($platform, $scopes, $assetIds),
+                'capabilities' => self::capabilities($platform, $step, $scopes, $assetIds),
                 'status' => SocialConnection::statusFor(
                     $attributes['access_token'] ?? null,
                     $expiresAt,
@@ -111,9 +111,9 @@ class ConnectionRecorder
     }
 
     /** From granted scopes when known, else the linked assets' legacy flags. */
-    private static function capabilities(string $platform, ?array $scopes, $assetIds): array
+    private static function capabilities(string $platform, string $step, ?array $scopes, $assetIds): array
     {
-        $map = config("connections.capabilities.{$platform}");
+        $map = SocialConnection::capabilityMap($platform, $step);
 
         if ($scopes && $map) {
             return SocialConnection::capabilitiesFrom($scopes, $map);

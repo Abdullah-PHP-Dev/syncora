@@ -22,7 +22,7 @@ class SocialConnection extends Model
     public const REVOKED = 'revoked';
     public const ERROR = 'error';
 
-    public const CAPABILITIES = ['posting', 'messaging', 'ads', 'insights'];
+    public const CAPABILITIES = ['posting', 'messaging', 'ads', 'insights', 'engagement'];
 
     /**
      * last_error of a connection the user disconnected themselves: revoked,
@@ -141,6 +141,13 @@ class SocialConnection extends Model
      * @param  array<string, string[]>  $map
      * @return string[]
      */
+    /** The scope map for a step: its own (connections.step_capabilities), else its platform's. */
+    public static function capabilityMap(string $platform, ?string $step): ?array
+    {
+        // Step keys contain dots ("tiktok.comments"), so no dot-notation lookup.
+        return ($step ? (config('connections.step_capabilities')[$step] ?? null) : null) ?? config("connections.capabilities.{$platform}");
+    }
+
     public static function capabilitiesFrom(?array $grantedScopes, array $map): array
     {
         $granted = $grantedScopes ?? [];

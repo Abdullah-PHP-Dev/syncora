@@ -286,6 +286,10 @@
               <i class="bx" :class="apiKeyOpen ? 'bx-x' : (step.connected ? 'bx-plus' : 'bx-key')"></i>
               {{ apiKeyOpen ? t('cancel') : (step.connected ? t('step.add_key') : card.presentation.connect_label) }}
             </button>
+            <!-- Connected: the driver's follow-up action (connected_action), or none. -->
+            <a v-else-if="step.available && step.connected && 'connected_action' in step" v-show="step.connected_action" :href="step.connect_url" class="ch-btn ch-btn-ghost">
+              <i class="bx bx-plus"></i> {{ step.connected_action }}
+            </a>
             <a v-else-if="step.available" :href="step.connect_url" class="ch-btn" :class="step.primary ? 'ch-btn-primary' : 'ch-btn-ghost'">
               <i class="bx" :class="step.connected ? 'bx-refresh' : 'bx-link'"></i>
               {{ step.connected ? (step.primary ? t('step.change_accounts') : t('reconnect')) : (step.primary ? card.presentation.connect_label : t('connect')) }}
@@ -380,10 +384,10 @@
 
         <!-- Capabilities of this consent -->
         <div class="ch-caps">
-          <span v-for="cap in cardCapabilities(card)" :key="cap.key" class="ch-cap" :class="{ 'is-on': conn.capabilities.includes(cap.key) }">
+          <span v-for="cap in connCapabilities(card, conn)" :key="cap.key" class="ch-cap" :class="{ 'is-on': conn.capabilities.includes(cap.key) }">
             <i class="bx" :class="conn.capabilities.includes(cap.key) ? cap.icon : 'bx-lock-alt'"></i>
             {{ cap.label }}
-            <a v-if="!conn.capabilities.includes(cap.key) && conn.upgradable" :href="conn.reconnect_url" class="ch-cap-up">{{ t('upgrade') }}</a>
+            <a v-if="!conn.capabilities.includes(cap.key) && conn.upgradable && conn.status !== 'revoked'" :href="conn.reconnect_url" class="ch-cap-up">{{ conn.offered_capabilities ? t('grant_permissions') : t('upgrade') }}</a>
           </span>
         </div>
 
@@ -535,10 +539,14 @@ export default {
     // Every linked account once per section it belongs to.
     accountRows() {
       const rows = [];
+      const listed = new Set();
+      this.cards.forEach(card => card.connections.forEach(conn => Object.values(conn.assets || {}).forEach(list => list.forEach(a => listed.add(a.id)))));
       this.cards.forEach(card => {
         card.connections.forEach(conn => {
           Object.keys(conn.assets || {}).forEach(kind => {
             (conn.assets[kind] || []).forEach(asset => {
+              // A second, healthy sign-in for an account that already has a card (managed in the drawer).
+              if (asset.linked_asset_id && listed.has(asset.linked_asset_id) && !conn.needs_attention && asset.token_ok) return;
               const view = ACCOUNT_VIEWS[kind];
               if (view) rows.push({ section: view.section, kind, card, conn, asset, view: this.view('views', kind, view) });
               if (INBOX_VIEWS[kind] && asset.available_capabilities.includes('messaging')) {
@@ -780,6 +788,12 @@ export default {
     cardCapabilities(card) {
       const offered = (card.presentation && card.presentation.benefits) || CAPABILITIES.map(c => c.key);
       return this.capabilities.filter(c => offered.includes(c.key));
+    },
+
+    // Only what this consent can grant, when its step says (TikTok's three sign-ins).
+    connCapabilities(card, conn) {
+      const offered = conn.offered_capabilities;
+      return offered ? this.capabilities.filter(c => offered.includes(c.key)) : this.cardCapabilities(card);
     },
 
     capability(key) {

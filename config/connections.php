@@ -105,4 +105,17 @@ return [
 
     ],
 
+    /*
+    | A step whose consent belongs to a different API product than the
+    | platform's main one, keyed by step: its scopes are mapped here instead
+    | of by `capabilities` above. TikTok's account-holder consent (Accounts
+    | API) lists video.publish and user.info.stats too, but this app posts
+    | and reads stats through Login Kit - only its comments are used.
+    */
+    'step_capabilities' => [
+        App\Services\Connections\Drivers\TikTokDriver::COMMENTS => [
+            'engagement' => ['comment.list', 'comment.list.manage'],
+        ],
+    ],
+
 ];

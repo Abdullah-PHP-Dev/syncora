@@ -24,6 +24,7 @@ return [
     'connect' => 'Connect',
     'reconnect' => 'Reconnect',
     'upgrade' => 'Upgrade',
+    'grant_permissions' => 'Grant permissions',
     'not_available' => 'Not available',
     'verify_connect' => 'Verify and connect',
 
@@ -445,10 +446,10 @@ return [
             ],
         ],
         'tiktok' => [
-            'subtitle' => 'Video posting · TikTok Ads',
+            'subtitle' => 'Video posting · Analytics · Comments · TikTok Ads',
             'connect_label' => 'Connect with TikTok',
-            'empty_title' => 'Connect TikTok for posting and ads',
-            'empty_text' => 'TikTok uses two separate sign-ins: one for publishing videos to your account and one for your TikTok for Business advertiser accounts.',
+            'empty_title' => 'Connect TikTok for posting, comments and ads',
+            'empty_text' => 'TikTok gives each product its own sign-in, so connect only what you use: your TikTok account for publishing and analytics, then comments and TikTok Ads if you need them.',
             'groups' => [
                 'tiktok_account' => 'TikTok accounts',
                 'tiktok_ads' => 'Advertiser accounts',
@@ -457,16 +458,17 @@ return [
             'steps' => [
                 'login_kit' => [
                     'label' => 'TikTok account',
-                    'description' => 'Publish videos to your TikTok account.',
+                    'description' => 'Publish videos and see their views, likes and shares.',
                 ],
                 'business' => [
                     'label' => 'TikTok for Business',
                     'description' => 'Advertiser accounts for TikTok Ads.',
                     'note' => 'TikTok uses a separate app and sign-in for ads.',
+                    'connected_action' => 'Add advertisers',
                 ],
                 'comments' => [
                     'label' => 'TikTok comments',
-                    'description' => 'Read and reply to comments on your TikTok videos.',
+                    'description' => 'Read and reply to comments on your videos. Connect your TikTok account first so comments match your posts.',
                     'note' => 'Uses your TikTok for Business app - its comment permissions must be approved by TikTok.',
                 ],
             ],

@@ -37,7 +37,7 @@ abstract class BaseDriver implements ProviderDriver
     protected function markHealthy(SocialConnection $connection, ?array $grantedScopes): SocialConnection
     {
         $scopes = $grantedScopes ?? $connection->granted_scopes;
-        $map = config("connections.capabilities.{$this->platform()}");
+        $map = SocialConnection::capabilityMap($this->platform(), $connection->step);
 
         $connection->fill([
             'granted_scopes' => $scopes,

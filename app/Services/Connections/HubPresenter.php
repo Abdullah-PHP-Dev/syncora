@@ -74,21 +74,30 @@ class HubPresenter
         // An earlier consent reconnects through the step that replaces it.
         $reconnectStep = $legacy['upgrade_step'] ?? $connection->step;
         $reconnectUrl = route('admin.connections.connect', ['platform' => $connection->platform, 'step' => $reconnectStep]);
+        // Short-lived access tokens renewed by a refresh token: show when
+        // the refresh token runs out, as SocialConnection::statusFor() does.
+        $expiresAt = ($driver->presentation()['expiry_follows_refresh'] ?? false) && $connection->refresh_token
+            ? $connection->refresh_expires_at
+            : $connection->expires_at;
 
         return [
             'id' => $connection->id,
             'step' => $connection->step,
             'step_label' => $steps[$connection->step]['label'] ?? ($legacy['label'] ?? $connection->step),
-            // Missing capabilities can be requested again on the primary consent.
-            'upgradable' => (bool) ($steps[$connection->step]['primary'] ?? false),
+            // What this consent can grant, when the driver says (null = every
+            // capability the platform offers).
+            'offered_capabilities' => $steps[$connection->step]['capabilities'] ?? null,
+            // Missing capabilities can be requested again on the primary
+            // consent, or on any step that declares what it can grant.
+            'upgradable' => (bool) ($steps[$connection->step]['primary'] ?? false) || isset($steps[$connection->step]['capabilities']),
             'upgrade' => $legacy ? ['note' => $legacy['upgrade_note'], 'url' => $reconnectUrl] : null,
             'status' => $connection->status,
             'needs_attention' => $connection->needsAttention(),
             'provider_account_id' => $connection->provider_account_id,
             'capabilities' => $connection->capabilities ?? [],
             'granted_scopes' => $connection->granted_scopes ?? [],
-            'expires_at' => $connection->expires_at?->toIso8601String(),
-            'expires_in_days' => $connection->expires_at ? (int) floor(now()->diffInDays($connection->expires_at, false)) : null,
+            'expires_at' => $expiresAt?->toIso8601String(),
+            'expires_in_days' => $expiresAt ? (int) floor(now()->diffInDays($expiresAt, false)) : null,
             'last_checked_at' => $connection->last_checked_at?->toIso8601String(),
             'last_error' => $connection->last_error,
             'reconnect_url' => $reconnectUrl,
@@ -122,6 +131,9 @@ class HubPresenter
                     default => null,
                 } : null,
                 'duplicate_of' => isset($asset->metadata['settings'][InstagramDuplicates::MARK]) ? __('connections.duplicate_of_page') : null,
+                // Another sign-in for an account already listed (TikTok comments
+                // -> its posting account): the overview shows that one card only.
+                'linked_asset_id' => isset($asset->metadata['posting_account_id']) ? (int) $asset->metadata['posting_account_id'] : null,
                 'available_capabilities' => $available,
                 // null = everything the connection allows is on
                 'enabled_capabilities' => $asset->enabled_capabilities === null

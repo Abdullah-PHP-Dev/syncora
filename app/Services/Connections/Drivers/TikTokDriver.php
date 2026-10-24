@@ -11,9 +11,16 @@ use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * TikTok (docs/connection-hub-design.md §6): two separate TikTok apps and
- * authorizations - Login Kit (posts.tiktok) for posting and TikTok for
- * Business (ads.tiktok) for ads. The old Inbox "TikTok Messenger" connect
+ * TikTok (docs/connection-hub-design.md §6): three authorizations that
+ * cannot be combined - each has its own authorize and token endpoint and
+ * returns a different kind of token:
+ *   - Login Kit (posts.tiktok app, open.tiktokapis.com): posting, insights.
+ *   - Advertiser authorization (ads.tiktok app, portal/auth): ads.
+ *   - Account-holder authorization (ads.tiktok app, tt_user/oauth2/token):
+ *     comments (TiktokCommentsService).
+ * Each step declares what it can grant ('capabilities'), so the Hub never
+ * offers to unlock one product's feature through another's sign-in.
+ * The old Inbox "TikTok Messenger" connect
  * (audit flow #14) is gone: it never received a messaging scope. DMs
  * return as a Business step once TikTok approves Business Messaging
  * (flag tiktok.business_messaging).
@@ -50,7 +57,9 @@ class TikTokDriver extends MirroredTokenDriver
             'connect_label' => __('connections.platforms.tiktok.connect_label'),
             'empty_title' => __('connections.platforms.tiktok.empty_title'),
             'empty_text' => __('connections.platforms.tiktok.empty_text'),
-            'benefits' => ['posting', 'engagement', 'ads'],
+            'benefits' => ['posting', 'insights', 'engagement', 'ads'],
+            // Access tokens last 24h and are refreshed on use; the refresh token's expiry is what matters.
+            'expiry_follows_refresh' => true,
             'asset_groups' => [
                 'tiktok_account' => ['label' => __('connections.platforms.tiktok.groups.tiktok_account'), 'icon' => 'bxl-tiktok', 'brand' => 'tiktok', 'capabilities' => ['posting', 'insights']],
                 'tiktok_ads' => ['label' => __('connections.platforms.tiktok.groups.tiktok_ads'), 'icon' => 'bx-bullseye', 'brand' => 'tiktok', 'capabilities' => ['ads']],
@@ -87,6 +96,7 @@ class TikTokDriver extends MirroredTokenDriver
                 'description' => __('connections.platforms.tiktok.steps.login_kit.description'),
                 'primary' => true,
                 'available' => (bool) adminSetting('posts.tiktok.client_id'),
+                'capabilities' => ['posting', 'insights'],
             ],
             [
                 'key' => self::BUSINESS,
@@ -95,6 +105,9 @@ class TikTokDriver extends MirroredTokenDriver
                 'primary' => false,
                 'available' => (bool) adminSetting('ads.tiktok.client_id'),
                 'note' => __('connections.platforms.tiktok.steps.business.note'),
+                'capabilities' => ['ads'],
+                // Signing in again adds advertisers granted since.
+                'connected_action' => __('connections.platforms.tiktok.steps.business.connected_action'),
             ],
             [
                 'key' => self::COMMENTS,
@@ -103,6 +116,10 @@ class TikTokDriver extends MirroredTokenDriver
                 'primary' => false,
                 'available' => (bool) adminSetting('ads.tiktok.client_id'),
                 'note' => __('connections.platforms.tiktok.steps.comments.note'),
+                'capabilities' => ['engagement'],
+                // Nothing to add once connected: missing permissions and
+                // reconnects are offered on the connection itself.
+                'connected_action' => null,
             ],
         ];
     }

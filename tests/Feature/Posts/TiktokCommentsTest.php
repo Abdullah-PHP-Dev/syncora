@@ -246,6 +246,15 @@ class TiktokCommentsTest extends TestCase
         $this->assertSame([9, 'Edited'], [(int) PostComment::sole()->likes, PostComment::sole()->content]);
     }
 
+    public function test_comments_paused_in_the_hub_are_not_synced(): void
+    {
+        $this->businessAccount(['enabled_capabilities' => []]);
+        Http::fake();
+
+        $this->assertNull(app(TiktokCommentsService::class)->accountFor($this->tiktokPost()));
+        Http::assertNothingSent();
+    }
+
     public function test_without_a_comments_connection_nothing_is_called(): void
     {
         Http::fake();
