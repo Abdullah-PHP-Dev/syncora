@@ -51,6 +51,12 @@ Route::get('/user', function (Request $request) {
         // LinkedinCommentWebhookController's docblock.
         Route::post('/linkedin', [\App\Http\Controllers\Api\Comments\LinkedinCommentWebhookController::class, 'receive'])->name('linkedin.receive');
 
+        // Threads replies (topic "moderate", field "replies") - the callback
+        // URL registered under the Threads use case > Webhooks in the App
+        // Dashboard. See ThreadsReplyWebhookService.
+        Route::get('/threads', [\App\Http\Controllers\Api\Comments\ThreadsCommentWebhookController::class, 'verify'])->name('threads.verify');
+        Route::post('/threads', [\App\Http\Controllers\Api\Comments\ThreadsCommentWebhookController::class, 'receive'])->name('threads.receive');
+
         // TikTok/X/WhatsApp/Telegram comment webhooks are not implemented
         // yet - TiktokController/XController are empty stub files (no class
         // defined) and a WhatsappController/TelegramController don't exist

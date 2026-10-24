@@ -67,6 +67,8 @@ class ThreadsConnectTest extends TestCase
         $this->assertStringStartsWith('https://threads.net/oauth/authorize?', $authorize);
         $this->assertSame(['1312337257646594', url('/post-accounts/threads/callback'), 'code', session('threads_oauth_state')], [$q['client_id'], $q['redirect_uri'], $q['response_type'], $q['state']]);
         $this->assertStringNotContainsString('/en/', $q['redirect_uri']);
+        // threads_read_replies: without it Threads never sends reply webhooks.
+        $this->assertSame(['threads_basic', 'threads_content_publish', 'threads_read_replies'], explode(',', $q['scope']));
     }
 
     public function test_callback_connects_the_profile_and_returns_to_the_hub(): void
