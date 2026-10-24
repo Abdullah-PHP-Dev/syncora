@@ -92,6 +92,9 @@ class ThreadsCommentWebhookTest extends TestCase
     {
         $this->get('/api/comments/threads?hub.mode=subscribe&hub.verify_token=socialeaz-98897&hub.challenge=1158201444')->assertOk()->assertSeeText('1158201444');
         $this->get('/api/comments/threads?hub.mode=subscribe&hub.verify_token=wrong&hub.challenge=1158201444')->assertForbidden();
+        // Opened in a browser: says it's reachable, never echoes anything.
+        $this->get('/api/comments/threads')->assertOk()->assertSeeText('Threads webhook endpoint reachable');
+        $this->get('/api/comments/threads?hub.challenge=x')->assertOk()->assertDontSeeText('x', false);
 
         Settings::set('threads.facebook.webhook_verify_token', 'threads-verify');
         $this->get('/api/comments/threads?hub.mode=subscribe&hub.verify_token=threads-verify&hub.challenge=42')->assertOk()->assertSeeText('42');

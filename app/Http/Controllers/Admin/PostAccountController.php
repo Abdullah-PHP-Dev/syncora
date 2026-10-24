@@ -227,8 +227,9 @@ class PostAccountController extends Controller
         $url = (adminSetting('posts.threads.auth_url') ?: 'https://threads.net/oauth/authorize') . '?' . http_build_query([
             'client_id'     => ThreadsDriver::clientId(),
             'redirect_uri'  => $this->threadsCallbackUrl(),
-            // threads_read_replies: reply webhooks (ThreadsReplyWebhookService).
-            'scope'         => 'threads_basic,threads_content_publish,threads_read_replies',
+            // threads_read_replies: reading replies (webhook + import);
+            // threads_manage_replies: replying from the post page.
+            'scope'         => 'threads_basic,threads_content_publish,threads_read_replies,threads_manage_replies',
             'response_type' => 'code',
             'state'         => $state,
         ]);

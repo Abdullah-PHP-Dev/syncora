@@ -74,28 +74,35 @@ class ThreadsReplyWebhookService
 
     private function storeReply(string $targetId, array $reply): bool
     {
-        $replyId = (string) ($reply['id'] ?? '');
-        $rootId = (string) ($reply['root_post']['id'] ?? '');
-
-        if ($replyId === '' || trim((string) ($reply['text'] ?? '')) === '') {
-            return false;
-        }
-
         $account = SocialAccount::where('platform', 'threads')
             ->whereIn('platform_account_id', array_filter([$targetId, (string) ($reply['root_post']['owner_id'] ?? '')]))
             ->first();
 
-        if (! $account) {
-            return false;
+        return $account && $this->saveReply($account, $reply);
+    }
+
+    /**
+     * Upsert one reply - a webhook value or a {media-id}/conversation item
+     * (same field names). Parents must be saved first to be linked, so
+     * imports read the conversation oldest first.
+     */
+    public function saveReply(SocialAccount $account, array $reply, ?Post $post = null): ?PostComment
+    {
+        $replyId = (string) ($reply['id'] ?? '');
+        $rootId = (string) ($reply['root_post']['id'] ?? $post?->post_id ?? '');
+
+        if ($replyId === '' || trim((string) ($reply['text'] ?? '')) === '') {
+            return null;
         }
 
-        $post = $rootId !== '' ? Post::where('social_account_id', $account->id)->where('post_id', $rootId)->first() : null;
+        $post ??= $rootId !== '' ? Post::where('social_account_id', $account->id)->where('post_id', $rootId)->first() : null;
         // Answering another reply rather than the post itself.
         $repliedTo = (string) ($reply['replied_to']['id'] ?? '');
         $parent = $repliedTo !== '' && $repliedTo !== $rootId
             ? PostComment::where('platform', 'threads')->where('comment_id', $repliedTo)->first()
             : null;
-        $isOwn = $account->username && strcasecmp((string) ($reply['username'] ?? ''), $account->username) === 0;
+        $isOwn = ($reply['is_reply_owned_by_me'] ?? false) === true
+            || ($account->username && strcasecmp((string) ($reply['username'] ?? ''), $account->username) === 0);
 
         $comment = PostComment::updateOrCreate(
             ['platform' => 'threads', 'comment_id' => $replyId],
@@ -119,6 +126,6 @@ class ThreadsReplyWebhookService
             $post->forceFill(['comments' => (int) $post->comments + 1])->save();
         }
 
-        return true;
+        return $comment;
     }
 }

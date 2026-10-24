@@ -17,6 +17,11 @@ class ThreadsCommentWebhookController extends Controller
 
     public function verify(Request $request)
     {
+        // Someone opening the URL in a browser, not Meta's hub.* handshake.
+        if (! $request->has('hub_mode')) {
+            return response('Threads webhook endpoint reachable. Meta verifies it with hub.mode/hub.verify_token/hub.challenge; replies arrive via signed POST only.', 200);
+        }
+
         $challenge = $this->replies->verify($request);
 
         return $challenge !== null ? response($challenge, 200) : response('Forbidden', 403);

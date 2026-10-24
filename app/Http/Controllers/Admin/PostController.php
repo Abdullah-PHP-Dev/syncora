@@ -602,6 +602,7 @@ class PostController extends Controller
 
         $this->refreshInstagramCommentsIfNeeded($post);
         $this->refreshFacebookEngagementIfNeeded($post);
+        $this->refreshThreadsRepliesIfNeeded($post);
 
         $groupKey = $post->group_id ?? $post->id;
 
@@ -614,6 +615,7 @@ class PostController extends Controller
             ->each(function ($member) {
                 $this->refreshInstagramCommentsIfNeeded($member);
                 $this->refreshFacebookEngagementIfNeeded($member);
+                $this->refreshThreadsRepliesIfNeeded($member);
             })
             ->map(fn ($member) => $this->formatPostForPreview($member))
             ->values();
@@ -698,6 +700,26 @@ class PostController extends Controller
         ) {
             $service->syncEngagement($post);
             $post->load('media');
+        }
+    }
+
+    /**
+     * Threads replies made before the webhook was live (or that it missed):
+     * re-read the conversation at most every 5 minutes per post.
+     */
+    private function refreshThreadsRepliesIfNeeded(Post $post): void
+    {
+        $syncedAt = $post->platform_metadata['replies_synced_at'] ?? null;
+
+        if (
+            strtolower($post->platform) === 'threads'
+            && ctype_digit((string) $post->post_id)
+            && in_array(strtolower((string) $post->status), ['completed', 'published'], true)
+            && (! $syncedAt || \Carbon\Carbon::parse($syncedAt)->lt(now()->subMinutes(5)))
+        ) {
+            $this->threadsService->importReplies($post);
+            $post->forceFill(['platform_metadata' => array_merge($post->platform_metadata ?? [], ['replies_synced_at' => now()->toIso8601String()])])->save();
+            $post->load(['postComments' => fn ($query) => $query->topLevel()->with('replies')]);
         }
     }
 
@@ -845,6 +867,7 @@ class PostController extends Controller
             'x' => $this->xService,
             'linkedin' => $this->linkedinService,
             'tiktok' => $this->tiktokService,
+            'threads' => $this->threadsService,
             default => null,
         };
     }

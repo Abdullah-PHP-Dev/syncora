@@ -5,7 +5,9 @@ namespace App\Services\PostServices;
 use App\Services\PostServices\ApiPostService;
 use Carbon\Carbon;
 use App\Models\Post;
+use App\Models\PostComment;
 use App\Models\PostMedia;
+use App\Models\SocialAccount;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 
@@ -44,21 +46,29 @@ class ThreadsPostService
      */
     protected function ensureValidToken($post)
     {
-        $account = $post->socialAccount;
+        $failed = $this->refreshAccountToken($post->socialAccount);
 
+        return $failed === null ? true : $this->errorResponse($post, $failed);
+    }
+
+    /**
+     * Renews the account's long-lived token when it expires within 5
+     * minutes. Returns the failed response, or null when the token is good -
+     * without touching any post (a failed reply must not fail its post).
+     */
+    private function refreshAccountToken(SocialAccount $account): ?\Illuminate\Http\Client\Response
+    {
         if (!empty($account->expires_at) && Carbon::parse($account->expires_at)->gt(now()->addMinutes(5))) {
-            return true;
+            return null;
         }
 
-        $endpoint = 'https://graph.threads.net/refresh_access_token';
-
-        $response = $this->api->request('get', $endpoint, [], [
+        $response = $this->api->request('get', 'https://graph.threads.net/refresh_access_token', [], [
             'grant_type'   => 'th_refresh_token',
             'access_token' => $account->access_token,
         ]);
 
         if (!$response->successful()) {
-            return $this->errorResponse($post, $response);
+            return $response;
         }
 
         $tokenData = $response->json();
@@ -70,89 +80,7 @@ class ThreadsPostService
 
         $account->refresh();
 
-        return true;
-    }
-
-    public function store($data, $pages)
-    {
-        $results = [];
-        $errors = [];
-        $successCount = 0;
-
-        if (empty($data['content']) && empty($data['media'])) {
-            return ['success' => false, 'message' => 'Post content or media is required'];
-        }
-
-        $uploadResult = ['media' => []];
-
-        if (!empty($data['media'])) {
-            $uploadResult = $this->uploadMediaToS3($data['media'] ?? []);
-
-            if (!$uploadResult['success']) {
-                return ['success' => false, 'message' => $uploadResult['message']];
-            }
-        }
-
-        foreach ($pages as $page) {
-            try {
-                $post = $this->post::create([
-                    'title'            => $data['title'] ?? Auth::user()->name,
-                    'post_id'          => null,
-                    'platform'         => 'threads',
-                    'visibility'       => 'public',
-                    'user_id'          => Auth::id(),
-                    'social_account_id'  => $page->id,
-                    'post_category_id' => $data['category_id'] ?? 1,
-                    'group_id'         => $data['group_id'] ?? null,
-                    'content'          => $data['content'] ?? null,
-                    'schedule_mode'    => $data['schedule_mode'] ?? 0,
-                    'schedule_at'      => $data['schedule_at'] ?? null,
-                    'expiry_mode'      => $data['expiry_mode'] ?? 0,
-                    'expiry_at'        => $data['expiry_at'] ?? null,
-                    'status'           => 'pending',
-                ]);
-
-                foreach ($uploadResult['media'] as $media) {
-                    $this->media::create([
-                        'platform'         => 'threads',
-                        'post_id'          => $post->id,
-                        'visibility'       => 'public',
-                        'user_id'          => Auth::id(),
-                        'social_account_id'  => $page->id,
-                        'post_category_id' => $data['category_id'] ?? 1,
-                        'media_url'        => $media['url'],
-                        'media_type'       => $media['media_type'],
-                        'file_name'        => $media['file_name'],
-                        'file_size'        => $media['file_size'],
-                        'width'            => $media['width'],
-                        'height'           => $media['height'],
-                        'duration_seconds' => $media['duration_seconds'] ?? null,
-                        'alt_text'         => $media['alt_text'],
-                    ]);
-                }
-
-                $successCount++;
-                $results[] = $post;
-            } catch (\Exception $e) {
-                $errors[] = [
-                    'page_id'   => $page->platform_account_id,
-                    'page_name' => $page->name,
-                    'message'   => $e->getMessage(),
-                ];
-            }
-        }
-
-        return [
-            'success'       => $successCount > 0,
-            'total_pages'   => count($pages),
-            'success_count' => $successCount,
-            'error_count'   => count($errors),
-            'data'          => $results,
-            'errors'        => $errors,
-            'message'       => $successCount > 0
-                ? "Post created for {$successCount} page(s) and will be processed in background."
-                : 'Failed to create posts.',
-        ];
+        return null;
     }
 
     public function publishPost($post)
@@ -366,6 +294,140 @@ class ThreadsPostService
         } catch (\Exception $e) {
             return ['success' => false, 'message' => $e->getMessage()];
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Replies (developers.facebook.com/docs/threads/retrieve-and-manage-replies)
+    // ------------------------------------------------------------------
+
+    /** Fields of {media-id}/conversation that saveReply() stores. */
+    private const REPLY_FIELDS = 'id,text,username,timestamp,replied_to,root_post,is_reply_owned_by_me,profile_picture_url,hide_status';
+
+    /**
+     * Pull the post's replies - top level and nested - into post_comments
+     * (GET {media-id}/conversation, scope threads_read_replies). Oldest
+     * first so a reply's parent is saved before it. Returns how many were
+     * stored, or null when Threads refused.
+     */
+    public function importReplies(Post $post, int $maxPages = 5): ?int
+    {
+        $account = $post->socialAccount;
+        if (!$account || !ctype_digit((string) $post->post_id) || $this->refreshAccountToken($account)) {
+            return null; // not on Threads yet, or the connection expired
+        }
+
+        $webhook = app(ThreadsReplyWebhookService::class);
+        $params = ['fields' => self::REPLY_FIELDS, 'reverse' => 'false', 'access_token' => $account->access_token];
+        $stored = 0;
+
+        for ($page = 0; $page < $maxPages; $page++) {
+            $response = $this->api->request('get', $this->baseUrl . $post->post_id . '/conversation', [], $params);
+
+            if (!$response->successful()) {
+                \Illuminate\Support\Facades\Log::warning('Threads replies import failed.', ['post_id' => $post->id, 'error' => $response->json('error.message') ?? $response->status()]);
+
+                return $page === 0 ? null : $stored;
+            }
+
+            foreach ((array) $response->json('data') as $reply) {
+                // Hidden by the owner on Threads: keep them out of the inbox.
+                if (($reply['hide_status'] ?? null) === 'HIDDEN') {
+                    continue;
+                }
+                $stored += $webhook->saveReply($account, $reply, $post) ? 1 : 0;
+            }
+
+            $after = $response->json('paging.cursors.after');
+            if (!$after || !$response->json('paging.next')) {
+                break;
+            }
+            $params['after'] = $after;
+        }
+
+        return $stored;
+    }
+
+    /**
+     * Reply as the business: to the post itself ($type 'comment', $target a
+     * Post) or to a reply ($type 'reply', $target a PostComment). A TEXT
+     * container with reply_to_id, then threads_publish (scope
+     * threads_manage_replies). Same contract as the other platforms'
+     * publishComment(): ['success', 'data' => PostComment] or a message.
+     */
+    public function publishComment($data, $target, $type = 'reply')
+    {
+        $post = $target instanceof Post ? $target : $target->post;
+        $account = $post?->socialAccount;
+        $replyTo = (string) ($target instanceof Post ? $target->post_id : $target->comment_id);
+        $text = trim((string) ($data['body'] ?? ''));
+
+        // Only a published post has a numeric Threads media id.
+        if (!$account || $text === '' || $replyTo === '' || !ctype_digit((string) $post->post_id)) {
+            return ['success' => false, 'message' => 'This Threads post is not published yet, so it cannot be replied to.'];
+        }
+        if ($failed = $this->refreshAccountToken($account)) {
+            return ['success' => false, 'message' => 'Threads connection expired - reconnect Threads in Connections. (' . ($failed->json('error.message') ?? 'HTTP ' . $failed->status()) . ')'];
+        }
+
+        $container = $this->api->request('post', $this->baseUrl . 'me/threads', [], [
+            'media_type'   => 'TEXT',
+            'text'         => $text,
+            'reply_to_id'  => $replyTo,
+            'access_token' => $account->access_token,
+        ], 'form');
+
+        if (!$container->successful() || !$container->json('id')) {
+            return ['success' => false, 'message' => $this->replyError($container)];
+        }
+
+        $this->waitForContainer((string) $container->json('id'), $account);
+
+        $published = $this->api->request('post', $this->baseUrl . $account->platform_account_id . '/threads_publish', [], [
+            'creation_id'  => $container->json('id'),
+            'access_token' => $account->access_token,
+        ], 'form');
+
+        if (!$published->successful() || !$published->json('id')) {
+            return ['success' => false, 'message' => $this->replyError($published)];
+        }
+
+        $comment = app(ThreadsReplyWebhookService::class)->saveReply($account, [
+            'id' => (string) $published->json('id'),
+            'text' => $text,
+            'username' => $account->username,
+            'is_reply_owned_by_me' => true,
+            'profile_picture_url' => $account->avatar_url,
+            'replied_to' => ['id' => $replyTo],
+            'root_post' => ['id' => $post->post_id],
+        ], $post);
+
+        return ['success' => true, 'message' => 'Reply published on Threads.', 'data' => $comment];
+    }
+
+    /**
+     * A text container is usually ready at once; Meta's flat 30-second wait
+     * (publishPost) is for media. Poll its status briefly instead, so a
+     * reply doesn't hold the request for half a minute.
+     */
+    private function waitForContainer(string $containerId, SocialAccount $account, int $attempts = 5): void
+    {
+        for ($i = 0; $i < $attempts; $i++) {
+            $status = $this->api->request('get', $this->baseUrl . $containerId, [], ['fields' => 'status', 'access_token' => $account->access_token])->json('status');
+            if ($status !== 'IN_PROGRESS') {
+                return; // FINISHED, or ERROR/EXPIRED - publish reports those
+            }
+            usleep(1_500_000);
+        }
+    }
+
+    private function replyError($response): string
+    {
+        $message = $response->json('error.message') ?? ('HTTP ' . $response->status());
+
+        // 10 / 200: permission errors - most often threads_manage_replies not granted yet.
+        return in_array((int) $response->json('error.code'), [10, 200], true)
+            ? "Threads refused the reply: {$message} Reconnect Threads in Connections to grant reply permission."
+            : "Threads refused the reply: {$message}";
     }
 
     private function errorResponse($model, $response)
