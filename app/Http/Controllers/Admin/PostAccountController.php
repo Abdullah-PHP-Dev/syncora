@@ -214,7 +214,7 @@ class PostAccountController extends Controller
      * WhatsApp's popup-based Embedded Signup above), using Threads' own
      * threads.net/graph.threads.net endpoints rather than the regular
      * Facebook Graph API this app's other Meta connections use. Requires
-     * a separate Threads App ID/Secret (posts.threads.client_id/secret) -
+     * a separate Threads App ID/Secret (ThreadsDriver::clientId/clientSecret) -
      * Threads apps get their own App ID shown under Meta App Dashboard >
      * Threads > API Setup, distinct from the main Facebook App ID used
      * for Messenger/Instagram/WhatsApp.
@@ -224,8 +224,8 @@ class PostAccountController extends Controller
         $state = Str::uuid()->toString();
         session(['threads_oauth_state' => $state]);
 
-        $url = adminSetting('posts.threads.auth_url') . '?' . http_build_query([
-            'client_id'     => adminSetting('posts.threads.client_id'),
+        $url = (adminSetting('posts.threads.auth_url') ?: 'https://threads.net/oauth/authorize') . '?' . http_build_query([
+            'client_id'     => ThreadsDriver::clientId(),
             'redirect_uri'  => $this->threadsCallbackUrl(),
             'scope'         => 'threads_basic,threads_content_publish',
             'response_type' => 'code',
@@ -241,16 +241,20 @@ class PostAccountController extends Controller
             return redirect()->route($this->returnRoute())->with('error', 'Threads connection failed or was cancelled.');
         }
 
-        $tokenResponse = $api->request('post', adminSetting('posts.threads.token_url'), [], [
-            'client_id'     => adminSetting('posts.threads.client_id'),
-            'client_secret' => adminSetting('posts.threads.client_secret'),
+        $tokenResponse = $api->request('post', adminSetting('posts.threads.token_url') ?: 'https://graph.threads.net/oauth/access_token', [], [
+            'client_id'     => ThreadsDriver::clientId(),
+            'client_secret' => ThreadsDriver::clientSecret(),
             'code'          => $request->query('code'),
             'grant_type'    => 'authorization_code',
             'redirect_uri'  => $this->threadsCallbackUrl(),
         ], 'form');
 
-        if (!$tokenResponse->successful()) {
-            return redirect()->route($this->returnRoute())->with('error', $tokenResponse->json()['error_message'] ?? 'Failed to connect Threads.');
+        if (!$tokenResponse->successful() || empty($tokenResponse->json('access_token'))) {
+            // Graph-style errors ({"error": {"message"}}); error_message on older responses.
+            $reason = $tokenResponse->json('error.message') ?? $tokenResponse->json('error_message');
+            Log::warning('Threads code exchange failed.', ['status' => $tokenResponse->status(), 'body' => $tokenResponse->json() ?? $tokenResponse->body()]);
+
+            return redirect()->route($this->returnRoute())->with('error', $reason ? "Threads didn't connect: {$reason}" : 'Failed to connect Threads.');
         }
 
         $shortLived = $tokenResponse->json();
@@ -261,7 +265,7 @@ class PostAccountController extends Controller
 
         $longLivedResponse = $api->request('get', 'https://graph.threads.net/access_token', [], [
             'grant_type'    => 'th_exchange_token',
-            'client_secret' => adminSetting('posts.threads.client_secret'),
+            'client_secret' => ThreadsDriver::clientSecret(),
             'access_token'  => $shortLived['access_token'],
         ]);
 

@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\Auth;
  * category of prerequisite as the Ads module's developer_token or the
  * WhatsApp module's App Review) - this builds the real integration now
  * per this app's established pattern, but it needs that verification
- * (and posts.threads.client_id/client_secret filled in) to actually post.
+ * (and the Threads app ID/secret - ThreadsDriver::clientId/clientSecret) to actually post.
  */
 class ThreadsPostService
 {

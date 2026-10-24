@@ -29,6 +29,7 @@ class RemainingPlatformsHubTest extends TestCase
         foreach (['ads.snapchat', 'posts.threads', 'posts.pinterest'] as $app) {
             Settings::set("{$app}.client_id", "{$app}-id");
         }
+        Settings::set('posts.threads.client_secret', 'posts.threads-secret'); // Threads needs both before it offers Connect
         $this->user = User::create(['name' => 'Seller', 'email' => 's@example.com', 'password' => bcrypt('x')]);
         $this->actingAs($this->user);
     }

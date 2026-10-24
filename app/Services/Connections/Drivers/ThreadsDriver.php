@@ -17,6 +17,18 @@ class ThreadsDriver extends MirroredTokenDriver
 {
     public const LOGIN = 'threads.login';
 
+    /** Threads app ID: threads.facebook.client_id, else the older posts.threads.client_id. */
+    public static function clientId(): string
+    {
+        return (string) (adminSetting('threads.facebook.client_id') ?: adminSetting('posts.threads.client_id'));
+    }
+
+    /** Threads app secret: threads.facebook.client_key, else the older posts.threads.client_secret. */
+    public static function clientSecret(): string
+    {
+        return (string) (adminSetting('threads.facebook.client_key') ?: adminSetting('posts.threads.client_secret'));
+    }
+
     public function platform(): string
     {
         return 'threads';
@@ -35,9 +47,11 @@ class ThreadsDriver extends MirroredTokenDriver
             'connect_label' => __('connections.platforms.threads.connect_label'),
             'empty_title' => __('connections.platforms.threads.empty_title'),
             'empty_text' => __('connections.platforms.threads.empty_text'),
-            'benefits' => ['posting', 'insights'],
+            // Posting only: the sign-in asks for threads_basic and
+            // threads_content_publish, and nothing reads Threads insights yet.
+            'benefits' => ['posting'],
             'asset_groups' => [
-                'threads_profile' => ['label' => __('connections.platforms.threads.groups.threads_profile'), 'icon' => 'bx-at', 'brand' => 'threads', 'capabilities' => ['posting', 'insights']],
+                'threads_profile' => ['label' => __('connections.platforms.threads.groups.threads_profile'), 'icon' => 'bx-at', 'brand' => 'threads', 'capabilities' => ['posting']],
             ],
             'step_icons' => [self::LOGIN => ['icon' => 'bx-at', 'brand' => 'threads']],
         ];
@@ -55,7 +69,8 @@ class ThreadsDriver extends MirroredTokenDriver
             'label' => __('connections.platforms.threads.steps.login.label'),
             'description' => __('connections.platforms.threads.steps.login.description'),
             'primary' => true,
-            'available' => (bool) adminSetting('posts.threads.client_id'),
+            'available' => self::clientId() !== '' && self::clientSecret() !== '',
+            'capabilities' => ['posting'],
         ]];
     }
 
