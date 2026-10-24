@@ -704,6 +704,11 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('messaging.auth.x.redirect');
 				Route::get('messaging/auth/x/callback', [MessageChannelController::class, 'callbackX'])
 					->name('messaging.auth.x.callback');
+				// TikTok comments callback (TiktokCommentsService): the redirect
+				// URL the portal's "TikTok account holder authorization URL"
+				// uses, so TikTok accepts it without a new portal entry.
+				Route::get('messaging/auth/tiktok/callback', [\App\Http\Controllers\Admin\TiktokCommentsController::class, 'callback'])
+					->name('messaging.auth.tiktok.callback');
 				// TikTok DM connect (audit flow #14) removed: it never received a
 				// messaging scope (docs/connection-hub-design.md §6). TikTok
 				// posting + ads connect through the Connection Hub.

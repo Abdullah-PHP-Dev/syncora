@@ -117,9 +117,9 @@ class TiktokCommentsTest extends TestCase
         $url = app(TikTokDriver::class)->connect(TikTokDriver::COMMENTS)->getTargetUrl();
         $this->assertStringStartsWith('https://www.tiktok.com/v2/auth/authorize?', $url); // account-holder flow: no trailing slash, no PKCE
         parse_str(parse_url($url, PHP_URL_QUERY), $q);
-        $this->assertSame(['biz-app', 'user.info.basic,video.list,comment.list,comment.list.manage', 'code', session('tiktok_comments_state')], [$q['client_key'], $q['scope'], $q['response_type'], $q['state']]);
+        $this->assertSame(['biz-app', 'video.list,video.insights,biz.ads.recommend,biz.brand.insights,comment.list,user.info.basic,user.info.username,user.info.stats,user.info.profile,user.account.type,user.insights,comment.list.manage,video.publish,video.upload,biz.spark.auth,discovery.search.words,biz.creator.info,biz.creator.insights,tto.campaign.link', 'code', session('tiktok_comments_state')], [$q['client_key'], $q['scope'], $q['response_type'], $q['state']]);
         $this->assertArrayNotHasKey('code_challenge', $q);
-        $this->assertStringEndsWith('/post-accounts/tiktok/comments/callback', $q['redirect_uri']);
+        $this->assertSame(url('/messaging/auth/tiktok/callback'), $q['redirect_uri']);
     }
 
     public function test_callback_connects_and_links_the_posting_account(): void
@@ -138,6 +138,45 @@ class TiktokCommentsTest extends TestCase
         $this->assertSame(['act.biz', 'rft.biz', 'BIZ1', $this->posting->id, false], [$biz->access_token, $biz->refresh_token, $biz->metadata['business_id'], $biz->metadata['posting_account_id'], (bool) $biz->has_posting_permission]);
         $this->assertSame([TikTokDriver::COMMENTS, $biz->social_connection_id], [SocialConnection::where('step', TikTokDriver::COMMENTS)->sole()->step, SocialConnection::where('step', TikTokDriver::COMMENTS)->sole()->id]);
         Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), '/tt_user/oauth2/token/') && $r['auth_code'] === 'auth-code' && $r['client_id'] === 'biz-app' && $r['grant_type'] === 'authorization_code');
+    }
+
+    /** Hub "Connect" for the comments step, as a real request. */
+    private function connectOverHttp(): \Illuminate\Testing\TestResponse
+    {
+        $this->withoutMiddleware([
+            \Mcamara\LaravelLocalization\Middleware\LocaleSessionRedirect::class,
+            \Mcamara\LaravelLocalization\Middleware\LocaleCookieRedirect::class,
+            \Mcamara\LaravelLocalization\Middleware\LaravelLocalizationRedirectFilter::class,
+        ]);
+
+        return $this->actingAs($this->user)->get(route('admin.connections.connect', ['tiktok', TikTokDriver::COMMENTS]));
+    }
+
+    public function test_portal_callback_url_connects_over_http(): void
+    {
+        Http::fake([
+            self::API . '/tt_user/oauth2/token/' => $this->ok(['access_token' => 'act.biz', 'refresh_token' => 'rft.biz', 'open_id' => 'BIZ1', 'expires_in' => 86400]),
+            self::API . '/business/get/*' => $this->ok(['display_name' => 'Socialeaz', 'username' => 'socialeaz']),
+        ]);
+        $this->connectOverHttp()->assertRedirect();
+
+        $this->get('/messaging/auth/tiktok/callback?code=auth-code&state=' . session('tiktok_comments_state'))
+            ->assertRedirect(route('admin.connections.index') . '#tiktok')
+            ->assertSessionHas('success', 'TikTok comments connected for @socialeaz.');
+
+        $this->assertSame('BIZ1', SocialAccount::where('account_type', TiktokCommentsService::ACCOUNT_TYPE)->sole()->metadata['business_id']);
+        Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), '/tt_user/oauth2/token/') && $r['redirect_uri'] === url('/messaging/auth/tiktok/callback'));
+    }
+
+    public function test_portal_callback_url_reports_a_declined_consent(): void
+    {
+        Http::fake();
+        $this->connectOverHttp();
+
+        $this->get('/messaging/auth/tiktok/callback?error=access_denied&error_description=User+cancelled&state=' . session('tiktok_comments_state'))
+            ->assertRedirect(route('admin.connections.index') . '#tiktok')
+            ->assertSessionHas('error', 'TikTok declined: User cancelled');
+        Http::assertNothingSent();
     }
 
     public function test_a_forged_state_is_rejected(): void

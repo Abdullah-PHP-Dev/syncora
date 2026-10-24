@@ -45,20 +45,21 @@ class TiktokCommentsService
         return rtrim(adminSetting('ads.tiktok.base_url') ?: 'https://business-api.tiktok.com/open_api/v1.3/', '/') . '/';
     }
 
+    /** https://socialeaz.com/messaging/auth/tiktok/callback - see scopes(). */
     public function callbackUrl(): string
     {
-        return oauthCallbackUrl('admin.post-accounts.tiktok.comments.callback');
+        return oauthCallbackUrl('admin.messaging.auth.tiktok.callback');
     }
 
     /**
-     * Scopes come from the "TikTok account holder authorization URL" the
-     * developer portal generates for the app (My Apps > Basic Information);
-     * posts.tiktok.comments_scopes overrides the default when the app was
-     * granted a different set.
+     * Callback and scopes are copied from the "TikTok account holder
+     * authorization URL" the developer portal generates for the app (My
+     * Apps > Basic Information); posts.tiktok.comments_scopes overrides the
+     * default when the app was granted a different set.
      */
     public function scopes(): string
     {
-        return (string) (adminSetting('posts.tiktok.comments_scopes') ?: 'user.info.basic,video.list,comment.list,comment.list.manage');
+        return (string) (adminSetting('posts.tiktok.comments_scopes') ?: 'video.list,video.insights,biz.ads.recommend,biz.brand.insights,comment.list,user.info.basic,user.info.username,user.info.stats,user.info.profile,user.account.type,user.insights,comment.list.manage,video.publish,video.upload,biz.spark.auth,discovery.search.words,biz.creator.info,biz.creator.insights,tto.campaign.link');
     }
 
     // ------------------------------------------------------------------
