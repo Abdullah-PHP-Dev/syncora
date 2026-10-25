@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Messaging;
 use App\Http\Controllers\Controller;
 use App\Services\MessagingServices\InstagramMessengerService;
 use App\Services\PostServices\MetaPostService;
+use App\Models\WebhookLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -43,6 +44,7 @@ class InstagramMessengerWebhookController extends Controller
     {
         if (!$this->messengerService->verifySignature($request) && !$this->postService->verifySignature($request)) {
             Log::warning('Instagram webhook signature mismatch', ['ip' => $request->ip()]);
+            $this->log($request, false, 'Signature verification failed - request rejected before handling.');
 
             return response('Forbidden', 403);
         }
@@ -50,8 +52,18 @@ class InstagramMessengerWebhookController extends Controller
         $payload = $request->all();
 
         $this->messengerService->handleWebhook($payload);
-        $this->postService->handleCommentWebhook($payload, 'instagram');
+        $comments = $this->postService->handleCommentWebhook($payload, 'instagram');
+        $this->log($request, true, $comments ? "Handled {$comments} comment change(s)." : 'No comment change for a connected Instagram account.');
 
         return response('EVENT_RECEIVED', 200);
+    }
+
+    /** Kept in webhook_logs (platform instagram) - best-effort, never fails the delivery. */
+    private function log(Request $request, bool $signatureValid, string $note): void
+    {
+        $payload = $request->all();
+        $fields = collect($payload['entry'] ?? [])->flatMap(fn ($e) => array_merge(array_column($e['changes'] ?? [], 'field'), isset($e['messaging']) ? ['messaging'] : []))->unique()->implode(',');
+
+        rescue(fn () => WebhookLog::create(['platform' => 'instagram', 'event_type' => $fields ?: null, 'payload' => $payload, 'ip' => $request->ip(), 'signature_valid' => $signatureValid, 'processed' => $signatureValid, 'note' => $note]), null, false);
     }
 }

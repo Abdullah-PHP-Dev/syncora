@@ -1093,8 +1093,11 @@ protected function publishPostOnMeta($post, $account)
      * from the Messaging module's DM webhook, which only ever sees
      * entry[].messaging[] and never entry[].changes[].
      */
-    public function handleCommentWebhook(array $payload, string $platform): void
+    /** @return int comment changes handled for a connected account */
+    public function handleCommentWebhook(array $payload, string $platform): int
     {
+        $handled = 0;
+
         foreach ($payload['entry'] ?? [] as $entry) {
             $externalAccountId = $entry['id'] ?? null;
 
@@ -1102,18 +1105,51 @@ protected function publishPostOnMeta($post, $account)
                 continue;
             }
 
-            $socialAccount = SocialAccount::where('platform', $platform)
-                ->where('platform_account_id', $externalAccountId)
-                ->first();
+            $accounts = $platform === 'instagram'
+                ? $this->instagramWebhookAccounts((string) $externalAccountId)
+                : SocialAccount::where('platform', $platform)->where('platform_account_id', $externalAccountId)->take(1)->get();
 
-            if (!$socialAccount) {
+            if ($accounts->isEmpty()) {
                 continue;
             }
 
             foreach ($entry['changes'] ?? [] as $change) {
-                $this->processCommentChange($change, $platform, $socialAccount);
+                $this->processCommentChange($change, $platform, $this->instagramAccountForChange($accounts, $change));
+                $handled++;
             }
         }
+
+        return $handled;
+    }
+
+    /**
+     * entry[].id is the Instagram professional account ID. A Page-linked
+     * connect stores that as platform_account_id; an Instagram Login
+     * connect stores the app-scoped id from /me and keeps the
+     * professional one in metadata.settings.ig_user_id - so match both,
+     * or Instagram Login accounts never receive a comment.
+     */
+    private function instagramWebhookAccounts(string $igUserId)
+    {
+        return SocialAccount::where('platform', 'instagram')
+            ->where(fn ($q) => $q->where('platform_account_id', $igUserId)->orWhere('metadata->settings->ig_user_id', $igUserId))
+            ->orderBy('id')
+            ->get();
+    }
+
+    /**
+     * The same Instagram account can be connected more than once (Page-linked
+     * and Instagram Login, or by several users): the comment belongs to the
+     * one whose Post has the commented media, else the first.
+     */
+    private function instagramAccountForChange($accounts, array $change): SocialAccount
+    {
+        $mediaId = $change['value']['media']['id'] ?? null;
+        $owner = $mediaId && $accounts->count() > 1
+            ? Post::whereIn('social_account_id', $accounts->pluck('id'))->where('post_id', $mediaId)->latest('id')->value('social_account_id')
+            : null;
+
+        return $accounts->firstWhere('id', $owner) ?? $accounts->first();
     }
 
     /**

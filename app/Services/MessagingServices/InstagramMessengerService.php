@@ -61,7 +61,15 @@ class InstagramMessengerService
 
     public function verifySignature(Request $request): bool
     {
-        return $this->verifyInstagramSignature($request, adminSetting('posts.facebook.client_secret', ''));
+        // Page-linked (Facebook Login) deliveries are signed with the Meta
+        // app secret; Instagram Login ones with the Instagram app secret.
+        foreach (array_filter([(string) adminSetting('posts.facebook.client_secret', ''), (string) adminSetting('posts.instagram.client_secret', '')]) as $secret) {
+            if ($this->verifyInstagramSignature($request, $secret)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function handleWebhook(array $payload): void
