@@ -600,8 +600,8 @@ class PostController extends Controller
             ]);
         }
 
-        $this->refreshInstagramCommentsIfNeeded($post);
         $this->refreshFacebookEngagementIfNeeded($post);
+        $this->refreshInstagramCommentsIfNeeded($post);
         $this->refreshThreadsRepliesIfNeeded($post);
 
         $groupKey = $post->group_id ?? $post->id;
@@ -613,8 +613,8 @@ class PostController extends Controller
             })
             ->get()
             ->each(function ($member) {
-                $this->refreshInstagramCommentsIfNeeded($member);
                 $this->refreshFacebookEngagementIfNeeded($member);
+                $this->refreshInstagramCommentsIfNeeded($member);
                 $this->refreshThreadsRepliesIfNeeded($member);
             })
             ->map(fn ($member) => $this->formatPostForPreview($member))
@@ -677,8 +677,9 @@ class PostController extends Controller
      * the first time a given Instagram post is actually opened.
      */
     /**
-     * Facebook sends no webhook for shares to people's own timelines and
-     * TikTok none for counts at all, so opening a published post's preview
+     * Facebook sends no webhook for shares to people's own timelines,
+     * TikTok none for counts at all and Instagram none for insights
+     * (views, reach, saves, shares), so opening a published post's preview
      * re-reads its counts - at most every 5 minutes per post
      * (posts:sync-engagement covers the rest).
      */
@@ -688,6 +689,7 @@ class PostController extends Controller
 
         $service = match (strtolower($post->platform)) {
             'facebook' => $this->metaService,
+            'instagram' => $this->instagramService,
             'tiktok' => $this->tiktokService,
             default => null,
         };
@@ -727,10 +729,13 @@ class PostController extends Controller
     {
         if (
             strtolower($post->platform) === 'instagram'
-            && $post->postComments->isEmpty()
-            && (int) ($post->comments ?? 0) > 0
+            // None imported yet, or Instagram now reports more (the
+            // engagement refresh just above updated the count).
+            && (int) ($post->comments ?? 0) > $post->postComments->sum(fn ($comment) => 1 + $comment->replies->count())
+            && (! ($syncedAt = $post->platform_metadata['comments_synced_at'] ?? null) || \Carbon\Carbon::parse($syncedAt)->lt(now()->subMinutes(5)))
         ) {
             $this->instagramService->fetchComments($post);
+            $post->forceFill(['platform_metadata' => array_merge($post->platform_metadata ?? [], ['comments_synced_at' => now()->toIso8601String()])])->save();
 
             $post->load(['postComments' => function ($query) {
                 $query->topLevel()->with('replies');

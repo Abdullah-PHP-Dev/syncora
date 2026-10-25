@@ -4,14 +4,16 @@ namespace App\Console\Commands;
 
 use App\Models\Post;
 use App\Models\SocialAccount;
+use App\Services\PostServices\InstagramPostService;
 use App\Services\PostServices\MetaPostService;
 use App\Services\PostServices\TiktokPostService;
 use Illuminate\Console\Command;
 
 /**
- * Re-reads likes, shares, comments and views for recent Facebook and
- * TikTok posts, and TikTok account totals. Facebook sends no webhook for
- * shares to people's own timelines; TikTok sends none for counts.
+ * Re-reads likes, shares, comments and views for recent Facebook,
+ * Instagram and TikTok posts, and TikTok account totals. Facebook sends no
+ * webhook for shares to people's own timelines; Instagram none for
+ * insights; TikTok none for counts.
  */
 class SyncPostEngagement extends Command
 {
@@ -19,11 +21,11 @@ class SyncPostEngagement extends Command
                             {--days=30 : Posts published within this many days}
                             {--post= : Only this post (app post id)}';
 
-    protected $description = 'Refresh likes, shares, comments and views for recent Facebook and TikTok posts';
+    protected $description = 'Refresh likes, shares, comments and views for recent Facebook, Instagram and TikTok posts';
 
-    public function handle(MetaPostService $meta, TiktokPostService $tiktok): int
+    public function handle(MetaPostService $meta, InstagramPostService $instagram, TiktokPostService $tiktok): int
     {
-        $services = ['facebook' => $meta, 'tiktok' => $tiktok];
+        $services = ['facebook' => $meta, 'instagram' => $instagram, 'tiktok' => $tiktok];
 
         $posts = Post::with('socialAccount')
             ->whereIn('platform', array_keys($services))

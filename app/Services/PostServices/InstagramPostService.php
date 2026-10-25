@@ -934,6 +934,90 @@ class InstagramPostService
     }
 
     /**
+     * Current likes/comments (GET /{media}?fields=like_count,comments_count)
+     * and lifetime media insights for a published post, for the post page.
+     * Media insights since Graph v22: views (replaced impressions/plays),
+     * reach, saved, shares - stories have no saved. One unsupported metric
+     * fails the whole request, so a refused batch is retried per metric.
+     */
+    public function syncEngagement(Post $post): bool
+    {
+        $account = $post->socialAccount;
+        if (! $post->post_id || ! $account?->access_token) {
+            return false;
+        }
+
+        try {
+            $this->ensureValidToken($post);
+            $account->refresh();
+            $baseUrl = $this->resolveBaseUrl($account);
+            $auth = ['access_token' => $account->access_token] + $this->metaAuthExtra($account, (string) $account->access_token);
+
+            $response = $this->api->request('get', $baseUrl . $post->post_id, [], ['fields' => 'like_count,comments_count,media_product_type'] + $auth);
+        } catch (\Throwable $e) {
+            Log::info('Instagram engagement sync threw.', ['post_id' => $post->id, 'error' => $e->getMessage()]);
+
+            return false;
+        }
+
+        if (! $response->successful()) {
+            Log::info('Instagram engagement sync failed.', ['post_id' => $post->id, 'error' => $response->json('error.message') ?? $response->body()]);
+
+            return false;
+        }
+
+        $isStory = $response->json('media_product_type') === 'STORY';
+        $metrics = $isStory ? ['views', 'reach', 'shares'] : ['views', 'reach', 'saved', 'shares'];
+        $insights = $this->mediaInsightValues($baseUrl . $post->post_id . '/insights', $metrics, $auth);
+
+        $post->forceFill(array_filter([
+            'likes'       => $response->json('like_count'),
+            'comments'    => $response->json('comments_count'),
+            'views'       => $insights['views'] ?? null,
+            // Instagram dropped impressions; views is its replacement.
+            'impressions' => $insights['views'] ?? null,
+            'reach'       => $insights['reach'] ?? null,
+            'saves'       => $insights['saved'] ?? null,
+            'shares'      => $insights['shares'] ?? null,
+        ], fn ($v) => $v !== null) + [
+            'platform_metadata' => array_merge($post->platform_metadata ?? [], ['engagement_synced_at' => now()->toIso8601String()]),
+        ])->save();
+
+        return true;
+    }
+
+    /** ['metric' => int] from /{media}/insights - [] when Instagram refuses them all. */
+    private function mediaInsightValues(string $url, array $metrics, array $auth): array
+    {
+        $fetch = function (array $names) use ($url, $auth) {
+            try {
+                $response = $this->api->request('get', $url, [], ['metric' => implode(',', $names)] + $auth);
+            } catch (\Throwable $e) {
+                return null;
+            }
+            if (! $response->successful()) {
+                Log::info('Instagram media insights request failed.', ['metrics' => $names, 'error' => $response->json('error.message')]);
+
+                return null;
+            }
+
+            return collect($response->json('data') ?? [])->mapWithKeys(fn ($row) => [
+                $row['name'] => is_numeric($value = $row['values'][0]['value'] ?? $row['total_value']['value'] ?? null) ? (int) $value : null,
+            ])->filter(fn ($v) => $v !== null)->all();
+        };
+
+        $values = $fetch($metrics);
+        if ($values === null && count($metrics) > 1) {
+            $values = [];
+            foreach ($metrics as $metric) {
+                $values += $fetch([$metric]) ?? [];
+            }
+        }
+
+        return $values ?? [];
+    }
+
+    /**
      * Backfill a post's comments from Instagram's Graph API. Used when a post
      * has an engagement comment count but no imported PostComment rows yet
      * (e.g. the comment webhook hasn't captured them).
