@@ -51,6 +51,8 @@ class FacebookAdService
             'ads_read',
             'pages_show_list',
             'pages_read_engagement',
+            // Ad creatives run as the Page (object_story_spec.page_id).
+            'pages_manage_ads',
             'business_management',
             'instagram_basic',
         ]);

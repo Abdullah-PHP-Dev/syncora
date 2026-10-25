@@ -190,6 +190,8 @@ class SocialAuthService
             'pages_messaging', 'read_insights', 'business_management',
             'instagram_basic', 'instagram_content_publish', 'instagram_manage_comments',
             'instagram_manage_insights', 'instagram_manage_messages', 'ads_management', 'ads_read',
+            // Ads run as the Page (object_story_spec.page_id in FacebookAdService).
+            'pages_manage_ads',
         ])];
     }
 
