@@ -6,6 +6,7 @@ use App\Models\GoogleProperty;
 use App\Models\GoogleSuiteSetting;
 use App\Models\GoogleSyncEvent;
 use App\Models\SocialConnection;
+use App\Services\PackageAccessService;
 use App\Support\AdAccountSelection;
 use App\Support\Google\GoogleSuiteScopes;
 use Illuminate\Http\Request;
@@ -45,6 +46,8 @@ class GoogleSuitePresenter
             ])->all(),
             'next_sync_at' => $this->nextSync($properties, $preferences['sync_frequency']),
             'website_url' => $this->websiteUrl($properties, $preferences),
+            // CSV export is its own package module (package_access.routes.data_export).
+            'can_export' => app(PackageAccessService::class)->allows($request->user(), 'data_export'),
             'ads_account' => $this->adsAccount($userId),
             'urls' => $this->urls(),
             'messages' => __('google_suite'),
@@ -167,6 +170,7 @@ class GoogleSuitePresenter
             'ads' => route('admin.ads.campaigns.index', ['platform' => 'google']),
             'hub' => route('admin.connections.index'),
             'ads_connect' => route('admin.ads.dashboard'),
+            'upgrade' => route('admin.subscription.select'),
             'pixels' => route('admin.integrations.index'),
             'privacy' => route('privacy'),
             'google_permissions' => 'https://myaccount.google.com/connections',

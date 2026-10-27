@@ -502,4 +502,20 @@ class GoogleSuiteTest extends TestCase
             $this->get(route('admin.google.' . $screen))->assertOk();
         }
     }
+
+    public function test_a_package_without_data_export_is_told_before_exporting(): void
+    {
+        $this->connection();
+        $this->property('search_console');
+        $bundle = \App\Models\Bundle::where('slug', 'fixture-' . $this->user->id)->sole();
+        $bundle->update(['access_settings' => array_merge($bundle->access_settings, ['data_export' => ['mode' => 'disabled']])]);
+        Http::fake();
+
+        // The page knows up front, so it shows an upgrade notice instead of a failing button...
+        $this->get(route('admin.google.reports'))->assertOk()->assertSee('"can_export":false', false);
+        // ...and the export endpoint itself still refuses, with a code the page recognises.
+        $this->getJson(route('admin.google.api.reports.export', ['service' => 'search_console', 'type' => 'queries']))
+            ->assertForbidden()->assertJsonPath('code', 'package_feature_denied');
+        Http::assertNothingSent();
+    }
 }
