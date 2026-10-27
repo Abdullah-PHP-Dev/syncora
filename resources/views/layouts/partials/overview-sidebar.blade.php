@@ -32,7 +32,23 @@
             ['admin.knowledge-base.index', 'admin.sidebar.knowledge_base', 'bx-book-open', []],
             ['admin.ai-copilot.knowledge-gaps.index', 'admin.sidebar.knowledge_gaps', 'bx-help-circle', []],
         ],
+        // Google Suite - Analytics & Insights (GoogleSuiteController), one collapsible group.
+        'admin.google.overview' => [
+            ['admin.google.overview', 'google_suite.nav.overview', 'bx-pie-chart-alt-2', []],
+            ['admin.google.analytics', 'google_suite.nav.analytics', 'bx-line-chart', []],
+            ['admin.google.search-console', 'google_suite.nav.search_console', 'bx-search-alt', []],
+            ['admin.google.advertising', 'google_suite.nav.google_ads', 'bxl-google', []],
+            ['admin.google.website-performance', 'google_suite.nav.pagespeed', 'bx-tachometer', []],
+            ['admin.google.integrations', 'google_suite.nav.integrations', 'bx-extension', []],
+            ['admin.google.reports', 'google_suite.nav.reports', 'bx-file', []],
+            ['admin.google.preferences', 'google_suite.nav.settings', 'bx-slider-alt', []],
+        ],
         'employees.index' => [['employees.index', 'overview.sidebar_employees', 'bx-user', []], ['employees.create', 'overview.add_employee', 'bx-user-plus', []]],
+    ];
+    // Google screens without a sidebar link of their own.
+    $childAliases = [
+        'admin.google.integrations' => ['admin.google.setup', 'admin.google.status', 'admin.google.properties', 'admin.google.business-profile', 'admin.google.tag-manager'],
+        'admin.google.preferences' => ['admin.google.health', 'admin.google.settings'],
     ];
     if (!$team) {
         foreach ($platforms as $platform => [$platformLabel, $platformIcon]) {
@@ -65,16 +81,8 @@
         'overview.sidebar_posts_heading' => [
             ['admin.posts.dashboard', 'admin.sidebar.posts', 'bx-calendar-edit'],
         ],
-        // Google Suite - Analytics & Insights (GoogleSuiteController).
         'google_suite.nav.section' => [
-            ['admin.google.overview', 'google_suite.nav.overview', 'bx-pie-chart-alt-2'],
-            ['admin.google.analytics', 'google_suite.nav.analytics', 'bx-line-chart'],
-            ['admin.google.search-console', 'google_suite.nav.search_console', 'bx-search-alt'],
-            ['admin.google.advertising', 'google_suite.nav.google_ads', 'bxl-google'],
-            ['admin.google.website-performance', 'google_suite.nav.pagespeed', 'bx-tachometer'],
-            ['admin.google.integrations', 'google_suite.nav.integrations', 'bx-extension'],
-            ['admin.google.reports', 'google_suite.nav.reports', 'bx-file'],
-            ['admin.google.preferences', 'google_suite.nav.settings', 'bx-slider-alt'],
+            ['admin.google.overview', 'google_suite.title', 'bxl-google'],
         ],
         'overview.sidebar_workspace' => [
             ['seller-workspaces.index', 'seller_team.workspaces', 'bx-buildings'],
@@ -124,12 +132,11 @@
                             || ($destination === 'dashboard' && request()->routeIs('dashboard.overview'))
                             || ($destination === 'plans.index' && request()->routeIs('plans.*'))
                             || ($destination === 'coupons.index' && request()->routeIs('coupons.*'))
-                            || ($destination === 'package-features.index' && request()->routeIs('package-features.*'))
-                            || ($destination === 'admin.google.integrations' && request()->routeIs('admin.google.setup', 'admin.google.status', 'admin.google.properties', 'admin.google.business-profile', 'admin.google.tag-manager'))
-                            || ($destination === 'admin.google.preferences' && request()->routeIs('admin.google.health', 'admin.google.settings'));
+                            || ($destination === 'package-features.index' && request()->routeIs('package-features.*'));
                         $submenu = $children[$destination] ?? [];
                         $submenuOpen = ($destination === 'admin.ads.dashboard' && request()->routeIs('admin.ads.*'))
-                            || ($destination === 'admin.posts.dashboard' && request()->routeIs('admin.posts.*'));
+                            || ($destination === 'admin.posts.dashboard' && request()->routeIs('admin.posts.*'))
+                            || ($destination === 'admin.google.overview' && request()->routeIs('admin.google.*'));
                         $active = $active || $submenuOpen;
                         $submenuId = 'ov-sidebar-'.str_replace('.', '-', $destination);
                     @endphp
@@ -154,7 +161,7 @@
                             <ul id="{{ $submenuId }}" class="ov-sidebar-submenu" @unless($submenuOpen) hidden @endunless>
                                 @foreach($submenu as [$childRoute, $childLabel, $childIcon, $parameters])
                                     @php
-                                        $childActive = request()->routeIs($childRoute)
+                                        $childActive = request()->routeIs($childRoute, ...($childAliases[$childRoute] ?? []))
                                             && (request()->route('platform') ?? request()->query('platform')) === ($parameters['platform'] ?? null);
                                     @endphp
                                     <li>

@@ -36,11 +36,7 @@
     ]
   },
   "resources/js/app.js": {
-<<<<<<< Updated upstream
-    "file": "assets/app-Bkp7Om-1.js",
-=======
-    "file": "assets/app-D8-70sff.js",
->>>>>>> Stashed changes
+    "file": "assets/app-Ck4lVHSw.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
