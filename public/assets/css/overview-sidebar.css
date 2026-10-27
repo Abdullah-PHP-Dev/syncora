@@ -89,6 +89,14 @@
 .overview-sidebar [data-platform="linkedin"] .ov-sidebar-subicon { color:#0a66c2; background:#e9f3fc; }
 .overview-sidebar [data-platform="whatsapp"] .ov-sidebar-subicon { color:#168d62; background:#e7f6ee; }
 .overview-sidebar [data-platform="telegram"] .ov-sidebar-subicon { color:#2388b7; background:#eaf5fc; }
+.overview-sidebar [data-service="google"] .ov-sidebar-subicon { color:#4285f4; background:#edf3ff; }
+.overview-sidebar [data-service="ga4"] .ov-sidebar-subicon { color:#e8710a; background:#fef0e3; }
+.overview-sidebar [data-service="search-console"] .ov-sidebar-subicon { color:#1a73e8; background:#e8f0fe; }
+.overview-sidebar [data-service="google-ads"] .ov-sidebar-subicon { color:#0b8a7a; background:#e0f2ef; }
+.overview-sidebar [data-service="pagespeed"] .ov-sidebar-subicon { color:#188038; background:#e6f4ea; }
+.overview-sidebar [data-service="integrations"] .ov-sidebar-subicon { color:#7c3aed; background:#f3ebff; }
+.overview-sidebar [data-service="reports"] .ov-sidebar-subicon { color:#b06000; background:#fef7e0; }
+.overview-sidebar [data-service="settings"] .ov-sidebar-subicon { color:#4b5263; background:#eef0f5; }
 .overview-sidebar .ov-sidebar-submenu a:hover .ov-sidebar-subicon { box-shadow:0 2px 6px #720aff10; border-color:#cdbbe5; }
 .layout-menu-collapsed .overview-sidebar .ov-sidebar-dropdown-toggle,
 .layout-menu-collapsed .overview-sidebar .ov-sidebar-submenu { display:none; }
