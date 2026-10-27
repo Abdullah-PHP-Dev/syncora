@@ -37,7 +37,7 @@
               </div>
             </div>
             <div class="gs-legend">
-              <span><span class="gs-line-key" :style="{ background: COLORS.conversions }"></span>{{ t('common.this_period') }}</span>
+              <span><span class="gs-line-key" :style="{ background: COLORS.brand }"></span>{{ t('common.this_period') }}</span>
               <span v-if="suite.compare"><span class="gs-line-key dashed"></span>{{ t('common.previous') }}</span>
             </div>
           </div>
@@ -161,7 +161,7 @@ import GsTable from '../ui/GsTable.vue';
 import GsDonut from '../ui/GsDonut.vue';
 import GsLineChart from '../ui/GsLineChart.vue';
 
-const CHANNEL_COLORS = ['#1A73E8', '#7C3AED', '#4B5263', '#A78BFA', '#E8710A', '#188038'];
+const CHANNEL_COLORS = ['#1A73E8', '#0B1F66', '#5B6478', '#8FB0FF', '#E8710A', '#188038'];
 
 export default {
   name: 'GsAnalytics',
@@ -199,7 +199,7 @@ export default {
     trendSeries() {
       const s = this.d.trend[this.metric];
       const label = t('analytics.trend_metric.' + this.metric);
-      const out = [{ key: 'cur', label: `${label} · ${t('common.this_period')}`, color: COLORS.conversions, values: s.current }];
+      const out = [{ key: 'cur', label: `${label} · ${t('common.this_period')}`, color: COLORS.brand, values: s.current }];
       if (suite.compare) out.push({ key: 'prev', label: `${label} · ${t('common.previous')}`, color: COLORS.previous, values: s.previous, dashed: true });
       return out;
     },

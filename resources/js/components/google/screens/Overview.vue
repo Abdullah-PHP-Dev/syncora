@@ -200,7 +200,7 @@
             <ul class="gs-bars compact">
               <li v-for="row in ga.countries.slice(0, 5)" :key="row.country">
                 <span class="gs-bars-label">{{ row.country || t('common.not_set') }}</span>
-                <span class="gs-bars-track"><span :style="{ width: share(row.users, ga.countries[0].users) + '%', background: COLORS.conversions }"></span></span>
+                <span class="gs-bars-track"><span :style="{ width: share(row.users, ga.countries[0].users) + '%', background: COLORS.brand }"></span></span>
                 <b>{{ fmt.int(row.users) }}</b>
               </li>
             </ul>

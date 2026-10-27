@@ -8,7 +8,7 @@
 /* Decorative trend line beside a KPI; the number next to it carries the value. */
 export default {
   name: 'GsSpark',
-  props: { values: { type: Array, default: () => [] }, color: { type: String, default: '#7008E7' }, w: { type: Number, default: 140 }, h: { type: Number, default: 40 } },
+  props: { values: { type: Array, default: () => [] }, color: { type: String, default: '#064BFF' }, w: { type: Number, default: 140 }, h: { type: Number, default: 40 } },
   computed: {
     d() {
       const v = this.values.filter((x) => x !== null && x !== undefined);

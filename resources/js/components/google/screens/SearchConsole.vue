@@ -136,7 +136,7 @@ import GsTable from '../ui/GsTable.vue';
 import GsLineChart from '../ui/GsLineChart.vue';
 
 // Validated categorical slots (dataviz validator, light surface).
-const METRIC_COLORS = { clicks: '#1A73E8', impressions: '#7C3AED', ctr: '#188038', position: '#E8710A' };
+const METRIC_COLORS = { clicks: '#1A73E8', impressions: '#0B1F66', ctr: '#188038', position: '#E8710A' };
 const COUNTS = ['clicks', 'impressions'];
 
 export default {
