@@ -362,6 +362,10 @@ return [
                     'label' => 'حساب جوجل',
                     'description' => 'قنوات يوتيوب وحسابات إعلانات جوجل وAnalytics بموافقة واحدة.',
                 ],
+                'analytics' => [
+                    'label' => 'Analytics و Search Console',
+                    'description' => 'تقارير GA4 و Search Console للقراءة فقط للوحات Google Suite.',
+                ],
             ],
         ],
         'linkedin' => [

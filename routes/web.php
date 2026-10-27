@@ -648,6 +648,46 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::get('social-accounts/{platform}/callback', [SocialAccountController::class, 'callback'])
 					->name('social-accounts.callback');
 
+				// GOOGLE SUITE - Analytics & Insights: GA4 + Search Console
+				// reporting on a read-only Google consent (GoogleDriver::ANALYTICS).
+				// Gated by the google_analytics package module (package_access).
+				Route::prefix('google')->name('google.')->group(function () {
+					Route::controller(\App\Http\Controllers\Admin\GoogleSuite\GoogleSuiteController::class)->group(function () {
+						Route::get('/', 'overview')->name('overview');
+						Route::get('integrations', 'integrations')->name('integrations');
+						Route::get('setup', 'setup')->name('setup');
+						Route::get('connect', 'connect')->name('connect')->middleware('throttle:10,1');
+						Route::get('connection-status', 'status')->name('status');
+						Route::get('properties', 'properties')->name('properties');
+						Route::get('analytics', 'analytics')->name('analytics');
+						Route::get('search-console', 'searchConsole')->name('search-console');
+						Route::get('business-profile', 'businessProfile')->name('business-profile');
+						Route::get('tag-manager', 'tagManager')->name('tag-manager');
+						Route::get('reports', 'reports')->name('reports');
+						Route::get('preferences', 'preferences')->name('preferences');
+						Route::get('health', 'health')->name('health');
+						Route::get('settings/{service}', 'settings')->name('settings')->whereIn('service', ['ga4', 'search-console']);
+						Route::get('ads', 'ads')->name('ads');
+					});
+					Route::controller(\App\Http\Controllers\Admin\GoogleSuite\GoogleSuiteDataController::class)->group(function () {
+						Route::delete('connection', 'disconnect')->name('disconnect');
+						Route::prefix('api')->name('api.')->middleware('throttle:120,1')->group(function () {
+							Route::get('overview', 'overview')->name('overview');
+							Route::get('ga4', 'ga4')->name('ga4');
+							Route::get('ga4/realtime', 'realtime')->name('realtime');
+							Route::get('search-console', 'searchConsole')->name('search-console');
+							Route::post('search-console/inspect', 'inspect')->name('inspect')->middleware('throttle:20,1');
+							Route::post('properties/sync', 'discover')->name('properties.sync')->middleware('throttle:10,1');
+							Route::put('properties/selection', 'select')->name('properties.select');
+							Route::put('preferences', 'preferences')->name('preferences');
+							Route::post('refresh', 'refresh')->name('refresh')->middleware('throttle:6,1');
+							Route::post('check', 'check')->name('check')->middleware('throttle:10,1');
+							Route::get('reports/preview', 'reportPreview')->name('reports.preview');
+							Route::get('reports/export', 'reportExport')->name('reports.export')->middleware('throttle:20,1');
+						});
+					});
+				});
+
 				Route::resource('categories', PostCategoryController::class);
 
 

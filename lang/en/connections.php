@@ -362,6 +362,10 @@ return [
                     'label' => 'Google account',
                     'description' => 'YouTube channels, Google Ads accounts and Analytics in one consent.',
                 ],
+                'analytics' => [
+                    'label' => 'Analytics & Search Console',
+                    'description' => 'Read-only GA4 and Search Console reports for the Google Suite dashboards.',
+                ],
             ],
         ],
         'linkedin' => [

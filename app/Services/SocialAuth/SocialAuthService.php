@@ -7,6 +7,7 @@ use App\Models\SocialAccount;
 use App\Services\Connections\ConnectionRecorder;
 use App\Services\Connections\Drivers\MetaDriver;
 use App\Services\Connections\Drivers\GoogleDriver;
+use App\Services\GoogleSuite\GoogleSuiteAuth;
 use App\Services\Connections\Drivers\LinkedInDriver;
 use App\Services\Connections\Drivers\TikTokDriver;
 use App\Support\Connections\ConnectionFlags;
@@ -74,6 +75,8 @@ class SocialAuthService
     {
         $state = Str::uuid()->toString();
         session(["social_oauth_state_{$platform}" => $state]);
+        // An abandoned Google Suite consent must not claim this callback.
+        session()->forget(GoogleSuiteAuth::FLOW_KEY);
 
         return match ($platform) {
             'facebook' => $this->redirectFacebook($state),
@@ -86,6 +89,12 @@ class SocialAuthService
 
     public function callback(string $platform, string $code, ?string $state, ?string $codeVerifier = null, ?string $providerError = null)
     {
+        // The Google Suite consent shares this callback URL (no new redirect
+        // URI to register) and validates its own state - GoogleSuiteAuth.
+        if ($platform === 'google' && session()->pull(GoogleSuiteAuth::FLOW_KEY) === GoogleSuiteAuth::FLOW) {
+            return app(GoogleSuiteAuth::class)->callback($code, $state, $providerError);
+        }
+
         $expectedState = session("social_oauth_state_{$platform}");
         session()->forget("social_oauth_state_{$platform}");
 
