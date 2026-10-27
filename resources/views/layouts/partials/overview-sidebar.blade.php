@@ -45,6 +45,12 @@
         ],
         'employees.index' => [['employees.index', 'overview.sidebar_employees', 'bx-user', []], ['employees.create', 'overview.add_employee', 'bx-user-plus', []]],
     ];
+    // Tints for the Google Suite links (overview-sidebar.css, [data-service]), matching the suite's own colours.
+    $googleTones = [
+        'admin.google.overview' => 'google', 'admin.google.analytics' => 'ga4', 'admin.google.search-console' => 'search-console',
+        'admin.google.advertising' => 'google-ads', 'admin.google.website-performance' => 'pagespeed', 'admin.google.integrations' => 'integrations',
+        'admin.google.reports' => 'reports', 'admin.google.preferences' => 'settings',
+    ];
     // Google screens without a sidebar link of their own.
     $childAliases = [
         'admin.google.integrations' => ['admin.google.setup', 'admin.google.status', 'admin.google.properties', 'admin.google.business-profile', 'admin.google.tag-manager'],
@@ -165,7 +171,7 @@
                                             && (request()->route('platform') ?? request()->query('platform')) === ($parameters['platform'] ?? null);
                                     @endphp
                                     <li>
-                                        <a href="{{ route($childRoute, $parameters) }}" @if($childActive) aria-current="page" @endif @if(isset($parameters['platform'])) data-platform="{{ $parameters['platform'] }}" @endif>
+                                        <a href="{{ route($childRoute, $parameters) }}" @if($childActive) aria-current="page" @endif @if(isset($parameters['platform'])) data-platform="{{ $parameters['platform'] }}" @elseif(isset($googleTones[$childRoute])) data-service="{{ $googleTones[$childRoute] }}" @endif>
                                             <span class="ov-sidebar-subicon" aria-hidden="true"><i class="bx {{ $childIcon }}"></i></span>
                                             <span>{{ __($childLabel) }}</span>
                                         </a>

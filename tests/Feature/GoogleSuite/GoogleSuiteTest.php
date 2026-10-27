@@ -506,6 +506,7 @@ class GoogleSuiteTest extends TestCase
         $html = $this->get(route('admin.google.properties'))->assertOk()->getContent();
         $this->assertMatchesRegularExpression('/ov-sidebar-parent-toggle" data-module="admin.google.overview"[^>]*aria-expanded="true" aria-controls="ov-sidebar-admin-google-overview"/', $html);
         $this->assertMatchesRegularExpression('#href="' . preg_quote(route('admin.google.integrations'), '#') . '"\s+aria-current="page"#', $html);
+        $this->assertStringContainsString('data-service="ga4"', $html);
     }
 
     public function test_a_package_without_data_export_is_told_before_exporting(): void
