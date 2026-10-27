@@ -17,6 +17,9 @@ return tap(
         )
         ->withMiddleware(function (Middleware $middleware) {
 
+            // Must run before the web group's cookie and session middleware.
+            $middleware->prependToGroup('web', \App\Http\Middleware\PreservePaymentReturnSession::class);
+
             $middleware->redirectUsersTo(fn ($request) => app(\App\Services\DashboardService::class)->url($request->user()));
 
             // App\Http\Middleware\SetLocale used to run here, appended to

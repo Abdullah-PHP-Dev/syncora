@@ -39,6 +39,14 @@ The simulation-backed tests skip when PAYMENT_SIMULATION_URL is absent.
 ## Observations
 
 <!-- begin:observations -->
+2026-10-27: session preservation regression run passed 76 tests / 782 assertions.
+All three gateway members served traffic. Browser POST returns now bounce to the
+same URL as GET before StartSession, with no Set-Cookie headers or session
+creation. GET performs verification and emits the subscription toast redirect;
+notification POSTs still verify directly. ClickPay creation requests include
+return_using_get=true. Real production browser cookies/domain settings remain
+unverified.
+
 2026-10-27: verified browser GET/POST returns redirect to subscription selection
 with success/error/pending toasts, while gateway notifications retain JSON
 responses. All members served traffic. Payment/subscription checks passed (66),

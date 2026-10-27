@@ -106,6 +106,9 @@ class SharedPaymentCallbackTest extends TestCase
         $transaction = $this->checkout($provider);
         $record = $this->remote($transaction, ['patch' => $this->paidPatch($provider)]);
         $request = $record['request'];
+        if ($provider === 'clickpay') {
+            $this->assertTrue($request['return_using_get']);
+        }
         [$browser, $notification] = match ($provider) {
             'tap' => [$request['redirect']['url'], $request['post']['url']],
             'clickpay' => [$request['return'], $request['callback']],
@@ -135,7 +138,10 @@ class SharedPaymentCallbackTest extends TestCase
         $transaction = $this->checkout('clickpay');
         $this->remote($transaction, ['patch' => $this->paidPatch('clickpay')]);
         $url = PaymentCallbackUrl::forTransaction($transaction);
-        $this->post($url, ['respStatus' => 'D', 'tranRef' => 'fake'])->assertStatus(303)->assertRedirect(route('admin.subscription.select'))->assertSessionHas('payment_notice.type', 'success');
+        $this->post($url, ['respStatus' => 'D', 'tranRef' => 'fake'])->assertStatus(303)->assertRedirect($url)
+            ->assertCookieMissing(config('session.cookie'));
+        $this->assertSame('pending', $transaction->fresh()->status);
+        $this->assertSame(0, $this->remote($transaction)['queries']);
         $this->get($url)->assertRedirect(route('admin.subscription.select'))->assertSessionHas('payment_notice.type', 'success');
         $this->assertSame(1, SubscriptionCycle::count());
     }
@@ -247,7 +253,9 @@ class SharedPaymentCallbackTest extends TestCase
         $transaction = $this->checkout('tap');
         $url = route('payment.callback', ['transaction' => $transaction->id, 'token' => str_repeat('x', 64)]);
         $this->get($url)->assertForbidden();
-        $this->postJson($url, ['status' => 'CAPTURED'])->assertForbidden();
+        $this->postJson($url, ['status' => 'CAPTURED'])->assertStatus(303)->assertRedirect($url)
+            ->assertCookieMissing(config('session.cookie'));
+        $this->postJson($url.'&notification=1', ['status' => 'CAPTURED'])->assertForbidden();
         $this->assertSame(0, $this->remote($transaction)['queries']);
         $this->assertSame(0, SubscriptionCycle::count());
     }

@@ -36,6 +36,7 @@ class ClickPayGateway implements CardGatewayInterface
             'cart_amount' => round((float) $data['amount'], 2),
             'callback' => PaymentCallbackUrl::forTransaction($transaction, true),
             'return' => PaymentCallbackUrl::forTransaction($transaction),
+            'return_using_get' => true,
         ]);
         if (! $response->successful()) {
             if ($response->serverError() || $response->status() === 429) {

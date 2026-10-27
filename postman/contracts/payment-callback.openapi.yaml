@@ -37,7 +37,7 @@ paths:
       operationId: paymentNotificationOrBrowserReturn
       description: >-
         CSRF exempt. Requires the opaque token in the URL and server-side provider
-        verification. Provider payloads cannot override URL correlation values.
+        verification on GET after a sessionless POST-to-GET bounce. Provider payloads cannot override URL correlation values.
       requestBody:
         required: false
         content:
@@ -55,7 +55,7 @@ paths:
                 required: [status]
                 properties:
                   status: { type: string, enum: [paid, failed] }
-        '303': { description: Browser POST redirects to subscription selection with a status flash toast. }
+        '303': { description: Browser POST first redirects to the same callback URL as GET without starting a session or setting cookies. The GET verifies payment and redirects to subscription selection with a status toast. }
         '400': { description: Missing or malformed callback URL. }
         '403': { description: Invalid transaction/token pair. }
         '422': { description: Unsupported transaction category. }
