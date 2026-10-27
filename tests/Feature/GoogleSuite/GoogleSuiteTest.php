@@ -544,4 +544,27 @@ class GoogleSuiteTest extends TestCase
         $this->assertStringContainsString('Date,"Active users",Sessions,Views,"Engagement rate","Key events"', $csv);
         $this->assertStringContainsString($range->start->toDateString() . ',12,15,40,0.61,2', $csv);
     }
+
+    public function test_pagespeed_limits_say_whether_it_is_setup_or_a_busy_quota(): void
+    {
+        $url = route('admin.google.api.pagespeed', ['url' => 'https://brand.com/', 'strategy' => 'mobile']);
+        $reply = [429, 'Quota exceeded for quota metric'];
+        Http::fake(function () use (&$reply) { return Http::response(["error" => ["code" => $reply[0], "message" => $reply[1]]], $reply[0]); });
+
+        // No key: Google's anonymous quota is shared by everyone - a setup problem, not "try later".
+        $error = $this->getJson($url)->json('error');
+        $this->assertSame('pagespeed_setup', $error['code']);
+        $this->assertFalse($error['retryable']);
+
+        // With a key, a 429 really is the per-minute limit.
+        Settings::set('google.pagespeed.api_key', 'psi-key');
+        $error = $this->getJson($url)->json('error');
+        $this->assertSame('pagespeed_quota', $error['code']);
+        $this->assertTrue($error['retryable']);
+        Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), 'key=psi-key'));
+
+        // A rejected key or a disabled API is setup too.
+        $reply = [403, 'PageSpeed Insights API has not been used in project 1 before or it is disabled.'];
+        $this->assertSame('pagespeed_setup', $this->getJson($url)->json('error.code'));
+    }
 }
