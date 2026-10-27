@@ -1,0 +1,70 @@
+openapi: 3.0.3
+info:
+  title: Shared subscription payment callback
+  version: 1.0.0
+  description: >-
+    All configured external providers use this unlocalized endpoint for browser
+    returns and POST notifications. Incoming status, gateway and charge IDs are
+    untrusted. The server queries the original provider using the saved reference,
+    validates amount/currency/merchant reference, and fulfills a subscription once.
+paths:
+  /callback/payment:
+    parameters:
+      - in: query
+        name: transaction
+        required: true
+        schema: { type: integer, minimum: 1 }
+      - in: query
+        name: token
+        required: true
+        description: Per-transaction opaque callback token issued before checkout.
+        schema: { type: string, minLength: 64, maxLength: 64 }
+      - in: query
+        name: notification
+        schema: { type: string, enum: ['0', '1'], default: '0' }
+        description: '1 returns JSON and requests retry while pending; 0 redirects to subscription selection with a status toast.'
+    get:
+      operationId: paymentReturn
+      responses:
+        '200': { description: 'Terminal notification acknowledged as JSON.' }
+        '302': { description: 'Browser return redirects to subscription selection with a success/error/pending flash toast.' }
+        '400': { description: Missing or malformed callback URL. }
+        '403': { description: Invalid transaction/token pair. }
+        '422': { description: Unsupported transaction category. }
+        '429': { description: Too many confirmation requests. }
+        '503': { description: Notification confirmation is pending; retry later. }
+    post:
+      operationId: paymentNotificationOrBrowserReturn
+      description: >-
+        CSRF exempt. Requires the opaque token in the URL and server-side provider
+        verification. Provider payloads cannot override URL correlation values.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+          application/x-www-form-urlencoded:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: Terminal notification acknowledged.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, enum: [paid, failed] }
+        '303': { description: Browser POST redirects to subscription selection with a status flash toast. }
+        '400': { description: Missing or malformed callback URL. }
+        '403': { description: Invalid transaction/token pair. }
+        '422': { description: Unsupported transaction category. }
+        '429': { description: Too many confirmation requests. }
+        '503':
+          description: 'Pending, early notification, provider outage, or mismatched details. Retry later.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [pending] }

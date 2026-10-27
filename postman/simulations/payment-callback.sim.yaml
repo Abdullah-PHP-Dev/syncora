@@ -1,0 +1,12 @@
+simulation: payment-callback
+routing: path
+mocks:
+  - name: Tap
+    routeKey: tap
+    path: postman/mocks/tap/config.yaml
+  - name: ClickPay
+    routeKey: clickpay
+    path: postman/mocks/clickpay/config.yaml
+  - name: Tamara
+    routeKey: tamara
+    path: postman/mocks/tamara/config.yaml

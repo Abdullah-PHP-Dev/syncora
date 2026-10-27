@@ -58,10 +58,16 @@ return [
         ],
 
 	    'tap' => [
+		    'base_url' => env('TAP_BASE_URL', 'https://api.tap.company/v2'),
 		    'secret_key'  => env('TAP_SECRET_KEY'),
 		    'public_key'  => env('TAP_PUBLIC_KEY'),
 		    'merchant_id' => env('TAP_MERCHANT_ID'),
-	    ]
+	    ],
+        'clickpay' => [
+	        'base_url' => env('CLICKPAY_BASE_URL', 'https://secure.clickpay.com.sa'),
+	        'secret_key'  => env('CLICKPAY_TOKEN'),
+	        'merchant_id' => env('CLICKPAY_PROFILE_ID'),
+        ]
     ],
     // No trailing slash - every consumer of this value (OAuth redirect_uri
     // builders across the Messaging and Ads modules) appends a leading-

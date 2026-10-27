@@ -1,19 +1,19 @@
 <?php
 
+namespace App\Services\Payments\Gateways;
 
 class NoonGateway implements CardGatewayInterface
 {
     public function pay(array $data): array
     {
         return [
-            'status' => 'pending',
-            'redirect_url' => 'https://noon-url',
-            'transaction_id' => uniqid('noon_'),
+            'status' => 'failed',
+            'message' => __('Noon payments are not configured yet. Please choose another payment method.'),
         ];
     }
 
     public function verify(array $data): bool
     {
-        return true;
+        return false;
     }
 }
