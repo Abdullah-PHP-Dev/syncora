@@ -330,7 +330,7 @@ class GoogleSuiteTest extends TestCase
 
         $response->assertOk();
         $this->assertStringContainsString('text/csv', $response->headers->get('Content-Type'));
-        $csv = $response->streamedContent();
+        $csv = $response->getContent();
         $this->assertStringContainsString("\"'=HYPERLINK(\"\"http://evil\"\")\"", $csv);
         $this->assertStringContainsString('متجر الكتروني', $csv);
     }
@@ -517,5 +517,25 @@ class GoogleSuiteTest extends TestCase
         $this->getJson(route('admin.google.api.reports.export', ['service' => 'search_console', 'type' => 'queries']))
             ->assertForbidden()->assertJsonPath('code', 'package_feature_denied');
         Http::assertNothingSent();
+    }
+
+    public function test_ga4_daily_report_exports_as_csv_from_the_page(): void
+    {
+        $this->connection();
+        $this->property('ga4');
+        $range = ReportRange::make('28d');
+        Http::fake(['analyticsdata.googleapis.com/v1beta/properties/123:runReport' => Http::response([
+            'dimensionHeaders' => [['name' => 'date']],
+            'metricHeaders' => array_map(fn ($n) => ['name' => $n], ['activeUsers', 'sessions', 'screenPageViews', 'engagementRate', 'keyEvents']),
+            'rows' => [['dimensionValues' => [['value' => $range->start->format('Ymd')]], 'metricValues' => array_map(fn ($v) => ['value' => $v], ['12', '15', '40', '0.61', '2'])]],
+        ])]);
+
+        // Same request the page makes: axios asks for JSON (errors) but receives the CSV stream.
+        $response = $this->get(route('admin.google.api.reports.export', ['range' => '28d', 'service' => 'ga4', 'type' => 'daily']), ['Accept' => 'application/json, text/plain, */*', 'X-Requested-With' => 'XMLHttpRequest']);
+
+        $response->assertOk();
+        $csv = $response->getContent();
+        $this->assertStringContainsString('Date,"Active users",Sessions,Views,"Engagement rate","Key events"', $csv);
+        $this->assertStringContainsString($range->start->toDateString() . ',12,15,40,0.61,2', $csv);
     }
 }

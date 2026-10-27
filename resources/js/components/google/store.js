@@ -170,7 +170,8 @@ export function normaliseError(error) {
     }
     if (response.status === 403) return { code: body.code === 'package_feature_denied' ? 'package' : 'forbidden', message: body.message || t('errors.forbidden') };
     if (response.status === 429) return { code: 'quota_exceeded', message: t('errors.quota_exceeded'), retryable: true };
-    return { code: 'generic', message: t('errors.generic'), retryable: true };
+    // Unrecognised failure: keep the status visible so support can trace it.
+    return { code: 'generic', message: `${t('errors.generic')} (HTTP ${response.status})`, status: response.status, retryable: true };
 }
 
 /* ---------------- helpers ---------------- */
