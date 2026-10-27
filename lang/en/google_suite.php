@@ -154,6 +154,8 @@ return [
         'forbidden' => 'You don’t have permission to do this in this workspace.',
         'package' => 'Your plan doesn’t include the Google Analytics integration.',
         'page_unreachable' => 'Google couldn’t load this page. Check that the URL is public (not behind a login or firewall) and loads in a browser, then try again.',
+        'pagespeed_quota' => 'Google’s limit for website speed tests was reached. Please try again in a few minutes.',
+        'pagespeed_setup' => 'Website speed testing isn’t fully set up on SocialEaz yet. Our team has been notified - please try again later.',
         'ads_not_connected' => 'Your Google Ads account isn’t connected, or its access expired. Reconnect it in the Ads hub.',
         'ads_failed' => 'Google Ads couldn’t return results for this account. Check that the account is active and that SocialEaz still has access, then try again.',
     ],

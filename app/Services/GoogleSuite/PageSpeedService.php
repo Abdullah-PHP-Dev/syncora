@@ -6,6 +6,7 @@ use App\Support\Google\GoogleApiException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Website performance through the public PageSpeed Insights API. Needs no
@@ -59,12 +60,13 @@ class PageSpeedService
 
     public function analyse(string $url, string $strategy, string $locale): array
     {
+        $key = self::apiKey();
         $query = array_filter([
             'url' => $url,
             'strategy' => strtoupper($strategy),
             'category' => 'PERFORMANCE',
             'locale' => $locale === 'ar' ? 'ar' : 'en',
-            'key' => adminSetting('google.pagespeed.api_key') ?: config('services.google_pagespeed.key'),
+            'key' => $key,
         ]);
 
         // One Lighthouse run commonly takes 15-40 seconds.
@@ -78,17 +80,36 @@ class PageSpeedService
 
         if (! $response->successful()) {
             $message = (string) $response->json('error.message', '');
+            $reason = (string) $response->json('error.details.0.reason', $response->json('error.errors.0.reason', ''));
 
-            throw new GoogleApiException(match (true) {
-                $response->status() === 429 => GoogleApiException::QUOTA_EXCEEDED,
+            $code = match (true) {
+                // Without a key every server shares Google's tiny anonymous quota.
+                $response->status() === 429 => $key ? GoogleApiException::PAGESPEED_QUOTA : GoogleApiException::PAGESPEED_SETUP,
+                // Bad/restricted key, or the PageSpeed API isn't enabled on the key's Cloud project.
+                in_array($response->status(), [401, 403], true),
+                str_contains($reason, 'API_KEY'), str_contains($message, 'API key') => GoogleApiException::PAGESPEED_SETUP,
                 $response->status() >= 500 && ! str_contains($message, 'Lighthouse') => GoogleApiException::PROVIDER_OUTAGE,
                 // FAILED_DOCUMENT_REQUEST, ERRORED_DOCUMENT_REQUEST, NO_FCP, DNS_FAILURE...: Google couldn't load the page.
                 str_contains($message, 'Lighthouse returned error') || str_contains($message, 'Unable to process request') => GoogleApiException::PAGE_UNREACHABLE,
                 default => GoogleApiException::BAD_REQUEST,
-            }, $message, $response->status());
+            };
+
+            if ($code !== GoogleApiException::PAGE_UNREACHABLE) {
+                Log::warning('Google Suite: PageSpeed request failed', [
+                    'status' => $response->status(), 'reason' => $reason, 'message' => $message, 'api_key_configured' => (bool) $key,
+                ]);
+            }
+
+            throw new GoogleApiException($code, $message, $response->status());
         }
 
         return $this->map($response->json() ?? [], $strategy);
+    }
+
+    /** Admin setting google.pagespeed.api_key (Admin › APIs), else GOOGLE_PAGESPEED_API_KEY. */
+    public static function apiKey(): ?string
+    {
+        return adminSetting('google.pagespeed.api_key') ?: config('services.google_pagespeed.key') ?: null;
     }
 
     public function map(array $body, string $strategy): array
