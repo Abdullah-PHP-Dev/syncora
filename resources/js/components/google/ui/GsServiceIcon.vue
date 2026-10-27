@@ -12,7 +12,7 @@ export default {
   props: { service: { type: String, required: true } },
   computed: {
     icon() {
-      return { ga4: 'bx-bar-chart-alt-2', search_console: 'bx-search', google_ads: 'bx-bullseye', business_profile: 'bx-store-alt', tag_manager: 'bx-purchase-tag-alt' }[this.service] || 'bx-grid-alt';
+      return { ga4: 'bx-bar-chart-alt-2', search_console: 'bx-search', google_ads: 'bx-bullseye', pagespeed: 'bx-tachometer', business_profile: 'bx-store-alt', tag_manager: 'bx-purchase-tag-alt' }[this.service] || 'bx-grid-alt';
     },
   },
 };

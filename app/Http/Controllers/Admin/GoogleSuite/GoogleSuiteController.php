@@ -65,6 +65,16 @@ class GoogleSuiteController extends Controller
         return $this->screen($request, 'search_console');
     }
 
+    public function advertising(Request $request): View
+    {
+        return $this->screen($request, 'advertising');
+    }
+
+    public function websitePerformance(Request $request): View
+    {
+        return $this->screen($request, 'pagespeed');
+    }
+
     public function businessProfile(Request $request): View
     {
         return $this->screen($request, 'business_profile');

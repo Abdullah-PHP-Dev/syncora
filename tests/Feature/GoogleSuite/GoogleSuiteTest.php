@@ -4,6 +4,7 @@ namespace Tests\Feature\GoogleSuite;
 
 use App\Models\GoogleProperty;
 use App\Models\GoogleSuiteSetting;
+use App\Models\SocialAccount;
 use App\Models\SocialConnection;
 use App\Models\User;
 use App\Services\Connections\ConnectionService;
@@ -379,5 +380,126 @@ class GoogleSuiteTest extends TestCase
         $this->connection();
 
         $this->assertSame('no_property', app(GoogleSuiteService::class)->ga4Dashboard($this->user->id, ReportRange::make('28d'))['error']['code']);
+    }
+
+    private function pageSpeedBody(): array
+    {
+        return [
+            'id' => 'https://brand.com/',
+            'analysisUTCTimestamp' => '2026-10-27T10:00:00Z',
+            'loadingExperience' => ['origin_fallback' => true, 'metrics' => ['LARGEST_CONTENTFUL_PAINT_MS' => ['percentile' => 1, 'category' => 'FAST']]],
+            'originLoadingExperience' => ['overall_category' => 'AVERAGE', 'metrics' => [
+                'LARGEST_CONTENTFUL_PAINT_MS' => ['percentile' => 3100, 'category' => 'AVERAGE'],
+                'CUMULATIVE_LAYOUT_SHIFT_SCORE' => ['percentile' => 12, 'category' => 'AVERAGE'],
+            ]],
+            'lighthouseResult' => [
+                'finalDisplayedUrl' => 'https://brand.com/',
+                'categories' => ['performance' => ['score' => 0.47, 'auditRefs' => [
+                    ['id' => 'largest-contentful-paint', 'group' => 'metrics'],
+                    ['id' => 'render-blocking-resources'],
+                    ['id' => 'unused-javascript'],
+                    ['id' => 'uses-text-compression'],
+                ]]],
+                'audits' => [
+                    'largest-contentful-paint' => ['id' => 'largest-contentful-paint', 'score' => 0.2, 'numericValue' => 5200, 'displayValue' => '5.2 s', 'scoreDisplayMode' => 'numeric'],
+                    'render-blocking-resources' => ['id' => 'render-blocking-resources', 'title' => 'Eliminate render-blocking resources', 'description' => 'Resources are blocking the first paint. [Learn how](https://developer.chrome.com/docs/lighthouse/x).', 'score' => 0.3, 'scoreDisplayMode' => 'metricSavings', 'details' => ['overallSavingsMs' => 900]],
+                    'unused-javascript' => ['id' => 'unused-javascript', 'title' => 'Reduce unused JavaScript', 'description' => 'Remove dead code.', 'score' => 0.5, 'scoreDisplayMode' => 'metricSavings', 'details' => ['overallSavingsMs' => 1500, 'overallSavingsBytes' => 120000]],
+                    'uses-text-compression' => ['id' => 'uses-text-compression', 'title' => 'Enable text compression', 'score' => 1, 'scoreDisplayMode' => 'metricSavings'],
+                ],
+            ],
+        ];
+    }
+
+    public function test_pagespeed_works_without_a_google_connection_and_keeps_lab_and_field_data_apart(): void
+    {
+        Http::fake(['www.googleapis.com/pagespeedonline/*' => Http::response($this->pageSpeedBody())]);
+
+        $data = $this->getJson(route('admin.google.api.pagespeed', ['url' => 'https://brand.com/', 'strategy' => 'mobile']))->assertOk()->json('data');
+
+        $this->assertSame(47, $data['score']);
+        $this->assertSame('5.2 s', $data['lab']['lcp']['display']);
+        // The page itself had too little traffic, so the site-wide (origin) figures are used - and labelled as such.
+        $this->assertSame('origin', $data['field']['scope']);
+        $this->assertEqualsWithDelta(0.12, $data['field']['metrics']['cls']['value'], 0.0001);
+        $this->assertSame(['unused-javascript', 'render-blocking-resources'], array_column($data['opportunities'], 'id'));
+        $this->assertSame('https://developer.chrome.com/docs/lighthouse/x', $data['opportunities'][1]['learn_url']);
+        $this->assertStringNotContainsString('](', $data['opportunities'][1]['description']);
+        $this->assertSame(1, $data['passed']);
+        $this->assertSame('https://brand.com/', GoogleSuiteSetting::for($this->user->id)['pagespeed_url']);
+        Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), 'strategy=MOBILE') && str_contains($r->url(), 'category=PERFORMANCE'));
+    }
+
+    public function test_pagespeed_cached_lookups_never_start_a_test(): void
+    {
+        Http::fake();
+
+        $this->getJson(route('admin.google.api.pagespeed', ['url' => 'https://brand.com/', 'strategy' => 'desktop', 'cached' => 1]))
+            ->assertOk()->assertExactJson(['data' => null]);
+        Http::assertNothingSent();
+    }
+
+    public function test_pagespeed_explains_a_page_google_cannot_load(): void
+    {
+        Http::fake(['www.googleapis.com/pagespeedonline/*' => Http::response(['error' => ['code' => 500, 'message' => 'Lighthouse returned error: FAILED_DOCUMENT_REQUEST.']], 500)]);
+
+        $this->assertSame('page_unreachable', $this->getJson(route('admin.google.api.pagespeed', ['url' => 'https://intranet.brand.com/', 'strategy' => 'mobile']))->json('error.code'));
+        $this->getJson(route('admin.google.api.pagespeed', ['url' => 'javascript:alert(1)', 'strategy' => 'mobile']))->assertStatus(422);
+    }
+
+    public function test_google_ads_results_come_from_the_ads_hub_account(): void
+    {
+        SocialAccount::create([
+            'user_id' => $this->user->id, 'platform' => 'google', 'name' => 'Brand Ads', 'platform_account_id' => '123-456-7890',
+            'access_token' => 'ads-token', 'refresh_token' => 'ads-refresh', 'expires_at' => now()->addHour(), 'has_ads_permission' => true,
+        ]);
+        $range = ReportRange::make('7d');
+        [$start, $end] = $range->current();
+        [$previousStart] = $range->previous();
+        Http::fake(function (HttpRequest $request) use ($start, $end, $previousStart) {
+            $query = $request['query'] ?? '';
+            if (str_contains($query, 'FROM customer')) {
+                return Http::response(['results' => [
+                    ['customer' => ['currencyCode' => 'SAR'], 'segments' => ['date' => $start], 'metrics' => ['costMicros' => '150000000', 'clicks' => '30', 'impressions' => '1000', 'conversions' => 3.0, 'conversionsValue' => 600.0]],
+                    ['customer' => ['currencyCode' => 'SAR'], 'segments' => ['date' => $end], 'metrics' => ['costMicros' => '50000000', 'clicks' => '10', 'impressions' => '1000', 'conversions' => 1.0]],
+                    ['customer' => ['currencyCode' => 'SAR'], 'segments' => ['date' => $previousStart], 'metrics' => ['costMicros' => '100000000', 'clicks' => '20', 'impressions' => '500']],
+                ]]);
+            }
+            if (str_contains($query, 'FROM campaign')) {
+                return Http::response(['results' => [['campaign' => ['id' => '9', 'name' => 'Search - Riyadh', 'status' => 'ENABLED', 'advertisingChannelType' => 'SEARCH'], 'metrics' => ['costMicros' => '200000000', 'clicks' => '40', 'impressions' => '2000']]]]);
+            }
+
+            return Http::response(['results' => []]); // no enabled conversion actions
+        });
+
+        $data = $this->getJson(route('admin.google.api.google-ads', ['range' => '7d']))->assertOk()->json('data');
+
+        $this->assertSame('SAR', $data['currency']);
+        $this->assertEquals(200, $data['totals']['current']['cost']);
+        $this->assertSame(40, $data['totals']['current']['clicks']);
+        $this->assertEquals(50, $data['totals']['current']['cost_per_conversion']);
+        $this->assertEquals(3, $data['totals']['current']['roas']);
+        // No conversions or value last period: no ratio is invented.
+        $this->assertNull($data['totals']['previous']['cost_per_conversion']);
+        $this->assertNull($data['totals']['previous']['roas']);
+        $this->assertEquals([150, 0, 0, 0, 0, 0, 50], $data['trend']['cost']['current']);
+        $this->assertSame('Search - Riyadh', $data['campaigns'][0]['name']);
+        $this->assertNull($data['campaigns'][0]['roas']);
+        $this->assertFalse($data['conversion_tracking']);
+        Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), 'customers/1234567890/googleAds:search') && $r->hasHeader('Authorization', 'Bearer ads-token'));
+    }
+
+    public function test_google_ads_without_an_ads_account_says_how_to_connect(): void
+    {
+        Http::fake();
+
+        $this->assertSame('ads_not_connected', $this->getJson(route('admin.google.api.google-ads'))->json('error.code'));
+        Http::assertNothingSent();
+    }
+
+    public function test_new_screens_render(): void
+    {
+        foreach (['advertising', 'website-performance', 'integrations', 'business-profile', 'tag-manager'] as $screen) {
+            $this->get(route('admin.google.' . $screen))->assertOk();
+        }
     }
 }

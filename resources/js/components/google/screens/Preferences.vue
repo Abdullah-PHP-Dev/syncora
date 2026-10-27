@@ -82,7 +82,7 @@
 <script>
 import { suite, t, api, selected, serviceName, toast, raw } from '../store';
 
-const WIDGETS = ['services', 'performance', 'attention', 'activity', 'acquisition', 'queries', 'landing_pages', 'audience'];
+const WIDGETS = ['services', 'insights', 'performance', 'attention', 'activity', 'acquisition', 'queries', 'landing_pages', 'audience'];
 const pick = (p) => ({ default_range: p.default_range, compare_previous: !!p.compare_previous, widgets: [...(p.widgets || [])], sync_frequency: p.sync_frequency });
 
 export default {

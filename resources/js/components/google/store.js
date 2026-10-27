@@ -27,7 +27,7 @@ export const suite = Vue.observable({
 export const SERVICES = ['ga4', 'search_console'];
 
 /* Categorical series colours - fixed per entity, validated (dataviz validator, light surface). */
-export const COLORS = { ga4: '#E8710A', search_console: '#1A73E8', business_profile: '#188038', conversions: '#7C3AED', previous: '#9AA0B4' };
+export const COLORS = { ga4: '#E8710A', search_console: '#1A73E8', google_ads: '#0B8A7A', pagespeed: '#188038', business_profile: '#188038', conversions: '#7C3AED', previous: '#9AA0B4' };
 export const DEVICE_COLORS = { mobile: '#7C3AED', desktop: '#E8710A', tablet: '#1A73E8' };
 
 export function init(boot) {

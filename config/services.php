@@ -81,4 +81,11 @@ return [
         'timeout' => (int) env('XCHAT_WORKER_TIMEOUT', 20),
     ],
 
+    // PageSpeed Insights (Google Suite › Website performance). Optional: without a
+    // key Google allows a small shared quota; the admin setting
+    // google.pagespeed.api_key takes precedence.
+    'google_pagespeed' => [
+        'key' => env('GOOGLE_PAGESPEED_API_KEY'),
+    ],
+
 ];

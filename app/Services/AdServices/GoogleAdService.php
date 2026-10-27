@@ -55,6 +55,25 @@ class GoogleAdService
         return $this->buildAuthRedirect($platform, $state);
     }
 
+    /** The ad account this instance reports on (the seller's selected one). */
+    public function account(): ?SocialAccount
+    {
+        return $this->account;
+    }
+
+    /**
+     * Read-only GAQL for performance reporting (GoogleSuite\GoogleAdsReportService).
+     * An empty header means the token refresh failed - the account needs reconnecting.
+     */
+    public function report(string $query): array
+    {
+        if (!$this->account || empty($this->header)) {
+            return $this->errorResponse('reauth');
+        }
+
+        return $this->search($query);
+    }
+
     public function store($platform, $request)
     {
         $response = $this->storeBudget($platform, $request);
