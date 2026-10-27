@@ -10,4 +10,6 @@ return [
     // GA4 measurement ID fallback - the admin setting google.analytics.measurement_id
     // takes precedence. Rendered on the production host only.
     'google_analytics_id' => env('GOOGLE_ANALYTICS_ID'),
+    // Google Tag Manager container. Rendered on the production host only.
+    'google_tag_manager_id' => env('GOOGLE_TAG_MANAGER_ID', 'GTM-53W9VXBN'),
 ];

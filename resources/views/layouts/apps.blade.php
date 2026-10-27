@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 <head>
+    @include('layouts.partials.google-tag-manager')
     @include('layouts.partials.google-analytics')
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -22,6 +23,7 @@
     @stack('styles')
 </head>
 <body class="marketing-home">
+    @include('layouts.partials.google-tag-manager-noscript')
 @include('layouts.partials.header_modern')
 
 <main>
