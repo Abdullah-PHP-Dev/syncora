@@ -31,7 +31,7 @@ export default {
     iconClass() {
       if (this.icon) return this.icon;
       if (!this.error) return this.kind === 'empty' ? 'bx-bar-chart-alt-2' : 'bx-info-circle';
-      return { auth_expired: 'bx-lock-alt', missing_scope: 'bx-shield-x', quota_exceeded: 'bx-time-five', provider_outage: 'bx-cloud-lightning', no_property: 'bx-list-check', not_connected: 'bxl-google' }[this.error.code] || 'bx-error-circle';
+      return { auth_expired: 'bx-lock-alt', missing_scope: 'bx-shield-x', quota_exceeded: 'bx-time-five', pagespeed_quota: 'bx-time-five', pagespeed_setup: 'bx-cog', provider_outage: 'bx-cloud-lightning', no_property: 'bx-list-check', not_connected: 'bxl-google' }[this.error.code] || 'bx-error-circle';
     },
   },
   methods: { t },

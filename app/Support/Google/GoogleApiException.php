@@ -23,6 +23,10 @@ class GoogleApiException extends RuntimeException
     public const NOT_CONFIGURED = 'not_configured';
     /** PageSpeed Insights: Google could not load the tested page. */
     public const PAGE_UNREACHABLE = 'page_unreachable';
+    /** PageSpeed Insights: Google's per-minute/day limit for our API key. */
+    public const PAGESPEED_QUOTA = 'pagespeed_quota';
+    /** PageSpeed Insights: no API key (anonymous quota refused), or the key/API isn't set up. */
+    public const PAGESPEED_SETUP = 'pagespeed_setup';
     /** Google Ads reporting: no ads account in the Connection Hub, or its token stopped working. */
     public const ADS_NOT_CONNECTED = 'ads_not_connected';
     public const ADS_FAILED = 'ads_failed';
@@ -31,7 +35,7 @@ class GoogleApiException extends RuntimeException
     public const RECONNECT = [self::AUTH_EXPIRED, self::MISSING_SCOPE, self::NOT_CONNECTED];
 
     /** Codes worth retrying later without changing anything. */
-    public const TRANSIENT = [self::QUOTA_EXCEEDED, self::PROVIDER_OUTAGE];
+    public const TRANSIENT = [self::QUOTA_EXCEEDED, self::PROVIDER_OUTAGE, self::PAGESPEED_QUOTA];
 
     public function __construct(public readonly string $errorCode, string $detail = '', public readonly int $status = 0)
     {
