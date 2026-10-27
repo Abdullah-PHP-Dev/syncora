@@ -15,7 +15,6 @@
       <div class="gs-tabs-main">
         <a v-for="tab in tabs" :key="tab.key" :href="tab.url" class="gs-tab" :class="{ active: tab.active }" :aria-current="tab.active ? 'page' : null">
           <span v-if="tab.color" class="gs-tab-dot" :style="{ background: tab.color }" aria-hidden="true"></span>{{ tab.label }}
-          <span v-if="tab.planned" class="gs-tab-badge">{{ t('common.coming_soon') }}</span>
         </a>
       </div>
       <div class="gs-tabs-side">
@@ -47,13 +46,15 @@ import ServiceSettings from './screens/ServiceSettings.vue';
 import Analytics from './screens/Analytics.vue';
 import SearchConsole from './screens/SearchConsole.vue';
 import Planned from './screens/Planned.vue';
+import Advertising from './screens/Advertising.vue';
+import PageSpeed from './screens/PageSpeed.vue';
 import Reports from './screens/Reports.vue';
 import Preferences from './screens/Preferences.vue';
 import Health from './screens/Health.vue';
 
 const SCREENS = {
   overview: Overview, integrations: Integrations, setup: Setup, status: Status, properties: Properties, settings: ServiceSettings,
-  analytics: Analytics, search_console: SearchConsole, business_profile: Planned, tag_manager: Planned, reports: Reports, preferences: Preferences, health: Health,
+  analytics: Analytics, search_console: SearchConsole, advertising: Advertising, pagespeed: PageSpeed, business_profile: Planned, tag_manager: Planned, reports: Reports, preferences: Preferences, health: Health,
 };
 
 /**
@@ -73,14 +74,14 @@ export default {
         { key: 'overview', label: t('nav.tab_overview'), url: u.overview, active: s === 'overview' },
         { key: 'analytics', label: t('nav.tab_analytics'), url: u.analytics, active: s === 'analytics' || (s === 'settings' && suite.extra.service === 'ga4'), color: COLORS.ga4 },
         { key: 'search_console', label: t('nav.tab_search_console'), url: u.search_console, active: s === 'search_console' || (s === 'settings' && suite.extra.service === 'search_console'), color: COLORS.search_console },
-        { key: 'business_profile', label: t('nav.tab_business_profile'), url: u.business_profile, active: s === 'business_profile', color: COLORS.business_profile, planned: true },
-        { key: 'tag_manager', label: t('nav.tab_tag_manager'), url: u.tag_manager, active: s === 'tag_manager', color: '#174EA6', planned: true },
+        { key: 'advertising', label: t('nav.tab_ads'), url: u.advertising, active: s === 'advertising', color: COLORS.google_ads },
+        { key: 'pagespeed', label: t('nav.tab_pagespeed'), url: u.pagespeed, active: s === 'pagespeed', color: COLORS.pagespeed },
       ];
     },
     sideTabs() {
       const u = suite.urls; const s = suite.screen;
       return [
-        { key: 'integrations', label: t('nav.integrations'), url: u.integrations, active: s === 'integrations' },
+        { key: 'integrations', label: t('nav.integrations'), url: u.integrations, active: ['integrations', 'business_profile', 'tag_manager'].includes(s) },
         { key: 'reports', label: t('nav.reports'), url: u.reports, active: s === 'reports' },
         { key: 'credentials', label: t('nav.credentials'), url: u.properties, active: ['properties', 'setup', 'status'].includes(s) },
         { key: 'settings', label: t('nav.settings'), url: u.preferences, active: ['preferences', 'health'].includes(s) },

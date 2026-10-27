@@ -26,9 +26,9 @@
     <!-- Linked account strip -->
     <account-strip v-else />
 
-    <div v-if="suite.account.connected" class="gs-toolbar">
+    <div v-if="suite.account.connected || suite.extra.ads_account" class="gs-toolbar">
       <gs-range @change="load" />
-      <div class="gs-toolbar-end">
+      <div v-if="suite.account.connected" class="gs-toolbar-end">
         <span v-if="fetchedAt" class="gs-muted">{{ t('common.last_synced') }} {{ fmt.ago(fetchedAt) }}</span>
         <button type="button" class="gs-btn gs-btn-ghost" :disabled="refreshing || loading" @click="refresh">
           <i class="bx bx-refresh" :class="{ 'bx-spin': refreshing }"></i>{{ refreshing ? t('common.refreshing') : t('common.refresh') }}
@@ -43,6 +43,7 @@
           <gs-service-icon :service="card.service" />
           <span class="gs-pill" :class="card.pill.tone">{{ card.pill.text }}</span>
         </div>
+        <p class="gs-svc-outcome">{{ card.outcome }}</p>
         <h3>{{ serviceName(card.service) }}</h3>
         <p v-if="card.sub" class="gs-mono gs-svc-sub" :title="card.sub">{{ card.sub }}</p>
         <p v-else class="gs-svc-text">{{ card.text }}</p>
@@ -51,9 +52,10 @@
           <div>
             <span class="gs-kpi-label">{{ card.metric.label }}</span>
             <strong class="gs-kpi-value">{{ card.metric.value }}</strong>
-            <gs-delta :current="card.metric.current" :previous="card.metric.previous" :suffix="t('common.vs_prior')" />
+            <span v-if="card.metric.note" class="gs-svc-note" :class="card.metric.noteTone">{{ card.metric.note }}</span>
+            <gs-delta v-else :current="card.metric.current" :previous="card.metric.previous" :inverse="!!card.metric.inverse" :suffix="t('common.vs_prior')" />
           </div>
-          <gs-spark :values="card.metric.spark" :color="card.color" />
+          <gs-spark v-if="card.metric.spark" :values="card.metric.spark" :color="card.color" />
         </div>
         <gs-state v-else-if="card.state" v-bind="card.state" compact @retry="load" />
         <ul v-else-if="card.points" class="gs-checks">
@@ -118,6 +120,34 @@
         </section>
       </aside>
     </div>
+
+    <!-- Insights from connected data -->
+    <section v-if="widget('insights') && hasAnyData" class="gs-card gs-pad">
+      <div class="gs-card-head">
+        <div>
+          <p class="gs-eyebrow">{{ t('insights.eyebrow') }}</p>
+          <h2>{{ t('insights.title') }}</h2>
+          <p class="gs-sub sm">{{ t('insights.subtitle') }}</p>
+        </div>
+        <div class="gs-legend gs-insight-legend">
+          <span><span class="gs-chip is-neutral">{{ t('insights.kind.measured') }}</span>{{ t('insights.kind.measured_hint') }}</span>
+          <span><span class="gs-chip is-brand">{{ t('insights.kind.suggestion') }}</span>{{ t('insights.kind.suggestion_hint') }}</span>
+        </div>
+      </div>
+      <div v-if="loading" class="gs-skel-block" aria-hidden="true"><span v-for="n in 3" :key="n" class="gs-skel"></span></div>
+      <ul v-else-if="insights.length" class="gs-insights">
+        <li v-for="item in insights" :key="item.key" :class="'is-' + item.tone">
+          <span class="gs-insight-icon" aria-hidden="true"><i class="bx" :class="insightIcon(item)"></i></span>
+          <div class="gs-insight-body">
+            <span class="gs-chip" :class="item.kind === 'suggestion' ? 'is-brand' : 'is-neutral'">{{ t('insights.kind.' + item.kind) }}</span>
+            <strong>{{ item.title }}</strong>
+            <p>{{ item.text }}</p>
+            <a :href="item.url" class="gs-link sm">{{ item.action }} <i class="bx" :class="suite.dir === 'rtl' ? 'bx-left-arrow-alt' : 'bx-right-arrow-alt'"></i></a>
+          </div>
+        </li>
+      </ul>
+      <p v-else class="gs-all-clear"><i class="bx bx-check-shield"></i>{{ t('insights.none') }}</p>
+    </section>
 
     <!-- Breakdowns -->
     <div v-if="suite.account.connected" class="gs-grid-2">
@@ -184,6 +214,7 @@
 
 <script>
 import { suite, t, fmt, api, rangeParams, selected, grants, serviceName, toast, eventText, COLORS, DEVICE_COLORS } from '../store';
+import { buildInsights } from '../insights';
 import GsRange from '../ui/GsRange.vue';
 import GsSpark from '../ui/GsSpark.vue';
 import GsDelta from '../ui/GsDelta.vue';
@@ -198,27 +229,19 @@ import SectionBody from './parts/SectionBody.vue';
 export default {
   name: 'GsOverview',
   components: { GsRange, GsSpark, GsDelta, GsState, GsTable, GsDonut, GsLineChart, GsServiceIcon, AccountStrip, SectionBody },
-  data: () => ({ suite, COLORS, loading: false, refreshing: false, results: { ga4: null, search_console: null }, on: { sessions: true, clicks: true, key_events: true } }),
+  data: () => ({ suite, COLORS, loading: false, refreshing: false, results: { ga4: null, search_console: null }, ads: null, speed: null, on: { sessions: true, clicks: true, key_events: true } }),
   computed: {
     fmt: () => fmt,
     ga() { return this.results.ga4 && this.results.ga4.data; },
     sc() { return this.results.search_console && this.results.search_console.data; },
+    adsData() { return this.ads && this.ads.data; },
+    speedData() { return this.speed && this.speed.data; },
+    hasAnyData() { return !!(this.ga || this.sc || this.adsData || this.speedData || this.loading); },
+    insights() { return buildInsights({ ga: this.ga, sc: this.sc, ads: this.adsData, speed: this.speedData }); },
     fetchedAt() { return [this.results.ga4, this.results.search_console].map((r) => r && r.fetched_at).filter(Boolean).sort()[0] || null; },
     rangeLabel() { return t('ranges.' + suite.range.key); },
     serviceCards() {
-      return [this.dataCard('ga4'), this.dataCard('search_console'), {
-        service: 'business_profile', planned: true, color: COLORS.business_profile, text: t('overview.gbp_card'),
-        pill: { tone: 'is-neutral', text: t('status.planned') }, state: { kind: 'empty', text: t('overview.planned_text'), icon: 'bx-time' },
-        action: { url: suite.urls.business_profile, label: t('common.learn_more') },
-      }, {
-        service: 'tag_manager', planned: true, color: '#174EA6', text: t('overview.gtm_card'),
-        pill: { tone: 'is-neutral', text: t('status.planned') },
-        points: [
-          { text: t('properties.step_authorize'), done: suite.account.connected },
-          { text: t('planned.tag_manager_points.0'), done: false },
-        ],
-        action: { url: suite.urls.tag_manager, label: t('common.learn_more') },
-      }];
+      return [this.dataCard('ga4'), this.dataCard('search_console'), this.adsCard(), this.speedCard()];
     },
     tiles() {
       const g = this.ga; const s = this.sc;
@@ -265,19 +288,44 @@ export default {
       return items;
     },
   },
-  mounted() { if (suite.account.connected) this.load(); },
+  mounted() { this.load(); },
   methods: {
     t, serviceName, eventText,
     widget(key) { return (suite.preferences.widgets || []).includes(key); },
     toggle(key) { this.on = { ...this.on, [key]: !this.on[key] }; },
     share(v, total) { return total ? Math.max(2, Math.round((v / total) * 100)) : 0; },
     eventColor(e) { return e.status === 'error' ? '#C5221F' : e.status === 'warning' ? '#B45309' : COLORS[e.service] || '#188038'; },
+    insightIcon(item) { return { up: 'bx-trending-up', down: 'bx-trending-down', warning: 'bx-error', brand: 'bx-bulb' }[item.tone] || 'bx-info-circle'; },
+    adsCard() {
+      const base = { service: 'google_ads', color: COLORS.google_ads, outcome: t('outcomes.advertising'), settings: null, action: { url: suite.urls.advertising, label: t('common.open_dashboard') } };
+      if (!suite.extra.ads_account) return { ...base, text: t('integrations.ads_value'), pill: { tone: 'is-neutral', text: t('status.not_connected') }, action: { url: suite.urls.ads_connect, label: t('ads.connect') } };
+      const sub = suite.extra.ads_account.name;
+      if (!this.ads) return { ...base, sub, loading: true, pill: { tone: 'is-neutral', text: t('status.syncing') } };
+      if (this.ads.error) return { ...base, sub, pill: { tone: this.ads.error.code === 'ads_not_connected' ? 'is-danger' : 'is-warning', text: this.ads.error.code === 'ads_not_connected' ? t('status.reauth') : t('status.error') }, state: { kind: 'error', error: this.ads.error } };
+      const d = this.ads.data; const c = d.totals.current; const p = d.totals.previous;
+      const conversions = d.conversion_tracking !== false && (c.conversions > 0 || p.conversions > 0);
+      const metric = conversions
+        ? { label: t('ads.card_conversions', { range: this.rangeLabel }), value: fmt.dec(c.conversions, c.conversions % 1 ? 1 : 0), current: c.conversions, previous: p.conversions, spark: d.trend.conversions.current }
+        : { label: t('ads.card_cost', { range: this.rangeLabel }), value: fmt.money(c.cost, d.currency), current: c.cost, previous: p.cost, spark: d.trend.cost.current, inverse: true };
+      return { ...base, sub, metric, pill: { tone: 'is-success', text: t('status.connected') } };
+    },
+    speedCard() {
+      const base = { service: 'pagespeed', color: COLORS.pagespeed, outcome: t('outcomes.performance'), settings: null, action: { url: suite.urls.pagespeed, label: t('speed.open') } };
+      const d = this.speedData;
+      if (!d) return { ...base, text: t('speed.card_text'), pill: { tone: 'is-brand', text: t('speed.no_signin') }, action: { url: suite.urls.pagespeed, label: t('speed.run') } };
+      const band = d.score >= 90 ? 'good' : d.score >= 50 ? 'average' : 'poor';
+      return {
+        ...base, sub: d.final_url || suite.extra.website_url,
+        pill: { tone: band === 'good' ? 'is-success' : band === 'average' ? 'is-warning' : 'is-danger', text: t('speed.band.' + band) },
+        metric: { label: t('speed.card_metric'), value: `${d.score}/100`, note: t('speed.card_opps', { n: d.opportunities.length }), noteTone: d.opportunities.length ? 'is-warning' : 'is-success' },
+      };
+    },
     dataCard(service) {
       const prop = selected(service);
       const result = this.results[service];
       const color = COLORS[service];
       const isGa = service === 'ga4';
-      const base = { service, color, settings: isGa ? suite.urls.settings_ga4 : suite.urls.settings_search_console, action: { url: isGa ? suite.urls.analytics : suite.urls.search_console, label: t('common.open_dashboard') } };
+      const base = { service, color, outcome: t(isGa ? 'outcomes.traffic' : 'outcomes.search'), settings: isGa ? suite.urls.settings_ga4 : suite.urls.settings_search_console, action: { url: isGa ? suite.urls.analytics : suite.urls.search_console, label: t('common.open_dashboard') } };
       if (!suite.account.connected) return { ...base, settings: null, text: t(isGa ? 'integrations.ga4_value' : 'integrations.sc_value'), pill: { tone: 'is-neutral', text: t('status.not_connected') }, action: { url: suite.urls.setup, label: t('common.connect') } };
       if (!grants(service)) return { ...base, text: t('properties.scope_missing', { service: serviceName(service) }), pill: { tone: 'is-warning', text: t('status.reauth') }, action: { url: suite.urls.connect, label: t('common.reconnect') } };
       if (!prop) return { ...base, text: t('overview.service_not_selected', { service: serviceName(service) }), pill: { tone: 'is-warning', text: t('status.needs_setup') }, action: { url: suite.urls.properties, label: t('overview.choose_property') } };
@@ -292,10 +340,18 @@ export default {
     },
     async load() {
       this.loading = true;
+      // Each source fails on its own; none blocks the others.
+      const google = suite.account.connected
+        ? api('get', suite.urls.api.overview, { params: rangeParams() }).catch((e) => ({ ga4: { error: e }, search_console: { error: e } }))
+        : Promise.resolve({ ga4: null, search_console: null });
+      const ads = suite.extra.ads_account
+        ? api('get', suite.urls.api.google_ads, { params: rangeParams() }).catch((e) => ({ error: e }))
+        : Promise.resolve(null);
+      const speed = suite.extra.website_url
+        ? api('get', suite.urls.api.pagespeed, { params: { url: suite.extra.website_url, strategy: 'mobile', cached: 1 } }).catch(() => null)
+        : Promise.resolve(null);
       try {
-        this.results = await api('get', suite.urls.api.overview, { params: rangeParams() });
-      } catch (e) {
-        this.results = { ga4: { error: e }, search_console: { error: e } };
+        [this.results, this.ads, this.speed] = await Promise.all([google, ads, speed]);
       } finally {
         this.loading = false;
       }

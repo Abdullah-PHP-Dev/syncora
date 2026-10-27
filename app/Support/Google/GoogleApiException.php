@@ -21,6 +21,11 @@ class GoogleApiException extends RuntimeException
     public const BAD_REQUEST = 'bad_request';
     public const NO_PROPERTY = 'no_property';
     public const NOT_CONFIGURED = 'not_configured';
+    /** PageSpeed Insights: Google could not load the tested page. */
+    public const PAGE_UNREACHABLE = 'page_unreachable';
+    /** Google Ads reporting: no ads account in the Connection Hub, or its token stopped working. */
+    public const ADS_NOT_CONNECTED = 'ads_not_connected';
+    public const ADS_FAILED = 'ads_failed';
 
     /** Codes the customer fixes by reconnecting Google. */
     public const RECONNECT = [self::AUTH_EXPIRED, self::MISSING_SCOPE, self::NOT_CONNECTED];

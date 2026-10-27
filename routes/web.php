@@ -649,7 +649,9 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('social-accounts.callback');
 
 				// GOOGLE SUITE - Analytics & Insights: GA4 + Search Console
-				// reporting on a read-only Google consent (GoogleDriver::ANALYTICS).
+				// reporting on a read-only Google consent (GoogleDriver::ANALYTICS),
+				// Google Ads results via the Ads Hub account, and PageSpeed
+				// Insights (public API, no sign-in).
 				// Gated by the google_analytics package module (package_access).
 				Route::prefix('google')->name('google.')->group(function () {
 					Route::controller(\App\Http\Controllers\Admin\GoogleSuite\GoogleSuiteController::class)->group(function () {
@@ -661,6 +663,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 						Route::get('properties', 'properties')->name('properties');
 						Route::get('analytics', 'analytics')->name('analytics');
 						Route::get('search-console', 'searchConsole')->name('search-console');
+						Route::get('advertising', 'advertising')->name('advertising');
+						Route::get('website-performance', 'websitePerformance')->name('website-performance');
 						Route::get('business-profile', 'businessProfile')->name('business-profile');
 						Route::get('tag-manager', 'tagManager')->name('tag-manager');
 						Route::get('reports', 'reports')->name('reports');
@@ -677,6 +681,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 							Route::get('ga4/realtime', 'realtime')->name('realtime');
 							Route::get('search-console', 'searchConsole')->name('search-console');
 							Route::post('search-console/inspect', 'inspect')->name('inspect')->middleware('throttle:20,1');
+							Route::get('google-ads', 'googleAds')->name('google-ads');
+							Route::get('pagespeed', 'pageSpeed')->name('pagespeed')->middleware('throttle:12,1');
 							Route::post('properties/sync', 'discover')->name('properties.sync')->middleware('throttle:10,1');
 							Route::put('properties/selection', 'select')->name('properties.select');
 							Route::put('preferences', 'preferences')->name('preferences');

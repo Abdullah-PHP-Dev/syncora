@@ -70,7 +70,8 @@
             ['admin.google.overview', 'google_suite.nav.overview', 'bx-pie-chart-alt-2'],
             ['admin.google.analytics', 'google_suite.nav.analytics', 'bx-line-chart'],
             ['admin.google.search-console', 'google_suite.nav.search_console', 'bx-search-alt'],
-            ['admin.google.ads', 'google_suite.nav.google_ads', 'bxl-google'],
+            ['admin.google.advertising', 'google_suite.nav.google_ads', 'bxl-google'],
+            ['admin.google.website-performance', 'google_suite.nav.pagespeed', 'bx-tachometer'],
             ['admin.google.integrations', 'google_suite.nav.integrations', 'bx-extension'],
             ['admin.google.reports', 'google_suite.nav.reports', 'bx-file'],
             ['admin.google.preferences', 'google_suite.nav.settings', 'bx-slider-alt'],
@@ -124,8 +125,7 @@
                             || ($destination === 'plans.index' && request()->routeIs('plans.*'))
                             || ($destination === 'coupons.index' && request()->routeIs('coupons.*'))
                             || ($destination === 'package-features.index' && request()->routeIs('package-features.*'))
-                            || ($destination === 'admin.google.overview' && request()->routeIs('admin.google.business-profile', 'admin.google.tag-manager'))
-                            || ($destination === 'admin.google.integrations' && request()->routeIs('admin.google.setup', 'admin.google.status', 'admin.google.properties'))
+                            || ($destination === 'admin.google.integrations' && request()->routeIs('admin.google.setup', 'admin.google.status', 'admin.google.properties', 'admin.google.business-profile', 'admin.google.tag-manager'))
                             || ($destination === 'admin.google.preferences' && request()->routeIs('admin.google.health', 'admin.google.settings'));
                         $submenu = $children[$destination] ?? [];
                         $submenuOpen = ($destination === 'admin.ads.dashboard' && request()->routeIs('admin.ads.*'))

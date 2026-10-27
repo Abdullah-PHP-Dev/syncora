@@ -6,6 +6,7 @@ use App\Models\GoogleProperty;
 use App\Models\GoogleSuiteSetting;
 use App\Models\GoogleSyncEvent;
 use App\Models\SocialConnection;
+use App\Support\AdAccountSelection;
 use App\Support\Google\GoogleSuiteScopes;
 use Illuminate\Http\Request;
 
@@ -43,6 +44,8 @@ class GoogleSuitePresenter
                 'message' => $e->message, 'at' => $e->created_at?->toIso8601String(),
             ])->all(),
             'next_sync_at' => $this->nextSync($properties, $preferences['sync_frequency']),
+            'website_url' => $this->websiteUrl($properties, $preferences),
+            'ads_account' => $this->adsAccount($userId),
             'urls' => $this->urls(),
             'messages' => __('google_suite'),
         ], $extra);
@@ -99,6 +102,35 @@ class GoogleSuitePresenter
         ];
     }
 
+    /** The site PageSpeed tests by default: last tested, else the GA4 stream, else the Search Console property. */
+    private function websiteUrl($properties, array $preferences): ?string
+    {
+        if (! empty($preferences['pagespeed_url'])) {
+            return $preferences['pagespeed_url'];
+        }
+
+        $ga4 = $properties->first(fn ($p) => $p->service === GoogleProperty::GA4 && $p->is_selected);
+        if ($url = $ga4?->meta['website_url'] ?? null) {
+            return $url;
+        }
+
+        $site = $properties->first(fn ($p) => $p->service === GoogleProperty::SEARCH_CONSOLE && $p->is_selected)?->external_id;
+
+        return match (true) {
+            ! $site => null,
+            str_starts_with($site, 'sc-domain:') => 'https://' . substr($site, strlen('sc-domain:')) . '/',
+            default => $site,
+        };
+    }
+
+    /** The Google Ads account Ads Manager uses (name only - no tokens). */
+    private function adsAccount(int $userId): ?array
+    {
+        $account = AdAccountSelection::resolve($userId, 'google');
+
+        return $account ? ['name' => $account->name ?: $account->username, 'customer_id' => $account->platform_account_id] : null;
+    }
+
     private function nextSync($properties, string $frequency): ?string
     {
         $hours = self::SYNC_HOURS[$frequency] ?? null;
@@ -119,6 +151,8 @@ class GoogleSuitePresenter
             'overview' => route('admin.google.overview'),
             'analytics' => route('admin.google.analytics'),
             'search_console' => route('admin.google.search-console'),
+            'advertising' => route('admin.google.advertising'),
+            'pagespeed' => route('admin.google.website-performance'),
             'business_profile' => route('admin.google.business-profile'),
             'tag_manager' => route('admin.google.tag-manager'),
             'integrations' => route('admin.google.integrations'),
@@ -132,6 +166,7 @@ class GoogleSuitePresenter
             'settings_search_console' => route('admin.google.settings', ['service' => 'search-console']),
             'ads' => route('admin.ads.campaigns.index', ['platform' => 'google']),
             'hub' => route('admin.connections.index'),
+            'ads_connect' => route('admin.ads.dashboard'),
             'pixels' => route('admin.integrations.index'),
             'privacy' => route('privacy'),
             'google_permissions' => 'https://myaccount.google.com/connections',
@@ -141,6 +176,8 @@ class GoogleSuitePresenter
                 'realtime' => route('admin.google.api.realtime'),
                 'search_console' => route('admin.google.api.search-console'),
                 'inspect' => route('admin.google.api.inspect'),
+                'google_ads' => route('admin.google.api.google-ads'),
+                'pagespeed' => route('admin.google.api.pagespeed'),
                 'discover' => route('admin.google.api.properties.sync'),
                 'select' => route('admin.google.api.properties.select'),
                 'preferences' => route('admin.google.api.preferences'),

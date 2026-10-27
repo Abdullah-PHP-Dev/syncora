@@ -7,6 +7,8 @@ use App\Models\GoogleProperty;
 use App\Models\GoogleSuiteSetting;
 use App\Services\Connections\ConnectionService;
 use App\Services\GoogleSuite\Ga4Service;
+use App\Services\GoogleSuite\GoogleAdsReportService;
+use App\Services\GoogleSuite\PageSpeedService;
 use App\Services\GoogleSuite\GoogleSuitePresenter;
 use App\Services\GoogleSuite\GoogleSuiteService;
 use App\Services\GoogleSuite\SearchConsoleService;
@@ -56,6 +58,39 @@ class GoogleSuiteDataController extends Controller
         ]);
 
         return $this->respond($this->suite->searchConsoleDashboard($this->userId($request), $this->range($request), array_filter($filters) + ['type' => 'web']));
+    }
+
+    /** Google Ads results from the ad account connected in the Connection Hub. */
+    public function googleAds(Request $request, GoogleAdsReportService $ads): JsonResponse
+    {
+        return $this->respond($ads->dashboard($this->userId($request), $this->range($request)));
+    }
+
+    /**
+     * PageSpeed Insights for a public URL - no Google sign-in involved.
+     * cached=1 only returns a stored run (the overview never starts one).
+     */
+    public function pageSpeed(Request $request, PageSpeedService $pageSpeed): JsonResponse
+    {
+        $validated = $request->validate([
+            'url' => ['required', 'url:http,https', 'max:2048'],
+            'strategy' => ['required', Rule::in(PageSpeedService::STRATEGIES)],
+            'fresh' => ['nullable', 'boolean'],
+            'cached' => ['nullable', 'boolean'],
+        ]);
+        $userId = $this->userId($request);
+
+        if ($request->boolean('cached')) {
+            return response()->json($pageSpeed->cached($userId, $validated['url'], $validated['strategy']) ?? ['data' => null]);
+        }
+
+        $result = $pageSpeed->run($userId, $validated['url'], $validated['strategy'], app()->getLocale(), $request->boolean('fresh'));
+
+        if (! isset($result['error'])) {
+            GoogleSuiteSetting::store($userId, ['pagespeed_url' => $validated['url']]);
+        }
+
+        return $this->respond($result);
     }
 
     public function inspect(Request $request): JsonResponse

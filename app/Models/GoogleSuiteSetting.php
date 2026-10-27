@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class GoogleSuiteSetting extends Model
 {
     public const RANGES = ['today', '7d', '28d', '30d', '90d'];
-    public const WIDGETS = ['services', 'performance', 'attention', 'activity', 'acquisition', 'queries', 'landing_pages', 'audience'];
+    public const WIDGETS = ['services', 'insights', 'performance', 'attention', 'activity', 'acquisition', 'queries', 'landing_pages', 'audience'];
     public const SYNC_FREQUENCIES = ['hourly', 'every_6_hours', 'daily', 'manual'];
 
     public const DEFAULTS = [
