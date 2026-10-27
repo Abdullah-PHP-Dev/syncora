@@ -47,7 +47,10 @@ Route::get('/robots.txt', [\App\Http\Controllers\SeoController::class, 'robots']
 Route::get('/payments/tamara/return/{order}', [\App\Http\Controllers\Payments\TamaraController::class, 'returned'])
     ->middleware(['auth', 'signed:orderId,status'])->name('payments.tamara.return');
 
-Route::get('payment/tamara/process', 'WalletController@TamaraCallback')->name('tamara.checkout-status'); //tamara_payment
+// All providers use the same unlocalized URL, including browser POST returns.
+Route::match(['get', 'post'], '/callback/payment', \App\Http\Controllers\Payments\PaymentCallbackController::class)
+    ->withoutMiddleware([\App\Http\Middleware\UseSellerWorkspace::class])
+    ->middleware('throttle:60,1')->name('payment.callback');
 Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	'web',
 	LaravelLocalizationRoutes::class,

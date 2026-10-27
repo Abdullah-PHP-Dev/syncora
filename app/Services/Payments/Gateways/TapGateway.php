@@ -2,122 +2,89 @@
 
 namespace App\Services\Payments\Gateways;
 
+use App\Services\CouponService;
+use App\Services\Payments\PaymentCallbackUrl;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 
-class TapGateway extends  BaseGateway
+class TapGateway extends BaseGateway
 {
-    private string $baseUrl = 'https://api.tap.company/v2/';
-
-    private string $secretKey;
-
-    public function __construct()
+    private function client(): PendingRequest
     {
-        $this->secretKey = config('services.payment.tap.secret_key');
+        $key = config('services.payment.tap.secret_key');
+        if (! $key) {
+            throw new RuntimeException('Tap credentials are not configured.');
+        }
 
+        return Http::baseUrl(rtrim(config('services.payment.tap.base_url'), '/'))
+            ->withToken($key)->acceptJson()->asJson()->connectTimeout(10)->timeout(30);
     }
 
-    /**
-     * STEP 1: Create payment charge
-     */
     public function pay(array $data): array
     {
+        if (! config('services.payment.tap.secret_key')) {
+            return ['status' => 'failed', 'message' => __('Tap payments are not configured. Please choose another payment method.')];
+        }
+        $transaction = $data['transaction'];
+        $returnUrl = PaymentCallbackUrl::forTransaction($transaction);
+        $response = $this->client()->post('/charges', [
+            'amount' => round((float) $data['amount'], 2),
+            'currency' => $transaction->meta['currency'] ?? $data['bundle']->currency,
+            'threeDSecure' => true,
+            'save_card' => false,
+            'description' => $data['bundle']->name.' / '.$data['cycle'],
+            'reference' => ['transaction' => $transaction->transaction_no, 'order' => $transaction->transaction_no],
+            'customer' => ['first_name' => $data['user']->name, 'email' => $data['user']->email],
+            'source' => ['id' => 'src_all'],
+            'redirect' => ['url' => $returnUrl],
+            'post' => ['url' => PaymentCallbackUrl::forTransaction($transaction, true)],
+        ]);
 
+        if (! $response->successful()) {
+            // Server errors may follow a created charge; keep the transaction pending.
+            if ($response->serverError() || $response->status() === 429) {
+                $response->throw();
+            }
 
-        /*$transaction = $data['transaction'];
-        $payLoad = $this->prepareData($data);*/
-        $des = $data['bundle']->name . ' / ' . $data['cycle'];
-        // $returnUrl = $data['transaction']->subject->callback;
-        $returnUrl = url('callback/payment');//$this->callbackUrl();
-        $body = [
-            'amount'       => round((float) $data['amount'], 2),
-            'currency'     => $data['bundle']->currency,
-            "threeDSecure" => true,
-            "save_card"    => 0, //$payLoad['customerInfo']['save_card'],
-            'description'  => $des,
-            'redirect_url' => $returnUrl,
-            "metadata"     => [
-                "udf1" => $des
-            ],
-
-            "reference" =>  [
-                "transaction" =>  'WA3321', //$payLoad['transaction']['ref_number'],
-                "order" => 'WA3321', //$payLoad['transaction']['ref_number']
-            ] ,
-            "receipt"      => [
-                "email" => true,
-                "sms"   => true
-            ],
-            'customer' => [
-                'first_name' => $data['user']->name,
-                'email' => $data['user']->email,
-            ],
-
-            "source"   => [
-
-                "id" => "src_all"
-            ],
-            "redirect" => [
-                "url" => $returnUrl
-            ]
-        ];
-
-
-
-
-
-        $response = Http::withHeaders([
-                                          'Authorization' => 'Bearer ' . $this->secretKey,
-                                          'Content-Type' => 'application/json',
-                                      ])->post($this->baseUrl . '/charges', $body);
-
-
-
-        if (!$response->successful()) {
-            return [
-                'status' => 'failed',
-                'message' => $response->json()['message'] ?? 'Payment gateway failed'
-            ];
+            return ['status' => 'failed', 'message' => __('Payment gateway could not create checkout.')];
         }
 
-        $data = $response->json();
+        $charge = $response->json();
+        if (! is_string($charge['id'] ?? null) || $charge['id'] === '') {
+            throw new RuntimeException('Tap did not return a charge reference.');
+        }
+        $transaction->update(['gateway_reference' => $charge['id']]);
 
-
-        $tapChargeId = $data['id'] ?? null;
-        $redirectUrl = $data['transaction']['url'] ?? null;
-
-        // IMPORTANT: store tap reference in your transaction
-        /*$transaction->update([
-                                 'status' => 'pending',
-                                 'gateway_reference' => $tapChargeId,
-                              /*   'gateway_reference' => $tapChargeId,*/
-                               /*  'payment_method' => 'tap'*/
-                            /* ]);*/
-
-        return [
-            'status' => 'pending',
-            'redirect_url' => $redirectUrl,
-            'transaction_id' => '123456', //$transaction->id,
-            'session_id' => $tapChargeId
-        ];
+        return ['status' => 'pending', 'redirect_url' => $charge['transaction']['url'] ?? $returnUrl,
+            'transaction_id' => $transaction->id, 'session_id' => $charge['id']];
     }
 
-    /**
-     * STEP 2: Verify payment after callback
-     */
-    public function verify(array $data): bool
+    public function status(array $data): string
     {
-        $tapChargeId = $data['gateway_reference'];
-        $response = Http::withHeaders([
-                                          'Authorization' => 'Bearer ' . $this->secretKey,
-                                      ])->get($this->baseUrl . "/charges/{$tapChargeId}");
-
-
-        if (!$response->successful()) {
-            return false;
+        $transaction = $data['transaction'];
+        $reference = $transaction->gateway_reference;
+        if (! is_string($reference) || $reference === '') {
+            return 'pending';
+        }
+        $charge = $this->client()->get('/charges/'.rawurlencode($reference))->throw()->json();
+        if (($charge['id'] ?? null) !== $reference ||
+            ($charge['reference']['transaction'] ?? null) !== $transaction->transaction_no ||
+            ($charge['currency'] ?? null) !== ($transaction->meta['currency'] ?? null) ||
+            ! is_numeric($charge['amount'] ?? null) ||
+            CouponService::minor($charge['amount']) !== CouponService::minor($transaction->amount)) {
+            throw new RuntimeException('Tap charge does not match the stored payment.');
         }
 
-        $result = $response->json();
+        return match ($charge['status'] ?? null) {
+            'CAPTURED' => 'paid',
+            'ABANDONED', 'CANCELLED', 'FAILED', 'DECLINED', 'RESTRICTED', 'VOID', 'TIMEDOUT' => 'failed',
+            default => 'pending',
+        };
+    }
 
-        return isset($result['status']) && $result['status'] === 'CAPTURED';
+    public function verify(array $data): bool
+    {
+        return isset($data['transaction']) && $this->status($data) === 'paid';
     }
 }

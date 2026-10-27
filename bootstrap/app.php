@@ -59,6 +59,7 @@ return tap(
             $middleware->appendToGroup('web', \App\Http\Middleware\UseSellerWorkspace::class);
 
             $middleware->validateCsrfTokens(except: [
+                'callback/payment',
                 'email/unsubscribe/*',
             ]);
         })
@@ -104,7 +105,7 @@ return tap(
             // which dumped users on the provider's site. Send them to an app
             // page with the reason instead.
             $oauthLanding = function (\Illuminate\Http\Request $request, string $message) {
-                if ($request->expectsJson() || ! str_ends_with((string) $request->route()?->getName(), '.callback')) {
+                if ($request->expectsJson() || $request->route()?->getName() === 'payment.callback' || ! str_ends_with((string) $request->route()?->getName(), '.callback')) {
                     return null;
                 }
                 $name = (string) $request->route()->getName();

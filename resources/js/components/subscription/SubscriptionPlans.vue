@@ -100,10 +100,16 @@
               </div>
             </div>
 
-            <a :href="getCheckoutUrl(packageItem)" class="btn-select-plan">
+            <template v-if="packageItem.can_select === false">
+              <button type="button" class="btn-select-plan" disabled aria-disabled="true" style="opacity:.55;cursor:not-allowed">
+                {{ packageItem.blocked_label }}
+              </button>
+              <p class="mt-2 small text-muted">{{ packageItem.selection_message }}</p>
+            </template>
+            <a v-else :href="getCheckoutUrl(packageItem)" class="btn-select-plan">
               <template v-if="packageItem.is_current">
                 <i class="bi bi-check-circle"></i>
-                <span>Continue with Current Plan</span>
+                <span>{{ packageItem.selection_label || 'Continue with Current Plan' }}</span>
                 <i class="bi bi-arrow-right"></i>
               </template>
               <template v-else>

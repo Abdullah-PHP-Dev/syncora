@@ -12,13 +12,10 @@ class CardPayment implements PaymentInterface
 
     public function pay(array $data): array
     {
-
-
-        $gateway     = $data['gateway'] ?? 'tap';
-      $transaction = $data['transaction'];
-       $transaction->update(['payment_method' => 'card', 'payment_gateway' => $gateway]);
-
-
+        $transaction = $data['transaction'];
+        $gateway = $transaction->payment_gateway ?? $data['gateway'] ?? $this->gatewayManager->selectedGateway();
+        $data['gateway'] = $gateway;
+        $transaction->update(['payment_method' => 'card', 'payment_gateway' => $gateway]);
 
         return $this->gatewayManager
             ->driver($gateway)
@@ -27,7 +24,9 @@ class CardPayment implements PaymentInterface
 
     public function verify(array $data): bool
     {
-        $gateway = $data['gateway'] ?? 'tap';
+        // Existing payments must keep their original provider after settings change.
+        $gateway = ($data['transaction']->payment_gateway ?? null) ?? $data['gateway'] ?? 'tap';
+        $data['gateway'] = $gateway;
 
         return $this->gatewayManager
             ->driver($gateway)

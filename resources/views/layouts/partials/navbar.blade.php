@@ -65,32 +65,24 @@
         ================================================== -->
         @if(!auth()->user()->isTeamMember())
         @php
-            $hasActiveSubscription = isset($subscription)
-                && $subscription
-                && (
-                    !isset($subscription->active)
-                    || $subscription->active
-                );
-
-            $remainingDays = 0;
-
-            if ($hasActiveSubscription && isset($subscription->remaining_days)) {
-                $remainingDays = max(0, (int) $subscription->remaining_days);
-            }
-
-            $subscriptionPlan = $hasActiveSubscription
-                ? ($subscription->plan_name ?? __('admin.navbar.premium'))
-                : __('admin.navbar.free_plan');
+            $packageAccess = app(\App\Services\PackageAccessService::class);
+            $headerSubscription = $packageAccess->subscription(auth()->user());
+            $hasActiveSubscription = $packageAccess->active($headerSubscription);
+            $remainingDays = $headerSubscription?->end_date
+                ? max(0, (int) today()->diffInDays($headerSubscription->end_date->copy()->startOfDay(), false))
+                : null;
+            $subscriptionPlan = $headerSubscription?->bundle?->name
+                ?: ($headerSubscription?->bundle_name ?: __('admin.navbar.free_plan'));
         @endphp
 
-        <a href="{{ url('subscription/select') }}"
+        <a href="{{ route('admin.subscription.select') }}"
            class="admin-subscription-status {{ !$hasActiveSubscription ? 'is-free' : '' }}">
 
             @if($hasActiveSubscription)
 
-                @if($remainingDays <= 7)
+                @if($remainingDays !== null && $remainingDays <= 7)
                     <span class="admin-subscription-dot warning"></span>
-                @elseif($remainingDays <= 30)
+                @elseif($remainingDays !== null && $remainingDays <= 30)
                     <span class="admin-subscription-dot attention"></span>
                 @else
                     <span class="admin-subscription-dot"></span>
@@ -103,7 +95,7 @@
                     </span>
 
                     <span class="admin-subscription-days">
-                        {{ trans_choice('admin.navbar.days_left', $remainingDays, ['count' => $remainingDays]) }}
+                        {{ $remainingDays === null ? __('Active') : trans_choice('admin.navbar.days_left', $remainingDays, ['count' => $remainingDays]) }}
                     </span>
 
                 </span>
@@ -117,7 +109,7 @@
                 <span class="admin-subscription-info">
 
                     <span class="admin-subscription-plan">
-                        {{ __('admin.navbar.free_plan') }}
+                        {{ $subscriptionPlan }}
                     </span>
 
                     <span class="admin-subscription-days">

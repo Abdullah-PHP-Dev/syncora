@@ -51,6 +51,11 @@ class SubscriptionController extends Controller
 
 		$package = Bundle::where('is_active', true)->findOrFail($planId);
 
+        $policy = app(\App\Services\SubscriptionChangePolicy::class);
+        if (! $policy->canSelect($policy->current($request->user()), $package)) {
+            return redirect()->route('admin.subscription.select')->with('error', __('subscriptions.downgrade_blocked'));
+        }
+
 		return view('admin.subscriptions.checkout', compact('package',
 			'planId',
 			'cycle'
@@ -112,10 +117,11 @@ class SubscriptionController extends Controller
 	{
 
 		$user                = Auth::user();
-		$currentSubscription = $user->subscription ?? null;
+        $policy = app(\App\Services\SubscriptionChangePolicy::class);
+		$currentSubscription = $policy->current($user);
 		$currentBundleId     = $currentSubscription ? $currentSubscription->bundle_id : null;
 		$packages            = Bundle::where('is_active', true)->where('is_free', false)->orderBy('sort_order')->get();
-		$packages            = $packages->values()->map(function ($package, $index) use ($currentBundleId) {
+		$packages            = $packages->values()->map(function ($package, $index) use ($currentBundleId, $currentSubscription, $policy) {
 			$monthlyPrice  = (float)$package->price;
 			$yearlyPrice   = (float)data_get($package->meta, 'yearly_price', $monthlyPrice * 12);
 			$monthlyPlanId = $package->monthly_plan_id ?? $package->id;
@@ -146,6 +152,10 @@ class SubscriptionController extends Controller
                 'is_popular' => $package->is_popular,
                 'features'       => $features,
 				'is_current'     => $isCurrent,
+                'can_select' => $policy->canSelect($currentSubscription, $package),
+                'selection_message' => $policy->canSelect($currentSubscription, $package) ? null : __('subscriptions.downgrade_blocked'),
+                'selection_label' => $isCurrent ? __('subscriptions.renew') : __('subscriptions.upgrade'),
+                'blocked_label' => __('subscriptions.available_after_expiry'),
 				'is_recommended' => $isRecommended,
 				'checkout_url'   => route('admin.subscription.checkout'),
 
@@ -195,6 +205,7 @@ class SubscriptionController extends Controller
 			                        ], 404);
 		}
 
+        app(\App\Services\SubscriptionChangePolicy::class)->assertCanSelect($request->user(), $package);
 		$monthlyPrice = (float) $package->price;
 		$yearlyPrice = (float) data_get(
 			$package->meta,
@@ -256,6 +267,7 @@ class SubscriptionController extends Controller
             'payment_method' => ['required', \Illuminate\Validation\Rule::in(['card', 'wallet', 'cashback', 'tamara', 'tabby'])],
         ]);
         $bundle = Bundle::where('is_active', true)->where('is_free', false)->findOrFail($data['bundle_id']);
+        app(\App\Services\SubscriptionChangePolicy::class)->assertCanSelect($request->user(), $bundle);
         $quote = $coupons->quote($request->user(), $bundle, $data['cycle'], $data['coupon_code'], $data['payment_method']);
         return response()->json(['success' => true, 'message' => __('coupons.applied')] + $quote)->header('Cache-Control', 'no-store');
     }
