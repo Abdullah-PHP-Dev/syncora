@@ -691,6 +691,7 @@ return [
         'exporting' => 'Preparing CSV…',
         'exported' => 'Downloaded :file',
         'export_failed' => 'The export failed: :reason',
+        'export_error' => 'The CSV file couldn’t be created. Please try again; if it keeps failing, contact support.',
         'formats_note' => 'CSV (UTF-8) is the available export format.',
         'empty' => 'This report has no rows for the selected period.',
         'pick' => 'Choose a source and report, then preview.',

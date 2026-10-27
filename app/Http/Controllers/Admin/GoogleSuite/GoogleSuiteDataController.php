@@ -18,7 +18,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\HeaderUtils;
 
 /**
  * JSON (and CSV) endpoints behind the Google Suite pages. Every request is
@@ -175,7 +176,7 @@ class GoogleSuiteDataController extends Controller
         return $this->respond($this->suite->report($this->userId($request), $service, $type, $this->range($request), self::PREVIEW_ROWS, $filters));
     }
 
-    public function reportExport(Request $request): StreamedResponse|JsonResponse
+    public function reportExport(Request $request): Response|JsonResponse
     {
         [$service, $type, $filters] = $this->reportInput($request);
         $range = $this->range($request);
@@ -185,21 +186,42 @@ class GoogleSuiteDataController extends Controller
             return response()->json($result, 409);
         }
 
-        $columns = $result['data']['columns'];
-        $rows = $result['data']['rows'];
         $filename = sprintf('socialeaz-%s-%s-%s-to-%s.csv', $service === GoogleProperty::GA4 ? 'ga4' : 'search-console', str_replace('_', '-', $type), ...$range->current());
 
-        return response()->streamDownload(function () use ($columns, $rows) {
-            $out = fopen('php://output', 'w');
-            fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM so Excel reads Arabic correctly
-            fputcsv($out, array_map(fn ($c) => __('google_suite.columns.' . $c['key']), $columns));
+        // Built in full before anything is sent: a failure becomes a JSON error
+        // the page can show, never a half-sent download with a bare 500.
+        try {
+            $csv = $this->csv($result['data']['columns'], $result['data']['rows']);
+        } catch (\Throwable $e) {
+            report($e);
 
-            foreach ($rows as $row) {
-                fputcsv($out, array_map(fn ($c) => $this->csvCell($row[$c['key']] ?? ''), $columns));
-            }
+            return response()->json(['error' => ['code' => 'export_failed', 'message' => __('google_suite.reports.export_error'), 'retryable' => true]], 500);
+        }
 
-            fclose($out);
-        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8', 'Cache-Control' => 'no-store']);
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => HeaderUtils::makeDisposition(HeaderUtils::DISPOSITION_ATTACHMENT, $filename),
+            'Content-Length' => (string) strlen($csv),
+            'Cache-Control' => 'no-store',
+        ]);
+    }
+
+    private function csv(array $columns, array $rows): string
+    {
+        $out = fopen('php://temp', 'w+');
+        fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM so Excel reads Arabic correctly
+        // Explicit separator/enclosure/escape: RFC 4180 quoting, and no PHP 8.4 escape deprecation.
+        fputcsv($out, array_map(fn ($c) => (string) __('google_suite.columns.' . $c['key']), $columns), ',', '"', '');
+
+        foreach ($rows as $row) {
+            fputcsv($out, array_map(fn ($c) => $this->csvCell($row[$c['key']] ?? ''), $columns), ',', '"', '');
+        }
+
+        rewind($out);
+        $csv = stream_get_contents($out);
+        fclose($out);
+
+        return $csv;
     }
 
     /** Disconnect the Suite consent (owner only - UseSellerWorkspace blocks *.disconnect). */
