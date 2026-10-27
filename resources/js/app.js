@@ -27,6 +27,7 @@ import XCampaignBuilder from './components/ads/x/XCampaignBuilder.vue';
 import SnapchatCampaignBuilder from './components/ads/snapchat/SnapchatCampaignBuilder.vue';
 import GoogleCampaignBuilder from './components/ads/google/GoogleCampaignBuilder.vue';
 import EmailTemplateDesigner from './components/email/EmailTemplateDesigner.vue';
+import GoogleSuite from './components/google/GoogleSuite.vue';
 
 window.Alpine = Alpine;
 // Needed so admin/chats/dashboard.blade.php's plain inline <script> (a
@@ -62,6 +63,7 @@ Vue.component('snapchat-campaign-builder', SnapchatCampaignBuilder);
 Vue.component('google-campaign-builder', GoogleCampaignBuilder);
 Vue.component('email-template-designer', EmailTemplateDesigner);
 Vue.component('connection-hub', ConnectionHub);
+Vue.component('google-suite', GoogleSuite);
 
 new Vue({
     el: '#app',

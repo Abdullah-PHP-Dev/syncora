@@ -26,7 +26,7 @@ class MetaScopesTest extends TestCase
         $this->actingAs(User::create(['name' => 'Seller', 'email' => 's@example.com', 'password' => bcrypt('x')]));
     }
 
-    private function scopes(string $location): array
+    private     function scopes(string $location): array
     {
         $this->assertStringContainsString('facebook.com/', $location);
         parse_str((string) parse_url($location, PHP_URL_QUERY), $query);

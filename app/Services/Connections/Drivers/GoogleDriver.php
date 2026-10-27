@@ -4,6 +4,7 @@ namespace App\Services\Connections\Drivers;
 
 use App\Models\SocialAccount;
 use App\Models\SocialConnection;
+use App\Services\GoogleSuite\GoogleSuiteAuth;
 use App\Services\SocialAuth\SocialAuthService;
 use App\Support\Connections\GoogleClient;
 use App\Support\Connections\GrantedScopes;
@@ -22,6 +23,8 @@ class GoogleDriver extends BaseDriver
 {
     public const OAUTH = 'google.oauth';
     public const ADS_LEGACY = 'google.ads_legacy';
+    /** Read-only GA4 + Search Console consent for the Google Suite. */
+    public const ANALYTICS = 'google.analytics';
 
     private const TOKEN_URL = 'https://oauth2.googleapis.com/token';
     private const TOKENINFO_URL = 'https://oauth2.googleapis.com/tokeninfo';
@@ -57,6 +60,7 @@ class GoogleDriver extends BaseDriver
             'step_icons' => [
                 self::OAUTH => ['icon' => 'bxl-google', 'brand' => 'google'],
                 self::ADS_LEGACY => ['icon' => 'bx-bullseye', 'brand' => 'google'],
+                self::ANALYTICS => ['icon' => 'bx-line-chart', 'brand' => 'google'],
             ],
             'legacy_steps' => [
                 self::ADS_LEGACY => [
@@ -75,17 +79,30 @@ class GoogleDriver extends BaseDriver
 
     public function steps(): array
     {
+        $available = (bool) GoogleClient::credentials()['client_id'];
+
         return [[
             'key' => self::OAUTH,
             'label' => __('connections.platforms.google.steps.oauth.label'),
             'description' => __('connections.platforms.google.steps.oauth.description'),
             'primary' => true,
-            'available' => (bool) GoogleClient::credentials()['client_id'],
+            'available' => $available,
+        ], [
+            'key' => self::ANALYTICS,
+            'label' => __('connections.platforms.google.steps.analytics.label'),
+            'description' => __('connections.platforms.google.steps.analytics.description'),
+            'primary' => false,
+            'available' => $available,
+            'capabilities' => ['insights'],
         ]];
     }
 
     public function connect(string $step): Response
     {
+        if ($step === self::ANALYTICS) {
+            return app(GoogleSuiteAuth::class)->redirect();
+        }
+
         session(['social_oauth_return_to' => 'hub']);
 
         return $this->socialAuth->redirect('google');
@@ -136,7 +153,21 @@ class GoogleDriver extends BaseDriver
         // Revoking the refresh token removes the whole grant (Google OAuth 2.0 docs).
         $token = $connection->refresh_token ?: $connection->access_token;
 
-        if ($token) {
+        // That grant is per user + OAuth client, so revoking one consent
+        // would also cut the others on the same client (e.g. dropping
+        // Analytics would stop YouTube posting). Only revoke when this is
+        // the last live Google consent; otherwise forget the tokens locally.
+        $shared = SocialConnection::where(['user_id' => $connection->user_id, 'platform' => 'google'])
+            ->whereKeyNot($connection->id)
+            ->where('provider_app', $connection->provider_app)
+            ->whereIn('status', SocialConnection::USABLE)
+            ->exists();
+
+        if ($connection->step === self::ANALYTICS) {
+            app(GoogleSuiteAuth::class)->forget($connection);
+        }
+
+        if ($token && ! $shared) {
             $response = Http::asForm()->post(self::REVOKE_URL, ['token' => $token]);
 
             if (! $response->successful()) {

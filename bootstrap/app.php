@@ -92,6 +92,10 @@ return tap(
             // CheckConnectionStatus.
             $schedule->command('connections:check-status')->hourly()->withoutOverlapping();
 
+            // Google Suite: warm GA4 / Search Console reports per workspace
+            // sync preference - see SyncGoogleSuites.
+            $schedule->command('google-suite:sync')->hourlyAt(20)->withoutOverlapping();
+
             // Facebook sends no webhook for shares to people's own
             // timelines - re-read recent posts' counts (SyncPostEngagement).
             $schedule->command('posts:sync-engagement')->everyThirtyMinutes()->withoutOverlapping();

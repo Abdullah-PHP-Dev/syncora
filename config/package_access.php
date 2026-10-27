@@ -18,7 +18,7 @@ return [
     ],
     // Specific rules run before general module rules. Multiple matches all apply.
     'routes' => [
-        'data_export' => ['admin.knowledge-base.export', 'admin.email.campaigns.export'],
+        'data_export' => ['admin.knowledge-base.export', 'admin.email.campaigns.export', 'admin.google.api.reports.export'],
         'data_import' => ['admin.knowledge-base.import', 'admin.email.lists.subscribers.import'],
         'ai_content' => ['admin.posts.generate-ai-*', 'admin.posts.ask*', 'admin.email.templates.generateAi', 'admin.knowledge-base.improve'],
         'ai_agent' => ['admin.ai-copilot.*', 'admin.knowledge-base.*', 'admin.chats.copilot.*', 'admin.chats.resume-ai'],
@@ -28,6 +28,7 @@ return [
         'inbox' => ['admin.chats.*', 'admin.messaging.*'],
         'media' => ['admin.media-gallery.*'],
         'email_marketing' => ['admin.email.*'],
+        'google_analytics' => ['admin.google.*'],
     ],
     'write_get_routes' => ['*.redirect', '*.callback', '*.connect', '*.sync', '*.auth.*', '*.create', '*.edit'],
     // These values are interpreted once during migration, never as runtime permissions.
