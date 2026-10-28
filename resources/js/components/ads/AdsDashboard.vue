@@ -37,7 +37,7 @@
 
     <!-- ================= NOTHING CONNECTED ================= -->
     <section v-if="!data.has_connections" class="ad-card ad-empty">
-      <div class="ring"><i class="bx bx-bullhorn"></i></div>
+      <div class="ring"><i class="bx bxs-megaphone"></i></div>
       <h5>{{ t('empty_title') }}</h5>
       <p>{{ t('empty_text') }}</p>
       <a v-if="data.connections_url" :href="data.connections_url" class="btn btn-primary btn-sm"><i class="bx bx-link"></i> {{ t('go_connections') }}</a>
