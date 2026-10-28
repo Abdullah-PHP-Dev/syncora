@@ -421,6 +421,14 @@ return [
 
     'analytics' => [
         'title' => 'Website analytics',
+        'subtitle' => 'How people find your website, what they do there, and which visits lead to results.',
+        'trend_title' => 'Visitor trend',
+        'trend_sub' => 'Daily totals, compared with the previous period',
+        'devices_sub' => 'Share of active users by device',
+        'key_events_sub' => 'Conversions recorded in this period',
+        'top_pages_sub' => 'Most-viewed pages and how long visitors stay',
+        'breakdown_title' => 'Where visits start',
+        'breakdown_sub' => 'Landing pages, traffic sources and countries',
         'export' => 'Export report',
         'kpi' => [
             'active_users' => 'Active users',
