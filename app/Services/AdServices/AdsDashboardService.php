@@ -27,7 +27,7 @@ use Illuminate\Support\Collection;
 class AdsDashboardService
 {
     /** The platforms the Ads module supports, in display order. */
-    private const PLATFORMS = [
+    public const PLATFORMS = [
         'facebook'  => ['label' => 'Meta / Facebook', 'icon' => 'bxl-facebook-circle', 'color' => '#1877F2'],
         'instagram' => ['label' => 'Instagram',       'icon' => 'bxl-instagram',       'color' => '#E1306C'],
         'google'    => ['label' => 'Google Ads',      'icon' => 'bxl-google',          'color' => '#4285F4'],

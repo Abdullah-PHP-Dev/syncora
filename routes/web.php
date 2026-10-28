@@ -362,6 +362,10 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::resource('/platform/ads', AdController::class);
 				Route::get('ads/dashboard', [AdController::class, 'dashboard'])
 					->name('ads.dashboard');
+				// Live spend/results for the dashboard (Google Ads + ChatGPT Ads reporting).
+				Route::get('ads/dashboard/performance', [AdController::class, 'performance'])
+					->middleware('throttle:30,1')
+					->name('ads.dashboard.performance');
 
 				Route::get('ads/{platform}/redirect', [AdController::class, 'redirect'])
 					->name('ads.redirect');
