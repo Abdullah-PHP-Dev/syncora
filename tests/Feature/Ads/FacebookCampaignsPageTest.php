@@ -210,4 +210,55 @@ class FacebookCampaignsPageTest extends TestCase
         $this->assertEquals(128, $res['campaigns'][$leads->id]['results']);
         $this->assertNotNull($account->fresh()->metadata['insights_synced_at'] ?? null);
     }
+
+    public function test_insights_include_daily_series_conversion_path_and_breakdowns(): void
+    {
+        $account = $this->account('111');
+        $this->campaign($account, ['ad_campaign_id' => '12001', 'objective' => 'OUTCOME_LEADS']);
+        $until = now()->subDay()->toDateString();
+        Http::fake(['graph.facebook.com/v22.0/act_111/insights*' => function (HttpRequest $r) use ($until) {
+            $lead = fn ($n, $extra = []) => array_merge([['action_type' => 'lead', 'value' => (string) $n]], $extra);
+            return Http::response(['data' => match (true) {
+                ($r['time_increment'] ?? null) == 1 => [['date_start' => $until, 'spend' => '90', 'impressions' => '12000', 'clicks' => '300', 'inline_link_clicks' => '250', 'actions' => $lead(20, [['action_type' => 'landing_page_view', 'value' => '210']])]],
+                ($r['breakdowns'] ?? null) === 'publisher_platform,platform_position' => [
+                    ['publisher_platform' => 'instagram', 'platform_position' => 'reels', 'spend' => '300', 'impressions' => '40000', 'actions' => $lead(58)],
+                    ['publisher_platform' => 'facebook', 'platform_position' => 'feed', 'spend' => '412', 'impressions' => '60000', 'actions' => $lead(62)],
+                ],
+                ($r['breakdowns'] ?? null) === 'region' => [['region' => 'Riyadh', 'spend' => '500', 'reach' => '30000', 'actions' => $lead(98)]],
+                ($r['breakdowns'] ?? null) === 'age' => [['age' => '25-34', 'spend' => '400', 'actions' => $lead(92)]],
+                default => [['campaign_id' => '12001', 'objective' => 'OUTCOME_LEADS', 'spend' => '720', 'impressions' => '100000', 'reach' => '50000', 'clicks' => '2000', 'actions' => $lead(128)]],
+            }]);
+        }]);
+
+        $details = $this->getJson(route('admin.ads.campaigns.insights', ['platform' => 'facebook', 'days' => 7]))->assertOk()->json('details');
+
+        $this->assertSame('lead', $details['result_type']);
+        $this->assertCount(7, $details['daily']);
+        $this->assertEquals(['date' => $until, 'spend' => 90, 'results' => 20, 'impressions' => 12000, 'link_clicks' => 250, 'landing_page_views' => 210], end($details['daily']));
+        $this->assertEquals(0, $details['daily'][0]['spend']); // days without delivery are zero-filled, not dropped
+        $this->assertEquals(['impressions' => 12000, 'link_clicks' => 250, 'landing_page_views' => 210, 'results' => 20], $details['funnel']);
+        $this->assertSame(['facebook|feed', 'instagram|reels'], array_column($details['placements'], 'key')); // by spend
+        $this->assertEquals(58, $details['placements'][1]['results']);
+        $this->assertSame('Riyadh', $details['regions'][0]['key']);
+        $this->assertEquals(92, $details['ages'][0]['results']);
+    }
+
+    public function test_a_rejected_breakdown_leaves_the_rest_of_the_insights_intact(): void
+    {
+        $this->campaign($this->account('111'), ['ad_campaign_id' => '12001']);
+        Http::fake(['graph.facebook.com/v22.0/act_111/insights*' => function (HttpRequest $r) {
+            if (($r['breakdowns'] ?? null) === 'region') {
+                return Http::response(['error' => ['message' => 'Breakdown not supported']], 400);
+            }
+
+            return Http::response(['data' => [['campaign_id' => '12001', 'objective' => 'OUTCOME_LEADS', 'spend' => '10', 'impressions' => '100', 'clicks' => '5', 'actions' => [['action_type' => 'lead', 'value' => '1']]]]]);
+        }]);
+
+        $res = $this->getJson(route('admin.ads.campaigns.insights', ['platform' => 'facebook', 'days' => 7]))->assertOk()->json();
+
+        $this->assertTrue($res['success']);
+        $this->assertNull($res['details']['regions']);
+        $this->assertNotNull($res['details']['ages']);
+    }
 }
+

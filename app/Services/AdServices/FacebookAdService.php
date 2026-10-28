@@ -777,7 +777,7 @@ class FacebookAdService
             return ['success' => false, 'error' => $this->header['error'] ?? 'Facebook access expired - reconnect the account.', 'reconnect' => true];
         }
 
-        $key = 'fb_insights:' . $this->account->id . ':' . $days . ':' . now()->toDateString();
+        $key = 'fb_insights:v2:' . $this->account->id . ':' . $days . ':' . now()->toDateString();
         if ($fresh) {
             Cache::forget($key);
         }
@@ -790,6 +790,7 @@ class FacebookAdService
                 $previous = $this->insightRows($since->copy()->subDays($days), $since->copy()->subDay());
 
                 $this->account->forceFill(['metadata' => array_merge($this->account->metadata ?? [], ['insights_synced_at' => now()->toIso8601String()])])->save();
+                $totals = $this->insightTotals($current);
 
                 return [
                     'success'  => true,
@@ -797,8 +798,10 @@ class FacebookAdService
                     'since'    => $since->toDateString(),
                     'until'    => $until->toDateString(),
                     'currency' => $this->account->adDetails->currency ?? null,
-                    'totals'   => ['current' => $this->insightTotals($current), 'previous' => $this->insightTotals($previous)],
+                    'totals'   => ['current' => $totals, 'previous' => $this->insightTotals($previous)],
                     'campaigns' => collect($current)->mapWithKeys(fn ($row, $localId) => [$localId => $row])->all(),
+                    // Daily series, conversion path and breakdowns for the Performance section.
+                    'details'  => $this->insightDetails($since, $until, $totals['result_type']),
                     'synced_at' => now()->toIso8601String(),
                 ];
             });
@@ -860,6 +863,101 @@ class FacebookAdService
         }
 
         return $rows;
+    }
+
+    /** Account-level insight rows for one period, with optional breakdowns / daily increments. */
+    protected function accountInsights(Carbon $since, Carbon $until, array $params): array
+    {
+        $response = Http::acceptJson()->timeout(45)->get($this->accountNode() . '/insights', $params + [
+            'level' => 'account',
+            'time_range' => json_encode(['since' => $since->toDateString(), 'until' => $until->toDateString()]),
+            'limit' => 500,
+        ] + $this->graphAuth($this->account));
+
+        if (!$response->successful()) {
+            throw new \RuntimeException($response->json('error.error_user_msg') ?: $response->json('error.message') ?: 'Meta did not return insights.');
+        }
+
+        return $response->json('data') ?? [];
+    }
+
+    /** One row's count of the result every campaign shares (null when objectives differ). */
+    protected function resultCount(array $row, ?string $resultType): ?float
+    {
+        if (!$resultType || $resultType === 'mixed') {
+            return null;
+        }
+        if ($resultType === 'reach') {
+            return isset($row['reach']) ? (float) $row['reach'] : null;
+        }
+
+        return (float) (collect($row['actions'] ?? [])->firstWhere('action_type', $resultType)['value'] ?? 0);
+    }
+
+    /**
+     * Daily spend/results, the impression → click → landing page → result
+     * path, and placement / region / age breakdowns. Each part fails on its
+     * own (null) so one rejected breakdown never hides the rest.
+     */
+    protected function insightDetails(Carbon $since, Carbon $until, ?string $resultType): array
+    {
+        $part = function (callable $build) {
+            try {
+                return $build();
+            } catch (\RuntimeException $e) {
+                Log::info('Facebook insight breakdown unavailable', ['account' => $this->account->id, 'error' => $e->getMessage()]);
+
+                return null;
+            }
+        };
+        $action = fn (array $row, string $type) => (float) (collect($row['actions'] ?? [])->firstWhere('action_type', $type)['value'] ?? 0);
+
+        $daily = $part(function () use ($since, $until, $resultType, $action) {
+            $rows = collect($this->accountInsights($since, $until, ['time_increment' => 1, 'fields' => 'spend,impressions,clicks,inline_link_clicks,actions']))->keyBy('date_start');
+            $series = [];
+            for ($d = $since->copy(); $d->lte($until); $d->addDay()) {
+                $row = $rows[$d->toDateString()] ?? [];
+                $series[] = [
+                    'date' => $d->toDateString(),
+                    'spend' => round((float) ($row['spend'] ?? 0), 2),
+                    // Daily reach can't be added up, so "people reached" campaigns get no daily line.
+                    'results' => $resultType === 'reach' ? null : $this->resultCount($row, $resultType),
+                    'impressions' => (int) ($row['impressions'] ?? 0),
+                    'link_clicks' => (int) ($row['inline_link_clicks'] ?? 0),
+                    'landing_page_views' => $action($row, 'landing_page_view'),
+                ];
+            }
+
+            return $series;
+        });
+
+        $breakdown = fn (string $dims, string $fields) => $part(fn () => collect($this->accountInsights($since, $until, ['breakdowns' => $dims, 'fields' => $fields]))
+            ->map(fn ($r) => [
+                'key' => collect(explode(',', $dims))->map(fn ($d) => $r[$d] ?? '')->implode('|'),
+                'spend' => round((float) ($r['spend'] ?? 0), 2),
+                'impressions' => (int) ($r['impressions'] ?? 0),
+                'results' => $resultType === 'reach' ? (isset($r['reach']) ? (float) $r['reach'] : null) : $this->resultCount($r, $resultType),
+            ])->sortByDesc('spend')->values()->all());
+
+        $funnel = null;
+        if ($daily !== null) {
+            $sum = fn ($k) => array_sum(array_column($daily, $k));
+            $funnel = [
+                'impressions' => $sum('impressions'),
+                'link_clicks' => $sum('link_clicks'),
+                'landing_page_views' => $sum('landing_page_views'),
+                'results' => $resultType && !in_array($resultType, ['mixed', 'reach', 'link_click'], true) ? $sum('results') : null,
+            ];
+        }
+
+        return [
+            'result_type' => $resultType,
+            'daily' => $daily,
+            'funnel' => $funnel,
+            'placements' => $breakdown('publisher_platform,platform_position', 'spend,impressions,actions'),
+            'regions' => $breakdown('region', 'spend,impressions,reach,actions'),
+            'ages' => $breakdown('age', 'spend,impressions,reach,actions'),
+        ];
     }
 
     /** Totals; results only add up when every campaign counts the same result. */

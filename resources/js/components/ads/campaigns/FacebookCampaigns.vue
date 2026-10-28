@@ -124,7 +124,7 @@
           <div v-if="insLoading" class="fbc-skel lg"></div>
           <template v-else-if="ins && ins.totals.current.result_type && ins.totals.current.result_type !== 'mixed'">
             <strong class="val">{{ int(ins.totals.current.results) }} <span class="unit">{{ resultLabel(ins.totals.current.result_type, ins.totals.current.results) }}</span></strong>
-            <small>{{ ins.totals.current.cost_per_result !== null ? t('kpi.cost_per', { amount: money(ins.totals.current.cost_per_result), result: resultLabel(ins.totals.current.result_type, 1) }) : t('kpi.no_results') }}</small>
+            <small>{{ ins.totals.current.cost_per_result !== null ? t('kpi.cost_per', { amount: money(ins.totals.current.cost_per_result), result: resultOne(ins.totals.current.result_type).toLowerCase() }) : t('kpi.no_results') }}</small>
           </template>
           <template v-else-if="ins && ins.totals.current.result_type === 'mixed'">
             <strong class="val sm">{{ t('kpi.mixed') }}</strong>
@@ -137,6 +137,101 @@
           </template>
         </div>
       </div>
+
+      <!-- ================= PERFORMANCE (live Meta insights) ================= -->
+      <section v-if="tab === 'campaigns' && (insLoading || (ins && ins.details))" class="fbc-perf" :aria-label="t('perf.title')">
+        <div v-if="insLoading" class="fbc-card fbc-pad"><div class="fbc-skel chart"></div></div>
+        <div v-else-if="!hasDelivery" class="fbc-note"><i class="bx bx-bar-chart-alt-2"></i><div><strong>{{ t('perf.no_delivery') }}</strong><p>{{ t('perf.no_delivery_text', { days }) }}</p></div></div>
+        <template v-else>
+          <div class="fbc-card fbc-strip">
+            <div v-for="m in perfStrip" :key="m.key" class="fbc-strip-item">
+              <span>{{ m.label }}</span><strong>{{ m.value }}</strong>
+            </div>
+          </div>
+
+          <div class="fbc-perf-grid">
+            <section class="fbc-card fbc-pad">
+              <div class="fbc-perf-h">
+                <div><h2>{{ perfHeadline }}</h2><p>{{ resultsPerDay ? t('perf.chart_sub', { result: resultName.toLowerCase() }) : t('perf.chart_sub_spend') }}</p></div>
+                <div class="fbc-legend"><span><i class="sq"></i>{{ t('perf.spend') }}</span><span v-if="resultsPerDay"><i class="ln"></i>{{ resultName }}</span></div>
+              </div>
+              <spend-results-chart v-if="details.daily" :spend="details.daily.map((d) => d.spend)" :results="resultsPerDay ? details.daily.map((d) => d.results) : []"
+                                   :labels="details.daily.map((d) => shortDay(d.date))" :format-spend="moneyAxis" :format-count="int"
+                                   :spend-label="t('perf.spend')" :result-label="resultName" :aria-label="perfHeadline" />
+              <p v-else class="fbc-muted-line"><i class="bx bx-info-circle"></i>{{ t('perf.part_unavailable') }}</p>
+            </section>
+
+            <section class="fbc-card fbc-pad">
+              <h2 class="fbc-h">{{ t('perf.path') }}</h2>
+              <ol v-if="pathSteps.length" class="fbc-path">
+                <template v-for="(st, i) in pathSteps">
+                  <li :key="st.key" :class="{ last: i === pathSteps.length - 1 }"><span>{{ st.label }}</span><b>{{ int(st.value) }}</b></li>
+                  <li v-if="st.rate !== null" :key="st.key + '-r'" class="rate"><i class="bx bx-down-arrow-alt"></i>{{ st.rateLabel }}</li>
+                </template>
+              </ol>
+              <p v-else class="fbc-muted-line"><i class="bx bx-info-circle"></i>{{ t('perf.part_unavailable') }}</p>
+            </section>
+          </div>
+
+          <div class="fbc-perf-grid two">
+            <section class="fbc-card fbc-pad">
+              <div class="fbc-perf-h"><h2 class="fbc-h">{{ breakdownTitle('placement') }}</h2><span class="fbc-unit">{{ breakdownUnit }}</span></div>
+              <ul v-if="placementRows.length" class="fbc-bk">
+                <li v-for="r in placementRows" :key="r.key" :class="{ best: r.best }">
+                  <div class="h"><span>{{ r.label }}<small v-if="r.sub"> · {{ r.sub }}</small></span><b>{{ r.display }}</b></div>
+                  <div class="fbc-track"><span :style="{ width: r.width + '%' }"></span></div>
+                </li>
+              </ul>
+              <p v-else class="fbc-muted-line"><i class="bx bx-info-circle"></i>{{ details.placements === null ? t('perf.part_unavailable') : t('perf.no_rows') }}</p>
+            </section>
+
+            <section class="fbc-card fbc-pad">
+              <div class="fbc-perf-h"><h2 class="fbc-h">{{ breakdownTitle('region') }}</h2><span v-if="regionTotal" class="fbc-unit">{{ t('perf.of_total', { total: regionTotal }) }}</span></div>
+              <ul v-if="regionRows.length" class="fbc-bk compact">
+                <li v-for="r in regionRows" :key="r.key">
+                  <div class="row"><span dir="auto">{{ r.label }}</span><div class="fbc-track"><span :style="{ width: r.width + '%' }"></span></div><b>{{ r.display }}</b></div>
+                </li>
+              </ul>
+              <p v-else class="fbc-muted-line"><i class="bx bx-info-circle"></i>{{ details.regions === null ? t('perf.part_unavailable') : t('perf.no_rows') }}</p>
+              <div v-if="ageRows.length" class="fbc-ages">
+                <div v-for="r in ageRows" :key="r.key" :class="{ top: r.top }"><small>{{ r.label }}</small><strong>{{ r.display }}</strong></div>
+              </div>
+            </section>
+          </div>
+
+          <section class="fbc-card fbc-compare">
+            <div class="fbc-perf-h pad"><h2 class="fbc-h">{{ t('perf.comparison') }}</h2><span class="fbc-unit">{{ resultsComparable ? t('perf.sorted_cpr', { result: resultSingle.toLowerCase() }) : t('perf.sorted_spend') }}</span></div>
+            <div class="fbc-table-wrap">
+              <table class="fbc-table">
+                <thead><tr>
+                  <th>{{ t('cols.campaign') }}</th><th class="num">{{ t('perf.spent_cur', { currency: cur }) }}</th><th class="num">{{ t('perf.impressions') }}</th><th class="num">{{ t('perf.ctr') }}</th>
+                  <th class="num">{{ resultsComparable ? resultName : t('cols.results') }}</th><th class="num">{{ t('perf.cost_per_result') }}</th><th>{{ resultsComparable ? t('perf.share_results') : t('perf.share_spend') }}</th>
+                </tr></thead>
+                <tbody>
+                  <tr v-for="r in comparisonRows" :key="r.id">
+                    <td><bdi dir="auto" class="c-nm">{{ r.name || t('untitled') }}</bdi><span class="c-meta">{{ t('id_n', { id: r.id }) }}<template v-if="r.objective"> · {{ objectiveLabel(r.objective) }}</template></span></td>
+                    <td class="num">{{ num(r.m.spend) }}</td>
+                    <td class="num">{{ int(r.m.impressions) }}</td>
+                    <td class="num">{{ r.m.ctr === null ? '—' : pct(r.m.ctr) }}</td>
+                    <td class="num"><b>{{ r.m.results === null ? '—' : int(r.m.results) }}</b><small v-if="!resultsComparable && r.m.result_type" class="c-sub">{{ resultLabel(r.m.result_type) }}</small></td>
+                    <td class="num">{{ r.m.cost_per_result === null ? '—' : num(r.m.cost_per_result) }}</td>
+                    <td><div class="c-share"><div class="fbc-track"><span :style="{ width: r.share + '%' }"></span></div><small>{{ r.share }}%</small></div></td>
+                  </tr>
+                </tbody>
+                <tfoot v-if="comparisonRows.length > 1">
+                  <tr>
+                    <td>{{ t('perf.total') }}</td><td class="num">{{ num(ins.totals.current.spend) }}</td><td class="num">{{ int(ins.totals.current.impressions) }}</td>
+                    <td class="num">{{ ins.totals.current.ctr === null ? '—' : pct(ins.totals.current.ctr) }}</td>
+                    <td class="num">{{ resultsComparable ? int(ins.totals.current.results) : '—' }}</td>
+                    <td class="num">{{ resultsComparable && ins.totals.current.cost_per_result !== null ? num(ins.totals.current.cost_per_result) : '—' }}</td><td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </section>
+          <p class="fbc-source"><i class="bx bx-info-circle"></i>{{ t('perf.source', { since: shortDay(ins.since), until: shortDay(ins.until) }) }}</p>
+        </template>
+      </section>
 
       <div class="fbc-grid">
         <!-- ================= TABLES ================= -->
@@ -367,6 +462,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { createTranslator } from '../facebook/i18n';
+import SpendResultsChart from './SpendResultsChart.vue';
 
 const props = defineProps({
   data: { type: Object, required: true },
@@ -424,6 +520,8 @@ function objectiveLabel(v) {
 }
 // Meta action type → label ("lead" → Leads); unknown types read as "Results".
 function resultLabel(type) { return known('result_types.' + String(type || '').replace(/\./g, '_'), t('result_types.results')); }
+// Singular for "cost per lead" phrases.
+function resultOne(type) { return known('result_one.' + String(type || '').replace(/\./g, '_'), t('result_one.results')); }
 function url(kind, id) { return props.data.urls[kind].replace('CAMPAIGN_ID', id); }
 function switchUrl(a) { return props.data.urls.switch.replace('ACCOUNT_ID', a.id); }
 const metaUrl = computed(() => props.data.urls.meta + (account.value ? String(account.value.external_id).replace(/^act_/, '') : ''));
@@ -472,6 +570,103 @@ async function loadInsights(fresh) {
     insLoading.value = false;
   }
 }
+
+/* ---------------- performance section ---------------- */
+const details = computed(() => (ins.value && ins.value.details) || {});
+const hasDelivery = computed(() => !!ins.value && (ins.value.totals.current.spend > 0 || ins.value.totals.current.impressions > 0));
+// Results add up only when every campaign counts the same thing (all leads, all purchases...).
+const resultsComparable = computed(() => { const rt = ins.value && ins.value.totals.current.result_type; return !!rt && rt !== 'mixed'; });
+const resultName = computed(() => (resultsComparable.value ? resultLabel(ins.value.totals.current.result_type) : t('cols.results')));
+const resultSingle = computed(() => (resultsComparable.value ? resultOne(ins.value.totals.current.result_type) : t('result_one.results')));
+const resultsPerDay = computed(() => resultsComparable.value && Array.isArray(details.value.daily) && details.value.daily.some((d) => d.results !== null));
+function pct(v) { return (Number(v || 0) * 100).toLocaleString(i18n.intl, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%'; }
+function moneyAxis(v) { return Number(v || 0).toLocaleString(i18n.intl, { maximumFractionDigits: 0 }); }
+function shortDay(iso) { return iso ? new Date(iso + 'T00:00:00').toLocaleDateString(i18n.intl, { month: 'short', day: 'numeric' }) : ''; }
+const perfHeadline = computed(() => {
+  const c = ins.value.totals.current;
+  return resultsComparable.value
+    ? t('perf.headline_results', { spend: money(c.spend), results: int(c.results), result: resultName.value.toLowerCase(), days: days.value })
+    : t('perf.headline_spend', { spend: money(c.spend), days: days.value });
+});
+const perfStrip = computed(() => {
+  const c = ins.value.totals.current;
+  const linkClicks = Object.values(ins.value.campaigns || {}).reduce((n, r) => n + Number(r.link_clicks || 0), 0);
+  const fmt = (v, f) => (v === null || v === undefined || Number.isNaN(v) ? '—' : f(v));
+  return [
+    { key: 'impressions', label: t('perf.impressions'), value: int(c.impressions) },
+    { key: 'reach', label: t('perf.reach'), value: fmt(c.reach || null, int) },
+    { key: 'frequency', label: t('perf.frequency'), value: fmt(c.reach ? c.impressions / c.reach : null, (v) => v.toLocaleString(i18n.intl, { maximumFractionDigits: 2, minimumFractionDigits: 2 })) },
+    { key: 'link_clicks', label: t('perf.link_clicks'), value: int(linkClicks) },
+    { key: 'cpc', label: t('perf.cpc'), value: fmt(c.cpc, money) },
+    { key: 'cpm', label: t('perf.cpm'), value: fmt(c.impressions ? (c.spend / c.impressions) * 1000 : null, money) },
+  ];
+});
+const pathSteps = computed(() => {
+  const f = details.value.funnel;
+  if (!f || !f.impressions) return [];
+  const steps = [{ key: 'impressions', label: t('perf.impressions'), value: f.impressions }, { key: 'link_clicks', label: t('perf.link_clicks'), value: f.link_clicks }];
+  if (f.landing_page_views > 0) steps.push({ key: 'lpv', label: t('perf.landing_page_views'), value: f.landing_page_views });
+  if (f.results !== null) steps.push({ key: 'results', label: resultName.value, value: f.results });
+  const rates = { link_clicks: 'perf.rate_click', lpv: 'perf.rate_load', results: 'perf.rate_result' };
+  return steps.map((st, i) => {
+    const next = steps[i + 1];
+    const rate = next && st.value ? next.value / st.value : null;
+    return { ...st, rate, rateLabel: rate === null ? '' : t(rates[next.key], { rate: pct(rate) }) };
+  });
+});
+// Breakdowns rank by cost per result when results are comparable, otherwise by spend.
+const breakdownUnit = computed(() => (resultsComparable.value ? t('perf.unit_cpr', { currency: cur.value }) : t('perf.unit_spend', { currency: cur.value })));
+function breakdownTitle(kind) {
+  if (!resultsComparable.value) return t('perf.' + kind + '_spend');
+  return kind === 'placement' ? t('perf.placement_results', { result: resultSingle.value.toLowerCase() }) : t('perf.region_results', { result: resultName.value });
+}
+function prettify(v) { const s2 = String(v || '').replace(/_/g, ' '); return s2.charAt(0).toUpperCase() + s2.slice(1); }
+const placementRows = computed(() => {
+  const rows = (details.value.placements || []).filter((r) => r.spend > 0);
+  const cmp = resultsComparable.value;
+  const metricOf = (r) => (cmp ? (r.results ? r.spend / r.results : null) : r.spend);
+  const values = rows.map(metricOf).filter((v) => v !== null);
+  const max = Math.max(1e-9, ...values);
+  const best = cmp && values.length ? Math.min(...values) : null;
+  return rows.slice(0, 6).map((r) => {
+    const [pub, pos] = r.key.split('|');
+    const v = metricOf(r);
+    return {
+      key: r.key,
+      label: known('placements.' + (pub + '_' + pos).toLowerCase(), prettify(pub) + ' · ' + prettify(pos)),
+      sub: cmp ? int(r.results || 0) + ' ' + resultName.value.toLowerCase() : null,
+      display: v === null ? '—' : num(v),
+      width: v === null ? 0 : Math.max(3, (v / max) * 100),
+      best: best !== null && v === best,
+    };
+  });
+});
+const regionTotal = computed(() => (resultsComparable.value && ins.value ? int(ins.value.totals.current.results) : null));
+function rankRows(list, limit) {
+  const cmp = resultsComparable.value;
+  const val = (r) => (cmp ? Number(r.results || 0) : r.spend);
+  const sorted = [...(list || [])].filter((r) => val(r) > 0).sort((a, b) => val(b) - val(a));
+  const top = sorted.slice(0, limit);
+  const rest = sorted.slice(limit);
+  if (rest.length) top.push({ key: '__other', spend: rest.reduce((n, r) => n + r.spend, 0), results: rest.reduce((n, r) => n + Number(r.results || 0), 0) });
+  const max = Math.max(1e-9, ...top.map(val));
+  return top.map((r) => ({ ...r, value: val(r), width: Math.max(3, (val(r) / max) * 100), display: cmp ? int(val(r)) : num(val(r)) }));
+}
+const regionRows = computed(() => rankRows(details.value.regions, 4).map((r) => ({ ...r, label: r.key === '__other' ? t('perf.other_regions') : r.key })));
+const ageRows = computed(() => {
+  const cmp = resultsComparable.value;
+  const rows = (details.value.ages || []).filter((r) => (cmp ? r.results > 0 : r.spend > 0));
+  const vals = rows.map((r) => (cmp ? r.results : r.spend));
+  const top = Math.max(...vals, 0);
+  return rows.map((r, i) => ({ key: r.key, label: r.key, display: cmp ? int(vals[i]) : num(vals[i]), top: vals[i] === top }));
+});
+const comparisonRows = computed(() => {
+  const cmp = resultsComparable.value;
+  const rows = campaigns.value.map((c) => ({ ...c, m: metric(c) })).filter((r) => r.m && (r.m.spend > 0 || r.m.impressions > 0));
+  const total = rows.reduce((n, r) => n + Number(cmp ? r.m.results || 0 : r.m.spend), 0);
+  rows.sort((a, b) => (cmp ? ((a.m.cost_per_result ?? Infinity) - (b.m.cost_per_result ?? Infinity)) : b.m.spend - a.m.spend));
+  return rows.map((r) => ({ ...r, share: total ? Math.round((Number(cmp ? r.m.results || 0 : r.m.spend) / total) * 100) : 0 }));
+});
 
 /* ---------------- checklist ---------------- */
 const steps = computed(() => {
@@ -859,11 +1054,69 @@ a.fbc-acct-row:hover { background: var(--wash); }
 @keyframes fbc-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .fbc * { animation: none !important; transition: none !important; } }
 
+/* performance section */
+.fbc-perf { display: flex; flex-direction: column; gap: 16px; }
+.fbc-skel.chart { height: 220px; width: 100%; border-radius: 12px; }
+.fbc-strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.fbc-strip-item { display: flex; flex-direction: column; gap: 3px; padding: .85rem 1.1rem; min-width: 0; }
+.fbc-strip-item + .fbc-strip-item { border-inline-start: 1px solid var(--line-soft); }
+.fbc-strip-item span { font-size: .78rem; color: var(--muted); }
+.fbc-strip-item strong { font-size: 1.1rem; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fbc-perf-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr); gap: 16px; align-items: stretch; }
+.fbc-perf-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fbc-perf-h { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; margin-bottom: .9rem; flex-wrap: wrap; }
+.fbc-perf-h.pad { padding: 1.1rem 1.2rem 0; }
+.fbc-perf-h h2 { margin: 0; font-size: 1rem; font-weight: 700; color: var(--ink); line-height: 1.35; }
+.fbc-perf-h p { margin: 3px 0 0; font-size: .78rem; color: var(--muted); }
+.fbc-h { margin: 0 0 .9rem; font-size: 1rem; font-weight: 700; color: var(--ink); }
+.fbc-perf-h .fbc-h { margin: 0; }
+.fbc-unit { font-size: .74rem; color: var(--muted); }
+.fbc-legend { display: flex; gap: .9rem; font-size: .76rem; color: var(--text); }
+.fbc-legend span { display: inline-flex; align-items: center; gap: .35rem; }
+.fbc-legend .sq { width: 10px; height: 10px; border-radius: 2px; background: #CDD3E2; }
+.fbc-legend .ln { width: 14px; height: 3px; border-radius: 2px; background: #4F46E5; }
+.fbc-muted-line { display: flex; align-items: center; gap: .4rem; margin: 0; padding: 1.5rem 0; font-size: .82rem; color: var(--muted); }
+.fbc-path { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.fbc-path li { display: flex; justify-content: space-between; align-items: center; padding: .7rem .85rem; border-radius: 10px; background: #EEF1FD; font-size: .84rem; color: var(--ink); }
+.fbc-path li b { font-variant-numeric: tabular-nums; }
+.fbc-path li.last { background: #4F46E5; color: #fff; font-weight: 600; }
+.fbc-path li.rate { background: none; padding: .1rem .85rem; font-size: .74rem; color: var(--muted); justify-content: flex-start; gap: .25rem; }
+.fbc-bk { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .85rem; }
+.fbc-bk .h { display: flex; justify-content: space-between; gap: .5rem; font-size: .8rem; color: var(--ink); margin-bottom: 5px; }
+.fbc-bk .h small { color: var(--muted); }
+.fbc-bk .h b { font-variant-numeric: tabular-nums; }
+.fbc-bk.compact { gap: .6rem; }
+.fbc-bk .row { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(0, 1.4fr) auto; gap: .75rem; align-items: center; font-size: .8rem; color: var(--ink); }
+.fbc-bk .row b { font-variant-numeric: tabular-nums; min-width: 2.5ch; text-align: end; }
+.fbc-track { height: 7px; border-radius: 7px; background: #EEF1F6; overflow: hidden; }
+.fbc-track span { display: block; height: 100%; border-radius: 7px; background: #B9C1D6; }
+.fbc-bk li.best .fbc-track span, .fbc-bk.compact .fbc-track span { background: #4F46E5; }
+.fbc-ages { display: grid; grid-template-columns: repeat(auto-fit, minmax(60px, 1fr)); gap: 6px; margin-top: 1rem; padding-top: .9rem; border-top: 1px solid var(--line-soft); }
+.fbc-ages div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: .4rem .2rem; border-radius: 10px; }
+.fbc-ages div.top { background: var(--brand-soft); }
+.fbc-ages small { font-size: .72rem; color: var(--muted); }
+.fbc-ages strong { font-size: .92rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+.fbc-ages div.top small, .fbc-ages div.top strong { color: var(--brand); }
+.fbc-compare { overflow: hidden; }
+.fbc-compare .fbc-table { margin-top: .25rem; }
+.fbc-compare tfoot td { font-weight: 700; color: var(--ink); background: var(--wash); border-bottom: 0; }
+.c-share { display: flex; align-items: center; gap: .5rem; min-width: 120px; }
+.c-share .fbc-track { flex: 1; }
+.c-share .fbc-track span { background: #4F46E5; }
+.c-share small { font-size: .74rem; color: var(--muted); min-width: 3ch; text-align: end; }
+.fbc-source { display: flex; align-items: center; gap: .4rem; margin: 0; font-size: .76rem; color: var(--muted); }
+
 @container fbc (max-width: 1100px) {
   .fbc-grid { grid-template-columns: minmax(0, 1fr); }
   .fbc-rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@container fbc (max-width: 860px) { .fbc-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container fbc (max-width: 860px) {
+  .fbc-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fbc-perf-grid, .fbc-perf-grid.two { grid-template-columns: minmax(0, 1fr); }
+  .fbc-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .fbc-strip-item:nth-child(4) { border-inline-start: 0; }
+  .fbc-strip-item:nth-child(n+4) { border-top: 1px solid var(--line-soft); }
+}
 @container fbc (max-width: 640px) {
   .fbc-rail { grid-template-columns: minmax(0, 1fr); }
   .fbc-head-actions { width: 100%; }
@@ -871,5 +1124,6 @@ a.fbc-acct-row:hover { background: var(--wash); }
   .fbc-tools, .fbc-search, .fbc-search input { width: 100%; }
   .fbc-bar > .fbc-select { width: 100%; }
 }
+@container fbc (max-width: 520px) { .fbc-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } .fbc-strip-item:nth-child(n) { border-inline-start: 0; border-top: 1px solid var(--line-soft); } .fbc-strip-item:nth-child(-n+2) { border-top: 0; } .fbc-strip-item:nth-child(even) { border-inline-start: 1px solid var(--line-soft); } }
 @container fbc (max-width: 440px) { .fbc-kpis { grid-template-columns: minmax(0, 1fr); } .fbc-acct .nm { max-width: 120px; } .fbc-head h1 { font-size: 1.3rem; } }
 </style>
