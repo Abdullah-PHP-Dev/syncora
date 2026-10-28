@@ -491,6 +491,9 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::resource('ads/{platform}/campaigns', AdCampaignController::class)
 					->names('ads.campaigns');
 
+				Route::post('ads/{platform}/campaigns/{id}/duplicate', [AdCampaignController::class, 'duplicate'])
+					->middleware('throttle:10,1')
+					->name('ads.campaigns.duplicate');
 				Route::patch('ads/{platform}/campaigns/{id}/status', [AdCampaignController::class, 'updateStatus'])
 					->name('ads.campaigns.status');
 

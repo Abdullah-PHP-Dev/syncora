@@ -11,6 +11,7 @@ use App\Models\SocialAccount;
 use App\Models\Admin\PlatformPage;
 use App\Models\Country;
 use App\Services\AdServices\AdsDashboardService;
+use App\Services\AdServices\FacebookCampaignsPageService;
 use App\Services\AdServices\SocialAdManagerService;
 use App\Support\AdAccountSelection;
 use Illuminate\Support\Facades\Auth;
@@ -84,6 +85,10 @@ class AdCampaignController extends Controller
      */
     public function index($platform)
     {
+        if ($platform === 'facebook') {
+            return $this->facebookIndex();
+        }
+
         $data = (new AdsDashboardService(Auth::id()))->forPlatform($platform);
 
         // URLs the Vue dashboard needs - resolved here so the service
@@ -110,6 +115,47 @@ class AdCampaignController extends Controller
     }
 
     /**
+     * Facebook campaigns page: everything for the selected ad account
+     * (?account= switches it, ownership checked by AdAccountSelection).
+     * Spend and results load from the insights endpoint afterwards.
+     */
+    private function facebookIndex()
+    {
+        $this->selectedAdAccount('facebook');
+        $member = request()->attributes->get('workspace_member');
+        $memberCanWrite = ! $member || ($member->permissions['advertising'] ?? 'none') === 'write';
+
+        $data = (new FacebookCampaignsPageService(Auth::id(), $memberCanWrite))->build();
+        $data['urls'] = [
+            'create'      => route('admin.ads.campaigns.create', ['platform' => 'facebook']),
+            'sync'        => route('admin.ads.campaigns.sync', ['platform' => 'facebook']),
+            'insights'    => route('admin.ads.campaigns.insights', ['platform' => 'facebook']),
+            'status'      => route('admin.ads.campaigns.status', ['platform' => 'facebook', 'id' => 'CAMPAIGN_ID']),
+            'duplicate'   => route('admin.ads.campaigns.duplicate', ['platform' => 'facebook', 'id' => 'CAMPAIGN_ID']),
+            'edit'        => route('admin.ads.campaigns.edit', ['platform' => 'facebook', 'campaign' => 'CAMPAIGN_ID']),
+            'destroy'     => route('admin.ads.campaigns.destroy', ['platform' => 'facebook', 'campaign' => 'CAMPAIGN_ID']),
+            'switch'      => route('admin.ads.campaigns.index', ['platform' => 'facebook']) . '?account=ACCOUNT_ID',
+            'connections' => route('admin.connections.index'),
+            'dashboard'   => route('admin.ads.dashboard'),
+            'meta'        => 'https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=',
+        ];
+
+        return view('admin.ads.campaigns.facebook', [
+            'data' => $data,
+            'messages' => __('ads_campaigns'),
+        ]);
+    }
+
+    /** Copy a campaign on the platform (Facebook: Meta /copies, created paused). */
+    public function duplicate($platform, string $id)
+    {
+        $service = $this->socialAdManager->service($platform);
+        abort_unless(method_exists($service, 'duplicate'), 404);
+
+        return $service->duplicate($id);
+    }
+
+    /**
      * "Sync Now" - pulls fresh campaigns from the connected platform via
      * the existing per-platform ad service (see
      * SocialAdManagerService::syncCampaigns). JSON, called by the
@@ -123,7 +169,7 @@ class AdCampaignController extends Controller
     }
 
     /** Performance for the campaigns page (platforms whose service reports it). */
-    public function insights($platform)
+    public function insights($platform, Request $request)
     {
         $service = $this->socialAdManager->service($platform);
 
@@ -131,7 +177,10 @@ class AdCampaignController extends Controller
             return response()->json(['success' => false, 'error' => 'Reporting is not available for this platform yet.'], 404);
         }
 
-        $result = $service->insights();
+        $validated = $request->validate(['days' => ['nullable', 'integer', 'in:7,14,30,90'], 'fresh' => ['nullable', 'boolean']]);
+        $days = (int) ($validated['days'] ?? 30);
+
+        $result = $platform === 'facebook' ? $service->insights($days, $request->boolean('fresh')) : $service->insights($days);
 
         return response()->json($result, ($result['success'] ?? false) ? 200 : 422);
     }
@@ -359,6 +408,17 @@ class AdCampaignController extends Controller
      */
     public function destroy($platform, string $id)
     {
+        // Facebook: only the seller's own campaigns, and only with a role that may change them.
+        if ($platform === 'facebook') {
+            $campaign = AdCampaign::with('socialAccount')->where('user_id', Auth::id())->where('platform', 'facebook')->find($id);
+            abort_unless($campaign, 404);
+            if ($blocker = \App\Services\AdServices\FacebookAdService::writeBlocker($campaign->socialAccount)) {
+                return request()->expectsJson()
+                    ? response()->json(['success' => false, 'message' => $blocker], 403)
+                    : redirect()->route('admin.ads.campaigns.index', ['platform' => 'facebook'])->with('error', $blocker);
+            }
+        }
+
         return $this->socialAdManager->destroy($platform, $id);
     }
 
