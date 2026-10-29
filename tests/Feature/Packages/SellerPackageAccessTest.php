@@ -483,7 +483,7 @@ class SellerPackageAccessTest extends TestCase
             $table->text('value')->nullable();
             $table->timestamps();
         });
-        DB::table('admin_settings')->insert(['key' => 'gemini_api_key_free', 'value' => 'test-key']);
+        DB::table('admin_settings')->insert(['key' => 'gemini_api_key', 'value' => 'test-key']);
         Settings::forgetRequestCache();
         Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
             'candidates' => [['content' => ['parts' => [['text' => json_encode(['title' => 'Title', 'description' => 'Caption', 'hashtags' => ['example']])]]]]],

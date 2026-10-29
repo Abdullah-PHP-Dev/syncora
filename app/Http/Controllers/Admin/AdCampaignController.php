@@ -12,6 +12,7 @@ use App\Models\Admin\PlatformPage;
 use App\Models\Country;
 use App\Services\AdServices\AdsDashboardService;
 use App\Services\AdServices\FacebookCampaignsPageService;
+use App\Services\AdServices\FacebookAiInsightsService;
 use App\Services\AdServices\SocialAdManagerService;
 use App\Support\AdAccountSelection;
 use Illuminate\Support\Facades\Auth;
@@ -126,10 +127,24 @@ class AdCampaignController extends Controller
         $memberCanWrite = ! $member || ($member->permissions['advertising'] ?? 'none') === 'write';
 
         $data = (new FacebookCampaignsPageService(Auth::id(), $memberCanWrite))->build();
+        // Scheduled reports go to whoever is signed in; export needs the Data export module.
+        $data['reports'] = $data['account']
+            ? \App\Models\AdReportSchedule::where('user_id', Auth::id())->where('social_account_id', $data['account']['id'])->latest('id')->get()
+                ->map(fn ($r) => \App\Http\Controllers\Admin\AdReportController::present($r))->all()
+            : [];
+        $data['recipient_email'] = \App\Http\Controllers\Admin\AdReportController::loginEmail(request());
+        $data['can_export'] = app(\App\Services\PackageAccessService::class)->allows(Auth::user(), 'data_export');
         $data['urls'] = [
             'create'      => route('admin.ads.campaigns.create', ['platform' => 'facebook']),
             'sync'        => route('admin.ads.campaigns.sync', ['platform' => 'facebook']),
             'insights'    => route('admin.ads.campaigns.insights', ['platform' => 'facebook']),
+            'ai_insights' => route('admin.ads.campaigns.ai-insights', ['platform' => 'facebook']),
+            'ai_generate' => route('admin.ads.campaigns.ai-insights.generate', ['platform' => 'facebook']),
+            'usage'       => route('admin.subscription.usage'),
+            'export'      => route('admin.ads.campaigns.export', ['platform' => 'facebook']),
+            'reports'     => route('admin.ads.reports.store', ['platform' => 'facebook']),
+            'report'      => route('admin.ads.reports.update', ['platform' => 'facebook', 'id' => 0]),
+            'upgrade'     => route('admin.subscription.select'),
             'status'      => route('admin.ads.campaigns.status', ['platform' => 'facebook', 'id' => 'CAMPAIGN_ID']),
             'duplicate'   => route('admin.ads.campaigns.duplicate', ['platform' => 'facebook', 'id' => 'CAMPAIGN_ID']),
             'edit'        => route('admin.ads.campaigns.edit', ['platform' => 'facebook', 'campaign' => 'CAMPAIGN_ID']),
@@ -144,6 +159,31 @@ class AdCampaignController extends Controller
             'data' => $data,
             'messages' => __('ads_campaigns'),
         ]);
+    }
+
+    /** Last AI insights for the selected account and period (no AI credit used). */
+    public function aiInsights($platform, Request $request, FacebookAiInsightsService $ai)
+    {
+        abort_unless($platform === 'facebook', 404);
+        $days = (int) ($request->validate(['days' => ['nullable', 'integer', 'in:7,14,30,90']])['days'] ?? 30);
+        $account = AdAccountSelection::resolve(Auth::id(), 'facebook');
+
+        return response()->json(['success' => true, 'data' => $account ? $ai->cached($account->id, $days, app()->getLocale()) : null]);
+    }
+
+    /** Generate AI insights - one AI credit, reserved and refunded on failure by EnsurePackageFeature. */
+    public function generateAiInsights($platform, Request $request, FacebookAiInsightsService $ai)
+    {
+        abort_unless($platform === 'facebook', 404);
+        $days = (int) ($request->validate(['days' => ['nullable', 'integer', 'in:7,14,30,90']])['days'] ?? 30);
+        $account = AdAccountSelection::resolve(Auth::id(), 'facebook');
+        if (! $account) {
+            return response()->json(['success' => false, 'message' => 'Connect a Facebook ad account first.'], 422);
+        }
+
+        $result = $ai->generate($this->socialAdManager->service('facebook'), $account->id, Auth::id(), $days, app()->getLocale());
+
+        return response()->json($result, $result['success'] ? 200 : 422);
     }
 
     /** Copy a campaign on the platform (Facebook: Meta /copies, created paused). */

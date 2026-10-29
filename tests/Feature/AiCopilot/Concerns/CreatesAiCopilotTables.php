@@ -37,7 +37,7 @@ trait CreatesAiCopilotTables
         (require database_path('migrations/2026_08_28_100000_create_social_account_post_details_table.php'))->up();
 
         // AiCopilotService::embed() bails out (empty($apiKey) check) before
-        // ever calling Gemini unless adminSetting('gemini_api_key_free')
+        // ever calling Gemini unless adminSetting('gemini_api_key')
         // resolves to something truthy - Settings::all() itself degrades
         // gracefully to [] without this table (see its own docblock), but
         // that means every embed() call in these tests would silently
@@ -48,7 +48,7 @@ trait CreatesAiCopilotTables
             $table->longText('value')->nullable();
             $table->timestamps();
         });
-        DB::table('admin_settings')->insert(['key' => 'gemini_api_key_free', 'value' => 'test-key', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('admin_settings')->insert(['key' => 'gemini_api_key', 'value' => 'test-key', 'created_at' => now(), 'updated_at' => now()]);
 
         Schema::create('conversations', function (Blueprint $table) {
             $table->id();

@@ -214,7 +214,7 @@ class EmailTemplateController extends Controller
             'prompt' => ['required', 'string', 'max:2000'],
         ]);
 
-        $apiKey = adminSetting('gemini_api_key_free');
+        $apiKey = adminSetting('gemini_api_key');
 
         if (empty($apiKey)) {
             return response()->json([

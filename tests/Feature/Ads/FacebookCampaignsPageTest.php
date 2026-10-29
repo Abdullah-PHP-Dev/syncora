@@ -29,6 +29,7 @@ class FacebookCampaignsPageTest extends TestCase
         $this->createConnectionTables();
         $this->createSettingsTable();
         $this->createAdTables();
+        (require database_path('migrations/2026_10_29_120000_create_ad_report_schedules_table.php'))->up();
         Settings::set('ads.facebook.base_url', 'https://graph.facebook.com/v22.0/act_{accountId}');
         Settings::set('ads.facebook.client_secret', 'app-secret');
         $this->user = User::create(['name' => 'Seller', 'email' => 's@example.com', 'password' => bcrypt('x')]);
@@ -259,6 +260,63 @@ class FacebookCampaignsPageTest extends TestCase
         $this->assertTrue($res['success']);
         $this->assertNull($res['details']['regions']);
         $this->assertNotNull($res['details']['ages']);
+    }
+
+    private function fakeMetaAndGemini(array|int $gemini): void
+    {
+        Http::fake([
+            'graph.facebook.com/v22.0/act_111/insights*' => Http::response(['data' => [['campaign_id' => '12001', 'objective' => 'OUTCOME_LEADS', 'spend' => '720.20', 'impressions' => '104980', 'reach' => '52000', 'clicks' => '2050', 'actions' => [['action_type' => 'lead', 'value' => '128']]]]]),
+            'generativelanguage.googleapis.com/*' => is_int($gemini)
+                ? Http::response(['error' => ['message' => 'overloaded']], $gemini)
+                : Http::response(['candidates' => [['content' => ['parts' => [['text' => json_encode($gemini)]]]]]]),
+        ]);
+    }
+
+    public function test_ai_insights_use_one_credit_and_only_the_accounts_own_numbers(): void
+    {
+        Settings::set('gemini_api_key', 'gemini-key');
+        $this->campaign($this->account('111'), ['ad_campaign_id' => '12001', 'name' => 'Ramadan leads']);
+        $this->fakeMetaAndGemini(['insights' => [
+            ['title' => 'Ramadan leads at SAR 5.63 per lead', 'text' => '128 leads from SAR 720.20.', 'action' => 'compare_campaigns'],
+            ['title' => 'Second', 'text' => 'Text', 'action' => 'not-an-action'],
+            ['title' => 'Third', 'text' => 'Text', 'action' => 'review_budget'],
+            ['title' => 'Fourth is dropped', 'text' => 'Text', 'action' => 'none'],
+        ]]);
+        $url = route('admin.ads.campaigns.ai-insights', ['platform' => 'facebook']);
+
+        $this->getJson($url . '?days=14')->assertOk()->assertJsonPath('data', null);
+
+        $data = $this->postJson(route('admin.ads.campaigns.ai-insights.generate', ['platform' => 'facebook']), ['days' => 14, 'spend' => 999999])
+            ->assertOk()->json('data');
+
+        $this->assertCount(3, $data['insights']);
+        $this->assertSame('compare_campaigns', $data['insights'][0]['action']);
+        $this->assertSame('none', $data['insights'][1]['action']); // unknown actions are neutralised
+        $this->assertSame(1, \DB::table('package_usage')->where(['user_id' => $this->user->id, 'feature_key' => 'ai_credits'])->count());
+        Http::assertSent(function (HttpRequest $r) {
+            if (!str_contains($r->url(), 'generativelanguage')) {
+                return false;
+            }
+            $prompt = $r['contents'][0]['parts'][0]['text'];
+
+            return str_contains($prompt, '720.2') && str_contains($prompt, 'Ramadan leads') && !str_contains($prompt, '999999') && str_contains($r->url(), 'key=gemini-key');
+        });
+
+        // Reading them again is free.
+        $this->getJson($url . '?days=14')->assertOk()->assertJsonPath('data.insights.0.title', 'Ramadan leads at SAR 5.63 per lead');
+        $this->assertSame(1, \DB::table('package_usage')->where(['user_id' => $this->user->id, 'feature_key' => 'ai_credits'])->count());
+    }
+
+    public function test_a_failed_ai_call_refunds_the_credit(): void
+    {
+        Settings::set('gemini_api_key', 'gemini-key');
+        $this->campaign($this->account('111'), ['ad_campaign_id' => '12001']);
+        $this->fakeMetaAndGemini(400);
+
+        $this->postJson(route('admin.ads.campaigns.ai-insights.generate', ['platform' => 'facebook']), ['days' => 7])
+            ->assertStatus(422)->assertJsonPath('success', false);
+
+        $this->assertSame(0, \DB::table('package_usage')->where(['user_id' => $this->user->id, 'feature_key' => 'ai_credits'])->count());
     }
 }
 

@@ -83,12 +83,19 @@
             {{ t('tabs.' + tb) }} <span class="n">{{ int(data.counts[tb]) }}</span>
           </button>
         </div>
-        <label class="fbc-select">
-          <i class="bx bx-calendar" aria-hidden="true"></i><span class="fbc-sr">{{ t('range_label') }}</span>
-          <select v-model.number="days" @change="loadInsights(false)">
-            <option v-for="d in [7, 14, 30, 90]" :key="d" :value="d">{{ t('range_option', { days: d }) }}</option>
-          </select>
-        </label>
+        <div class="fbc-bar-end">
+          <label class="fbc-select">
+            <i class="bx bx-calendar" aria-hidden="true"></i><span class="fbc-sr">{{ t('range_label') }}</span>
+            <select v-model.number="days" @change="loadInsights(false); loadAiCached()">
+              <option v-for="d in [7, 14, 30, 90]" :key="d" :value="d">{{ t('range_option', { days: d }) }}</option>
+            </select>
+          </label>
+          <button v-if="data.can_export" type="button" class="fbc-btn ghost" :disabled="exporting || !account.healthy" @click="exportCsv">
+            <i class="bx" :class="exporting ? 'bx-loader-alt bx-spin' : 'bx-download'"></i>{{ exporting ? t('reports.exporting') : t('reports.export') }}
+          </button>
+          <a v-else :href="data.urls.upgrade" class="fbc-btn ghost" :title="t('reports.export_locked')"><i class="bx bx-lock-alt"></i>{{ t('reports.export') }}</a>
+          <button type="button" class="fbc-btn primary" @click="openReportForm"><i class="bx bx-calendar-check"></i>{{ t('reports.schedule') }}</button>
+        </div>
       </div>
 
       <!-- ================= KPIs ================= -->
@@ -161,6 +168,34 @@
               <p v-else class="fbc-muted-line"><i class="bx bx-info-circle"></i>{{ t('perf.part_unavailable') }}</p>
             </section>
 
+            <section ref="aiCard" class="fbc-card fbc-pad fbc-ai" :aria-busy="aiLoading ? 'true' : 'false'">
+              <div class="fbc-perf-h"><h2 class="fbc-h"><i class="bx bxs-magic-wand" aria-hidden="true"></i>{{ t('ai.title') }}</h2><span class="fbc-badge brand">{{ t('ai.beta') }}</span></div>
+              <div v-if="aiLoading" class="fbc-ai-loading" role="status">
+                <div v-for="n in 3" :key="n" class="fbc-ai-skel"><span class="fbc-skel" style="width:55%"></span><span class="fbc-skel"></span><span class="fbc-skel" style="width:80%"></span></div>
+                <small>{{ t('ai.analysing') }}</small>
+              </div>
+              <template v-else-if="ai && ai.insights && ai.insights.length">
+                <article v-for="(item, i) in ai.insights" :key="i" class="fbc-ai-item">
+                  <strong dir="auto">{{ item.title }}</strong>
+                  <p dir="auto">{{ item.text }}</p>
+                  <button v-if="item.action !== 'none'" type="button" class="fbc-link" @click="aiAction(item.action)">{{ t('ai.actions.' + item.action) }} <i class="bx" :class="i18n.dir === 'rtl' ? 'bx-left-arrow-alt' : 'bx-right-arrow-alt'"></i></button>
+                </article>
+                <div class="fbc-ai-foot">
+                  <small>{{ t('ai.generated', { when: dateTime(ai.generated_at) }) }}</small>
+                  <button type="button" class="fbc-link" :disabled="aiLoading" @click="generateAi"><i class="bx bx-refresh"></i>{{ t('ai.regenerate') }}</button>
+                </div>
+              </template>
+              <div v-else class="fbc-ai-empty">
+                <p>{{ t('ai.empty') }}</p>
+                <button type="button" class="fbc-btn soft block" :disabled="aiLoading" @click="generateAi"><i class="bx bxs-magic-wand"></i>{{ t('ai.generate') }}</button>
+                <small>{{ t('ai.credit_note') }}</small>
+              </div>
+              <p v-if="aiError" class="fbc-ai-error" role="alert">{{ aiError }} <a v-if="aiCreditIssue" :href="data.urls.usage" class="fbc-link">{{ t('ai.view_usage') }}</a></p>
+              <p class="fbc-ai-note">{{ t('ai.disclaimer') }}</p>
+            </section>
+          </div>
+
+          <div class="fbc-perf-grid three">
             <section class="fbc-card fbc-pad">
               <h2 class="fbc-h">{{ t('perf.path') }}</h2>
               <ol v-if="pathSteps.length" class="fbc-path">
@@ -171,10 +206,8 @@
               </ol>
               <p v-else class="fbc-muted-line"><i class="bx bx-info-circle"></i>{{ t('perf.part_unavailable') }}</p>
             </section>
-          </div>
 
-          <div class="fbc-perf-grid two">
-            <section class="fbc-card fbc-pad">
+            <section ref="placementsCard" class="fbc-card fbc-pad">
               <div class="fbc-perf-h"><h2 class="fbc-h">{{ breakdownTitle('placement') }}</h2><span class="fbc-unit">{{ breakdownUnit }}</span></div>
               <ul v-if="placementRows.length" class="fbc-bk">
                 <li v-for="r in placementRows" :key="r.key" :class="{ best: r.best }">
@@ -185,7 +218,7 @@
               <p v-else class="fbc-muted-line"><i class="bx bx-info-circle"></i>{{ details.placements === null ? t('perf.part_unavailable') : t('perf.no_rows') }}</p>
             </section>
 
-            <section class="fbc-card fbc-pad">
+            <section ref="regionsCard" class="fbc-card fbc-pad">
               <div class="fbc-perf-h"><h2 class="fbc-h">{{ breakdownTitle('region') }}</h2><span v-if="regionTotal" class="fbc-unit">{{ t('perf.of_total', { total: regionTotal }) }}</span></div>
               <ul v-if="regionRows.length" class="fbc-bk compact">
                 <li v-for="r in regionRows" :key="r.key">
@@ -199,7 +232,7 @@
             </section>
           </div>
 
-          <section class="fbc-card fbc-compare">
+          <section ref="compareCard" class="fbc-card fbc-compare">
             <div class="fbc-perf-h pad"><h2 class="fbc-h">{{ t('perf.comparison') }}</h2><span class="fbc-unit">{{ resultsComparable ? t('perf.sorted_cpr', { result: resultSingle.toLowerCase() }) : t('perf.sorted_spend') }}</span></div>
             <div class="fbc-table-wrap">
               <table class="fbc-table">
@@ -235,7 +268,7 @@
 
       <div class="fbc-grid">
         <!-- ================= TABLES ================= -->
-        <section class="fbc-card fbc-main">
+        <section ref="mainCard" class="fbc-card fbc-main">
           <div class="fbc-main-h">
             <div class="fbc-main-title">
               <h2>{{ t('tabs.' + tab) }}</h2>
@@ -443,7 +476,64 @@
           </section>
         </aside>
       </div>
+
+      <!-- ================= SCHEDULED REPORTS ================= -->
+      <section v-if="tab === 'campaigns'" class="fbc-card fbc-pad fbc-reports" :aria-label="t('reports.title')">
+        <div class="fbc-perf-h">
+          <div><h2 class="fbc-h">{{ t('reports.title') }}</h2><p>{{ t('reports.subtitle', { email: data.recipient_email || '—' }) }}</p></div>
+        </div>
+        <div class="fbc-report-grid">
+          <article v-for="r in reports" :key="r.id" class="fbc-report">
+            <div class="top">
+              <strong dir="auto">{{ r.name }}</strong>
+              <span class="fbc-badge" :class="r.last_error ? 'bad' : (r.status === 'active' ? 'ok' : 'mut')">
+                <span v-if="!r.last_error && r.status === 'active'" class="d"></span>{{ r.last_error ? t('reports.failed') : (r.status === 'active' ? t('reports.scheduled') : t('reports.paused')) }}
+              </span>
+            </div>
+            <p>{{ cadence(r) }} · {{ t('reports.period_n', { days: r.period_days }) }}</p>
+            <p class="mut"><i class="bx bx-envelope"></i><span dir="ltr">{{ r.recipient_email }}</span></p>
+            <p v-if="reportTiming(r)" class="mut">{{ reportTiming(r) }}</p>
+            <p v-if="r.last_error" class="err">{{ r.last_error }}</p>
+            <div class="acts">
+              <button type="button" class="fbc-link" :disabled="reportBusy === r.id" @click="sendReport(r)"><i class="bx bx-send"></i>{{ t('reports.send_now') }}</button>
+              <button type="button" class="fbc-link" :disabled="reportBusy === r.id" @click="toggleReport(r)">{{ r.status === 'active' ? t('reports.pause') : t('reports.resume') }}</button>
+              <button type="button" class="fbc-link danger" :disabled="reportBusy === r.id" @click="askDeleteReport(r)">{{ t('delete') }}</button>
+            </div>
+          </article>
+          <button type="button" class="fbc-report new" @click="openReportForm"><i class="bx bx-plus"></i>{{ t('reports.new') }}</button>
+        </div>
+      </section>
     </template>
+
+    <!-- ================= REPORT FORM ================= -->
+    <div v-if="reportForm" class="fbc-modal" role="dialog" aria-modal="true" aria-labelledby="fbc-report-t" @click.self="reportForm = null">
+      <form class="fbc-dialog wide" @submit.prevent="saveReport">
+        <h3 id="fbc-report-t">{{ t('reports.form_title') }}</h3>
+        <div class="fbc-form">
+          <label class="full">{{ t('reports.name') }}<input ref="reportName" v-model.trim="reportForm.name" type="text" maxlength="120" required dir="auto"></label>
+          <label>{{ t('reports.frequency') }}
+            <select v-model="reportForm.frequency"><option v-for="f in ['daily', 'weekly', 'monthly']" :key="f" :value="f">{{ t('reports.frequencies.' + f) }}</option></select>
+          </label>
+          <label v-if="reportForm.frequency === 'weekly'">{{ t('reports.weekday') }}
+            <select v-model.number="reportForm.weekday"><option v-for="d in 7" :key="d" :value="d - 1">{{ weekdayName(d - 1) }}</option></select>
+          </label>
+          <label v-if="reportForm.frequency === 'monthly'">{{ t('reports.day_of_month') }}
+            <select v-model.number="reportForm.day_of_month"><option v-for="d in 28" :key="d" :value="d">{{ d }}</option></select>
+          </label>
+          <label>{{ t('reports.time') }}<input v-model="reportForm.send_time" type="time" required></label>
+          <label>{{ t('reports.period') }}
+            <select v-model.number="reportForm.period_days"><option v-for="d in [7, 14, 30, 90]" :key="d" :value="d">{{ t('reports.period_n', { days: d }) }}</option></select>
+          </label>
+          <div class="full fbc-form-note"><i class="bx bx-envelope"></i><span>{{ t('reports.recipient_note', { email: data.recipient_email || '—' }) }}</span></div>
+          <div class="full fbc-form-note"><i class="bx bx-paperclip"></i><span>{{ t('reports.format_note') }}</span></div>
+        </div>
+        <p v-if="reportFormError" class="fbc-ai-error" role="alert">{{ reportFormError }}</p>
+        <div class="fbc-dialog-a">
+          <button type="button" class="fbc-btn ghost" @click="reportForm = null">{{ t('cancel') }}</button>
+          <button type="submit" class="fbc-btn primary" :disabled="reportSaving"><i class="bx bx-calendar-check"></i>{{ reportSaving ? t('reports.saving') : t('reports.save') }}</button>
+        </div>
+      </form>
+    </div>
 
     <!-- ================= CONFIRM ================= -->
     <div v-if="confirm" class="fbc-modal" role="dialog" aria-modal="true" :aria-labelledby="'fbc-confirm-t'" @keydown.esc="confirm = null" @click.self="confirm = null">
@@ -668,6 +758,122 @@ const comparisonRows = computed(() => {
   return rows.map((r) => ({ ...r, share: total ? Math.round((Number(cmp ? r.m.results || 0 : r.m.spend) / total) * 100) : 0 }));
 });
 
+/* ---------------- AI insights (Gemini, from the account's own insights) ---------------- */
+const ai = ref(null); const aiLoading = ref(false); const aiError = ref(''); const aiCreditIssue = ref(false);
+const aiCard = ref(null); const placementsCard = ref(null); const regionsCard = ref(null); const compareCard = ref(null); const mainCard = ref(null);
+async function loadAiCached() {
+  if (!props.data.urls.ai_insights || !account.value) return;
+  try {
+    const { data } = await window.axios.get(props.data.urls.ai_insights, { params: { days: days.value } });
+    ai.value = data.data || null;
+  } catch (e) { ai.value = null; }
+}
+async function generateAi() {
+  aiLoading.value = true; aiError.value = ''; aiCreditIssue.value = false;
+  try {
+    const { data } = await window.axios.post(props.data.urls.ai_generate, { days: days.value }, { headers: { 'X-CSRF-TOKEN': props.csrf, Accept: 'application/json' } });
+    ai.value = data.data;
+  } catch (e) {
+    const status = e.response && e.response.status;
+    aiCreditIssue.value = status === 403 || status === 429;
+    aiError.value = errorText(e, t('ai.failed'));
+  } finally {
+    aiLoading.value = false;
+  }
+}
+function scrollTo(el) { if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+function aiAction(action) {
+  if (action === 'compare_campaigns') scrollTo(compareCard.value);
+  else if (action === 'review_placements') scrollTo(placementsCard.value);
+  else if (action === 'review_audience') scrollTo(regionsCard.value);
+  else if (action === 'refresh_creative') { setTab('creatives'); nextTick(() => scrollTo(mainCard.value)); }
+  else scrollTo(mainCard.value);
+}
+
+/* ---------------- export + scheduled reports ---------------- */
+const exporting = ref(false);
+const reports = ref((props.data.reports || []).map((r) => ({ ...r })));
+const reportForm = ref(null); const reportFormError = ref(''); const reportSaving = ref(false); const reportBusy = ref(null);
+const reportName = ref(null);
+function reportUrl(id, suffix = '') { return props.data.urls.report.replace(/\/0$/, '/' + id) + suffix; }
+function reportTiming(r) {
+  return [r.status === 'active' && r.next_run_at ? t('reports.next', { when: dateTime(r.next_run_at) }) : null, r.last_sent_at ? t('reports.last', { when: dateTime(r.last_sent_at) }) : null].filter(Boolean).join(' · ');
+}
+function weekdayName(d) { return new Date(2023, 0, 1 + d).toLocaleDateString(i18n.intl, { weekday: 'long' }); } // 1 Jan 2023 was a Sunday
+function cadence(r) {
+  const time = r.send_time;
+  if (r.frequency === 'weekly') return t('reports.every_weekday', { day: weekdayName(r.weekday), time });
+  if (r.frequency === 'monthly') return t('reports.every_month', { day: r.day_of_month, time });
+  return t('reports.every_day', { time });
+}
+async function exportCsv() {
+  exporting.value = true;
+  try {
+    const res = await window.axios.get(props.data.urls.export, { params: { days: days.value }, responseType: 'blob' });
+    const match = /filename="?([^";]+)"?/.exec(res.headers['content-disposition'] || '');
+    const href = URL.createObjectURL(res.data);
+    const a = document.createElement('a');
+    a.href = href; a.download = match ? match[1] : 'facebook-ads.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 1000);
+  } catch (e) {
+    let msg = t('reports.export_failed');
+    try { const body = JSON.parse(await e.response.data.text()); msg = body.message || body.error || msg; } catch (x) { /* not JSON */ }
+    toast(msg, false);
+  } finally {
+    exporting.value = false;
+  }
+}
+function openReportForm() {
+  reportFormError.value = '';
+  reportForm.value = { name: t('reports.default_name'), frequency: 'weekly', weekday: 0, day_of_month: 1, send_time: '09:00', period_days: 7 };
+  nextTick(() => reportName.value && reportName.value.focus());
+}
+async function saveReport() {
+  reportSaving.value = true; reportFormError.value = '';
+  try {
+    const timezone = (window.Intl && Intl.DateTimeFormat().resolvedOptions().timeZone) || 'Asia/Riyadh';
+    const { data } = await window.axios.post(props.data.urls.reports, { ...reportForm.value, timezone }, { headers: { 'X-CSRF-TOKEN': props.csrf, Accept: 'application/json' } });
+    reports.value.unshift(data.report);
+    reportForm.value = null;
+    toast(data.message || t('reports.saved'), true);
+  } catch (e) {
+    const errs = e.response && e.response.data && e.response.data.errors;
+    reportFormError.value = errs ? Object.values(errs)[0][0] : errorText(e, t('reports.save_failed'));
+  } finally {
+    reportSaving.value = false;
+  }
+}
+function replaceReport(updated) { const i = reports.value.findIndex((r) => r.id === updated.id); if (i > -1) reports.value.splice(i, 1, updated); }
+async function sendReport(r) {
+  reportBusy.value = r.id;
+  try {
+    const { data } = await window.axios.post(reportUrl(r.id, '/send'), {}, { headers: { 'X-CSRF-TOKEN': props.csrf, Accept: 'application/json' } });
+    replaceReport(data.report); toast(data.message, true);
+  } catch (e) {
+    if (e.response && e.response.data && e.response.data.report) replaceReport(e.response.data.report);
+    toast(errorText(e, t('reports.send_failed')), false);
+  } finally { reportBusy.value = null; }
+}
+async function toggleReport(r) {
+  reportBusy.value = r.id;
+  try {
+    const { data } = await window.axios.patch(reportUrl(r.id), { status: r.status === 'active' ? 'paused' : 'active' }, { headers: { 'X-CSRF-TOKEN': props.csrf, Accept: 'application/json' } });
+    replaceReport(data.report);
+  } catch (e) { toast(errorText(e, t('reports.save_failed')), false); } finally { reportBusy.value = null; }
+}
+function askDeleteReport(r) {
+  ask({
+    title: t('reports.delete_title'), text: t('reports.delete_text', { name: r.name }), ok: t('delete'), danger: true,
+    run: async () => {
+      try {
+        await window.axios.delete(reportUrl(r.id), { headers: { 'X-CSRF-TOKEN': props.csrf, Accept: 'application/json' } });
+        reports.value = reports.value.filter((x) => x.id !== r.id);
+      } catch (e) { toast(errorText(e, t('reports.save_failed')), false); }
+    },
+  });
+}
+
 /* ---------------- checklist ---------------- */
 const steps = computed(() => {
   const counts = props.data.counts;
@@ -833,8 +1039,8 @@ function closeMenus(e) {
   if (columnsOpen.value && outside(columnsMenu.value)) columnsOpen.value = false;
   rowMenu.value = null;
 }
-function onKey(e) { if (e.key === 'Escape') { switchOpen.value = moreOpen.value = filtersOpen.value = columnsOpen.value = false; rowMenu.value = null; confirm.value = null; } }
-onMounted(() => { document.addEventListener('click', closeMenus); document.addEventListener('keydown', onKey); loadInsights(false); });
+function onKey(e) { if (e.key === 'Escape') { switchOpen.value = moreOpen.value = filtersOpen.value = columnsOpen.value = false; rowMenu.value = null; confirm.value = null; reportForm.value = null; } }
+onMounted(() => { document.addEventListener('click', closeMenus); document.addEventListener('keydown', onKey); loadInsights(false); loadAiCached(); });
 onBeforeUnmount(() => { document.removeEventListener('click', closeMenus); document.removeEventListener('keydown', onKey); });
 </script>
 
@@ -1106,13 +1312,59 @@ a.fbc-acct-row:hover { background: var(--wash); }
 .c-share small { font-size: .74rem; color: var(--muted); min-width: 3ch; text-align: end; }
 .fbc-source { display: flex; align-items: center; gap: .4rem; margin: 0; font-size: .76rem; color: var(--muted); }
 
+.fbc-perf-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fbc-ai { display: flex; flex-direction: column; }
+.fbc-ai .fbc-h { display: flex; align-items: center; gap: .4rem; }
+.fbc-ai .fbc-h .bx { color: #6D4AFF; }
+.fbc-ai-item { padding: .8rem .9rem; border-radius: 12px; background: #F7F8FC; margin-bottom: .6rem; display: flex; flex-direction: column; align-items: flex-start; gap: .3rem; }
+.fbc-ai-item strong { font-size: .86rem; color: var(--ink); line-height: 1.35; }
+.fbc-ai-item p { margin: 0; font-size: .8rem; color: var(--text); line-height: 1.5; }
+.fbc-ai-item .fbc-link { display: inline-flex; align-items: center; gap: 2px; font-size: .78rem; }
+.fbc-ai-foot { display: flex; justify-content: space-between; align-items: center; gap: .5rem; margin-top: .2rem; }
+.fbc-ai-foot small { font-size: .72rem; color: var(--muted); }
+.fbc-ai-foot .fbc-link { display: inline-flex; align-items: center; gap: 3px; font-size: .76rem; }
+.fbc-ai-empty { display: flex; flex-direction: column; gap: .5rem; padding: .4rem 0; }
+.fbc-ai-empty p { margin: 0; font-size: .82rem; color: var(--text); line-height: 1.5; }
+.fbc-ai-empty .fbc-btn.block { margin-top: .3rem; }
+.fbc-ai-empty small { font-size: .72rem; color: var(--muted); text-align: center; }
+.fbc-ai-loading { display: flex; flex-direction: column; gap: .6rem; }
+.fbc-ai-skel { display: flex; flex-direction: column; gap: 6px; padding: .8rem .9rem; border-radius: 12px; background: #F7F8FC; }
+.fbc-ai-loading small { font-size: .74rem; color: var(--muted); }
+.fbc-ai-error { margin: .6rem 0 0; padding: .55rem .7rem; border-radius: 10px; background: #FEF3F2; color: #B42318; font-size: .78rem; }
+.fbc-ai-note { margin: auto 0 0; padding-top: .7rem; font-size: .72rem; color: var(--muted); line-height: 1.45; }
+
+.fbc-bar-end { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.fbc-reports .fbc-perf-h p { margin: 3px 0 0; font-size: .78rem; color: var(--muted); }
+.fbc-report-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.fbc-report { display: flex; flex-direction: column; gap: 5px; padding: 1rem 1.05rem; border: 1px solid var(--line); border-radius: 14px; background: #fff; min-width: 0; text-align: start; }
+.fbc-report .top { display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem; }
+.fbc-report strong { font-size: .9rem; color: var(--ink); overflow-wrap: anywhere; }
+.fbc-report p { margin: 0; font-size: .8rem; color: var(--text); }
+.fbc-report p.mut { display: flex; align-items: center; gap: .3rem; font-size: .76rem; color: var(--muted); overflow-wrap: anywhere; }
+.fbc-report p.err { font-size: .76rem; color: #B42318; }
+.fbc-report .acts { display: flex; flex-wrap: wrap; gap: .9rem; margin-top: .4rem; }
+.fbc-report .acts .fbc-link { display: inline-flex; align-items: center; gap: 3px; font-size: .78rem; }
+.fbc-link.danger { color: #DC2626; }
+.fbc-link:disabled { opacity: .5; cursor: not-allowed; }
+.fbc-report.new { align-items: center; justify-content: center; flex-direction: row; gap: .4rem; min-height: 120px; border-style: dashed; border-color: #C7D2EA; background: #FAFBFF; color: var(--brand); font-weight: 600; font-size: .86rem; cursor: pointer; }
+.fbc-report.new:hover { border-color: var(--brand); }
+.fbc-dialog.wide { width: min(560px, 100%); }
+.fbc-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; margin-top: .8rem; }
+.fbc-form label { display: flex; flex-direction: column; gap: 4px; font-size: .78rem; font-weight: 600; color: var(--text); }
+.fbc-form .full { grid-column: 1 / -1; }
+.fbc-form input, .fbc-form select { height: 38px; border: 1px solid var(--line); border-radius: 9px; padding: 0 .65rem; font: inherit; font-weight: 500; font-size: .84rem; color: var(--ink); background: #fff; }
+.fbc-form input:focus, .fbc-form select:focus { outline: none; border-color: var(--brand-line); box-shadow: 0 0 0 3px var(--brand-soft); }
+.fbc-form-note { display: flex; gap: .45rem; align-items: flex-start; padding: .55rem .7rem; border-radius: 10px; background: var(--wash); font-size: .78rem; color: var(--text); }
+.fbc-form-note .bx { color: var(--brand); margin-top: 2px; }
+
 @container fbc (max-width: 1100px) {
+  .fbc-perf-grid.three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fbc-grid { grid-template-columns: minmax(0, 1fr); }
   .fbc-rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @container fbc (max-width: 860px) {
   .fbc-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .fbc-perf-grid, .fbc-perf-grid.two { grid-template-columns: minmax(0, 1fr); }
+  .fbc-perf-grid, .fbc-perf-grid.two, .fbc-perf-grid.three { grid-template-columns: minmax(0, 1fr); }
   .fbc-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .fbc-strip-item:nth-child(4) { border-inline-start: 0; }
   .fbc-strip-item:nth-child(n+4) { border-top: 1px solid var(--line-soft); }
@@ -1122,7 +1374,9 @@ a.fbc-acct-row:hover { background: var(--wash); }
   .fbc-head-actions { width: 100%; }
   .fbc-head-actions > .fbc-btn:not(.icon) { flex: 1; }
   .fbc-tools, .fbc-search, .fbc-search input { width: 100%; }
-  .fbc-bar > .fbc-select { width: 100%; }
+  .fbc-bar-end { width: 100%; }
+  .fbc-bar-end > * { flex: 1; }
+  .fbc-form { grid-template-columns: minmax(0, 1fr); }
 }
 @container fbc (max-width: 520px) { .fbc-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } .fbc-strip-item:nth-child(n) { border-inline-start: 0; border-top: 1px solid var(--line-soft); } .fbc-strip-item:nth-child(-n+2) { border-top: 0; } .fbc-strip-item:nth-child(even) { border-inline-start: 1px solid var(--line-soft); } }
 @container fbc (max-width: 440px) { .fbc-kpis { grid-template-columns: minmax(0, 1fr); } .fbc-acct .nm { max-width: 120px; } .fbc-head h1 { font-size: 1.3rem; } }

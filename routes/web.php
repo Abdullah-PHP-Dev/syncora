@@ -386,6 +386,22 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('ads.campaigns.sync');
 				Route::get('ads/{platform}/campaigns/insights', [AdCampaignController::class, 'insights'])
 					->name('ads.campaigns.insights');
+				// AI insights from the account's Meta insights (POST uses an AI credit - package_access ai_content).
+				Route::get('ads/{platform}/campaigns/ai-insights', [AdCampaignController::class, 'aiInsights'])
+					->name('ads.campaigns.ai-insights');
+				// Performance reports: CSV export (data_export module) and scheduled emails.
+				Route::get('ads/{platform}/campaigns/export', [\App\Http\Controllers\Admin\AdReportController::class, 'export'])
+					->middleware('throttle:20,1')
+					->name('ads.campaigns.export');
+				Route::post('ads/{platform}/reports', [\App\Http\Controllers\Admin\AdReportController::class, 'store'])->name('ads.reports.store');
+				Route::patch('ads/{platform}/reports/{id}', [\App\Http\Controllers\Admin\AdReportController::class, 'update'])->whereNumber('id')->name('ads.reports.update');
+				Route::delete('ads/{platform}/reports/{id}', [\App\Http\Controllers\Admin\AdReportController::class, 'destroy'])->whereNumber('id')->name('ads.reports.destroy');
+				Route::post('ads/{platform}/reports/{id}/send', [\App\Http\Controllers\Admin\AdReportController::class, 'send'])->whereNumber('id')
+					->middleware('throttle:5,1')
+					->name('ads.reports.send');
+				Route::post('ads/{platform}/campaigns/ai-insights', [AdCampaignController::class, 'generateAiInsights'])
+					->middleware('throttle:10,1')
+					->name('ads.campaigns.ai-insights.generate');
 
 				// Facebook campaign builder (FacebookCampaignBuilder): live
 				// lookups for the wizard and the idempotent submit. Literal

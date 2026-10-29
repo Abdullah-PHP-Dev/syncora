@@ -526,6 +526,15 @@ class FacebookAdService
      * ad sets / ads / creatives, delivery status, duplicate, insights.
      * ------------------------------------------------------------------ */
 
+    /** Work on a specific ad account instead of the session's selection (scheduled reports). */
+    public function useAccount(SocialAccount $account): static
+    {
+        $this->account = $account;
+        $this->header = $this->getHeaders();
+
+        return $this;
+    }
+
     /** Graph node of the selected ad account: https://graph.facebook.com/vXX/act_{id}. */
     protected function accountNode(?SocialAccount $account = null): string
     {

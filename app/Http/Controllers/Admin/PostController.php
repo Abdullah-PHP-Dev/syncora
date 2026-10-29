@@ -1078,7 +1078,7 @@ class PostController extends Controller
             'kind' => ['sometimes', \Illuminate\Validation\Rule::in(['all', 'title', 'description', 'hashtags'])],
         ]);
 
-        $apiKey = adminSetting('gemini_api_key_free');
+        $apiKey = adminSetting('gemini_api_key');
 
         if (empty($apiKey)) {
             return response()->json([

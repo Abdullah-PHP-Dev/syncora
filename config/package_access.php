@@ -18,9 +18,9 @@ return [
     ],
     // Specific rules run before general module rules. Multiple matches all apply.
     'routes' => [
-        'data_export' => ['admin.knowledge-base.export', 'admin.email.campaigns.export', 'admin.google.api.reports.export'],
+        'data_export' => ['admin.knowledge-base.export', 'admin.email.campaigns.export', 'admin.google.api.reports.export', 'admin.ads.campaigns.export'],
         'data_import' => ['admin.knowledge-base.import', 'admin.email.lists.subscribers.import'],
-        'ai_content' => ['admin.posts.generate-ai-*', 'admin.posts.ask*', 'admin.email.templates.generateAi', 'admin.knowledge-base.improve'],
+        'ai_content' => ['admin.posts.generate-ai-*', 'admin.posts.ask*', 'admin.email.templates.generateAi', 'admin.knowledge-base.improve', 'admin.ads.campaigns.ai-insights.generate'],
         'ai_agent' => ['admin.ai-copilot.*', 'admin.knowledge-base.*', 'admin.chats.copilot.*', 'admin.chats.resume-ai'],
         'comments' => ['admin.comments.*', 'admin.posts.comments.*', 'admin.post-comments.*', 'admin.tiktok-comments.*'],
         'publishing' => ['admin.posts.*', 'admin.post-accounts.*', 'admin.post-categories.*', 'admin.categories.*'],

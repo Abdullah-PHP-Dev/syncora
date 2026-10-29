@@ -84,7 +84,7 @@ class AiCopilotService
      */
     public function embed(string $text): ?array
     {
-        $apiKey = adminSetting('gemini_api_key_free');
+        $apiKey = adminSetting('gemini_api_key');
 
         if (empty($apiKey) || trim($text) === '') {
             return null;

@@ -96,6 +96,9 @@ return tap(
             // sync preference - see SyncGoogleSuites.
             $schedule->command('google-suite:sync')->hourlyAt(20)->withoutOverlapping();
 
+            // Scheduled ad performance reports (Facebook campaigns page).
+            $schedule->command('ads:send-reports')->everyFifteenMinutes()->withoutOverlapping();
+
             // Facebook sends no webhook for shares to people's own
             // timelines - re-read recent posts' counts (SyncPostEngagement).
             $schedule->command('posts:sync-engagement')->everyThirtyMinutes()->withoutOverlapping();
