@@ -769,6 +769,52 @@ class FacebookAdService
         'VIDEO_VIEWS' => ['video_view'],
     ];
 
+    /** Purchase / lead action types (first one present is used, so pixel and omni counts aren't doubled). */
+    public const PURCHASE_ACTIONS = ['offsite_conversion.fb_pixel_purchase', 'omni_purchase', 'purchase'];
+    public const LEAD_ACTIONS = ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead'];
+
+    /** Limit insights to one placement platform (InstagramAdService sets 'instagram'); null = every placement. */
+    protected ?string $publisherPlatform = null;
+
+    /** Spend on every placement in the last insightRows() period - budgets apply to all placements. */
+    protected float $allPlacementSpend = 0;
+
+    protected function firstAction(array $list, array $types): float
+    {
+        $values = collect($list)->pluck('value', 'action_type');
+        foreach ($types as $type) {
+            if (isset($values[$type])) {
+                return (float) $values[$type];
+            }
+        }
+
+        return 0.0;
+    }
+
+    /** Rows for the configured placement platform only (all rows when unfiltered). */
+    protected function onPlatform(array $rows): array
+    {
+        if (!$this->publisherPlatform) {
+            return $rows;
+        }
+
+        return array_values(array_filter($rows, fn ($r) => ($r['publisher_platform'] ?? null) === $this->publisherPlatform));
+    }
+
+    /** Conversion metrics of one insights row: purchases, their value, leads. */
+    protected function conversionMetrics(array $r): array
+    {
+        $purchases = $this->firstAction($r['actions'] ?? [], self::PURCHASE_ACTIONS);
+        $leads = $this->firstAction($r['actions'] ?? [], self::LEAD_ACTIONS);
+
+        return [
+            'purchases' => $purchases,
+            'purchase_value' => round($this->firstAction($r['action_values'] ?? [], self::PURCHASE_ACTIONS), 2),
+            'leads' => $leads,
+            'conversions' => $purchases + $leads,
+        ];
+    }
+
     /** Objectives whose result is people reached rather than an action. */
     public const REACH_OBJECTIVES = ['OUTCOME_AWARENESS', 'REACH', 'BRAND_AWARENESS'];
 
@@ -786,7 +832,7 @@ class FacebookAdService
             return ['success' => false, 'error' => $this->header['error'] ?? 'Facebook access expired - reconnect the account.', 'reconnect' => true];
         }
 
-        $key = 'fb_insights:v2:' . $this->account->id . ':' . $days . ':' . now()->toDateString();
+        $key = 'fb_insights:v3:' . ($this->publisherPlatform ?: 'all') . ':' . $this->account->id . ':' . $days . ':' . now()->toDateString();
         if ($fresh) {
             Cache::forget($key);
         }
@@ -796,6 +842,7 @@ class FacebookAdService
                 $until = now()->subDay()->startOfDay();
                 $since = $until->copy()->subDays($days - 1);
                 $current = $this->insightRows($since, $until);
+                $allPlacementSpend = $this->allPlacementSpend;
                 $previous = $this->insightRows($since->copy()->subDays($days), $since->copy()->subDay());
 
                 $this->account->forceFill(['metadata' => array_merge($this->account->metadata ?? [], ['insights_synced_at' => now()->toIso8601String()])])->save();
@@ -807,6 +854,9 @@ class FacebookAdService
                     'since'    => $since->toDateString(),
                     'until'    => $until->toDateString(),
                     'currency' => $this->account->adDetails->currency ?? null,
+                    'platform' => $this->publisherPlatform,
+                    // Every placement - what campaign budgets are measured against.
+                    'all_placements_spend' => round($allPlacementSpend, 2),
                     'totals'   => ['current' => $totals, 'previous' => $this->insightTotals($previous)],
                     'campaigns' => collect($current)->mapWithKeys(fn ($row, $localId) => [$localId => $row])->all(),
                     // Daily series, conversion path and breakdowns for the Performance section.
@@ -822,20 +872,23 @@ class FacebookAdService
     /** @return array<int|string, array> rows keyed by local campaign id (or Meta id when not imported) */
     protected function insightRows(Carbon $since, Carbon $until): array
     {
-        $response = Http::acceptJson()->timeout(45)->get($this->accountNode() . '/insights', [
+        $response = Http::acceptJson()->timeout(45)->get($this->accountNode() . '/insights', array_filter([
             'level' => 'campaign',
-            'fields' => 'campaign_id,objective,spend,impressions,reach,clicks,inline_link_clicks,actions',
+            'fields' => 'campaign_id,objective,spend,impressions,reach,clicks,inline_link_clicks,actions,action_values',
+            'breakdowns' => $this->publisherPlatform ? 'publisher_platform' : null,
             'time_range' => json_encode(['since' => $since->toDateString(), 'until' => $until->toDateString()]),
             'limit' => 500,
-        ] + $this->graphAuth($this->account));
+        ]) + $this->graphAuth($this->account));
 
         if (!$response->successful()) {
             throw new \RuntimeException($response->json('error.error_user_msg') ?: $response->json('error.message') ?: 'Meta did not return insights.');
         }
 
-        $local = AdCampaign::where('user_id', $this->account->user_id)->where('platform', 'facebook')->pluck('id', 'ad_campaign_id');
+        $local = AdCampaign::where('user_id', $this->account->user_id)->whereIn('platform', ['facebook', 'instagram'])->pluck('id', 'ad_campaign_id');
         $rows = [];
-        foreach ($response->json('data') ?? [] as $r) {
+        $data = $response->json('data') ?? [];
+        $this->allPlacementSpend = (float) array_sum(array_map(fn ($r) => (float) ($r['spend'] ?? 0), $data));
+        foreach ($this->onPlatform($data) as $r) {
             $objective = strtoupper((string) ($r['objective'] ?? ''));
             $actions = collect($r['actions'] ?? [])->pluck('value', 'action_type');
             $resultType = null;
@@ -865,10 +918,16 @@ class FacebookAdService
                 'link_clicks' => (int) ($r['inline_link_clicks'] ?? 0),
                 'ctr' => $impressions ? $clicks / $impressions : null,
                 'cpc' => $clicks ? round($spend / $clicks, 2) : null,
+                'link_ctr' => $impressions ? ((int) ($r['inline_link_clicks'] ?? 0)) / $impressions : null,
+                'link_cpc' => !empty($r['inline_link_clicks']) ? round($spend / (int) $r['inline_link_clicks'], 2) : null,
+                'cpm' => $impressions ? round($spend / $impressions * 1000, 2) : null,
                 'results' => $results,
                 'result_type' => $resultType,
                 'cost_per_result' => $results ? round($spend / $results, 2) : null,
-            ];
+            ] + $this->conversionMetrics($r);
+            $row = &$rows[$local[$r['campaign_id']] ?? $r['campaign_id']];
+            $row['roas'] = $row['spend'] > 0 && $row['purchase_value'] > 0 ? round($row['purchase_value'] / $row['spend'], 2) : null;
+            unset($row);
         }
 
         return $rows;
@@ -877,11 +936,11 @@ class FacebookAdService
     /** Account-level insight rows for one period, with optional breakdowns / daily increments. */
     protected function accountInsights(Carbon $since, Carbon $until, array $params): array
     {
-        $response = Http::acceptJson()->timeout(45)->get($this->accountNode() . '/insights', $params + [
-            'level' => 'account',
-            'time_range' => json_encode(['since' => $since->toDateString(), 'until' => $until->toDateString()]),
-            'limit' => 500,
-        ] + $this->graphAuth($this->account));
+        $defaults = ['level' => 'account', 'limit' => 500];
+        if (!isset($params['date_preset'])) {
+            $defaults['time_range'] = json_encode(['since' => $since->toDateString(), 'until' => $until->toDateString()]);
+        }
+        $response = Http::acceptJson()->timeout(45)->get($this->accountNode() . '/insights', $params + $defaults + $this->graphAuth($this->account));
 
         if (!$response->successful()) {
             throw new \RuntimeException($response->json('error.error_user_msg') ?: $response->json('error.message') ?: 'Meta did not return insights.');
@@ -921,8 +980,10 @@ class FacebookAdService
         };
         $action = fn (array $row, string $type) => (float) (collect($row['actions'] ?? [])->firstWhere('action_type', $type)['value'] ?? 0);
 
-        $daily = $part(function () use ($since, $until, $resultType, $action) {
-            $rows = collect($this->accountInsights($since, $until, ['time_increment' => 1, 'fields' => 'spend,impressions,clicks,inline_link_clicks,actions']))->keyBy('date_start');
+        $byPlatform = $this->publisherPlatform ? ['breakdowns' => 'publisher_platform'] : [];
+
+        $daily = $part(function () use ($since, $until, $resultType, $action, $byPlatform) {
+            $rows = collect($this->onPlatform($this->accountInsights($since, $until, $byPlatform + ['time_increment' => 1, 'fields' => 'spend,impressions,clicks,inline_link_clicks,actions,action_values'])))->keyBy('date_start');
             $series = [];
             for ($d = $since->copy(); $d->lte($until); $d->addDay()) {
                 $row = $rows[$d->toDateString()] ?? [];
@@ -934,19 +995,38 @@ class FacebookAdService
                     'impressions' => (int) ($row['impressions'] ?? 0),
                     'link_clicks' => (int) ($row['inline_link_clicks'] ?? 0),
                     'landing_page_views' => $action($row, 'landing_page_view'),
-                ];
+                ] + array_intersect_key($this->conversionMetrics($row), array_flip(['purchase_value', 'conversions']));
             }
 
             return $series;
         });
 
-        $breakdown = fn (string $dims, string $fields) => $part(fn () => collect($this->accountInsights($since, $until, ['breakdowns' => $dims, 'fields' => $fields]))
+        // Placement rows already carry publisher_platform, so they can be narrowed to one platform.
+        $breakdown = fn (string $dims, string $fields) => $part(fn () => collect(str_contains($dims, 'publisher_platform')
+                ? $this->onPlatform($this->accountInsights($since, $until, ['breakdowns' => $dims, 'fields' => $fields]))
+                : $this->accountInsights($since, $until, ['breakdowns' => $dims, 'fields' => $fields]))
             ->map(fn ($r) => [
                 'key' => collect(explode(',', $dims))->map(fn ($d) => $r[$d] ?? '')->implode('|'),
                 'spend' => round((float) ($r['spend'] ?? 0), 2),
                 'impressions' => (int) ($r['impressions'] ?? 0),
                 'results' => $resultType === 'reach' ? (isset($r['reach']) ? (float) $r['reach'] : null) : $this->resultCount($r, $resultType),
+                'purchase_value' => round($this->firstAction($r['action_values'] ?? [], self::PURCHASE_ACTIONS), 2),
             ])->sortByDesc('spend')->values()->all());
+
+        // Period totals at account level: reach is de-duplicated here, unlike a sum of campaigns.
+        $account = $part(function () use ($since, $until, $byPlatform) {
+            $row = $this->onPlatform($this->accountInsights($since, $until, $byPlatform + ['fields' => 'spend,impressions,reach,inline_link_clicks,actions,action_values']))[0] ?? [];
+
+            return [
+                'spend' => round((float) ($row['spend'] ?? 0), 2),
+                'impressions' => (int) ($row['impressions'] ?? 0),
+                'reach' => (int) ($row['reach'] ?? 0),
+                'link_clicks' => (int) ($row['inline_link_clicks'] ?? 0),
+            ] + $this->conversionMetrics($row);
+        });
+
+        // Today's spend on every placement, for budget pacing.
+        $today = $part(fn () => round((float) (($this->accountInsights($since, $until, ['date_preset' => 'today', 'fields' => 'spend'])[0]['spend'] ?? 0)), 2));
 
         $funnel = null;
         if ($daily !== null) {
@@ -963,9 +1043,12 @@ class FacebookAdService
             'result_type' => $resultType,
             'daily' => $daily,
             'funnel' => $funnel,
-            'placements' => $breakdown('publisher_platform,platform_position', 'spend,impressions,actions'),
-            'regions' => $breakdown('region', 'spend,impressions,reach,actions'),
-            'ages' => $breakdown('age', 'spend,impressions,reach,actions'),
+            'placements' => $breakdown('publisher_platform,platform_position', 'spend,impressions,actions,action_values'),
+            // Region and age can't be combined with a placement-platform breakdown.
+            'regions' => $this->publisherPlatform ? null : $breakdown('region', 'spend,impressions,reach,actions'),
+            'ages' => $this->publisherPlatform ? null : $breakdown('age', 'spend,impressions,reach,actions'),
+            'account' => $account,
+            'today_spend' => $today,
         ];
     }
 
@@ -990,6 +1073,26 @@ class FacebookAdService
             'results' => $results,
             'result_type' => $sameResult ? $types->first() : ($rows->isEmpty() ? null : 'mixed'),
             'cost_per_result' => $results ? round($spend / $results, 2) : null,
+        ] + $this->conversionTotals($rows, $spend, $impressions);
+    }
+
+    protected function conversionTotals($rows, float $spend, int $impressions): array
+    {
+        $linkClicks = $rows->sum('link_clicks');
+        $value = round($rows->sum('purchase_value'), 2);
+        $conversions = $rows->sum('conversions');
+
+        return [
+            'link_clicks' => $linkClicks,
+            'link_ctr' => $impressions ? $linkClicks / $impressions : null,
+            'link_cpc' => $linkClicks ? round($spend / $linkClicks, 2) : null,
+            'cpm' => $impressions ? round($spend / $impressions * 1000, 2) : null,
+            'purchases' => $rows->sum('purchases'),
+            'purchase_value' => $value,
+            'leads' => $rows->sum('leads'),
+            'conversions' => $conversions,
+            'cvr' => $linkClicks ? $conversions / $linkClicks : null,
+            'roas' => $spend > 0 && $value > 0 ? round($value / $spend, 2) : null,
         ];
     }
 

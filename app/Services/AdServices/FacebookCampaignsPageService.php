@@ -18,7 +18,12 @@ use Illuminate\Support\Collection;
  */
 class FacebookCampaignsPageService
 {
-    public function __construct(private int $userId, private bool $memberCanWrite = true)
+    /**
+     * $platform 'instagram' shows the same Meta ad account (Instagram ads run on it),
+     * with campaigns created from either page; insights are narrowed to Instagram
+     * placements by InstagramAdService.
+     */
+    public function __construct(private int $userId, private bool $memberCanWrite = true, private string $platform = 'facebook')
     {
     }
 
@@ -40,7 +45,8 @@ class FacebookCampaignsPageService
         $blocker = FacebookAdService::writeBlocker($account);
 
         return [
-            'platform' => 'facebook',
+            'platform' => $this->platform,
+            'instagram' => $this->platform === 'instagram' && $account ? $this->instagramIdentity($account) : null,
             'account' => $account ? $this->accountRow($account, $account) : null,
             'accounts' => $options->map(fn ($a) => $this->accountRow($a, $account))->values()->all(),
             // Workspace members with read access, read-only Meta roles and expired tokens can't change anything.
@@ -102,8 +108,23 @@ class FacebookCampaignsPageService
     /** Campaigns of this account; rows from before accounts were recorded on campaigns stay visible. */
     private function scoped($query, SocialAccount $account)
     {
-        return $query->where('user_id', $this->userId)->where('platform', 'facebook')
+        return $query->where('user_id', $this->userId)->whereIn('platform', $this->platform === 'instagram' ? ['facebook', 'instagram'] : ['facebook'])
             ->where(fn ($q) => $q->where('social_account_id', $account->id)->orWhereNull('social_account_id'));
+    }
+
+    /** The Instagram account ads appear as: one in the ad account's Meta business first, else the seller's first. */
+    private function instagramIdentity(SocialAccount $adAccount): ?array
+    {
+        $business = $adAccount->adDetails->business_id ?? null;
+        $instagram = SocialAccount::where('user_id', $this->userId)->where('platform', 'instagram')->with('adDetails')->orderBy('id')->get()
+            ->sortByDesc(fn ($a) => $business && ($a->adDetails->business_id ?? null) === $business)->first();
+
+        return $instagram ? [
+            'id' => $instagram->id,
+            'name' => $instagram->name,
+            'username' => $instagram->username,
+            'avatar_url' => $instagram->avatar_url,
+        ] : null;
     }
 
     private function accountRow(SocialAccount $a, ?SocialAccount $selected): array

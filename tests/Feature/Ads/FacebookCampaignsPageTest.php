@@ -235,7 +235,7 @@ class FacebookCampaignsPageTest extends TestCase
 
         $this->assertSame('lead', $details['result_type']);
         $this->assertCount(7, $details['daily']);
-        $this->assertEquals(['date' => $until, 'spend' => 90, 'results' => 20, 'impressions' => 12000, 'link_clicks' => 250, 'landing_page_views' => 210], end($details['daily']));
+        $this->assertEquals(['date' => $until, 'spend' => 90, 'results' => 20, 'impressions' => 12000, 'link_clicks' => 250, 'landing_page_views' => 210, 'purchase_value' => 0, 'conversions' => 20], end($details['daily']));
         $this->assertEquals(0, $details['daily'][0]['spend']); // days without delivery are zero-filled, not dropped
         $this->assertEquals(['impressions' => 12000, 'link_clicks' => 250, 'landing_page_views' => 210, 'results' => 20], $details['funnel']);
         $this->assertSame(['facebook|feed', 'instagram|reels'], array_column($details['placements'], 'key')); // by spend

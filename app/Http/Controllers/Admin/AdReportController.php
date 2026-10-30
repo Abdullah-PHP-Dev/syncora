@@ -62,15 +62,15 @@ class AdReportController extends Controller
     /** CSV of the selected account's current period (same numbers as the page). */
     public function export(Request $request, string $platform)
     {
-        abort_unless($platform === 'facebook', 404);
+        abort_unless(in_array($platform, ['facebook', 'instagram'], true), 404);
         $days = (int) ($request->validate(['days' => ['nullable', 'integer', Rule::in(AdReportSchedule::PERIODS)]])['days'] ?? 30);
 
-        $result = $this->reports->build($this->ads->service('facebook'), Auth::id(), $days);
+        $result = $this->reports->build($this->ads->service($platform), Auth::id(), $days);
         if (!$result['success']) {
             return response()->json(['success' => false, 'message' => $result['error']], 422);
         }
 
-        $file = sprintf('facebook-ads-%s-to-%s.csv', $result['insights']['since'], $result['insights']['until']);
+        $file = sprintf('%s-ads-%s-to-%s.csv', $platform, $result['insights']['since'], $result['insights']['until']);
 
         return new Response($result['csv'], 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',
@@ -81,7 +81,7 @@ class AdReportController extends Controller
 
     public function store(Request $request, string $platform): JsonResponse
     {
-        abort_unless($platform === 'facebook', 404);
+        abort_unless(in_array($platform, ['facebook', 'instagram'], true), 404);
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'frequency' => ['required', Rule::in(AdReportSchedule::FREQUENCIES)],
@@ -104,7 +104,7 @@ class AdReportController extends Controller
         $schedule = new AdReportSchedule($validated + [
             'user_id' => Auth::id(),
             'social_account_id' => $account->id,
-            'platform' => 'facebook',
+            'platform' => $platform,
             'recipient_email' => $email,
             'locale' => app()->getLocale() === 'ar' ? 'ar' : 'en',
             'status' => 'active',
@@ -153,8 +153,8 @@ class AdReportController extends Controller
 
     private function own(string $platform, int $id): AdReportSchedule
     {
-        abort_unless($platform === 'facebook', 404);
+        abort_unless(in_array($platform, ['facebook', 'instagram'], true), 404);
 
-        return AdReportSchedule::where('user_id', Auth::id())->where('platform', 'facebook')->findOrFail($id);
+        return AdReportSchedule::where('user_id', Auth::id())->where('platform', $platform)->findOrFail($id);
     }
 }

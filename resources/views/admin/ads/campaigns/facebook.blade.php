@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', __('ads_campaigns.page_title'))
+@section('title', $title ?? __('ads_campaigns.page_title'))
 
 @push('styles')
     <style>[v-cloak] { display: none !important; }</style>
@@ -20,6 +20,7 @@
     @endforeach
 
     <div v-cloak>
-        <facebook-campaigns :data='@json($data)' :messages='@json($messages)' locale="{{ app()->getLocale() }}" csrf="{{ csrf_token() }}"></facebook-campaigns>
+        {{-- facebook-campaigns or instagram-campaigns (same data, AdCampaignController::metaIndex). --}}
+        <component is="{{ $component ?? 'facebook-campaigns' }}" :data='@json($data)' :messages='@json($messages)' locale="{{ app()->getLocale() }}" csrf="{{ csrf_token() }}"></component>
     </div>
 @endsection

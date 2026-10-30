@@ -125,7 +125,8 @@ class FacebookReportService
             try {
                 Auth::guard('web')->setUser($owner);
                 app()->setLocale($schedule->locale === 'ar' ? 'ar' : 'en');
-                $facebook = app(FacebookAdService::class)->useAccount($account);
+                // Instagram reports read Instagram placements of the same ad account.
+                $facebook = app($schedule->platform === 'instagram' ? InstagramAdService::class : FacebookAdService::class)->useAccount($account);
                 $result = $this->build($facebook, $owner->id, $schedule->period_days);
 
                 if ($result['success']) {

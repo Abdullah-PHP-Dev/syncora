@@ -10,6 +10,7 @@
       </g>
       <rect v-for="(p, i) in points" :key="'b' + i" :x="p.x - barW / 2" :y="p.ySpend" :width="barW" :height="Math.max(0, base - p.ySpend)" rx="3" :class="['srs-bar', { on: hover === i }]" />
       <path v-if="hasResults && linePath" :d="linePath" fill="none" :stroke="color" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" />
+      <path v-if="hasRatio && ratioPath" :d="ratioPath" fill="none" :stroke="ratioColor" stroke-width="1.8" stroke-dasharray="5 4" stroke-linejoin="round" />
       <circle v-if="hasResults && last" :cx="last.x" :cy="last.yResult" r="4.5" :fill="color" stroke="#fff" stroke-width="2" />
       <g class="srs-x">
         <text v-for="l in xLabels" :key="l.i" :x="l.x" :y="height - 6" text-anchor="middle">{{ l.text }}</text>
@@ -19,6 +20,7 @@
       <strong>{{ labels[hover] }}</strong>
       <span><i class="sq"></i>{{ spendLabel }} <b>{{ formatSpend(spend[hover]) }}</b></span>
       <span v-if="hasResults"><i class="ln" :style="{ background: color }"></i>{{ resultLabel }} <b>{{ formatCount(results[hover]) }}</b></span>
+      <span v-if="hasRatio"><i class="ln dash" :style="{ borderColor: ratioColor }"></i>{{ ratioLabel }} <b>{{ ratio[hover] === null ? '—' : formatRatio(ratio[hover]) }}</b></span>
     </div>
   </div>
 </template>
@@ -38,6 +40,12 @@ const props = defineProps({
   spendLabel: { type: String, default: '' },
   resultLabel: { type: String, default: '' },
   ariaLabel: { type: String, default: '' },
+  // Optional third series (e.g. purchase ROAS): its own unit, so it is drawn on its own scale
+  // with no axis, and its exact values are in the tooltip.
+  ratio: { type: Array, default: () => [] },
+  ratioColor: { type: String, default: '#8B5CF6' },
+  ratioLabel: { type: String, default: '' },
+  formatRatio: { type: Function, default: (v) => Number(v || 0).toFixed(2) },
 });
 
 const root = ref(null);
@@ -46,6 +54,14 @@ const hover = ref(null);
 let observer = null;
 
 const hasResults = computed(() => props.results.length === props.spend.length && props.results.some((v) => v !== null));
+const hasRatio = computed(() => props.ratio.length === props.spend.length && props.ratio.some((v) => v !== null && v > 0));
+const maxRatio = computed(() => Math.max(1e-9, ...props.ratio.map((v) => Number(v || 0))) * 1.15);
+const ratioPath = computed(() => props.ratio.map((v, i) => {
+  const p = points.value[i];
+  if (!p) return '';
+  const y = base.value - (Number(v || 0) / maxRatio.value) * (base.value - pad.value.t);
+  return `${i ? 'L' : 'M'}${p.x.toFixed(1)},${y.toFixed(1)}`;
+}).join(' '));
 const pad = computed(() => ({ l: 54, r: hasResults.value ? 40 : 12, t: 12, b: 26 }));
 const nice = (m) => { if (!m) return 1; const step = Math.pow(10, Math.floor(Math.log10(m))); return Math.ceil(m / step) * step; };
 const maxSpend = computed(() => nice(Math.max(0, ...props.spend.map(Number))));
@@ -99,4 +115,5 @@ onBeforeUnmount(() => { if (observer) observer.disconnect(); });
 .srs-tip i { display: inline-block; flex-shrink: 0; }
 .srs-tip i.sq { width: 9px; height: 9px; border-radius: 2px; background: #CDD3E2; }
 .srs-tip i.ln { width: 12px; height: 3px; border-radius: 2px; }
+.srs-tip i.ln.dash { height: 0; border-top: 2px dashed; background: none !important; }
 </style>

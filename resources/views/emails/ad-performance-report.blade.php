@@ -14,7 +14,7 @@
   <tr><td align="center">
     <table role="presentation" width="600" cellpadding="0" cellspacing="0" dir="{{ $rtl ? 'rtl' : 'ltr' }}" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #E7E9F0;border-radius:14px;">
       <tr><td style="padding:24px 28px 8px;text-align:{{ $align }};">
-        <p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#004CFF;">{{ __('ads_campaigns.report.eyebrow') }}</p>
+        <p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#004CFF;">{{ __($schedule->platform === 'instagram' ? 'ads_campaigns.report.eyebrow_instagram' : 'ads_campaigns.report.eyebrow') }}</p>
         <h1 style="margin:0;font-size:20px;line-height:1.3;color:#161B2B;">{{ $schedule->name }}</h1>
         <p style="margin:6px 0 0;font-size:13px;color:#6B7385;"><bdi>{{ $account->name }}</bdi> · {{ $insights['since'] }} – {{ $insights['until'] }}</p>
       </td></tr>

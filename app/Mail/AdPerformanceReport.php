@@ -44,7 +44,7 @@ class AdPerformanceReport extends Mailable
 
     public function attachments(): array
     {
-        $file = sprintf('facebook-ads-%s-to-%s.csv', $this->report['insights']['since'], $this->report['insights']['until']);
+        $file = sprintf('%s-ads-%s-to-%s.csv', $this->schedule->platform ?: 'facebook', $this->report['insights']['since'], $this->report['insights']['until']);
 
         return [Attachment::fromData(fn () => $this->report['csv'], $file)->withMime('text/csv')];
     }

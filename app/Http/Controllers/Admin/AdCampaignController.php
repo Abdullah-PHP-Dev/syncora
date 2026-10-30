@@ -86,8 +86,9 @@ class AdCampaignController extends Controller
      */
     public function index($platform)
     {
-        if ($platform === 'facebook') {
-            return $this->facebookIndex();
+        // Meta platforms: one ad account, Instagram narrowed to Instagram placements.
+        if (in_array($platform, ['facebook', 'instagram'], true)) {
+            return $this->metaIndex($platform);
         }
 
         $data = (new AdsDashboardService(Auth::id()))->forPlatform($platform);
@@ -120,68 +121,71 @@ class AdCampaignController extends Controller
      * (?account= switches it, ownership checked by AdAccountSelection).
      * Spend and results load from the insights endpoint afterwards.
      */
-    private function facebookIndex()
+    private function metaIndex(string $platform)
     {
-        $this->selectedAdAccount('facebook');
+        $this->selectedAdAccount('facebook'); // Instagram ads run on the Facebook ad account
         $member = request()->attributes->get('workspace_member');
         $memberCanWrite = ! $member || ($member->permissions['advertising'] ?? 'none') === 'write';
 
-        $data = (new FacebookCampaignsPageService(Auth::id(), $memberCanWrite))->build();
+        $data = (new FacebookCampaignsPageService(Auth::id(), $memberCanWrite, $platform))->build();
         // Scheduled reports go to whoever is signed in; export needs the Data export module.
         $data['reports'] = $data['account']
-            ? \App\Models\AdReportSchedule::where('user_id', Auth::id())->where('social_account_id', $data['account']['id'])->latest('id')->get()
+            ? \App\Models\AdReportSchedule::where('user_id', Auth::id())->where('social_account_id', $data['account']['id'])->where('platform', $platform)->latest('id')->get()
                 ->map(fn ($r) => \App\Http\Controllers\Admin\AdReportController::present($r))->all()
             : [];
         $data['recipient_email'] = \App\Http\Controllers\Admin\AdReportController::loginEmail(request());
         $data['can_export'] = app(\App\Services\PackageAccessService::class)->allows(Auth::user(), 'data_export');
         $data['urls'] = [
-            'create'      => route('admin.ads.campaigns.create', ['platform' => 'facebook']),
-            'sync'        => route('admin.ads.campaigns.sync', ['platform' => 'facebook']),
-            'insights'    => route('admin.ads.campaigns.insights', ['platform' => 'facebook']),
-            'ai_insights' => route('admin.ads.campaigns.ai-insights', ['platform' => 'facebook']),
-            'ai_generate' => route('admin.ads.campaigns.ai-insights.generate', ['platform' => 'facebook']),
+            'create'      => route('admin.ads.campaigns.create', ['platform' => $platform]),
+            'sync'        => route('admin.ads.campaigns.sync', ['platform' => $platform]),
+            'insights'    => route('admin.ads.campaigns.insights', ['platform' => $platform]),
+            'ai_insights' => route('admin.ads.campaigns.ai-insights', ['platform' => $platform]),
+            'ai_generate' => route('admin.ads.campaigns.ai-insights.generate', ['platform' => $platform]),
             'usage'       => route('admin.subscription.usage'),
-            'export'      => route('admin.ads.campaigns.export', ['platform' => 'facebook']),
-            'reports'     => route('admin.ads.reports.store', ['platform' => 'facebook']),
-            'report'      => route('admin.ads.reports.update', ['platform' => 'facebook', 'id' => 0]),
+            'export'      => route('admin.ads.campaigns.export', ['platform' => $platform]),
+            'reports'     => route('admin.ads.reports.store', ['platform' => $platform]),
+            'report'      => route('admin.ads.reports.update', ['platform' => $platform, 'id' => 0]),
             'upgrade'     => route('admin.subscription.select'),
-            'status'      => route('admin.ads.campaigns.status', ['platform' => 'facebook', 'id' => 'CAMPAIGN_ID']),
-            'duplicate'   => route('admin.ads.campaigns.duplicate', ['platform' => 'facebook', 'id' => 'CAMPAIGN_ID']),
-            'edit'        => route('admin.ads.campaigns.edit', ['platform' => 'facebook', 'campaign' => 'CAMPAIGN_ID']),
-            'destroy'     => route('admin.ads.campaigns.destroy', ['platform' => 'facebook', 'campaign' => 'CAMPAIGN_ID']),
-            'switch'      => route('admin.ads.campaigns.index', ['platform' => 'facebook']) . '?account=ACCOUNT_ID',
+            'status'      => route('admin.ads.campaigns.status', ['platform' => $platform, 'id' => 'CAMPAIGN_ID']),
+            'duplicate'   => route('admin.ads.campaigns.duplicate', ['platform' => $platform, 'id' => 'CAMPAIGN_ID']),
+            'edit'        => route('admin.ads.campaigns.edit', ['platform' => $platform, 'campaign' => 'CAMPAIGN_ID']),
+            'destroy'     => route('admin.ads.campaigns.destroy', ['platform' => $platform, 'campaign' => 'CAMPAIGN_ID']),
+            'switch'      => route('admin.ads.campaigns.index', ['platform' => $platform]) . '?account=ACCOUNT_ID',
             'connections' => route('admin.connections.index'),
             'dashboard'   => route('admin.ads.dashboard'),
             'meta'        => 'https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=',
+            'ai_copilot'  => \Illuminate\Support\Facades\Route::has('admin.ai-copilot.analytics.index') ? route('admin.ai-copilot.analytics.index') : null,
         ];
 
         return view('admin.ads.campaigns.facebook', [
             'data' => $data,
             'messages' => __('ads_campaigns'),
+            'component' => $platform === 'instagram' ? 'instagram-campaigns' : 'facebook-campaigns',
+            'title' => __('ads_campaigns.page_title_' . $platform),
         ]);
     }
 
     /** Last AI insights for the selected account and period (no AI credit used). */
     public function aiInsights($platform, Request $request, FacebookAiInsightsService $ai)
     {
-        abort_unless($platform === 'facebook', 404);
+        abort_unless(in_array($platform, ['facebook', 'instagram'], true), 404);
         $days = (int) ($request->validate(['days' => ['nullable', 'integer', 'in:7,14,30,90']])['days'] ?? 30);
         $account = AdAccountSelection::resolve(Auth::id(), 'facebook');
 
-        return response()->json(['success' => true, 'data' => $account ? $ai->cached($account->id, $days, app()->getLocale()) : null]);
+        return response()->json(['success' => true, 'data' => $account ? $ai->cached($account->id, $days, app()->getLocale(), $platform) : null]);
     }
 
     /** Generate AI insights - one AI credit, reserved and refunded on failure by EnsurePackageFeature. */
     public function generateAiInsights($platform, Request $request, FacebookAiInsightsService $ai)
     {
-        abort_unless($platform === 'facebook', 404);
+        abort_unless(in_array($platform, ['facebook', 'instagram'], true), 404);
         $days = (int) ($request->validate(['days' => ['nullable', 'integer', 'in:7,14,30,90']])['days'] ?? 30);
         $account = AdAccountSelection::resolve(Auth::id(), 'facebook');
         if (! $account) {
             return response()->json(['success' => false, 'message' => 'Connect a Facebook ad account first.'], 422);
         }
 
-        $result = $ai->generate($this->socialAdManager->service('facebook'), $account->id, Auth::id(), $days, app()->getLocale());
+        $result = $ai->generate($this->socialAdManager->service($platform), $account->id, Auth::id(), $days, app()->getLocale(), $platform);
 
         return response()->json($result, $result['success'] ? 200 : 422);
     }
@@ -449,13 +453,13 @@ class AdCampaignController extends Controller
     public function destroy($platform, string $id)
     {
         // Facebook: only the seller's own campaigns, and only with a role that may change them.
-        if ($platform === 'facebook') {
-            $campaign = AdCampaign::with('socialAccount')->where('user_id', Auth::id())->where('platform', 'facebook')->find($id);
+        if (in_array($platform, ['facebook', 'instagram'], true)) {
+            $campaign = AdCampaign::with('socialAccount')->where('user_id', Auth::id())->whereIn('platform', ['facebook', 'instagram'])->find($id);
             abort_unless($campaign, 404);
             if ($blocker = \App\Services\AdServices\FacebookAdService::writeBlocker($campaign->socialAccount)) {
                 return request()->expectsJson()
                     ? response()->json(['success' => false, 'message' => $blocker], 403)
-                    : redirect()->route('admin.ads.campaigns.index', ['platform' => 'facebook'])->with('error', $blocker);
+                    : redirect()->route('admin.ads.campaigns.index', ['platform' => $platform])->with('error', $blocker);
             }
         }
 

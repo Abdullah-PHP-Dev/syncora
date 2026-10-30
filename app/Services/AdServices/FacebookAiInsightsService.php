@@ -18,13 +18,13 @@ class FacebookAiInsightsService
 
     private const TTL_HOURS = 24;
 
-    public function cached(int $accountId, int $days, string $locale): ?array
+    public function cached(int $accountId, int $days, string $locale, string $platform = 'facebook'): ?array
     {
-        return Cache::get($this->key($accountId, $days, $locale));
+        return Cache::get($this->key($accountId, $days, $locale, $platform));
     }
 
     /** @return array{success: bool, data?: array, message?: string} */
-    public function generate(FacebookAdService $facebook, int $accountId, int $userId, int $days, string $locale): array
+    public function generate(FacebookAdService $facebook, int $accountId, int $userId, int $days, string $locale, string $platform = 'facebook'): array
     {
         $insights = $facebook->insights($days);
         if (!($insights['success'] ?? false)) {
@@ -39,6 +39,7 @@ class FacebookAiInsightsService
         $language = $locale === 'ar' ? 'Arabic (Modern Standard, as used in Saudi business writing)' : 'English';
         $prompt = "You are a senior Meta Ads analyst reviewing one advertiser's account for a business owner in Saudi Arabia/GCC.\n"
             . "Write at most 3 insights in {$language}, most useful first, from the JSON facts below.\n"
+            . ($platform === 'instagram' ? "All figures cover Instagram placements only (Feed, Stories, Reels, Explore) of a Meta ad account.\n" : '')
             . "Rules:\n"
             . "- Use ONLY numbers that appear in the facts (you may compute simple differences or percentages from them). Never invent figures, benchmarks or results.\n"
             . "- Describe what the data shows; do not claim what caused it.\n"
@@ -85,7 +86,7 @@ class FacebookAiInsightsService
         }
 
         $data = ['insights' => $items, 'days' => $days, 'locale' => $locale, 'since' => $insights['since'], 'until' => $insights['until'], 'generated_at' => now()->toIso8601String()];
-        Cache::put($this->key($accountId, $days, $locale), $data, now()->addHours(self::TTL_HOURS));
+        Cache::put($this->key($accountId, $days, $locale, $platform), $data, now()->addHours(self::TTL_HOURS));
 
         return ['success' => true, 'data' => $data];
     }
@@ -131,8 +132,8 @@ class FacebookAiInsightsService
         ];
     }
 
-    private function key(int $accountId, int $days, string $locale): string
+    private function key(int $accountId, int $days, string $locale, string $platform = 'facebook'): string
     {
-        return 'fb_ai_insights:' . $accountId . ':' . $days . ':' . ($locale === 'ar' ? 'ar' : 'en');
+        return 'fb_ai_insights:' . $platform . ':' . $accountId . ':' . $days . ':' . ($locale === 'ar' ? 'ar' : 'en');
     }
 }

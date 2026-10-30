@@ -87,7 +87,9 @@ class AdReportsTest extends TestCase
 
     public function test_a_schedule_goes_to_the_signed_in_users_email_at_the_next_slot(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-10-29 10:00:00', 'UTC')); // Thursday 13:00 in Riyadh
+        // A Thursday 13:00 in Riyadh, after the fixture subscription starts (so the plan is active).
+        $thursday = now('UTC')->next(Carbon::THURSDAY)->setTime(10, 0);
+        Carbon::setTestNow($thursday);
 
         $report = $this->postJson(route('admin.ads.reports.store', ['platform' => 'facebook']), [
             'name' => 'Weekly performance', 'frequency' => 'weekly', 'weekday' => 0, 'send_time' => '09:00', 'timezone' => 'Asia/Riyadh', 'period_days' => 7,
@@ -95,8 +97,8 @@ class AdReportsTest extends TestCase
         ])->assertOk()->json('report');
 
         $this->assertSame('owner@brand.com', $report['recipient_email']);
-        // Sunday 1 Nov 09:00 Riyadh = 06:00 UTC.
-        $this->assertSame('2026-11-01T06:00:00+00:00', $report['next_run_at']);
+        // The following Sunday 09:00 Riyadh = 06:00 UTC.
+        $this->assertSame($thursday->copy()->next(Carbon::SUNDAY)->setTime(6, 0)->toIso8601String(), Carbon::parse($report['next_run_at'])->utc()->toIso8601String());
         $this->assertDatabaseHas('ad_report_schedules', ['id' => $report['id'], 'social_account_id' => $this->account->id, 'user_id' => $this->user->id]);
         $this->assertSame([$report['id']], array_column($this->get(route('admin.ads.campaigns.index', ['platform' => 'facebook']))->viewData('data')['reports'], 'id'));
 
