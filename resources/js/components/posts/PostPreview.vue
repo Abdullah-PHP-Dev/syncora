@@ -241,7 +241,7 @@
 
             <div v-else class="pp-thread-list">
 
-                <div v-for="comment in visibleComments" :key="comment.id" class="pp-thread">
+                <div v-for="comment in visibleComments" :id="'comment-' + comment.id" :key="comment.id" class="pp-thread" :class="{ 'is-target': targetCommentId === comment.id }">
 
                   <div class="pp-comment" :class="{own: comment.isOwn}">
 
@@ -413,6 +413,8 @@ export default {
       showAllPlatforms: false,
       showAllComments: false,
       commentPreviewCount: 3,
+      // Thread opened from a comment notification, highlighted for a moment.
+      targetCommentId: null,
       // The selected group member's Post id - a platform can appear more
       // than once (two Instagram accounts), so selection is per post.
       activeId: null,
@@ -637,12 +639,13 @@ export default {
   },
 
   // Arriving from Engagement > Comments ("Reply") or a post's "View
-  // comments" action (#comments): show the thread instead of the top of
-  // the preview.
+  // comments" action (#comments), or from a comment notification
+  // (#comment-{id}): show the thread instead of the top of the preview.
   mounted() {
-    if (window.location.hash === '#comments') {
+    const hash = window.location.hash;
+    if (hash === '#comments' || /^#comment-\d+$/.test(hash)) {
       this.showAllComments = true;
-      this.openComments();
+      this.openComments(hash.slice(1));
     }
     document.addEventListener('click', this.closeMenuOnOutsideClick);
   },
@@ -801,10 +804,20 @@ export default {
 
     },
 
-    openComments() {
+    // target: an element id - "comments", or "comment-{id}" to land on one
+    // thread (highlighted briefly). Falls back to the section if that
+    // comment isn't on this platform's post.
+    openComments(target = 'comments') {
 
       this.showComments = true;
-      this.$nextTick(() => document.getElementById('comments')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      this.$nextTick(() => {
+        const el = document.getElementById(target);
+        if (el && target !== 'comments') {
+          this.targetCommentId = Number(target.replace('comment-', ''));
+          setTimeout(() => { this.targetCommentId = null; }, 2600);
+        }
+        (el || document.getElementById('comments'))?.scrollIntoView({ behavior: 'smooth', block: el && target !== 'comments' ? 'center' : 'start' });
+      });
 
     },
 
@@ -1433,6 +1446,7 @@ export default {
 .pp-thread-list{ gap:10px; max-height:560px; padding-right:2px; }
 .pp-thread{ border:1px solid var(--line); border-radius:14px; padding:12px 12px 12px 14px; background:#fff; transition:border-color .15s, box-shadow .15s; }
 .pp-thread:hover{ border-color:#dcd6fb; box-shadow:0 6px 16px rgba(16,24,40,.05); }
+.pp-thread.is-target{ border-color:#7C6CF2; box-shadow:0 0 0 3px rgba(124,108,242,.18); }
 .pp-thread > .pp-comment > .pp-avatar{ width:40px; height:40px; font-size:13px; }
 .pp-comment-head{ display:flex; align-items:center; gap:8px; min-height:26px; }
 .pp-comment-author{ font-size:13.5px; color:var(--ink); display:flex; align-items:center; gap:6px; min-width:0; }
