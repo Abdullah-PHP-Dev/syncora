@@ -84,7 +84,7 @@ class InstagramCampaignsPageTest extends TestCase
         $this->campaign('tiktok', '12003', 'TikTok');
         SocialAccount::create(['user_id' => $this->user->id, 'platform' => 'instagram', 'platform_account_id' => 'ig1', 'name' => 'Social Eaz', 'username' => 'social.eaz', 'access_token' => 't', 'is_token_valid' => true]);
 
-        $response = $this->get(route('admin.ads.campaigns.index', ['platform' => 'instagram']))->assertOk()->assertSee('instagram-campaigns', false);
+        $response = $this->get(route('admin.ads.campaigns.index', ['platform' => 'instagram']))->assertOk()->assertSee('meta-campaigns', false);
         $data = $response->viewData('data');
 
         $this->assertSame('instagram', $data['platform']);
@@ -99,7 +99,7 @@ class InstagramCampaignsPageTest extends TestCase
         $this->campaign('facebook', '12001', 'Made on Facebook');
         $this->campaign('instagram', '12002', 'Made on Instagram');
 
-        $data = $this->get(route('admin.ads.campaigns.index', ['platform' => 'facebook']))->assertOk()->assertSee('facebook-campaigns', false)->viewData('data');
+        $data = $this->get(route('admin.ads.campaigns.index', ['platform' => 'facebook']))->assertOk()->assertSee('meta-campaigns', false)->viewData('data');
 
         $this->assertSame('facebook', $data['platform']);
         $this->assertNull($data['instagram']);

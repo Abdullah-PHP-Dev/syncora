@@ -386,6 +386,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('ads.campaigns.sync');
 				Route::get('ads/{platform}/campaigns/insights', [AdCampaignController::class, 'insights'])
 					->name('ads.campaigns.insights');
+				Route::get('ads/{platform}/campaigns/performance', [AdCampaignController::class, 'performance'])
+					->name('ads.campaigns.performance');
 				// AI insights from the account's Meta insights (POST uses an AI credit - package_access ai_content).
 				Route::get('ads/{platform}/campaigns/ai-insights', [AdCampaignController::class, 'aiInsights'])
 					->name('ads.campaigns.ai-insights');

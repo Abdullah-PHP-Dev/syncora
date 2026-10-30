@@ -11,6 +11,7 @@ use App\Models\SocialAccount;
 use App\Models\Admin\PlatformPage;
 use App\Models\Country;
 use App\Services\AdServices\AdsDashboardService;
+use App\Services\AdServices\AdsPerformanceService;
 use App\Services\AdServices\FacebookCampaignsPageService;
 use App\Services\AdServices\FacebookAiInsightsService;
 use App\Services\AdServices\SocialAdManagerService;
@@ -102,18 +103,21 @@ class AdCampaignController extends Controller
             'dashboard' => route('admin.ads.dashboard'),
             'edit'      => route('admin.ads.campaigns.edit', ['platform' => $platform, 'campaign' => 'CAMPAIGN_ID']),
             'destroy'   => route('admin.ads.campaigns.destroy', ['platform' => $platform, 'campaign' => 'CAMPAIGN_ID']),
+            'connections' => route('admin.connections.index'),
+            // Live spend and results where the platform reports them (AdsPerformanceService).
+            'performance' => in_array($platform, ['google', 'youtube', 'openai'], true)
+                ? route('admin.ads.campaigns.performance', ['platform' => $platform]) : null,
         ];
         $data['can_sync'] = in_array($platform, ['facebook', 'openai'], true);
 
-        // ChatGPT Ads: live reporting, and no in-app edit form yet
+        // ChatGPT Ads: no in-app edit form yet
         // (pause / activate / archive cover it - see OpenAiAdService).
         if ($platform === 'openai') {
-            $data['urls']['insights'] = route('admin.ads.campaigns.insights', ['platform' => $platform]);
             $data['urls']['status'] = route('admin.ads.campaigns.status', ['platform' => $platform, 'id' => 'CAMPAIGN_ID']);
             $data['urls']['edit'] = null;
         }
 
-        return view('admin.ads.campaigns.dashboard', compact('data', 'platform'));
+        return view('admin.ads.campaigns.dashboard', ['data' => $data, 'platform' => $platform, 'messages' => __('ads_campaigns')]);
     }
 
     /**
@@ -160,7 +164,6 @@ class AdCampaignController extends Controller
         return view('admin.ads.campaigns.facebook', [
             'data' => $data,
             'messages' => __('ads_campaigns'),
-            'component' => $platform === 'instagram' ? 'instagram-campaigns' : 'facebook-campaigns',
             'title' => __('ads_campaigns.page_title_' . $platform),
         ]);
     }
@@ -213,6 +216,14 @@ class AdCampaignController extends Controller
     }
 
     /** Performance for the campaigns page (platforms whose service reports it). */
+    /** Live spend and results for the platform campaigns pages (Google, YouTube, ChatGPT Ads). */
+    public function performance($platform, Request $request)
+    {
+        $validated = $request->validate(['days' => ['nullable', 'integer', 'in:' . implode(',', AdsPerformanceService::RANGES)]]);
+
+        return response()->json((new AdsPerformanceService(Auth::id()))->forPlatform($platform, (int) ($validated['days'] ?? 30)));
+    }
+
     public function insights($platform, Request $request)
     {
         $service = $this->socialAdManager->service($platform);

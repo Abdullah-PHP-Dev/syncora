@@ -54,6 +54,48 @@ class AdsPerformanceService
         ];
     }
 
+    /**
+     * One platform's numbers for its campaigns page, with campaigns keyed by
+     * local id. YouTube has no account of its own, so it gets the sum of its
+     * own campaigns - the Google Ads customer's totals and trend also include
+     * Search, Display and Performance Max.
+     */
+    public function forPlatform(string $platform, int $days): array
+    {
+        $range = ReportRange::make($days . 'd');
+        $google = in_array($platform, self::GOOGLE_PLATFORMS, true);
+
+        if (! AdAccountSelection::resolve($this->userId, $google ? 'google' : $platform)) {
+            return ['status' => 'not_connected'];
+        }
+
+        $result = match (true) {
+            $google => $this->google($range),
+            $platform === 'openai' => $this->openai($days),
+            default => ['status' => 'no_reporting'],
+        };
+        if ($result['status'] !== 'ok') {
+            return $result;
+        }
+
+        $own = AdCampaign::where('user_id', $this->userId)->where('platform', $platform)->pluck('id')->all();
+        $campaigns = array_intersect_key($this->campaignMetrics([$google ? 'google' : $platform => $result]), array_flip($own));
+
+        if ($platform === 'youtube') {
+            $sum = fn (string $key) => array_sum(array_map(fn ($c) => (float) ($c[$key] ?? 0), $campaigns));
+            $result['totals'] = ['current' => ['spend' => $sum('spend'), 'clicks' => $sum('clicks'), 'impressions' => $sum('impressions'), 'conversions' => $sum('conversions'), 'value' => $sum('value')], 'previous' => null];
+            $result['trend'] = null;
+        }
+        unset($result['local_keys']);
+
+        return array_merge($result, [
+            'scope' => $platform === 'youtube' ? 'campaigns' : 'account',
+            'days' => $days,
+            'range' => $range->toArray(),
+            'campaigns' => $campaigns,
+        ]);
+    }
+
     private function google(ReportRange $range): array
     {
         $result = app(GoogleAdsReportService::class)->dashboard($this->userId, $range);

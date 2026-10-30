@@ -20,7 +20,7 @@
     @endforeach
 
     <div v-cloak>
-        {{-- facebook-campaigns or instagram-campaigns (same data, AdCampaignController::metaIndex). --}}
-        <component is="{{ $component ?? 'facebook-campaigns' }}" :data='@json($data)' :messages='@json($messages)' locale="{{ app()->getLocale() }}" csrf="{{ csrf_token() }}"></component>
+        {{-- Facebook and Instagram share one component; data.platform picks the wording (AdCampaignController::metaIndex). --}}
+        <meta-campaigns :data='@json($data)' :messages='@json($messages)' locale="{{ app()->getLocale() }}" csrf="{{ csrf_token() }}"></meta-campaigns>
     </div>
 @endsection
