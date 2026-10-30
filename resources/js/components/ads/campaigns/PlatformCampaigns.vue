@@ -81,13 +81,16 @@
             {{ tb === 'overview' ? t('meta.overview') : t('tabs.campaigns') }}<span v-if="tb === 'campaigns'" class="n">{{ int(data.campaigns.length) }}</span>
           </button>
         </div>
-        <div v-if="data.urls.performance" class="adc-bar-end">
-          <label class="adc-select">
+        <div class="adc-bar-end">
+          <label v-if="data.urls.performance" class="adc-select">
             <i class="bx bx-calendar" aria-hidden="true"></i><span class="adc-sr">{{ t('range_label') }}</span>
             <select v-model.number="days" @change="loadPerformance">
               <option v-for="d in [7, 30, 90]" :key="d" :value="d">{{ data.platform === 'google' ? t('range_option', { days: d }) : t('platform.range_plain', { days: d }) }}</option>
             </select>
           </label>
+          <button v-if="data.can_export" type="button" class="adc-btn ghost" :disabled="exporting" @click="exportCsv"><i class="bx" :class="exporting ? 'bx-loader-alt bx-spin' : 'bx-download'"></i>{{ exporting ? t('reports.exporting') : t('reports.export') }}</button>
+          <a v-else :href="data.urls.upgrade" class="adc-btn ghost" :title="t('reports.export_locked')"><i class="bx bx-lock-alt"></i>{{ t('reports.export') }}</a>
+          <button type="button" class="adc-btn primary" @click="openReportForm"><i class="bx bx-envelope"></i>{{ t('reports.schedule') }}</button>
         </div>
       </div>
 
@@ -267,7 +270,7 @@
       </section>
 
       <!-- ================= ACCOUNTS + MIX + REPORTING ================= -->
-      <div v-if="tab === 'overview'" class="adc-grid" :class="data.urls.performance ? 'three' : 'two'">
+      <div v-if="tab === 'overview'" class="adc-grid" :class="data.urls.performance ? 'two' : 'three'">
         <section class="adc-card adc-pad">
           <div class="adc-h"><div><h2>{{ t('ad_accounts') }} <span class="adc-count">{{ data.accounts.length }}</span></h2><p>{{ t('platform.accounts_sub', { name }) }}</p></div><a :href="data.urls.connect" class="adc-link"><i class="bx bx-plus"></i>{{ t('platform.add') }}</a></div>
           <ul class="adc-accts">
@@ -280,6 +283,10 @@
         </section>
 
         <bar-list-card v-if="data.urls.performance" :title="t('platform.mix_title')" :sub="t('platform.mix_sub')" :groups="mixGroups" :empty="t('platform.mix_none')" />
+
+        <ad-reports ref="reportsCard" :i18n="i18n" :reports="reports" :urls="data.urls" :recipient-email="data.recipient_email || ''" :csrf="csrf" :ask="ask"
+                    :title="t('meta.reports_title')" :sub="t('platform.reports_sub', { name })" :empty="t('platform.reports_none', { email: data.recipient_email || '—' })"
+                    :default-name="t('platform.default_report', { name })" :format-note="data.urls.performance ? t('platform.format_note') : t('platform.format_note_campaigns')" @toast="toast" />
 
         <section class="adc-card adc-pad">
           <div class="adc-h"><div><h2>{{ t('meta.sync_title') }}</h2><p>{{ t('meta.sync_sub') }}</p></div><span class="adc-badge" :class="stepsHealthy ? 'ok' : 'warn'"><span class="d"></span>{{ stepsHealthy ? t('meta.healthy') : t('meta.needs_attention') }}</span></div>
@@ -313,6 +320,8 @@ import SpendResultsChart from './SpendResultsChart.vue';
 import BarListCard from './BarListCard.vue';
 import AdSparkline from '../dashboard/AdSparkline.vue';
 import AccountAvatarBadge from '../../posts/AccountAvatarBadge.vue';
+import AdReports from './AdReports.vue';
+import { downloadCsv } from './adExport';
 
 /*
  * Campaigns page for Google, YouTube, TikTok, Snapchat, LinkedIn, X and
@@ -356,6 +365,8 @@ const syncing = ref(false); const busyId = ref(null);
 const perf = ref(null); const perfLoading = ref(false); const perfError = ref('');
 const toastMsg = ref(''); const toastOk = ref(true); const confirm = ref(null);
 const campaigns = ref(props.data.campaigns.map((c) => ({ ...c })));
+const exporting = ref(false); const reportsCard = ref(null);
+const reports = ref((props.data.reports || []).map((r) => ({ ...r })));
 
 /* ---------------- formatting ---------------- */
 const cur = computed(() => (perf.value && perf.value.currency) || props.data.currency || '');
@@ -590,6 +601,14 @@ function askDelete(c) {
       document.body.appendChild(form); form.submit();
     } });
 }
+// The reports card lives on the overview, so the form opens there.
+function openReportForm() { tab.value = 'overview'; nextTick(() => reportsCard.value && reportsCard.value.open()); }
+async function exportCsv() {
+  exporting.value = true;
+  const error = await downloadCsv(props.data.urls.export, { days: days.value }, props.data.platform + '-ads.csv', t('reports.export_failed'));
+  exporting.value = false;
+  if (error) toast(error, false);
+}
 async function syncNow() {
   if (syncing.value) return;
   syncing.value = true;
@@ -607,7 +626,7 @@ function closeMenus(e) {
   if (acctOpen.value && outside(acctMenu.value)) acctOpen.value = false;
   if (moreOpen.value && outside(moreMenu.value)) moreOpen.value = false;
 }
-function onKey(e) { if (e.key === 'Escape') { acctOpen.value = moreOpen.value = false; confirm.value = null; } }
+function onKey(e) { if (e.key === 'Escape') { acctOpen.value = moreOpen.value = false; confirm.value = null; if (reportsCard.value) reportsCard.value.close(); } }
 onMounted(() => { document.addEventListener('click', closeMenus); document.addEventListener('keydown', onKey); if (props.data.connected) loadPerformance(); });
 onBeforeUnmount(() => { document.removeEventListener('click', closeMenus); document.removeEventListener('keydown', onKey); });
 </script>

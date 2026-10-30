@@ -11,8 +11,9 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * Facebook performance reports: the CSV export and the scheduled email,
- * both built from the same Meta insights the campaigns page shows.
+ * Ad performance reports: the CSV export and the scheduled email. Facebook
+ * and Instagram are built here from Meta insights; the other platforms by
+ * PlatformReportService. deliver() sends any platform's schedule.
  */
 class FacebookReportService
 {
@@ -60,7 +61,7 @@ class FacebookReportService
     {
         $out = fopen('php://temp', 'w+');
         fwrite($out, "\xEF\xBB\xBF");
-        $row = fn (array $cells) => fputcsv($out, array_map(fn ($v) => $this->cell($v), $cells), ',', '"', '');
+        $row = fn (array $cells) => fputcsv($out, array_map(fn ($v) => self::safeCell($v), $cells), ',', '"', '');
         $t = fn ($key) => (string) __('ads_campaigns.report.csv.' . $key);
         $c = $insights['totals']['current'];
 
@@ -98,7 +99,7 @@ class FacebookReportService
         return $csv;
     }
 
-    private function cell(mixed $value): string
+    public static function safeCell(mixed $value): string
     {
         if ($value === null) {
             return '';
@@ -125,9 +126,13 @@ class FacebookReportService
             try {
                 Auth::guard('web')->setUser($owner);
                 app()->setLocale($schedule->locale === 'ar' ? 'ar' : 'en');
-                // Instagram reports read Instagram placements of the same ad account.
-                $facebook = app($schedule->platform === 'instagram' ? InstagramAdService::class : FacebookAdService::class)->useAccount($account);
-                $result = $this->build($facebook, $owner->id, $schedule->period_days);
+                if (in_array($schedule->platform, ['facebook', 'instagram'], true)) {
+                    // Instagram reports read Instagram placements of the same ad account.
+                    $facebook = app($schedule->platform === 'instagram' ? InstagramAdService::class : FacebookAdService::class)->useAccount($account);
+                    $result = $this->build($facebook, $owner->id, $schedule->period_days);
+                } else {
+                    $result = app(PlatformReportService::class)->build($schedule->platform, $owner->id, $schedule->period_days);
+                }
 
                 if ($result['success']) {
                     Mail::to($schedule->recipient_email)->send(new AdPerformanceReport($schedule, $account, $result));

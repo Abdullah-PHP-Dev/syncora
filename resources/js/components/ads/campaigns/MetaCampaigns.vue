@@ -432,20 +432,9 @@
           </div>
         </section>
 
-        <section class="adc-card adc-pad">
-          <div class="adc-h"><div><h2>{{ t('meta.reports_title') }}</h2><p>{{ ps('reports_sub') }}</p></div><button type="button" class="adc-link" @click="openReportForm"><i class="bx bx-plus"></i>{{ t('reports.new') }}</button></div>
-          <ul v-if="reports.length" class="adc-reports">
-            <li v-for="r in reports" :key="r.id">
-              <span class="ic"><i class="bx bx-file"></i></span>
-              <span class="txt"><b dir="auto">{{ r.name }}</b><small>{{ cadence(r) }}<template v-if="r.status !== 'active'"> · {{ t('reports.paused') }}</template><template v-if="r.last_error"> · <span class="err">{{ t('reports.failed') }}</span></template></small></span>
-              <span class="fmt">CSV</span>
-              <button type="button" class="adc-c-act" :disabled="reportBusy === r.id" :title="t('reports.send_now')" :aria-label="t('reports.send_now') + ' · ' + r.name" @click="sendReport(r)"><i class="bx bx-send"></i></button>
-              <button type="button" class="adc-c-act" :disabled="reportBusy === r.id" :title="r.status === 'active' ? t('reports.pause') : t('reports.resume')" @click="toggleReport(r)"><i class="bx" :class="r.status === 'active' ? 'bx-pause' : 'bx-play'"></i></button>
-              <button type="button" class="adc-c-act" :disabled="reportBusy === r.id" :title="t('delete')" @click="askDeleteReport(r)"><i class="bx bx-trash"></i></button>
-            </li>
-          </ul>
-          <p v-else class="adc-muted-line"><i class="bx bx-envelope"></i>{{ ps('reports_none', { email: data.recipient_email || '—' }) }}</p>
-        </section>
+        <ad-reports ref="reportsCard" :i18n="i18n" :reports="reports" :urls="data.urls" :recipient-email="data.recipient_email || ''" :csrf="csrf" :ask="ask"
+                    :title="t('meta.reports_title')" :sub="ps('reports_sub')" :empty="ps('reports_none', { email: data.recipient_email || '—' })"
+                    :default-name="ps('default_report')" :format-note="ps('format_note')" @toast="toast" />
 
         <section class="adc-card adc-pad">
           <div class="adc-h"><div><h2>{{ t('meta.sync_title') }}</h2><p>{{ t('meta.sync_sub') }}</p></div><span class="adc-badge" :class="stepsDone === steps.length ? 'ok' : 'warn'"><span class="d"></span>{{ stepsDone === steps.length ? t('meta.healthy') : t('meta.needs_attention') }}</span></div>
@@ -457,27 +446,6 @@
       </div>
     </template>
 
-    <!-- ================= REPORT FORM ================= -->
-    <div v-if="reportForm" class="adc-modal" role="dialog" aria-modal="true" aria-labelledby="adc-report-t" @click.self="reportForm = null">
-      <form class="adc-dialog wide" @submit.prevent="saveReport">
-        <h3 id="adc-report-t">{{ t('reports.form_title') }}</h3>
-        <div class="adc-form">
-          <label class="full">{{ t('reports.name') }}<input ref="reportName" v-model.trim="reportForm.name" type="text" maxlength="120" required dir="auto"></label>
-          <label>{{ t('reports.frequency') }}<select v-model="reportForm.frequency"><option v-for="f in ['daily', 'weekly', 'monthly']" :key="f" :value="f">{{ t('reports.frequencies.' + f) }}</option></select></label>
-          <label v-if="reportForm.frequency === 'weekly'">{{ t('reports.weekday') }}<select v-model.number="reportForm.weekday"><option v-for="d in 7" :key="d" :value="d - 1">{{ weekdayName(d - 1) }}</option></select></label>
-          <label v-if="reportForm.frequency === 'monthly'">{{ t('reports.day_of_month') }}<select v-model.number="reportForm.day_of_month"><option v-for="d in 28" :key="d" :value="d">{{ d }}</option></select></label>
-          <label>{{ t('reports.time') }}<input v-model="reportForm.send_time" type="time" required></label>
-          <label>{{ t('reports.period') }}<select v-model.number="reportForm.period_days"><option v-for="d in [7, 14, 30, 90]" :key="d" :value="d">{{ t('reports.period_n', { days: d }) }}</option></select></label>
-          <div class="full adc-form-note"><i class="bx bx-envelope"></i><span>{{ t('reports.recipient_note', { email: data.recipient_email || '—' }) }}</span></div>
-          <div class="full adc-form-note"><i class="bx bx-paperclip"></i><span>{{ ps('format_note') }}</span></div>
-        </div>
-        <p v-if="reportFormError" class="adc-ai-error" role="alert">{{ reportFormError }}</p>
-        <div class="adc-dialog-a">
-          <button type="button" class="adc-btn ghost" @click="reportForm = null">{{ t('cancel') }}</button>
-          <button type="submit" class="adc-btn primary" :disabled="reportSaving"><i class="bx bx-calendar-check"></i>{{ reportSaving ? t('reports.saving') : t('reports.save') }}</button>
-        </div>
-      </form>
-    </div>
 
     <!-- ================= CONFIRM ================= -->
     <div v-if="confirm" class="adc-modal" role="dialog" aria-modal="true" aria-labelledby="adc-confirm-t" @click.self="confirm = null">
@@ -498,6 +466,8 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { createTranslator } from '../facebook/i18n';
 import SpendResultsChart from './SpendResultsChart.vue';
 import AdSparkline from '../dashboard/AdSparkline.vue';
+import AdReports from './AdReports.vue';
+import { downloadCsv } from './adExport';
 
 /*
  * Facebook and Instagram Ads campaigns pages: the seller's Meta ad account.
@@ -540,13 +510,13 @@ const query = ref(''); const sort = ref('spend'); const statusChip = ref('all');
 const page = ref(1); const selected = ref([]); const visibleCols = ref(loadCols());
 const switchOpen = ref(false); const moreOpen = ref(false); const filtersOpen = ref(false); const columnsOpen = ref(false); const rowMenu = ref(null);
 const budgetCard = ref(null); const compareCard = ref(null); const placementsCard = ref(null); const regionsCard = ref(null);
-const switcher = ref(null); const moreMenu = ref(null); const filtersMenu = ref(null); const columnsMenu = ref(null); const cancelBtn = ref(null); const tableCard = ref(null); const reportName = ref(null);
+const switcher = ref(null); const moreMenu = ref(null); const filtersMenu = ref(null); const columnsMenu = ref(null); const cancelBtn = ref(null); const tableCard = ref(null);
 const syncing = ref(false); const busy = ref(false); const busyId = ref(null);
 const ins = ref(null); const insLoading = ref(false); const insError = ref('');
 const ai = ref(null); const aiLoading = ref(false); const aiError = ref(''); const aiCreditIssue = ref(false);
 const toastMsg = ref(''); const toastOk = ref(true); const confirm = ref(null); const exporting = ref(false);
+const reportsCard = ref(null);
 const reports = ref((props.data.reports || []).map((r) => ({ ...r })));
-const reportForm = ref(null); const reportFormError = ref(''); const reportSaving = ref(false); const reportBusy = ref(null);
 const campaigns = ref(props.data.campaigns.map((c) => ({ ...c })));
 
 const account = computed(() => props.data.account);
@@ -893,48 +863,14 @@ async function syncNow() {
 }
 
 /* ---------------- export + reports ---------------- */
-function reportUrl(id, suffix = '') { return props.data.urls.report.replace(/\/0$/, '/' + id) + suffix; }
-function weekdayName(d) { return new Date(2023, 0, 1 + d).toLocaleDateString(i18n.intl, { weekday: 'long' }); } // 1 Jan 2023 was a Sunday
-function cadence(r) {
-  if (r.frequency === 'weekly') return t('reports.every_weekday', { day: weekdayName(r.weekday), time: r.send_time });
-  if (r.frequency === 'monthly') return t('reports.every_month', { day: r.day_of_month, time: r.send_time });
-  return t('reports.every_day', { time: r.send_time });
-}
 async function exportCsv() {
   exporting.value = true;
-  try {
-    const res = await window.axios.get(props.data.urls.export, { params: { days: days.value }, responseType: 'blob' });
-    const match = /filename="?([^";]+)"?/.exec(res.headers['content-disposition'] || '');
-    const href = URL.createObjectURL(res.data); const a = document.createElement('a');
-    a.href = href; a.download = match ? match[1] : pf + '-ads.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(href), 1000);
-  } catch (e) {
-    let msg = t('reports.export_failed');
-    try { const body = JSON.parse(await e.response.data.text()); msg = body.message || body.error || msg; } catch (x) { /* not JSON */ }
-    toast(msg, false);
-  } finally { exporting.value = false; }
+  const error = await downloadCsv(props.data.urls.export, { days: days.value }, pf + '-ads.csv', t('reports.export_failed'));
+  exporting.value = false;
+  if (error) toast(error, false);
 }
-function openReportForm() { reportFormError.value = ''; reportForm.value = { name: ps('default_report'), frequency: 'weekly', weekday: 0, day_of_month: 1, send_time: '09:00', period_days: 7 }; nextTick(() => reportName.value && reportName.value.focus()); }
-async function saveReport() {
-  reportSaving.value = true; reportFormError.value = '';
-  try {
-    const timezone = (window.Intl && Intl.DateTimeFormat().resolvedOptions().timeZone) || 'Asia/Riyadh';
-    const { data } = await window.axios.post(props.data.urls.reports, { ...reportForm.value, timezone }, { headers: jsonHeaders() });
-    reports.value.unshift(data.report); reportForm.value = null; toast(data.message || t('reports.saved'), true);
-  } catch (e) { const errs = e.response && e.response.data && e.response.data.errors; reportFormError.value = errs ? Object.values(errs)[0][0] : errorText(e, t('reports.save_failed')); } finally { reportSaving.value = false; }
-}
-function replaceReport(u) { const i = reports.value.findIndex((r) => r.id === u.id); if (i > -1) reports.value.splice(i, 1, u); }
-async function sendReport(r) {
-  reportBusy.value = r.id;
-  try { const { data } = await window.axios.post(reportUrl(r.id, '/send'), {}, { headers: jsonHeaders() }); replaceReport(data.report); toast(data.message, true); } catch (e) { if (e.response && e.response.data && e.response.data.report) replaceReport(e.response.data.report); toast(errorText(e, t('reports.send_failed')), false); } finally { reportBusy.value = null; }
-}
-async function toggleReport(r) {
-  reportBusy.value = r.id;
-  try { const { data } = await window.axios.patch(reportUrl(r.id), { status: r.status === 'active' ? 'paused' : 'active' }, { headers: jsonHeaders() }); replaceReport(data.report); } catch (e) { toast(errorText(e, t('reports.save_failed')), false); } finally { reportBusy.value = null; }
-}
-function askDeleteReport(r) {
-  ask({ title: t('reports.delete_title'), text: t('reports.delete_text', { name: r.name }), ok: t('delete'), danger: true,
-    run: async () => { try { await window.axios.delete(reportUrl(r.id), { headers: jsonHeaders() }); reports.value = reports.value.filter((x) => x.id !== r.id); } catch (e) { toast(errorText(e, t('reports.save_failed')), false); } } });
-}
+// The reports card lives on the overview, so the form opens there.
+function openReportForm() { if (tab.value !== 'overview') setTab('overview'); nextTick(() => reportsCard.value && reportsCard.value.open()); }
 
 /* ---------------- menus ---------------- */
 function closeMenus(e) {
@@ -945,7 +881,7 @@ function closeMenus(e) {
   if (columnsOpen.value && outside(columnsMenu.value)) columnsOpen.value = false;
   rowMenu.value = null;
 }
-function onKey(e) { if (e.key === 'Escape') { switchOpen.value = moreOpen.value = filtersOpen.value = columnsOpen.value = false; rowMenu.value = null; confirm.value = null; reportForm.value = null; } }
+function onKey(e) { if (e.key === 'Escape') { switchOpen.value = moreOpen.value = filtersOpen.value = columnsOpen.value = false; rowMenu.value = null; confirm.value = null; if (reportsCard.value) reportsCard.value.close(); } }
 onMounted(() => { document.addEventListener('click', closeMenus); document.addEventListener('keydown', onKey); loadInsights(false); loadAiCached(); });
 onBeforeUnmount(() => { document.removeEventListener('click', closeMenus); document.removeEventListener('keydown', onKey); });
 </script>

@@ -36,7 +36,9 @@ class AdPerformanceReport extends Mailable
             'schedule' => $this->schedule,
             'account' => $this->account,
             'insights' => $this->report['insights'],
-            'summary' => $this->report['summary'],
+            // Meta reports carry a summary; the other platforms (PlatformReportService) carry metrics.
+            'summary' => $this->report['summary'] ?? null,
+            'metrics' => $this->report['metrics'] ?? null,
             'campaigns' => array_slice($this->report['campaigns'], 0, 10),
             'rtl' => app()->getLocale() === 'ar',
         ]);

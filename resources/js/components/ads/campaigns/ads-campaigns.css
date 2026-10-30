@@ -7,6 +7,9 @@
   --pf: #004CFF; --pf-soft: #EEF3FF; --pf-ink: #0043E0; --pf-glow: rgba(0, 76, 255, .06); --pf-hover: #F7F9FF;
   --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 8px 24px rgba(16, 24, 40, .03);
   display: flex; flex-direction: column; gap: 16px; min-width: 0; color: var(--text); container-type: inline-size; container-name: adc; }
+/* The app theme sets large heading line-heights; card titles here are compact. */
+.adc h1, .adc h2, .adc h3 { line-height: 1.35; }
+.adc-count { line-height: 1; }
 .adc-sr { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .adc-card { background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); min-width: 0; }
 .adc-pad { padding: 1.1rem 1.2rem; }

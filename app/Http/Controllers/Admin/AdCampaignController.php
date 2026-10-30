@@ -110,6 +110,21 @@ class AdCampaignController extends Controller
         ];
         $data['can_sync'] = in_array($platform, ['facebook', 'openai'], true);
 
+        // Export and scheduled email reports, as on the Meta pages (AdReportController).
+        $data['urls'] += [
+            'export'  => route('admin.ads.campaigns.export', ['platform' => $platform]),
+            'reports' => route('admin.ads.reports.store', ['platform' => $platform]),
+            'report'  => route('admin.ads.reports.update', ['platform' => $platform, 'id' => 0]),
+            'upgrade' => route('admin.subscription.select'),
+        ];
+        $account = $data['connected'] ? \App\Support\AdAccountSelection::resolve(Auth::id(), $platform) : null;
+        $data['reports'] = $account
+            ? \App\Models\AdReportSchedule::where('user_id', Auth::id())->where('social_account_id', $account->id)->where('platform', $platform)->latest('id')->get()
+                ->map(fn ($r) => \App\Http\Controllers\Admin\AdReportController::present($r))->all()
+            : [];
+        $data['recipient_email'] = \App\Http\Controllers\Admin\AdReportController::loginEmail(request());
+        $data['can_export'] = app(\App\Services\PackageAccessService::class)->allows(Auth::user(), 'data_export');
+
         // ChatGPT Ads: no in-app edit form yet
         // (pause / activate / archive cover it - see OpenAiAdService).
         if ($platform === 'openai') {

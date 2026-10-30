@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AdReportSchedule;
 use App\Models\User;
+use App\Services\AdServices\AdsDashboardService;
 use App\Services\AdServices\FacebookReportService;
+use App\Services\AdServices\PlatformReportService;
 use App\Services\AdServices\SocialAdManagerService;
 use App\Support\AdAccountSelection;
 use Illuminate\Http\JsonResponse;
@@ -16,16 +18,22 @@ use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\HeaderUtils;
 
 /**
- * Facebook performance reports: CSV export of the current period and
- * scheduled email reports for the selected ad account. Every schedule is
- * scoped to the workspace owner (UseSellerWorkspace sets Auth to them).
+ * Ad performance reports for every campaigns page: CSV export of the
+ * current period and scheduled email reports for the platform's ad account.
+ * Every schedule is scoped to the workspace owner (UseSellerWorkspace sets
+ * Auth to them).
  */
 class AdReportController extends Controller
 {
     public const MAX_SCHEDULES = 10;
 
-    public function __construct(private SocialAdManagerService $ads, private FacebookReportService $reports)
+    public function __construct(private SocialAdManagerService $ads, private FacebookReportService $reports, private PlatformReportService $platformReports)
     {
+    }
+
+    private static function isMeta(string $platform): bool
+    {
+        return in_array($platform, ['facebook', 'instagram'], true);
     }
 
     /** The email of the person actually signed in (a workspace member's own, not the owner's). */
@@ -62,10 +70,12 @@ class AdReportController extends Controller
     /** CSV of the selected account's current period (same numbers as the page). */
     public function export(Request $request, string $platform)
     {
-        abort_unless(in_array($platform, ['facebook', 'instagram'], true), 404);
+        abort_unless(isset(AdsDashboardService::PLATFORMS[$platform]), 404);
         $days = (int) ($request->validate(['days' => ['nullable', 'integer', Rule::in(AdReportSchedule::PERIODS)]])['days'] ?? 30);
 
-        $result = $this->reports->build($this->ads->service($platform), Auth::id(), $days);
+        $result = self::isMeta($platform)
+            ? $this->reports->build($this->ads->service($platform), Auth::id(), $days)
+            : $this->platformReports->build($platform, Auth::id(), $days);
         if (!$result['success']) {
             return response()->json(['success' => false, 'message' => $result['error']], 422);
         }
@@ -81,7 +91,7 @@ class AdReportController extends Controller
 
     public function store(Request $request, string $platform): JsonResponse
     {
-        abort_unless(in_array($platform, ['facebook', 'instagram'], true), 404);
+        abort_unless(isset(AdsDashboardService::PLATFORMS[$platform]), 404);
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'frequency' => ['required', Rule::in(AdReportSchedule::FREQUENCIES)],
@@ -92,7 +102,7 @@ class AdReportController extends Controller
             'period_days' => ['required', 'integer', Rule::in(AdReportSchedule::PERIODS)],
         ]);
 
-        $account = AdAccountSelection::resolve(Auth::id(), 'facebook');
+        $account = AdAccountSelection::resolve(Auth::id(), self::isMeta($platform) ? 'facebook' : $platform);
         $email = self::loginEmail($request);
         if (!$account || !$email) {
             return response()->json(['success' => false, 'message' => __('ads_campaigns.reports.no_account')], 422);
@@ -153,7 +163,7 @@ class AdReportController extends Controller
 
     private function own(string $platform, int $id): AdReportSchedule
     {
-        abort_unless(in_array($platform, ['facebook', 'instagram'], true), 404);
+        abort_unless(isset(AdsDashboardService::PLATFORMS[$platform]), 404);
 
         return AdReportSchedule::where('user_id', Auth::id())->where('platform', $platform)->findOrFail($id);
     }
