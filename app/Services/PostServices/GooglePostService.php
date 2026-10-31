@@ -625,6 +625,24 @@ class GooglePostService
     /**
      * Delete a post
      */
+    /**
+     * Edit a published local post's text (localPosts.patch, updateMask=summary).
+     */
+    public function editPublished(Post $post, array $data): array
+    {
+        $this->ensureValidToken($post);
+        $account = $post->socialAccount->fresh();
+        $gbpAccountId = $account->metadata['parent_account_id'] ?? '';
+        $endpoint = "{$this->baseUrl}accounts/{$gbpAccountId}/locations/{$account->platform_account_id}/localPosts/{$post->post_id}?updateMask=summary";
+
+        $response = $this->api->request('patch', $endpoint, ['Authorization' => 'Bearer ' . $account->access_token], ['summary' => (string) ($data['content'] ?? '')]);
+        if (!$response->successful()) {
+            return ['success' => false, 'status' => $response->status(), 'message' => $response->json('error.message') ?? 'Google didn’t update the post.'];
+        }
+
+        return ['success' => true, 'status' => $response->status()];
+    }
+
     public function destroy($post)
     {
         $this->ensureValidToken($post);

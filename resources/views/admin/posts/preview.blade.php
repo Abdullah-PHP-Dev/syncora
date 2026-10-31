@@ -18,6 +18,9 @@
     back-url="{{ url('posts/listing') }}"
     preview-url-template="{{ route('admin.posts.preview', ['post' => '__POST__', 'platform' => '__PLATFORM__']) }}"
     duplicate-url="{{ route('admin.posts.composer') }}?duplicate=__POST__"
+    update-url-template="{{ route('admin.posts.update', ['post' => '__POST__']) }}"
+    :messages='@json(__('posts_listing'))'
+    locale="{{ app()->getLocale() }}"
     user-name="{{ auth()->user()->name ?? 'Admin' }}"></post-preview>
 
 @stop

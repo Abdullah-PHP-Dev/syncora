@@ -539,6 +539,9 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::get('posts/data', [PostController::class, 'index'])->name('posts.data');
 				Route::get('posts/{post}/preview/{platform}', [PostController::class, 'preview'])->name('posts.preview');
 				Route::post('posts/quick', [PostController::class, 'quickStore'])->name('posts.quick');
+				// Post management (PostCapabilities decides what each platform allows).
+				Route::post('posts/bulk-delete', [PostController::class, 'bulkDestroy'])->name('posts.bulk-destroy');
+				Route::post('posts/sync', [PostController::class, 'syncFromPlatforms'])->middleware('throttle:6,1')->name('posts.sync');
 				// New Vue-based Create Post page (PostComposer.vue) -
 				// deliberately a separate route from admin.posts.create
 				// (still fully intact below via Route::resource) rather

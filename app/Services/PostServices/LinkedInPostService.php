@@ -751,10 +751,10 @@ class LinkedInPostService
                     'X-Restli-Protocol-Version' => '2.0.0',
                     'X-RestLi-Method' => 'DELETE'
                 ])
-                ->delete("{$this->baseUrl}posts/" . urlencode($post->account_id));
-                   
+                ->delete("{$this->baseUrl}posts/" . urlencode($post->post_id));
+
             if (!$response->successful()) {
-                return $this->errorResponse($post, $response);
+                return ['success' => false, 'status' => $response->status(), 'message' => $this->extractErrorMessage($response)];
             }
 
             return [
@@ -771,16 +771,27 @@ class LinkedInPostService
             ];
         }
     }
-
     /**
-     * Update post (Not supported by LinkedIn API)
+     * Edit a published post's text (Posts API PARTIAL_UPDATE of commentary;
+     * learn.microsoft.com/linkedin/marketing/community-management/shares/posts-api).
+     * Media and the article link can't be changed.
      */
-    public function updatePost(): array
+    public function editPublished(Post $post, array $data): array
     {
-        return [
-            'success' => false,
-            'message' => 'LinkedIn API does not support editing posts',
-        ];
+        $this->ensureValidToken($post);
+        $response = Http::withToken($post->socialAccount->fresh()->access_token)
+            ->withHeaders([
+                'LinkedIn-Version' => $this->linkedinVersion,
+                'X-Restli-Protocol-Version' => '2.0.0',
+                'X-RestLi-Method' => 'PARTIAL_UPDATE',
+            ])
+            ->post("{$this->baseUrl}posts/" . urlencode($post->post_id), ['patch' => ['$set' => ['commentary' => (string) ($data['content'] ?? '')]]]);
+
+        if (!$response->successful()) {
+            return ['success' => false, 'status' => $response->status(), 'message' => $this->extractErrorMessage($response)];
+        }
+
+        return ['success' => true, 'status' => $response->status()];
     }
 
     public function getComments($postId, $account)

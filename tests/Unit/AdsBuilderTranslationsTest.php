@@ -35,7 +35,7 @@ class AdsBuilderTranslationsTest extends TestCase
         'ads_campaigns' => 'resources/js/components/ads/campaigns/*.vue',
         'media_gallery' => 'resources/js/components/media/MediaGallery.vue',
         'composer' => 'resources/js/components/posts/composer/*.vue',
-        'posts_listing' => 'resources/js/components/posts/PostsDashboard.vue',
+        'posts_listing' => 'resources/js/components/posts/{PostsDashboard,PostEditDialog,PostDeleteDialog,PostPreview}.vue',
         'connections' => 'resources/js/components/connections/ConnectionHub.vue',
         'email_designer' => 'resources/js/components/email/{*.vue,designer/*.vue}',
     ];

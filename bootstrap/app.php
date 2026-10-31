@@ -96,6 +96,11 @@ return tap(
             // sync preference - see SyncGoogleSuites.
             $schedule->command('google-suite:sync')->hourlyAt(20)->withoutOverlapping();
 
+            // Publishes posts whose time has come (immediate and scheduled).
+            // PublishPosts claims each post before sending, so a second
+            // runner (e.g. a server cron calling it directly) can't double-post.
+            $schedule->command('social:publish-posts')->everyMinute()->withoutOverlapping(10);
+
             // Scheduled ad performance reports (Facebook campaigns page).
             $schedule->command('ads:send-reports')->everyFifteenMinutes()->withoutOverlapping();
 

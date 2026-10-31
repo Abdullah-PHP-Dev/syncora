@@ -30,6 +30,13 @@ return [
         'oldest_first' => 'Oldest First',
         'grid_view' => 'Grid view',
         'list_view' => 'List view',
+        'sync' => 'Sync from platforms',
+        'syncing' => 'Syncing…',
+        'select' => 'Select',
+        'cancel_select' => 'Cancel',
+        'next_scheduled' => 'Next scheduled',
+        'selected' => ':count selected',
+        'delete_selected' => 'Delete selected',
     ],
 
     'status' => [
@@ -40,6 +47,7 @@ return [
         'processing' => 'Processing',
         'in_progress' => 'In progress',
         'draft' => 'Draft',
+        'publishing' => 'Publishing',
     ],
 
     'list' => [
@@ -54,6 +62,17 @@ return [
         'showing' => 'Showing :from - :to of :total Posts',
         'previous' => 'Previous page',
         'next' => 'Next page',
+        'edit' => 'Edit',
+        'edit_on' => 'Edit on :platform',
+        'delete' => 'Delete',
+        'delete_from' => 'Delete from :platform',
+        'remove_local' => 'Remove from SocialEaz',
+        'open_on' => 'Open on :platform',
+        'no_actions' => 'Edit and delete aren’t available for this post',
+        'select_post' => 'Select :title',
+        'published_on' => 'Published :date',
+        'scheduled_for' => 'Scheduled for :date',
+        'created_on' => 'Created :date',
     ],
 
     'quick' => [
@@ -81,5 +100,73 @@ return [
         'generic_error' => 'Something went wrong while posting.',
         'snapchat_note' => 'Snapchat has no auto-publish API - share this post manually instead:',
         'share_snapchat' => 'Share to Snapchat',
+    ],
+
+    // Edit and delete (PostCapabilities / PostManager).
+    'caps' => [
+        'in_progress' => 'This post is being published right now - try again in a minute.',
+        'no_platform_id' => 'SocialEaz has no platform ID for this post, so it can’t be changed on the platform.',
+        'instagram_login' => 'Instagram only lets apps delete posts of accounts connected through Facebook. Reconnect this account with Facebook to delete posts from SocialEaz.',
+        'no_edit' => 'This platform doesn’t allow editing published posts through its API.',
+        'platform_read_only' => 'This platform’s API doesn’t allow editing or deleting published posts.',
+        'local_only' => 'Delivered WhatsApp messages can’t be recalled - this only removes the post from SocialEaz.',
+        'missing_permission' => 'This account hasn’t given SocialEaz permission to delete its posts. An admin must enable the platform’s delete permission for SocialEaz, then the account needs reconnecting.',
+    ],
+
+    'manage' => [
+        'not_found' => 'Post not found.',
+        'deleted' => 'Post deleted.',
+        'deleted_platform' => 'Post deleted from the platform and SocialEaz.',
+        'delete_failed_platform' => 'The platform didn’t delete the post: :reason',
+        'updated' => 'Post updated.',
+        'updated_platform' => 'Post updated on the platform.',
+        'update_failed_platform' => 'The platform didn’t update the post: :reason',
+        'no_reason' => 'no reason was given',
+        'bulk_result' => ':deleted deleted, :failed couldn’t be deleted.',
+        'schedule_too_soon' => 'Pick a time at least 10 minutes from now.',
+        'sync_none' => 'No connected account supports importing posts yet (Facebook, Instagram, LinkedIn, YouTube or TikTok).',
+        'sync_done' => 'Imported :added new posts from :accounts accounts.',
+    ],
+
+    'edit' => [
+        'title' => 'Edit post',
+        'title_on' => 'Edit :platform post',
+        'field_title' => 'Title',
+        'field_content' => 'Text',
+        'field_schedule' => 'Publish at',
+        'timezone' => 'Your time zone: :zone',
+        'note_local' => 'Changes apply before the post goes out. To change photos or videos, duplicate it in the composer.',
+        'note_facebook' => 'Facebook lets you change the text only - photos, videos and links stay as they are.',
+        'note_google' => 'Updates the post text. Photos and the button stay as they are.',
+        'note_youtube' => 'Updates the video’s title and description. Tags, category and the video itself don’t change.',
+        'note_linkedin' => 'Updates the text only - images, videos and links stay as they are.',
+        'save' => 'Save changes',
+        'saving' => 'Saving…',
+        'cancel' => 'Cancel',
+    ],
+
+    'confirm' => [
+        'delete_title' => 'Delete this post?',
+        'delete_platform' => 'It’s deleted on :platform and in SocialEaz. This can’t be undone.',
+        'delete_local' => 'It’s removed from SocialEaz. It hasn’t been published, so nothing changes on :platform.',
+        'delete_whatsapp' => 'It’s removed from SocialEaz. Messages already delivered stay in recipients’ chats.',
+        'bulk_title' => '{1} Delete 1 post?|[2,*] Delete :count posts?',
+        'bulk_text' => 'Each post is deleted on its platform first where the platform allows it. This can’t be undone.',
+        'bulk_skipped' => '{1} 1 selected post can’t be deleted and will be skipped.|[2,*] :count selected posts can’t be deleted and will be skipped.',
+        'delete' => 'Delete',
+        'deleting' => 'Deleting…',
+        'cancel' => 'Cancel',
+    ],
+
+    'details' => [
+        'title' => 'Post details',
+        'account' => 'Account',
+        'status' => 'Status',
+        'date' => 'Date',
+        'platform_id' => 'Platform post ID',
+        'url' => 'Post link',
+        'open' => 'Open',
+        'none' => '—',
+        'manage' => 'Manage',
     ],
 ];

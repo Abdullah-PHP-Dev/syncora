@@ -67,7 +67,7 @@
               </div>
 
               <!-- Caption above media (Facebook / X / LinkedIn) -->
-              <div v-if="captionFirst" class="mk-text">{{ post.content }}</div>
+              <div v-if="captionFirst" class="mk-text">{{ shownContent }}</div>
 
               <!-- Media / carousel -->
               <div v-if="mediaList.length" class="mk-media" :class="{'is-rounded': activeKey === 'x'}">
@@ -103,7 +103,7 @@
                   <i class="far fa-bookmark mk-push"></i>
                 </div>
                 <div class="mk-likes">{{ fmt(engagement.reactionsTotal) }} likes</div>
-                <div class="mk-text"><strong>{{ activePlatform.page }}</strong> {{ post.content }}</div>
+                <div class="mk-text"><strong>{{ activePlatform.page }}</strong> {{ shownContent }}</div>
                 <div class="mk-link comments-toggle" @click="openComments">
                   {{ engagement.commentsCount ? 'View all ' + engagement.commentsCount + ' comments' : 'Add a comment…' }}
                 </div>
@@ -143,7 +143,7 @@
 
               <!-- TikTok / YouTube / others -->
               <template v-else>
-                <div class="mk-text">{{ post.content }}</div>
+                <div class="mk-text">{{ shownContent }}</div>
                 <div class="mk-actions">
                   <span><i class="fas fa-heart"></i> {{ fmt(engagement.reactionsTotal) }}</span>
                   <span class="comments-toggle" @click="openComments"><i class="fas fa-comment-dots"></i> {{ fmt(engagement.commentsCount) }}</span>
@@ -214,9 +214,28 @@
                     <button type="button" role="menuitem" @click="switchPlatform(p); openMenu = null"><i class="far fa-eye"></i> Preview here</button>
                     <a v-if="post.platformUrls[p.post_id] && post.platformUrls[p.post_id] !== '#'" :href="post.platformUrls[p.post_id]" target="_blank" rel="noopener noreferrer" role="menuitem"><i class="fas fa-external-link-alt"></i> Open on {{ p.name }}</a>
                     <a v-if="duplicateUrl" :href="duplicateUrl.replace('__POST__', p.post_id)" role="menuitem"><i class="far fa-copy"></i> Duplicate</a>
+                    <button v-if="updateUrlTemplate && p.capabilities && p.capabilities.can_edit" type="button" role="menuitem" @click="editTarget = p; openMenu = null"><i class="far fa-edit"></i> {{ t('list.edit') }}</button>
+                    <button v-if="updateUrlTemplate && p.capabilities && p.capabilities.can_delete" type="button" role="menuitem" class="pp-danger" @click="deleteTargets = [p]; openMenu = null"><i class="far fa-trash-alt"></i> {{ p.capabilities.delete_remote || p.state !== 'published' ? t('list.delete') : t('list.remove_local') }}</button>
                   </div>
                 </div>
               </div>
+            </div>
+          </section>
+
+          <!-- Platform record of the active post, and what can be done with it -->
+          <section class="pp-card pp-details">
+            <div class="pp-card-head"><div><h2>{{ t('details.title') }}</h2><p>{{ activePlatform.name }}</p></div></div>
+            <dl class="pp-facts">
+              <div><dt>{{ t('details.account') }}</dt><dd dir="auto">{{ activePlatform.page || t('details.none') }}</dd></div>
+              <div><dt>{{ t('details.status') }}</dt><dd><span class="pp-status" :class="'is-' + activeStatus.tone">{{ t('status.' + (activePlatform.state || 'draft')) }}</span></dd></div>
+              <div><dt>{{ t('details.date') }}</dt><dd>{{ activeDate || t('details.none') }}</dd></div>
+              <div><dt>{{ t('details.platform_id') }}</dt><dd class="pp-mono">{{ activePlatform.platform_post_id || t('details.none') }}</dd></div>
+              <div><dt>{{ t('details.url') }}</dt><dd><a v-if="activeUrl" :href="activeUrl" target="_blank" rel="noopener noreferrer">{{ t('details.open') }} <i class="fas fa-external-link-alt"></i></a><template v-else>{{ t('details.none') }}</template></dd></div>
+            </dl>
+            <div v-if="updateUrlTemplate && activePlatform.capabilities" class="pp-manage">
+              <button v-if="activePlatform.capabilities.can_edit" type="button" class="pp-btn pp-btn-ghost pp-btn-sm" @click="editTarget = activePlatform"><i class="far fa-edit"></i> {{ t('list.edit') }}</button>
+              <button v-if="activePlatform.capabilities.can_delete" type="button" class="pp-btn pp-btn-ghost pp-btn-sm pp-danger" @click="deleteTargets = [activePlatform]"><i class="far fa-trash-alt"></i> {{ activePlatform.capabilities.delete_remote || activePlatform.state !== 'published' ? t('list.delete') : t('list.remove_local') }}</button>
+              <p v-if="activePlatform.capabilities.reason" class="pp-manage-note"><i class="fas fa-info-circle"></i> {{ t('caps.' + activePlatform.capabilities.reason) }}</p>
             </div>
           </section>
 
@@ -335,11 +354,18 @@
 
     </template>
 
+
+    <post-edit-dialog v-if="editTarget" :i18n="i18n" :target="editTarget" :update-url-template="updateUrlTemplate" @close="editTarget = null" @saved="onEdited" />
+    <post-delete-dialog v-if="deleteTargets.length" :i18n="i18n" :targets="deleteTargets" :destroy-url-template="updateUrlTemplate" @close="deleteTargets = []" @done="onDeleted" />
+
   </div>
 </template>
 
 <script>
 import { platformMeta, reactionKindsByPlatform, brandVars } from '../../data/mockPosts';
+import { createTranslator } from '../ads/facebook/i18n';
+import PostEditDialog from './PostEditDialog.vue';
+import PostDeleteDialog from './PostDeleteDialog.vue';
 
 const avatarPalette = ['#F59E0B', '#3B82F6', '#EC4899', '#10B981', '#8B5CF6', '#EF4444', '#14B8A6', '#6366F1'];
 
@@ -400,13 +426,36 @@ export default {
     duplicateUrl: {
       type: String,
       default: ''
+    },
+
+    // PATCH/DELETE posts/{post} with __POST__ (empty hides Edit and Delete).
+    updateUrlTemplate: {
+      type: String,
+      default: ''
+    },
+
+    messages: {
+      type: Object,
+      default: () => ({})
+    },
+
+    locale: {
+      type: String,
+      default: 'en'
     }
 
+  },
+
+  components: {
+    PostEditDialog,
+    PostDeleteDialog
   },
 
   data() {
 
     return {
+      editTarget: null,
+      deleteTargets: [],
       post: null,
       // Row / comment menus: 'p{postId}' or 'c{commentId}', one open at a time.
       openMenu: null,
@@ -500,6 +549,27 @@ export default {
     },
 
     // The raw per-platform Post row (status, dates, media, error).
+    i18n() {
+      return createTranslator(this.messages, this.locale);
+    },
+
+    // The active platform's own text - an edit on one platform changes only it.
+    shownContent() {
+      const own = this.activeMember.content;
+      return own !== undefined && own !== null ? own : this.post.content;
+    },
+
+    activeUrl() {
+      const url = this.post && this.post.platformUrls[this.activeId];
+      return url && url !== '#' ? url : null;
+    },
+
+    activeDate() {
+      const p = this.activePlatform;
+      const iso = p.state === 'published' ? p.published_at : p.schedule_at;
+      return iso ? new Date(iso).toLocaleString(this.locale === 'ar' ? 'ar' : undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+    },
+
     activeMember() {
 
       if (!this.post) return {};
@@ -703,7 +773,13 @@ export default {
           handle: member.account_handle || '',
           avatar: member.account_avatar || null,
           status: member.raw_status || (member.status || '').toLowerCase(),
-          scheduled: !!member.scheduled_label
+          scheduled: !!member.scheduled_label,
+          // Management (PostController::managementFields / PostCapabilities).
+          ...(() => {
+            const m = (member.platforms && member.platforms[0]) || {};
+            return { state: m.state, capabilities: m.capabilities || null, platform_post_id: m.platform_post_id || null, published_at: m.published_at || null,
+              schedule_at: m.schedule_at || null, title: member.title, content: member.content, color: meta.color, label: meta.name };
+          })()
         });
 
         const kinds = reactionKindsByPlatform[key] || reactionKindsByPlatform.facebook;
@@ -807,6 +883,42 @@ export default {
     // target: an element id - "comments", or "comment-{id}" to land on one
     // thread (highlighted briefly). Falls back to the section if that
     // comment isn't on this platform's post.
+    t(key, params) {
+      return this.i18n.t(key, params);
+    },
+
+    notify(message, ok) {
+      if (window.Swal) {
+        window.Swal.fire({ toast: true, position: 'top-end', timer: 3500, showConfirmButton: false, icon: ok ? 'success' : 'error', title: message });
+      } else {
+        window.alert(message);
+      }
+    },
+
+    onEdited(data) {
+      const target = this.editTarget;
+      this.editTarget = null;
+      this.notify(data.message, true);
+      if (data.post && target) {
+        const member = this.post.members[target.post_id];
+        if (member) { member.content = data.post.content; member.title = data.post.title; }
+        Object.assign(target, { title: data.post.title, content: data.post.content, capabilities: data.post.capabilities, schedule_at: data.post.schedule_at, state: data.post.state });
+      }
+    },
+
+    onDeleted(data) {
+      const removed = this.deleteTargets.map(x => x.post_id);
+      this.deleteTargets = [];
+      this.notify(data.message, true);
+      this.post.platforms = this.post.platforms.filter(p => !removed.includes(p.post_id));
+      // Nothing of this post left here - back to the listing.
+      if (!this.post.platforms.length) {
+        setTimeout(() => { window.location.href = this.backUrl; }, 900);
+        return;
+      }
+      if (removed.includes(this.activeId)) this.switchPlatform(this.post.platforms[0]);
+    },
+
     openComments(target = 'comments') {
 
       this.showComments = true;
@@ -1481,4 +1593,13 @@ export default {
   .pp-stage-card .pp-kpis{ grid-template-columns:repeat(3, minmax(0, 1fr)); }
   .pp-stage{ padding:12px; }
 }
+.pp-facts{ display:grid; gap:10px; margin:0; }
+.pp-facts div{ display:flex; justify-content:space-between; gap:12px; font-size:13px; }
+.pp-facts dt{ font-weight:500; color:#8A92A3; }
+.pp-facts dd{ margin:0; color:#161B2B; text-align:end; overflow-wrap:anywhere; }
+.pp-facts a{ color:#004CFF; font-weight:600; text-decoration:none; }
+.pp-mono{ font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; }
+.pp-manage{ display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid #F1F3F7; }
+.pp-manage-note{ flex-basis:100%; margin:0; font-size:12px; color:#8A92A3; line-height:1.45; }
+.pp-danger{ color:#DC2626 !important; }
 </style>

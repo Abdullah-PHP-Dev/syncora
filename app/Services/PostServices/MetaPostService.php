@@ -895,7 +895,7 @@ protected function publishPostOnMeta($post, $account)
 
     public function destroy($post)
     {
-        $this->ensureValidToken($post);
+        $this->ensureValidToken($post, false);
         $endpoint = $this->baseUrl . $post->post_id;
 
         $response = $this->api->request(
@@ -920,61 +920,26 @@ protected function publishPostOnMeta($post, $account)
         ];
     }
 
-    public function updatePost($postId, $data, $token)
+    /**
+     * Edit the text of a published Page post (POST /{page-post-id} message,
+     * developers.facebook.com/docs/pages-api/posts). Meta only lets an app
+     * edit posts it made, and the attached media can't be replaced.
+     */
+    public function editPublished(Post $post, array $data): array
     {
-        $account = SocialPost::with('mediaAccount')->wherePagePostId($postId)->first();
-        $this->ensureValidToken($account);
-        $url = '';
-        $endpoint = '';
-        $payload = [
-            'message' => $data['content'],
-        ];
-
-        if (!empty($data['schedule_mode']) && $data['schedule_mode'] === 'on') {
-            $payload['published'] = false;
-            $payload['scheduled_publish_time'] = Carbon::parse($data['schedule_at'])->timestamp;
-        }
-
-        if (isset($data['media'])) {
-            $extension = strtolower($data['media']->getClientOriginalExtension());
-            $fileName = time() . '.' . $extension;
-            $s3Path = "uploads/meta/media/{$fileName}";
-            Storage::disk('r2')->put(
-                $s3Path,
-                file_get_contents($data['media']->getRealPath()),
-                ['visibility' => 'public']
-            );
-
-            $url = Storage::disk('r2')->url($s3Path);
-
-            if (isset($url)) {
-                $endpoint = "https://graph.facebook.com/v25.0/{$postId}";
-                $payload['url'] = $url;
-            }
-        } else if (isset($data['url'])) {
-            $endpoint = "https://graph.facebook.com/v25.0/{$postId}";
-            $payload['link'] = $data['url'];
-        }
-
-        $response = $this->api->request(
-            'post',
-            $endpoint . "?access_token={$token}",
-            ['Content-Type' => 'application/json'],
-            $payload,
-            'form'
-        );
+        $this->ensureValidToken($post, false);
+        $response = $this->api->request('post', $this->baseUrl . $post->post_id, [], [
+            'message' => (string) ($data['content'] ?? ''),
+            'access_token' => $post->socialAccount->fresh()->access_token,
+        ], 'form');
 
         if (!$response->successful()) {
-            return [
-                'success' => false,
-                'message' => $response->json()['error']['message'] ?? 'Unknown error'
-            ];
+            $error = $response->json('error') ?? [];
+
+            return ['success' => false, 'status' => $response->status(), 'message' => $error['error_user_msg'] ?? $error['message'] ?? 'Facebook didn’t update the post.'];
         }
 
-        return [
-            'success' => true,
-            'data' => $response->json()
-        ];
+        return ['success' => true, 'status' => $response->status()];
     }
 
     /**

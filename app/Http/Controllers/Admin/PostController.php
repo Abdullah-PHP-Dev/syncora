@@ -31,6 +31,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use App\Services\PostServices\PostManager;
+use App\Support\PostCapabilities;
 
 class PostController extends Controller
 {
@@ -463,7 +465,7 @@ class PostController extends Controller
      */
     private function buildPostsQuery(Request $request, int $userId)
     {
-        $query = Post::with(['socialAccount', 'media', 'user'])
+        $query = Post::with(['socialAccount.connection', 'media', 'user'])
             ->where('user_id', $userId)
             ->whereIn('id', function ($sub) use ($userId) {
                 $sub->selectRaw('MIN(id)')
@@ -479,8 +481,17 @@ class PostController extends Controller
             });
         }
 
-        if ($status = $request->input('status')) {
-            $query->where('status', strtolower($status));
+        // Filter by what the listing shows (PostCapabilities::state()), not raw
+        // statuses: published posts are stored as 'completed', scheduled ones
+        // as 'pending' with a future time.
+        if ($status = strtolower((string) $request->input('status'))) {
+            match ($status) {
+                'published' => $query->whereIn('status', ['completed', 'published']),
+                'scheduled' => $query->whereIn('status', ['pending', 'scheduled'])->where('schedule_mode', 1)->where('schedule_at', '>', now()),
+                'pending' => $query->whereIn('status', ['pending', 'scheduled'])->where(fn ($q) => $q->where('schedule_mode', 0)->orWhereNull('schedule_at')->orWhere('schedule_at', '<=', now())),
+                'processing' => $query->whereIn('status', ['processing', 'in_progress', 'PROCESSING', 'IN_PROGRESS']),
+                default => $query->where('status', $status),
+            };
         }
 
         if ($platform = $request->input('platform')) {
@@ -500,7 +511,12 @@ class PostController extends Controller
             });
         }
 
-        $query->orderBy('created_at', $request->input('sort') === 'oldest' ? 'asc' : 'desc');
+        match ($request->input('sort')) {
+            'oldest' => $query->orderBy('created_at', 'asc'),
+            // Next to go out first; posts without a time after them.
+            'schedule' => $query->orderByRaw('schedule_at IS NULL')->orderBy('schedule_at'),
+            default => $query->orderBy('created_at', 'desc'),
+        };
 
         return $query;
     }
@@ -522,13 +538,13 @@ class PostController extends Controller
             return [];
         }
 
-        $siblings = Post::with('socialAccount')
+        $siblings = Post::with('socialAccount.connection')
             ->where('user_id', $userId)
             ->where(function ($q) use ($groupKeys) {
                 $q->whereIn('group_id', $groupKeys)
                     ->orWhereIn('id', $groupKeys);
             })
-            ->get(['id', 'group_id', 'platform', 'status', 'post_url', 'social_account_id']);
+            ->get(['id', 'group_id', 'platform', 'status', 'post_url', 'post_id', 'social_account_id', 'schedule_mode', 'schedule_at', 'created_at', 'title', 'content']);
 
         $map = [];
 
@@ -549,7 +565,7 @@ class PostController extends Controller
                     'account_name'     => $sibling->socialAccount->name ?? $sibling->socialAccount->username ?? null,
                     'account_username' => $sibling->socialAccount->username ?? null,
                     'account_avatar'   => $sibling->socialAccount->avatar_url ?? null,
-                ])
+                ] + $this->managementFields($sibling))
                 ->values()
                 ->all();
         }
@@ -663,7 +679,7 @@ class PostController extends Controller
     {
         return Post::with([
             'user',
-            'socialAccount',
+            'socialAccount.connection',
             'media',
             'postComments' => function ($query) {
                 $query->topLevel()->with('replies');
@@ -918,7 +934,7 @@ class PostController extends Controller
             'account_name'     => $post->socialAccount->name ?? $post->socialAccount->username ?? null,
             'account_username' => $post->socialAccount->username ?? null,
             'account_avatar'   => $post->socialAccount->avatar_url ?? null,
-        ]];
+        ] + $this->managementFields($post)];
 
         return [
             'id' => $post->id,
@@ -1687,6 +1703,10 @@ class PostController extends Controller
         $userId = Auth::id();
         $quickPlatforms = ['facebook', 'instagram', 'x', 'linkedin', 'tiktok', 'youtube'];
         $scheduleMode = $request->boolean('schedule_mode');
+        // Typed in the browser's time zone (sent alongside); stored in app time.
+        if ($scheduleMode && is_string($request->input('schedule_at')) && strtotime($request->input('schedule_at')) !== false) {
+            $request->merge(['schedule_at' => self::toAppTime($request->input('schedule_at'), $request->input('timezone'))->toDateTimeString()]);
+        }
 
         $validated = $request->validate([
             'title' => ['nullable', 'string', 'max:' . \App\Support\PlatformTextLimits::MAX_TITLE],
@@ -1827,114 +1847,163 @@ class PostController extends Controller
         ]);
     }
 
+    /**
+     * Delete one post of the signed-in seller: removed on the platform first
+     * where its API allows (PostCapabilities), then here.
+     */
     public function destroy($postId)
     {
-        $post = Post::with('socialAccount', 'postComments' ,'media')->find($postId);
-        $error = [];
+        $post = Post::with('socialAccount')->where('user_id', Auth::id())->find($postId);
         if (!$post) {
-            return response()->json([
-                'success' => false,
-                'data' => 'Post not found'
-            ], 404);
+            return response()->json(['success' => false, 'message' => __('posts_listing.manage.not_found')], 404);
         }
 
-        try {
-            switch ($post->platform) {
-                case 'facebook':
-                    $response = $this->metaService->destroy($post);
-                    break;
-                case 'instagram':
-                   
-                    $response = $this->instagramService->destroy($post);
-                    break;
-                case 'x':
-                
-                    $response = $this->xService->destroy($post);
-                    break;
-                case 'google':
-            
-                    $response = $this->googleService->destroy($post);
-                    break;
-                case 'youtube':
-        
-                    $response = $this->youtubeService->destroy($post);
-                    break;
-                // case 'tiktok':
-    
-                //     $response = $this->tiktokService->destroy($post);
-                //     break;
-                case 'linkedin':
-                    $response = $this->linkedinService->destroy($post);
-                    break;
-                case 'whatsapp':
-                    $response = $this->whatsappService->destroy($post);
-                    break;
-                case 'threads':
-                    $response = $this->threadsService->destroy($post);
-                    break;
-                case 'pinterest':
-                    $response = $this->pinterestService->destroy($post);
-                    break;
-                default:
-                    return response()->json([
-                        'success' => false,
-                        'data' => "Unsupported platform: {$post->platform}"
-                    ], 400);
-            }
-           
-            // Check external API response
-            if ((!$response || !$response['success']) && !in_array($response['status'], ['400', '404'])) {
-                return response()->json([
-                    'success' => false,
-                    'data' => 'Failed to delete post from platform',
-                    'error' => $response['message'] ?? $response['error']
-                ], 500);
-            }
-      
-            // Delete locally - reference-aware: a media_url can be shared
-            // by other PostMedia rows (other platforms in the same quick-
-            // post batch, or any other post that happens to reference the
-            // same file), since PostController::uploadQuickPostMedia()
-            // uploads once and every platform's Post/PostMedia rows point
-            // at the same URL. Only delete from R2 once nothing else does.
-            if (count($post->media)) {
-                foreach ($post->media as $media) {
-                    $stillReferenced = PostMedia::where('media_url', $media->media_url)
-                        ->where('id', '!=', $media->id)
-                        ->exists();
+        $result = app(PostManager::class)->delete($post);
 
-                    if ($stillReferenced) {
-                        continue;
-                    }
+        return response()->json($result, $result['success'] ? 200 : 422);
+    }
 
-                    // Media Gallery files belong to the gallery: kept while
-                    // the item is still in the gallery, purged here only if
-                    // it was already removed from the gallery.
-                    if (app(MediaAssetService::class)->releaseIfOrphaned($media->media_url, $media->id)) {
-                        continue;
-                    }
+    /** Delete several posts; each goes through the same rules as destroy(). */
+    public function bulkDestroy(Request $request)
+    {
+        $ids = $request->validate(['ids' => ['required', 'array', 'min:1', 'max:50'], 'ids.*' => ['integer']])['ids'];
+        $posts = Post::with('socialAccount')->where('user_id', Auth::id())->whereIn('id', $ids)->get()->keyBy('id');
+        $manager = app(PostManager::class);
 
-                    $path = parse_url($media->media_url, PHP_URL_PATH);
-                    if ($path) {
-                        $path = ltrim($path, '/');
-                        Storage::disk('r2')->delete($path);
-                    }
-                }
-            }
-            $post->delete();
-          
-            return response()->json([
-                'success' => true,
-                'data' => 'Post deleted successfully'
-            ]);
-    
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'data' => 'Something went wrong',
-                'error' => $e->getMessage()
-            ], 500);
+        $results = collect($ids)->unique()->map(fn ($id) => ['id' => (int) $id] + ($posts->has($id)
+            ? $manager->delete($posts[$id])
+            : ['success' => false, 'message' => __('posts_listing.manage.not_found')]))->values();
+        $deleted = $results->where('success', true)->count();
+
+        return response()->json([
+            'success' => $deleted > 0,
+            'deleted' => $deleted,
+            'failed' => $results->count() - $deleted,
+            'results' => $results,
+            'message' => __('posts_listing.manage.bulk_result', ['deleted' => $deleted, 'failed' => $results->count() - $deleted]),
+        ], $deleted > 0 ? 200 : 422);
+    }
+
+    /**
+     * Edit a post: a scheduled or draft post's text, title and time here; a
+     * published post's text on the platform where its API allows it.
+     */
+    public function update(Request $request, $postId)
+    {
+        $post = Post::with('socialAccount')->where('user_id', Auth::id())->find($postId);
+        if (!$post) {
+            return response()->json(['success' => false, 'message' => __('posts_listing.manage.not_found')], 404);
         }
+
+        $caps = PostCapabilities::for($post);
+        if (!$caps['can_edit']) {
+            return response()->json(['success' => false, 'message' => __('posts_listing.caps.' . ($caps['reason'] ?? 'platform_read_only'))], 422);
+        }
+
+        $fields = $caps['edit_fields'];
+        $validated = $request->validate(array_intersect_key([
+            'title' => ['sometimes', 'nullable', 'string', 'max:' . \App\Support\PlatformTextLimits::MAX_TITLE],
+            'content' => ['sometimes', 'nullable', 'string', 'max:' . \App\Support\PlatformTextLimits::MAX_CONTENT],
+            // A scheduled post keeps a time - clearing it would publish it at once.
+            'schedule_at' => ['sometimes', 'required', 'date'],
+            'timezone' => ['nullable', 'timezone:all'],
+        ], array_flip(array_merge($fields, ['timezone']))));
+
+        if (array_key_exists('schedule_at', $validated) && $validated['schedule_at']) {
+            $validated['schedule_at'] = self::toAppTime($validated['schedule_at'], $validated['timezone'] ?? null);
+            if ($validated['schedule_at']->lt(now()->addMinutes(10))) {
+                return response()->json(['success' => false, 'message' => __('posts_listing.manage.schedule_too_soon')], 422);
+            }
+        }
+        unset($validated['timezone']);
+
+        $limitProblems = \App\Support\PlatformTextLimits::check([$post->platform], [], (string) ($validated['content'] ?? $post->content ?? ''), $validated['title'] ?? $post->title, Auth::id());
+        if ($limitProblems) {
+            return response()->json(['success' => false, 'message' => collect($limitProblems)->flatten()->first()], 422);
+        }
+
+        $result = app(PostManager::class)->update($post, $validated);
+
+        return response()->json($result + ['post' => $result['success'] ? $this->managedPost($post->fresh(['socialAccount'])) : null], $result['success'] ? 200 : 422);
+    }
+
+    /**
+     * Pull recent posts made outside SocialEaz from the connected accounts
+     * whose platforms offer it (Facebook, Instagram, LinkedIn, YouTube, TikTok).
+     */
+    public function syncFromPlatforms()
+    {
+        $userId = Auth::id();
+        $before = Post::where('user_id', $userId)->count();
+        $synced = [];
+        $failed = [];
+
+        $accounts = SocialAccount::where('user_id', $userId)->usableFor('posting')
+            ->whereIn('platform', ['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok'])->get();
+        foreach ($accounts as $account) {
+            try {
+                match ($account->platform) {
+                    'facebook' => $this->metaService->backfillRecentPosts($account, 10),
+                    'instagram' => $this->instagramService->backfillRecentPosts($account, 10),
+                    'linkedin' => $this->linkedinService->backfillRecentPosts($account, 10),
+                    'youtube' => $this->youtubeService->backfillRecentPosts($account, 10, 5),
+                    'tiktok' => $this->tiktokService->backfillRecentPosts($account, 10),
+                };
+                $synced[] = $account->name ?: $account->username;
+            } catch (\Throwable $e) {
+                Log::warning('Post sync failed', ['account' => $account->id, 'error' => $e->getMessage()]);
+                $failed[] = $account->name ?: $account->username;
+            }
+        }
+        $added = Post::where('user_id', $userId)->count() - $before;
+
+        return response()->json([
+            'success' => $synced !== [] || $accounts->isEmpty(),
+            'added' => $added,
+            'accounts' => count($synced),
+            'failed' => $failed,
+            'message' => $accounts->isEmpty() ? __('posts_listing.manage.sync_none') : __('posts_listing.manage.sync_done', ['added' => $added, 'accounts' => count($synced)]),
+        ]);
+    }
+
+    /**
+     * A schedule time as typed in the browser (no offset) is in the seller's
+     * own time zone; the app stores and runs schedules in app time.
+     */
+    public static function toAppTime(string $value, ?string $timezone): \Carbon\Carbon
+    {
+        $zone = $timezone && in_array($timezone, \DateTimeZone::listIdentifiers(), true) ? $timezone : config('app.timezone');
+
+        return \Carbon\Carbon::parse($value, $zone)->setTimezone(config('app.timezone'));
+    }
+
+    /** State, dates and allowed actions of one platform post, for the listing cards. */
+    private function managementFields(Post $post): array
+    {
+        return [
+            'title' => $post->title,
+            'content' => $post->content,
+            'state' => PostCapabilities::state($post),
+            'platform_post_id' => $post->post_id,
+            'schedule_at' => $post->schedule_mode ? $post->schedule_at?->toIso8601String() : null,
+            // No publish timestamp is stored: a post goes out at its schedule time, else when created.
+            'published_at' => PostCapabilities::state($post) === 'published' ? (($post->schedule_mode ? $post->schedule_at : null) ?? $post->created_at)?->toIso8601String() : null,
+            'capabilities' => PostCapabilities::for($post),
+        ];
+    }
+
+    /** What the listing and preview need to manage one platform post. */
+    private function managedPost(Post $post): array
+    {
+        return [
+            'id' => $post->id,
+            'platform' => $post->platform,
+            'title' => $post->title,
+            'content' => $post->content,
+            'state' => PostCapabilities::state($post),
+            'schedule_at' => $post->schedule_mode ? $post->schedule_at?->toIso8601String() : null,
+            'capabilities' => PostCapabilities::for($post),
+        ];
     }
 
     public function show($postId, Request $request)

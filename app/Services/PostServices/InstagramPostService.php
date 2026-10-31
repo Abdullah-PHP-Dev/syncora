@@ -1104,11 +1104,12 @@ class InstagramPostService
     public function destroy($post)
     {
         $this->ensureValidToken($post);
-        $endpoint = $this->resolveBaseUrl($post->socialAccount) . $post->post_id;
+        $account = $post->socialAccount->fresh();
+        $endpoint = $this->resolveBaseUrl($account) . $post->post_id;
 
         $response = $this->api->request(
             'delete',
-            $endpoint . "?access_token={$post->socialAccount->access_token}",
+            $endpoint . '?' . http_build_query(['access_token' => $account->access_token] + $this->metaAuthExtra($account, $account->access_token)),
             []
         );
 
@@ -1150,63 +1151,6 @@ class InstagramPostService
 
         if (isset($chat->media)) {
             Storage::disk('r2')->delete($chat->media);
-        }
-
-        return [
-            'success' => true,
-            'data' => $response->json()
-        ];
-    }
-
-    /**
-     * Update post
-     */
-    public function updatePost($postId, $data, $token)
-    {
-        $account = Post::with('socialAccount')->where('post_id', $postId)->first();
-        $this->ensureValidToken($account->socialAccount);
-
-        $payload = [
-            'message' => $data['content'],
-        ];
-
-        if (!empty($data['schedule_mode']) && $data['schedule_mode'] === 'on') {
-            $payload['published'] = false;
-            $payload['scheduled_publish_time'] = Carbon::parse($data['schedule_at'])->timestamp;
-        }
-
-        if (isset($data['media'])) {
-            $extension = strtolower($data['media']->getClientOriginalExtension());
-            $fileName = time() . '.' . $extension;
-            $s3Path = "uploads/instagram/media/{$fileName}";
-
-            Storage::disk('r2')->put(
-                $s3Path,
-                file_get_contents($data['media']->getRealPath()),
-                ['visibility' => 'public']
-            );
-
-            $url = Storage::disk('r2')->url($s3Path);
-            $endpoint = "https://graph.facebook.com/v22.0/{$postId}";
-            $payload['url'] = $url;
-        } else if (isset($data['url'])) {
-            $endpoint = "https://graph.facebook.com/v22.0/{$postId}";
-            $payload['link'] = $data['url'];
-        }
-
-        $response = $this->api->request(
-            'post',
-            $endpoint . "?access_token={$token}",
-            ['Content-Type' => 'application/json'],
-            $payload,
-            'form'
-        );
-
-        if (!$response->successful()) {
-            return [
-                'success' => false,
-                'message' => $response->json()['error']['message'] ?? 'Unknown error'
-            ];
         }
 
         return [
