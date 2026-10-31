@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
+    @include('layouts.partials.google-tag-manager')
     @include('layouts.partials.google-analytics')
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -20,6 +21,7 @@
     <link rel="stylesheet" href="{{ asset('assets/css/hero-illustrations.css') }}?v={{ filemtime(public_path('assets/css/hero-illustrations.css')) }}">
 </head>
 <body class="marketing-home amber-home">
+    @include('layouts.partials.google-tag-manager-noscript')
 <svg class="studio-logo-filters" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><defs>
     <filter id="studio-logo-filter" color-interpolation-filters="sRGB">
         <feColorMatrix type="saturate" values="0" />

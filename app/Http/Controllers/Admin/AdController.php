@@ -9,6 +9,7 @@ use App\Models\SocialAccount;
 use Carbon\Carbon;
 
 use App\Services\AdServices\AdsDashboardService;
+use App\Services\AdServices\AdsPerformanceService;
 use App\Services\AdServices\SocialAdManagerService;
 
 class AdController extends Controller
@@ -35,8 +36,17 @@ class AdController extends Controller
         })->all();
 
         $data['connections_url'] = route('admin.connections.index');
+        $data['performance_url'] = route('admin.ads.dashboard.performance');
 
         return view('admin.ads.dashboard', compact('data'));
+    }
+
+    /** Live spend and results, loaded by the dashboard after the page renders. */
+    public function performance(Request $request)
+    {
+        $validated = $request->validate(['days' => ['nullable', 'integer', 'in:' . implode(',', AdsPerformanceService::RANGES)]]);
+
+        return response()->json((new AdsPerformanceService(Auth::id()))->build((int) ($validated['days'] ?? 30)));
     }
     
     /**

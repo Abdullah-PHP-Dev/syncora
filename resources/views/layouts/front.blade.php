@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() == 'ar' ? 'rtl' : 'ltr' }}">
 <head>
+    @include('layouts.partials.google-tag-manager')
     @include('layouts.partials.google-analytics')
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -77,6 +78,7 @@
 </head>
 
 <body>
+    @include('layouts.partials.google-tag-manager-noscript')
 
 @include('partials.navbar')
 

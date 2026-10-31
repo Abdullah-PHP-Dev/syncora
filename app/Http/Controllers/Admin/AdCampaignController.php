@@ -11,6 +11,9 @@ use App\Models\SocialAccount;
 use App\Models\Admin\PlatformPage;
 use App\Models\Country;
 use App\Services\AdServices\AdsDashboardService;
+use App\Services\AdServices\AdsPerformanceService;
+use App\Services\AdServices\FacebookCampaignsPageService;
+use App\Services\AdServices\FacebookAiInsightsService;
 use App\Services\AdServices\SocialAdManagerService;
 use App\Support\AdAccountSelection;
 use Illuminate\Support\Facades\Auth;
@@ -84,6 +87,11 @@ class AdCampaignController extends Controller
      */
     public function index($platform)
     {
+        // Meta platforms: one ad account, Instagram narrowed to Instagram placements.
+        if (in_array($platform, ['facebook', 'instagram'], true)) {
+            return $this->metaIndex($platform);
+        }
+
         $data = (new AdsDashboardService(Auth::id()))->forPlatform($platform);
 
         // URLs the Vue dashboard needs - resolved here so the service
@@ -95,18 +103,118 @@ class AdCampaignController extends Controller
             'dashboard' => route('admin.ads.dashboard'),
             'edit'      => route('admin.ads.campaigns.edit', ['platform' => $platform, 'campaign' => 'CAMPAIGN_ID']),
             'destroy'   => route('admin.ads.campaigns.destroy', ['platform' => $platform, 'campaign' => 'CAMPAIGN_ID']),
+            'connections' => route('admin.connections.index'),
+            // Live spend and results where the platform reports them (AdsPerformanceService).
+            'performance' => in_array($platform, ['google', 'youtube', 'openai'], true)
+                ? route('admin.ads.campaigns.performance', ['platform' => $platform]) : null,
         ];
         $data['can_sync'] = in_array($platform, ['facebook', 'openai'], true);
 
-        // ChatGPT Ads: live reporting, and no in-app edit form yet
+        // Export and scheduled email reports, as on the Meta pages (AdReportController).
+        $data['urls'] += [
+            'export'  => route('admin.ads.campaigns.export', ['platform' => $platform]),
+            'reports' => route('admin.ads.reports.store', ['platform' => $platform]),
+            'report'  => route('admin.ads.reports.update', ['platform' => $platform, 'id' => 0]),
+            'upgrade' => route('admin.subscription.select'),
+        ];
+        $account = $data['connected'] ? \App\Support\AdAccountSelection::resolve(Auth::id(), $platform) : null;
+        $data['reports'] = $account
+            ? \App\Models\AdReportSchedule::where('user_id', Auth::id())->where('social_account_id', $account->id)->where('platform', $platform)->latest('id')->get()
+                ->map(fn ($r) => \App\Http\Controllers\Admin\AdReportController::present($r))->all()
+            : [];
+        $data['recipient_email'] = \App\Http\Controllers\Admin\AdReportController::loginEmail(request());
+        $data['can_export'] = app(\App\Services\PackageAccessService::class)->allows(Auth::user(), 'data_export');
+
+        // ChatGPT Ads: no in-app edit form yet
         // (pause / activate / archive cover it - see OpenAiAdService).
         if ($platform === 'openai') {
-            $data['urls']['insights'] = route('admin.ads.campaigns.insights', ['platform' => $platform]);
             $data['urls']['status'] = route('admin.ads.campaigns.status', ['platform' => $platform, 'id' => 'CAMPAIGN_ID']);
             $data['urls']['edit'] = null;
         }
 
-        return view('admin.ads.campaigns.dashboard', compact('data', 'platform'));
+        return view('admin.ads.campaigns.dashboard', ['data' => $data, 'platform' => $platform, 'messages' => __('ads_campaigns')]);
+    }
+
+    /**
+     * Facebook campaigns page: everything for the selected ad account
+     * (?account= switches it, ownership checked by AdAccountSelection).
+     * Spend and results load from the insights endpoint afterwards.
+     */
+    private function metaIndex(string $platform)
+    {
+        $this->selectedAdAccount('facebook'); // Instagram ads run on the Facebook ad account
+        $member = request()->attributes->get('workspace_member');
+        $memberCanWrite = ! $member || ($member->permissions['advertising'] ?? 'none') === 'write';
+
+        $data = (new FacebookCampaignsPageService(Auth::id(), $memberCanWrite, $platform))->build();
+        // Scheduled reports go to whoever is signed in; export needs the Data export module.
+        $data['reports'] = $data['account']
+            ? \App\Models\AdReportSchedule::where('user_id', Auth::id())->where('social_account_id', $data['account']['id'])->where('platform', $platform)->latest('id')->get()
+                ->map(fn ($r) => \App\Http\Controllers\Admin\AdReportController::present($r))->all()
+            : [];
+        $data['recipient_email'] = \App\Http\Controllers\Admin\AdReportController::loginEmail(request());
+        $data['can_export'] = app(\App\Services\PackageAccessService::class)->allows(Auth::user(), 'data_export');
+        $data['urls'] = [
+            'create'      => route('admin.ads.campaigns.create', ['platform' => $platform]),
+            'sync'        => route('admin.ads.campaigns.sync', ['platform' => $platform]),
+            'insights'    => route('admin.ads.campaigns.insights', ['platform' => $platform]),
+            'ai_insights' => route('admin.ads.campaigns.ai-insights', ['platform' => $platform]),
+            'ai_generate' => route('admin.ads.campaigns.ai-insights.generate', ['platform' => $platform]),
+            'usage'       => route('admin.subscription.usage'),
+            'export'      => route('admin.ads.campaigns.export', ['platform' => $platform]),
+            'reports'     => route('admin.ads.reports.store', ['platform' => $platform]),
+            'report'      => route('admin.ads.reports.update', ['platform' => $platform, 'id' => 0]),
+            'upgrade'     => route('admin.subscription.select'),
+            'status'      => route('admin.ads.campaigns.status', ['platform' => $platform, 'id' => 'CAMPAIGN_ID']),
+            'duplicate'   => route('admin.ads.campaigns.duplicate', ['platform' => $platform, 'id' => 'CAMPAIGN_ID']),
+            'edit'        => route('admin.ads.campaigns.edit', ['platform' => $platform, 'campaign' => 'CAMPAIGN_ID']),
+            'destroy'     => route('admin.ads.campaigns.destroy', ['platform' => $platform, 'campaign' => 'CAMPAIGN_ID']),
+            'switch'      => route('admin.ads.campaigns.index', ['platform' => $platform]) . '?account=ACCOUNT_ID',
+            'connections' => route('admin.connections.index'),
+            'dashboard'   => route('admin.ads.dashboard'),
+            'meta'        => 'https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=',
+            'ai_copilot'  => \Illuminate\Support\Facades\Route::has('admin.ai-copilot.analytics.index') ? route('admin.ai-copilot.analytics.index') : null,
+        ];
+
+        return view('admin.ads.campaigns.facebook', [
+            'data' => $data,
+            'messages' => __('ads_campaigns'),
+            'title' => __('ads_campaigns.page_title_' . $platform),
+        ]);
+    }
+
+    /** Last AI insights for the selected account and period (no AI credit used). */
+    public function aiInsights($platform, Request $request, FacebookAiInsightsService $ai)
+    {
+        abort_unless(in_array($platform, ['facebook', 'instagram'], true), 404);
+        $days = (int) ($request->validate(['days' => ['nullable', 'integer', 'in:7,14,30,90']])['days'] ?? 30);
+        $account = AdAccountSelection::resolve(Auth::id(), 'facebook');
+
+        return response()->json(['success' => true, 'data' => $account ? $ai->cached($account->id, $days, app()->getLocale(), $platform) : null]);
+    }
+
+    /** Generate AI insights - one AI credit, reserved and refunded on failure by EnsurePackageFeature. */
+    public function generateAiInsights($platform, Request $request, FacebookAiInsightsService $ai)
+    {
+        abort_unless(in_array($platform, ['facebook', 'instagram'], true), 404);
+        $days = (int) ($request->validate(['days' => ['nullable', 'integer', 'in:7,14,30,90']])['days'] ?? 30);
+        $account = AdAccountSelection::resolve(Auth::id(), 'facebook');
+        if (! $account) {
+            return response()->json(['success' => false, 'message' => 'Connect a Facebook ad account first.'], 422);
+        }
+
+        $result = $ai->generate($this->socialAdManager->service($platform), $account->id, Auth::id(), $days, app()->getLocale(), $platform);
+
+        return response()->json($result, $result['success'] ? 200 : 422);
+    }
+
+    /** Copy a campaign on the platform (Facebook: Meta /copies, created paused). */
+    public function duplicate($platform, string $id)
+    {
+        $service = $this->socialAdManager->service($platform);
+        abort_unless(method_exists($service, 'duplicate'), 404);
+
+        return $service->duplicate($id);
     }
 
     /**
@@ -123,7 +231,15 @@ class AdCampaignController extends Controller
     }
 
     /** Performance for the campaigns page (platforms whose service reports it). */
-    public function insights($platform)
+    /** Live spend and results for the platform campaigns pages (Google, YouTube, ChatGPT Ads). */
+    public function performance($platform, Request $request)
+    {
+        $validated = $request->validate(['days' => ['nullable', 'integer', 'in:' . implode(',', AdsPerformanceService::RANGES)]]);
+
+        return response()->json((new AdsPerformanceService(Auth::id()))->forPlatform($platform, (int) ($validated['days'] ?? 30)));
+    }
+
+    public function insights($platform, Request $request)
     {
         $service = $this->socialAdManager->service($platform);
 
@@ -131,7 +247,10 @@ class AdCampaignController extends Controller
             return response()->json(['success' => false, 'error' => 'Reporting is not available for this platform yet.'], 404);
         }
 
-        $result = $service->insights();
+        $validated = $request->validate(['days' => ['nullable', 'integer', 'in:7,14,30,90'], 'fresh' => ['nullable', 'boolean']]);
+        $days = (int) ($validated['days'] ?? 30);
+
+        $result = $platform === 'facebook' ? $service->insights($days, $request->boolean('fresh')) : $service->insights($days);
 
         return response()->json($result, ($result['success'] ?? false) ? 200 : 422);
     }
@@ -359,6 +478,17 @@ class AdCampaignController extends Controller
      */
     public function destroy($platform, string $id)
     {
+        // Facebook: only the seller's own campaigns, and only with a role that may change them.
+        if (in_array($platform, ['facebook', 'instagram'], true)) {
+            $campaign = AdCampaign::with('socialAccount')->where('user_id', Auth::id())->whereIn('platform', ['facebook', 'instagram'])->find($id);
+            abort_unless($campaign, 404);
+            if ($blocker = \App\Services\AdServices\FacebookAdService::writeBlocker($campaign->socialAccount)) {
+                return request()->expectsJson()
+                    ? response()->json(['success' => false, 'message' => $blocker], 403)
+                    : redirect()->route('admin.ads.campaigns.index', ['platform' => $platform])->with('error', $blocker);
+            }
+        }
+
         return $this->socialAdManager->destroy($platform, $id);
     }
 

@@ -2,6 +2,7 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 
 <head>
+    @include('layouts.partials.google-tag-manager')
 
     @include('layouts.partials.google-analytics')
     <meta charset="UTF-8">
@@ -58,6 +59,7 @@
 </head>
 
 <body>
+    @include('layouts.partials.google-tag-manager-noscript')
 
 {{-- Header --}}
 @include('layouts.partials.header')

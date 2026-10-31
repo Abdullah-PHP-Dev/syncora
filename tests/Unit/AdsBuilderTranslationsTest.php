@@ -32,6 +32,7 @@ class AdsBuilderTranslationsTest extends TestCase
         'x_builder' => 'resources/js/components/ads/x/*.vue',
         'snapchat_builder' => 'resources/js/components/ads/snapchat/*.vue',
         'ads_dashboard' => 'resources/js/components/ads/AdsDashboard.vue',
+        'ads_campaigns' => 'resources/js/components/ads/campaigns/*.vue',
         'media_gallery' => 'resources/js/components/media/MediaGallery.vue',
         'composer' => 'resources/js/components/posts/composer/*.vue',
         'posts_listing' => 'resources/js/components/posts/PostsDashboard.vue',

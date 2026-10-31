@@ -87,6 +87,7 @@
 .overview-sidebar [data-platform="google"] .ov-sidebar-subicon { color:#4285f4; background:#edf3ff; }
 .overview-sidebar [data-platform="youtube"] .ov-sidebar-subicon { color:#d92b42; background:#ffedf0; }
 .overview-sidebar [data-platform="linkedin"] .ov-sidebar-subicon { color:#0a66c2; background:#e9f3fc; }
+.overview-sidebar [data-platform="openai"] .ov-sidebar-subicon { color:#10a37f; background:#e7f6f1; }
 .overview-sidebar [data-platform="whatsapp"] .ov-sidebar-subicon { color:#168d62; background:#e7f6ee; }
 .overview-sidebar [data-platform="telegram"] .ov-sidebar-subicon { color:#2388b7; background:#eaf5fc; }
 .overview-sidebar [data-service="google"] .ov-sidebar-subicon { color:#4285f4; background:#edf3ff; }

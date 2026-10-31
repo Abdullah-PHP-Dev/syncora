@@ -27,7 +27,7 @@ use Illuminate\Support\Collection;
 class AdsDashboardService
 {
     /** The platforms the Ads module supports, in display order. */
-    private const PLATFORMS = [
+    public const PLATFORMS = [
         'facebook'  => ['label' => 'Meta / Facebook', 'icon' => 'bxl-facebook-circle', 'color' => '#1877F2'],
         'instagram' => ['label' => 'Instagram',       'icon' => 'bxl-instagram',       'color' => '#E1306C'],
         'google'    => ['label' => 'Google Ads',      'icon' => 'bxl-google',          'color' => '#4285F4'],
@@ -36,7 +36,7 @@ class AdsDashboardService
         'snapchat'  => ['label' => 'Snapchat',        'icon' => 'bxl-snapchat',        'color' => '#FFFC00'],
         'x'         => ['label' => 'X',               'icon' => 'bxl-twitter',         'color' => '#111827'],
         'linkedin'  => ['label' => 'LinkedIn',        'icon' => 'bxl-linkedin',        'color' => '#0A66C2'],
-        'openai'    => ['label' => 'ChatGPT Ads',     'icon' => 'bx-bot',              'color' => '#111827'],
+        'openai'    => ['label' => 'ChatGPT Ads',     'icon' => 'bxs-bot',             'color' => '#10A37F'],
     ];
 
     public function __construct(private int $userId)

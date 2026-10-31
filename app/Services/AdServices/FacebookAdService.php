@@ -20,6 +20,7 @@ use App\Support\Connections\MetaAdAccounts;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use App\Models\Country;
 
 class FacebookAdService
@@ -508,11 +509,591 @@ class FacebookAdService
 
         $this->account->adDetails()->updateOrCreate([], ['last_synced_at' => now()]);
 
+        // Account labels (business name, role) and the objects under each
+        // campaign. A failure here leaves the campaigns import intact.
+        $this->syncAccountDetails();
+        $children = $this->syncChildren();
+
         return $this->successResponse([
             'created' => $created,
             'updated' => $updated,
             'synced'  => $created + $updated,
+        ] + $children);
+    }
+
+    /* ------------------------------------------------------------------
+     * Campaigns page (FacebookCampaignsPageService): account details,
+     * ad sets / ads / creatives, delivery status, duplicate, insights.
+     * ------------------------------------------------------------------ */
+
+    /** Work on a specific ad account instead of the session's selection (scheduled reports). */
+    public function useAccount(SocialAccount $account): static
+    {
+        $this->account = $account;
+        $this->header = $this->getHeaders();
+
+        return $this;
+    }
+
+    /** Graph node of the selected ad account: https://graph.facebook.com/vXX/act_{id}. */
+    protected function accountNode(?SocialAccount $account = null): string
+    {
+        $account ??= $this->account;
+        $base = $this->config ?: 'https://graph.facebook.com/v22.0/act_{accountId}';
+
+        return str_replace('{accountId}', ltrim((string) $account->platform_account_id, 'act_'), $base);
+    }
+
+    protected function graphAuth(SocialAccount $account): array
+    {
+        return ['access_token' => $account->access_token, 'appsecret_proof' => $this->appSecretProof((string) $account->access_token)];
+    }
+
+    /** Cursor-paginated GET of one edge under the ad account. */
+    protected function graphEdge(string $edge, string $fields): array
+    {
+        $rows = [];
+        $after = null;
+        $pages = 0;
+
+        do {
+            $response = Http::acceptJson()->timeout(30)->get($this->accountNode() . '/' . $edge, array_filter([
+                'fields' => $fields, 'limit' => 100, 'after' => $after,
+            ]) + $this->graphAuth($this->account));
+
+            if (!$response->successful()) {
+                throw new \RuntimeException($response->json('error.error_user_msg') ?: $response->json('error.message') ?: "Meta did not return {$edge}.");
+            }
+
+            $rows = array_merge($rows, $response->json('data') ?? []);
+            $after = $response->json('paging.cursors.after');
+        } while ($response->json('paging.next') && $after && ++$pages < 20);
+
+        return $rows;
+    }
+
+    /** Business name, the user's role on the account (user_tasks), currency and status. */
+    public function syncAccountDetails(): void
+    {
+        $response = Http::acceptJson()->timeout(20)->get($this->accountNode(), [
+            'fields' => 'name,currency,account_status,timezone_name,business{name},user_tasks',
+        ] + $this->graphAuth($this->account));
+
+        if (!$response->successful()) {
+            return;
+        }
+
+        $data = $response->json();
+        $this->account->forceFill(['metadata' => array_merge($this->account->metadata ?? [], array_filter([
+            'business_name' => $data['business']['name'] ?? null,
+            // ADVERTISE / MANAGE can change campaigns; ANALYZE alone is read-only.
+            'user_tasks'    => isset($data['user_tasks']) ? array_values($data['user_tasks']) : null,
+        ], fn ($v) => $v !== null))])->save();
+
+        $this->account->syncAdDetails(array_filter([
+            'currency'       => $data['currency'] ?? null,
+            'account_status' => isset($data['account_status']) ? (string) $data['account_status'] : null,
+            'timezone'       => $data['timezone_name'] ?? null,
+        ], fn ($v) => $v !== null));
+    }
+
+    /** Ad sets, ads and their creatives for the selected account, linked to local campaigns. */
+    protected function syncChildren(): array
+    {
+        try {
+            $campaignIds = AdCampaign::where('user_id', $this->account->user_id)->where('platform', 'facebook')
+                ->whereNotNull('ad_campaign_id')->pluck('id', 'ad_campaign_id');
+
+            $adSets = 0;
+            $adSetIds = [];
+            foreach ($this->graphEdge('adsets', 'id,name,status,campaign_id,daily_budget,lifetime_budget,optimization_goal,billing_event,start_time,end_time') as $remote) {
+                $campaignId = $campaignIds[$remote['campaign_id'] ?? ''] ?? null;
+                if (!$campaignId) {
+                    continue;
+                }
+                $daily = isset($remote['daily_budget']);
+                $record = AdAdGroup::updateOrCreate(['ad_adgroup_id' => $remote['id']], [
+                    'user_id'             => $this->account->user_id,
+                    'social_account_id'   => $this->account->id,
+                    'platform'            => 'facebook',
+                    'ad_campaign_id'      => $campaignId,
+                    'name'                => $remote['name'] ?? null,
+                    'status'              => strtolower($remote['status'] ?? ''),
+                    'budget_mode'         => $daily ? 'daily_budget' : (isset($remote['lifetime_budget']) ? 'lifetime_budget' : null),
+                    'budget'              => $daily ? round(((int) $remote['daily_budget']) / 100, 2) : (isset($remote['lifetime_budget']) ? round(((int) $remote['lifetime_budget']) / 100, 2) : null),
+                    'optimization_goal'   => $remote['optimization_goal'] ?? null,
+                    'billing_event'       => $remote['billing_event'] ?? null,
+                    'schedule_start_time' => !empty($remote['start_time']) ? Carbon::parse($remote['start_time']) : null,
+                    'schedule_end_time'   => !empty($remote['end_time']) ? Carbon::parse($remote['end_time']) : null,
+                ]);
+                $adSetIds[$remote['id']] = $record->id;
+                $adSets++;
+            }
+
+            $ads = 0;
+            $creatives = 0;
+            foreach ($this->graphEdge('ads', 'id,name,status,adset_id,campaign_id,creative{id,name,title,body,call_to_action_type,object_url}') as $remote) {
+                $campaignId = $campaignIds[$remote['campaign_id'] ?? ''] ?? null;
+                $adSetId = $adSetIds[$remote['adset_id'] ?? ''] ?? null;
+                if (!$campaignId || !$adSetId) {
+                    continue;
+                }
+                $creativeId = null;
+                if (!empty($remote['creative']['id'])) {
+                    $c = $remote['creative'];
+                    $creativeId = AdCreative::updateOrCreate(['ad_creative_id' => $c['id']], [
+                        'user_id'           => $this->account->user_id,
+                        'social_account_id' => $this->account->id,
+                        'platform'          => 'facebook',
+                        'ad_campaign_id'    => $campaignId,
+                        'ad_adgroup_id'     => $adSetId,
+                        'name'              => $c['name'] ?? null,
+                        'headline'          => isset($c['title']) ? mb_substr($c['title'], 0, 255) : null,
+                        'message'           => $c['body'] ?? null,
+                        'call_to_action'    => $c['call_to_action_type'] ?? null,
+                        'url'               => $c['object_url'] ?? null,
+                    ])->id;
+                    $creatives++;
+                }
+                Ad::updateOrCreate(['ad_id' => $remote['id']], [
+                    'user_id'           => $this->account->user_id,
+                    'social_account_id' => $this->account->id,
+                    'platform'          => 'facebook',
+                    'ad_campaign_id'    => $campaignId,
+                    'ad_adgroup_id'     => $adSetId,
+                    'ad_creative_id'    => $creativeId,
+                    'name'              => $remote['name'] ?? null,
+                    'status'            => strtolower($remote['status'] ?? ''),
+                ]);
+                $ads++;
+            }
+
+            return ['ad_sets' => $adSets, 'ads' => $ads, 'creatives' => $creatives];
+        } catch (\Throwable $e) {
+            Log::warning('Facebook ad sets/ads sync failed', ['account' => $this->account->id, 'error' => $e->getMessage()]);
+
+            return ['children_error' => $e->getMessage()];
+        }
+    }
+
+    /** A campaign of this seller, with the ad account it runs on - null when it isn't theirs. */
+    protected function ownCampaign($id): ?AdCampaign
+    {
+        return AdCampaign::with('socialAccount')->where('user_id', Auth::id())->whereIn('platform', ['facebook', 'instagram'])->find($id);
+    }
+
+    /** Why this account can't change campaigns, or null when it can. */
+    public static function writeBlocker(?SocialAccount $account): ?string
+    {
+        if (!$account) {
+            return 'Connect a Facebook ad account first.';
+        }
+        if (!$account->is_token_valid || ($account->expires_at && $account->expires_at->isPast())) {
+            return 'Facebook access for this ad account expired - reconnect it in Connections.';
+        }
+        $tasks = $account->metadata['user_tasks'] ?? null;
+        if (is_array($tasks) && !array_intersect(['MANAGE', 'ADVERTISE'], $tasks)) {
+            return 'Your role on this ad account is read-only, so campaigns can\'t be changed from here.';
+        }
+
+        return null;
+    }
+
+    /** Delivery toggle: ACTIVE / PAUSED on Meta, then locally. */
+    public function updateStatus($id, $status)
+    {
+        $campaign = $this->ownCampaign($id);
+        if (!$campaign || !$campaign->ad_campaign_id) {
+            return response()->json(['success' => false, 'message' => 'Campaign not found.'], 404);
+        }
+        $account = $campaign->socialAccount ?? $this->account;
+        if ($error = self::writeBlocker($account)) {
+            return response()->json(['success' => false, 'message' => $error], 403);
+        }
+
+        $status = strtoupper($status) === 'ACTIVE' ? 'ACTIVE' : 'PAUSED';
+        $response = Http::asForm()->acceptJson()->timeout(30)
+            ->post("https://graph.facebook.com/v22.0/{$campaign->ad_campaign_id}", ['status' => $status] + $this->graphAuth($account));
+
+        if (!$response->successful() || !$response->json('success')) {
+            return response()->json(['success' => false, 'message' => $response->json('error.error_user_msg') ?: $response->json('error.message') ?: 'Meta did not change the campaign status.'], 422);
+        }
+
+        $campaign->update(['status' => strtolower($status)]);
+
+        return response()->json(['success' => true, 'status' => strtolower($status), 'message' => $status === 'ACTIVE' ? 'Campaign activated.' : 'Campaign paused.']);
+    }
+
+    /** Copy a campaign with its ad sets and ads on Meta (created paused), then import the copy. */
+    public function duplicate($id)
+    {
+        $campaign = $this->ownCampaign($id);
+        if (!$campaign || !$campaign->ad_campaign_id) {
+            return response()->json(['success' => false, 'message' => 'Campaign not found.'], 404);
+        }
+        $account = $campaign->socialAccount ?? $this->account;
+        if ($error = self::writeBlocker($account)) {
+            return response()->json(['success' => false, 'message' => $error], 403);
+        }
+
+        $response = Http::asForm()->acceptJson()->timeout(60)->post("https://graph.facebook.com/v22.0/{$campaign->ad_campaign_id}/copies", [
+            'deep_copy' => 'true', 'status_option' => 'PAUSED',
+        ] + $this->graphAuth($account));
+
+        if (!$response->successful() || !$response->json('copied_campaign_id')) {
+            return response()->json(['success' => false, 'message' => $response->json('error.error_user_msg') ?: $response->json('error.message') ?: 'Meta did not copy the campaign.'], 422);
+        }
+
+        $sync = $this->account && $this->account->id === $account->id ? $this->syncCampaigns() : ['success' => true];
+
+        return response()->json([
+            'success' => true,
+            'copied_campaign_id' => $response->json('copied_campaign_id'),
+            'message' => ($sync['success'] ?? false) ? 'Campaign duplicated as paused.' : 'Campaign duplicated as paused - sync to see it here.',
         ]);
+    }
+
+    /** Insight action types that count as a "result" for each campaign objective. */
+    public const RESULT_ACTIONS = [
+        'OUTCOME_LEADS' => ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead'],
+        'LEAD_GENERATION' => ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead'],
+        'OUTCOME_SALES' => ['offsite_conversion.fb_pixel_purchase', 'omni_purchase', 'purchase'],
+        'CONVERSIONS' => ['offsite_conversion.fb_pixel_purchase', 'omni_purchase', 'purchase'],
+        'OUTCOME_TRAFFIC' => ['link_click'],
+        'LINK_CLICKS' => ['link_click'],
+        'OUTCOME_ENGAGEMENT' => ['post_engagement'],
+        'POST_ENGAGEMENT' => ['post_engagement'],
+        'MESSAGES' => ['onsite_conversion.messaging_conversation_started_7d'],
+        'OUTCOME_APP_PROMOTION' => ['mobile_app_install', 'app_install'],
+        'APP_INSTALLS' => ['mobile_app_install', 'app_install'],
+        'VIDEO_VIEWS' => ['video_view'],
+    ];
+
+    /** Purchase / lead action types (first one present is used, so pixel and omni counts aren't doubled). */
+    public const PURCHASE_ACTIONS = ['offsite_conversion.fb_pixel_purchase', 'omni_purchase', 'purchase'];
+    public const LEAD_ACTIONS = ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead'];
+
+    /** Limit insights to one placement platform (InstagramAdService sets 'instagram'); null = every placement. */
+    protected ?string $publisherPlatform = null;
+
+    /** Spend on every placement in the last insightRows() period - budgets apply to all placements. */
+    protected float $allPlacementSpend = 0;
+
+    protected function firstAction(array $list, array $types): float
+    {
+        $values = collect($list)->pluck('value', 'action_type');
+        foreach ($types as $type) {
+            if (isset($values[$type])) {
+                return (float) $values[$type];
+            }
+        }
+
+        return 0.0;
+    }
+
+    /** Rows for the configured placement platform only (all rows when unfiltered). */
+    protected function onPlatform(array $rows): array
+    {
+        if (!$this->publisherPlatform) {
+            return $rows;
+        }
+
+        return array_values(array_filter($rows, fn ($r) => ($r['publisher_platform'] ?? null) === $this->publisherPlatform));
+    }
+
+    /** Conversion metrics of one insights row: purchases, their value, leads. */
+    protected function conversionMetrics(array $r): array
+    {
+        $purchases = $this->firstAction($r['actions'] ?? [], self::PURCHASE_ACTIONS);
+        $leads = $this->firstAction($r['actions'] ?? [], self::LEAD_ACTIONS);
+
+        return [
+            'purchases' => $purchases,
+            'purchase_value' => round($this->firstAction($r['action_values'] ?? [], self::PURCHASE_ACTIONS), 2),
+            'leads' => $leads,
+            'conversions' => $purchases + $leads,
+        ];
+    }
+
+    /** Objectives whose result is people reached rather than an action. */
+    public const REACH_OBJECTIVES = ['OUTCOME_AWARENESS', 'REACH', 'BRAND_AWARENESS'];
+
+    /**
+     * Campaign-level insights for the selected account: the period and the
+     * one before it, cached for 15 minutes. Results follow each campaign's
+     * objective (leads for lead campaigns, link clicks for traffic...).
+     */
+    public function insights(int $days = 30, bool $fresh = false): array
+    {
+        if (!$this->account) {
+            return ['success' => false, 'error' => 'Connect a Facebook ad account first.'];
+        }
+        if (!($this->header['success'] ?? false)) {
+            return ['success' => false, 'error' => $this->header['error'] ?? 'Facebook access expired - reconnect the account.', 'reconnect' => true];
+        }
+
+        $key = 'fb_insights:v3:' . ($this->publisherPlatform ?: 'all') . ':' . $this->account->id . ':' . $days . ':' . now()->toDateString();
+        if ($fresh) {
+            Cache::forget($key);
+        }
+
+        try {
+            return Cache::remember($key, now()->addMinutes(15), function () use ($days) {
+                $until = now()->subDay()->startOfDay();
+                $since = $until->copy()->subDays($days - 1);
+                $current = $this->insightRows($since, $until);
+                $allPlacementSpend = $this->allPlacementSpend;
+                $previous = $this->insightRows($since->copy()->subDays($days), $since->copy()->subDay());
+
+                $this->account->forceFill(['metadata' => array_merge($this->account->metadata ?? [], ['insights_synced_at' => now()->toIso8601String()])])->save();
+                $totals = $this->insightTotals($current);
+
+                return [
+                    'success'  => true,
+                    'days'     => $days,
+                    'since'    => $since->toDateString(),
+                    'until'    => $until->toDateString(),
+                    'currency' => $this->account->adDetails->currency ?? null,
+                    'platform' => $this->publisherPlatform,
+                    // Every placement - what campaign budgets are measured against.
+                    'all_placements_spend' => round($allPlacementSpend, 2),
+                    'totals'   => ['current' => $totals, 'previous' => $this->insightTotals($previous)],
+                    'campaigns' => collect($current)->mapWithKeys(fn ($row, $localId) => [$localId => $row])->all(),
+                    // Daily series, conversion path and breakdowns for the Performance section.
+                    'details'  => $this->insightDetails($since, $until, $totals['result_type']),
+                    'synced_at' => now()->toIso8601String(),
+                ];
+            });
+        } catch (\RuntimeException $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /** @return array<int|string, array> rows keyed by local campaign id (or Meta id when not imported) */
+    protected function insightRows(Carbon $since, Carbon $until): array
+    {
+        $response = Http::acceptJson()->timeout(45)->get($this->accountNode() . '/insights', array_filter([
+            'level' => 'campaign',
+            'fields' => 'campaign_id,objective,spend,impressions,reach,clicks,inline_link_clicks,actions,action_values',
+            'breakdowns' => $this->publisherPlatform ? 'publisher_platform' : null,
+            'time_range' => json_encode(['since' => $since->toDateString(), 'until' => $until->toDateString()]),
+            'limit' => 500,
+        ]) + $this->graphAuth($this->account));
+
+        if (!$response->successful()) {
+            throw new \RuntimeException($response->json('error.error_user_msg') ?: $response->json('error.message') ?: 'Meta did not return insights.');
+        }
+
+        $local = AdCampaign::where('user_id', $this->account->user_id)->whereIn('platform', ['facebook', 'instagram'])->pluck('id', 'ad_campaign_id');
+        $rows = [];
+        $data = $response->json('data') ?? [];
+        $this->allPlacementSpend = (float) array_sum(array_map(fn ($r) => (float) ($r['spend'] ?? 0), $data));
+        foreach ($this->onPlatform($data) as $r) {
+            $objective = strtoupper((string) ($r['objective'] ?? ''));
+            $actions = collect($r['actions'] ?? [])->pluck('value', 'action_type');
+            $resultType = null;
+            $results = null;
+            if (in_array($objective, self::REACH_OBJECTIVES, true)) {
+                [$resultType, $results] = ['reach', (int) ($r['reach'] ?? 0)];
+            } else {
+                foreach (self::RESULT_ACTIONS[$objective] ?? [] as $type) {
+                    if (isset($actions[$type])) {
+                        [$resultType, $results] = [$type, (float) $actions[$type]];
+                        break;
+                    }
+                }
+                // The objective is known but nothing was recorded yet: zero of that result.
+                if ($resultType === null && isset(self::RESULT_ACTIONS[$objective])) {
+                    [$resultType, $results] = [self::RESULT_ACTIONS[$objective][0], 0];
+                }
+            }
+            $spend = (float) ($r['spend'] ?? 0);
+            $impressions = (int) ($r['impressions'] ?? 0);
+            $clicks = (int) ($r['clicks'] ?? 0);
+            $rows[$local[$r['campaign_id']] ?? $r['campaign_id']] = [
+                'spend' => round($spend, 2),
+                'impressions' => $impressions,
+                'reach' => (int) ($r['reach'] ?? 0),
+                'clicks' => $clicks,
+                'link_clicks' => (int) ($r['inline_link_clicks'] ?? 0),
+                'ctr' => $impressions ? $clicks / $impressions : null,
+                'cpc' => $clicks ? round($spend / $clicks, 2) : null,
+                'link_ctr' => $impressions ? ((int) ($r['inline_link_clicks'] ?? 0)) / $impressions : null,
+                'link_cpc' => !empty($r['inline_link_clicks']) ? round($spend / (int) $r['inline_link_clicks'], 2) : null,
+                'cpm' => $impressions ? round($spend / $impressions * 1000, 2) : null,
+                'results' => $results,
+                'result_type' => $resultType,
+                'cost_per_result' => $results ? round($spend / $results, 2) : null,
+            ] + $this->conversionMetrics($r);
+            $row = &$rows[$local[$r['campaign_id']] ?? $r['campaign_id']];
+            $row['roas'] = $row['spend'] > 0 && $row['purchase_value'] > 0 ? round($row['purchase_value'] / $row['spend'], 2) : null;
+            unset($row);
+        }
+
+        return $rows;
+    }
+
+    /** Account-level insight rows for one period, with optional breakdowns / daily increments. */
+    protected function accountInsights(Carbon $since, Carbon $until, array $params): array
+    {
+        $defaults = ['level' => 'account', 'limit' => 500];
+        if (!isset($params['date_preset'])) {
+            $defaults['time_range'] = json_encode(['since' => $since->toDateString(), 'until' => $until->toDateString()]);
+        }
+        $response = Http::acceptJson()->timeout(45)->get($this->accountNode() . '/insights', $params + $defaults + $this->graphAuth($this->account));
+
+        if (!$response->successful()) {
+            throw new \RuntimeException($response->json('error.error_user_msg') ?: $response->json('error.message') ?: 'Meta did not return insights.');
+        }
+
+        return $response->json('data') ?? [];
+    }
+
+    /** One row's count of the result every campaign shares (null when objectives differ). */
+    protected function resultCount(array $row, ?string $resultType): ?float
+    {
+        if (!$resultType || $resultType === 'mixed') {
+            return null;
+        }
+        if ($resultType === 'reach') {
+            return isset($row['reach']) ? (float) $row['reach'] : null;
+        }
+
+        return (float) (collect($row['actions'] ?? [])->firstWhere('action_type', $resultType)['value'] ?? 0);
+    }
+
+    /**
+     * Daily spend/results, the impression → click → landing page → result
+     * path, and placement / region / age breakdowns. Each part fails on its
+     * own (null) so one rejected breakdown never hides the rest.
+     */
+    protected function insightDetails(Carbon $since, Carbon $until, ?string $resultType): array
+    {
+        $part = function (callable $build) {
+            try {
+                return $build();
+            } catch (\RuntimeException $e) {
+                Log::info('Facebook insight breakdown unavailable', ['account' => $this->account->id, 'error' => $e->getMessage()]);
+
+                return null;
+            }
+        };
+        $action = fn (array $row, string $type) => (float) (collect($row['actions'] ?? [])->firstWhere('action_type', $type)['value'] ?? 0);
+
+        $byPlatform = $this->publisherPlatform ? ['breakdowns' => 'publisher_platform'] : [];
+
+        $daily = $part(function () use ($since, $until, $resultType, $action, $byPlatform) {
+            $rows = collect($this->onPlatform($this->accountInsights($since, $until, $byPlatform + ['time_increment' => 1, 'fields' => 'spend,impressions,clicks,inline_link_clicks,actions,action_values'])))->keyBy('date_start');
+            $series = [];
+            for ($d = $since->copy(); $d->lte($until); $d->addDay()) {
+                $row = $rows[$d->toDateString()] ?? [];
+                $series[] = [
+                    'date' => $d->toDateString(),
+                    'spend' => round((float) ($row['spend'] ?? 0), 2),
+                    // Daily reach can't be added up, so "people reached" campaigns get no daily line.
+                    'results' => $resultType === 'reach' ? null : $this->resultCount($row, $resultType),
+                    'impressions' => (int) ($row['impressions'] ?? 0),
+                    'link_clicks' => (int) ($row['inline_link_clicks'] ?? 0),
+                    'landing_page_views' => $action($row, 'landing_page_view'),
+                ] + array_intersect_key($this->conversionMetrics($row), array_flip(['purchase_value', 'conversions']));
+            }
+
+            return $series;
+        });
+
+        // Placement rows already carry publisher_platform, so they can be narrowed to one platform.
+        $breakdown = fn (string $dims, string $fields) => $part(fn () => collect(str_contains($dims, 'publisher_platform')
+                ? $this->onPlatform($this->accountInsights($since, $until, ['breakdowns' => $dims, 'fields' => $fields]))
+                : $this->accountInsights($since, $until, ['breakdowns' => $dims, 'fields' => $fields]))
+            ->map(fn ($r) => [
+                'key' => collect(explode(',', $dims))->map(fn ($d) => $r[$d] ?? '')->implode('|'),
+                'spend' => round((float) ($r['spend'] ?? 0), 2),
+                'impressions' => (int) ($r['impressions'] ?? 0),
+                'results' => $resultType === 'reach' ? (isset($r['reach']) ? (float) $r['reach'] : null) : $this->resultCount($r, $resultType),
+                'purchase_value' => round($this->firstAction($r['action_values'] ?? [], self::PURCHASE_ACTIONS), 2),
+            ])->sortByDesc('spend')->values()->all());
+
+        // Period totals at account level: reach is de-duplicated here, unlike a sum of campaigns.
+        $account = $part(function () use ($since, $until, $byPlatform) {
+            $row = $this->onPlatform($this->accountInsights($since, $until, $byPlatform + ['fields' => 'spend,impressions,reach,inline_link_clicks,actions,action_values']))[0] ?? [];
+
+            return [
+                'spend' => round((float) ($row['spend'] ?? 0), 2),
+                'impressions' => (int) ($row['impressions'] ?? 0),
+                'reach' => (int) ($row['reach'] ?? 0),
+                'link_clicks' => (int) ($row['inline_link_clicks'] ?? 0),
+            ] + $this->conversionMetrics($row);
+        });
+
+        // Today's spend on every placement, for budget pacing.
+        $today = $part(fn () => round((float) (($this->accountInsights($since, $until, ['date_preset' => 'today', 'fields' => 'spend'])[0]['spend'] ?? 0)), 2));
+
+        $funnel = null;
+        if ($daily !== null) {
+            $sum = fn ($k) => array_sum(array_column($daily, $k));
+            $funnel = [
+                'impressions' => $sum('impressions'),
+                'link_clicks' => $sum('link_clicks'),
+                'landing_page_views' => $sum('landing_page_views'),
+                'results' => $resultType && !in_array($resultType, ['mixed', 'reach', 'link_click'], true) ? $sum('results') : null,
+            ];
+        }
+
+        return [
+            'result_type' => $resultType,
+            'daily' => $daily,
+            'funnel' => $funnel,
+            'placements' => $breakdown('publisher_platform,platform_position', 'spend,impressions,actions,action_values'),
+            // Region and age can't be combined with a placement-platform breakdown.
+            'regions' => $this->publisherPlatform ? null : $breakdown('region', 'spend,impressions,reach,actions'),
+            'ages' => $this->publisherPlatform ? null : $breakdown('age', 'spend,impressions,reach,actions'),
+            'account' => $account,
+            'today_spend' => $today,
+        ];
+    }
+
+    /** Totals; results only add up when every campaign counts the same result. */
+    protected function insightTotals(array $rows): array
+    {
+        $rows = collect($rows);
+        $spend = round($rows->sum('spend'), 2);
+        $types = $rows->pluck('result_type')->unique()->values();
+        $sameResult = $types->count() === 1 && $types->first() !== null;
+        $results = $sameResult ? $rows->sum('results') : null;
+        $impressions = $rows->sum('impressions');
+        $clicks = $rows->sum('clicks');
+
+        return [
+            'spend' => $spend,
+            'impressions' => $impressions,
+            'reach' => $rows->sum('reach'),
+            'clicks' => $clicks,
+            'ctr' => $impressions ? $clicks / $impressions : null,
+            'cpc' => $clicks ? round($spend / $clicks, 2) : null,
+            'results' => $results,
+            'result_type' => $sameResult ? $types->first() : ($rows->isEmpty() ? null : 'mixed'),
+            'cost_per_result' => $results ? round($spend / $results, 2) : null,
+        ] + $this->conversionTotals($rows, $spend, $impressions);
+    }
+
+    protected function conversionTotals($rows, float $spend, int $impressions): array
+    {
+        $linkClicks = $rows->sum('link_clicks');
+        $value = round($rows->sum('purchase_value'), 2);
+        $conversions = $rows->sum('conversions');
+
+        return [
+            'link_clicks' => $linkClicks,
+            'link_ctr' => $impressions ? $linkClicks / $impressions : null,
+            'link_cpc' => $linkClicks ? round($spend / $linkClicks, 2) : null,
+            'cpm' => $impressions ? round($spend / $impressions * 1000, 2) : null,
+            'purchases' => $rows->sum('purchases'),
+            'purchase_value' => $value,
+            'leads' => $rows->sum('leads'),
+            'conversions' => $conversions,
+            'cvr' => $linkClicks ? $conversions / $linkClicks : null,
+            'roas' => $spend > 0 && $value > 0 ? round($value / $spend, 2) : null,
+        ];
     }
 
     public function store($platform, $request)

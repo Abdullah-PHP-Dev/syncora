@@ -18,9 +18,6 @@
         </div>
     @endif
 
-    <platform-campaigns-dashboard
-        :data='@json($data)'
-        csrf="{{ csrf_token() }}"
-    ></platform-campaigns-dashboard>
+    <platform-campaigns :data='@json($data)' :messages='@json($messages)' locale="{{ app()->getLocale() }}" csrf="{{ csrf_token() }}"></platform-campaigns>
 
 @endsection

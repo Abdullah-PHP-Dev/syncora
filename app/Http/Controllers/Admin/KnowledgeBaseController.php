@@ -326,7 +326,7 @@ class KnowledgeBaseController extends Controller
             'language' => ['nullable', 'in:en,ar'],
         ]);
 
-        $apiKey = adminSetting('gemini_api_key_free');
+        $apiKey = adminSetting('gemini_api_key');
 
         if (empty($apiKey)) {
             return response()->json(['success' => false, 'message' => 'AI is not configured yet - add a Gemini API key in Admin > APIs.'], 422);

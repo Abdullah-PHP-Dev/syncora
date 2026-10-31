@@ -61,6 +61,8 @@
             $children['admin.posts.dashboard'][] = ['admin.posts.index', $platformLabel, $platformIcon, ['platform' => $platform]];
             $children['admin.ads.dashboard'][] = ['admin.ads.campaigns.index', $platformLabel, $platformIcon, ['platform' => $platform]];
         }
+        // OpenAI (ChatGPT Ads) is an ads-only platform, so it isn't in $platforms (which also feeds Posts).
+        $children['admin.ads.dashboard'][] = ['admin.ads.campaigns.index', 'ChatGPT Ads', 'bxs-bot', ['platform' => 'openai']];
     }
     $groups = $team ? [
         'overview.navigation' => [

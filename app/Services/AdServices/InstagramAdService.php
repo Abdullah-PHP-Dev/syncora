@@ -45,6 +45,9 @@ namespace App\Services\AdServices;
  */
 class InstagramAdService extends FacebookAdService
 {
+    /** Insights on this page cover Instagram placements only (same Meta ad account as Facebook). */
+    protected ?string $publisherPlatform = 'instagram';
+
     protected function getCallbackUrl()
     {
         return oauthCallbackUrl('admin.ads.platform.callback', 'instagram');

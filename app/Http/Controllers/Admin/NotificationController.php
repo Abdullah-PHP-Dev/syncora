@@ -40,6 +40,7 @@ class NotificationController extends Controller
 
         $commentItems = PostComment::where('user_id', $userId)
             ->unread()
+            ->with('post:id,platform')
             ->latest()
             ->take(10)
             ->get()
@@ -51,10 +52,15 @@ class NotificationController extends Controller
                     'avatar' => $comment->user_avatar_url,
                     'preview' => Str::limit($comment->content ?: '(no content)', 80),
                     'platform' => $comment->platform,
-                    // A comment not (yet) matched to a post has no post page -
-                    // link to the Comments dashboard instead of failing the list.
+                    // The post's preview on the comment's platform, opened at the
+                    // comment (a reply opens its parent thread). A comment not
+                    // (yet) matched to a post has no post page - link to the
+                    // Comments dashboard instead of failing the list.
                     'url' => $comment->post_id
-                        ? route('admin.posts.show', $comment->post_id) . '#comment-' . $comment->id
+                        ? route('admin.posts.preview', [
+                            'post' => $comment->post_id,
+                            'platform' => $comment->platform ?: ($comment->post->platform ?? 'facebook'),
+                        ]) . '#comment-' . ($comment->parent_comment_id ?: $comment->id)
                         : route('admin.comments.dashboard'),
                     'created_at' => $comment->created_at,
                 ];
