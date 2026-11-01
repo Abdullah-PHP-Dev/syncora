@@ -23,12 +23,18 @@ class FacebookAiInsightsService
         return Cache::get($this->key($accountId, $days, $locale, $platform));
     }
 
-    /** @return array{success: bool, data?: array, message?: string} */
-    public function generate(FacebookAdService $facebook, int $accountId, int $userId, int $days, string $locale, string $platform = 'facebook'): array
+    /**
+     * $source is the page's insights: a FacebookAdService/InstagramAdService, or a
+     * callable taking the days (TikTok's TiktokInsightsService::insights).
+     *
+     * @return array{success: bool, data?: array, message?: string}
+     */
+    public function generate(FacebookAdService|callable $source, int $accountId, int $userId, int $days, string $locale, string $platform = 'facebook'): array
     {
-        $insights = $facebook->insights($days);
+        $insights = $source instanceof FacebookAdService ? $source->insights($days) : $source($days);
+        $network = ['tiktok' => 'TikTok', 'snapchat' => 'Snapchat', 'x' => 'X'][$platform] ?? 'Meta';
         if (!($insights['success'] ?? false)) {
-            return ['success' => false, 'message' => $insights['error'] ?? 'Insights from Meta aren’t available yet.'];
+            return ['success' => false, 'message' => $insights['error'] ?? "Insights from {$network} aren’t available yet."];
         }
         $current = $insights['totals']['current'];
         if (($current['spend'] ?? 0) <= 0 && ($current['impressions'] ?? 0) <= 0) {
@@ -37,9 +43,12 @@ class FacebookAiInsightsService
 
         $facts = $this->facts($insights, $userId);
         $language = $locale === 'ar' ? 'Arabic (Modern Standard, as used in Saudi business writing)' : 'English';
-        $prompt = "You are a senior Meta Ads analyst reviewing one advertiser's account for a business owner in Saudi Arabia/GCC.\n"
+        $prompt = "You are a senior {$network} Ads analyst reviewing one advertiser's account for a business owner in Saudi Arabia/GCC.\n"
             . "Write at most 3 insights in {$language}, most useful first, from the JSON facts below.\n"
             . ($platform === 'instagram' ? "All figures cover Instagram placements only (Feed, Stories, Reels, Explore) of a Meta ad account.\n" : '')
+            . ($platform === 'tiktok' ? "All figures come from one TikTok advertiser account; regions are country codes and placements are TikTok's own (TikTok, Pangle, Global App Bundle).\n" : '')
+            . ($platform === 'x' ? "All figures come from one X ad account; clicks are link clicks, and X's live stats include no reach, age, location or placement breakdown.\n" : '')
+            . ($platform === 'snapchat' ? "All figures come from one Snapchat ad account; clicks are swipe ups, regions are country codes, and Snapchat reports no placement breakdown.\n" : '')
             . "Rules:\n"
             . "- Use ONLY numbers that appear in the facts (you may compute simple differences or percentages from them). Never invent figures, benchmarks or results.\n"
             . "- Describe what the data shows; do not claim what caused it.\n"

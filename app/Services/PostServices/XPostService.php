@@ -679,7 +679,9 @@ class XPostService
         );
 
         if (!$response->successful()) {
-            return $this->errorResponse($post, $response);
+            $data = $response->json() ?? [];
+
+            return ['success' => false, 'status' => $response->status(), 'message' => $data['detail'] ?? $data['title'] ?? 'X didn’t delete the post.'];
         }
 
         return [

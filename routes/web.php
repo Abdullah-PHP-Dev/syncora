@@ -539,6 +539,9 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::get('posts/data', [PostController::class, 'index'])->name('posts.data');
 				Route::get('posts/{post}/preview/{platform}', [PostController::class, 'preview'])->name('posts.preview');
 				Route::post('posts/quick', [PostController::class, 'quickStore'])->name('posts.quick');
+				// Post management (PostCapabilities decides what each platform allows).
+				Route::post('posts/bulk-delete', [PostController::class, 'bulkDestroy'])->name('posts.bulk-destroy');
+				Route::post('posts/sync', [PostController::class, 'syncFromPlatforms'])->middleware('throttle:6,1')->name('posts.sync');
 				// New Vue-based Create Post page (PostComposer.vue) -
 				// deliberately a separate route from admin.posts.create
 				// (still fully intact below via Route::resource) rather
@@ -662,6 +665,18 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('connections.openai.key');
 				Route::get('connections/{platform}/connect/{step}', [ConnectionHubController::class, 'connect'])
 					->name('connections.connect');
+				// Pick capabilities -> planned provider consents, one at a
+				// time (docs/connection-capabilities.md).
+				Route::post('connections/flow/continue', [\App\Http\Controllers\Admin\ConnectionAuthorizationController::class, 'continueFlow'])
+					->name('connections.flow.continue');
+				Route::post('connections/flow/skip', [\App\Http\Controllers\Admin\ConnectionAuthorizationController::class, 'skip'])
+					->name('connections.flow.skip');
+				Route::post('connections/flow/cancel', [\App\Http\Controllers\Admin\ConnectionAuthorizationController::class, 'cancel'])
+					->name('connections.flow.cancel');
+				Route::post('connections/{platform}/plan', [\App\Http\Controllers\Admin\ConnectionAuthorizationController::class, 'plan'])
+					->name('connections.plan')->where('platform', '[a-z]+');
+				Route::post('connections/{platform}/authorize', [\App\Http\Controllers\Admin\ConnectionAuthorizationController::class, 'start'])
+					->name('connections.authorize')->where('platform', '[a-z]+');
 				Route::patch('connections/assets/{socialAccount}', [ConnectionHubController::class, 'updateAsset'])
 					->name('connections.assets.update');
 				Route::post('connections/{connection}/check', [ConnectionHubController::class, 'check'])

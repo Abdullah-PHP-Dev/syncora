@@ -9,6 +9,7 @@ use App\Services\Connections\ConnectionRecorder;
 use App\Services\Connections\ConnectionService;
 use App\Services\Connections\Drivers\OpenAiDriver;
 use App\Services\Connections\HubPresenter;
+use App\Support\Connections\AuthorizationFlow;
 use App\Support\Connections\ConnectionWizard;
 use App\Support\Connections\OpenAiAds;
 use Illuminate\Http\JsonResponse;
@@ -25,7 +26,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class ConnectionHubController extends Controller
 {
-    public function __construct(private ConnectionService $connections, private HubPresenter $presenter, private ConnectionWizard $wizard)
+    public function __construct(private ConnectionService $connections, private HubPresenter $presenter, private ConnectionWizard $wizard, private AuthorizationFlow $flow)
     {
     }
 
@@ -34,6 +35,7 @@ class ConnectionHubController extends Controller
         return view('admin.connections.index', [
             'hub' => $this->presenter->forUser((int) Auth::id()),
             'wizard' => $this->wizardPayload(),
+            'flow' => $this->flow->state((int) Auth::id()),
             'eligible' => Auth::user()->hasEligibleConnection(),
             'urls' => [
                 'whatsapp_manual' => route('admin.post-accounts.whatsapp.store'),
@@ -49,6 +51,11 @@ class ConnectionHubController extends Controller
                 'asset' => route('admin.connections.assets.update', ['socialAccount' => '__ID__']),
                 'check' => route('admin.connections.check', ['connection' => '__ID__']),
                 'disconnect' => route('admin.connections.disconnect', ['connection' => '__ID__']),
+                'plan' => route('admin.connections.plan', ['platform' => '__PLATFORM__']),
+                'authorize' => route('admin.connections.authorize', ['platform' => '__PLATFORM__']),
+                'flow_continue' => route('admin.connections.flow.continue'),
+                'flow_skip' => route('admin.connections.flow.skip'),
+                'flow_cancel' => route('admin.connections.flow.cancel'),
             ],
         ]);
     }

@@ -18,7 +18,7 @@ use Mcamara\LaravelLocalization\Middleware\LocaleSessionRedirect;
 use Tests\Feature\Connections\CreatesConnectionTables;
 use Tests\TestCase;
 
-/** Campaigns pages of Google, YouTube, TikTok, Snapchat, LinkedIn, X and ChatGPT Ads, and their live performance. */
+/** Campaigns pages of Google, YouTube, LinkedIn, X and ChatGPT Ads, and their live performance (TikTok, Snapchat: their own page tests). */
 class PlatformCampaignsPageTest extends TestCase
 {
     use CreatesAdTables;
@@ -73,11 +73,11 @@ class PlatformCampaignsPageTest extends TestCase
 
     public function test_every_platform_page_uses_the_shared_component_and_only_reporting_platforms_load_performance(): void
     {
-        foreach (['google', 'tiktok', 'snapchat', 'linkedin', 'x', 'openai'] as $platform) {
+        foreach (['google', 'linkedin', 'openai'] as $platform) {
             $this->account($platform);
         }
 
-        foreach (['google' => true, 'youtube' => true, 'openai' => true, 'tiktok' => false, 'snapchat' => false, 'linkedin' => false, 'x' => false] as $platform => $reports) {
+        foreach (['google' => true, 'youtube' => true, 'openai' => true, 'linkedin' => false] as $platform => $reports) {
             $response = $this->get(route('admin.ads.campaigns.index', ['platform' => $platform]))->assertOk()->assertSee('<platform-campaigns', false);
             $data = $response->viewData('data');
             $this->assertSame($reports, $data['urls']['performance'] !== null, $platform);
@@ -116,12 +116,12 @@ class PlatformCampaignsPageTest extends TestCase
 
     public function test_platforms_without_reporting_say_so_and_ranges_are_checked(): void
     {
-        $this->account('tiktok');
+        $this->account('linkedin');
         Http::fake();
 
-        $this->getJson(route('admin.ads.campaigns.performance', ['platform' => 'tiktok']))->assertOk()->assertExactJson(['status' => 'no_reporting']);
-        $this->getJson(route('admin.ads.campaigns.performance', ['platform' => 'snapchat']))->assertOk()->assertExactJson(['status' => 'not_connected']);
-        $this->getJson(route('admin.ads.campaigns.performance', ['platform' => 'tiktok', 'days' => 365]))->assertStatus(422);
+        $this->getJson(route('admin.ads.campaigns.performance', ['platform' => 'linkedin']))->assertOk()->assertExactJson(['status' => 'no_reporting']);
+        $this->getJson(route('admin.ads.campaigns.performance', ['platform' => 'x']))->assertOk()->assertExactJson(['status' => 'not_connected']);
+        $this->getJson(route('admin.ads.campaigns.performance', ['platform' => 'linkedin', 'days' => 365]))->assertStatus(422);
         Http::assertNothingSent();
     }
 
@@ -144,13 +144,13 @@ class PlatformCampaignsPageTest extends TestCase
 
     public function test_a_platform_without_reporting_exports_its_campaigns_and_says_spend_is_not_reported(): void
     {
-        $account = $this->account('tiktok');
-        AdCampaign::create(['user_id' => $this->user->id, 'social_account_id' => $account->id, 'platform' => 'tiktok', 'name' => '=HYPERLINK("http://evil")', 'status' => 'enable', 'objective' => 'TRAFFIC', 'daily_budget' => 80]);
+        $account = $this->account('linkedin');
+        AdCampaign::create(['user_id' => $this->user->id, 'social_account_id' => $account->id, 'platform' => 'linkedin', 'name' => '=HYPERLINK("http://evil")', 'status' => 'enable', 'objective' => 'TRAFFIC', 'daily_budget' => 80]);
         Http::fake();
 
-        $csv = $this->get(route('admin.ads.campaigns.export', ['platform' => 'tiktok', 'days' => 30]))->assertOk()->getContent();
+        $csv = $this->get(route('admin.ads.campaigns.export', ['platform' => 'linkedin', 'days' => 30]))->assertOk()->getContent();
 
-        $this->assertStringContainsString('isn’t available for TikTok yet', $csv);
+        $this->assertStringContainsString('isn’t available for LinkedIn yet', $csv);
         $this->assertStringContainsString('"Daily budget",80', $csv);
         $this->assertStringContainsString("\"'=HYPERLINK(\"\"http://evil\"\")\",TRAFFIC,enable,80", $csv);
         $this->assertStringNotContainsString('Amount spent', $csv);
@@ -160,17 +160,17 @@ class PlatformCampaignsPageTest extends TestCase
     public function test_reports_are_scheduled_per_platform_and_the_scheduler_emails_them(): void
     {
         Carbon::setTestNow(now('UTC')->next(Carbon::THURSDAY)->setTime(10, 0)); // after the fixture subscription starts
-        $tiktok = $this->account('tiktok');
-        AdCampaign::create(['user_id' => $this->user->id, 'social_account_id' => $tiktok->id, 'platform' => 'tiktok', 'name' => 'Ramadan traffic', 'status' => 'enable', 'daily_budget' => 80]);
+        $linkedin = $this->account('linkedin');
+        AdCampaign::create(['user_id' => $this->user->id, 'social_account_id' => $linkedin->id, 'platform' => 'linkedin', 'name' => 'Ramadan traffic', 'status' => 'enable', 'daily_budget' => 80]);
         $this->account('google');
         $this->fakeGoogleAds();
         Mail::fake();
 
-        $report = $this->postJson(route('admin.ads.reports.store', ['platform' => 'tiktok']), [
-            'name' => 'Weekly TikTok', 'frequency' => 'weekly', 'weekday' => 0, 'send_time' => '09:00', 'timezone' => 'Asia/Riyadh', 'period_days' => 7,
+        $report = $this->postJson(route('admin.ads.reports.store', ['platform' => 'linkedin']), [
+            'name' => 'Weekly LinkedIn', 'frequency' => 'weekly', 'weekday' => 0, 'send_time' => '09:00', 'timezone' => 'Asia/Riyadh', 'period_days' => 7,
         ])->assertOk()->json('report');
-        $this->assertDatabaseHas('ad_report_schedules', ['id' => $report['id'], 'platform' => 'tiktok', 'social_account_id' => $tiktok->id, 'recipient_email' => 's@example.com']);
-        $this->assertSame([$report['id']], array_column($this->get(route('admin.ads.campaigns.index', ['platform' => 'tiktok']))->viewData('data')['reports'], 'id'));
+        $this->assertDatabaseHas('ad_report_schedules', ['id' => $report['id'], 'platform' => 'linkedin', 'social_account_id' => $linkedin->id, 'recipient_email' => 's@example.com']);
+        $this->assertSame([$report['id']], array_column($this->get(route('admin.ads.campaigns.index', ['platform' => 'linkedin']))->viewData('data')['reports'], 'id'));
         $this->assertSame([], $this->get(route('admin.ads.campaigns.index', ['platform' => 'google']))->viewData('data')['reports']);
 
         $this->postJson(route('admin.ads.reports.store', ['platform' => 'google']), [
@@ -181,8 +181,8 @@ class PlatformCampaignsPageTest extends TestCase
         $this->artisan('ads:send-reports')->assertSuccessful();
 
         Mail::assertSent(AdPerformanceReport::class, 2);
-        Mail::assertSent(AdPerformanceReport::class, fn (AdPerformanceReport $m) => $m->schedule->platform === 'tiktok'
-            && str_contains($m->report['csv'], 'Ramadan traffic') && str_contains($m->render(), 'TikTok Ads report'));
+        Mail::assertSent(AdPerformanceReport::class, fn (AdPerformanceReport $m) => $m->schedule->platform === 'linkedin'
+            && str_contains($m->report['csv'], 'Ramadan traffic') && str_contains($m->render(), 'LinkedIn Ads report'));
         Mail::assertSent(AdPerformanceReport::class, fn (AdPerformanceReport $m) => $m->schedule->platform === 'google'
             && str_contains($m->render(), 'Search KSA') && str_contains($m->attachments()[0]->as, 'google-ads-'));
         $this->assertSame(2, AdReportSchedule::whereNotNull('last_sent_at')->whereNull('last_error')->count());

@@ -51,6 +51,77 @@
       </div>
     </div>
 
+    <!-- Guided authorization: the consents planned for the picked capabilities, then what was actually granted. -->
+    <section v-if="flowState" class="ch-flow" :class="{ 'is-done': flowState.complete }" role="region" :aria-label="t('flow.title', { platform: flowState.label })">
+      <header class="ch-flow-head">
+        <span v-if="flowCard" class="ch-drawer-logos"><span v-for="b in flowCard.presentation.icons" :key="b.icon" class="ch-badge" :class="'is-' + b.brand"><i class="bx" :class="b.icon"></i></span></span>
+        <div class="ch-flow-title">
+          <h2>{{ flowState.complete ? flowSummaryTitle : t('flow.title', { platform: flowState.label }) }}</h2>
+          <p v-if="flowState.complete">{{ t('flow.done_body', { platform: flowState.label }) }}</p>
+          <p v-else>{{ t('flow.progress', { n: flowState.done + 1, total: flowState.total }) }}</p>
+        </div>
+        <form v-if="!flowState.complete" method="POST" :action="urls.flow_cancel" class="ch-inline-form">
+          <input type="hidden" name="_token" :value="csrf">
+          <button type="submit" class="ch-btn ch-btn-ghost sm">{{ t('flow.cancel') }}</button>
+        </form>
+      </header>
+
+      <ol v-if="flowState.steps.length > 1 || !flowState.complete" class="ch-flow-steps">
+        <li v-for="(step, i) in flowState.steps" :key="step.key" :class="['is-' + step.state, { 'is-current': flowState.next && flowState.next.key === step.key }]">
+          <span class="ch-flow-dot" aria-hidden="true"><i v-if="step.state === 'done'" class="bx bx-check"></i><i v-else-if="step.state === 'skipped'" class="bx bx-minus"></i><template v-else>{{ i + 1 }}</template></span>
+          <span class="ch-flow-step-text">
+            <strong>{{ step.label }}</strong>
+            <small>{{ step.capabilities.map(c => capability(c).label).join(' · ') }} — {{ t('flow.state.' + step.state) }}</small>
+          </span>
+        </li>
+      </ol>
+
+      <div v-if="flowState.next" class="ch-flow-next">
+        <div class="ch-flow-next-text">
+          <strong>{{ t('flow.next', { label: flowState.next.label }) }}</strong>
+          <span>{{ flowState.next.description }}</span>
+          <span class="ch-flow-grants">{{ t('flow.grants') }} <span v-for="c in flowState.next.capabilities" :key="c" class="ch-cap is-on"><i class="bx" :class="capability(c).icon"></i> {{ capability(c).label }}</span></span>
+          <span v-if="flowState.next.state === 'failed'" class="ch-step-note" role="alert"><i class="bx bx-error-circle"></i> {{ t('flow.failed', { platform: flowState.label }) }}</span>
+          <small class="ch-muted">{{ t('flow.opens', { platform: flowState.label }) }}</small>
+        </div>
+        <div class="ch-wizard-actions">
+          <form method="POST" :action="urls.flow_skip" class="ch-inline-form">
+            <input type="hidden" name="_token" :value="csrf">
+            <button type="submit" class="ch-btn ch-btn-ghost sm">{{ t('flow.skip') }}</button>
+          </form>
+          <form method="POST" :action="urls.flow_continue" class="ch-inline-form">
+            <input type="hidden" name="_token" :value="csrf">
+            <button type="submit" class="ch-btn ch-btn-primary sm">
+              <i class="bx" :class="flowState.next.state === 'failed' ? 'bx-refresh' : 'bx-link-external'"></i>
+              {{ flowState.next.state === 'failed' ? t('flow.retry') : t('flow.continue', { platform: flowState.label }) }}
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <template v-else>
+        <ul class="ch-flow-results">
+          <li v-for="r in flowState.results" :key="r.key">
+            <span class="ch-step-icon sm"><i class="bx" :class="capability(r.key).icon"></i></span>
+            <strong>{{ capability(r.key).label }}</strong>
+            <span class="ch-opt-badge" :class="catalogStatus(r.status).tone"><i class="bx" :class="catalogStatus(r.status).icon"></i> {{ catalogStatus(r.status).label }}</span>
+          </li>
+        </ul>
+        <div class="ch-wizard-actions">
+          <form v-if="flowState.missing.length" method="POST" :action="authorizeUrl(flowState.platform)" class="ch-inline-form">
+            <input type="hidden" name="_token" :value="csrf">
+            <input v-for="c in flowState.missing" :key="c" type="hidden" name="capabilities[]" :value="c">
+            <button type="submit" class="ch-btn ch-btn-primary sm"><i class="bx bx-refresh"></i> {{ t('flow.complete_missing') }}</button>
+          </form>
+          <button type="button" class="ch-btn ch-btn-ghost sm" @click="openPlatform(flowState.platform)"><i class="bx bx-plus"></i> {{ t('flow.add_more') }}</button>
+          <form method="POST" :action="urls.flow_cancel" class="ch-inline-form">
+            <input type="hidden" name="_token" :value="csrf">
+            <button type="submit" class="ch-btn ch-btn-ghost sm">{{ t('flow.close') }}</button>
+          </form>
+        </div>
+      </template>
+    </section>
+
     <div class="ch-layout">
       <div class="ch-main">
 
@@ -258,6 +329,62 @@
         </div>
         <span class="ch-pill" :class="cardStatus(card).tone"><i class="bx" :class="cardStatus(card).icon"></i> {{ cardStatus(card).label }}</span>
       </div>
+
+      <!-- Choose what to connect: capabilities first; the backend plans the sign-ins. -->
+      <form v-if="card.capability_options && card.capability_options.length" method="POST" :action="authorizeUrl(card.platform)" class="ch-choose">
+        <input type="hidden" name="_token" :value="csrf">
+        <div class="ch-choose-head">
+          <h3>{{ t('choose.title') }}</h3>
+          <p>{{ t('choose.subtitle', { platform: card.label }) }}</p>
+        </div>
+
+        <fieldset class="ch-opts">
+          <legend class="sr-only">{{ t('choose.title') }}</legend>
+          <label v-for="opt in card.capability_options" :key="opt.key" class="ch-opt" :class="{ 'is-locked': !opt.selectable, 'is-picked': isPicked(card, opt) }">
+            <input
+                type="checkbox"
+                name="capabilities[]"
+                :value="opt.key"
+                :checked="isPicked(card, opt)"
+                :disabled="!opt.selectable"
+                @change="togglePick(card, opt)">
+            <span class="ch-opt-box" aria-hidden="true"><i class="bx bx-check"></i></span>
+            <span class="ch-opt-text">
+              <strong>{{ capability(opt.key).label }}</strong>
+              <span>{{ capability(opt.key).long[card.platform] || capability(opt.key).long.default }}</span>
+              <small v-if="opt.account"><i class="bx bx-user-check"></i> {{ t('choose.needs') }} {{ opt.account }}</small>
+              <small v-if="opt.note" class="ch-opt-note"><i class="bx bx-info-circle"></i> {{ opt.note }}</small>
+            </span>
+            <span class="ch-opt-badges">
+              <span class="ch-opt-badge" :class="catalogStatus(opt.status).tone"><i class="bx" :class="catalogStatus(opt.status).icon"></i> {{ catalogStatus(opt.status).label }}</span>
+              <span v-if="opt.partial" class="ch-opt-badge is-muted">{{ t('catalog_status.partial') }}</span>
+            </span>
+          </label>
+        </fieldset>
+
+        <div class="ch-choose-foot">
+          <p v-if="!card.capability_options.some(o => o.selectable)" class="ch-muted"><i class="bx bx-check-double"></i> {{ t('choose.all_connected') }}</p>
+          <template v-else>
+            <div class="ch-plan" aria-live="polite">
+              <span v-if="plans[card.platform] === 'loading'" class="ch-muted"><i class="bx bx-loader-alt bx-spin"></i> {{ t('choose.loading') }}</span>
+              <span v-else-if="plans[card.platform] === 'error'" class="ch-muted">{{ t('choose.plan_failed') }}</span>
+              <template v-else-if="plans[card.platform] && plans[card.platform].steps.length">
+                <strong>{{ plans[card.platform].steps.length === 1 ? t('choose.plan_one', { platform: card.label }) : t('choose.plan_many', { count: plans[card.platform].steps.length }) }}</strong>
+                <ol v-if="plans[card.platform].steps.length > 1 || plans[card.platform].steps[0].reconnect">
+                  <li v-for="(s, i) in plans[card.platform].steps" :key="s.key">
+                    {{ t('choose.plan_step', { n: i + 1, label: s.label }) }} — {{ s.capabilities.map(c => capability(c).label).join(', ') }}
+                    <small v-if="s.reconnect" class="ch-muted">· {{ t('choose.plan_reconnect') }}</small>
+                  </li>
+                </ol>
+              </template>
+            </div>
+            <button type="submit" class="ch-btn ch-btn-primary ch-choose-btn" :disabled="!pickedFor(card).length">
+              <i class="bx bx-link"></i> {{ tc('choose.button', pickedFor(card).length) }}
+            </button>
+            <small class="ch-muted">{{ t('choose.untick_note', { platform: card.label }) }}</small>
+          </template>
+        </div>
+      </form>
 
       <!-- Steps -->
       <div class="ch-steps">
@@ -494,6 +621,8 @@ export default {
     urls: { type: Object, required: true },
     flash: { type: [Object, Array], default: () => ({}) },
     wizard: { type: Object, default: () => ({ state: null, available: false }) },
+    // AuthorizationFlow::state(): the guided run after "Connect selected", or null.
+    flow: { type: Object, default: null },
     // Has an account Posts / Inbox / Comments can use (User::hasEligibleConnection).
     eligible: { type: Boolean, default: true },
     // __('connections') for the current locale.
@@ -514,6 +643,10 @@ export default {
         ? { tone: 'is-error', text: flash.error }
         : (flash.success ? { tone: 'is-success', text: flash.success } : null),
       wizardState: this.wizard.state,
+      flowState: this.flow,
+      // "Choose what to connect": picked capabilities and the planned sign-ins, per platform.
+      picked: {},
+      plans: {},
       waManual: false,
       apiKeyOpen: false,
       tab: 'all',
@@ -605,6 +738,17 @@ export default {
         warn: values.filter(v => v === 'warn').length,
         bad: values.filter(v => v === 'bad').length
       };
+    },
+
+    flowCard() {
+      return this.flowState ? this.cards.find(c => c.platform === this.flowState.platform) || null : null;
+    },
+
+    flowSummaryTitle() {
+      const results = this.flowState.results;
+      const connected = results.filter(r => r.status === 'connected').length;
+      const key = connected === results.length ? 'done_title' : (connected ? 'partial_title' : 'none_title');
+      return this.t('flow.' + key, { platform: this.flowState.label });
     },
 
     drawerCard() {
@@ -764,6 +908,59 @@ export default {
       this.apiKeyOpen = false;
       this.confirming = null;
       this.drawer = platform;
+      this.initPicks(platform);
+    },
+
+    // First open: suggest Publishing on a platform with nothing connected yet.
+    initPicks(platform) {
+      const card = this.cards.find(c => c.platform === platform);
+      if (!card || !(card.capability_options || []).length || this.picked[platform]) return;
+      const suggest = card.connections.length ? [] : card.capability_options.filter(o => o.key === 'posting' && o.selectable).map(o => o.key);
+      this.$set(this.picked, platform, suggest);
+      this.fetchPlan(card);
+    },
+
+    pickedFor(card) {
+      return this.picked[card.platform] || [];
+    },
+
+    isPicked(card, opt) {
+      return opt.selectable && this.pickedFor(card).includes(opt.key);
+    },
+
+    togglePick(card, opt) {
+      const current = this.pickedFor(card);
+      this.$set(this.picked, card.platform, current.includes(opt.key) ? current.filter(k => k !== opt.key) : current.concat(opt.key));
+      this.fetchPlan(card);
+    },
+
+    // The backend decides the sign-ins; this only previews them.
+    fetchPlan(card) {
+      const capabilities = this.pickedFor(card);
+      clearTimeout(this.planTimer);
+      if (!capabilities.length) { this.$delete(this.plans, card.platform); return; }
+      this.$set(this.plans, card.platform, 'loading');
+      this.planTimer = setTimeout(() => {
+        window.axios.post(this.authorizeUrl(card.platform, 'plan'), { capabilities })
+          .then(({ data }) => { if (this.pickedFor(card).join() === capabilities.join()) this.$set(this.plans, card.platform, data); })
+          .catch(() => this.$set(this.plans, card.platform, 'error'));
+      }, 250);
+    },
+
+    authorizeUrl(platform, name = 'authorize') {
+      return this.urls[name].replace('__PLATFORM__', platform);
+    },
+
+    catalogStatus(status) {
+      const look = {
+        connected: { tone: 'is-ok', icon: 'bx-check-circle' },
+        available: { tone: 'is-info', icon: 'bx-lock-open-alt' },
+        not_granted: { tone: 'is-warn', icon: 'bx-error' },
+        reconnect: { tone: 'is-bad', icon: 'bx-refresh' },
+        approval_required: { tone: 'is-muted', icon: 'bx-time-five' },
+        unavailable: { tone: 'is-muted', icon: 'bx-block' }
+      }[status] || { tone: 'is-muted', icon: 'bx-help-circle' };
+      return { ...look, label: this.t('catalog_status.' + status) };
     },
 
     closeDrawer() {
@@ -1387,4 +1584,65 @@ export default {
   .ch-card-drawer .ch-step-actions { width: 100%; justify-content: flex-start; }
   .ch-card-drawer .ch-asset { flex-wrap: wrap; }
 }
+
+/* Choose what to connect (docs/connection-capabilities.md) */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
+.ch-choose { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+.ch-choose-head h3 { margin: 0; font-size: 15.5px; font-weight: 700; color: var(--ink); }
+.ch-choose-head p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.ch-opts { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; border-top: 1px solid var(--line-soft); }
+.ch-opt { position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 12px 4px; margin: 0; border-bottom: 1px solid var(--line-soft); cursor: pointer; }
+.ch-opt:last-child { border-bottom: none; }
+.ch-opt input { position: absolute; opacity: 0; width: 22px; height: 22px; margin: 0; top: 13px; inset-inline-start: 4px; cursor: inherit; }
+.ch-opt-box { width: 22px; height: 22px; flex-shrink: 0; margin-top: 1px; border-radius: 50%; border: 2px solid #CBD2DE; display: grid; place-items: center; color: transparent; font-size: 15px; transition: background .15s, border-color .15s; }
+.ch-opt.is-picked .ch-opt-box { background: var(--ink); border-color: var(--ink); color: #fff; }
+.ch-opt input:focus-visible + .ch-opt-box { outline: 2px solid var(--brand); outline-offset: 2px; }
+.ch-opt.is-locked { cursor: default; }
+.ch-opt.is-locked .ch-opt-box { border-style: dashed; background: var(--line-soft); }
+.ch-opt.is-locked .ch-opt-text strong { color: var(--text); }
+.ch-opt-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ch-opt-text strong { font-size: 14px; color: var(--ink); }
+.ch-opt-text span { font-size: 12.5px; color: var(--text); line-height: 1.45; }
+.ch-opt-text small { display: inline-flex; align-items: flex-start; gap: 4px; font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+.ch-opt-text small i { margin-top: 2px; }
+.ch-opt-text .ch-opt-note { color: #B45309; }
+.ch-opt-badges { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.ch-opt-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.ch-opt-badge.is-ok { background: #E8F8EE; color: #15803D; }
+.ch-opt-badge.is-info { background: #EEF4FF; color: #1D4ED8; }
+.ch-opt-badge.is-warn { background: #FFF6E5; color: #B45309; }
+.ch-opt-badge.is-bad { background: #FDECEC; color: #B42318; }
+.ch-opt-badge.is-muted { background: #F1F3F7; color: #64748B; }
+.ch-choose-foot { display: flex; flex-direction: column; gap: 8px; }
+.ch-plan { font-size: 12.5px; color: var(--text); }
+.ch-plan strong { display: block; color: var(--ink); font-size: 13px; }
+.ch-plan ol { margin: 4px 0 0; padding-inline-start: 18px; }
+.ch-choose-btn { width: 100%; height: 46px; border-radius: 999px; font-size: 14px; }
+.ch-choose-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+@media (max-width: 575.98px) { .ch-opt { flex-wrap: wrap; } .ch-opt-badges { flex-direction: row; width: 100%; padding-inline-start: 34px; align-items: center; } }
+
+/* Guided authorization */
+.ch-flow { display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: 18px; background: #fff; border: 1px solid #D6E4FF; box-shadow: 0 8px 24px rgba(8,102,255,.08); }
+.ch-flow.is-done { border-color: #C9EDD6; box-shadow: 0 8px 24px rgba(22,163,74,.08); }
+.ch-flow-head { display: flex; align-items: center; gap: 12px; }
+.ch-flow-title { flex: 1; min-width: 0; }
+.ch-flow-title h2 { margin: 0; font-size: 17px; font-weight: 700; color: var(--ink); }
+.ch-flow-title p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+.ch-flow-steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 10px; flex-wrap: wrap; }
+.ch-flow-steps li { flex: 1 1 200px; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: #FAFBFD; }
+.ch-flow-steps li.is-current { border-color: #9DBDFF; background: #F3F7FF; }
+.ch-flow-dot { width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: #E7E9F0; color: var(--text); }
+.ch-flow-steps li.is-current .ch-flow-dot { background: #0866FF; color: #fff; }
+.ch-flow-steps li.is-done .ch-flow-dot { background: #16A34A; color: #fff; font-size: 16px; }
+.ch-flow-steps li.is-failed .ch-flow-dot { background: #FDECEC; color: #B42318; }
+.ch-flow-step-text { min-width: 0; display: flex; flex-direction: column; }
+.ch-flow-step-text strong { font-size: 13px; color: var(--ink); }
+.ch-flow-step-text small { font-size: 11.5px; color: var(--muted); }
+.ch-flow-next { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px; border-radius: 14px; background: #F3F7FF; }
+.ch-flow-next-text { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--text); }
+.ch-flow-next-text strong { font-size: 14px; color: var(--ink); }
+.ch-flow-grants { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ch-flow-results { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.ch-flow-results li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.ch-flow-results strong { flex: 1; font-size: 13px; color: var(--ink); }
 </style>

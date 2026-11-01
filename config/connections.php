@@ -49,6 +49,7 @@ return [
             'messaging' => ['pages_messaging', 'instagram_manage_messages', 'instagram_business_manage_messages', 'whatsapp_business_messaging'],
             'ads' => ['ads_management', 'ads_read'],
             'insights' => ['read_insights', 'instagram_manage_insights', 'instagram_business_manage_insights'],
+            'engagement' => ['pages_manage_engagement', 'instagram_manage_comments', 'instagram_business_manage_comments'],
         ],
 
         // X: posts.x OAuth 2.0 scopes; the OAuth 1.0a Ads consent is the
@@ -101,6 +102,76 @@ return [
             'messaging' => [],
             'ads' => ['https://www.googleapis.com/auth/adwords'],
             'insights' => ['https://www.googleapis.com/auth/analytics.readonly', 'https://www.googleapis.com/auth/webmasters.readonly', 'https://www.googleapis.com/auth/yt-analytics.readonly', 'https://www.googleapis.com/auth/business.manage'],
+        ],
+
+    ],
+
+    /*
+    | Capability registry (docs/connection-capabilities.md): what a customer
+    | can pick on a platform's panel, and the consent (driver step) that
+    | grants it. Only capabilities SocialEaz has a module for are listed.
+    |
+    |   step      driver step whose consent grants it; null = no consent can
+    |   approval  flag that is on once the provider approved the app for it
+    |             (off -> "Additional approval required", not selectable)
+    |   partial   true when only part of the capability works (see the note)
+    |
+    | Texts: lang connections.catalog.<platform>.<capability>.{account,note}.
+    */
+    'catalog' => [
+
+        'meta' => [
+            'posting' => ['step' => App\Services\Connections\Drivers\MetaDriver::LOGIN],
+            'ads' => ['step' => App\Services\Connections\Drivers\MetaDriver::LOGIN],
+            // Messenger + Instagram DMs; WhatsApp is its own sign-in.
+            'messaging' => ['step' => App\Services\Connections\Drivers\MetaDriver::LOGIN, 'partial' => true],
+            'engagement' => ['step' => App\Services\Connections\Drivers\MetaDriver::LOGIN],
+            'insights' => ['step' => App\Services\Connections\Drivers\MetaDriver::LOGIN],
+        ],
+
+        'google' => [
+            'posting' => ['step' => App\Services\Connections\Drivers\GoogleDriver::OAUTH],
+            'ads' => ['step' => App\Services\Connections\Drivers\GoogleDriver::OAUTH],
+            'insights' => ['step' => App\Services\Connections\Drivers\GoogleDriver::OAUTH],
+            // Comment replies need youtube.force-ssl, which isn't on the
+            // verified consent screen (SocialAuthService::redirectGoogle).
+            'engagement' => ['step' => null],
+        ],
+
+        'x' => [
+            'posting' => ['step' => App\Services\Connections\Drivers\XDriver::OAUTH2],
+            'messaging' => ['step' => App\Services\Connections\Drivers\XDriver::OAUTH2],
+            'ads' => ['step' => App\Services\Connections\Drivers\XDriver::ADS, 'approval' => 'x.ads'],
+        ],
+
+        'linkedin' => [
+            'posting' => ['step' => App\Services\Connections\Drivers\LinkedInDriver::PAGES],
+            'insights' => ['step' => App\Services\Connections\Drivers\LinkedInDriver::PAGES, 'partial' => true],
+            'ads' => ['step' => App\Services\Connections\Drivers\LinkedInDriver::ADS],
+            // LinkedIn has no page-messaging API.
+            'messaging' => ['step' => null],
+        ],
+
+        'tiktok' => [
+            'posting' => ['step' => App\Services\Connections\Drivers\TikTokDriver::LOGIN_KIT],
+            'insights' => ['step' => App\Services\Connections\Drivers\TikTokDriver::LOGIN_KIT],
+            'engagement' => ['step' => App\Services\Connections\Drivers\TikTokDriver::COMMENTS],
+            'ads' => ['step' => App\Services\Connections\Drivers\TikTokDriver::BUSINESS],
+            'messaging' => ['step' => null, 'approval' => 'tiktok.business_messaging'],
+        ],
+
+        'snapchat' => [
+            'ads' => ['step' => App\Services\Connections\Drivers\SnapchatDriver::MARKETING],
+            'posting' => ['step' => null, 'approval' => 'snapchat.public_profile'],
+        ],
+
+        'threads' => [
+            'posting' => ['step' => App\Services\Connections\Drivers\ThreadsDriver::LOGIN],
+        ],
+
+        'pinterest' => [
+            'posting' => ['step' => App\Services\Connections\Drivers\PinterestDriver::LOGIN],
+            'insights' => ['step' => App\Services\Connections\Drivers\PinterestDriver::LOGIN],
         ],
 
     ],

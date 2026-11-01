@@ -117,15 +117,22 @@
 
         <select class="modern-select" v-model="filters.status">
           <option value="">{{ t('toolbar.all_status') }}</option>
-          <option value="Published">{{ t('status.published') }}</option>
-          <option value="Scheduled">{{ t('status.scheduled') }}</option>
-          <option value="Failed">{{ t('status.failed') }}</option>
+          <option v-for="st in ['published', 'scheduled', 'pending', 'processing', 'draft', 'failed']" :key="st" :value="st">{{ t('status.' + st) }}</option>
         </select>
 
         <select class="modern-select" v-model="filters.sort">
           <option value="latest">{{ t('toolbar.latest_first') }}</option>
           <option value="oldest">{{ t('toolbar.oldest_first') }}</option>
+          <option value="schedule">{{ t('toolbar.next_scheduled') }}</option>
         </select>
+
+        <button v-if="syncPostsUrl" type="button" class="modern-btn manage-btn" :disabled="syncing" @click="syncFromPlatforms">
+          <i class="fas fa-sync-alt" :class="{ 'fa-spin': syncing }"></i><span>{{ syncing ? t('toolbar.syncing') : t('toolbar.sync') }}</span>
+        </button>
+
+        <button type="button" class="modern-btn manage-btn" :class="{ active: selectMode }" @click="toggleSelectMode">
+          <i :class="selectMode ? 'fas fa-times' : 'far fa-check-square'"></i><span>{{ selectMode ? t('toolbar.cancel_select') : t('toolbar.select') }}</span>
+        </button>
 
         <button
             class="modern-btn d-none"
@@ -160,6 +167,11 @@
 
     </div>
 
+    <div v-if="selectMode" class="bulk-bar" role="region" :aria-label="t('toolbar.select')">
+      <strong>{{ t('toolbar.selected', { count: selected.length }) }}</strong>
+      <button type="button" class="bulk-delete" :disabled="!selected.length" @click="openBulkDelete"><i class="far fa-trash-alt"></i> {{ t('toolbar.delete_selected') }}</button>
+    </div>
+
     <div
         v-if="!loading && paginatedPosts.length === 0"
         class="posts-empty-state">
@@ -174,8 +186,13 @@
 
       <div
           class="post-card"
+          :class="{ selected: selectMode && selected.includes(post.id) }"
           v-for="post in paginatedPosts"
           :key="post.id">
+
+        <label v-if="selectMode" class="post-select">
+          <input type="checkbox" :value="post.id" v-model="selected" :aria-label="t('list.select_post', { title: post.title || t('list.post') })">
+        </label>
 
         <div class="post-image">
 
@@ -255,9 +272,9 @@
 
           <span
               class="status-badge"
-              :class="post.status.toLowerCase()">
+              :class="cardState(post)">
 
-        {{ statusLabel(post.status) }}
+        {{ statusLabel(cardState(post)) }}
 
     </span>
 
@@ -324,6 +341,23 @@
                 <li v-if="post.platforms && post.platforms.length">
                   <a class="dropdown-item" :href="previewUrl(post, post.platforms[0]) + '#comments'"><i class="far fa-comment"></i> {{ t('list.view_comments') }}</a>
                 </li>
+                <template v-if="post.platforms && post.platforms.length">
+                  <li><hr class="dropdown-divider"></li>
+                  <template v-for="platform in post.platforms">
+                    <li v-if="platform.post_url" :key="'open-' + platform.post_id">
+                      <a class="dropdown-item" :href="platform.post_url" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i> {{ t('list.open_on', { platform: platform.name }) }}</a>
+                    </li>
+                    <li v-if="platform.capabilities && platform.capabilities.can_edit" :key="'edit-' + platform.post_id">
+                      <button type="button" class="dropdown-item" @click="editTarget = platform"><i class="far fa-edit"></i> {{ post.platforms.length > 1 ? t('list.edit_on', { platform: platform.name }) : t('list.edit') }}</button>
+                    </li>
+                    <li v-if="platform.capabilities && platform.capabilities.can_delete" :key="'delete-' + platform.post_id">
+                      <button type="button" class="dropdown-item text-danger" @click="deleteTargets = [platform]"><i class="far fa-trash-alt"></i> {{ deleteLabel(post, platform) }}</button>
+                    </li>
+                  </template>
+                  <li v-if="!post.platforms.some(p => p.capabilities && (p.capabilities.can_edit || p.capabilities.can_delete))">
+                    <span class="dropdown-item-text small text-muted" :title="capsReason(post)"><i class="fas fa-lock"></i> {{ t('list.no_actions') }}</span>
+                  </li>
+                </template>
                 <template v-if="promoteTargets(post).length">
                   <li><hr class="dropdown-divider"></li>
                   <li v-for="target in promoteTargets(post)" :key="'promote-' + target.key">
@@ -334,6 +368,8 @@
             </div>
 
           </div>
+
+          <p class="post-date" v-if="dateLabel(post)"><i class="far fa-clock"></i> {{ dateLabel(post) }}</p>
 
           <h4 dir="auto">
 
@@ -614,18 +650,26 @@
 
     </div>
 
+
+    <post-edit-dialog v-if="editTarget" :i18n="i18n" :target="editTarget" :update-url-template="updateUrlTemplate" @close="editTarget = null" @saved="onEdited" />
+    <post-delete-dialog v-if="deleteTargets.length" :i18n="i18n" :targets="deleteTargets" :destroy-url-template="updateUrlTemplate" :bulk-url="bulkDeleteUrl" @close="deleteTargets = []" @done="onDeleted" />
+
   </div>
 </template>
 
 <script>
 import { platformMeta, platformOrder, brandOf } from '../../data/mockPosts';
+import PostEditDialog from './PostEditDialog.vue';
+import PostDeleteDialog from './PostDeleteDialog.vue';
 import AccountAvatarBadge from './AccountAvatarBadge.vue';
 import { createTranslator } from '../ads/facebook/i18n';
 
 export default {
 
   components: {
-    AccountAvatarBadge
+    AccountAvatarBadge,
+    PostEditDialog,
+    PostDeleteDialog
   },
 
   props: {
@@ -684,6 +728,22 @@ export default {
     },
 
     apiUrl: {
+      type: String,
+      default: ''
+    },
+
+    // Post management: PATCH/DELETE posts/{post} (__POST__), bulk delete, sync.
+    updateUrlTemplate: {
+      type: String,
+      default: ''
+    },
+
+    bulkDeleteUrl: {
+      type: String,
+      default: ''
+    },
+
+    syncPostsUrl: {
       type: String,
       default: ''
     },
@@ -755,6 +815,11 @@ export default {
     const initialTab = tabs.find(t => t.key !== 'all' && t.key === (this.initialPlatform || '').toLowerCase());
 
     return{
+      selectMode: false,
+      selected: [],
+      editTarget: null,
+      deleteTargets: [],
+      syncing: false,
       loading: false,
       searchDebounce: null,
       pagination: {
@@ -983,6 +1048,73 @@ export default {
     },
 
     // Statuses arrive as ucfirst() raw values (Published, Pending, In_progress...).
+    // The representative row's state drives the card badge (published, scheduled, ...).
+    cardState(post) {
+      const first = post.platforms && post.platforms[0];
+      return (first && first.state) || String(post.status || '').toLowerCase();
+    },
+
+    dateLabel(post) {
+      const first = (post.platforms && post.platforms[0]) || {};
+      const fmt = (iso) => new Date(iso).toLocaleString(this.locale === 'ar' ? 'ar' : undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      if (first.state === 'published' && first.published_at) return this.t('list.published_on', { date: fmt(first.published_at) });
+      if (first.schedule_at && ['scheduled', 'pending'].includes(first.state)) return this.t('list.scheduled_for', { date: fmt(first.schedule_at) });
+      return post.created_at ? this.t('list.created_on', { date: post.created_at }) : '';
+    },
+
+    deleteLabel(post, platform) {
+      if (platform.capabilities && !platform.capabilities.delete_remote && platform.state === 'published') return this.t('list.remove_local');
+      return post.platforms.length > 1 ? this.t('list.delete_from', { platform: platform.name }) : this.t('list.delete');
+    },
+
+    capsReason(post) {
+      const reason = post.platforms.map(p => p.capabilities && p.capabilities.reason).find(Boolean);
+      return reason ? this.t('caps.' + reason) : '';
+    },
+
+    toggleSelectMode() {
+      this.selectMode = !this.selectMode;
+      this.selected = [];
+    },
+
+    openBulkDelete() {
+      this.deleteTargets = this.paginatedPosts.filter(p => this.selected.includes(p.id)).flatMap(p => p.platforms);
+    },
+
+    notify(message, ok) {
+      if (window.Swal) {
+        window.Swal.fire({ toast: true, position: 'top-end', timer: 3500, showConfirmButton: false, icon: ok ? 'success' : 'error', title: message });
+      } else {
+        window.alert(message);
+      }
+    },
+
+    onEdited(data) {
+      this.editTarget = null;
+      this.notify(data.message, true);
+      this.fetchPosts();
+    },
+
+    onDeleted(data) {
+      this.deleteTargets = [];
+      const failed = (data.results || []).filter(r => !r.success);
+      this.notify(data.message, failed.length === 0 && data.success !== false);
+      if (failed.length && window.Swal) {
+        window.Swal.fire({ icon: 'warning', title: data.message, html: failed.map(r => '<p class="small mb-1">' + String(r.message).replace(/</g, '&lt;') + '</p>').join('') });
+      }
+      this.selected = [];
+      this.selectMode = false;
+      this.fetchPosts();
+    },
+
+    syncFromPlatforms() {
+      this.syncing = true;
+      window.axios.post(this.syncPostsUrl, {}, { headers: { Accept: 'application/json' } })
+        .then(({ data }) => { this.notify(data.message, data.success); this.fetchPosts(); })
+        .catch((e) => this.notify(((e.response && e.response.data) || {}).message || this.t('alerts.generic_error'), false))
+        .finally(() => { this.syncing = false; });
+    },
+
     statusLabel(status) {
 
       const key = 'status.' + String(status || '').toLowerCase();
@@ -1023,7 +1155,16 @@ export default {
           // post, which is wrong the moment two different Pages are involved.
           page: entry.account_name || raw.account_name || meta.page,
           handle: entry.account_username ? ('@' + entry.account_username) : (raw.account_handle || meta.handle),
-          avatar: entry.account_avatar || null
+          avatar: entry.account_avatar || null,
+          // Management (PostController::managementFields / PostCapabilities).
+          post_url: entry.post_url || null,
+          state: entry.state || String(entry.status || '').toLowerCase(),
+          capabilities: entry.capabilities || null,
+          schedule_at: entry.schedule_at || null,
+          published_at: entry.published_at || null,
+          title: entry.title !== undefined ? entry.title : raw.title,
+          content: entry.content !== undefined ? entry.content : raw.content,
+          label: (entry.account_name || meta.name) + ' · ' + meta.name
         };
       });
 
@@ -1275,6 +1416,7 @@ export default {
       if (this.quickPost.scheduleLater && this.quickPost.scheduleAt) {
         formData.append('schedule_mode', '1');
         formData.append('schedule_at', this.quickPost.scheduleAt);
+        formData.append('timezone', (window.Intl && Intl.DateTimeFormat().resolvedOptions().timeZone) || '');
       }
 
       window.axios.post(this.quickCreateUrl, formData).then(({ data }) => {
@@ -2564,4 +2706,22 @@ export default {
   display:flex;
   margin:0;
 }
+.manage-btn{ display:inline-flex; align-items:center; gap:7px; width:auto !important; padding:0 14px; white-space:nowrap; font-size:.85rem; font-weight:600; }
+.manage-btn:disabled{ opacity:.6; cursor:not-allowed; }
+.bulk-bar{ display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:0 0 16px; padding:10px 14px; border-radius:12px; background:#EEF3FF; border:1px solid #CFDCFF; font-size:.85rem; color:#161B2B; }
+.bulk-delete{ display:inline-flex; align-items:center; gap:6px; height:34px; padding:0 14px; border:0; border-radius:9px; background:#DC2626; color:#fff; font-weight:600; font-size:.82rem; cursor:pointer; }
+.bulk-delete:disabled{ opacity:.5; cursor:not-allowed; }
+.post-card{ position:relative; }
+.post-card.selected{ outline:2px solid #004CFF; outline-offset:-2px; }
+.post-select{ position:absolute; top:12px; inset-inline-start:12px; z-index:5; display:grid; place-items:center; width:30px; height:30px; border-radius:8px; background:rgba(255,255,255,.95); box-shadow:0 2px 8px rgba(16,24,40,.15); cursor:pointer; }
+.post-select input{ width:17px; height:17px; accent-color:#004CFF; cursor:pointer; }
+.post-date{ display:flex; align-items:center; gap:6px; margin:10px 0 2px; font-size:.75rem; color:#8A92A3; }
+.status-badge.draft{ background:#F1F3F7; color:#64748B; }
+.status-badge.pending, .status-badge.processing{ background:#EFF8FF; color:#175CD3; }
+.post-actions-menu .dropdown-item.text-danger:hover{ background:#FEF3F2; }
+.toolbar{ flex-wrap:wrap; gap:14px; }
+.toolbar-left{ min-width:220px; }
+.toolbar-left .search-box{ width:100%; max-width:380px; }
+.search-box input{ box-sizing:border-box; }
+.toolbar-right{ flex-wrap:wrap; }
 </style>

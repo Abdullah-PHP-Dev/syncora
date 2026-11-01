@@ -842,11 +842,11 @@ class YoutubePostService
                 ];
             }
 
-            $this->ensureValidToken($post->socialAccount);
+            $this->ensureValidToken($post);
 
             $endpoint = "{$this->baseUrl}/videos?id={$post->post_id}";
 
-            $response = Http::withToken($post->socialAccount->access_token)
+            $response = Http::withToken($post->socialAccount->fresh()->access_token)
                 ->delete($endpoint);
 
             $responseData = $response->json();
@@ -856,13 +856,11 @@ class YoutubePostService
                 if ($errorCode !== 404) {
                     return [
                         'success' => false,
+                        'status' => $response->status(),
                         'message' => $responseData['error']['message'] ?? 'Unknown error'
                     ];
                 }
             }
-
-            // Delete table data (the SocialPost model)
-            //$post->delete();
 
             return [
                 'success' => true,
@@ -876,62 +874,32 @@ class YoutubePostService
             ];
         }
     }
-
     /**
-     * Update video details (title, description, etc.)
+     * Edit a video's title and description (videos.update, part=snippet).
+     * YouTube clears any snippet field left out of the update, so the
+     * current snippet is read first and only title/description change.
      */
-    public function updatePost($postId, $data, $token)
+    public function editPublished(Post $post, array $data): array
     {
-        try {
-            $account = SocialPost::with('mediaAccount')->wherePagePostId($postId)->first();
-            if (!$account) {
-                return [
-                    'success' => false,
-                    'message' => 'Post not found'
-                ];
-            }
+        $this->ensureValidToken($post);
+        $token = $post->socialAccount->fresh()->access_token;
 
-            $this->ensureValidToken($account->mediaAccount);
-
-            // Build update payload
-            $payload = [
-                'id' => $postId,
-                'snippet' => [
-                    'title' => $data['content'] ?? '',
-                    'description' => $data['description'] ?? '',
-                ]
-            ];
-
-            // Add schedule if needed
-            if (!empty($data['schedule_mode']) && $data['schedule_mode'] === 'on') {
-                $payload['status'] = [
-                    'privacyStatus' => 'private',
-                    'publishAt' => Carbon::parse($data['schedule_at'])->toIso8601String()
-                ];
-            }
-
-            $endpoint = "{$this->baseUrl}/videos?part=snippet,status";
-
-            $response = Http::withToken($token)
-                ->put($endpoint, $payload);
-
-            if (!$response->successful()) {
-                return [
-                    'success' => false,
-                    'message' => $response->json()['error']['message'] ?? 'Unknown error'
-                ];
-            }
-
-            return [
-                'success' => true,
-                'data' => $response->json()
-            ];
-        } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'message' => $e->getMessage()
-            ];
+        $current = Http::withToken($token)->get("{$this->baseUrl}/videos", ['part' => 'snippet', 'id' => $post->post_id]);
+        $snippet = $current->json('items.0.snippet');
+        if (!$current->successful() || !$snippet) {
+            return ['success' => false, 'status' => $current->successful() ? 404 : $current->status(), 'message' => $current->json('error.message') ?? 'YouTube couldn’t find this video.'];
         }
+
+        $snippet = array_intersect_key($snippet, array_flip(['title', 'description', 'tags', 'categoryId', 'defaultLanguage']));
+        $snippet['title'] = (string) ($data['title'] ?? $snippet['title']);
+        $snippet['description'] = (string) ($data['content'] ?? $snippet['description'] ?? '');
+
+        $response = Http::withToken($token)->put("{$this->baseUrl}/videos?part=snippet", ['id' => $post->post_id, 'snippet' => $snippet]);
+        if (!$response->successful()) {
+            return ['success' => false, 'status' => $response->status(), 'message' => $response->json('error.message') ?? 'YouTube didn’t update the video.'];
+        }
+
+        return ['success' => true, 'status' => $response->status()];
     }
 
     /**

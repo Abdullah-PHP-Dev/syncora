@@ -202,6 +202,16 @@ class PostRequest extends FormRequest
                 'platforms' => explode(',', $this->platforms)
             ]);
         }
+
+        // The composer sends schedule/expiry times as typed (no offset) plus
+        // the browser's time zone; schedules are stored and run in app time.
+        $timezone = $this->input('timezone');
+        foreach (['schedule_at', 'expiry_at'] as $field) {
+            $value = $this->input($field);
+            if ($timezone && is_string($value) && $value !== '' && strtotime($value) !== false) {
+                $this->merge([$field => \App\Http\Controllers\Admin\PostController::toAppTime($value, $timezone)->toDateTimeString()]);
+            }
+        }
     }
 
     /**

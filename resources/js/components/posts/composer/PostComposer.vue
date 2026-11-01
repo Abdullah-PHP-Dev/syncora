@@ -616,6 +616,8 @@ function buildFormData(mode) {
   if (mode === 'schedule') {
     formData.append('schedule_mode', '1');
     formData.append('schedule_at', scheduleAt.value.replace('T', ' ') + ':00');
+    // The time is as typed; the server converts it from this zone.
+    formData.append('timezone', (window.Intl && Intl.DateTimeFormat().resolvedOptions().timeZone) || '');
   } else {
     formData.append('schedule_mode', '0');
   }

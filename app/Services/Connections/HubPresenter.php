@@ -18,7 +18,7 @@ class HubPresenter
     /** Platforms not in the Hub yet (empty: every platform has a card). */
     private const UPCOMING = [];
 
-    public function __construct(private ConnectionService $connections)
+    public function __construct(private ConnectionService $connections, private CapabilityCatalog $catalog)
     {
     }
 
@@ -61,6 +61,8 @@ class HubPresenter
                 'connected' => $byStep->has($step['key']) && $byStep[$step['key']]->contains(fn ($c) => $c->isUsable()),
             ])->values(),
             'connections' => $connections->map(fn ($c) => $this->connection($c))->values(),
+            // "Choose what to connect" (CapabilityCatalog); [] = not offered.
+            'capability_options' => $this->catalog->forUser($userId, $platform, $connections),
             // Meta only: in-page WhatsApp Embedded Signup (null until configured).
             'whatsapp_signup' => $platform === 'meta' ? MetaDriver::whatsappSignup() : null,
         ];

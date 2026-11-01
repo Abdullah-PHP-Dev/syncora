@@ -12,6 +12,10 @@ use App\Models\Admin\PlatformPage;
 use App\Models\Country;
 use App\Services\AdServices\AdsDashboardService;
 use App\Services\AdServices\AdsPerformanceService;
+use App\Services\AdServices\CampaignsPageService;
+use App\Services\AdServices\SnapchatInsightsService;
+use App\Services\AdServices\TiktokInsightsService;
+use App\Services\AdServices\XInsightsService;
 use App\Services\AdServices\FacebookCampaignsPageService;
 use App\Services\AdServices\FacebookAiInsightsService;
 use App\Services\AdServices\SocialAdManagerService;
@@ -90,6 +94,9 @@ class AdCampaignController extends Controller
         // Meta platforms: one ad account, Instagram narrowed to Instagram placements.
         if (in_array($platform, ['facebook', 'instagram'], true)) {
             return $this->metaIndex($platform);
+        }
+        if (in_array($platform, CampaignsPageService::PLATFORMS, true)) {
+            return $this->insightsIndex($platform);
         }
 
         $data = (new AdsDashboardService(Auth::id()))->forPlatform($platform);
@@ -183,12 +190,103 @@ class AdCampaignController extends Controller
         ]);
     }
 
+    /** Ads Manager of each platform, opened on the ad account. */
+    private const ADS_MANAGER = [
+        'tiktok' => 'https://ads.tiktok.com/i18n/perf/campaign?aadvid=',
+        'snapchat' => 'https://ads.snapchat.com/',
+        'x' => 'https://ads.x.com/',
+    ];
+
+    /** Reporting for the TikTok and Snapchat pages, or null when the platform has no ad account here. */
+    private function insightsService(string $platform): TiktokInsightsService|SnapchatInsightsService|XInsightsService|null
+    {
+        return match ($platform) {
+            'tiktok' => TiktokInsightsService::forUser(Auth::id()),
+            'snapchat' => SnapchatInsightsService::forUser(Auth::id()),
+            'x' => XInsightsService::forUser(Auth::id()),
+            default => null,
+        };
+    }
+
+    private function connectFirst(string $platform): string
+    {
+        return 'Connect a ' . (AdsDashboardService::PLATFORMS[$platform]['label'] ?? ucfirst($platform)) . ' ad account first.';
+    }
+
+    /** The seller's own campaign on this platform, or 404. */
+    private function ownCampaign(string $platform, string $id): void
+    {
+        abort_unless(AdCampaign::where('user_id', Auth::id())->where('platform', $platform)->whereKey($id)->exists(), 404);
+    }
+
+    /**
+     * TikTok, Snapchat and X campaigns pages: the same dashboard as Instagram
+     * (MetaCampaigns.vue) for the selected ad account. Spend and results load
+     * from the insights endpoint (TiktokInsightsService, SnapchatInsightsService,
+     * XInsightsService). None of them is offered a duplicate action.
+     */
+    private function insightsIndex(string $platform)
+    {
+        $this->selectedAdAccount($platform);
+        $member = request()->attributes->get('workspace_member');
+        $memberCanWrite = ! $member || ($member->permissions['advertising'] ?? 'none') === 'write';
+
+        $data = (new CampaignsPageService(Auth::id(), $platform, $memberCanWrite))->build();
+        $data['reports'] = $data['account']
+            ? \App\Models\AdReportSchedule::where('user_id', Auth::id())->where('social_account_id', $data['account']['id'])->where('platform', $platform)->latest('id')->get()
+                ->map(fn ($r) => \App\Http\Controllers\Admin\AdReportController::present($r))->all()
+            : [];
+        $data['recipient_email'] = \App\Http\Controllers\Admin\AdReportController::loginEmail(request());
+        $data['can_export'] = app(\App\Services\PackageAccessService::class)->allows(Auth::user(), 'data_export');
+        $p = ['platform' => $platform];
+        $data['urls'] = [
+            'create'      => route('admin.ads.campaigns.create', $p),
+            'sync'        => route('admin.ads.campaigns.sync', $p),
+            'insights'    => route('admin.ads.campaigns.insights', $p),
+            'ai_insights' => route('admin.ads.campaigns.ai-insights', $p),
+            'ai_generate' => route('admin.ads.campaigns.ai-insights.generate', $p),
+            'usage'       => route('admin.subscription.usage'),
+            'export'      => route('admin.ads.campaigns.export', $p),
+            'reports'     => route('admin.ads.reports.store', $p),
+            'report'      => route('admin.ads.reports.update', $p + ['id' => 0]),
+            'upgrade'     => route('admin.subscription.select'),
+            'status'      => route('admin.ads.campaigns.status', $p + ['id' => 'CAMPAIGN_ID']),
+            'duplicate'   => null,
+            'edit'        => route('admin.ads.campaigns.edit', $p + ['campaign' => 'CAMPAIGN_ID']),
+            'destroy'     => route('admin.ads.campaigns.destroy', $p + ['campaign' => 'CAMPAIGN_ID']),
+            'switch'      => route('admin.ads.campaigns.index', $p) . '?account=ACCOUNT_ID',
+            'connections' => route('admin.connections.index'),
+            'dashboard'   => route('admin.ads.dashboard'),
+            'meta'        => self::ADS_MANAGER[$platform],
+            'ai_copilot'  => \Illuminate\Support\Facades\Route::has('admin.ai-copilot.analytics.index') ? route('admin.ai-copilot.analytics.index') : null,
+        ];
+
+        return view('admin.ads.campaigns.facebook', [
+            'data' => $data,
+            'messages' => __('ads_campaigns'),
+            'title' => __('ads_campaigns.page_title_' . $platform),
+        ]);
+    }
+
+    /** The AI reads the same insights the page shows: Meta's, or TikTok's / Snapchat's on those pages. */
+    private function aiSource(string $platform): array
+    {
+        if (in_array($platform, CampaignsPageService::PLATFORMS, true)) {
+            $service = $this->insightsService($platform);
+
+            return [$service ? $service->insights(...) : null, $service ? AdAccountSelection::resolve(Auth::id(), $platform) : null];
+        }
+        $account = AdAccountSelection::resolve(Auth::id(), 'facebook');
+
+        return [$account ? fn (int $days) => $this->socialAdManager->service($platform)->insights($days) : null, $account];
+    }
+
     /** Last AI insights for the selected account and period (no AI credit used). */
     public function aiInsights($platform, Request $request, FacebookAiInsightsService $ai)
     {
-        abort_unless(in_array($platform, ['facebook', 'instagram'], true), 404);
+        abort_unless(in_array($platform, ['facebook', 'instagram', ...CampaignsPageService::PLATFORMS], true), 404);
         $days = (int) ($request->validate(['days' => ['nullable', 'integer', 'in:7,14,30,90']])['days'] ?? 30);
-        $account = AdAccountSelection::resolve(Auth::id(), 'facebook');
+        $account = $this->aiSource($platform)[1];
 
         return response()->json(['success' => true, 'data' => $account ? $ai->cached($account->id, $days, app()->getLocale(), $platform) : null]);
     }
@@ -196,14 +294,14 @@ class AdCampaignController extends Controller
     /** Generate AI insights - one AI credit, reserved and refunded on failure by EnsurePackageFeature. */
     public function generateAiInsights($platform, Request $request, FacebookAiInsightsService $ai)
     {
-        abort_unless(in_array($platform, ['facebook', 'instagram'], true), 404);
+        abort_unless(in_array($platform, ['facebook', 'instagram', ...CampaignsPageService::PLATFORMS], true), 404);
         $days = (int) ($request->validate(['days' => ['nullable', 'integer', 'in:7,14,30,90']])['days'] ?? 30);
-        $account = AdAccountSelection::resolve(Auth::id(), 'facebook');
-        if (! $account) {
-            return response()->json(['success' => false, 'message' => 'Connect a Facebook ad account first.'], 422);
+        [$insights, $account] = $this->aiSource($platform);
+        if (! $account || ! $insights) {
+            return response()->json(['success' => false, 'message' => $this->connectFirst(in_array($platform, CampaignsPageService::PLATFORMS, true) ? $platform : 'facebook')], 422);
         }
 
-        $result = $ai->generate($this->socialAdManager->service($platform), $account->id, Auth::id(), $days, app()->getLocale(), $platform);
+        $result = $ai->generate($insights, $account->id, Auth::id(), $days, app()->getLocale(), $platform);
 
         return response()->json($result, $result['success'] ? 200 : 422);
     }
@@ -225,6 +323,13 @@ class AdCampaignController extends Controller
      */
     public function sync($platform)
     {
+        if (in_array($platform, CampaignsPageService::PLATFORMS, true)) {
+            $service = $this->insightsService($platform);
+            $result = $service ? $service->syncCampaigns() : ['success' => false, 'error' => $this->connectFirst($platform)];
+
+            return response()->json($result, ($result['success'] ?? false) ? 200 : 422);
+        }
+
         $result = $this->socialAdManager->syncCampaigns($platform);
 
         return response()->json($result, ($result['success'] ?? false) ? 200 : 422);
@@ -241,6 +346,14 @@ class AdCampaignController extends Controller
 
     public function insights($platform, Request $request)
     {
+        if (in_array($platform, CampaignsPageService::PLATFORMS, true)) {
+            $validated = $request->validate(['days' => ['nullable', 'integer', 'in:7,14,30,90'], 'fresh' => ['nullable', 'boolean']]);
+            $service = $this->insightsService($platform);
+            $result = $service ? $service->insights((int) ($validated['days'] ?? 30), $request->boolean('fresh')) : ['success' => false, 'error' => $this->connectFirst($platform)];
+
+            return response()->json($result, ($result['success'] ?? false) ? 200 : 422);
+        }
+
         $service = $this->socialAdManager->service($platform);
 
         if (! method_exists($service, 'insights')) {
@@ -489,6 +602,19 @@ class AdCampaignController extends Controller
             }
         }
 
+        // TikTok and Snapchat: only the seller's own campaigns; the services answer with an array, so redirect here.
+        if (in_array($platform, CampaignsPageService::PLATFORMS, true)) {
+            $this->ownCampaign($platform, $id);
+            $result = $this->socialAdManager->destroy($platform, $id);
+            $ok = (bool) ($result['success'] ?? false);
+            if (request()->expectsJson()) {
+                return response()->json($result, $ok ? 200 : 422);
+            }
+
+            return redirect()->route('admin.ads.campaigns.index', ['platform' => $platform])
+                ->with($ok ? 'success' : 'error', $ok ? __('ads_campaigns.deleted') : ($result['error'] ?? __('ads_campaigns.delete_failed')));
+        }
+
         return $this->socialAdManager->destroy($platform, $id);
     }
 
@@ -501,6 +627,15 @@ class AdCampaignController extends Controller
         $request->validate([
             'status' => ['required', 'in:ACTIVE,PAUSED'],
         ]);
+
+        // TikTok and Snapchat: only the seller's own campaigns, and a platform refusal is an error, not a 200.
+        if (in_array($platform, CampaignsPageService::PLATFORMS, true)) {
+            $this->ownCampaign($platform, $id);
+            $result = $this->socialAdManager->updateStatus($platform, $id, $request->input('status'));
+            $ok = (bool) ($result['success'] ?? false);
+
+            return response()->json($ok ? ['success' => true, 'status' => strtolower($request->input('status'))] : ['success' => false, 'message' => $result['error'] ?? __('ads_campaigns.platform.status_failed', ['name' => AdsDashboardService::PLATFORMS[$platform]['label']])], $ok ? 200 : 422);
+        }
 
         return $this->socialAdManager->updateStatus($platform, $id, $request->input('status'));
     }
