@@ -10,8 +10,8 @@ use App\Support\Google\ReportRange;
 /**
  * Spend and results for the Ads Dashboard, read live from the platforms
  * that report them: Google Ads (GAQL - spend, clicks, impressions,
- * conversions, value, daily trend, previous period), TikTok and Snapchat
- * (report / measurement API - spend, clicks, impressions, conversions,
+ * conversions, value, daily trend, previous period), TikTok, Snapchat and X
+ * (report / measurement / analytics API - spend, clicks, impressions, conversions,
  * daily trend, previous period) and ChatGPT Ads (spend, clicks, impressions for the period). Every other platform is
  * returned as "no_reporting" - nothing is estimated or filled in.
  */
@@ -22,8 +22,8 @@ class AdsPerformanceService
     /** Platforms whose campaigns run on the Google Ads customer. */
     private const GOOGLE_PLATFORMS = ['google', 'youtube'];
 
-    /** Platforms read through their insights service (TiktokInsightsService, SnapchatInsightsService). */
-    private const INSIGHTS_PLATFORMS = ['tiktok', 'snapchat'];
+    /** Platforms read through their insights service (TiktokInsightsService, SnapchatInsightsService, XInsightsService). */
+    private const INSIGHTS_PLATFORMS = ['tiktok', 'snapchat', 'x'];
 
     public function __construct(private int $userId)
     {
@@ -167,7 +167,11 @@ class AdsPerformanceService
 
     private function insights(string $platform, int $days): array
     {
-        $service = $platform === 'tiktok' ? TiktokInsightsService::forUser($this->userId) : SnapchatInsightsService::forUser($this->userId);
+        $service = match ($platform) {
+            'tiktok' => TiktokInsightsService::forUser($this->userId),
+            'snapchat' => SnapchatInsightsService::forUser($this->userId),
+            'x' => XInsightsService::forUser($this->userId),
+        };
         $label = AdsDashboardService::PLATFORMS[$platform]['label'];
         $result = $service ? $service->insights($days) : ['success' => false, 'error' => "Connect a {$label} ad account first."];
 

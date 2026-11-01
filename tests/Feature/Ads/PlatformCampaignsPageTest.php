@@ -73,11 +73,11 @@ class PlatformCampaignsPageTest extends TestCase
 
     public function test_every_platform_page_uses_the_shared_component_and_only_reporting_platforms_load_performance(): void
     {
-        foreach (['google', 'linkedin', 'x', 'openai'] as $platform) {
+        foreach (['google', 'linkedin', 'openai'] as $platform) {
             $this->account($platform);
         }
 
-        foreach (['google' => true, 'youtube' => true, 'openai' => true, 'linkedin' => false, 'x' => false] as $platform => $reports) {
+        foreach (['google' => true, 'youtube' => true, 'openai' => true, 'linkedin' => false] as $platform => $reports) {
             $response = $this->get(route('admin.ads.campaigns.index', ['platform' => $platform]))->assertOk()->assertSee('<platform-campaigns', false);
             $data = $response->viewData('data');
             $this->assertSame($reports, $data['urls']['performance'] !== null, $platform);

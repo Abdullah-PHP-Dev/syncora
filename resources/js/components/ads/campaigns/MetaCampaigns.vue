@@ -484,9 +484,9 @@ const props = defineProps({
   csrf: { type: String, default: '' },
 });
 
-const pf = ['instagram', 'tiktok', 'snapchat'].includes(props.data.platform) ? props.data.platform : 'facebook';
+const pf = ['instagram', 'tiktok', 'snapchat', 'x'].includes(props.data.platform) ? props.data.platform : 'facebook';
 const isIg = pf === 'instagram';
-// TikTok and Snapchat: their own ad account and report API (no Meta campaign ids in Ads Manager links).
+// TikTok, Snapchat and X: their own ad account and report API (no Meta campaign ids in Ads Manager links).
 const isMeta = pf === 'facebook' || isIg;
 // Any key can be reworded per page under meta.scope.<platform>.over (TikTok: ad groups, TikTok Ads Manager...).
 const base = createTranslator(props.messages, props.locale);
@@ -499,6 +499,7 @@ const BRAND = {
   facebook: { name: 'Facebook', icon: 'bxl-facebook-circle', accent: '#1877F2', soft: '#E7F0FE', ink: '#0B5CD5', glow: 'rgba(24, 119, 242, .07)', hover: '#F5F9FF' },
   tiktok: { name: 'TikTok', icon: 'bxl-tiktok', accent: '#FE2C55', soft: '#FFE9EE', ink: '#D1123B', glow: 'rgba(254, 44, 85, .07)', hover: '#FFF6F8', bg: '#111111', on: '#FFFFFF' },
   // Snap yellow is the logo tile; charts and bars use a deeper gold that reads on white.
+  x: { name: 'X', icon: 'bxl-twitter', accent: '#1D9BF0', soft: '#E8F5FD', ink: '#0F5F99', glow: 'rgba(29, 155, 240, .07)', hover: '#F5FAFE', bg: '#000000', on: '#FFFFFF' },
   snapchat: { name: 'Snapchat', icon: 'bxl-snapchat', accent: '#E0B400', soft: '#FFFBD6', ink: '#7A5C00', glow: 'rgba(224, 180, 0, .08)', hover: '#FFFDEB', bg: '#FFFC00', on: '#111111' },
 }[pf];
 const brandVars = { '--pf': BRAND.accent, '--pf-soft': BRAND.soft, '--pf-ink': BRAND.ink, '--pf-glow': BRAND.glow, '--pf-hover': BRAND.hover, ...(BRAND.bg ? { '--pf-bg': BRAND.bg, '--pf-on': BRAND.on } : {}) };
@@ -645,7 +646,8 @@ const strip = computed(() => {
   return [
     { key: 'campaigns', icon: 'bx-bullseye', label: t('meta.mini.campaigns'), value: int(s.value.total), sub: t('meta.mini.active_n', { n: s.value.active }) },
     { key: 'impressions', icon: 'bx-show', label: t('meta.mini.impressions'), value: v(c && c.impressions, compact), delta: c && p ? delta(c.impressions, p.impressions) : null, sub: c && p ? vs : '' },
-    { key: 'reach', icon: 'bx-group', label: t('meta.mini.reach'), value: acc ? compact(acc.reach) : '—', sub: acc ? t('meta.mini.unique') : '' },
+    // Reach is null where the platform's live stats don't report it (X): "—", never 0.
+    { key: 'reach', icon: 'bx-group', label: t('meta.mini.reach'), value: acc && acc.reach !== null ? compact(acc.reach) : '—', sub: acc && acc.reach !== null ? t('meta.mini.unique') : '' },
     { key: 'frequency', icon: 'bx-repeat', label: t('meta.mini.frequency'), value: acc && acc.reach ? dec(acc.impressions / acc.reach, 2) : '—', sub: t('meta.mini.frequency_sub') },
     { key: 'link_clicks', icon: 'bx-link', label: t('meta.mini.link_clicks'), value: v(c && c.link_clicks, compact), delta: c && p ? delta(c.link_clicks, p.link_clicks) : null, sub: c && p ? vs : '' },
     { key: 'ctr', icon: 'bx-pointer', label: t('meta.mini.ctr'), value: v(c && c.link_ctr, (x) => pct(x)), delta: c && p ? delta(c.link_ctr, p.link_ctr) : null, sub: c && p ? vs : '' },
@@ -675,10 +677,10 @@ const funnel = computed(() => {
   const w = (v) => Math.max(4, Math.min(100, Math.sqrt(v / a.impressions) * 100));
   const rows = [
     { key: 'impressions', icon: 'bx-show', color: '#4F6BFF', label: t('meta.funnel.impressions'), raw: a.impressions, value: compact(a.impressions), note: t('meta.funnel.top') },
-    { key: 'reach', icon: 'bx-group', color: '#6366F1', label: t('meta.funnel.reach'), raw: a.reach, value: compact(a.reach), note: t('meta.funnel.of_impressions', { pct: pct(a.reach / a.impressions, 1) }) },
-    { key: 'link_clicks', icon: 'bx-pointer', color: '#8B5CF6', label: t('meta.funnel.link_clicks'), raw: a.link_clicks, value: compact(a.link_clicks), note: a.reach ? t('meta.funnel.ctr_from_reach', { pct: pct(a.link_clicks / a.reach, 1) }) : '' },
+    a.reach !== null && { key: 'reach', icon: 'bx-group', color: '#6366F1', label: t('meta.funnel.reach'), raw: a.reach, value: compact(a.reach), note: t('meta.funnel.of_impressions', { pct: pct(a.reach / a.impressions, 1) }) },
+    { key: 'link_clicks', icon: 'bx-pointer', color: '#8B5CF6', label: t('meta.funnel.link_clicks'), raw: a.link_clicks, value: compact(a.link_clicks), note: a.reach ? t('meta.funnel.ctr_from_reach', { pct: pct(a.link_clicks / a.reach, 1) }) : t('meta.funnel.of_impressions', { pct: pct(a.link_clicks / a.impressions, 1) }) },
     { key: 'conversions', icon: 'bx-cart', color: '#C026D3', label: t('meta.funnel.conversions'), raw: a.conversions, value: int(a.conversions), note: a.link_clicks ? t('meta.funnel.cvr', { pct: pct(a.conversions / a.link_clicks, 1) }) : '' },
-  ];
+  ].filter(Boolean);
   if (a.purchase_value > 0) rows.push({ key: 'revenue', icon: 'bx-dollar-circle', color: BRAND.accent, label: t('meta.funnel.revenue'), raw: a.purchase_value, value: moneyCompact(a.purchase_value), note: a.spend ? t('meta.funnel.roas_on_sales', { roas: dec(a.purchase_value / a.spend, 2) }) : '' });
   // Square-root scale keeps small stages visible; revenue is money, so it sits just under conversions.
   rows.forEach((r, i) => { r.width = r.key === 'revenue' ? Math.max(4, rows[i - 1].width - 6) : w(r.raw); });

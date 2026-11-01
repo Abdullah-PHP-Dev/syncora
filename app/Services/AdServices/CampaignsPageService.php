@@ -10,14 +10,15 @@ use App\Models\SocialAccount;
 use App\Support\AdAccountSelection;
 
 /**
- * Read model for the TikTok and Snapchat campaigns pages - the same shape
+ * Read model for the TikTok, Snapchat and X campaigns pages - the same shape
  * as FacebookCampaignsPageService, so MetaCampaigns.vue renders them.
  * Scoped to the seller's selected ad account on that platform; spend and
- * results load separately (TiktokInsightsService, SnapchatInsightsService).
+ * results load separately (TiktokInsightsService, SnapchatInsightsService,
+ * XInsightsService).
  */
 class CampaignsPageService
 {
-    public const PLATFORMS = ['tiktok', 'snapchat'];
+    public const PLATFORMS = ['tiktok', 'snapchat', 'x'];
 
     public function __construct(private int $userId, private string $platform, private bool $memberCanWrite = true)
     {
@@ -98,9 +99,8 @@ class CampaignsPageService
 
     /**
      * Daily and lifetime budget. TikTok: one campaign budget with a mode
-     * (BUDGET_MODE_DAY / BUDGET_MODE_TOTAL). Snapchat: the campaign's daily
-     * cap, else the ad squad budget the builder stored with its mode
-     * (daily / total).
+     * (BUDGET_MODE_DAY / BUDGET_MODE_TOTAL). Snapchat and X: the campaign's
+     * daily budget, else the budget stored with its mode (daily / total).
      *
      * @return array{daily_budget: ?float, lifetime_budget: ?float}
      */

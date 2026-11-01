@@ -32,7 +32,7 @@ class FacebookAiInsightsService
     public function generate(FacebookAdService|callable $source, int $accountId, int $userId, int $days, string $locale, string $platform = 'facebook'): array
     {
         $insights = $source instanceof FacebookAdService ? $source->insights($days) : $source($days);
-        $network = ['tiktok' => 'TikTok', 'snapchat' => 'Snapchat'][$platform] ?? 'Meta';
+        $network = ['tiktok' => 'TikTok', 'snapchat' => 'Snapchat', 'x' => 'X'][$platform] ?? 'Meta';
         if (!($insights['success'] ?? false)) {
             return ['success' => false, 'message' => $insights['error'] ?? "Insights from {$network} aren’t available yet."];
         }
@@ -47,6 +47,7 @@ class FacebookAiInsightsService
             . "Write at most 3 insights in {$language}, most useful first, from the JSON facts below.\n"
             . ($platform === 'instagram' ? "All figures cover Instagram placements only (Feed, Stories, Reels, Explore) of a Meta ad account.\n" : '')
             . ($platform === 'tiktok' ? "All figures come from one TikTok advertiser account; regions are country codes and placements are TikTok's own (TikTok, Pangle, Global App Bundle).\n" : '')
+            . ($platform === 'x' ? "All figures come from one X ad account; clicks are link clicks, and X's live stats include no reach, age, location or placement breakdown.\n" : '')
             . ($platform === 'snapchat' ? "All figures come from one Snapchat ad account; clicks are swipe ups, regions are country codes, and Snapchat reports no placement breakdown.\n" : '')
             . "Rules:\n"
             . "- Use ONLY numbers that appear in the facts (you may compute simple differences or percentages from them). Never invent figures, benchmarks or results.\n"

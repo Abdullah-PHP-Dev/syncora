@@ -15,6 +15,7 @@ use App\Services\AdServices\AdsPerformanceService;
 use App\Services\AdServices\CampaignsPageService;
 use App\Services\AdServices\SnapchatInsightsService;
 use App\Services\AdServices\TiktokInsightsService;
+use App\Services\AdServices\XInsightsService;
 use App\Services\AdServices\FacebookCampaignsPageService;
 use App\Services\AdServices\FacebookAiInsightsService;
 use App\Services\AdServices\SocialAdManagerService;
@@ -193,14 +194,16 @@ class AdCampaignController extends Controller
     private const ADS_MANAGER = [
         'tiktok' => 'https://ads.tiktok.com/i18n/perf/campaign?aadvid=',
         'snapchat' => 'https://ads.snapchat.com/',
+        'x' => 'https://ads.x.com/',
     ];
 
     /** Reporting for the TikTok and Snapchat pages, or null when the platform has no ad account here. */
-    private function insightsService(string $platform): TiktokInsightsService|SnapchatInsightsService|null
+    private function insightsService(string $platform): TiktokInsightsService|SnapchatInsightsService|XInsightsService|null
     {
         return match ($platform) {
             'tiktok' => TiktokInsightsService::forUser(Auth::id()),
             'snapchat' => SnapchatInsightsService::forUser(Auth::id()),
+            'x' => XInsightsService::forUser(Auth::id()),
             default => null,
         };
     }
@@ -217,10 +220,10 @@ class AdCampaignController extends Controller
     }
 
     /**
-     * TikTok and Snapchat campaigns pages: the same dashboard as Instagram
+     * TikTok, Snapchat and X campaigns pages: the same dashboard as Instagram
      * (MetaCampaigns.vue) for the selected ad account. Spend and results load
-     * from the insights endpoint (TiktokInsightsService, SnapchatInsightsService).
-     * Neither platform has a copy endpoint, so there's no duplicate action.
+     * from the insights endpoint (TiktokInsightsService, SnapchatInsightsService,
+     * XInsightsService). None of them is offered a duplicate action.
      */
     private function insightsIndex(string $platform)
     {

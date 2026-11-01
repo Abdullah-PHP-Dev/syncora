@@ -14,7 +14,7 @@ trait CreatesAdTables
             foreach (['social_account_id', 'user_id'] as $c) {
                 $t->unsignedBigInteger($c)->nullable();
             }
-            foreach (['name', 'platform', 'status', 'ad_campaign_id', 'objective', 'special_ad_category', 'budget_mode', 'bidding_strategy', 'app_promotion_type'] as $c) {
+            foreach (['name', 'platform', 'status', 'ad_campaign_id', 'objective', 'special_ad_category', 'budget_mode', 'bidding_strategy', 'app_promotion_type', 'funding_instrument_id'] as $c) {
                 $t->string($c)->nullable();
             }
             $t->decimal('budget', 12, 2)->nullable();
