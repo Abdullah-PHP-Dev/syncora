@@ -6,7 +6,7 @@
 
     <!-- ================= HEADER ================= -->
     <header class="adc-card adc-head">
-      <span class="adc-mark" :class="pf" aria-hidden="true"><i class="bx" :class="BRAND.icon"></i></span>
+      <span class="adc-mark" :class="[pf, { 'brand-solid': !isMeta }]" aria-hidden="true"><i class="bx" :class="BRAND.icon"></i></span>
       <div class="adc-head-main">
         <div class="adc-head-title">
           <h1>{{ ps('title') }}</h1>
@@ -69,7 +69,7 @@
     </div>
 
     <section v-if="!account" class="adc-card adc-empty">
-      <span class="adc-empty-ic"><i class="bx bxl-instagram"></i></span>
+      <span class="adc-empty-ic"><i class="bx" :class="BRAND.icon"></i></span>
       <h2>{{ ps('empty_title') }}</h2>
       <p>{{ ps('empty_text') }}</p>
       <a :href="data.urls.connections" class="adc-btn primary"><i class="bx bx-link"></i>{{ t('connect') }}</a>
@@ -345,12 +345,12 @@
                 <td v-if="col('roas')" class="num"><span v-if="m(c) && m(c).roas !== null" class="adc-c-roas" :class="m(c).roas >= 1 ? 'up' : 'down'"><i class="bx" :class="m(c).roas >= 1 ? 'bx-trending-up' : 'bx-trending-down'"></i>{{ dec(m(c).roas, 2) }}×</span><span v-else class="adc-c-dash">—</span></td>
                 <td class="num">
                   <div class="adc-c-actions">
-                    <a v-if="data.can_manage" :href="url('edit', c.id)" class="adc-c-act" :title="t('edit')" :aria-label="t('edit') + ' · ' + c.name"><i class="bx bx-pencil"></i></a>
-                    <button v-if="data.can_manage" type="button" class="adc-c-act" :disabled="!c.remote_id || busyId === c.id" :title="t('duplicate')" :aria-label="t('duplicate') + ' · ' + c.name" @click="askDuplicate(c)"><i class="bx bx-copy"></i></button>
+                    <a v-if="data.can_manage && data.urls.edit" :href="url('edit', c.id)" class="adc-c-act" :title="t('edit')" :aria-label="t('edit') + ' · ' + c.name"><i class="bx bx-pencil"></i></a>
+                    <button v-if="data.can_manage && data.urls.duplicate" type="button" class="adc-c-act" :disabled="!c.remote_id || busyId === c.id" :title="t('duplicate')" :aria-label="t('duplicate') + ' · ' + c.name" @click="askDuplicate(c)"><i class="bx bx-copy"></i></button>
                     <div class="adc-dd">
                       <button type="button" class="adc-c-act" :aria-label="t('more') + ' · ' + c.name" @click.stop="rowMenu = rowMenu === c.id ? null : c.id"><i class="bx bx-dots-horizontal-rounded"></i></button>
                       <div v-if="rowMenu === c.id" class="adc-menu end" role="menu" @click.stop>
-                        <a v-if="c.remote_id" :href="metaUrl + '&selected_campaign_ids=' + c.remote_id" target="_blank" rel="noopener" role="menuitem"><i class="bx bx-link-external"></i>{{ t('open_in_meta') }}</a>
+                        <a v-if="c.remote_id" :href="isMeta ? metaUrl + '&selected_campaign_ids=' + c.remote_id : metaUrl" target="_blank" rel="noopener" role="menuitem"><i class="bx bx-link-external"></i>{{ t('open_in_meta') }}</a>
                         <button v-if="data.can_manage" type="button" class="danger" role="menuitem" @click="askDelete(c)"><i class="bx bx-trash"></i>{{ t('delete') }}</button>
                         <span v-if="!data.can_manage && !c.remote_id" class="muted">{{ t('no_actions') }}</span>
                       </div>
@@ -470,10 +470,12 @@ import AdReports from './AdReports.vue';
 import { downloadCsv } from './adExport';
 
 /*
- * Facebook and Instagram Ads campaigns pages: the seller's Meta ad account.
- * On Instagram every number is narrowed to Instagram placements by
- * InstagramAdService, and campaign controls still act on the whole Meta
- * campaign. Facebook counts all placements and adds regions and ages.
+ * Facebook, Instagram and TikTok Ads campaigns pages. Facebook/Instagram:
+ * the seller's Meta ad account - on Instagram every number is narrowed to
+ * Instagram placements by InstagramAdService, and campaign controls still
+ * act on the whole Meta campaign; Facebook counts all placements and adds
+ * regions and ages. TikTok and Snapchat: the selected ad account, with the
+ * same insights shape from TiktokInsightsService / SnapchatInsightsService.
  */
 const props = defineProps({
   data: { type: Object, required: true },
@@ -482,16 +484,24 @@ const props = defineProps({
   csrf: { type: String, default: '' },
 });
 
-const i18n = createTranslator(props.messages, props.locale);
+const pf = ['instagram', 'tiktok', 'snapchat'].includes(props.data.platform) ? props.data.platform : 'facebook';
+const isIg = pf === 'instagram';
+// TikTok and Snapchat: their own ad account and report API (no Meta campaign ids in Ads Manager links).
+const isMeta = pf === 'facebook' || isIg;
+// Any key can be reworded per page under meta.scope.<platform>.over (TikTok: ad groups, TikTok Ads Manager...).
+const base = createTranslator(props.messages, props.locale);
+const over = (key) => { const k = 'meta.scope.' + pf + '.over.' + key; return base.t(k) === k ? key : k; };
+const i18n = { ...base, t: (key, params) => base.t(over(key), params), tc: (key, n, params) => base.tc(over(key), n, params) };
 const { t, tc } = i18n;
 const known = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
-const pf = props.data.platform === 'instagram' ? 'instagram' : 'facebook';
-const isIg = pf === 'instagram';
 const BRAND = {
   instagram: { name: 'Instagram', icon: 'bxl-instagram', accent: '#E1306C', soft: '#FFEAF2', ink: '#BE185D', glow: 'rgba(225, 48, 108, .07)', hover: '#FDF7FA' },
   facebook: { name: 'Facebook', icon: 'bxl-facebook-circle', accent: '#1877F2', soft: '#E7F0FE', ink: '#0B5CD5', glow: 'rgba(24, 119, 242, .07)', hover: '#F5F9FF' },
+  tiktok: { name: 'TikTok', icon: 'bxl-tiktok', accent: '#FE2C55', soft: '#FFE9EE', ink: '#D1123B', glow: 'rgba(254, 44, 85, .07)', hover: '#FFF6F8', bg: '#111111', on: '#FFFFFF' },
+  // Snap yellow is the logo tile; charts and bars use a deeper gold that reads on white.
+  snapchat: { name: 'Snapchat', icon: 'bxl-snapchat', accent: '#E0B400', soft: '#FFFBD6', ink: '#7A5C00', glow: 'rgba(224, 180, 0, .08)', hover: '#FFFDEB', bg: '#FFFC00', on: '#111111' },
 }[pf];
-const brandVars = { '--pf': BRAND.accent, '--pf-soft': BRAND.soft, '--pf-ink': BRAND.ink, '--pf-glow': BRAND.glow, '--pf-hover': BRAND.hover };
+const brandVars = { '--pf': BRAND.accent, '--pf-soft': BRAND.soft, '--pf-ink': BRAND.ink, '--pf-glow': BRAND.glow, '--pf-hover': BRAND.hover, ...(BRAND.bg ? { '--pf-bg': BRAND.bg, '--pf-on': BRAND.on } : {}) };
 function ps(key, params) { return t('meta.scope.' + pf + '.' + key, params); }
 
 const TABS = ['overview', 'campaigns', 'adsets', 'ads', 'creatives'];
@@ -541,7 +551,8 @@ function resultLabel(type) { return known('result_types.' + String(type || '').r
 function resultOne(type) { return known('result_one.' + String(type || '').replace(/\./g, '_'), t('result_one.results')); }
 function url(kind, id) { return props.data.urls[kind].replace('CAMPAIGN_ID', id); }
 function switchUrl(a) { return props.data.urls.switch.replace('ACCOUNT_ID', a.id); }
-const metaUrl = computed(() => props.data.urls.meta + (account.value ? String(account.value.external_id).replace(/^act_/, '') : ''));
+// Meta and TikTok open on the ad account (URL ends with "="); Snapchat's Ads Manager opens as is.
+const metaUrl = computed(() => props.data.urls.meta + (account.value && props.data.urls.meta.endsWith('=') ? String(account.value.external_id).replace(/^act_/, '') : ''));
 const nowTime = computed(() => new Date().toLocaleTimeString(i18n.intl, { hour: '2-digit', minute: '2-digit' }));
 // Positive change is good, except for costs (inverse).
 function delta(c, p, inverse = false) {
@@ -571,7 +582,12 @@ function toggleHint(c) {
   if (isArchived(c)) return t('archived_hint');
   return isIg ? t('meta.toggle_hint') : null;
 }
-const OBJ = { OUTCOME_SALES: ['#F97316', 'bx-trending-up'], OUTCOME_LEADS: ['#14B8A6', 'bx-id-card'], OUTCOME_TRAFFIC: ['#0EA5E9', 'bx-pointer'], OUTCOME_ENGAGEMENT: ['#D946EF', 'bx-heart'], OUTCOME_AWARENESS: ['#F59E0B', 'bx-show'], OUTCOME_APP_PROMOTION: ['#6366F1', 'bx-mobile'] };
+const OBJ = {
+  OUTCOME_SALES: ['#F97316', 'bx-trending-up'], OUTCOME_LEADS: ['#14B8A6', 'bx-id-card'], OUTCOME_TRAFFIC: ['#0EA5E9', 'bx-pointer'], OUTCOME_ENGAGEMENT: ['#D946EF', 'bx-heart'], OUTCOME_AWARENESS: ['#F59E0B', 'bx-show'], OUTCOME_APP_PROMOTION: ['#6366F1', 'bx-mobile'],
+  // TikTok objective_type values (TiktokCampaignBuilder::OBJECTIVES).
+  REACH: ['#F59E0B', 'bx-broadcast'], TRAFFIC: ['#0EA5E9', 'bx-pointer'], VIDEO_VIEWS: ['#EC4899', 'bx-play-circle'], ENGAGEMENT: ['#D946EF', 'bx-user-plus'],
+  LEAD_GENERATION: ['#14B8A6', 'bx-id-card'], WEB_CONVERSIONS: ['#F97316', 'bx-cart-alt'], APP_PROMOTION: ['#6366F1', 'bx-mobile-alt'], PRODUCT_SALES: ['#F97316', 'bx-shopping-bag'],
+};
 function objColor(o) { return (OBJ[String(o || '').toUpperCase()] || [BRAND.accent])[0]; }
 function objIcon(o) { return (OBJ[String(o || '').toUpperCase()] || ['', BRAND.icon])[1]; }
 function placementsLabel(c) { return [t('id_n', { id: c.id }), tc('adsets_n', c.adsets_count, { count: c.adsets_count })].join(' · '); }
@@ -737,7 +753,10 @@ function rankRows(list, limit) {
   const max = Math.max(1e-9, ...top.map(val));
   return top.map((r) => ({ ...r, width: Math.max(3, (val(r) / max) * 100), display: cmp ? int(val(r)) : money(val(r)) }));
 }
-const regionRows = computed(() => rankRows(details.value.regions, 5).map((r) => ({ ...r, label: r.key === '__other' ? t('perf.other_regions') : r.key })));
+// TikTok and Snapchat report regions as country codes (SA, AE...): shown by name.
+const regionNames = (() => { try { return new Intl.DisplayNames([i18n.intl || props.locale], { type: 'region' }); } catch (e) { return null; } })();
+function regionLabel(key) { if (isMeta || !/^[A-Z]{2}$/.test(key) || !regionNames) return key; try { return regionNames.of(key) || key; } catch (e) { return key; } }
+const regionRows = computed(() => rankRows(details.value.regions, 5).map((r) => ({ ...r, label: r.key === '__other' ? t('perf.other_regions') : regionLabel(r.key) })));
 const ageRows = computed(() => {
   const cmp = resultsComparable.value;
   const rows = (details.value.ages || []).filter((r) => (cmp ? r.results > 0 : r.spend > 0));
