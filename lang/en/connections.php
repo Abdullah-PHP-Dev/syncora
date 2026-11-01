@@ -244,12 +244,17 @@ return [
         ],
         'insights' => [
             'label' => 'Insights',
+            'linkedin' => 'Read Page statistics for reports',
+            'tiktok' => 'Read profile and video stats for reports',
+            'pinterest' => 'Read Pin and account analytics for reports',
             'meta' => 'Read Page and Instagram insights for reports',
             'google' => 'Read Analytics data for reports',
             'default' => 'Read insights for reports',
         ],
         'engagement' => [
             'label' => 'Comments',
+            'meta' => 'Read and reply to comments on Page and Instagram posts',
+            'google' => 'Reply to comments on your YouTube videos',
             'tiktok' => 'Read and reply to comments on your TikTok videos',
             'default' => 'Read and reply to comments',
         ],
@@ -313,6 +318,106 @@ return [
         'rejected' => 'OpenAI did not accept this API key. Copy it again from ads.openai.com > Settings.',
         'unreadable' => 'Could not read the ChatGPT Ads account for this key.',
         'connected' => 'Connected ChatGPT Ads account ":name".',
+    ],
+
+    // "Choose what to connect" on a platform panel (docs/connection-capabilities.md).
+    'choose' => [
+        'title' => 'Choose what to connect',
+        'subtitle' => 'Pick the features you need. SocialEaz asks :platform only for the permissions those features use.',
+        'button' => '{0} Select a feature|{1} Connect 1 feature|[2,*] Connect :count features',
+        'all_connected' => 'Everything available here is connected.',
+        'plan_one' => 'One :platform sign-in covers your selection.',
+        'plan_many' => 'Your selection needs :count sign-ins. We will guide you through them one at a time.',
+        'plan_step' => 'Sign-in :n: :label',
+        'plan_reconnect' => 'Adds the missing permissions to your existing connection.',
+        'untick_note' => 'You can untick permissions on the :platform screen. SocialEaz only turns on what :platform confirms.',
+        'needs' => 'Needs:',
+        'loading' => 'Working out the sign-ins...',
+        'plan_failed' => 'Could not work out the sign-ins. You can still continue.',
+    ],
+
+    'catalog_status' => [
+        'available' => 'Requires authorization',
+        'connected' => 'Connected',
+        'not_granted' => 'Permission not granted',
+        'reconnect' => 'Needs reconnect',
+        'approval_required' => 'Additional approval required',
+        'unavailable' => 'Not available',
+        'partial' => 'Partially supported',
+    ],
+
+    // The guided run after "Connect selected".
+    'flow' => [
+        'title' => 'Connecting :platform',
+        'progress' => 'Step :n of :total',
+        'next' => 'Next: :label',
+        'opens' => 'Opens :platform in this tab. You will come straight back here afterwards.',
+        'grants' => 'Turns on:',
+        'failed' => 'This sign-in did not finish. It was cancelled, or :platform returned an error.',
+        'continue' => 'Continue to :platform',
+        'retry' => 'Try again',
+        'skip' => 'Skip this step',
+        'cancel' => 'Cancel',
+        'state' => [
+            'done' => 'Done',
+            'failed' => 'Not finished',
+            'skipped' => 'Skipped',
+            'pending' => 'Waiting',
+        ],
+        'done_title' => 'Your :platform account is connected.',
+        'partial_title' => ':platform is partly connected.',
+        'none_title' => 'Nothing was connected on :platform.',
+        'done_body' => 'Each feature shows what :platform actually granted.',
+        'complete_missing' => 'Complete missing permissions',
+        'add_more' => 'Add more features',
+        'manage' => 'Manage accounts',
+        'close' => 'Done',
+    ],
+
+    // Per platform and capability: the account it needs and known limits.
+    'catalog' => [
+        'meta' => [
+            'posting' => ['account' => 'A Facebook Page. Instagram must be a professional account linked to it.'],
+            'ads' => ['account' => 'A Meta ad account you can access.'],
+            'messaging' => ['account' => 'A Facebook Page or a linked Instagram professional account.', 'note' => 'Messenger and Instagram messages. WhatsApp connects through its own sign-in.'],
+            'engagement' => ['account' => 'A Facebook Page or a linked Instagram professional account.'],
+            'insights' => ['account' => 'A Facebook Page or a linked Instagram professional account.'],
+        ],
+        'google' => [
+            'posting' => ['account' => 'A YouTube channel.'],
+            'ads' => ['account' => 'A Google Ads account you can access.'],
+            'insights' => ['account' => 'A Google account with Analytics access.', 'note' => 'GA4 and Search Console reports use the separate Analytics sign-in.'],
+            'engagement' => ['note' => 'Replying to YouTube comments needs a Google permission that is not enabled yet.'],
+        ],
+        'x' => [
+            'posting' => ['account' => 'An X account.'],
+            'messaging' => ['account' => 'An X account.'],
+            'ads' => ['account' => 'An X Ads account.', 'note' => 'Uses a separate X sign-in. X must approve Ads API access first.'],
+        ],
+        'linkedin' => [
+            'posting' => ['account' => 'A LinkedIn Page where you are an admin.'],
+            'insights' => ['account' => 'A LinkedIn Page where you are an admin.', 'note' => 'Page statistics only. Ad reporting comes with Ads.'],
+            'ads' => ['account' => 'A LinkedIn ad account.', 'note' => 'Uses a separate LinkedIn sign-in.'],
+            'messaging' => ['note' => 'LinkedIn does not offer a messaging API for Pages.'],
+        ],
+        'tiktok' => [
+            'posting' => ['account' => 'A TikTok account.'],
+            'insights' => ['account' => 'A TikTok account.'],
+            'engagement' => ['account' => 'A TikTok account.', 'note' => 'Uses a separate TikTok sign-in.'],
+            'ads' => ['account' => 'A TikTok for Business advertiser account.', 'note' => 'Uses a separate TikTok for Business sign-in.'],
+            'messaging' => ['note' => 'Waiting for TikTok to approve Business Messaging for SocialEaz.'],
+        ],
+        'snapchat' => [
+            'ads' => ['account' => 'A Snapchat Business ad account.'],
+            'posting' => ['note' => 'Snapchat Public Profile publishing is invite-only and not yet approved for SocialEaz.'],
+        ],
+        'threads' => [
+            'posting' => ['account' => 'A Threads profile.'],
+        ],
+        'pinterest' => [
+            'posting' => ['account' => 'A Pinterest account.'],
+            'insights' => ['account' => 'A Pinterest account.'],
+        ],
     ],
 
     'platforms' => [

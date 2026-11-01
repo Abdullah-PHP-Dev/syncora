@@ -46,7 +46,7 @@ class MetaDriver extends BaseDriver
             'connect_label' => __('connections.platforms.meta.connect_label'),
             'empty_title' => __('connections.platforms.meta.empty_title'),
             'empty_text' => __('connections.platforms.meta.empty_text'),
-            'benefits' => ['posting', 'messaging', 'ads', 'insights'],
+            'benefits' => ['posting', 'messaging', 'ads', 'insights', 'engagement'],
             'asset_groups' => [
                 'page' => ['label' => __('connections.platforms.meta.groups.page'), 'icon' => 'bxl-facebook', 'brand' => 'facebook', 'capabilities' => ['posting', 'messaging', 'insights']],
                 'instagram' => ['label' => __('connections.platforms.meta.groups.instagram'), 'icon' => 'bxl-instagram', 'brand' => 'instagram', 'capabilities' => ['posting', 'messaging', 'insights']],
