@@ -6,6 +6,7 @@ use App\Models\SocialAccount;
 use App\Models\SocialConnection;
 use App\Services\GoogleSuite\GoogleSuiteAuth;
 use App\Services\SocialAuth\SocialAuthService;
+use App\Support\Connections\ConnectionFlags;
 use App\Support\Connections\GoogleClient;
 use App\Support\Connections\GrantedScopes;
 use Illuminate\Support\Facades\DB;
@@ -47,15 +48,19 @@ class GoogleDriver extends BaseDriver
     public function presentation(): array
     {
         return [
-            'subtitle' => __('connections.platforms.google.subtitle'),
+            'subtitle' => __(ConnectionFlags::on('google.business_profile') ? 'connections.platforms.google.subtitle_gbp' : 'connections.platforms.google.subtitle'),
             'icons' => [['icon' => 'bxl-google', 'brand' => 'google'], ['icon' => 'bxl-youtube', 'brand' => 'youtube']],
             'connect_label' => __('connections.platforms.google.connect_label'),
-            'empty_title' => __('connections.platforms.google.empty_title'),
-            'empty_text' => __('connections.platforms.google.empty_text'),
+            'empty_title' => __(ConnectionFlags::on('google.business_profile') ? 'connections.platforms.google.empty_title_gbp' : 'connections.platforms.google.empty_title'),
+            'empty_text' => __(ConnectionFlags::on('google.business_profile') ? 'connections.platforms.google.empty_text_gbp' : 'connections.platforms.google.empty_text'),
             'benefits' => ['posting', 'ads', 'insights'],
             'asset_groups' => [
                 'youtube' => ['label' => __('connections.platforms.google.groups.youtube'), 'icon' => 'bxl-youtube', 'brand' => 'youtube', 'capabilities' => ['posting', 'insights']],
                 'google_ads' => ['label' => __('connections.platforms.google.groups.google_ads'), 'icon' => 'bx-bullseye', 'brand' => 'google', 'capabilities' => ['ads']],
+                // Imported at sign-in once business.manage is granted (SocialAuthService::connectBusinessLocations).
+                ...(ConnectionFlags::on('google.business_profile') ? ['business_profile' => [
+                    'label' => __('connections.platforms.google.groups.business_profile'), 'icon' => 'bx-store', 'brand' => 'google', 'capabilities' => ['posting', 'insights'],
+                ]] : []),
             ],
             'step_icons' => [
                 self::OAUTH => ['icon' => 'bxl-google', 'brand' => 'google'],
@@ -74,7 +79,12 @@ class GoogleDriver extends BaseDriver
 
     public function assetKind(SocialAccount $asset): string
     {
-        return $asset->platform === 'youtube' ? 'youtube' : 'google_ads';
+        return match (true) {
+            $asset->platform === 'youtube' => 'youtube',
+            // Business Profile locations share platform 'google' with Ads accounts.
+            $asset->account_type === 'location' => 'business_profile',
+            default => 'google_ads',
+        };
     }
 
     public function steps(): array
@@ -84,7 +94,7 @@ class GoogleDriver extends BaseDriver
         return [[
             'key' => self::OAUTH,
             'label' => __('connections.platforms.google.steps.oauth.label'),
-            'description' => __('connections.platforms.google.steps.oauth.description'),
+            'description' => __(ConnectionFlags::on('google.business_profile') ? 'connections.platforms.google.steps.oauth.description_gbp' : 'connections.platforms.google.steps.oauth.description'),
             'primary' => true,
             'available' => $available,
         ], [

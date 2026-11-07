@@ -265,6 +265,7 @@ return [
         'page' => ['title' => 'Facebook', 'subtitle' => 'Business Page', 'id' => 'Page ID'],
         'instagram' => ['title' => 'Instagram', 'subtitle' => 'Business Account', 'id' => 'Account ID'],
         'youtube' => ['title' => 'YouTube', 'subtitle' => 'Channel', 'id' => 'Channel ID'],
+        'business_profile' => ['title' => 'Business Profile', 'subtitle' => 'Google location', 'id' => 'Location ID'],
         'x_account' => ['title' => 'X', 'subtitle' => 'Account', 'id' => 'Account ID'],
         'linkedin_page' => ['title' => 'LinkedIn', 'subtitle' => 'Company Page', 'id' => 'Page ID'],
         'tiktok_account' => ['title' => 'TikTok', 'subtitle' => 'Account', 'id' => 'Account ID'],
@@ -384,9 +385,9 @@ return [
             'insights' => ['account' => 'A Facebook Page or a linked Instagram professional account.'],
         ],
         'google' => [
-            'posting' => ['account' => 'A YouTube channel.'],
+            'posting' => ['account' => 'A YouTube channel or a Google Business Profile location.'],
             'ads' => ['account' => 'A Google Ads account you can access.'],
-            'insights' => ['account' => 'A Google account with Analytics access.', 'note' => 'GA4 and Search Console reports use the separate Analytics sign-in.'],
+            'insights' => ['account' => 'A Google account with Analytics access, or a Business Profile you own or manage.', 'note' => 'GA4 and Search Console reports use the separate Analytics sign-in. Business Profile performance and reviews use this one.'],
             'engagement' => ['note' => 'Replying to YouTube comments needs a Google permission that is not enabled yet.'],
         ],
         'x' => [
@@ -451,12 +452,16 @@ return [
         ],
         'google' => [
             'subtitle' => 'YouTube · Google Ads · Analytics',
+            'subtitle_gbp' => 'YouTube · Business Profile · Google Ads · Analytics',
             'connect_label' => 'Connect with Google',
             'empty_title' => 'One Google consent for YouTube and Ads',
+            'empty_title_gbp' => 'One Google consent for YouTube, Business Profile and Ads',
             'empty_text' => 'Connect the Google account that owns your YouTube channels and Google Ads accounts. You can remove access at any time, here or in your Google Account settings.',
+            'empty_text_gbp' => 'Connect the Google account that owns your YouTube channels, manages your Business Profile and has your Google Ads accounts. Your Business Profile locations are imported automatically. You can remove access at any time, here or in your Google Account settings.',
             'groups' => [
                 'youtube' => 'YouTube channels',
                 'google_ads' => 'Google Ads accounts',
+                'business_profile' => 'Business Profile locations',
             ],
             'legacy' => [
                 'label' => 'Google Ads (earlier connection)',
@@ -466,6 +471,7 @@ return [
                 'oauth' => [
                     'label' => 'Google account',
                     'description' => 'YouTube channels, Google Ads accounts and Analytics in one consent.',
+                    'description_gbp' => 'YouTube channels, Business Profile locations, Google Ads accounts and Analytics in one consent.',
                 ],
                 'analytics' => [
                     'label' => 'Analytics & Search Console',

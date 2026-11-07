@@ -585,6 +585,7 @@ const ACCOUNT_VIEWS = {
   page: { section: 'social', brand: 'facebook', icon: 'bxl-facebook' },
   instagram: { section: 'social', brand: 'instagram', icon: 'bxl-instagram' },
   youtube: { section: 'social', brand: 'youtube', icon: 'bxl-youtube' },
+  business_profile: { section: 'social', brand: 'google', icon: 'bx-store' },
   x_account: { section: 'social', brand: 'x', icon: 'bxl-x-logo' },
   linkedin_page: { section: 'social', brand: 'linkedin', icon: 'bxl-linkedin' },
   tiktok_account: { section: 'social', brand: 'tiktok', icon: 'bxl-tiktok' },
