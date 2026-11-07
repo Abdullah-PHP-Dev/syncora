@@ -22,6 +22,9 @@ trait CreatesConnectionTables
             '2026_08_28_100001_create_social_account_ad_details_table.php',
             '2026_10_07_100000_add_asset_and_user_tokens_to_social_accounts_table.php',
             '2026_10_07_110000_create_social_connections_table.php',
+            '2026_11_07_120000_add_provider_account_label_to_social_connections.php',
+            // The Hub's Google card reads Google Suite settings (PageSpeed key, properties).
+            '2026_10_27_100000_create_google_suite_tables.php',
         ] as $migration) {
             (require database_path('migrations/' . $migration))->up();
         }

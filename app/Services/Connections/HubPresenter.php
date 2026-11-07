@@ -63,6 +63,8 @@ class HubPresenter
             'connections' => $connections->map(fn ($c) => $this->connection($c))->values(),
             // "Choose what to connect" (CapabilityCatalog); [] = not offered.
             'capability_options' => $this->catalog->forUser($userId, $platform, $connections),
+            // Google only: one line per Google service (config/google_services.php).
+            'google_services' => $platform === 'google' ? GoogleServiceStatus::forUser($userId) : null,
             // Meta only: in-page WhatsApp Embedded Signup (null until configured).
             'whatsapp_signup' => $platform === 'meta' ? MetaDriver::whatsappSignup() : null,
         ];
@@ -85,6 +87,8 @@ class HubPresenter
         return [
             'id' => $connection->id,
             'step' => $connection->step,
+            // Which provider account granted it (e.g. the Google account email), when known.
+            'account_label' => $connection->provider_account_label,
             'step_label' => $steps[$connection->step]['label'] ?? ($legacy['label'] ?? $connection->step),
             // What this consent can grant, when the driver says (null = every
             // capability the platform offers).

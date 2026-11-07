@@ -37,7 +37,6 @@ class GoogleSuiteTest extends TestCase
         parent::setUp();
         $this->createConnectionTables();
         $this->createSettingsTable();
-        (require database_path('migrations/2026_10_27_100000_create_google_suite_tables.php'))->up();
         Settings::set('posts.google.client_id', 'client-1');
         Settings::set('posts.google.client_secret', 'secret-1');
         $this->user = User::create(['name' => 'Seller', 'email' => 's@example.com', 'password' => bcrypt('x')]);

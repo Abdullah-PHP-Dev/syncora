@@ -167,10 +167,16 @@ class GoogleDriver extends BaseDriver
         // would also cut the others on the same client (e.g. dropping
         // Analytics would stop YouTube posting). Only revoke when this is
         // the last live Google consent; otherwise forget the tokens locally.
+        // The grant is also per Google account: another account's consent is a
+        // different grant. Unidentified consents (before openid was requested)
+        // are assumed to share it, which only ever skips a revoke.
         $shared = SocialConnection::where(['user_id' => $connection->user_id, 'platform' => 'google'])
             ->whereKeyNot($connection->id)
             ->where('provider_app', $connection->provider_app)
             ->whereIn('status', SocialConnection::USABLE)
+            ->when($connection->provider_account_id, fn ($q) => $q->where(fn ($q) => $q
+                ->whereNull('provider_account_id')
+                ->orWhere('provider_account_id', $connection->provider_account_id)))
             ->exists();
 
         if ($connection->step === self::ANALYTICS) {

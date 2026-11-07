@@ -11,6 +11,7 @@ use App\Services\Connections\Drivers\GoogleDriver;
 use App\Support\Connections\GoogleClient;
 use App\Support\Connections\GrantedScopes;
 use App\Support\Google\GoogleApiException;
+use App\Support\Google\GoogleServices;
 use App\Support\Google\GoogleSuiteScopes;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\RedirectResponse;
@@ -56,6 +57,14 @@ class GoogleSuiteAuth
             ->first();
     }
 
+    /** The Hub's service pick is read (and cleared) but this consent always covers both reporting services. */
+    private function consumeServiceRequest(): ?array
+    {
+        GoogleServices::pullRequest();
+
+        return null;
+    }
+
     public function redirect(): RedirectResponse
     {
         if (! self::configured()) {
@@ -72,7 +81,12 @@ class GoogleSuiteAuth
             'access_type' => 'offline',
             // Always return a refresh token, even for an account that consented before.
             'prompt' => 'consent select_account',
-            'scope' => implode(' ', GoogleSuiteScopes::requested()),
+            // Always both read-only reporting scopes (GA4 + Search Console), even
+            // when the Hub's "Connect" was for one of them: no include_granted_scopes
+            // here, so this token never carries the YouTube/Ads/Business Profile
+            // grants - and a later consent for one service would otherwise drop
+            // the other. The customer can still untick either on Google's screen.
+            'scope' => implode(' ', GoogleServices::scopesFor(GoogleDriver::ANALYTICS, $this->consumeServiceRequest())),
             'state' => $state,
         ]));
     }
@@ -120,9 +134,10 @@ class GoogleSuiteAuth
         // The id_token came straight from Google's token endpoint over TLS,
         // so its claims can be read without re-verifying the signature
         // (Google OpenID Connect docs, "Obtain user information from the ID token").
-        $identity = $this->idTokenClaims($token['id_token'] ?? null);
+        $identity = GoogleServices::idTokenClaims($token['id_token'] ?? null);
 
         $connection = ConnectionRecorder::record($userId, 'google', GoogleDriver::ANALYTICS, $identity['sub'] ?? null, [
+            ...(isset($identity['email']) ? ['provider_account_label' => $identity['email']] : []),
             'provider_app' => GoogleClient::current(),
             'access_token' => $token['access_token'],
             'refresh_token' => $token['refresh_token'] ?? null,
@@ -167,18 +182,5 @@ class GoogleSuiteAuth
     private function result(string $status, ?string $code = null, array $extra = []): RedirectResponse
     {
         return redirect()->route('admin.google.status')->with('google_oauth', ['status' => $status, 'code' => $code] + $extra);
-    }
-
-    private function idTokenClaims(?string $idToken): array
-    {
-        $parts = $idToken ? explode('.', $idToken) : [];
-
-        if (count($parts) !== 3) {
-            return [];
-        }
-
-        $claims = json_decode((string) base64_decode(strtr($parts[1], '-_', '+/')), true);
-
-        return is_array($claims) ? array_intersect_key($claims, array_flip(['sub', 'email'])) : [];
     }
 }

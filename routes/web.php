@@ -663,6 +663,12 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('connections.wizard.finish');
 				Route::post('connections/openai/key', [ConnectionHubController::class, 'connectOpenAi'])
 					->name('connections.openai.key');
+				// One Google service (config/google_services.php): asks Google for
+				// that service's scopes only, then runs the normal connect flow.
+				// Registered first so 'google' doesn't fall into {platform}/connect/{step}.
+				Route::get('connections/google/services/{service}/connect', [ConnectionHubController::class, 'connectGoogleService'])
+					->name('connections.google.connect')
+					->middleware('throttle:10,1');
 				Route::get('connections/{platform}/connect/{step}', [ConnectionHubController::class, 'connect'])
 					->name('connections.connect');
 				// Pick capabilities -> planned provider consents, one at a

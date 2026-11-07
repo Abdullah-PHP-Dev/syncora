@@ -40,7 +40,7 @@ class SocialConnection extends Model
     public const EXPIRING_WITHIN_DAYS = 7;
 
     protected $fillable = [
-        'user_id', 'workspace_id', 'platform', 'step', 'provider_account_id', 'provider_app',
+        'user_id', 'workspace_id', 'platform', 'step', 'provider_account_id', 'provider_account_label', 'provider_app',
         'access_token', 'refresh_token', 'token_secret', 'expires_at', 'refresh_expires_at',
         'granted_scopes', 'capabilities', 'status', 'last_checked_at', 'last_refreshed_at',
         'last_error', 'revoked_at',

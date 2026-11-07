@@ -330,8 +330,16 @@
         <span class="ch-pill" :class="cardStatus(card).tone"><i class="bx" :class="cardStatus(card).icon"></i> {{ cardStatus(card).label }}</span>
       </div>
 
+      <!-- Google: one row per service, instead of capabilities and consent steps. -->
+      <google-services
+          v-if="card.platform === 'google' && card.google_services"
+          :services="card.google_services"
+          :t="t"
+          :busy="busy"
+          @disconnect="id => disconnect(card, card.connections.find(c => c.id === id))" />
+
       <!-- Choose what to connect: capabilities first; the backend plans the sign-ins. -->
-      <form v-if="card.capability_options && card.capability_options.length" method="POST" :action="authorizeUrl(card.platform)" class="ch-choose">
+      <form v-if="card.platform !== 'google' && card.capability_options && card.capability_options.length" method="POST" :action="authorizeUrl(card.platform)" class="ch-choose">
         <input type="hidden" name="_token" :value="csrf">
         <div class="ch-choose-head">
           <h3>{{ t('choose.title') }}</h3>
@@ -387,7 +395,7 @@
       </form>
 
       <!-- Steps -->
-      <div class="ch-steps">
+      <div v-if="card.platform !== 'google'" class="ch-steps">
         <div v-for="step in card.steps" :key="step.key" class="ch-step" :class="{ 'is-primary': step.primary, 'is-off': !step.available && step.key !== 'meta.whatsapp', 'has-form': (step.key === 'meta.whatsapp' && waManual) || (step.input === 'api_key' && apiKeyOpen) }">
           <div class="ch-step-main">
             <span class="ch-step-icon" :class="stepIcon(card, step.key).cls"><i class="bx" :class="stepIcon(card, step.key).icon"></i></span>
@@ -452,7 +460,7 @@
       </div>
 
       <!-- Not connected yet -->
-      <div v-if="!card.connections.length" class="ch-empty">
+      <div v-if="!card.connections.length && card.platform !== 'google'" class="ch-empty">
         <div class="ch-empty-art"><i class="bx bx-plug"></i></div>
         <h3>{{ card.presentation.empty_title }}</h3>
         <p>{{ card.presentation.empty_text }}</p>
@@ -462,13 +470,14 @@
       </div>
 
       <!-- Consents + assets -->
+      <h3 v-if="card.platform === 'google' && card.connections.length" class="ch-accounts-title">{{ t('google_services.accounts_title') }}</h3>
       <div v-for="conn in card.connections" :key="conn.id" class="ch-conn">
 
         <div class="ch-conn-head">
           <div class="ch-conn-id">
             <span class="ch-step-icon sm" :class="stepIcon(card, conn.step).cls"><i class="bx" :class="stepIcon(card, conn.step).icon"></i></span>
             <div>
-              <strong>{{ conn.step_label }}</strong>
+              <strong>{{ conn.step_label }}<span v-if="conn.account_label" class="ch-account-label"> · {{ conn.account_label }}</span></strong>
               <span class="ch-conn-meta">
                 <span class="ch-status" :class="statusInfo(conn.status).tone"><i class="ch-dot"></i>{{ statusInfo(conn.status).label }}</span>
                 <span v-if="conn.expires_in_days !== null"><i class="bx bx-time-five"></i> {{ expiryLabel(conn) }}</span>
@@ -569,6 +578,7 @@
 
 <script>
 import { createTranslator } from '../ads/facebook/i18n';
+import GoogleServices from './GoogleServices.vue';
 
 // Text for all of these comes from lang/{en,ar}/connections.php.
 const CAPABILITIES = [
@@ -616,6 +626,7 @@ const SECTIONS = [
 ];
 
 export default {
+  components: { GoogleServices },
 
   props: {
     hub: { type: Object, required: true },
@@ -1467,6 +1478,8 @@ export default {
 .ch-acct-add small { font-size: 12px; color: var(--muted); line-height: 1.45; max-width: 30ch; }
 
 
+.ch-accounts-title { margin: 18px 0 8px; font-size: 13px; font-weight: 700; color: var(--ink); }
+.ch-account-label { font-weight: 500; color: var(--muted); overflow-wrap: anywhere; }
 .ch-panel { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 18px; box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.03); position: relative; overflow: hidden; }
 .ch-panel h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 15px; font-weight: 700; color: var(--ink); }
 .ch-panel h3 i { font-size: 18px; color: var(--brand); }

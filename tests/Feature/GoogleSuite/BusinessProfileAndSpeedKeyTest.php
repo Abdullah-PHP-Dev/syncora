@@ -34,7 +34,6 @@ class BusinessProfileAndSpeedKeyTest extends TestCase
         parent::setUp();
         $this->createConnectionTables();
         $this->createSettingsTable();
-        (require database_path('migrations/2026_10_27_100000_create_google_suite_tables.php'))->up();
         // The Business Profile dashboard lists the location's recent posts.
         \Illuminate\Support\Facades\Schema::create('posts', function ($t) {
             $t->id();

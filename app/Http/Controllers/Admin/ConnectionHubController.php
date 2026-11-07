@@ -13,6 +13,7 @@ use App\Support\Connections\AuthorizationFlow;
 use App\Support\Connections\ConnectionWizard;
 use App\Support\Connections\OpenAiAds;
 use Illuminate\Http\JsonResponse;
+use App\Support\Google\GoogleServices;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -146,6 +147,17 @@ class ConnectionHubController extends Controller
     }
 
     /** Start a card step's consent (also the "Upgrade access" target). */
+    /** Connect one Google service: its own scopes only, on the shared Google consent flow. */
+    public function connectGoogleService(string $service): Response
+    {
+        $definition = GoogleServices::get($service);
+        abort_unless($definition && ($definition['auth'] ?? null) === 'oauth' && GoogleServices::enabled($definition), 404);
+
+        GoogleServices::requestFor([$service]);
+
+        return $this->connect('google', $definition['step']);
+    }
+
     public function connect(string $platform, string $step): Response
     {
         return $this->connections->connect($platform, $step);

@@ -610,4 +610,102 @@ return [
             ],
         ],
     ],
+
+    'google_services' => [
+        'title' => 'Google services',
+        'subtitle' => 'Connect only what you use. Each service asks Google for its own permissions, and you can add more later without reconnecting the rest.',
+        'groups' => [
+            'marketing' => 'Content & advertising',
+            'website' => 'Website insights',
+            'later' => 'Coming later',
+        ],
+        'services' => [
+            'youtube' => [
+                'name' => 'YouTube',
+                'text' => 'Publish videos and manage your channels.',
+            ],
+            'google_ads' => [
+                'name' => 'Google Ads',
+                'text' => 'Create campaigns and see spend and results.',
+            ],
+            'business_profile' => [
+                'name' => 'Business Profile',
+                'text' => 'Posts, reviews and performance for your Google Maps listing.',
+            ],
+            'analytics' => [
+                'name' => 'Google Analytics 4',
+                'text' => 'Website traffic, sources and conversions (read-only).',
+            ],
+            'search_console' => [
+                'name' => 'Search Console',
+                'text' => 'How your site performs in Google Search (read-only).',
+            ],
+            'pagespeed' => [
+                'name' => 'PageSpeed Insights',
+                'text' => 'Test how fast your pages load. No Google sign-in needed.',
+            ],
+            'tag_manager' => [
+                'name' => 'Tag Manager',
+                'text' => 'Website tags and tracking containers.',
+            ],
+            'maps' => [
+                'name' => 'Google Maps',
+                'text' => 'Maps and location features.',
+            ],
+        ],
+        'status' => [
+            'connected' => 'Connected',
+            'not_connected' => 'Not connected',
+            'expired' => 'Expired',
+            'permission_required' => 'Permission required',
+            'error' => 'Connection error',
+            'ready' => 'Ready',
+            'unavailable_planned' => 'Not available yet',
+            'unavailable_approval' => 'Awaiting approval',
+        ],
+        'reasons' => [
+            'planned' => 'Not part of SocialEaz yet.',
+            'planned_maps' => 'Not part of SocialEaz yet. Your business location and map link come from Business Profile.',
+            'approval' => 'Google must approve SocialEaz for this API before it can be connected.',
+            'not_configured' => 'Google sign-in isn’t set up on SocialEaz yet. Our team has been notified.',
+            'own_key' => 'Running on your own API key.',
+            'platform_key' => 'Running on SocialEaz’s key. Add your own key for your own quota.',
+            'needs_key' => 'Add a free PageSpeed Insights API key to run tests.',
+        ],
+        'notes' => [
+            'no_assets' => [
+                'youtube' => 'No YouTube channel found on this Google account.',
+                'google_ads' => 'No Google Ads account found on this Google account.',
+                'business_profile' => 'No Business Profile locations found. Connect the account that owns or manages your profile.',
+            ],
+            'no_property' => [
+                'analytics' => 'Choose which GA4 property to report on.',
+                'search_console' => 'Choose which Search Console site to report on.',
+            ],
+        ],
+        'fix' => [
+            'expired' => 'The connection expired. Reconnect to continue.',
+            'permission_required' => 'Google needs you to approve access again. Reconnect and keep the permission ticked.',
+            'error' => 'Google returned an error. Try reconnecting; if it continues, contact support.',
+        ],
+        'assets' => [
+            'youtube' => ':n channel(s)',
+            'google_ads' => ':n ad account(s)',
+            'business_profile' => ':n location(s)',
+        ],
+        'connect' => 'Connect',
+        'reconnect' => 'Reconnect',
+        'open' => 'Open',
+        'add_key' => 'Add API key',
+        'learn_more' => 'Learn more',
+        'add_account' => 'Add account',
+        'add_account_hint' => 'Connect another Google account for this service',
+        'disconnect' => 'Disconnect',
+        'account_unknown' => 'Google account',
+        'confirm' => 'Disconnect :account from SocialEaz?',
+        'confirm_shared' => 'Disconnecting :account also stops :services on this account.',
+        'owner_connects' => 'The workspace owner connects Google services.',
+        'accounts_title' => 'Google accounts',
+        'privacy' => 'SocialEaz only asks Google for the permissions a service needs. You can remove access any time here or in your Google Account.',
+    ],
 ];

@@ -610,4 +610,102 @@ return [
             ],
         ],
     ],
+
+    'google_services' => [
+        'title' => 'خدمات Google',
+        'subtitle' => 'اربط ما تستخدمه فقط. كل خدمة تطلب من Google صلاحياتها الخاصة، ويمكنك إضافة المزيد لاحقاً دون إعادة ربط البقية.',
+        'groups' => [
+            'marketing' => 'المحتوى والإعلانات',
+            'website' => 'تحليلات الموقع',
+            'later' => 'قريباً',
+        ],
+        'services' => [
+            'youtube' => [
+                'name' => 'يوتيوب',
+                'text' => 'انشر الفيديوهات وأدر قنواتك.',
+            ],
+            'google_ads' => [
+                'name' => 'إعلانات Google',
+                'text' => 'أنشئ الحملات وتابع الإنفاق والنتائج.',
+            ],
+            'business_profile' => [
+                'name' => 'الملف التجاري',
+                'text' => 'المنشورات والمراجعات والأداء لنشاطك على خرائط Google.',
+            ],
+            'analytics' => [
+                'name' => 'Google Analytics 4',
+                'text' => 'زيارات الموقع ومصادرها والتحويلات (للقراءة فقط).',
+            ],
+            'search_console' => [
+                'name' => 'Search Console',
+                'text' => 'أداء موقعك في بحث Google (للقراءة فقط).',
+            ],
+            'pagespeed' => [
+                'name' => 'PageSpeed Insights',
+                'text' => 'اختبر سرعة تحميل صفحاتك. لا يحتاج تسجيل دخول إلى Google.',
+            ],
+            'tag_manager' => [
+                'name' => 'Tag Manager',
+                'text' => 'وسوم الموقع وحاويات التتبع.',
+            ],
+            'maps' => [
+                'name' => 'خرائط Google',
+                'text' => 'الخرائط وميزات الموقع الجغرافي.',
+            ],
+        ],
+        'status' => [
+            'connected' => 'متصل',
+            'not_connected' => 'غير متصل',
+            'expired' => 'منتهي الصلاحية',
+            'permission_required' => 'يتطلب صلاحية',
+            'error' => 'خطأ في الاتصال',
+            'ready' => 'جاهز',
+            'unavailable_planned' => 'غير متاح بعد',
+            'unavailable_approval' => 'بانتظار الموافقة',
+        ],
+        'reasons' => [
+            'planned' => 'ليس ضمن SocialEaz بعد.',
+            'planned_maps' => 'ليس ضمن SocialEaz بعد. موقع نشاطك ورابط الخريطة يأتيان من الملف التجاري.',
+            'approval' => 'يجب أن توافق Google على وصول SocialEaz إلى هذه الواجهة قبل ربطها.',
+            'not_configured' => 'تسجيل الدخول عبر Google غير مُعدّ في SocialEaz بعد. تم إبلاغ فريقنا.',
+            'own_key' => 'يعمل بمفتاح API الخاص بك.',
+            'platform_key' => 'يعمل بمفتاح SocialEaz. أضف مفتاحك لاستخدام حصتك الخاصة.',
+            'needs_key' => 'أضف مفتاح PageSpeed Insights API مجانياً لتشغيل الاختبارات.',
+        ],
+        'notes' => [
+            'no_assets' => [
+                'youtube' => 'لا توجد قناة يوتيوب في حساب Google هذا.',
+                'google_ads' => 'لا يوجد حساب إعلانات Google في حساب Google هذا.',
+                'business_profile' => 'لم يتم العثور على مواقع في الملف التجاري. اربط الحساب الذي يملك ملفك أو يديره.',
+            ],
+            'no_property' => [
+                'analytics' => 'اختر موقع GA4 الذي تريد تقاريره.',
+                'search_console' => 'اختر موقع Search Console الذي تريد تقاريره.',
+            ],
+        ],
+        'fix' => [
+            'expired' => 'انتهت صلاحية الاتصال. أعد الربط للمتابعة.',
+            'permission_required' => 'تحتاج Google إلى موافقتك مرة أخرى. أعد الربط وأبقِ الصلاحية مفعّلة.',
+            'error' => 'أرجعت Google خطأ. حاول إعادة الربط، وإذا استمر تواصل مع الدعم.',
+        ],
+        'assets' => [
+            'youtube' => ':n قناة',
+            'google_ads' => ':n حساب إعلانات',
+            'business_profile' => ':n موقع',
+        ],
+        'connect' => 'ربط',
+        'reconnect' => 'إعادة الربط',
+        'open' => 'فتح',
+        'add_key' => 'إضافة مفتاح API',
+        'learn_more' => 'اعرف المزيد',
+        'add_account' => 'إضافة حساب',
+        'add_account_hint' => 'اربط حساب Google آخر لهذه الخدمة',
+        'disconnect' => 'فصل',
+        'account_unknown' => 'حساب Google',
+        'confirm' => 'فصل :account عن SocialEaz؟',
+        'confirm_shared' => 'فصل :account يوقف أيضاً :services لهذا الحساب.',
+        'owner_connects' => 'يربط مالك مساحة العمل خدمات Google.',
+        'accounts_title' => 'حسابات Google',
+        'privacy' => 'يطلب SocialEaz من Google الصلاحيات التي تحتاجها الخدمة فقط. يمكنك إزالة الوصول في أي وقت من هنا أو من حسابك في Google.',
+    ],
 ];
