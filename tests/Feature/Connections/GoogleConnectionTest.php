@@ -83,11 +83,13 @@ class GoogleConnectionTest extends TestCase
         parse_str(parse_url(app(SocialAuthService::class)->redirect('google')->getTargetUrl(), PHP_URL_QUERY), $q);
         $this->assertSame('posts-client', $q['client_id']);
         $this->assertSame('true', $q['include_granted_scopes']);
-        $this->assertStringNotContainsString('business.manage', $q['scope']);
-
-        Settings::set('connections.flags.google.business_profile', '1');
-        parse_str(parse_url(app(SocialAuthService::class)->redirect('google')->getTargetUrl(), PHP_URL_QUERY), $q);
+        // Business Profile API access is approved: requested by default...
         $this->assertStringContainsString('auth/business.manage', $q['scope']);
+
+        // ...and an admin can still switch it off.
+        Settings::set('connections.flags.google.business_profile', '0');
+        parse_str(parse_url(app(SocialAuthService::class)->redirect('google')->getTargetUrl(), PHP_URL_QUERY), $q);
+        $this->assertStringNotContainsString('business.manage', $q['scope']);
     }
 
     public function test_callback_records_one_google_connection_and_lists_ads_without_developer_token(): void

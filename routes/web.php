@@ -723,6 +723,11 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 							Route::post('search-console/inspect', 'inspect')->name('inspect')->middleware('throttle:20,1');
 							Route::get('google-ads', 'googleAds')->name('google-ads');
 							Route::get('pagespeed', 'pageSpeed')->name('pagespeed')->middleware('throttle:12,1');
+							Route::put('pagespeed/key', 'savePageSpeedKey')->name('pagespeed-key')->middleware('throttle:10,1');
+							Route::delete('pagespeed/key', 'deletePageSpeedKey')->name('pagespeed-key.destroy')->middleware('throttle:10,1');
+							Route::get('business-profile', 'businessProfile')->name('business-profile');
+							Route::get('business-profile/reviews', 'businessProfileReviews')->name('business-profile.reviews');
+							Route::put('business-profile/reply', 'businessProfileReply')->name('business-profile.reply')->middleware('throttle:30,1');
 							Route::post('properties/sync', 'discover')->name('properties.sync')->middleware('throttle:10,1');
 							Route::put('properties/selection', 'select')->name('properties.select');
 							Route::put('preferences', 'preferences')->name('preferences');

@@ -33,7 +33,7 @@ return [
         'meta.whatsapp_in_main_config' => false,
         'meta.instagram_login' => true,
         'google.oauth_client' => 'posts',
-        'google.business_profile' => false,
+        'google.business_profile' => true, // Business Profile API access approved; business.manage is on the verified consent screen.
         'linkedin.single_app' => false,
         'tiktok.business_messaging' => false,
         'tiktok.business_account_posting' => false,
@@ -98,7 +98,7 @@ return [
 
         // Google grants full scope URLs.
         'google' => [
-            'posting' => ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube'],
+            'posting' => ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube', 'https://www.googleapis.com/auth/business.manage'],
             'messaging' => [],
             'ads' => ['https://www.googleapis.com/auth/adwords'],
             'insights' => ['https://www.googleapis.com/auth/analytics.readonly', 'https://www.googleapis.com/auth/webmasters.readonly', 'https://www.googleapis.com/auth/yt-analytics.readonly', 'https://www.googleapis.com/auth/business.manage'],

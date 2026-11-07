@@ -48,13 +48,14 @@ import SearchConsole from './screens/SearchConsole.vue';
 import Planned from './screens/Planned.vue';
 import Advertising from './screens/Advertising.vue';
 import PageSpeed from './screens/PageSpeed.vue';
+import BusinessProfile from './screens/BusinessProfile.vue';
 import Reports from './screens/Reports.vue';
 import Preferences from './screens/Preferences.vue';
 import Health from './screens/Health.vue';
 
 const SCREENS = {
   overview: Overview, integrations: Integrations, setup: Setup, status: Status, properties: Properties, settings: ServiceSettings,
-  analytics: Analytics, search_console: SearchConsole, advertising: Advertising, pagespeed: PageSpeed, business_profile: Planned, tag_manager: Planned, reports: Reports, preferences: Preferences, health: Health,
+  analytics: Analytics, search_console: SearchConsole, advertising: Advertising, pagespeed: PageSpeed, business_profile: BusinessProfile, tag_manager: Planned, reports: Reports, preferences: Preferences, health: Health,
 };
 
 /**
@@ -66,7 +67,12 @@ export default {
   props: { boot: { type: Object, required: true } },
   data: () => ({ suite }),
   computed: {
-    screenComponent() { return SCREENS[suite.screen] || Overview; },
+    screenComponent() {
+      // Business Profile stays an explainer while the google.business_profile flag is off.
+      if (suite.screen === 'business_profile' && !this.gbpEnabled) return Planned;
+      return SCREENS[suite.screen] || Overview;
+    },
+    gbpEnabled() { return !!(suite.extra.business_profile && suite.extra.business_profile.enabled); },
     backUrl() { return suite.screen === 'overview' ? null : suite.urls.overview; },
     tabs() {
       const u = suite.urls; const s = suite.screen;
@@ -76,12 +82,13 @@ export default {
         { key: 'search_console', label: t('nav.tab_search_console'), url: u.search_console, active: s === 'search_console' || (s === 'settings' && suite.extra.service === 'search_console'), color: COLORS.search_console },
         { key: 'advertising', label: t('nav.tab_ads'), url: u.advertising, active: s === 'advertising', color: COLORS.google_ads },
         { key: 'pagespeed', label: t('nav.tab_pagespeed'), url: u.pagespeed, active: s === 'pagespeed', color: COLORS.pagespeed },
+        ...(this.gbpEnabled ? [{ key: 'business_profile', label: t('nav.tab_business_profile'), url: u.business_profile, active: s === 'business_profile', color: COLORS.business_profile }] : []),
       ];
     },
     sideTabs() {
       const u = suite.urls; const s = suite.screen;
       return [
-        { key: 'integrations', label: t('nav.integrations'), url: u.integrations, active: ['integrations', 'business_profile', 'tag_manager'].includes(s) },
+        { key: 'integrations', label: t('nav.integrations'), url: u.integrations, active: ['integrations', 'tag_manager'].includes(s) || (s === 'business_profile' && !this.gbpEnabled) },
         { key: 'reports', label: t('nav.reports'), url: u.reports, active: s === 'reports' },
         { key: 'credentials', label: t('nav.credentials'), url: u.properties, active: ['properties', 'setup', 'status'].includes(s) },
         { key: 'settings', label: t('nav.settings'), url: u.preferences, active: ['preferences', 'health'].includes(s) },

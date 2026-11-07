@@ -556,6 +556,7 @@ class SocialAuthService
         $youtubeConnected = $this->connectYoutubeChannels($accessToken, $refreshToken, $expiresAt, $userId, $grantedScopes, $assetIds);
         $skippedCustomers = [];
         $adAccountsConnected = $this->connectGoogleAdsCustomers($accessToken, $refreshToken, $expiresAt, $userId, $grantedScopes, $assetIds, $skippedCustomers);
+        $locationsConnected = $this->connectBusinessLocations($accessToken, $refreshToken, $expiresAt, $userId, $grantedScopes, $assetIds);
 
         // The consent itself, for the Connection Hub (design doc §5).
         ConnectionRecorder::record($userId, 'google', GoogleDriver::OAUTH, null, [
@@ -568,8 +569,106 @@ class SocialAuthService
 
         return redirect()->route($this->returnRoute())->with(
             'success',
-            trim("Connected {$youtubeConnected} YouTube channel(s) and {$adAccountsConnected} Google Ads account(s). " . GoogleAdsCustomers::skippedSummary($skippedCustomers))
+            trim("Connected {$youtubeConnected} YouTube channel(s) and {$adAccountsConnected} Google Ads account(s)"
+                . ($locationsConnected !== null ? " and {$locationsConnected} Business Profile location(s)" : '')
+                . '. ' . GoogleAdsCustomers::skippedSummary($skippedCustomers))
         );
+    }
+
+    /**
+     * Google Business Profile locations, once business.manage is granted
+     * (flag google.business_profile). Each location becomes a 'google'
+     * SocialAccount of type 'location' with its Business Profile account id
+     * in metadata.parent_account_id - what GooglePostService (local posts,
+     * review replies) and the Google Suite Business Profile screen read.
+     *
+     * @return int|null  locations imported, or null when Business Profile isn't part of this sign-in
+     */
+    private function connectBusinessLocations(string $accessToken, ?string $refreshToken, Carbon $expiresAt, int $userId, ?array $grantedScopes = null, array &$assetIds = []): ?int
+    {
+        if (! ConnectionFlags::on('google.business_profile')
+            || ! in_array('https://www.googleapis.com/auth/business.manage', $grantedScopes ?? [], true)) {
+            return null;
+        }
+
+        $headers = ['Authorization' => 'Bearer ' . $accessToken];
+        $connected = 0;
+        $accountsToken = null;
+
+        do {
+            $accounts = $this->api->get('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', $headers, array_filter(['pageSize' => 20, 'pageToken' => $accountsToken]));
+            if (! ($accounts['success'] ?? false)) {
+                \Log::warning('Business Profile: listing accounts failed', ['status' => $accounts['status'] ?? null]);
+                break;
+            }
+
+            foreach ($accounts['data']['accounts'] ?? [] as $account) {
+                // "accounts/123" -> "123"
+                $accountId = basename((string) ($account['name'] ?? ''));
+                if ($accountId === '') {
+                    continue;
+                }
+
+                $locationsToken = null;
+                do {
+                    $locations = $this->api->get("https://mybusinessbusinessinformation.googleapis.com/v1/accounts/{$accountId}/locations", $headers, array_filter([
+                        'readMask' => 'name,title,storefrontAddress,websiteUri,metadata',
+                        'pageSize' => 100,
+                        'pageToken' => $locationsToken,
+                    ]));
+                    if (! ($locations['success'] ?? false)) {
+                        \Log::warning('Business Profile: listing locations failed', ['account' => $accountId, 'status' => $locations['status'] ?? null]);
+                        break;
+                    }
+
+                    foreach ($locations['data']['locations'] ?? [] as $location) {
+                        $locationId = basename((string) ($location['name'] ?? ''));
+                        if ($locationId === '') {
+                            continue;
+                        }
+
+                        $address = $location['storefrontAddress'] ?? [];
+                        $addressText = trim(implode(', ', array_filter([
+                            implode(' ', $address['addressLines'] ?? []),
+                            $address['locality'] ?? null,
+                            $address['regionCode'] ?? null,
+                        ])));
+
+                        $locationAccount = SocialAccount::updateOrCreate(
+                            ['platform' => 'google', 'platform_account_id' => $locationId, 'user_id' => $userId],
+                            [
+                                'name' => $location['title'] ?? 'Business Profile location',
+                                'avatar_url' => null,
+                                'account_type' => 'location',
+                                'access_token' => $accessToken,
+                                'refresh_token' => $refreshToken,
+                                'is_token_valid' => true,
+                                ...GrantedScopes::attributes($grantedScopes),
+                                'expires_at' => $expiresAt,
+                                'has_posting_permission' => true,
+                                'metadata' => array_filter([
+                                    'parent_account_id' => $accountId,
+                                    'account_name' => $account['accountName'] ?? null,
+                                    'address' => $addressText ?: null,
+                                    'website' => $location['websiteUri'] ?? null,
+                                    'maps_uri' => $location['metadata']['mapsUri'] ?? null,
+                                    'new_review_uri' => $location['metadata']['newReviewUri'] ?? null,
+                                    'place_id' => $location['metadata']['placeId'] ?? null,
+                                ]),
+                            ]
+                        );
+                        $connected++;
+                        $assetIds[] = $locationAccount->id;
+                    }
+
+                    $locationsToken = $locations['data']['nextPageToken'] ?? null;
+                } while ($locationsToken);
+            }
+
+            $accountsToken = $accounts['data']['nextPageToken'] ?? null;
+        } while ($accountsToken);
+
+        return $connected;
     }
 
     private function connectYoutubeChannels(string $accessToken, ?string $refreshToken, Carbon $expiresAt, int $userId, ?array $grantedScopes = null, array &$assetIds = []): int

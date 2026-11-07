@@ -42,6 +42,11 @@ class GoogleApi
         return $this->send('post', $url, $body);
     }
 
+    public function put(string $url, array $body = []): array
+    {
+        return $this->send('put', $url, $body);
+    }
+
     private function send(string $method, string $url, array $payload): array
     {
         $attempt = function () use ($method, $url, $payload) {
@@ -52,7 +57,9 @@ class GoogleApi
                     return $exception instanceof ConnectionException
                         || ($exception instanceof RequestException && in_array($exception->response->status(), [429, 500, 502, 503, 504], true));
                 }, throw: false)
-                ->{$method}($url, $payload);
+                // A GET with no query array keeps the URL's own query string: passing [] would make
+                // Guzzle replace it (needed for repeated params like dailyMetrics=A&dailyMetrics=B).
+                ->{$method}(...($method === 'get' && $payload === [] ? [$url] : [$url, $payload]));
         };
 
         try {

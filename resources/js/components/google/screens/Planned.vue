@@ -28,7 +28,6 @@
       <h3>{{ t('planned.meanwhile') }}</h3>
       <p class="gs-muted">{{ key === 'tag_manager' ? t('planned.gtm_meanwhile') : t('planned.gbp_meanwhile') }}</p>
       <div class="gs-row">
-        <a v-if="key === 'tag_manager'" :href="suite.urls.pixels" class="gs-btn gs-btn-ghost">{{ t('planned.open_integrations') }}</a>
         <a :href="suite.urls.integrations" class="gs-btn gs-btn-primary">{{ t('oauth.back_to_integrations') }}</a>
       </div>
     </section>

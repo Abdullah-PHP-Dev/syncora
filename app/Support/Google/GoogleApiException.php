@@ -27,9 +27,13 @@ class GoogleApiException extends RuntimeException
     public const PAGESPEED_QUOTA = 'pagespeed_quota';
     /** PageSpeed Insights: no API key (anonymous quota refused), or the key/API isn't set up. */
     public const PAGESPEED_SETUP = 'pagespeed_setup';
+    /** PageSpeed Insights: the workspace's own saved API key was refused (wrong, restricted, or the API isn't enabled). */
+    public const PAGESPEED_KEY_INVALID = 'pagespeed_key_invalid';
     /** Google Ads reporting: no ads account in the Connection Hub, or its token stopped working. */
     public const ADS_NOT_CONNECTED = 'ads_not_connected';
     public const ADS_FAILED = 'ads_failed';
+    /** Business Profile: the Google sign-in has no Business Profile locations imported. */
+    public const GBP_NO_LOCATION = 'gbp_no_location';
 
     /** Codes the customer fixes by reconnecting Google. */
     public const RECONNECT = [self::AUTH_EXPIRED, self::MISSING_SCOPE, self::NOT_CONNECTED];
