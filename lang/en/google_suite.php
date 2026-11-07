@@ -160,6 +160,8 @@ return [
         'ads_failed' => 'Google Ads couldn’t return results for this account. Check that the account is active and that SocialEaz still has access, then try again.',
         'pagespeed_key_invalid' => 'Google refused your PageSpeed Insights API key. Check that it was copied in full, that the PageSpeed Insights API is enabled in its Google Cloud project, and that any key restrictions allow it.',
         'gbp_no_location' => 'No Business Profile locations were found for your Google account.',
+        'gbp_quota' => 'Google is refusing Business Profile requests for SocialEaz right now. If this keeps happening, SocialEaz’s access to the Business Profile API hasn’t been approved by Google yet (its quota is 0) - our team has been notified.',
+        'gbp_api_disabled' => 'The Business Profile APIs aren’t switched on for SocialEaz in Google Cloud yet. Our team has been notified.',
     ],
 
     'validation' => [
@@ -616,6 +618,10 @@ return [
         'more_reviews' => 'Load more reviews',
         'view_on_maps' => 'View on Google Maps',
         'source_note' => 'Figures from Google Business Profile Performance; Google can take a few days to report recent activity',
+        'syncing_title' => 'Looking for your locations…',
+        'syncing_text' => 'Checking your Google account for Business Profile locations.',
+        'sync' => 'Look again',
+        'synced' => 'Found :n location(s).',
         'posts_title' => 'Recent posts',
         'posts_sub' => 'Updates SocialEaz published to this location',
         'no_posts' => 'No posts yet. Create one and pick this location under Google Business.',

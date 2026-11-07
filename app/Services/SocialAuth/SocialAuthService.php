@@ -12,6 +12,7 @@ use App\Services\Connections\Drivers\LinkedInDriver;
 use App\Services\Connections\Drivers\TikTokDriver;
 use App\Support\Connections\ConnectionFlags;
 use App\Support\Google\GoogleServices;
+use App\Services\GoogleSuite\BusinessProfileService;
 use App\Support\Connections\GoogleAdsCustomers;
 use App\Support\Connections\GoogleClient;
 use App\Support\Connections\GrantedScopes;
@@ -575,7 +576,7 @@ class SocialAuthService
         do {
             $accounts = $this->api->get('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', $headers, array_filter(['pageSize' => 20, 'pageToken' => $accountsToken]));
             if (! ($accounts['success'] ?? false)) {
-                \Log::warning('Business Profile: listing accounts failed', ['status' => $accounts['status'] ?? null]);
+                \Log::warning('Business Profile: listing accounts failed', ['status' => $accounts['status'] ?? null, 'google_status' => $accounts['data']['error']['status'] ?? null]);
                 break;
             }
 
@@ -594,48 +595,19 @@ class SocialAuthService
                         'pageToken' => $locationsToken,
                     ]));
                     if (! ($locations['success'] ?? false)) {
-                        \Log::warning('Business Profile: listing locations failed', ['account' => $accountId, 'status' => $locations['status'] ?? null]);
+                        \Log::warning('Business Profile: listing locations failed', ['account' => $accountId, 'status' => $locations['status'] ?? null, 'google_status' => $locations['data']['error']['status'] ?? null]);
                         break;
                     }
 
                     foreach ($locations['data']['locations'] ?? [] as $location) {
-                        $locationId = basename((string) ($location['name'] ?? ''));
-                        if ($locationId === '') {
-                            continue;
+                        $locationAccount = BusinessProfileService::saveLocation($userId, [
+                            'access_token' => $accessToken, 'refresh_token' => $refreshToken,
+                            'expires_at' => $expiresAt, 'granted_scopes' => $grantedScopes,
+                        ], $account, $location);
+                        if ($locationAccount) {
+                            $connected++;
+                            $assetIds[] = $locationAccount->id;
                         }
-
-                        $address = $location['storefrontAddress'] ?? [];
-                        $addressText = trim(implode(', ', array_filter([
-                            implode(' ', $address['addressLines'] ?? []),
-                            $address['locality'] ?? null,
-                            $address['regionCode'] ?? null,
-                        ])));
-
-                        $locationAccount = SocialAccount::updateOrCreate(
-                            ['platform' => 'google', 'platform_account_id' => $locationId, 'user_id' => $userId],
-                            [
-                                'name' => $location['title'] ?? 'Business Profile location',
-                                'avatar_url' => null,
-                                'account_type' => 'location',
-                                'access_token' => $accessToken,
-                                'refresh_token' => $refreshToken,
-                                'is_token_valid' => true,
-                                ...GrantedScopes::attributes($grantedScopes),
-                                'expires_at' => $expiresAt,
-                                'has_posting_permission' => true,
-                                'metadata' => array_filter([
-                                    'parent_account_id' => $accountId,
-                                    'account_name' => $account['accountName'] ?? null,
-                                    'address' => $addressText ?: null,
-                                    'website' => $location['websiteUri'] ?? null,
-                                    'maps_uri' => $location['metadata']['mapsUri'] ?? null,
-                                    'new_review_uri' => $location['metadata']['newReviewUri'] ?? null,
-                                    'place_id' => $location['metadata']['placeId'] ?? null,
-                                ]),
-                            ]
-                        );
-                        $connected++;
-                        $assetIds[] = $locationAccount->id;
                     }
 
                     $locationsToken = $locations['data']['nextPageToken'] ?? null;

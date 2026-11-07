@@ -25,14 +25,21 @@
     <section v-if="!ready" class="gs-card gs-pad gs-empty-hero">
       <gs-service-icon service="business_profile" />
       <div>
-        <h2>{{ t('gbp.' + blocker + '_title') }}</h2>
-        <p>{{ t('gbp.' + blocker + '_text') }}</p>
-        <ul class="gs-tips">
+        <h2>{{ syncing ? t('gbp.syncing_title') : t('gbp.' + blocker + '_title') }}</h2>
+        <p>{{ syncing ? t('gbp.syncing_text') : t('gbp.' + blocker + '_text') }}</p>
+        <!-- Google refused the lookup: its reason, not a guess. -->
+        <div v-if="!syncing && syncError" class="gs-callout" role="alert"><i class="bx bx-error-circle"></i><p>{{ syncError.message }}</p></div>
+        <ul v-if="blocker !== 'no_locations'" class="gs-tips">
           <li v-for="(p, i) in tr('gbp.connect_points')" :key="i"><i class="bx bx-check"></i>{{ p }}</li>
         </ul>
       </div>
-      <a v-if="suite.canManage" :href="suite.urls.hub_google" class="gs-btn gs-btn-primary"><i class="bx bx-link"></i>{{ t(blocker === 'connect' ? 'gbp.connect' : 'gbp.reconnect') }}</a>
-      <p v-else class="gs-muted sm">{{ t('gbp.owner_connects') }}</p>
+      <div class="gs-row">
+        <button v-if="blocker === 'no_locations'" type="button" class="gs-btn gs-btn-primary" :disabled="syncing" @click="syncLocations">
+          <span v-if="syncing" class="gs-spinner sm light" aria-hidden="true"></span><i v-else class="bx bx-refresh"></i>{{ t('gbp.sync') }}
+        </button>
+        <a v-if="suite.canManage" :href="suite.urls.hub_google" class="gs-btn" :class="blocker === 'no_locations' ? 'gs-btn-ghost' : 'gs-btn-primary'"><i class="bx bx-link"></i>{{ t(blocker === 'connect' ? 'gbp.connect' : 'gbp.reconnect') }}</a>
+        <p v-else class="gs-muted sm">{{ t('gbp.owner_connects') }}</p>
+      </div>
     </section>
 
     <template v-else>
@@ -190,6 +197,7 @@ export default {
       loading: false, result: null, metric: 'views',
       reviews: null, reviewsError: null, reviewsLoading: false, filter: 'all',
       editing: null, draft: '', saving: false, replyError: '',
+      syncing: false, syncError: null,
     };
   },
   computed: {
@@ -229,10 +237,25 @@ export default {
   },
   mounted() {
     if (this.ready) { this.load(false); this.loadReviews(); }
+    // Connected, but no locations saved (the sign-in import found none, or Google refused it then): look again.
+    else if (this.blocker === 'no_locations') this.syncLocations();
   },
   methods: {
     t,
     tr: (key) => raw(key) || [],
+    async syncLocations() {
+      this.syncing = true; this.syncError = null;
+      try {
+        const res = await api('post', suite.urls.api.business_profile_sync);
+        if (res.error) { this.syncError = res.error; return; }
+        suite.extra.business_profile = res.data.business_profile;
+        if (this.gbp.locations.length) {
+          this.locationId = this.gbp.locations[0].id;
+          toast(t('gbp.synced', { n: this.gbp.locations.length }));
+          this.load(false); this.loadReviews();
+        }
+      } catch (e) { this.syncError = e; } finally { this.syncing = false; }
+    },
     switchLocation() {
       const url = new URL(window.location.href);
       url.searchParams.set('location', this.locationId);

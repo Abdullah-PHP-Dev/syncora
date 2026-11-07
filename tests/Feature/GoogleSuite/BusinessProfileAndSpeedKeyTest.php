@@ -241,6 +241,66 @@ class BusinessProfileAndSpeedKeyTest extends TestCase
         $this->assertStringNotContainsString('refresh-1', $page);
     }
 
+    public function test_the_google_account_that_granted_business_profile_is_used_even_if_another_was_added_later(): void
+    {
+        $gbpAccount = $this->signIn();
+        $gbpAccount->update(['provider_account_id' => 'sub-a', 'access_token' => 'token-gbp']);
+        // A YouTube-only Google account connected afterwards.
+        $this->signIn(['https://www.googleapis.com/auth/youtube'])->update(['provider_account_id' => 'sub-b', 'access_token' => 'token-yt']);
+        $location = $this->location(['social_connection_id' => $gbpAccount->id]);
+        Http::fake(['mybusiness.googleapis.com/*' => Http::response(['reviews' => []])]);
+
+        $status = BusinessProfileService::status($this->user->id);
+        $this->assertTrue($status['connected'] && $status['granted']);
+
+        $this->getJson(route('admin.google.api.business-profile.reviews', ['location' => $location->id]))->assertOk()->assertJsonPath('data.total', 0);
+        Http::assertSent(fn (HttpRequest $r) => $r->hasHeader('Authorization', 'Bearer token-gbp'));
+    }
+
+    public function test_the_page_can_find_locations_the_sign_in_missed(): void
+    {
+        $connection = $this->signIn();
+        Http::fake([
+            'mybusinessaccountmanagement.googleapis.com/*' => Http::response(['accounts' => [['name' => 'accounts/111', 'accountName' => 'Brand']]]),
+            'mybusinessbusinessinformation.googleapis.com/*' => Http::response(['locations' => [['name' => 'locations/555', 'title' => 'Riyadh Store', 'metadata' => ['mapsUri' => 'https://maps.google.com/?cid=1']]]]),
+        ]);
+
+        $data = $this->postJson(route('admin.google.api.business-profile.sync'))->assertOk()->json('data');
+
+        $this->assertSame(1, $data['imported']);
+        $this->assertSame('Riyadh Store', $data['business_profile']['locations'][0]['name']);
+        $location = SocialAccount::where(['platform' => 'google', 'account_type' => 'location'])->sole();
+        $this->assertSame([$connection->id, '111', 'access-1'], [$location->social_connection_id, $location->metadata['parent_account_id'], $location->access_token]);
+        Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), 'accounts/111/locations') && $r->hasHeader('Authorization', 'Bearer access-1'));
+    }
+
+    public function test_a_refused_location_lookup_gives_googles_reason(): void
+    {
+        $this->signIn();
+        // Quota 0 until Google approves the project: Google answers 429 RESOURCE_EXHAUSTED.
+        Http::fake(['mybusinessaccountmanagement.googleapis.com/*' => Http::response(['error' => ['code' => 429, 'status' => 'RESOURCE_EXHAUSTED', 'message' => "Quota exceeded for quota metric 'Requests' and limit 'Requests per minute' of service 'mybusinessaccountmanagement.googleapis.com' ... limit 0"]], 429)]);
+
+        $this->assertSame('gbp_quota', $this->postJson(route('admin.google.api.business-profile.sync'))->json('error.code'));
+        $this->assertSame(0, SocialAccount::count());
+    }
+
+    public function test_a_disabled_business_profile_api_is_named_as_such(): void
+    {
+        $this->signIn();
+        Http::fake(['mybusinessaccountmanagement.googleapis.com/*' => Http::response(['error' => ['code' => 403, 'status' => 'PERMISSION_DENIED', 'details' => [['reason' => 'SERVICE_DISABLED']]]], 403)]);
+        $this->assertSame('gbp_api_disabled', $this->postJson(route('admin.google.api.business-profile.sync'))->json('error.code'));
+    }
+
+    public function test_looking_for_locations_without_business_profile_access_asks_to_reconnect(): void
+    {
+        $this->signIn(['https://www.googleapis.com/auth/youtube']);
+        Http::fake();
+
+        $error = $this->postJson(route('admin.google.api.business-profile.sync'))->json('error');
+        $this->assertSame(['missing_scope', true], [$error['code'], $error['reconnect']]);
+        Http::assertNothingSent();
+    }
+
     public function test_a_location_is_never_picked_as_a_google_ads_account(): void
     {
         $this->location();

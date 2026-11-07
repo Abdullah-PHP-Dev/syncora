@@ -34,6 +34,10 @@ class GoogleApiException extends RuntimeException
     public const ADS_FAILED = 'ads_failed';
     /** Business Profile: the Google sign-in has no Business Profile locations imported. */
     public const GBP_NO_LOCATION = 'gbp_no_location';
+    /** Business Profile: Google refuses the requests on quota - 0 QPM until Google approves the Cloud project. */
+    public const GBP_QUOTA = 'gbp_quota';
+    /** Business Profile: the Business Profile APIs aren't enabled in SocialEaz's Google Cloud project. */
+    public const GBP_API_DISABLED = 'gbp_api_disabled';
 
     /** Codes the customer fixes by reconnecting Google. */
     public const RECONNECT = [self::AUTH_EXPIRED, self::MISSING_SCOPE, self::NOT_CONNECTED];

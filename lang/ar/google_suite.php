@@ -158,6 +158,8 @@ return [
         'ads_failed' => 'تعذّر على Google Ads إرجاع نتائج لهذا الحساب. تأكد أن الحساب نشط وأن SocialEaz لا يزال يملك صلاحية الوصول، ثم أعد المحاولة.',
         'pagespeed_key_invalid' => 'رفضت Google مفتاح PageSpeed Insights API الخاص بك. تأكد من نسخه كاملاً، ومن تفعيل PageSpeed Insights API في مشروع Google Cloud الخاص به، ومن أن قيود المفتاح تسمح باستخدامه.',
         'gbp_no_location' => 'لم يتم العثور على مواقع في الملف التجاري لحساب Google الخاص بك.',
+        'gbp_quota' => 'ترفض Google طلبات الملف التجاري من SocialEaz حالياً. إذا استمر ذلك فهذا يعني أن Google لم توافق بعد على وصول SocialEaz إلى واجهة الملف التجاري (الحصة 0) - تم إبلاغ فريقنا.',
+        'gbp_api_disabled' => 'واجهات الملف التجاري غير مفعّلة لـ SocialEaz في Google Cloud بعد. تم إبلاغ فريقنا.',
     ],
 
     'validation' => [
@@ -614,6 +616,10 @@ return [
         'more_reviews' => 'عرض مزيد من المراجعات',
         'view_on_maps' => 'عرض على خرائط Google',
         'source_note' => 'الأرقام من أداء الملف التجاري على Google؛ قد تستغرق Google بضعة أيام للإبلاغ عن النشاط الأخير',
+        'syncing_title' => 'جارٍ البحث عن مواقعك…',
+        'syncing_text' => 'نتحقق من حساب Google الخاص بك بحثاً عن مواقع الملف التجاري.',
+        'sync' => 'ابحث مرة أخرى',
+        'synced' => 'تم العثور على :n موقع.',
         'posts_title' => 'أحدث المنشورات',
         'posts_sub' => 'التحديثات التي نشرها SocialEaz لهذا الموقع',
         'no_posts' => 'لا توجد منشورات بعد. أنشئ منشوراً واختر هذا الموقع ضمن Google Business.',

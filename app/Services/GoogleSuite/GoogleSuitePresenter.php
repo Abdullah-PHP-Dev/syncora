@@ -191,6 +191,7 @@ class GoogleSuitePresenter
                 'business_profile' => route('admin.google.api.business-profile'),
                 'business_profile_reviews' => route('admin.google.api.business-profile.reviews'),
                 'business_profile_reply' => route('admin.google.api.business-profile.reply'),
+                'business_profile_sync' => route('admin.google.api.business-profile.sync'),
                 'discover' => route('admin.google.api.properties.sync'),
                 'select' => route('admin.google.api.properties.select'),
                 'preferences' => route('admin.google.api.preferences'),

@@ -68,7 +68,7 @@ class BusinessProfileService
         return [
             'enabled' => true,
             'connected' => $connection !== null,
-            'granted' => $connection !== null && in_array(self::SCOPE, $connection->granted_scopes ?? [], true),
+            'granted' => self::grants($connection),
             'locations' => self::locations($userId)->map(fn (SocialAccount $l) => self::present($l))->values()->all(),
         ];
     }
@@ -76,10 +76,25 @@ class BusinessProfileService
     /** The main Google sign-in (YouTube / Ads / Business Profile consent). */
     public static function connectionFor(int $userId): ?SocialConnection
     {
+        // Several Google accounts can be connected: prefer one that is working
+        // and granted Business Profile, then any that granted it, then the latest.
+        return self::connections($userId)
+            ->sortByDesc(fn (SocialConnection $c) => [self::grants($c) && $c->isUsable(), self::grants($c), $c->id])
+            ->first();
+    }
+
+    /** The workspace's main Google sign-ins (one per Google account), newest first. */
+    public static function connections(int $userId)
+    {
         return SocialConnection::where(['user_id' => $userId, 'platform' => 'google', 'step' => GoogleDriver::OAUTH])
             ->where(fn ($q) => $q->whereNull('last_error')->orWhere('last_error', '!=', SocialConnection::DISCONNECTED_BY_USER))
             ->latest('id')
-            ->first();
+            ->get();
+    }
+
+    public static function grants(?SocialConnection $connection): bool
+    {
+        return $connection !== null && in_array(self::SCOPE, $connection->granted_scopes ?? [], true);
     }
 
     public static function locations(int $userId)
@@ -108,7 +123,7 @@ class BusinessProfileService
     {
         try {
             $location = $this->location($userId, $locationId);
-            $api = $this->api($userId);
+            $api = $this->api($userId, $location);
 
             $result = GoogleReportCache::remember($userId, 'gbp:' . $location->id . ':' . $range->cacheKey(), $fresh, fn () => [
                 'data' => ['location' => self::present($location)] + $this->performance($api, $location, $range),
@@ -149,12 +164,129 @@ class BusinessProfileService
             ->all();
     }
 
+    /**
+     * Find the Business Profile locations of every connected Google account that
+     * granted business.manage, and save them (as at sign-in). Lets the page
+     * recover when the sign-in import found nothing or Google refused it then.
+     *
+     * @return array{data?: array{imported: int, business_profile: array}, error?: array}
+     */
+    public function importLocations(int $userId): array
+    {
+        try {
+            if (! ConnectionFlags::on(self::FLAG)) {
+                throw new GoogleApiException(GoogleApiException::NOT_CONFIGURED, 'Business Profile is switched off');
+            }
+
+            $connections = self::connections($userId)->filter(fn (SocialConnection $c) => self::grants($c) && $c->isUsable());
+            if ($connections->isEmpty()) {
+                throw new GoogleApiException(self::connections($userId)->contains(fn ($c) => self::grants($c)) ? GoogleApiException::AUTH_EXPIRED : GoogleApiException::MISSING_SCOPE);
+            }
+
+            $imported = 0;
+            foreach ($connections as $connection) {
+                $api = new GoogleApi($connection);
+                $accountsToken = null;
+                do {
+                    $accounts = $this->businessCall(fn () => $api->get(self::ACCOUNTS_API, array_filter(['pageSize' => 20, 'pageToken' => $accountsToken])));
+                    foreach ($accounts['accounts'] ?? [] as $account) {
+                        $accountId = basename((string) ($account['name'] ?? ''));
+                        if ($accountId === '') {
+                            continue;
+                        }
+                        $locationsToken = null;
+                        do {
+                            $locations = $this->businessCall(fn () => $api->get(self::INFO_API . 'accounts/' . rawurlencode($accountId) . '/locations', array_filter([
+                                'readMask' => 'name,title,storefrontAddress,websiteUri,metadata',
+                                'pageSize' => 100,
+                                'pageToken' => $locationsToken,
+                            ])));
+                            foreach ($locations['locations'] ?? [] as $location) {
+                                if (self::saveLocation($userId, $connection, $account, $location)) {
+                                    $imported++;
+                                }
+                            }
+                            $locationsToken = $locations['nextPageToken'] ?? null;
+                        } while ($locationsToken);
+                    }
+                    $accountsToken = $accounts['nextPageToken'] ?? null;
+                } while ($accountsToken);
+            }
+
+            return ['data' => ['imported' => $imported, 'business_profile' => self::status($userId)]];
+        } catch (GoogleApiException $e) {
+            return ['error' => $e->toArray()];
+        }
+    }
+
+    /** Business Profile reasons for Google's generic refusals (API access is approved per Cloud project). */
+    private function businessCall(callable $call): array
+    {
+        try {
+            return $call();
+        } catch (GoogleApiException $e) {
+            throw match ($e->errorCode) {
+                // Quota 0 QPM until Google approves the project (developers.google.com/my-business/content/prereqs).
+                GoogleApiException::QUOTA_EXCEEDED => new GoogleApiException(GoogleApiException::GBP_QUOTA, $e->getMessage(), $e->status),
+                GoogleApiException::API_DISABLED => new GoogleApiException(GoogleApiException::GBP_API_DISABLED, $e->getMessage(), $e->status),
+                default => $e,
+            };
+        }
+    }
+
+    /**
+     * Save one Business Profile location as a 'google' SocialAccount of type
+     * 'location', linked to the Google sign-in that can manage it. Shared with
+     * the sign-in import (SocialAuthService::connectBusinessLocations).
+     */
+    public static function saveLocation(int $userId, SocialConnection|array $tokens, array $account, array $location): ?SocialAccount
+    {
+        $accountId = basename((string) ($account['name'] ?? ''));
+        $locationId = basename((string) ($location['name'] ?? ''));
+        if ($accountId === '' || $locationId === '') {
+            return null;
+        }
+
+        $address = $location['storefrontAddress'] ?? [];
+        $addressText = trim(implode(', ', array_filter([
+            implode(' ', $address['addressLines'] ?? []),
+            $address['locality'] ?? null,
+            $address['regionCode'] ?? null,
+        ])));
+        $token = $tokens instanceof SocialConnection
+            ? ['access_token' => $tokens->access_token, 'refresh_token' => $tokens->refresh_token, 'expires_at' => $tokens->expires_at, 'granted_scopes' => $tokens->granted_scopes, 'connection_id' => $tokens->id]
+            : $tokens;
+
+        return SocialAccount::updateOrCreate(
+            ['platform' => 'google', 'platform_account_id' => $locationId, 'user_id' => $userId],
+            array_filter([
+                'name' => $location['title'] ?? 'Business Profile location',
+                'account_type' => 'location',
+                'access_token' => $token['access_token'] ?? null,
+                'refresh_token' => $token['refresh_token'] ?? null,
+                'expires_at' => $token['expires_at'] ?? null,
+                'is_token_valid' => true,
+                'has_posting_permission' => true,
+                'social_connection_id' => $token['connection_id'] ?? null,
+                'metadata' => array_filter([
+                    'parent_account_id' => $accountId,
+                    'account_name' => $account['accountName'] ?? null,
+                    'address' => $addressText ?: null,
+                    'website' => $location['websiteUri'] ?? null,
+                    'maps_uri' => $location['metadata']['mapsUri'] ?? null,
+                    'new_review_uri' => $location['metadata']['newReviewUri'] ?? null,
+                    'place_id' => $location['metadata']['placeId'] ?? null,
+                ]),
+            ], fn ($v) => $v !== null) + ['avatar_url' => null] + \App\Support\Connections\GrantedScopes::attributes($token['granted_scopes'] ?? null)
+        );
+    }
+
     /** One page of reviews, newest first, with the location's rating summary. */
     public function reviews(int $userId, int $locationId, ?string $pageToken = null): array
     {
         try {
             $location = $this->location($userId, $locationId);
-            $body = $this->api($userId)->get($this->reviewsUrl($location), array_filter([
+            $body = $this->api($userId, $location)->get($this->reviewsUrl($location), array_filter([
                 'pageSize' => 20,
                 'orderBy' => 'updateTime desc',
                 'pageToken' => $pageToken,
@@ -176,7 +308,7 @@ class BusinessProfileService
     {
         try {
             $location = $this->location($userId, $locationId);
-            $body = $this->api($userId)->put($this->reviewsUrl($location) . '/' . rawurlencode($reviewId) . '/reply', ['comment' => $comment]);
+            $body = $this->api($userId, $location)->put($this->reviewsUrl($location) . '/' . rawurlencode($reviewId) . '/reply', ['comment' => $comment]);
 
             GoogleReportCache::flush($userId);
 
@@ -303,9 +435,11 @@ class BusinessProfileService
         return $location;
     }
 
-    private function api(int $userId): GoogleApi
+    /** Calls run on the Google account that owns the location (its own sign-in), else the best one. */
+    private function api(int $userId, ?SocialAccount $location = null): GoogleApi
     {
-        $connection = self::connectionFor($userId);
+        $own = $location?->social_connection_id ? self::connections($userId)->firstWhere('id', $location->social_connection_id) : null;
+        $connection = self::grants($own) ? $own : self::connectionFor($userId);
 
         if (! $connection) {
             throw new GoogleApiException(GoogleApiException::NOT_CONNECTED);

@@ -135,6 +135,12 @@ class GoogleSuiteDataController extends Controller
         return $this->respond($profile->dashboard($this->userId($request), $this->range($request), $validated['location'] ?? null, $request->boolean('fresh')));
     }
 
+    /** Look for the Google account's Business Profile locations again (the sign-in import may have found none). */
+    public function businessProfileSync(Request $request, BusinessProfileService $profile): JsonResponse
+    {
+        return $this->respond($profile->importLocations($this->userId($request)));
+    }
+
     public function businessProfileReviews(Request $request, BusinessProfileService $profile): JsonResponse
     {
         $validated = $request->validate([
