@@ -2,6 +2,7 @@
 
 namespace App\Services\GoogleSuite;
 
+use App\Models\Post;
 use App\Models\SocialAccount;
 use App\Models\SocialConnection;
 use App\Services\Connections\Drivers\GoogleDriver;
@@ -109,13 +110,43 @@ class BusinessProfileService
             $location = $this->location($userId, $locationId);
             $api = $this->api($userId);
 
-            return GoogleReportCache::remember($userId, 'gbp:' . $location->id . ':' . $range->cacheKey(), $fresh, fn () => [
+            $result = GoogleReportCache::remember($userId, 'gbp:' . $location->id . ':' . $range->cacheKey(), $fresh, fn () => [
                 'data' => ['location' => self::present($location)] + $this->performance($api, $location, $range),
                 'fetched_at' => now()->toIso8601String(),
             ]);
+            // SocialEaz's own records, never cached: a post just created shows straight away.
+            $result['data']['posts'] = self::recentPosts($location);
+
+            return $result;
         } catch (GoogleApiException $e) {
             return ['error' => $e->toArray()];
         }
+    }
+
+    /** The latest posts SocialEaz created for this location, with their publishing status. */
+    public static function recentPosts(SocialAccount $location, int $limit = 8): array
+    {
+        return Post::where(['user_id' => $location->user_id, 'social_account_id' => $location->id, 'platform' => 'google'])
+            ->with('media')
+            ->latest('id')
+            ->limit($limit)
+            ->get()
+            ->map(fn (Post $p) => [
+                'id' => $p->id,
+                'content' => mb_strimwidth((string) $p->content, 0, 220, '…'),
+                // pending/scheduled/publishing/completed/failed -> what the seller needs to know.
+                'status' => match (true) {
+                    $p->status === 'completed' => 'live',
+                    $p->status === 'failed' => 'failed',
+                    $p->status === 'scheduled' || ($p->schedule_mode && $p->schedule_at && $p->schedule_at > now()) => 'scheduled',
+                    default => 'publishing',
+                },
+                'error' => $p->status === 'failed' ? $p->error_message : null,
+                'at' => ($p->status === 'scheduled' ? $p->schedule_at : $p->created_at)?->toIso8601String(),
+                'url' => $p->status === 'completed' && $p->getRawOriginal('post_url') ? $p->getRawOriginal('post_url') : null,
+                'thumbnail' => $p->media->first()?->media_url,
+            ])
+            ->all();
     }
 
     /** One page of reviews, newest first, with the location's rating summary. */

@@ -616,6 +616,12 @@ return [
         'more_reviews' => 'Load more reviews',
         'view_on_maps' => 'View on Google Maps',
         'source_note' => 'Figures from Google Business Profile Performance; Google can take a few days to report recent activity',
+        'posts_title' => 'Recent posts',
+        'posts_sub' => 'Updates SocialEaz published to this location',
+        'no_posts' => 'No posts yet. Create one and pick this location under Google Business.',
+        'photo_only' => 'Photo post',
+        'view_post' => 'View on Google',
+        'post_status' => ['live' => 'Live', 'failed' => 'Failed', 'scheduled' => 'Scheduled', 'publishing' => 'Publishing'],
     ],
 
     'insights' => [

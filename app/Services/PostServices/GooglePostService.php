@@ -18,6 +18,9 @@ class GooglePostService
 {
     protected $api, $baseUrl, $accountBaseUrl, $post, $media;
 
+    /** Photo formats Google Business Profile accepts for local post media. */
+    public const PHOTO_EXTENSIONS = ['jpg', 'jpeg', 'png'];
+
     public function __construct(ApiPostService $api, Post $post, PostMedia $media)
     {
         $this->api = $api;
@@ -54,7 +57,10 @@ class GooglePostService
         $response = $this->api->request('post', $endpoint, [], $payload, 'form');
 
         if (!$response->successful()) {
-            return $this->errorResponse($post, $response);
+            // Callers test the result for truthiness: a failed refresh must be false, not an (always-truthy) array.
+            $this->errorResponse($post, $response);
+
+            return false;
         }
 
         $tokenData = $response->json();
@@ -86,28 +92,26 @@ class GooglePostService
             ];
         }
 
-        // Upload media to S3 once
-        $mediaUrl = null;
-        $mediaType = null;
-        $mediaExtension = null;
-
-        if (!empty($data['ai_image_url'])) {
-            $mediaExtension = strtolower(pathinfo(
-                parse_url($data['ai_image_url'], PHP_URL_PATH),
-                PATHINFO_EXTENSION
-            ));
-            $isImage = in_array($mediaExtension, ['jpg', 'jpeg', 'png', 'webp']);
-            $mediaType = $isImage ? 'image' : 'video';
-            $mediaUrl = $data['ai_image_url'];
-        } else {
-            $uploadResult = $this->uploadMediaToS3($data['media'] ?? []);
-            if (!$uploadResult['success']) {
+        // Business Profile local posts take photos only (JPG or PNG); video isn't
+        // supported for posts through the API. Refuse before anything is stored.
+        foreach ($data['media'] ?? [] as $file) {
+            if (! in_array(strtolower($file->getClientOriginalExtension()), self::PHOTO_EXTENSIONS, true)) {
                 return [
                     'success' => false,
-                    'message' => $uploadResult['message']
+                    'message' => 'Google Business Profile posts support JPG or PNG photos only - remove "' . $file->getClientOriginalName() . '" or post it to another platform.',
                 ];
             }
         }
+
+        $uploadResult = $this->uploadMediaToS3($data['media'] ?? []);
+        if (!$uploadResult['success']) {
+            return [
+                'success' => false,
+                'message' => $uploadResult['message']
+            ];
+        }
+        // One photo per post: Google shows a single image on a standard update.
+        $uploadResult['media'] = array_slice($uploadResult['media'], 0, 1);
 
         // Loop through each page and create container
         foreach ($pages as $page) {
@@ -140,7 +144,7 @@ class GooglePostService
                             'visibility' => 'public',
                             'user_id' => Auth::user()->id,
                             'social_account_id' => $page->id,
-                            'post_category_id' => $data['category_id'],
+                            'post_category_id' => $data['category_id'] ?? 1,
                             'media_url' => $media['url'],
                             'media_type' => $media['media_type'],
                             'file_name' => $media['file_name'],
@@ -337,12 +341,13 @@ class GooglePostService
             if ($result['success']) {
                 $data = $result['response'];
 
-                $postId = basename($data['name']);
-                $post->update([
-                    'post_id' => $postId,
+                $post->update(array_filter([
+                    'post_id' => $result['post_id'],
+                    // Google's public link to the post (Search / Maps).
+                    'post_url' => $data['searchUrl'] ?? null,
                     'status' => 'completed',
-                    'error_message' => ''
-                ]);
+                    'error_message' => '',
+                ], fn ($v) => $v !== null));
                 return ['success' => true];
             } else {
                 $post->update([
@@ -366,52 +371,31 @@ class GooglePostService
     protected function publishToLocation($post)
     {
         try {
-  
             $account = $post->socialAccount;
+            $content = (string) ($post->content ?? '');
             $payload = [
-                'languageCode' => 'en-US',
-                "topic_type" => "STANDARD",
-                'summary' => $post->content ?? '', // or $post->content depending on your field name
-                // Add other fields like callToAction or topicType if needed
+                // Arabic script in the text -> Arabic post; otherwise English.
+                'languageCode' => preg_match('/\p{Arabic}/u', $content) ? 'ar' : 'en',
+                'topicType' => 'STANDARD',
+                'summary' => $content,
             ];
 
-            // If post has media relations/array
-            if ($post && $post->media && count($post->media) > 0) {
-                $mediaArray = [];
-
-                foreach ($post->media as $item) {
-                    // Extract URL dynamically whether it's an object, array, or direct string URL
-                    $mediaUrl = $item->media_url;
-
-                    if (empty($mediaUrl)) {
-                        continue;
-                    }
-
-                    // Get extension from URL (ignores query string strings safely)
-                    $extension = strtolower(pathinfo(parse_url($mediaUrl, PHP_URL_PATH), PATHINFO_EXTENSION));
-
-                    $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif'];
-                    $videoExtensions = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v', '3gp', 'mpeg', 'mpg'];
-                    $mediaFormat = 'PHOTO'; // Default fallback
-
-                    if (in_array($extension, $videoExtensions)) {
-                        $mediaFormat = 'VIDEO';
-                    } elseif (in_array($extension, $imageExtensions)) {
-                        $mediaFormat = 'PHOTO';
-                    }
-
-                    $mediaArray[] = [
-                        "mediaFormat" => $mediaFormat,
-                        "sourceUrl" => $mediaUrl,
-                    ];
-                }
-
-                if (!empty($mediaArray)) {
-                    $payload['media'] = $mediaArray[0];
-                }
+            // localPosts.media is a list; Google fetches each photo from sourceUrl (public R2 URL).
+            $photos = $post->media
+                ->filter(fn ($item) => !empty($item->media_url)
+                    && in_array(strtolower(pathinfo((string) parse_url($item->media_url, PHP_URL_PATH), PATHINFO_EXTENSION)), self::PHOTO_EXTENSIONS, true))
+                ->take(1)
+                ->map(fn ($item) => ['mediaFormat' => 'PHOTO', 'sourceUrl' => $item->media_url])
+                ->values()
+                ->all();
+            if ($photos) {
+                $payload['media'] = $photos;
             }
 
             $gbpAccountId = $account->metadata['parent_account_id'] ?? '';
+            if ($gbpAccountId === '') {
+                return $this->errorResponse($post, ['message' => 'This Business Profile location is missing its Google account link. Reconnect Google in Connections.']);
+            }
 
             $response = $this->api->request(
                 'post',
@@ -424,16 +408,14 @@ class GooglePostService
                 'json'
             );
             if (!$response->successful()) {
-                $error = $response->json();
-                // Skip INVALID_ARGUMENT errors (e.g., duplicate posts)
-                if (isset($error['error']['status']) && $error['error']['status'] === 'INVALID_ARGUMENT') {
-                    return $this->errorResponse($post, $response);
-                }
-
                 return $this->errorResponse($post, $response);
             }
 
-            $responseData = $response->json();
+            $responseData = $response->json() ?? [];
+            if (($responseData['state'] ?? null) === 'REJECTED') {
+                return $this->errorResponse($post, ['message' => 'Google rejected this post. Check it against Google’s Business Profile content policies.']);
+            }
+
             $postName = $responseData['name'] ?? null;
             $postId = $postName ? basename($postName) : null;
 
@@ -563,8 +545,16 @@ class GooglePostService
      * @param string $comment  The comment to which the reply will send
      * @return array
      */
-    public function publishComment($data, $comment): array
+    public function publishComment($data, $comment, $type = 'reply'): array
     {
+        // Business Profile posts can't be commented on; only reviews take (owner) replies.
+        if ($comment instanceof Post) {
+            return [
+                'success' => false,
+                'message' => 'Google Business Profile posts don’t support comments. Reply to your reviews from Google › Business Profile.',
+            ];
+        }
+
         try {
             $this->ensureValidToken($comment->post);
             $account = $comment->socialAccount;
@@ -590,7 +580,8 @@ class GooglePostService
                 return $this->errorResponse($comment, $response);
             }
     
-            return $this->storeComment($comment, $data, $response->json()['id']);
+            // The reply has no id of its own: one owner reply per review, keyed by the review.
+            return $this->storeComment($comment, $data, $comment->comment_id . ':reply');
         } catch (\Exception $e) {
             return [
                 'success' => false,
@@ -682,11 +673,14 @@ class GooglePostService
      */
     private function errorResponse($model, $response)
     {
+        // Google: {error: {code, message, status, details: [{errorDetails: [{message}]}]}};
+        // token endpoint: {error, error_description}.
+        $body = $response instanceof \Illuminate\Http\Client\Response ? ($response->json() ?? []) : (array) $response;
+        $error = is_array($body['error'] ?? null) ? $body['error'] : $body;
         $message = $error['details'][0]['errorDetails'][0]['message']
-        ?? $error['error_description']
-        ?? $error['message']
-        ?? 'Unknown error';
-        $error = $response['error'] ?? $response;
+            ?? $body['error_description']
+            ?? $error['message']
+            ?? 'Google didn’t accept the request.';
         $model->status = 'failed';
         $model->error_message = $message;
         $model->save();

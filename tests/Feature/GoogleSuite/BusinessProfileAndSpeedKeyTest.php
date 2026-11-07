@@ -35,6 +35,26 @@ class BusinessProfileAndSpeedKeyTest extends TestCase
         $this->createConnectionTables();
         $this->createSettingsTable();
         (require database_path('migrations/2026_10_27_100000_create_google_suite_tables.php'))->up();
+        // The Business Profile dashboard lists the location's recent posts.
+        \Illuminate\Support\Facades\Schema::create('posts', function ($t) {
+            $t->id();
+            $t->string('platform')->nullable();
+            $t->unsignedBigInteger('user_id')->nullable();
+            $t->unsignedBigInteger('social_account_id')->nullable();
+            $t->text('content')->nullable();
+            $t->string('status')->nullable();
+            $t->text('error_message')->nullable();
+            $t->string('post_url')->nullable();
+            $t->boolean('schedule_mode')->default(false);
+            $t->timestamp('schedule_at')->nullable();
+            $t->timestamps();
+        });
+        \Illuminate\Support\Facades\Schema::create('post_media', function ($t) {
+            $t->id();
+            $t->unsignedBigInteger('post_id');
+            $t->text('media_url')->nullable();
+            $t->timestamps();
+        });
         Settings::set('posts.google.client_id', 'client-1');
         Settings::set('posts.google.client_secret', 'secret-1');
         $this->user = User::create(['name' => 'Seller', 'email' => 's@example.com', 'password' => bcrypt('x')]);

@@ -614,6 +614,12 @@ return [
         'more_reviews' => 'عرض مزيد من المراجعات',
         'view_on_maps' => 'عرض على خرائط Google',
         'source_note' => 'الأرقام من أداء الملف التجاري على Google؛ قد تستغرق Google بضعة أيام للإبلاغ عن النشاط الأخير',
+        'posts_title' => 'أحدث المنشورات',
+        'posts_sub' => 'التحديثات التي نشرها SocialEaz لهذا الموقع',
+        'no_posts' => 'لا توجد منشورات بعد. أنشئ منشوراً واختر هذا الموقع ضمن Google Business.',
+        'photo_only' => 'منشور بصورة',
+        'view_post' => 'عرض على Google',
+        'post_status' => ['live' => 'منشور', 'failed' => 'فشل', 'scheduled' => 'مجدول', 'publishing' => 'قيد النشر'],
     ],
 
     'insights' => [

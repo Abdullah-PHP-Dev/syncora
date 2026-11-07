@@ -79,6 +79,29 @@
         </div>
       </template>
 
+      <!-- Posts SocialEaz published (or is publishing) to this location. -->
+      <section v-if="d" class="gs-card gs-pad">
+        <div class="gs-card-head">
+          <div><h2>{{ t('gbp.posts_title') }}</h2><p class="gs-sub sm">{{ t('gbp.posts_sub') }}</p></div>
+          <a :href="suite.urls.composer" class="gs-btn gs-btn-ghost"><i class="bx bx-plus"></i>{{ t('gbp.create_post') }}</a>
+        </div>
+        <ul v-if="d.posts && d.posts.length" class="gs-gbp-posts">
+          <li v-for="p in d.posts" :key="p.id" class="gs-gbp-post">
+            <img v-if="p.thumbnail" :src="p.thumbnail" alt="" class="gs-gbp-thumb" loading="lazy">
+            <div class="gs-gbp-post-body">
+              <p dir="auto">{{ p.content || t('gbp.photo_only') }}</p>
+              <span class="gs-muted sm">
+                <span class="gs-chip" :class="postTone(p.status)">{{ t('gbp.post_status.' + p.status) }}</span>
+                {{ fmt.date(p.at, { day: 'numeric', month: 'short', year: 'numeric' }) }}
+                <template v-if="p.url"> · <a :href="p.url" target="_blank" rel="noopener" class="gs-link sm">{{ t('gbp.view_post') }}</a></template>
+              </span>
+              <p v-if="p.error" class="gs-field-error sm">{{ p.error }}</p>
+            </div>
+          </li>
+        </ul>
+        <gs-state v-else kind="empty" :text="t('gbp.no_posts')" compact />
+      </section>
+
       <!-- Reviews: newest first; replies are public on Google Maps. -->
       <section class="gs-card gs-pad" :aria-busy="reviewsLoading ? 'true' : 'false'">
         <div class="gs-card-head">
@@ -231,6 +254,7 @@ export default {
         this.reviews = more && this.reviews ? { ...res.data, reviews: [...this.reviews.reviews, ...res.data.reviews] } : res.data;
       } catch (e) { this.reviewsError = e; } finally { this.reviewsLoading = false; }
     },
+    postTone(status) { return { live: 'is-success', failed: 'is-danger', scheduled: 'is-brand' }[status] || 'is-neutral'; },
     startReply(r) { this.editing = r.id; this.draft = r.reply ? r.reply.comment : ''; this.replyError = ''; },
     async saveReply(r) {
       this.saving = true; this.replyError = '';
