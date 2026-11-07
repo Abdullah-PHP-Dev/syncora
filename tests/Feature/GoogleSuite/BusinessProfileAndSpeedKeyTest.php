@@ -63,7 +63,7 @@ class BusinessProfileAndSpeedKeyTest extends TestCase
 
         Http::fake(['www.googleapis.com/pagespeedonline/*' => Http::response(['lighthouseResult' => ['categories' => ['performance' => ['score' => 0.9, 'auditRefs' => []]], 'audits' => []]])]);
         $this->getJson(route('admin.google.api.pagespeed', ['url' => 'https://brand.com/', 'strategy' => 'mobile']))->assertOk();
-        Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), 'key=' . self::KEY));
+        Http::assertSent(fn (HttpRequest $r) => $r->hasHeader('X-goog-api-key', self::KEY) && ! str_contains($r->url(), self::KEY));
 
         $this->deleteJson(route('admin.google.api.pagespeed-key'))->assertOk()->assertJsonPath('pagespeed_key.saved', false);
         $this->assertNull(GoogleSuiteSetting::pageSpeedKey($this->user->id));

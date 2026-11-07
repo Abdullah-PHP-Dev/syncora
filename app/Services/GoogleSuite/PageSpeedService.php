@@ -72,14 +72,16 @@ class PageSpeedService
             'strategy' => strtoupper($strategy),
             'category' => 'PERFORMANCE',
             'locale' => $locale === 'ar' ? 'ar' : 'en',
-            'key' => $key,
         ]);
 
         // One Lighthouse run commonly takes 15-40 seconds.
         @set_time_limit(120);
 
         try {
-            $response = Http::acceptJson()->timeout(90)->get(self::API, $query);
+            // The key goes in a header, never the URL: URLs end up in proxy logs and exception messages.
+            $response = Http::acceptJson()->timeout(90)
+                ->withHeaders(array_filter(['X-goog-api-key' => $key]))
+                ->get(self::API, $query);
         } catch (ConnectionException $e) {
             throw new GoogleApiException(GoogleApiException::PROVIDER_OUTAGE, 'PageSpeed connection failed');
         }
