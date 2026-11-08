@@ -91,4 +91,45 @@ class McpMediaUploadTest extends TestCase
         $this->assertArrayNotHasKey('user_id', $response->json('media'));
         $this->assertArrayNotHasKey('path', $response->json('media'));
     }
+    public function test_video_upload_uses_gallery_service_and_returns_video_metadata(): void
+    {
+        $this->allowMedia($this->signIn());
+        $asset = new MediaAsset;
+        $asset->forceFill(['id' => 9, 'url' => 'https://cdn.example/clip.mp4', 'type' => 'video', 'duration' => 7, 'video_codec' => 'h264']);
+        $media = Mockery::mock(MediaAssetService::class);
+        $media->shouldReceive('store')->once()->with(Mockery::type(UploadedFile::class), 123)->andReturn($asset);
+        $this->app->instance(MediaAssetService::class, $media);
+        $temporary = tmpfile();
+        fwrite($temporary, pack('N', 24).'ftypisom'.pack('N', 0).'isommp42');
+        try {
+            $this->postJson('/api/mcp/v1/media-gallery', [
+                'file' => new UploadedFile(stream_get_meta_data($temporary)['uri'], 'clip.mp4', null, null, true),
+            ])->assertCreated()->assertJsonPath('media.type', 'video')->assertJsonPath('media.duration', 7);
+        } finally {
+            fclose($temporary);
+        }
+    }
+
+    public function test_video_size_limit_is_enforced_before_storage(): void
+    {
+        $this->allowMedia($this->signIn());
+        $media = Mockery::mock(MediaAssetService::class);
+        $media->shouldNotReceive('store');
+        $this->app->instance(MediaAssetService::class, $media);
+        $this->postJson('/api/mcp/v1/media-gallery', [
+            'file' => UploadedFile::fake()->create('clip.mp4', 51201, 'video/mp4'),
+        ])->assertUnprocessable()->assertJsonValidationErrors('file');
+    }
+
+    public function test_image_size_limit_remains_ten_mebibytes(): void
+    {
+        $this->allowMedia($this->signIn());
+        $media = Mockery::mock(MediaAssetService::class);
+        $media->shouldNotReceive('store');
+        $this->app->instance(MediaAssetService::class, $media);
+        $this->postJson('/api/mcp/v1/media-gallery', [
+            'file' => UploadedFile::fake()->create('image.png', 10241, 'image/png'),
+        ])->assertUnprocessable()->assertJsonValidationErrors('file');
+    }
+
 }
