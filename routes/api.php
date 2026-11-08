@@ -186,3 +186,5 @@ Route::get('/user', function (Request $request) {
 
 require __DIR__.'/mcp-auth.php';
 require __DIR__.'/mcp-media.php';
+require __DIR__.'/mcp-connections.php';
+require __DIR__.'/mcp-profile.php';
