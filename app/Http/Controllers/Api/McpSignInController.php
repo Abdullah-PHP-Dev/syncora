@@ -28,7 +28,7 @@ class McpSignInController extends Controller
         }
         RateLimiter::clear($key);
         $expiresAt = now()->addDays(7);
-        $token = $user->createToken('syncora-mcp', ['mcp:read', 'mcp:media:write'], $expiresAt)->plainTextToken;
+        $token = $user->createToken('syncora-mcp', ['mcp:read', 'mcp:media:write', 'mcp:posts:write'], $expiresAt)->plainTextToken;
 
         return response()->json([
             'token_type' => 'Bearer', 'access_token' => $token, 'expires_at' => $expiresAt->toIso8601String(),
