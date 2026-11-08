@@ -1,0 +1,181 @@
+<?php
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+
+Route::post('/payments/tamara/webhook', [\App\Http\Controllers\Payments\TamaraController::class, 'webhook'])
+    ->name('payments.tamara.webhook');
+
+Route::get('/user', function (Request $request) {
+    return $request->user();
+})->middleware('auth:sanctum');
+
+//Route::group(['prefix' => 'api'], function ($router) {
+    // Post-comment webhooks - separate from the messaging.* group below,
+    // which is DMs only (entry[].messaging[]) and never sees entry[].changes[]
+    // (comments). Previously every route here used a broken controller
+    // string (`App\Https\Api\...` - wrong namespace, and missing
+    // "Controllers") which doesn't resolve to any real class; that alone was
+    // enough to make `php artisan route:list` fatal-error for the entire
+    // app, since it reflects every registered controller. The old routes
+    // also carried a per-user {userId} segment, which doesn't match how
+    // Meta webhooks actually work - there is exactly one App-level callback
+    // URL, and events for every connected Page/Instagram account arrive on
+    // it, disambiguated via entry[].id (see FacebookCommentWebhookController
+    // / InstagramCommentWebhookController), the same shared-URL model
+    // already used by messaging.facebook / messaging.instagram below.
+    Route::prefix('comments')->name('comments.webhook.')->group(function () {
+        Route::get('/facebook', [\App\Http\Controllers\Api\Comments\FacebookCommentWebhookController::class, 'verify'])->name('facebook.verify');
+        Route::post('/facebook', [\App\Http\Controllers\Api\Comments\FacebookCommentWebhookController::class, 'receive'])->name('facebook.receive');
+
+        Route::get('/instagram', [\App\Http\Controllers\Api\Comments\InstagramCommentWebhookController::class, 'verify'])->name('instagram.verify');
+        Route::post('/instagram', [\App\Http\Controllers\Api\Comments\InstagramCommentWebhookController::class, 'receive'])->name('instagram.receive');
+
+        // YouTube's PubSubHubbub (WebSub) callback - not a Meta-style
+        // webhook, only announces new/updated video publishes (see
+        // YoutubeWebhookController's docblock). No 'active comment
+        // webhook' exists for YouTube at all; comments/likes/shares are
+        // pull-only via YoutubePostService::backfillRecentPosts().
+        Route::get('/youtube', [\App\Http\Controllers\Api\Comments\YoutubeWebhookController::class, 'verify'])->name('youtube.verify');
+        Route::post('/youtube', [\App\Http\Controllers\Api\Comments\YoutubeWebhookController::class, 'receive'])->name('youtube.receive');
+
+        // LinkedIn has no GET verify handshake to register (unlike the Meta
+        // platforms above) - LinkedIn has no public push/webhook product for
+        // organic engagement in the first place under this module's scopes,
+        // so there's no challenge-response step to answer. This is the URL
+        // LinkedInPostService::subscribeToWebhooks() records on connect for
+        // an admin to register by hand if the org is ever approved for a
+        // push-capable LinkedIn product; until then comment/like/share data
+        // is kept current by polling - see
+        // LinkedInPostService::backfillRecentPosts() and
+        // LinkedinCommentWebhookController's docblock.
+        Route::post('/linkedin', [\App\Http\Controllers\Api\Comments\LinkedinCommentWebhookController::class, 'receive'])->name('linkedin.receive');
+
+        // Threads replies (topic "moderate", field "replies") - the callback
+        // URL registered under the Threads use case > Webhooks in the App
+        // Dashboard. See ThreadsReplyWebhookService.
+        Route::get('/threads', [\App\Http\Controllers\Api\Comments\ThreadsCommentWebhookController::class, 'verify'])->name('threads.verify');
+        Route::post('/threads', [\App\Http\Controllers\Api\Comments\ThreadsCommentWebhookController::class, 'receive'])->name('threads.receive');
+
+        // TikTok/X/WhatsApp/Telegram comment webhooks are not implemented
+        // yet - TiktokController/XController are empty stub files (no class
+        // defined) and a WhatsappController/TelegramController don't exist
+        // anywhere in this codebase. Left unregistered rather than pointed
+        // at a broken controller string again, so route:list/route:cache
+        // stay usable in the meantime.
+    });
+
+    // Unified messaging inbox webhooks - separate from the (currently
+    // broken, pre-existing) comments-webhook block above, which is a
+    // different system entirely (post-comment moderation, not DMs).
+    Route::prefix('messaging')->name('messaging.webhook.')->group(function () {
+        Route::get('/facebook', [\App\Http\Controllers\Api\Messaging\FacebookMessengerWebhookController::class, 'verify'])->name('facebook.verify');
+        Route::post('/facebook', [\App\Http\Controllers\Api\Messaging\FacebookMessengerWebhookController::class, 'receive'])->name('facebook.receive');
+
+        Route::get('/instagram', [\App\Http\Controllers\Api\Messaging\InstagramMessengerWebhookController::class, 'verify'])->name('instagram.verify');
+        Route::post('/instagram', [\App\Http\Controllers\Api\Messaging\InstagramMessengerWebhookController::class, 'receive'])->name('instagram.receive');
+
+        Route::get('/whatsapp', [\App\Http\Controllers\Api\Messaging\WhatsAppWebhookController::class, 'verify'])->name('whatsapp.verify');
+        Route::post('/whatsapp', [\App\Http\Controllers\Api\Messaging\WhatsAppWebhookController::class, 'receive'])->name('whatsapp.receive');
+
+        // Per-bot URL (see TelegramWebhookController docblock) rather than
+        // one shared endpoint like the three Meta platforms above.
+        Route::post('/telegram/{channel}', [\App\Http\Controllers\Api\Messaging\TelegramWebhookController::class, 'receive'])->name('telegram.receive');
+
+        // Also per-channel - LINE has no app-level shared webhook the way
+        // Meta does, each Messaging API channel gets its own URL.
+        Route::post('/line/{channel}', [\App\Http\Controllers\Api\Messaging\LineWebhookController::class, 'receive'])->name('line.receive');
+
+        // Shared per-App endpoint like the Meta platforms above - see
+        // ZaloWebhookController docblock.
+        Route::post('/zalo', [\App\Http\Controllers\Api\Messaging\ZaloWebhookController::class, 'receive'])->name('zalo.receive');
+
+        // Also a shared per-App endpoint - Slack's one-time url_verification
+        // handshake and every event_callback delivery both land here, see
+        // SlackWebhookController docblock.
+        Route::match(['get', 'post'], '/slack', [\App\Http\Controllers\Api\Messaging\SlackWebhookController::class, 'receive'])->name('slack.receive');
+
+        // Per-channel again, like Telegram/LINE - each Azure Bot
+        // registration's "Messaging endpoint" is set by hand in the Azure
+        // Portal, see TeamsWebhookController docblock.
+        Route::post('/teams/{channel}', [\App\Http\Controllers\Api\Messaging\TeamsWebhookController::class, 'receive'])->name('teams.receive');
+
+        // Per-channel too - each Google Cloud project's Chat app has its
+        // own App URL, configured by hand in the Google Cloud Console, see
+        // GoogleChatWebhookController docblock.
+        // {channel} (not {userId}) - the segment is the MessageChannel id, so
+        // the receiver can resolve which service account's project_number to
+        // verify the inbound Google-signed JWT against. The old {userId} name
+        // meant the controller's MessageChannel type-hint bound nothing, and
+        // MessageChannelController::storeGoogleChat() - which builds this URL
+        // with ['channel' => ...] - threw on a missing required parameter.
+        // POST only: Google Chat has no GET verification handshake.
+        Route::match(['get', 'post'], '/google-chat/{channel}', [
+            \App\Http\Controllers\Api\Messaging\GoogleChatWebhookController::class,
+            'receive'
+        ])->name('google_chat.receive');
+        Route::get('/discord', [\App\Http\Controllers\Api\Messaging\DiscordWebhookController::class, 'verify'])->name('discord.verify');
+        Route::post('/discord', [\App\Http\Controllers\Api\Messaging\DiscordWebhookController::class, 'receive'])->name('discord.receive');
+
+        // Single app-level URL, same shared-URL model as the Meta
+        // platforms above - one call to business/webhook/update/
+        // (TiktokMessagingService::subscribeToWebhooks()) covers every
+        // TikTok Business Account connected through this app.
+        Route::match(
+            ['get', 'post'],
+            '/tiktok',
+            [\App\Http\Controllers\Api\Messaging\TiktokWebhookController::class, 'receive']
+        )->name('tiktok.receive');
+
+        // X Account Activity API - GET is X's CRC (Challenge-Response
+        // Check) re-validation, POST is real event delivery; same URI,
+        // split by HTTP method rather than one handler branching on
+        // $request->isMethod() (unlike Tiktok's combined route above)
+        // since CRC and event handling are genuinely different response
+        // shapes, not one "real vs test-ping" distinction. Registered
+        // once per app via XMessagingService::registerWebhookIfNeeded()
+        // - not per connected account (see that method's docblock).
+        Route::get('/x-activity', [\App\Http\Controllers\Api\Messaging\XActivityWebhookController::class, 'crc'])->name('x_activity.crc');
+        Route::post('/x-activity', [\App\Http\Controllers\Api\Messaging\XActivityWebhookController::class, 'receive'])->name('x_activity.receive');
+
+        // Deliberately no Discord route here - Discord has no webhook
+        // delivery for bot DMs at all, so there is no URL to register in
+        // the Developer Portal for this. Inbound Discord messages are
+        // received exclusively through the Gateway WebSocket daemon (see
+        // RunDiscordGatewayListener / `php artisan messaging:discord-listen`).
+    });
+
+    // Posts - TikTok's single app-level Webhook URL for the Content
+    // Posting / Login Kit app (posts.tiktok.client_id/secret) - a
+    // separate TikTok app registration from messaging.webhook.tiktok
+    // above, which belongs to the Business API app. Pasted by hand into
+    // Developer Portal > this app > Webhooks (TikTok has no API call to
+    // register it, unlike the Business Messaging webhook). See
+    // TiktokContentWebhookController's docblock for exactly which of
+    // TikTok's four possible event types this handles.
+    Route::prefix('posts')->name('posts.webhook.')->group(function () {
+        Route::match(['get', 'post'], '/tiktok', [\App\Http\Controllers\Api\TiktokContentWebhookController::class, 'receive'])->name('tiktok.receive');
+    });
+
+    // Ads - LinkedIn only for now. LinkedIn's webhook product validates
+    // ownership of any URL registered in the developer portal's "Webhooks"
+    // tab (and re-validates it every ~2h) via a GET ?challengeCode=
+    // handshake, independent of which event types (if any) are actually
+    // subscribed - see LinkedinAdWebhookController::verify(). No event type
+    // exists for ad delivery metrics (spend/impressions/clicks) under this
+    // module's r_ads/rw_ads/r_ads_reporting scopes - reporting stays
+    // pull-only via LinkedIn's adAnalytics finder - but the handshake still
+    // needs answering for the URL to validate at all. See
+    // LinkedinAdService::registerAdEventsCallback().
+    Route::prefix('ads')->name('ads.webhook.')->group(function () {
+        Route::get('/linkedin', [\App\Http\Controllers\Api\Ads\LinkedinAdWebhookController::class, 'verify'])->name('linkedin.verify');
+        Route::post('/linkedin', [\App\Http\Controllers\Api\Ads\LinkedinAdWebhookController::class, 'receive'])->name('linkedin.receive');
+    });
+
+    // Email Marketing - Mailgun replaced with per-seller SendGrid
+    // subaccounts. One shared app-level URL receives every seller's
+    // events (SendGrid's ECDSA-signed Event Webhook, not Mailgun's HMAC
+    // one) - see SendGridWebhookController/SendGridWebhookService for how
+    // the right subaccount is identified without a URL segment.
+    Route::post('/webhooks/sendgrid/events', [\App\Http\Controllers\Api\EmailMarketing\SendGridWebhookController::class, 'receive'])->name('email_marketing.sendgrid.receive');
+// });
