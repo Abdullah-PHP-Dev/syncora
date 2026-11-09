@@ -22,7 +22,8 @@ class AssignFreeSubscriptionListener
      */
     public function handle(UserRegistered $event): void
     {
-        if (!$event->user->hasRole('seller') || $event->user->isTeamMember()) {
+        // Self-service sign-up already assigns the plan inside its transaction.
+        if (!$event->user->hasRole('seller') || $event->user->isTeamMember() || $event->user->subscription()->exists()) {
             return;
         }
 

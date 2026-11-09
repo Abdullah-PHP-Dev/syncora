@@ -1,629 +1,675 @@
 <template>
   <div class="ch" :dir="i18n.dir">
 
-    <header class="ch-head">
-      <span class="ch-head-icon"><i class="bx bx-link-alt"></i></span>
-      <div>
-        <h1 class="ch-title">{{ t('header.title') }}</h1>
-        <p class="ch-sub">{{ t('header.subtitle') }}</p>
-      </div>
-    </header>
-
     <div v-if="flashMessage" class="ch-flash" :class="flashMessage.tone" role="status" aria-live="polite">
       <i class="bx" :class="flashMessage.tone === 'is-error' ? 'bx-error-circle' : 'bx-check-circle'"></i>
       <span>{{ flashMessage.text }}</span>
       <button type="button" class="ch-flash-x" @click="flashMessage = null" :aria-label="t('dismiss')"><i class="bx bx-x"></i></button>
     </div>
 
-    <!-- Onboarding: Posts / Inbox / Comments stay locked (EnsureConnectedAccount) until one account works. -->
-    <div v-if="!eligible" class="ch-wizard is-gate" role="note">
-      <span class="ch-wizard-icon"><i class="bx bx-lock-alt"></i></span>
-      <div class="ch-wizard-text">
-        <strong>{{ t('gate.title') }}</strong>
-        <span>{{ t('gate.body') }}</span>
-      </div>
-    </div>
-
-    <!-- "Connect all recommended": one consent per step, back here between them. -->
-    <div v-if="wizardState" class="ch-wizard" :class="{ 'is-done': !wizardState.next }">
-      <span class="ch-wizard-icon"><i class="bx" :class="wizardState.next ? 'bx-rocket' : 'bx-check-double'"></i></span>
-      <div class="ch-wizard-text">
-        <template v-if="wizardState.next">
-          <strong>{{ t('wizard.step', { done: wizardState.done + 1, total: wizardState.total, label: wizardState.next.label }) }}</strong>
-          <span>{{ t('wizard.next', { label: wizardState.next.label }) }}</span>
-        </template>
-        <template v-else>
-          <strong>{{ t('wizard.finished') }}</strong>
-          <span>{{ wizardState.skipped ? tc('wizard.skipped', wizardState.skipped) : t('wizard.all_connected') }}</span>
-        </template>
-        <div class="ch-wizard-bar"><span :style="{ width: (100 * wizardState.done / wizardState.total) + '%' }"></span></div>
-      </div>
-      <div v-if="wizardState.next" class="ch-wizard-actions">
-        <form method="POST" :action="urls.wizard_finish" class="ch-inline-form">
-          <input type="hidden" name="_token" :value="csrf"><input type="hidden" name="_method" value="DELETE">
-          <button type="submit" class="ch-btn ch-btn-ghost sm">{{ t('wizard.finish_later') }}</button>
-        </form>
-        <form method="POST" :action="urls.wizard_skip" class="ch-inline-form">
-          <input type="hidden" name="_token" :value="csrf">
-          <button type="submit" class="ch-btn ch-btn-ghost sm">{{ t('wizard.skip') }}</button>
-        </form>
-        <a :href="wizardState.next.url" class="ch-btn ch-btn-primary sm">{{ t('wizard.continue') }} <i class="bx bx-right-arrow-alt"></i></a>
-      </div>
-    </div>
-
-    <!-- Guided authorization: the consents planned for the picked capabilities, then what was actually granted. -->
-    <section v-if="flowState" class="ch-flow" :class="{ 'is-done': flowState.complete }" role="region" :aria-label="t('flow.title', { platform: flowState.label })">
-      <header class="ch-flow-head">
-        <span v-if="flowCard" class="ch-drawer-logos"><span v-for="b in flowCard.presentation.icons" :key="b.icon" class="ch-badge" :class="'is-' + b.brand"><i class="bx" :class="b.icon"></i></span></span>
-        <div class="ch-flow-title">
-          <h2>{{ flowState.complete ? flowSummaryTitle : t('flow.title', { platform: flowState.label }) }}</h2>
-          <p v-if="flowState.complete">{{ t('flow.done_body', { platform: flowState.label }) }}</p>
-          <p v-else>{{ t('flow.progress', { n: flowState.done + 1, total: flowState.total }) }}</p>
+    <!-- ===================== PLATFORMS VIEW ===================== -->
+    <template v-if="mode === 'platforms'">
+      <header class="ch-head">
+        <div>
+          <h1 class="ch-title">{{ t('ui.title') }}</h1>
+          <p class="ch-sub">{{ t('hub.subtitle') }}</p>
         </div>
-        <form v-if="!flowState.complete" method="POST" :action="urls.flow_cancel" class="ch-inline-form">
-          <input type="hidden" name="_token" :value="csrf">
-          <button type="submit" class="ch-btn ch-btn-ghost sm">{{ t('flow.cancel') }}</button>
-        </form>
+        <div class="ch-head-actions">
+          <button type="button" class="ch-btn ch-btn-secondary" @click="setMode('accounts')"><i class="bx bx-list-ul"></i> {{ t('hub.all_accounts') }}</button>
+          <button type="button" class="ch-btn ch-btn-primary" @click="openConnect('picker')"><i class="bx bx-plus"></i> {{ t('ui.connect_platform') }}</button>
+        </div>
       </header>
 
-      <ol v-if="flowState.steps.length > 1 || !flowState.complete" class="ch-flow-steps">
-        <li v-for="(step, i) in flowState.steps" :key="step.key" :class="['is-' + step.state, { 'is-current': flowState.next && flowState.next.key === step.key }]">
-          <span class="ch-flow-dot" aria-hidden="true"><i v-if="step.state === 'done'" class="bx bx-check"></i><i v-else-if="step.state === 'skipped'" class="bx bx-minus"></i><template v-else>{{ i + 1 }}</template></span>
-          <span class="ch-flow-step-text">
-            <strong>{{ step.label }}</strong>
-            <small>{{ step.capabilities.map(c => capability(c).label).join(' · ') }} — {{ t('flow.state.' + step.state) }}</small>
-          </span>
-        </li>
-      </ol>
+      <!-- Onboarding: Posts / Inbox / Comments stay locked (EnsureConnectedAccount) until one account works. -->
+      <div v-if="!eligible" class="ch-banner is-gate" role="note">
+        <span class="ch-banner-icon"><i class="bx bx-lock-alt"></i></span>
+        <div class="ch-banner-text"><strong>{{ t('gate.title') }}</strong><span>{{ t('gate.body') }}</span></div>
+      </div>
 
-      <div v-if="flowState.next" class="ch-flow-next">
-        <div class="ch-flow-next-text">
-          <strong>{{ t('flow.next', { label: flowState.next.label }) }}</strong>
-          <span>{{ flowState.next.description }}</span>
-          <span class="ch-flow-grants">{{ t('flow.grants') }} <span v-for="c in flowState.next.capabilities" :key="c" class="ch-cap is-on"><i class="bx" :class="capability(c).icon"></i> {{ capability(c).label }}</span></span>
-          <span v-if="flowState.next.state === 'failed'" class="ch-step-note" role="alert"><i class="bx bx-error-circle"></i> {{ t('flow.failed', { platform: flowState.label }) }}</span>
-          <small class="ch-muted">{{ t('flow.opens', { platform: flowState.label }) }}</small>
+      <!-- "Connect all recommended": one consent per step, back here between them. -->
+      <div v-if="wizardState" class="ch-banner" :class="{ 'is-done': !wizardState.next }">
+        <span class="ch-banner-icon"><i class="bx" :class="wizardState.next ? 'bx-rocket' : 'bx-check-double'"></i></span>
+        <div class="ch-banner-text">
+          <template v-if="wizardState.next">
+            <strong>{{ t('wizard.step', { done: wizardState.done + 1, total: wizardState.total, label: wizardState.next.label }) }}</strong>
+            <span>{{ t('wizard.next', { label: wizardState.next.label }) }}</span>
+          </template>
+          <template v-else>
+            <strong>{{ t('wizard.finished') }}</strong>
+            <span>{{ wizardState.skipped ? tc('wizard.skipped', wizardState.skipped) : t('wizard.all_connected') }}</span>
+          </template>
+          <div class="ch-progress"><span :style="{ width: (100 * wizardState.done / wizardState.total) + '%' }"></span></div>
         </div>
-        <div class="ch-wizard-actions">
-          <form method="POST" :action="urls.flow_skip" class="ch-inline-form">
-            <input type="hidden" name="_token" :value="csrf">
-            <button type="submit" class="ch-btn ch-btn-ghost sm">{{ t('flow.skip') }}</button>
+        <div v-if="wizardState.next" class="ch-banner-actions">
+          <form method="POST" :action="urls.wizard_finish" class="ch-inline-form">
+            <input type="hidden" name="_token" :value="csrf"><input type="hidden" name="_method" value="DELETE">
+            <button type="submit" class="ch-btn ch-btn-ghost sm">{{ t('wizard.finish_later') }}</button>
           </form>
-          <form method="POST" :action="urls.flow_continue" class="ch-inline-form">
+          <form method="POST" :action="urls.wizard_skip" class="ch-inline-form">
             <input type="hidden" name="_token" :value="csrf">
-            <button type="submit" class="ch-btn ch-btn-primary sm">
-              <i class="bx" :class="flowState.next.state === 'failed' ? 'bx-refresh' : 'bx-link-external'"></i>
-              {{ flowState.next.state === 'failed' ? t('flow.retry') : t('flow.continue', { platform: flowState.label }) }}
-            </button>
+            <button type="submit" class="ch-btn ch-btn-ghost sm">{{ t('wizard.skip') }}</button>
           </form>
+          <a :href="wizardState.next.url" class="ch-btn ch-btn-primary sm">{{ t('wizard.continue') }} <i class="bx bx-right-arrow-alt"></i></a>
         </div>
       </div>
 
-      <template v-else>
-        <ul class="ch-flow-results">
-          <li v-for="r in flowState.results" :key="r.key">
-            <span class="ch-step-icon sm"><i class="bx" :class="capability(r.key).icon"></i></span>
-            <strong>{{ capability(r.key).label }}</strong>
-            <span class="ch-opt-badge" :class="catalogStatus(r.status).tone"><i class="bx" :class="catalogStatus(r.status).icon"></i> {{ catalogStatus(r.status).label }}</span>
-          </li>
-        </ul>
-        <div class="ch-wizard-actions">
-          <form v-if="flowState.missing.length" method="POST" :action="authorizeUrl(flowState.platform)" class="ch-inline-form">
-            <input type="hidden" name="_token" :value="csrf">
-            <input v-for="c in flowState.missing" :key="c" type="hidden" name="capabilities[]" :value="c">
-            <button type="submit" class="ch-btn ch-btn-primary sm"><i class="bx bx-refresh"></i> {{ t('flow.complete_missing') }}</button>
-          </form>
-          <button type="button" class="ch-btn ch-btn-ghost sm" @click="openPlatform(flowState.platform)"><i class="bx bx-plus"></i> {{ t('flow.add_more') }}</button>
-          <form method="POST" :action="urls.flow_cancel" class="ch-inline-form">
-            <input type="hidden" name="_token" :value="csrf">
-            <button type="submit" class="ch-btn ch-btn-ghost sm">{{ t('flow.close') }}</button>
-          </form>
+      <!-- Guided authorization (AuthorizationFlow): the planned consents, then what was granted. -->
+      <section v-if="flowState" class="ch-banner is-flow" role="region" :aria-label="t('flow.title', { platform: flowState.label })">
+        <span class="ch-banner-icon"><i class="bx" :class="flowState.complete ? 'bx-check-double' : 'bx-shield-quarter'"></i></span>
+        <div class="ch-banner-text">
+          <strong>{{ flowState.complete ? flowSummaryTitle : t('flow.title', { platform: flowState.label }) }}</strong>
+          <span v-if="flowState.next">{{ t('flow.next', { label: flowState.next.label }) }} — {{ flowState.next.description }}</span>
+          <span v-else>{{ t('flow.done_body', { platform: flowState.label }) }}</span>
+          <span v-if="flowState.next && flowState.next.state === 'failed'" class="ch-warn-text"><i class="bx bx-error-circle"></i> {{ t('flow.failed', { platform: flowState.label }) }}</span>
+          <span v-if="flowState.complete" class="ch-chips">
+            <span v-for="r in flowState.results" :key="r.key" class="ch-chip" :class="r.status === 'connected' ? 'is-on' : 'is-off'">
+              <i class="bx" :class="r.status === 'connected' ? 'bx-check' : 'bx-x'"></i> {{ capShort(r.key) }}
+            </span>
+          </span>
         </div>
-      </template>
-    </section>
+        <div class="ch-banner-actions">
+          <template v-if="flowState.next">
+            <form method="POST" :action="urls.flow_skip" class="ch-inline-form">
+              <input type="hidden" name="_token" :value="csrf">
+              <button type="submit" class="ch-btn ch-btn-ghost sm">{{ t('flow.skip') }}</button>
+            </form>
+            <form method="POST" :action="urls.flow_continue" class="ch-inline-form">
+              <input type="hidden" name="_token" :value="csrf">
+              <button type="submit" class="ch-btn ch-btn-primary sm">{{ flowState.next.state === 'failed' ? t('flow.retry') : t('flow.continue', { platform: flowState.label }) }}</button>
+            </form>
+          </template>
+          <template v-else>
+            <form v-if="flowState.missing.length" method="POST" :action="authorizeUrl(flowState.platform)" class="ch-inline-form">
+              <input type="hidden" name="_token" :value="csrf">
+              <input v-for="c in flowState.missing" :key="c" type="hidden" name="capabilities[]" :value="c">
+              <button type="submit" class="ch-btn ch-btn-primary sm"><i class="bx bx-refresh"></i> {{ t('flow.complete_missing') }}</button>
+            </form>
+            <form method="POST" :action="urls.flow_cancel" class="ch-inline-form">
+              <input type="hidden" name="_token" :value="csrf">
+              <button type="submit" class="ch-btn ch-btn-ghost sm">{{ t('flow.close') }}</button>
+            </form>
+          </template>
+        </div>
+      </section>
 
-    <div class="ch-layout">
-      <div class="ch-main">
+      <!-- Health -->
+      <section class="ch-kpis" :aria-label="t('ui.title')">
+        <div class="ch-kpi">
+          <small>{{ t('hub.stats.platforms') }}</small>
+          <strong>{{ num(stats.platforms) }} <span>{{ t('hub.stats.of', { total: num(stats.total) }) }}</span></strong>
+        </div>
+        <div class="ch-kpi">
+          <small>{{ t('hub.stats.accounts') }}</small>
+          <strong>{{ num(stats.accounts) }}</strong>
+        </div>
+        <button type="button" class="ch-kpi" :class="{ 'is-warn': stats.attention }" @click="filter = 'attention'">
+          <small>{{ t('hub.stats.attention') }}</small>
+          <strong>{{ num(stats.attention) }}</strong>
+        </button>
+        <div class="ch-kpi">
+          <small>{{ t('hub.stats.checked') }}</small>
+          <strong class="ch-kpi-sm"><span class="ch-dot" :class="lastChecked ? 'is-ok' : 'is-muted'"></span>{{ lastChecked ? ago(lastChecked) : t('ui.stats.never') }}</strong>
+        </div>
+      </section>
 
-        <!-- Summary -->
-        <section class="ch-hero">
-          <span class="ch-hero-icon"><i class="bx bx-link"></i></span>
-          <div class="ch-hero-text">
-            <h2>{{ t('hero.title') }}</h2>
-            <p>{{ t('hero.text') }}</p>
+      <!-- Meta Business: one sign-in behind WhatsApp, Facebook, Instagram and Meta Ads -->
+      <section v-if="metaViews.length" class="ch-meta">
+        <header class="ch-meta-head">
+          <span class="ch-tile is-metab">M</span>
+          <div class="ch-meta-text">
+            <h2>{{ t('hub.meta.title') }}</h2>
+            <p>{{ metaText }}</p>
           </div>
-          <div class="ch-hero-stats">
-            <button v-for="s in heroStats" :key="s.key" type="button" class="ch-hero-stat" @click="setTab(s.key)">
-              <span class="ch-hero-stat-top"><span class="ch-hero-stat-icon" :class="'is-' + s.tone"><i class="bx" :class="s.icon"></i></span><strong>{{ num(s.count) }}</strong></span>
-              <small>{{ s.label }}</small>
-            </button>
+          <button type="button" class="ch-btn" :class="metaLogin ? 'ch-btn-secondary' : 'ch-btn-primary'" @click="openConnect('facebook')">
+            <i class="bx" :class="metaLogin ? 'bx-plus' : 'bxl-meta'"></i> {{ metaLogin ? t('hub.meta.add') : t('hub.meta.connect') }}
+          </button>
+        </header>
+        <div v-for="v in metaViews" :key="v.key" class="ch-row" :class="'is-' + v.status">
+          <span class="ch-tile sm" :class="'is-' + v.brand"><i class="bx" :class="v.icon"></i></span>
+          <div class="ch-row-main">
+            <strong>{{ v.name }} <span v-if="v.recommended && v.status === 'not_connected'" class="ch-tag">{{ t('hub.recommended') }}</span></strong>
+            <small :class="{ 'ch-warn-text': v.issue }" :title="detail(v)">{{ detail(v) }}</small>
           </div>
-        </section>
+          <div class="ch-row-chips">
+            <span v-for="c in v.caps" :key="c" class="ch-chip is-grey">{{ capShort(c) }}</span>
+          </div>
+          <span class="ch-status" :class="statusTone(v.status)">{{ t('ui.status.' + v.status) }}</span>
+          <div class="ch-row-action">
+            <a v-if="action(v).url" :href="action(v).url" class="ch-btn sm" :class="action(v).cls" @click="rememberReturn(v.key)">{{ action(v).label }}</a>
+            <button v-else type="button" class="ch-btn sm" :class="action(v).cls" :disabled="action(v).disabled" @click="runAction(v)">{{ action(v).label }}</button>
+          </div>
+        </div>
+      </section>
 
-        <!-- Tabs -->
-        <nav class="ch-tabs" role="tablist">
-          <button v-for="tb in tabs" :key="tb.key" type="button" role="tab" class="ch-tab" :class="{ 'is-active': tab === tb.key }" :aria-selected="tab === tb.key" @click="setTab(tb.key)">
-            <i class="bx" :class="tb.icon"></i> {{ tb.label }} <span class="ch-tab-count">{{ num(tb.count) }}</span>
+      <!-- Every other platform -->
+      <div class="ch-filterbar">
+        <h2 class="ch-section-label">{{ t('hub.other') }}</h2>
+        <nav class="ch-seg ch-seg-sm" role="tablist">
+          <button v-for="f in filters" :key="f.key" type="button" role="tab" class="ch-seg-btn" :class="{ 'is-active': filter === f.key }" :aria-selected="filter === f.key ? 'true' : 'false'" @click="filter = f.key">
+            {{ f.label }}
           </button>
         </nav>
-
-        <!-- First run: pick a platform right here -->
-        <section v-if="!accountRows.length" class="ch-section ch-start">
-          <div class="ch-section-head">
-            <div>
-              <h3>{{ t('start.title') }}</h3>
-              <p>{{ t('start.text') }}</p>
-            </div>
-          </div>
-          <div class="ch-pick-grid">
-            <button v-for="card in cards" :key="card.platform" type="button" class="ch-pick" @click="openPlatform(card.platform)">
-              <span class="ch-pick-logos"><span v-for="b in card.presentation.icons" :key="b.icon" class="ch-badge" :class="'is-' + b.brand"><i class="bx" :class="b.icon"></i></span></span>
-              <strong>{{ card.label }}</strong>
-              <small>{{ card.presentation.subtitle }}</small>
-              <span class="ch-pick-caps"><span v-for="cap in cardCapabilities(card)" :key="cap.key"><i class="bx" :class="cap.icon"></i> {{ cap.label }}</span></span>
-              <span class="ch-pick-cta">{{ t('connect') }} <i class="bx bx-right-arrow-alt"></i></span>
-            </button>
-          </div>
-        </section>
-
-        <!-- Account sections -->
-        <template v-else>
-          <section v-for="section in visibleSections" :key="section.key" class="ch-section">
-            <div class="ch-section-head">
-              <div>
-                <h3>{{ section.title }}</h3>
-                <p>{{ section.subtitle }}</p>
-              </div>
-              <button v-if="tab === 'all' && section.rows.length" type="button" class="ch-section-link" @click="setTab(section.key)">
-                {{ tc('sections.accounts', section.rows.length) }} <i class="bx bx-chevron-right"></i>
-              </button>
-            </div>
-
-            <div class="ch-acct-grid">
-              <article v-for="row in section.rows" :key="section.key + row.asset.id" class="ch-acct" :class="{ 'is-dim': row.state.key === 'paused' || row.state.key === 'off' }">
-                <div class="ch-acct-top">
-                  <span class="ch-acct-logo ch-badge" :class="'is-' + row.view.brand"><i class="bx" :class="row.view.icon"></i></span>
-                  <div class="ch-acct-type">
-                    <strong>{{ row.view.title }}</strong>
-                    <small>{{ row.view.subtitle }}</small>
-                  </div>
-                  <span v-if="busy[row.conn.id] === 'check'" class="ch-state is-muted"><i class="bx bx-loader-alt bx-spin"></i> {{ t('account.checking') }}</span>
-                  <span v-else class="ch-state" :class="'is-' + row.state.tone">{{ row.state.label }}</span>
-                </div>
-                <div class="ch-acct-bottom">
-                  <span class="ch-acct-avatar">
-                    <img v-if="row.asset.avatar_url" :src="row.asset.avatar_url" alt="" @error="row.asset.avatar_url = null">
-                    <i v-else class="bx" :class="row.view.icon"></i>
-                  </span>
-                  <div class="ch-acct-id">
-                    <strong :title="row.asset.name">{{ row.asset.name || row.asset.external_id }}</strong>
-                    <small :title="row.asset.external_id">{{ row.asset.username && section.key === 'social' ? '@' + row.asset.username : row.view.idLabel + ': ' + row.asset.external_id }}</small>
-                  </div>
-                  <div class="ch-menu" @click.stop>
-                    <button type="button" class="ch-kebab" :aria-expanded="openMenu === section.key + row.asset.id" :aria-label="t('account.actions')" @click="toggleMenu(section.key + row.asset.id)"><i class="bx bx-dots-vertical-rounded"></i></button>
-                    <div v-if="openMenu === section.key + row.asset.id" class="ch-menu-list" role="menu">
-                      <a v-if="row.state.key === 'reconnect' || row.state.key === 'expiring'" :href="row.conn.reconnect_url" role="menuitem" class="is-accent"><i class="bx bx-refresh"></i> {{ t('reconnect') }}</a>
-                      <a v-if="sectionLink(section.key, row)" :href="sectionLink(section.key, row).url" role="menuitem"><i class="bx" :class="sectionLink(section.key, row).icon"></i> {{ sectionLink(section.key, row).label }}</a>
-                      <button v-if="row.asset.available_capabilities.includes(section.capability)" type="button" role="menuitem" :disabled="saving[row.asset.id]" @click="toggleSection(row, section)">
-                        <i class="bx" :class="row.asset.enabled_capabilities.includes(section.capability) ? 'bx-pause-circle' : 'bx-play-circle'"></i>
-                        {{ t(row.asset.enabled_capabilities.includes(section.capability) ? 'account.pause' : 'account.resume', { capability: capabilityLower(section.capability) }) }}
-                      </button>
-                      <button type="button" role="menuitem" :disabled="!!busy[row.conn.id]" @click="openMenu = null; check(row.card, row.conn)"><i class="bx bx-check-shield"></i> {{ t('account.check') }}</button>
-                      <button type="button" role="menuitem" @click="copyId(row)"><i class="bx bx-copy"></i> {{ t('account.copy', { label: row.view.idLabel }) }}</button>
-                      <span class="ch-menu-sep" role="separator"></span>
-                      <button type="button" role="menuitem" @click="openPlatform(row.card.platform)"><i class="bx bx-slider-alt"></i> {{ t('account.manage') }}</button>
-                    </div>
-                  </div>
-                </div>
-              </article>
-
-              <button type="button" class="ch-acct ch-acct-add" @click="openPicker()">
-                <span class="ch-acct-add-icon"><i class="bx bx-plus"></i></span>
-                <strong>{{ section.rows.length ? t('sections.connect_more') : section.emptyTitle }}</strong>
-                <small>{{ section.addText }}</small>
-              </button>
-            </div>
-          </section>
-        </template>
-
       </div>
 
-      <!-- Sidebar -->
-      <aside class="ch-side">
-
-        <section class="ch-panel">
-          <h3><i class="bx bxs-zap"></i> {{ t('quick.title') }}</h3>
-          <form v-if="wizard.available && !wizardState" method="POST" :action="urls.wizard_start" class="ch-quick-form">
-            <input type="hidden" name="_token" :value="csrf">
-            <button type="submit" class="ch-quick">
-              <span class="ch-quick-icon is-violet"><i class="bx bx-rocket"></i></span>
-              <span><strong>{{ t('quick.recommended') }}</strong><small>{{ t('quick.recommended_text') }}</small></span>
-              <i class="bx bx-chevron-right"></i>
-            </button>
-          </form>
-          <button type="button" class="ch-quick" @click="openPicker()">
-            <span class="ch-quick-icon is-blue"><i class="bx bx-link"></i></span>
-            <span><strong>{{ t('quick.new') }}</strong><small>{{ t('quick.new_text') }}</small></span>
-            <i class="bx bx-chevron-right"></i>
-          </button>
-          <a v-if="urls.ads" :href="urls.ads" class="ch-quick">
-            <span class="ch-quick-icon is-purple"><i class="bx bxs-megaphone"></i></span>
-            <span><strong>{{ t('quick.ads') }}</strong><small>{{ t('quick.ads_text') }}</small></span>
-            <i class="bx bx-chevron-right"></i>
-          </a>
-          <a v-if="urls.composer" :href="urls.composer" class="ch-quick">
-            <span class="ch-quick-icon is-green"><i class="bx bx-calendar-plus"></i></span>
-            <span><strong>{{ t('quick.post') }}</strong><small>{{ t('quick.post_text') }}</small></span>
-            <i class="bx bx-chevron-right"></i>
-          </a>
-        </section>
-
-        <section class="ch-panel">
-          <h3><i class="bx bx-pulse"></i> {{ t('status.title') }}</h3>
-          <div class="ch-donut-wrap">
-            <svg class="ch-donut" viewBox="0 0 120 120" role="img" :aria-label="tc('status.aria', statusTotals.total)">
-              <circle cx="60" cy="60" r="48" class="ch-donut-track"></circle>
-              <circle v-for="seg in donutSegments" :key="seg.key" cx="60" cy="60" r="48" class="ch-donut-seg" :stroke="seg.color"
-                      :stroke-dasharray="seg.length + ' ' + (donutCircumference - seg.length)" :stroke-dashoffset="-seg.offset"></circle>
-            </svg>
-            <div class="ch-donut-label"><strong>{{ num(statusTotals.total) }}</strong><small>{{ t('status.total') }}<br>{{ t('status.connections') }}</small></div>
+      <div class="ch-grid">
+        <article v-for="v in filtered(mainViews)" :key="v.key" class="ch-card" :class="'is-' + v.status">
+          <div class="ch-card-head">
+            <span class="ch-tile" :class="'is-' + v.brand"><i class="bx" :class="v.icon"></i></span>
+            <div class="ch-card-title">
+              <h3>{{ v.name }}</h3>
+              <p :title="v.subtitle">{{ v.subtitle }}</p>
+            </div>
+            <span class="ch-status" :class="statusTone(v.status)">{{ t('ui.status.' + v.status) }}</span>
           </div>
-          <ul class="ch-legend">
-            <li><span class="dot is-ok"></span> {{ t('status.connected') }} <strong>{{ num(statusTotals.ok) }}</strong></li>
-            <li><span class="dot is-warn"></span> {{ t('status.expiring') }} <strong>{{ num(statusTotals.warn) }}</strong></li>
-            <li><span class="dot is-bad"></span> {{ t('status.reconnect') }} <strong>{{ num(statusTotals.bad) }}</strong></li>
-          </ul>
-        </section>
+          <p class="ch-card-detail" :class="{ 'ch-warn-text': v.issue }">{{ detail(v) }}</p>
+          <div v-if="v.caps.length" class="ch-chips">
+            <span v-for="c in v.caps" :key="c" class="ch-chip is-grey">{{ capShort(c) }}</span>
+          </div>
+          <div class="ch-card-actions">
+            <a v-if="action(v).url" :href="action(v).url" class="ch-btn ch-btn-block" :class="action(v).cls" @click="rememberReturn(v.key)">{{ action(v).label }}</a>
+            <button v-else type="button" class="ch-btn ch-btn-block" :class="action(v).cls" :disabled="action(v).disabled" @click="runAction(v)">{{ action(v).label }}</button>
+          </div>
+        </article>
+        <p v-if="!filtered(mainViews).length" class="ch-empty-filter">{{ t('ui.card.none_filter') }}</p>
+      </div>
 
-        <section class="ch-panel ch-help">
-          <h3><i class="bx bx-bulb"></i> {{ t('help.title') }}</h3>
-          <p>{{ t('help.text') }}</p>
-          <a v-if="urls.help" :href="urls.help" class="ch-help-btn">{{ t('help.cta') }} <i class="bx bx-right-arrow-alt"></i></a>
-          <span class="ch-help-art" aria-hidden="true"><i class="bx bx-support"></i></span>
-        </section>
+      <section v-if="filtered(moreViews).length" class="ch-more">
+        <div class="ch-more-head">
+          <h2 class="ch-section-label">{{ t('ui.card.more_title') }}</h2>
+          <p>{{ t('ui.card.more_subtitle') }}</p>
+        </div>
+        <div class="ch-more-grid">
+          <article v-for="v in filtered(moreViews)" :key="v.key" class="ch-mini">
+            <span class="ch-tile sm" :class="'is-' + v.brand"><i class="bx" :class="v.icon"></i></span>
+            <div class="ch-mini-text">
+              <strong>{{ v.name }}</strong>
+              <small :class="{ 'ch-warn-text': v.issue }">{{ v.status === 'not_connected' ? v.subtitle : detail(v) }}</small>
+            </div>
+            <span v-if="v.status !== 'not_connected'" class="ch-status" :class="statusTone(v.status)">{{ t('ui.status.' + v.status) }}</span>
+            <button type="button" class="ch-btn sm" :class="action(v).cls" :disabled="action(v).disabled" @click="runAction(v)">{{ action(v).label }}</button>
+          </article>
+        </div>
+      </section>
+    </template>
 
-      </aside>
-    </div>
+    <!-- ===================== ACCOUNTS VIEW ===================== -->
+    <template v-else>
+      <header class="ch-head">
+        <div>
+          <p class="ch-crumb"><button type="button" class="ch-link" @click="setMode('platforms')">{{ t('ui.accounts.back') }}</button> / {{ t('ui.accounts.all_accounts') }}</p>
+          <h1 class="ch-title">{{ t('ui.accounts.title') }}</h1>
+          <p class="ch-sub">{{ t('ui.accounts.subtitle', { workspace: workspaceName }) }}</p>
+        </div>
+        <div class="ch-head-actions">
+          <button type="button" class="ch-btn ch-btn-primary" @click="openConnect('picker')"><i class="bx bx-plus"></i> {{ t('ui.accounts.connect') }}</button>
+        </div>
+      </header>
 
-    <!-- Side panel: pick a platform, then connect / manage it -->
+      <div class="ch-tablebar">
+        <label class="ch-search">
+          <i class="bx bx-search" aria-hidden="true"></i>
+          <span class="sr-only">{{ t('ui.accounts.search') }}</span>
+          <input v-model="search" type="search" :placeholder="t('ui.accounts.search')">
+        </label>
+        <label class="ch-select">
+          <span class="sr-only">{{ t('ui.accounts.platform') }}</span>
+          <select v-model="platformFilter">
+            <option value="">{{ t('ui.accounts.platform') }}</option>
+            <option v-for="v in connectedViews" :key="v.key" :value="v.key">{{ v.name }}</option>
+          </select>
+        </label>
+        <label class="ch-select">
+          <span class="sr-only">{{ t('hub.accounts.health') }}</span>
+          <select v-model="healthFilter">
+            <option value="all">{{ t('hub.accounts.health') }}</option>
+            <option value="attention">{{ t('hub.accounts.health_attention') }}</option>
+            <option value="ok">{{ t('hub.accounts.health_ok') }}</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="ch-table" role="table" :aria-label="t('ui.accounts.title')">
+        <div class="ch-tr ch-th" role="row">
+          <span role="columnheader">{{ t('ui.accounts.col_account') }}</span>
+          <span role="columnheader">{{ t('ui.accounts.col_used') }}</span>
+          <span role="columnheader">{{ t('ui.accounts.col_health') }}</span>
+          <span role="columnheader" class="ch-td-end">{{ t('hub.accounts.col_access') }}</span>
+        </div>
+        <button v-for="r in visibleTableRows" :key="r.asset.id" type="button" class="ch-tr" :class="{ 'is-selected': manageAsset === r.asset.id }" role="row" @click="openManage(r.view.key, r.asset.id)">
+          <span class="ch-td-account" role="cell">
+            <span class="ch-tile sm" :class="'is-' + kindBrand(r)"><i class="bx" :class="kindIcon(r)"></i></span>
+            <span class="ch-td-name">
+              <strong>{{ assetName(r.asset) }}</strong>
+              <small>{{ kindLabel(r) }}</small>
+            </span>
+          </span>
+          <span class="ch-td-used" role="cell">{{ r.asset.enabled_capabilities.length ? r.asset.enabled_capabilities.map(capShort).join(' · ') : t('ui.accounts.not_used') }}</span>
+          <span class="ch-td-health" role="cell"><span class="ch-pill" :class="r.health.tone">{{ r.health.label }}</span></span>
+          <span class="ch-td-access ch-td-end" :class="'is-' + r.health.tone" role="cell">{{ r.health.access }}</span>
+        </button>
+        <p v-if="!visibleTableRows.length" class="ch-empty-filter">{{ t('ui.accounts.empty') }}</p>
+      </div>
+    </template>
+
+    <!-- ===================== CONNECT MODAL ===================== -->
     <transition name="ch-fade">
-      <div v-if="drawer" class="ch-drawer-backdrop" @click.self="closeDrawer"></div>
+      <div v-if="connectKey" class="ch-modal-backdrop" @click.self="closeConnect">
+        <div class="ch-modal" role="dialog" aria-modal="true" :aria-label="connectTitle" @keydown.esc="closeConnect">
+
+          <!-- Platform picker -->
+          <template v-if="connectKey === 'picker'">
+            <header class="ch-modal-head">
+              <span class="ch-tile is-brand"><i class="bx bx-link"></i></span>
+              <div class="ch-modal-title">
+                <h2>{{ t('ui.connect_platform') }}</h2>
+                <p>{{ t('ui.connect.adding') }} <strong>{{ workspaceName }}</strong></p>
+              </div>
+              <button type="button" class="ch-icon-btn" :aria-label="t('close')" @click="closeConnect"><i class="bx bx-x"></i></button>
+            </header>
+            <div class="ch-modal-body">
+              <div class="ch-picker">
+                <button v-for="v in allViews" :key="v.key" type="button" class="ch-picker-item" :disabled="!v.available && v.status === 'not_connected'" @click="openConnect(v.key)">
+                  <span class="ch-tile sm" :class="'is-' + v.brand"><i class="bx" :class="v.icon"></i></span>
+                  <span class="ch-picker-text"><strong>{{ v.name }}</strong><small>{{ v.subtitle }}</small></span>
+                  <span v-if="v.status !== 'not_connected'" class="ch-status" :class="statusTone(v.status)">{{ t('ui.status.' + v.status) }}</span>
+                  <span v-else-if="!v.available" class="ch-muted sm-text">{{ t('ui.connect.unavailable') }}</span>
+                  <i v-else class="bx bx-chevron-right" aria-hidden="true"></i>
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <template v-else-if="connectViewData">
+            <header class="ch-modal-head">
+              <span class="ch-tile" :class="isMetaLogin ? 'is-metab' : 'is-' + connectViewData.brand"><template v-if="isMetaLogin">M</template><i v-else class="bx" :class="connectViewData.icon"></i></span>
+              <div class="ch-modal-title">
+                <h2>{{ connectTitle }}</h2>
+                <p v-if="isMetaLogin">{{ t('hub.meta.modal_sub') }} · {{ t('ui.connect.adding') }} <strong>{{ workspaceName }}</strong></p>
+                <p v-else>{{ t('ui.connect.adding') }} <strong>{{ workspaceName }}</strong></p>
+              </div>
+              <ol class="ch-stepper" aria-hidden="true">
+                <li v-for="(s, i) in connectSteps" :key="s" :class="{ 'is-current': i === 0 }">
+                  <span class="ch-stepper-dot">{{ i + 1 }}</span><span class="ch-stepper-label">{{ t('ui.connect.steps.' + s) }}</span>
+                </li>
+              </ol>
+              <button type="button" class="ch-icon-btn" :aria-label="t('close')" @click="closeConnect"><i class="bx bx-x"></i></button>
+            </header>
+
+            <div class="ch-modal-body">
+              <p v-if="connectFailed" class="ch-note is-bad" role="alert"><i class="bx bx-error-circle"></i> {{ t('ui.connect.failed') }}</p>
+
+              <!-- Instagram: choose how -->
+              <template v-if="connectViewData.flow === 'instagram'">
+                <h3 class="ch-modal-h3">{{ t('ui.connect.instagram.question') }}</h3>
+                <p class="ch-modal-sub">{{ t('ui.connect.instagram.sub') }}</p>
+                <div class="ch-methods">
+                  <label v-for="m in instagramMethods" :key="m.key" class="ch-method" :class="{ 'is-picked': connectChoice === m.key, 'is-disabled': !m.available }">
+                    <input v-model="connectChoice" type="radio" name="ig-method" :value="m.key" :disabled="!m.available">
+                    <span class="ch-method-head">
+                      <span class="ch-radio" aria-hidden="true"></span>
+                      <span class="ch-tile sm" :class="'is-' + m.brand"><i class="bx" :class="m.icon"></i></span>
+                      <span><strong>{{ m.title }} <span v-if="m.recommended" class="ch-tag">{{ t('ui.connect.recommended') }}</span></strong><small>{{ m.sub }}</small></span>
+                    </span>
+                    <span class="ch-note" :class="m.key === 'meta.login' ? 'is-ok' : 'is-info'"><i class="bx" :class="m.key === 'meta.login' ? 'bx-check' : 'bx-info-circle'"></i> {{ m.note }}</span>
+                    <span class="ch-chips">
+                      <span v-for="c in m.caps" :key="c.key" class="ch-chip" :class="c.on ? 'is-on' : 'is-off'"><i class="bx" :class="c.on ? 'bx-check' : 'bx-x'"></i> {{ capShort(c.key) }}</span>
+                    </span>
+                    <span v-if="!m.available" class="ch-muted sm-text">{{ t('ui.connect.unavailable') }}</span>
+                  </label>
+                </div>
+                <div class="ch-before">
+                  <strong>{{ t('ui.connect.instagram.before') }}</strong>
+                  <span><i class="bx bx-check"></i> {{ t('ui.connect.instagram.business') }}</span>
+                  <span><i class="bx bx-check"></i> {{ t('ui.connect.instagram.admin') }}</span>
+                </div>
+                <p class="ch-note is-warn"><i class="bx bx-info-circle"></i> {{ t('ui.connect.instagram.one_way') }}</p>
+              </template>
+
+              <!-- Threads: its own sign-in -->
+              <div v-else-if="connectViewData.flow === 'threads'" class="ch-split">
+                <div>
+                  <div class="ch-handshake" aria-hidden="true"><span class="ch-tile lg is-brand">S</span><span class="ch-dots"><i class="bx bx-transfer-alt"></i></span><span class="ch-tile lg is-threads"><i class="bx bx-at"></i></span></div>
+                  <h3 class="ch-modal-h3 is-center">{{ t('ui.connect.threads.heading') }}</h3>
+                  <p class="ch-modal-sub is-center">{{ t('ui.connect.threads.own_login') }}</p>
+                  <h4 class="ch-list-title">{{ t('ui.connect.threads.ask') }}</h4>
+                  <ul class="ch-perms">
+                    <li v-for="p in threadsPermissions" :key="p.key">
+                      <span class="ch-perm-icon"><i class="bx" :class="p.icon"></i></span>
+                      <span><strong>{{ t('ui.connect.threads.' + p.key + '.title') }}</strong><small>{{ t('ui.connect.threads.' + p.key + '.text') }}</small></span>
+                      <code dir="ltr">{{ p.scope }}</code>
+                    </li>
+                  </ul>
+                </div>
+                <aside class="ch-aside">
+                  <h4 class="ch-list-title">{{ t('ui.connect.threads.another') }}</h4>
+                  <ol class="ch-numbered"><li v-for="(s, i) in threadsAnother" :key="i">{{ s }}</li></ol>
+                  <p class="ch-note is-warn"><i class="bx bx-error"></i> {{ t('ui.connect.threads.expiry') }}</p>
+                </aside>
+              </div>
+
+              <!-- WhatsApp: Embedded Signup or a System User token -->
+              <template v-else-if="connectViewData.flow === 'whatsapp'">
+                <p class="ch-modal-sub">{{ connectViewData.description }}</p>
+                <div class="ch-wa-actions">
+                  <button v-if="whatsappStep && whatsappStep.available && connectCard.whatsapp_signup" type="button" class="ch-btn ch-btn-primary" :disabled="waBusy" @click="startWhatsappSignup(connectCard.whatsapp_signup)">
+                    <i class="bx" :class="waBusy ? 'bx-loader-alt bx-spin' : 'bxl-whatsapp'"></i> {{ t('ui.connect.continue_with', { platform: connectViewData.name }) }}
+                  </button>
+                  <button type="button" class="ch-btn ch-btn-secondary" @click="waManual = !waManual"><i class="bx" :class="waManual ? 'bx-x' : 'bx-key'"></i> {{ waManual ? t('cancel') : t('step.enter_manually') }}</button>
+                </div>
+                <form v-if="waManual" method="POST" :action="urls.whatsapp_manual" class="ch-form">
+                  <input type="hidden" name="_token" :value="csrf">
+                  <p class="ch-muted">{{ t('whatsapp.help') }}</p>
+                  <label>{{ t('whatsapp.name') }}<input type="text" name="name" required maxlength="255" :placeholder="t('whatsapp.name_placeholder')"></label>
+                  <label>{{ t('whatsapp.phone_id') }}<input type="text" name="phone_number_id" required inputmode="numeric" dir="ltr"></label>
+                  <label>{{ t('whatsapp.token') }}<input type="password" name="access_token" required autocomplete="off" dir="ltr"></label>
+                  <button type="submit" class="ch-btn ch-btn-primary sm"><i class="bx bx-check"></i> {{ t('ui.accounts.connect') }}</button>
+                </form>
+              </template>
+
+              <!-- ChatGPT Ads: an API key, no sign-in page -->
+              <form v-else-if="connectViewData.flow === 'openai'" method="POST" :action="urls.openai_key" class="ch-form">
+                <input type="hidden" name="_token" :value="csrf">
+                <p class="ch-muted" v-html="t('openai.help')"></p>
+                <label>{{ t('openai.key') }}<input type="password" name="api_key" required minlength="20" autocomplete="off" spellcheck="false" dir="ltr" :placeholder="t('openai.key_placeholder')"></label>
+                <div class="ch-wa-actions">
+                  <button type="submit" class="ch-btn ch-btn-primary sm"><i class="bx bx-check"></i> {{ t('ui.accounts.connect') }}</button>
+                  <a href="https://ads.openai.com" target="_blank" rel="noopener noreferrer" class="ch-btn ch-btn-secondary sm"><i class="bx bx-link-external"></i> {{ t('openai.open') }}</a>
+                </div>
+              </form>
+
+              <!-- Google Ads, Analytics, Search Console...: one row per service -->
+              <google-services v-else-if="connectViewData.flow === 'google'" :services="connectCard.google_services || []" :t="t" :busy="busy"
+                               @disconnect="id => disconnect(connectCard, connectCard.connections.find(c => c.id === id))" />
+
+              <!-- Everyone else: what Socialeaz can do, plus a choice when the platform has several sign-ins -->
+              <div v-else class="ch-split">
+                <div>
+                  <template v-if="connectOptions.length > 1">
+                    <h3 class="ch-modal-h3">{{ t('ui.connect.options') }}</h3>
+                    <div class="ch-options">
+                      <label v-for="o in connectOptions" :key="o.key" class="ch-option" :class="{ 'is-picked': connectChoice === o.key, 'is-disabled': !o.available }">
+                        <input v-model="connectChoice" type="radio" name="connect-step" :value="o.key" :disabled="!o.available">
+                        <span class="ch-radio" aria-hidden="true"></span>
+                        <span class="ch-option-text">
+                          <strong>{{ o.label }} <span v-if="o.primary" class="ch-tag">{{ t('ui.connect.recommended') }}</span> <span v-if="o.connected" class="ch-tag is-ok">{{ t('ui.connect.connected') }}</span></strong>
+                          <small>{{ o.description }}</small>
+                          <small v-if="!o.available && o.note" class="ch-warn-text">{{ o.note }}</small>
+                        </span>
+                      </label>
+                    </div>
+                  </template>
+                  <template v-else>
+                    <h3 class="ch-modal-h3">{{ t('ui.connect.able') }}</h3>
+                    <p class="ch-modal-sub">{{ t('ui.connect.able_sub') }}</p>
+                  </template>
+                  <ul class="ch-perms">
+                    <li v-for="c in connectViewData.offers" :key="c">
+                      <span class="ch-perm-icon"><i class="bx" :class="capIcon(c)"></i></span>
+                      <span><strong>{{ capLabel(c) }}</strong><small>{{ capLong(c, connectViewData.card) }}</small></span>
+                    </li>
+                  </ul>
+                </div>
+                <aside class="ch-aside">
+                  <p v-if="connectViewData.service && connectViewData.serviceNote" class="ch-note is-info"><i class="bx bx-info-circle"></i> {{ connectViewData.serviceNote }}</p>
+                  <p class="ch-note is-info"><i class="bx bx-shield-quarter"></i> {{ t('ui.connect.privacy') }}</p>
+                </aside>
+              </div>
+            </div>
+
+            <footer v-if="!['whatsapp', 'openai', 'google'].includes(connectViewData.flow)" class="ch-modal-foot">
+              <button type="button" class="ch-btn ch-btn-ghost" @click="closeConnect">{{ t('ui.connect.cancel') }}</button>
+              <span class="ch-muted sm-text">{{ t('ui.connect.return') }}</span>
+              <a v-if="connectUrl" :href="connectUrl" class="ch-btn ch-btn-lg" :class="connectViewData.flow === 'threads' ? 'ch-btn-dark' : 'ch-btn-primary'" @click="rememberReturn(connectViewData.key)">
+                <i class="bx" :class="connectViewData.icon"></i> {{ connectCta }} <i class="bx bx-right-arrow-alt ch-flip"></i>
+              </a>
+              <span v-else class="ch-btn ch-btn-disabled ch-btn-lg">{{ t('ui.connect.unavailable') }}</span>
+            </footer>
+            <footer v-else class="ch-modal-foot">
+              <button type="button" class="ch-btn ch-btn-ghost" @click="closeConnect">{{ t('close') }}</button>
+            </footer>
+          </template>
+        </div>
+      </div>
+    </transition>
+
+    <!-- ===================== CHOOSE ACCOUNTS (after the provider sends you back) ===================== -->
+    <transition name="ch-fade">
+      <div v-if="chooseData" class="ch-modal-backdrop" @click.self="closeChoose">
+        <div class="ch-modal" role="dialog" aria-modal="true" :aria-label="t('hub.choose.title')">
+          <header class="ch-modal-head">
+            <span class="ch-tile" :class="chooseData.meta ? 'is-metab' : 'is-' + chooseData.view.brand"><template v-if="chooseData.meta">M</template><i v-else class="bx" :class="chooseData.view.icon"></i></span>
+            <div class="ch-modal-title">
+              <h2>{{ chooseData.meta ? t('hub.meta.modal_title') : t('ui.connect.title', { platform: chooseData.view.name }) }}</h2>
+              <p>{{ chooseData.meta ? t('hub.meta.modal_sub') + ' · ' : '' }}{{ t('ui.connect.adding') }} <strong>{{ workspaceName }}</strong></p>
+            </div>
+            <ol class="ch-stepper" aria-hidden="true">
+              <li class="is-done"><span class="ch-stepper-dot"><i class="bx bx-check"></i></span><span class="ch-stepper-label">{{ t('ui.connect.steps.sign_in') }}</span></li>
+              <li class="is-current"><span class="ch-stepper-dot">2</span><span class="ch-stepper-label">{{ t('ui.connect.steps.choose') }}</span></li>
+              <li><span class="ch-stepper-dot">3</span><span class="ch-stepper-label">{{ t('ui.connect.steps.done') }}</span></li>
+            </ol>
+            <button type="button" class="ch-icon-btn" :aria-label="t('close')" @click="closeChoose"><i class="bx bx-x"></i></button>
+          </header>
+
+          <div class="ch-modal-body">
+            <div class="ch-split">
+              <div class="ch-choose">
+                <div class="ch-signed">
+                  <span class="ch-avatar">{{ initials(chooseData.signedAs || chooseData.platformName) }}</span>
+                  <span>{{ chooseData.signedAs ? t('hub.choose.signed', { platform: chooseData.platformName, name: chooseData.signedAs }) : t('hub.choose.signed_plain', { platform: chooseData.platformName }) }}</span>
+                  <a v-if="chooseData.anotherUrl" :href="chooseData.anotherUrl" class="ch-link" @click="rememberReturn(chooseData.view.key)">{{ t('hub.choose.another') }}</a>
+                </div>
+
+                <template v-for="g in chooseData.groups">
+                  <h4 :key="g.key + '-h'" class="ch-list-title">{{ g.title }}</h4>
+                  <div :key="g.key" class="ch-pick-list" :class="{ 'is-two': g.key === 'whatsapp' || g.key === 'ad_account' }">
+                    <div v-for="item in g.items" :key="item.asset.id" class="ch-pick" :class="{ 'is-on': isChosen(item), 'is-already': item.already }">
+                      <label class="ch-pick-row">
+                        <input type="checkbox" :checked="isChosen(item)" :disabled="item.already" @change="toggleChosen(item)">
+                        <span class="ch-tile xs" :class="'is-' + kindBrand(item)"><i class="bx" :class="kindIcon(item)"></i></span>
+                        <span class="ch-pick-text"><strong>{{ assetName(item.asset) }}</strong><small>{{ item.sub }}</small></span>
+                        <span v-if="item.already" class="ch-muted sm-text">{{ t('hub.choose.already') }}</span>
+                        <span v-else-if="item.note" class="ch-muted sm-text">{{ item.note }}</span>
+                      </label>
+                      <label v-for="child in item.children || []" :key="child.asset.id" class="ch-pick-row is-child">
+                        <input type="checkbox" :checked="isChosen(child)" :disabled="child.already" @change="toggleChosen(child)">
+                        <span class="ch-tile xs is-instagram"><i class="bx bxl-instagram"></i></span>
+                        <span class="ch-pick-text"><strong>{{ child.asset.username ? '@' + child.asset.username : assetName(child.asset) }}</strong><small>{{ t('hub.choose.linked') }}</small></span>
+                        <span v-if="child.already" class="ch-muted sm-text">{{ t('hub.choose.already') }}</span>
+                      </label>
+                    </div>
+                  </div>
+                  <p v-if="g.key === 'ad_account'" :key="g.key + '-n'" class="ch-muted sm-text ch-note-plain">{{ t('hub.choose.ads_note') }}</p>
+                </template>
+              </div>
+              <aside class="ch-aside">
+                <h4 class="ch-list-title">{{ t('ui.connect.able') }}</h4>
+                <ul class="ch-checks">
+                  <li v-for="c in chooseData.view.offers" :key="c"><i class="bx bx-check"></i><span><strong>{{ capLabel(c) }}</strong><small>{{ capLong(c, chooseData.view.card) }}</small></span></li>
+                </ul>
+                <p class="ch-note is-info"><i class="bx bx-shield-quarter"></i> {{ t('ui.connect.privacy') }}</p>
+              </aside>
+            </div>
+          </div>
+
+          <footer class="ch-modal-foot">
+            <button type="button" class="ch-btn ch-btn-secondary" :disabled="chooseSaving" @click="closeChoose">{{ t('hub.choose.back') }}</button>
+            <span class="ch-muted sm-text">{{ chooseSummary }}</span>
+            <button type="button" class="ch-btn ch-btn-primary ch-btn-lg" :disabled="chooseSaving" @click="confirmChoose">
+              <i v-if="chooseSaving" class="bx bx-loader-alt bx-spin"></i>
+              {{ chooseSaving ? t('hub.choose.saving') : (chosenNew.length ? tc('hub.choose.button', chosenNew.length) : t('hub.choose.keep')) }}
+              <i v-if="!chooseSaving" class="bx bx-right-arrow-alt ch-flip"></i>
+            </button>
+          </footer>
+        </div>
+      </div>
+    </transition>
+
+    <!-- ===================== MANAGE PANEL ===================== -->
+    <transition name="ch-fade">
+      <div v-if="manageViewData" class="ch-drawer-backdrop" @click.self="closeManage"></div>
     </transition>
     <transition name="ch-slide">
-      <aside v-if="drawer" class="ch-drawer" role="dialog" aria-modal="true" :aria-label="drawerTitle" @keydown.esc="closeDrawer">
+      <aside v-if="manageViewData" class="ch-drawer" role="dialog" aria-modal="true" :aria-label="manageTitle">
         <header class="ch-drawer-head">
-          <button v-if="drawer !== 'picker'" type="button" class="ch-drawer-icon-btn" :aria-label="t('drawer.all_platforms')" @click="openPicker()"><i class="bx bx-arrow-back"></i></button>
-          <span v-if="drawerCard" class="ch-drawer-logos"><span v-for="b in drawerCard.presentation.icons" :key="b.icon" class="ch-badge" :class="'is-' + b.brand"><i class="bx" :class="b.icon"></i></span></span>
-          <div class="ch-drawer-title">
-            <h2>{{ drawerTitle }}</h2>
-            <p>{{ drawerCard ? drawerCard.presentation.subtitle : t('drawer.subtitle') }}</p>
+          <span class="ch-tile" :class="'is-' + (manageAccount ? kindBrand(manageAccount) : manageViewData.brand)"><i class="bx" :class="manageAccount ? kindIcon(manageAccount) : manageViewData.icon"></i></span>
+          <div class="ch-modal-title">
+            <h2>{{ manageTitle }}</h2>
+            <p v-if="manageAccount">{{ kindLabel(manageAccount) }} · {{ t('hub.manage.sign_in', { step: manageAccount.conn.step_label }) }}</p>
+            <p v-else>{{ t('ui.manage.adding', { count: manageViewData.countLabel || tc('ui.units.accounts', 0), workspace: workspaceName }) }}</p>
           </div>
-          <span v-if="drawerCard" class="ch-pill" :class="cardStatus(drawerCard).tone"><i class="bx" :class="cardStatus(drawerCard).icon"></i> {{ cardStatus(drawerCard).label }}</span>
-          <button type="button" class="ch-drawer-icon-btn" :aria-label="t('close')" @click="closeDrawer"><i class="bx bx-x"></i></button>
+          <button type="button" class="ch-icon-btn" :aria-label="t('close')" @click="closeManage"><i class="bx bx-x"></i></button>
         </header>
 
         <div class="ch-drawer-body">
-          <div v-if="drawer === 'picker'" class="ch-pick-list">
-            <button v-for="card in cards" :key="card.platform" type="button" class="ch-pick-row" @click="openPlatform(card.platform)">
-              <span class="ch-pick-logos"><span v-for="b in card.presentation.icons" :key="b.icon" class="ch-badge" :class="'is-' + b.brand"><i class="bx" :class="b.icon"></i></span></span>
-              <span class="ch-pick-row-text">
-                <strong>{{ card.label }}</strong>
-                <small>{{ card.presentation.subtitle }}</small>
-              </span>
-              <span class="ch-state" :class="'is-' + pickState(card).tone">{{ pickState(card).label }}</span>
-              <i class="bx bx-chevron-right"></i>
-            </button>
+          <div v-if="chooseMode" class="ch-success">
+            <span class="ch-success-icon"><i class="bx bx-check"></i></span>
+            <div><strong>{{ t('ui.manage.choose_title') }}</strong><span>{{ t('ui.manage.choose_sub', { workspace: workspaceName }) }}</span></div>
           </div>
 
-    <section v-for="card in drawerCards" :key="card.platform" class="ch-card ch-card-drawer" :id="card.platform">
+          <google-services v-if="manageViewData.flow === 'google' && !manageAccount" :services="manageCard.google_services || []" :t="t" :busy="busy"
+                           @disconnect="id => disconnect(manageCard, manageCard.connections.find(c => c.id === id))" />
 
-      <div class="ch-card-head">
-        <div class="ch-brand">
-          <span class="ch-brand-stack">
-            <span v-for="b in card.presentation.icons" :key="b.icon" class="ch-badge" :class="'is-' + b.brand"><i class="bx" :class="b.icon"></i></span>
-          </span>
-          <div>
-            <h2>{{ card.label }}</h2>
-            <p>{{ card.presentation.subtitle }}</p>
-          </div>
-        </div>
-        <span class="ch-pill" :class="cardStatus(card).tone"><i class="bx" :class="cardStatus(card).icon"></i> {{ cardStatus(card).label }}</span>
-      </div>
+          <section v-for="conn in manageConns" :key="conn.id" class="ch-conn">
+            <div class="ch-health" :class="healthBox(conn).tone">
+              <i class="bx" :class="healthBox(conn).icon" aria-hidden="true"></i>
+              <div class="ch-health-text">
+                <strong>{{ healthBox(conn).label }} <span class="ch-muted">· {{ conn.last_checked_at ? t('ui.manage.checked', { time: ago(conn.last_checked_at) }) : t('ui.manage.never') }}</span></strong>
+                <span>{{ [conn.step_label, conn.account_label ? t('ui.manage.signed_as', { name: conn.account_label }) : null, renewLabel(conn)].filter(Boolean).join(' · ') }}</span>
+                <span v-if="conn.last_error && conn.needs_attention" class="ch-warn-text">{{ conn.last_error }}</span>
+              </div>
+              <div class="ch-health-actions">
+                <button type="button" class="ch-btn ch-btn-secondary sm" :disabled="!!busy[conn.id]" @click="check(manageCard, conn)">
+                  <i class="bx" :class="busy[conn.id] === 'check' ? 'bx-loader-alt bx-spin' : 'bx-revision'"></i> {{ t('ui.manage.check') }}
+                </button>
+              </div>
+            </div>
 
-      <!-- Google: one row per service, instead of capabilities and consent steps. -->
-      <google-services
-          v-if="card.platform === 'google' && card.google_services"
-          :services="card.google_services"
-          :t="t"
-          :busy="busy"
-          @disconnect="id => disconnect(card, card.connections.find(c => c.id === id))" />
+            <p v-if="missingCaps(conn).length" class="ch-note is-info">
+              <i class="bx bx-lock-open-alt"></i>
+              <span>{{ t('ui.manage.missing') }} <strong>{{ missingCaps(conn).map(capShort).join(', ') }}</strong></span>
+              <a :href="conn.reconnect_url" class="ch-link" @click="rememberReturn(manageViewData.key)">{{ t('ui.manage.grant') }}</a>
+            </p>
+            <p v-if="conn.upgrade && conn.status !== 'revoked'" class="ch-note is-info">
+              <i class="bx bx-up-arrow-circle"></i> <span>{{ conn.upgrade.note }}</span>
+              <a :href="conn.upgrade.url" class="ch-link">{{ t('ui.manage.upgrade') }}</a>
+            </p>
 
-      <!-- Choose what to connect: capabilities first; the backend plans the sign-ins. -->
-      <form v-if="card.platform !== 'google' && card.capability_options && card.capability_options.length" method="POST" :action="authorizeUrl(card.platform)" class="ch-choose">
-        <input type="hidden" name="_token" :value="csrf">
-        <div class="ch-choose-head">
-          <h3>{{ t('choose.title') }}</h3>
-          <p>{{ t('choose.subtitle', { platform: card.label }) }}</p>
-        </div>
-
-        <fieldset class="ch-opts">
-          <legend class="sr-only">{{ t('choose.title') }}</legend>
-          <label v-for="opt in card.capability_options" :key="opt.key" class="ch-opt" :class="{ 'is-locked': !opt.selectable, 'is-picked': isPicked(card, opt) }">
-            <input
-                type="checkbox"
-                name="capabilities[]"
-                :value="opt.key"
-                :checked="isPicked(card, opt)"
-                :disabled="!opt.selectable"
-                @change="togglePick(card, opt)">
-            <span class="ch-opt-box" aria-hidden="true"><i class="bx bx-check"></i></span>
-            <span class="ch-opt-text">
-              <strong>{{ capability(opt.key).label }}</strong>
-              <span>{{ capability(opt.key).long[card.platform] || capability(opt.key).long.default }}</span>
-              <small v-if="opt.account"><i class="bx bx-user-check"></i> {{ t('choose.needs') }} {{ opt.account }}</small>
-              <small v-if="opt.note" class="ch-opt-note"><i class="bx bx-info-circle"></i> {{ opt.note }}</small>
-            </span>
-            <span class="ch-opt-badges">
-              <span class="ch-opt-badge" :class="catalogStatus(opt.status).tone"><i class="bx" :class="catalogStatus(opt.status).icon"></i> {{ catalogStatus(opt.status).label }}</span>
-              <span v-if="opt.partial" class="ch-opt-badge is-muted">{{ t('catalog_status.partial') }}</span>
-            </span>
-          </label>
-        </fieldset>
-
-        <div class="ch-choose-foot">
-          <p v-if="!card.capability_options.some(o => o.selectable)" class="ch-muted"><i class="bx bx-check-double"></i> {{ t('choose.all_connected') }}</p>
-          <template v-else>
-            <div class="ch-plan" aria-live="polite">
-              <span v-if="plans[card.platform] === 'loading'" class="ch-muted"><i class="bx bx-loader-alt bx-spin"></i> {{ t('choose.loading') }}</span>
-              <span v-else-if="plans[card.platform] === 'error'" class="ch-muted">{{ t('choose.plan_failed') }}</span>
-              <template v-else-if="plans[card.platform] && plans[card.platform].steps.length">
-                <strong>{{ plans[card.platform].steps.length === 1 ? t('choose.plan_one', { platform: card.label }) : t('choose.plan_many', { count: plans[card.platform].steps.length }) }}</strong>
-                <ol v-if="plans[card.platform].steps.length > 1 || plans[card.platform].steps[0].reconnect">
-                  <li v-for="(s, i) in plans[card.platform].steps" :key="s.key">
-                    {{ t('choose.plan_step', { n: i + 1, label: s.label }) }} — {{ s.capabilities.map(c => capability(c).label).join(', ') }}
-                    <small v-if="s.reconnect" class="ch-muted">· {{ t('choose.plan_reconnect') }}</small>
-                  </li>
-                </ol>
+            <article v-for="a in manageAccountsOf(conn)" :key="a.asset.id" class="ch-account" :class="{ 'is-off': !a.asset.enabled_capabilities.length }">
+              <div v-if="!manageAccount" class="ch-account-head">
+                <span class="ch-avatar lg" :style="avatarStyle(a.asset)">
+                  <img v-if="a.asset.avatar_url" :src="a.asset.avatar_url" alt="" @error="a.asset.avatar_url = null">
+                  <template v-else>{{ initials(assetName(a.asset)) }}</template>
+                  <span class="ch-avatar-badge ch-tile" :class="'is-' + kindBrand(a)"><i class="bx" :class="kindIcon(a)"></i></span>
+                </span>
+                <span class="ch-td-name">
+                  <strong>{{ assetName(a.asset) }}</strong>
+                  <small>{{ kindLabel(a) }}</small>
+                  <small v-if="!a.asset.token_ok" class="ch-warn-text">{{ t('asset.needs_reconnect') }}</small>
+                  <small v-if="a.asset.provider_status" class="ch-warn-text">{{ a.asset.provider_status }}</small>
+                  <small v-if="a.asset.duplicate_of" class="ch-muted">{{ t('asset.duplicate', { name: a.asset.duplicate_of }) }}</small>
+                </span>
+                <label class="ch-switch" :title="t('ui.manage.use')">
+                  <span class="sr-only">{{ t('ui.manage.use') }}</span>
+                  <input type="checkbox" :checked="a.asset.enabled_capabilities.length > 0" :disabled="saving[a.asset.id] || !a.asset.available_capabilities.length" @change="toggleAsset(conn, a.asset)">
+                  <span></span>
+                </label>
+              </div>
+              <template v-else>
+                <p v-if="a.asset.provider_status" class="ch-note is-warn"><i class="bx bx-error"></i> {{ a.asset.provider_status }}</p>
+                <p v-if="!a.asset.token_ok" class="ch-note is-bad"><i class="bx bx-error-circle"></i> {{ t('asset.needs_reconnect') }}</p>
               </template>
-            </div>
-            <button type="submit" class="ch-btn ch-btn-primary ch-choose-btn" :disabled="!pickedFor(card).length">
-              <i class="bx bx-link"></i> {{ tc('choose.button', pickedFor(card).length) }}
-            </button>
-            <small class="ch-muted">{{ t('choose.untick_note', { platform: card.label }) }}</small>
-          </template>
-        </div>
-      </form>
+              <div v-if="a.asset.available_capabilities.length" class="ch-uses">
+                <p class="ch-uses-title">{{ t('ui.manage.use_for') }}</p>
+                <div v-for="cap in a.asset.available_capabilities" :key="cap" class="ch-use">
+                  <span><strong>{{ capLabel(cap) }}</strong><small>{{ capHint(cap) }}</small></span>
+                  <label class="ch-switch sm">
+                    <span class="sr-only">{{ capLabel(cap) }}</span>
+                    <input type="checkbox" :checked="a.asset.enabled_capabilities.includes(cap)" :disabled="saving[a.asset.id]" @change="toggleCapability(conn, a.asset, cap)">
+                    <span></span>
+                  </label>
+                </div>
+              </div>
 
-      <!-- Steps -->
-      <div v-if="card.platform !== 'google'" class="ch-steps">
-        <div v-for="step in card.steps" :key="step.key" class="ch-step" :class="{ 'is-primary': step.primary, 'is-off': !step.available && step.key !== 'meta.whatsapp', 'has-form': (step.key === 'meta.whatsapp' && waManual) || (step.input === 'api_key' && apiKeyOpen) }">
-          <div class="ch-step-main">
-            <span class="ch-step-icon" :class="stepIcon(card, step.key).cls"><i class="bx" :class="stepIcon(card, step.key).icon"></i></span>
-            <div>
-              <strong>{{ step.label }} <span v-if="step.connected" class="ch-mini-ok"><i class="bx bx-check"></i> {{ t('step.connected') }}</span></strong>
-              <span class="ch-step-desc">{{ step.description }}</span>
-              <span v-if="!step.available && step.note" class="ch-step-note"><i class="bx bx-info-circle"></i> {{ step.note }}</span>
-            </div>
-          </div>
-          <div class="ch-step-actions">
-            <!-- WhatsApp Embedded Signup runs right here (FB JS SDK popup). -->
-            <button
-                v-if="step.key === 'meta.whatsapp' && step.available && card.whatsapp_signup"
-                type="button"
-                class="ch-btn ch-btn-ghost"
-                :disabled="waBusy"
-                @click="startWhatsappSignup(card.whatsapp_signup)">
-              <i class="bx" :class="waBusy ? 'bx-loader-alt bx-spin' : (step.connected ? 'bx-plus' : 'bx-link')"></i>
-              {{ step.connected ? t('step.add_number') : t('connect') }}
-            </button>
-            <!-- API-key platforms (ChatGPT Ads): a form here, no sign-in page. -->
-            <button v-else-if="step.input === 'api_key'" type="button" class="ch-btn" :class="apiKeyOpen ? 'ch-btn-ghost' : 'ch-btn-primary'" @click="apiKeyOpen = !apiKeyOpen">
-              <i class="bx" :class="apiKeyOpen ? 'bx-x' : (step.connected ? 'bx-plus' : 'bx-key')"></i>
-              {{ apiKeyOpen ? t('cancel') : (step.connected ? t('step.add_key') : card.presentation.connect_label) }}
-            </button>
-            <!-- Connected: the driver's follow-up action (connected_action), or none. -->
-            <a v-else-if="step.available && step.connected && 'connected_action' in step" v-show="step.connected_action" :href="step.connect_url" class="ch-btn ch-btn-ghost">
-              <i class="bx bx-plus"></i> {{ step.connected_action }}
-            </a>
-            <a v-else-if="step.available" :href="step.connect_url" class="ch-btn" :class="step.primary ? 'ch-btn-primary' : 'ch-btn-ghost'">
-              <i class="bx" :class="step.connected ? 'bx-refresh' : 'bx-link'"></i>
-              {{ step.connected ? (step.primary ? t('step.change_accounts') : t('reconnect')) : (step.primary ? card.presentation.connect_label : t('connect')) }}
-            </a>
-            <span v-else-if="step.key !== 'meta.whatsapp'" class="ch-btn ch-btn-disabled">{{ t('not_available') }}</span>
-            <!-- WhatsApp: a System User token works with or without Embedded Signup. -->
-            <button v-if="step.key === 'meta.whatsapp'" type="button" class="ch-btn ch-btn-ghost" @click="waManual = !waManual">
-              <i class="bx" :class="waManual ? 'bx-x' : 'bx-key'"></i> {{ waManual ? t('cancel') : t('step.enter_manually') }}
-            </button>
-          </div>
-          <form v-if="step.input === 'api_key' && apiKeyOpen" method="POST" :action="urls.openai_key" class="ch-wa-form">
-            <input type="hidden" name="_token" :value="csrf">
-            <p v-html="t('openai.help')"></p>
-            <div class="ch-wa-fields">
-              <label class="is-wide">{{ t('openai.key') }}<input type="password" name="api_key" required minlength="20" autocomplete="off" spellcheck="false" dir="ltr" :placeholder="t('openai.key_placeholder')"></label>
-            </div>
-            <div class="ch-key-actions">
-              <button type="submit" class="ch-btn ch-btn-primary sm"><i class="bx bx-check"></i> Verify and connect</button>
-              <a href="https://ads.openai.com" target="_blank" rel="noopener noreferrer" class="ch-btn ch-btn-ghost sm"><i class="bx bx-link-external"></i> {{ t('openai.open') }}</a>
-            </div>
-          </form>
-          <form v-if="step.key === 'meta.whatsapp' && waManual" method="POST" :action="urls.whatsapp_manual" class="ch-wa-form">
-            <input type="hidden" name="_token" :value="csrf">
-            <p>{{ t('whatsapp.help') }}</p>
-            <div class="ch-wa-fields">
-              <label>{{ t('whatsapp.name') }}<input type="text" name="name" required maxlength="255" :placeholder="t('whatsapp.name_placeholder')"></label>
-              <label>{{ t('whatsapp.phone_id') }}<input type="text" name="phone_number_id" required inputmode="numeric" dir="ltr"></label>
-              <label class="is-wide">{{ t('whatsapp.token') }}<input type="password" name="access_token" required autocomplete="off" dir="ltr"></label>
-            </div>
-            <button type="submit" class="ch-btn ch-btn-primary sm"><i class="bx bx-check"></i> Verify and connect</button>
-          </form>
-        </div>
-      </div>
+              <template v-if="manageAccount && linkedOf(a).length">
+                <p class="ch-uses-title">{{ a.kind === 'instagram' ? t('hub.manage.linked_page') : t('hub.manage.linked') }}</p>
+                <button v-for="l in linkedOf(a)" :key="l.asset.id" type="button" class="ch-linked" :class="'is-' + accountHealth(l).tone" @click="openManage(l.viewKey, l.asset.id)">
+                  <span class="ch-tile xs" :class="'is-' + kindBrand(l)"><i class="bx" :class="kindIcon(l)"></i></span>
+                  <span class="ch-pick-text"><strong>{{ l.asset.username ? '@' + l.asset.username : assetName(l.asset) }}</strong><small>{{ accountHealth(l).access }}</small></span>
+                  <i class="bx bx-chevron-right ch-flip" aria-hidden="true"></i>
+                </button>
+              </template>
+            </article>
+            <p v-if="!manageAccountsOf(conn).length" class="ch-muted ch-none">{{ t('ui.manage.empty') }}</p>
 
-      <!-- Not connected yet -->
-      <div v-if="!card.connections.length && card.platform !== 'google'" class="ch-empty">
-        <div class="ch-empty-art"><i class="bx bx-plug"></i></div>
-        <h3>{{ card.presentation.empty_title }}</h3>
-        <p>{{ card.presentation.empty_text }}</p>
-        <ul class="ch-gets">
-          <li v-for="cap in cardCapabilities(card)" :key="cap.key"><i class="bx" :class="cap.icon"></i> {{ cap.long[card.platform] || cap.long.default }}</li>
-        </ul>
-      </div>
-
-      <!-- Consents + assets -->
-      <h3 v-if="card.platform === 'google' && card.connections.length" class="ch-accounts-title">{{ t('google_services.accounts_title') }}</h3>
-      <div v-for="conn in card.connections" :key="conn.id" class="ch-conn">
-
-        <div class="ch-conn-head">
-          <div class="ch-conn-id">
-            <span class="ch-step-icon sm" :class="stepIcon(card, conn.step).cls"><i class="bx" :class="stepIcon(card, conn.step).icon"></i></span>
-            <div>
-              <strong>{{ conn.step_label }}<span v-if="conn.account_label" class="ch-account-label"> · {{ conn.account_label }}</span></strong>
-              <span class="ch-conn-meta">
-                <span class="ch-status" :class="statusInfo(conn.status).tone"><i class="ch-dot"></i>{{ statusInfo(conn.status).label }}</span>
-                <span v-if="conn.expires_in_days !== null"><i class="bx bx-time-five"></i> {{ expiryLabel(conn) }}</span>
-                <span v-if="conn.last_checked_at"><i class="bx bx-pulse"></i> {{ t('conn.checked', { time: ago(conn.last_checked_at) }) }}</span>
-                <span v-if="conn.provider_account_id" class="ch-muted">{{ t('conn.id', { id: conn.provider_account_id }) }}</span>
-              </span>
-            </div>
-          </div>
-          <div class="ch-conn-actions">
-            <button type="button" class="ch-btn ch-btn-ghost sm" :disabled="busy[conn.id]" @click="check(card, conn)">
-              <i class="bx" :class="busy[conn.id] === 'check' ? 'bx-loader-alt bx-spin' : 'bx-revision'"></i> {{ t('conn.check_now') }}
-            </button>
-            <template v-if="conn.status !== 'revoked'">
-              <button v-if="confirming !== conn.id" type="button" class="ch-btn ch-btn-danger-ghost sm" @click="confirming = conn.id">
-                <i class="bx bx-unlink"></i> {{ t('conn.disconnect') }}
-              </button>
+            <div v-if="conn.status !== 'revoked'" class="ch-danger">
+              <div>
+                <strong>{{ t('ui.manage.disconnect_title') }}</strong>
+                <span>{{ t('ui.manage.disconnect_text', { workspace: workspaceName }) }}<template v-if="manageCard.platform === 'meta' && conn.step === 'meta.login'"> {{ t('ui.manage.disconnect_meta') }}</template></span>
+              </div>
+              <button v-if="confirming !== conn.id" type="button" class="ch-btn ch-btn-danger sm" @click="confirming = conn.id"><i class="bx bx-unlink"></i> {{ t('ui.manage.disconnect') }}</button>
               <span v-else class="ch-confirm">
-                <span>{{ t('conn.confirm') }}</span>
-                <button type="button" class="ch-btn ch-btn-danger sm" :disabled="busy[conn.id]" @click="disconnect(card, conn)">{{ t('conn.disconnect') }}</button>
+                <button type="button" class="ch-btn ch-btn-danger-solid sm" :disabled="!!busy[conn.id]" @click="disconnect(manageCard, conn)">{{ t('ui.manage.confirm') }}</button>
                 <button type="button" class="ch-btn ch-btn-ghost sm" @click="confirming = null">{{ t('cancel') }}</button>
               </span>
-            </template>
-          </div>
-        </div>
-
-        <div v-if="conn.needs_attention" class="ch-alert" :class="statusInfo(conn.status).tone">
-          <i class="bx bx-error-circle"></i>
-          <div>
-            <strong>{{ attentionTitle(conn) }}</strong>
-            <span v-if="conn.last_error">{{ conn.last_error }}</span>
-          </div>
-          <a :href="conn.reconnect_url" class="ch-btn ch-btn-primary sm"><i class="bx bx-refresh"></i> {{ t('reconnect') }}</a>
-        </div>
-
-        <div v-if="conn.upgrade && conn.status !== 'revoked'" class="ch-alert is-info">
-          <i class="bx bx-up-arrow-circle"></i>
-          <div><strong>{{ t('conn.upgrade_title') }}</strong><span>{{ conn.upgrade.note }}</span></div>
-          <a :href="conn.upgrade.url" class="ch-btn ch-btn-primary sm"><i class="bx bx-up-arrow-alt"></i> {{ t('upgrade') }}</a>
-        </div>
-
-        <!-- Capabilities of this consent -->
-        <div class="ch-caps">
-          <span v-for="cap in connCapabilities(card, conn)" :key="cap.key" class="ch-cap" :class="{ 'is-on': conn.capabilities.includes(cap.key) }">
-            <i class="bx" :class="conn.capabilities.includes(cap.key) ? cap.icon : 'bx-lock-alt'"></i>
-            {{ cap.label }}
-            <a v-if="!conn.capabilities.includes(cap.key) && conn.upgradable && conn.status !== 'revoked'" :href="conn.reconnect_url" class="ch-cap-up">{{ conn.offered_capabilities ? t('grant_permissions') : t('upgrade') }}</a>
-          </span>
-        </div>
-
-        <!-- Asset picker -->
-        <div v-for="group in assetGroups(card, conn)" :key="group.kind" class="ch-group">
-          <div class="ch-group-head">
-            <h4><i class="bx" :class="group.icon"></i> {{ group.label }}</h4>
-            <span class="ch-count">{{ group.items.length }}</span>
-          </div>
-          <div class="ch-assets">
-            <div v-for="asset in group.items" :key="asset.id" class="ch-asset" :class="{ 'is-off': !asset.enabled_capabilities.length }">
-              <span class="ch-avatar" :class="'is-' + group.brand">
-                <img v-if="asset.avatar_url" :src="asset.avatar_url" alt="" @error="asset.avatar_url = null">
-                <i v-else class="bx" :class="group.icon"></i>
-              </span>
-              <span class="ch-asset-id">
-                <strong>{{ asset.name || asset.external_id }}</strong>
-                <small>{{ asset.username ? '@' + asset.username : asset.external_id }}<template v-if="!asset.token_ok"> · <span class="ch-warn-text">{{ t('asset.needs_reconnect') }}</span></template><template v-if="asset.provider_status"> · <span class="ch-warn-text">{{ asset.provider_status }}</span></template></small>
-                <small v-if="asset.duplicate_of" class="ch-dup-note"><i class="bx bx-copy"></i> {{ t('asset.duplicate', { name: asset.duplicate_of }) }}</small>
-              </span>
-              <span class="ch-asset-caps">
-                <button
-                    v-for="cap in asset.available_capabilities"
-                    :key="cap"
-                    type="button"
-                    class="ch-toggle-pill"
-                    :class="{ 'is-on': asset.enabled_capabilities.includes(cap) }"
-                    :disabled="saving[asset.id]"
-                    :title="t(asset.enabled_capabilities.includes(cap) ? 'asset.turn_off' : 'asset.turn_on', { capability: capability(cap).label })"
-                    @click="toggleCapability(conn, asset, cap)">
-                  <i class="bx" :class="capability(cap).icon"></i> {{ capability(cap).label }}
-                </button>
-                <span v-if="!asset.available_capabilities.length" class="ch-muted">{{ t('asset.no_permissions') }}</span>
-              </span>
-              <label class="ch-switch" :title="asset.enabled_capabilities.length ? t('asset.stop') : t('asset.use')">
-                <input type="checkbox" :checked="asset.enabled_capabilities.length > 0" :disabled="saving[asset.id] || !asset.available_capabilities.length" @change="toggleAsset(conn, asset)">
-                <span></span>
-              </label>
             </div>
-          </div>
+          </section>
         </div>
 
-        <p v-if="!assetGroups(card, conn).length" class="ch-muted ch-none">{{ t('conn.no_assets') }}</p>
-      </div>
-    </section>
-        </div>
+        <footer class="ch-drawer-foot">
+          <a v-if="manageReconnect" :href="manageReconnect" class="ch-btn ch-btn-secondary" @click="rememberReturn(manageViewData.key)"><i class="bx bx-refresh"></i> {{ t('ui.manage.reconnect') }}</a>
+          <button v-else type="button" class="ch-btn ch-btn-secondary" @click="openConnect(manageViewData.key)"><i class="bx bx-plus"></i> {{ t('ui.manage.add') }}</button>
+          <button type="button" class="ch-btn ch-btn-primary" @click="closeManage">{{ t('ui.manage.done') }}</button>
+        </footer>
       </aside>
     </transition>
 
   </div>
 </template>
-
 <script>
 import { createTranslator } from '../ads/facebook/i18n';
 import GoogleServices from './GoogleServices.vue';
 
-// Text for all of these comes from lang/{en,ar}/connections.php.
-const CAPABILITIES = [
-  { key: 'posting', icon: 'bx-send' },
-  { key: 'messaging', icon: 'bx-message-rounded-dots' },
-  { key: 'ads', icon: 'bx-bullseye' },
-  { key: 'insights', icon: 'bx-bar-chart-alt-2' },
-  { key: 'engagement', icon: 'bx-comment-detail' }
+const CAPS = {
+  posting: 'bx-send',
+  messaging: 'bx-message-rounded-dots',
+  engagement: 'bx-comment-detail',
+  ads: 'bx-bullseye',
+  insights: 'bx-bar-chart-alt-2'
+};
+const CAP_ORDER = ['posting', 'messaging', 'engagement', 'ads', 'insights'];
+
+// The page shows one card per platform people know (Facebook, Instagram ...),
+// while connections stay per provider sign-in (driver `card`): a view picks
+// the driver card, the account kinds (driver asset_groups) and the sign-in
+// steps that belong to it. group: 'meta' (one Meta login), 'main', 'more'.
+const PLATFORMS = [
+  { key: 'whatsapp', group: 'meta', card: 'meta', kinds: ['whatsapp'], steps: ['meta.whatsapp'], brand: 'whatsapp', icon: 'bxl-whatsapp', flow: 'whatsapp' },
+  { key: 'facebook', group: 'meta', card: 'meta', kinds: ['page'], steps: ['meta.login'], brand: 'facebook', icon: 'bxl-facebook', flow: 'steps' },
+  { key: 'instagram', group: 'meta', card: 'meta', kinds: ['instagram'], steps: ['meta.instagram_login'], brand: 'instagram', icon: 'bxl-instagram', flow: 'instagram' },
+  { key: 'meta_ads', group: 'meta', card: 'meta', kinds: ['ad_account'], brand: 'meta', icon: 'bxl-meta', flow: 'steps' },
+  { key: 'threads', group: 'main', card: 'threads', kinds: ['threads_profile'], owns: true, brand: 'threads', icon: 'bx-at', flow: 'threads' },
+  { key: 'tiktok', group: 'main', card: 'tiktok', kinds: ['tiktok_account', 'tiktok_ads', 'tiktok_comments'], unitKinds: ['tiktok_account'], owns: true, brand: 'tiktok', icon: 'bxl-tiktok', flow: 'steps' },
+  { key: 'linkedin', group: 'main', card: 'linkedin', kinds: ['linkedin_page', 'linkedin_ads'], unitKinds: ['linkedin_page'], owns: true, brand: 'linkedin', icon: 'bxl-linkedin', flow: 'steps' },
+  { key: 'x', group: 'main', card: 'x', kinds: ['x_account', 'x_ads'], unitKinds: ['x_account'], owns: true, brand: 'x', icon: 'bxl-x-logo', flow: 'steps' },
+  { key: 'youtube', group: 'main', card: 'google', kinds: ['youtube'], service: 'youtube', brand: 'youtube', icon: 'bxl-youtube', flow: 'service' },
+  { key: 'snapchat', group: 'main', card: 'snapchat', kinds: ['snapchat_ads'], owns: true, brand: 'snapchat', icon: 'bxl-snapchat', flow: 'steps' },
+  { key: 'business_profile', group: 'main', card: 'google', kinds: ['business_profile'], service: 'business_profile', brand: 'gbp', icon: 'bx-store', flow: 'service' },
+  { key: 'google', group: 'more', card: 'google', kinds: ['google_ads'], owns: true, brand: 'google', icon: 'bxl-google', flow: 'google' },
+  { key: 'pinterest', group: 'more', card: 'pinterest', kinds: ['pinterest_account'], owns: true, brand: 'pinterest', icon: 'bxl-pinterest', flow: 'steps' },
+  { key: 'openai', group: 'more', card: 'openai', kinds: ['openai_ads'], owns: true, brand: 'openai', icon: 'bx-bot', flow: 'openai' }
 ];
 
-
-// How each account kind (driver asset_groups key) appears in the overview (views.*).
-const ACCOUNT_VIEWS = {
-  page: { section: 'social', brand: 'facebook', icon: 'bxl-facebook' },
-  instagram: { section: 'social', brand: 'instagram', icon: 'bxl-instagram' },
-  youtube: { section: 'social', brand: 'youtube', icon: 'bxl-youtube' },
-  business_profile: { section: 'social', brand: 'google', icon: 'bx-store' },
-  x_account: { section: 'social', brand: 'x', icon: 'bxl-x-logo' },
-  linkedin_page: { section: 'social', brand: 'linkedin', icon: 'bxl-linkedin' },
-  tiktok_account: { section: 'social', brand: 'tiktok', icon: 'bxl-tiktok' },
-  tiktok_comments: { section: 'social', brand: 'tiktok', icon: 'bxl-tiktok' },
-  threads_profile: { section: 'social', brand: 'threads', icon: 'bx-at' },
-  pinterest_account: { section: 'social', brand: 'pinterest', icon: 'bxl-pinterest' },
-  ad_account: { section: 'ads', brand: 'meta', icon: 'bxl-meta' },
-  google_ads: { section: 'ads', brand: 'google', icon: 'bxl-google' },
-  x_ads: { section: 'ads', brand: 'x', icon: 'bxl-x-logo' },
-  linkedin_ads: { section: 'ads', brand: 'linkedin', icon: 'bxl-linkedin' },
-  tiktok_ads: { section: 'ads', brand: 'tiktok', icon: 'bxl-tiktok' },
-  openai_ads: { section: 'ads', brand: 'openai', icon: 'bx-bot' },
-  snapchat_ads: { section: 'ads', brand: 'snapchat', icon: 'bxl-snapchat' },
-  whatsapp: { section: 'messaging', brand: 'whatsapp', icon: 'bxl-whatsapp' }
+const KIND_ICONS = {
+  page: ['facebook', 'bxl-facebook'], instagram: ['instagram', 'bxl-instagram'], ad_account: ['meta', 'bxl-meta'],
+  whatsapp: ['whatsapp', 'bxl-whatsapp'], youtube: ['youtube', 'bxl-youtube'], business_profile: ['gbp', 'bx-store'],
+  google_ads: ['google', 'bxl-google'], x_account: ['x', 'bxl-x-logo'], x_ads: ['x', 'bxl-x-logo'],
+  linkedin_page: ['linkedin', 'bxl-linkedin'], linkedin_ads: ['linkedin', 'bxl-linkedin'], tiktok_account: ['tiktok', 'bxl-tiktok'],
+  tiktok_ads: ['tiktok', 'bxl-tiktok'], tiktok_comments: ['tiktok', 'bxl-tiktok'], threads_profile: ['threads', 'bx-at'],
+  pinterest_account: ['pinterest', 'bxl-pinterest'], snapchat_ads: ['snapchat', 'bxl-snapchat'], openai_ads: ['openai', 'bx-bot']
 };
 
-// The inbox side of social accounts that also take messages (inbox_views.*).
-const INBOX_VIEWS = {
-  page: { brand: 'facebook', icon: 'bxl-messenger' },
-  instagram: { brand: 'instagram', icon: 'bxl-instagram' },
-  x_account: { brand: 'x', icon: 'bxl-x-logo' }
-};
-
-const SECTIONS = [
-  { key: 'social', capability: 'posting', icon: 'bx-share-alt', tone: 'blue' },
-  { key: 'ads', capability: 'ads', icon: 'bx-bullseye', tone: 'purple' },
-  { key: 'messaging', capability: 'messaging', icon: 'bx-message-rounded-dots', tone: 'green' }
-];
+const AVATAR_COLORS = ['#2563EB', '#0D9488', '#7C3AED', '#DB2777', '#EA580C', '#0891B2', '#4F46E5', '#B45309'];
+const RETURN_KEY = 'ch.return';
 
 export default {
   components: { GoogleServices },
@@ -637,6 +683,8 @@ export default {
     flow: { type: Object, default: null },
     // Has an account Posts / Inbox / Comments can use (User::hasEligibleConnection).
     eligible: { type: Boolean, default: true },
+    // ConnectionHubController::workspacePayload(): the open workspace.
+    workspace: { type: Object, default: () => ({ name: '', recommended: [] }) },
     // __('connections') for the current locale.
     messages: { type: Object, default: () => ({}) },
     locale: { type: String, default: 'en' }
@@ -651,20 +699,28 @@ export default {
       saving: {},
       confirming: null,
       waBusy: false,
+      waManual: false,
       flashMessage: flash.error
         ? { tone: 'is-error', text: flash.error }
         : (flash.success ? { tone: 'is-success', text: flash.success } : null),
       wizardState: this.wizard.state,
       flowState: this.flow,
-      // "Choose what to connect": picked capabilities and the planned sign-ins, per platform.
-      picked: {},
-      plans: {},
-      waManual: false,
-      apiKeyOpen: false,
-      tab: 'all',
-      // Side panel: null (closed), 'picker', or a platform key.
-      drawer: null,
-      openMenu: null,
+      mode: 'platforms',
+      filter: 'all',
+      search: '',
+      platformFilter: '',
+      healthFilter: 'all',
+      connectKey: null,
+      connectChoice: null,
+      connectFailed: false,
+      manageKey: null,
+      manageAsset: null,
+      chooseMode: false,
+      // "Choose accounts" after a sign-in: the platform, the accounts that existed before, the picks.
+      chooseKey: null,
+      chooseBefore: [],
+      chosen: {},
+      chooseSaving: false,
       csrf: (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
     };
   },
@@ -674,86 +730,260 @@ export default {
       return createTranslator(this.messages, this.locale);
     },
 
-    capabilities() {
-      return CAPABILITIES.map(c => {
-        const text = (this.messages.capabilities || {})[c.key] || {};
-        return { ...c, label: this.t('capabilities.' + c.key + '.label'), long: text };
-      });
+    workspaceName() {
+      return this.workspace.name || this.t('ui.workspace.label');
     },
 
-    // Every linked account once per section it belongs to.
-    accountRows() {
-      const rows = [];
-      const listed = new Set();
-      this.cards.forEach(card => card.connections.forEach(conn => Object.values(conn.assets || {}).forEach(list => list.forEach(a => listed.add(a.id)))));
-      this.cards.forEach(card => {
-        card.connections.forEach(conn => {
-          Object.keys(conn.assets || {}).forEach(kind => {
-            (conn.assets[kind] || []).forEach(asset => {
-              // A second, healthy sign-in for an account that already has a card (managed in the drawer).
-              if (asset.linked_asset_id && listed.has(asset.linked_asset_id) && !conn.needs_attention && asset.token_ok) return;
-              const view = ACCOUNT_VIEWS[kind];
-              if (view) rows.push({ section: view.section, kind, card, conn, asset, view: this.view('views', kind, view) });
-              if (INBOX_VIEWS[kind] && asset.available_capabilities.includes('messaging')) {
-                rows.push({ section: 'messaging', kind, card, conn, asset, view: this.view('inbox_views', kind, INBOX_VIEWS[kind]) });
-              }
-            });
-          });
-        });
-      });
-      return rows.map(row => ({ ...row, state: this.rowState(row) }));
+    allViews() {
+      return PLATFORMS.map(def => this.buildView(def)).filter(Boolean);
     },
 
-    sections() {
-      return SECTIONS.map(section => ({
-        ...section,
-        title: this.t('sections.' + section.key + '.title'),
-        subtitle: this.t('sections.' + section.key + '.subtitle'),
-        emptyTitle: this.t('sections.' + section.key + '.empty'),
-        addText: this.t('sections.' + section.key + '.add'),
-        label: this.t('tabs.' + section.key),
-        rows: this.accountRows.filter(r => r.section === section.key)
-      }));
+    metaViews() { return this.allViews.filter(v => v.group === 'meta'); },
+    mainViews() { return this.allViews.filter(v => v.group === 'main'); },
+    moreViews() { return this.allViews.filter(v => v.group === 'more'); },
+
+    connectedViews() {
+      return this.allViews.filter(v => v.accounts.length);
     },
 
-    visibleSections() {
-      return this.tab === 'all' ? this.sections : this.sections.filter(s => s.key === this.tab);
-    },
-
-    uniqueAccountCount() {
-      return new Set(this.accountRows.map(r => r.asset.id)).size;
-    },
-
-    heroStats() {
-      return this.sections.map(s => ({ key: s.key, label: this.t('hero.' + s.key), count: s.rows.length, icon: s.icon, tone: s.tone }));
-    },
-
-    tabs() {
-      return [
-        { key: 'all', label: this.t('tabs.all'), icon: 'bx-grid-alt', count: this.uniqueAccountCount },
-        ...this.sections.map(s => ({ key: s.key, label: s.label, icon: s.icon, count: s.rows.length }))
-      ];
-    },
-
-    // Per account (not per section row), worst state wins.
-    statusTotals() {
-      const byAsset = {};
-      const rank = { ok: 0, warn: 1, bad: 2 };
-      this.accountRows.forEach(r => {
-        const tone = r.state.tone === 'ok' || r.state.tone === 'muted' ? 'ok' : r.state.tone;
-        if (byAsset[r.asset.id] === undefined || rank[tone] > rank[byAsset[r.asset.id]]) byAsset[r.asset.id] = tone;
-      });
-      const values = Object.values(byAsset);
+    stats() {
+      const counted = this.metaViews.concat(this.mainViews);
+      const inUse = new Set();
+      this.allViews.forEach(v => v.accounts.forEach(a => { if (a.asset.enabled_capabilities.length) inUse.add(a.asset.id); }));
       return {
-        total: values.length,
-        ok: values.filter(v => v === 'ok').length,
-        warn: values.filter(v => v === 'warn').length,
-        bad: values.filter(v => v === 'bad').length
+        platforms: counted.filter(v => v.status !== 'not_connected').length,
+        total: counted.length,
+        accounts: inUse.size,
+        attention: this.allViews.filter(v => v.status === 'attention').length
       };
     },
 
-    flowCard() {
-      return this.flowState ? this.cards.find(c => c.platform === this.flowState.platform) || null : null;
+    filters() {
+      return [
+        { key: 'all', label: this.t('ui.filters.all') },
+        { key: 'attention', label: this.t('ui.filters.attention') },
+        { key: 'not_connected', label: this.t('ui.filters.not_connected') }
+      ];
+    },
+
+    // The one Meta sign-in behind Facebook, Instagram, WhatsApp and Meta Ads.
+    metaLogin() {
+      const meta = this.cards.find(c => c.platform === 'meta');
+      const conn = meta && meta.connections.find(c => c.step === 'meta.login' && c.status !== 'revoked');
+      return conn ? { ok: !conn.needs_attention, days: conn.expires_in_days, label: conn.account_label, conn } : null;
+    },
+
+    metaText() {
+      const m = this.metaLogin;
+      if (!m) return this.t('hub.meta.body_new');
+      if (!m.ok) return this.t('hub.meta.reconnect');
+      const who = m.label ? this.t('hub.meta.body', { name: m.label }) : this.t('hub.meta.body_plain');
+      return m.days !== null && m.days >= 0 ? who + ' ' + this.tc('hub.meta.renews', Math.max(1, m.days)) : who;
+    },
+
+    lastChecked() {
+      let latest = null;
+      this.cards.forEach(c => c.connections.forEach(conn => {
+        if (conn.last_checked_at && (!latest || conn.last_checked_at > latest)) latest = conn.last_checked_at;
+      }));
+      return latest;
+    },
+
+    tableRows() {
+      const seen = new Set();
+      const rows = [];
+      this.allViews.forEach(view => view.accounts.forEach(a => {
+        if (seen.has(a.asset.id)) return;
+        seen.add(a.asset.id);
+        rows.push({ ...a, view, health: this.accountHealth(a) });
+      }));
+      return rows;
+    },
+
+    visibleTableRows() {
+      const q = this.search.trim().toLocaleLowerCase();
+      return this.tableRows.filter(r => (!this.platformFilter || r.view.key === this.platformFilter)
+        && (this.healthFilter === 'all' || (this.healthFilter === 'attention') === r.health.attention)
+        && (!q || [r.asset.name, r.asset.username, r.asset.external_id, r.view.name].some(s => s && String(s).toLocaleLowerCase().includes(q))));
+    },
+
+    connectViewData() {
+      return this.connectKey && this.connectKey !== 'picker' ? this.allViews.find(v => v.key === this.connectKey) || null : null;
+    },
+
+    connectCard() {
+      return this.connectViewData ? this.cards.find(c => c.platform === this.connectViewData.card) : null;
+    },
+
+    // Facebook and Meta Ads connect through the one Meta login.
+    isMetaLogin() {
+      return !!this.connectViewData && ['facebook', 'meta_ads'].includes(this.connectViewData.key);
+    },
+
+    connectTitle() {
+      if (!this.connectViewData) return this.t('ui.connect_platform');
+      return this.isMetaLogin ? this.t('hub.meta.modal_title') : this.t('ui.connect.title', { platform: this.connectViewData.name });
+    },
+
+    connectSteps() {
+      return this.connectViewData && this.connectViewData.flow === 'instagram' ? ['method', 'choose', 'done'] : ['sign_in', 'choose', 'done'];
+    },
+
+    // Sign-in choices for platforms with several (TikTok, X, LinkedIn ...).
+    connectOptions() {
+      const v = this.connectViewData;
+      if (!v || v.flow !== 'steps') return [];
+      return this.stepsFor(v);
+    },
+
+    instagramMethods() {
+      const meta = this.connectCard;
+      if (!meta) return [];
+      const step = key => meta.steps.find(s => s.key === key);
+      const login = step('meta.login');
+      const ig = step('meta.instagram_login');
+      const linked = this.connectViewData.accounts.filter(a => a.conn.step === 'meta.login').length;
+      return [
+        login && {
+          key: 'meta.login', brand: 'facebook', icon: 'bxl-facebook', recommended: true, available: login.available, url: login.connect_url,
+          title: this.t('ui.connect.instagram.fb_title'), sub: this.t('ui.connect.instagram.fb_sub'),
+          note: this.metaLogin ? (linked ? this.tc('ui.connect.instagram.found', linked) + '. ' + this.t('ui.connect.instagram.fb_signed') : this.t('ui.connect.instagram.fb_signed')) : this.t('ui.connect.instagram.fb_new'),
+          caps: ['posting', 'messaging', 'engagement', 'insights', 'ads'].map(k => ({ key: k, on: true }))
+        },
+        ig && {
+          key: 'meta.instagram_login', brand: 'instagram', icon: 'bxl-instagram', available: ig.available, url: ig.connect_url,
+          title: this.t('ui.connect.instagram.ig_title'), sub: this.t('ui.connect.instagram.ig_sub'), note: this.t('ui.connect.instagram.ig_info'),
+          caps: ['posting', 'messaging', 'engagement', 'insights'].map(k => ({ key: k, on: true })).concat({ key: 'ads', on: false })
+        }
+      ].filter(Boolean);
+    },
+
+    threadsPermissions() {
+      return [
+        { key: 'profile', icon: 'bx-show', scope: 'threads_basic' },
+        { key: 'publish', icon: 'bx-send', scope: 'threads_content_publish' },
+        { key: 'replies', icon: 'bx-comment-detail', scope: 'threads_read_replies · threads_manage_replies' },
+        { key: 'insights', icon: 'bx-bar-chart-alt-2', scope: 'threads_manage_insights' }
+      ];
+    },
+
+    threadsAnother() {
+      const steps = (((this.messages.ui || {}).connect || {}).threads || {}).another_steps;
+      return Array.isArray(steps) ? steps : Object.values(steps || {});
+    },
+
+    whatsappStep() {
+      return this.connectCard ? this.connectCard.steps.find(s => s.key === 'meta.whatsapp') : null;
+    },
+
+    connectUrl() {
+      const v = this.connectViewData;
+      if (!v) return null;
+      if (v.flow === 'service') return v.serviceUrl;
+      if (v.flow === 'instagram') {
+        const m = this.instagramMethods.find(x => x.key === this.connectChoice);
+        return m && m.available ? m.url : null;
+      }
+      const steps = this.stepsFor(v);
+      const picked = steps.find(s => s.key === this.connectChoice) || steps.find(s => s.available);
+      return picked && picked.available ? picked.connect_url : null;
+    },
+
+    connectCta() {
+      const v = this.connectViewData;
+      if (v.flow === 'service') return this.t('ui.connect.continue_with', { platform: 'Google' });
+      if (this.isMetaLogin || (v.flow === 'instagram' && this.connectChoice !== 'meta.instagram_login')) {
+        return this.t('ui.connect.continue_with', { platform: this.t('ui.platforms.facebook.name') });
+      }
+      if (v.flow === 'instagram') return this.t('ui.connect.continue_with', { platform: v.name });
+      return this.t('ui.connect.continue', { platform: v.name });
+    },
+
+    // ---------- choose accounts ----------
+
+    chooseData() {
+      const view = this.chooseKey ? this.allViews.find(v => v.key === this.chooseKey) : null;
+      if (!view) return null;
+      const card = this.cards.find(c => c.platform === view.card);
+      const before = new Set(this.chooseBefore);
+      const meta = view.card === 'meta';
+      const views = meta ? this.metaViews : [view];
+      const items = [];
+      const seen = new Set();
+      views.forEach(v => v.accounts.forEach(a => {
+        if (seen.has(a.asset.id)) return;
+        seen.add(a.asset.id);
+        items.push({ ...a, viewKey: v.key, already: before.has(a.asset.id) });
+      }));
+      const fresh = items.filter(i => !i.already);
+      const newest = fresh.length ? fresh[fresh.length - 1].conn : null;
+      const groups = [];
+      if (meta) {
+        const igs = items.filter(i => i.kind === 'instagram');
+        const pages = items.filter(i => i.kind === 'page').map(p => {
+          const children = igs.filter(ig => ig.asset.linked_page_id && String(ig.asset.linked_page_id) === String(p.asset.external_id));
+          return { ...p, children, sub: p.asset.category || this.kindLabel(p), note: children.length ? null : this.t('hub.choose.no_ig') };
+        });
+        const nested = new Set(pages.flatMap(p => p.children.map(c => c.asset.id)));
+        if (pages.length) groups.push({ key: 'page', title: this.t('hub.choose.pages'), items: pages });
+        const loose = igs.filter(i => !nested.has(i.asset.id)).map(i => ({ ...i, sub: this.kindLabel(i) }));
+        if (loose.length) groups.push({ key: 'instagram', title: this.t('hub.choose.instagram'), items: loose });
+        const wa = items.filter(i => i.kind === 'whatsapp').map(i => ({ ...i, sub: i.asset.username || i.asset.external_id }));
+        if (wa.length) groups.push({ key: 'whatsapp', title: this.t('hub.choose.whatsapp'), items: wa });
+        const ads = items.filter(i => i.kind === 'ad_account').map(i => ({ ...i, sub: i.asset.external_id }));
+        if (ads.length) groups.push({ key: 'ad_account', title: this.t('hub.choose.ads'), items: ads });
+      } else {
+        const asset = (card.presentation && card.presentation.asset_groups) || {};
+        Object.keys(asset).forEach(kind => {
+          const list = items.filter(i => i.kind === kind).map(i => ({ ...i, sub: i.asset.username ? '@' + i.asset.username : this.kindLabel(i) }));
+          if (list.length) groups.push({ key: kind, title: asset[kind].label, items: list });
+        });
+      }
+      return {
+        view, meta, groups, items,
+        platformName: meta ? 'Meta' : view.name,
+        signedAs: newest ? newest.account_label : null,
+        anotherUrl: newest ? newest.reconnect_url : null
+      };
+    },
+
+    chosenNew() {
+      if (!this.chooseData) return [];
+      return this.chooseData.items.filter(i => !i.already && this.isChosen(i));
+    },
+
+    chooseSummary() {
+      const counts = {};
+      this.chosenNew.forEach(i => { counts[i.viewKey] = (counts[i.viewKey] || 0) + 1; });
+      return Object.keys(counts).map(k => this.tc(k === 'meta_ads' ? 'hub.meta_ads.unit' : 'ui.platforms.' + k + '.unit', counts[k])).join(' · ');
+    },
+
+    // ---------- manage panel ----------
+
+    manageViewData() {
+      return this.manageKey ? this.allViews.find(v => v.key === this.manageKey) || null : null;
+    },
+
+    manageCard() {
+      return this.manageViewData ? this.cards.find(c => c.platform === this.manageViewData.card) : null;
+    },
+
+    manageAccount() {
+      return this.manageViewData && this.manageAsset ? this.manageViewData.accounts.find(a => a.asset.id === this.manageAsset) || null : null;
+    },
+
+    manageConns() {
+      if (!this.manageViewData) return [];
+      return this.manageAccount ? [this.manageAccount.conn] : this.manageViewData.conns;
+    },
+
+    manageTitle() {
+      return this.manageAccount ? this.assetName(this.manageAccount.asset) : (this.manageViewData ? this.manageViewData.name : '');
+    },
+
+    manageReconnect() {
+      const conn = this.manageConns.find(c => c.needs_attention || c.status === 'revoked');
+      return conn ? conn.reconnect_url : null;
     },
 
     flowSummaryTitle() {
@@ -761,58 +991,37 @@ export default {
       const connected = results.filter(r => r.status === 'connected').length;
       const key = connected === results.length ? 'done_title' : (connected ? 'partial_title' : 'none_title');
       return this.t('flow.' + key, { platform: this.flowState.label });
-    },
-
-    drawerCard() {
-      return this.drawer && this.drawer !== 'picker' ? this.cards.find(c => c.platform === this.drawer) || null : null;
-    },
-
-    drawerCards() {
-      return this.drawerCard ? [this.drawerCard] : [];
-    },
-
-    drawerTitle() {
-      return this.drawerCard ? this.drawerCard.label : this.t('drawer.title');
-    },
-
-    donutCircumference() {
-      return 2 * Math.PI * 48;
-    },
-
-    donutSegments() {
-      const t = this.statusTotals;
-      if (!t.total) return [];
-      let offset = 0;
-      return [
-        { key: 'ok', value: t.ok, color: '#16A34A' },
-        { key: 'warn', value: t.warn, color: '#F59E0B' },
-        { key: 'bad', value: t.bad, color: '#EF4444' }
-      ].filter(s => s.value > 0).map(s => {
-        const length = (s.value / t.total) * this.donutCircumference;
-        const seg = { ...s, length, offset };
-        offset += length;
-        return seg;
-      });
-    },
-
-    summary() {
-      return {
-        connected: this.cards.filter(c => c.connected).length,
-        attention: this.cards.reduce((n, c) => n + c.connections.filter(x => x.needs_attention).length, 0)
-      };
     }
   },
 
   mounted() {
-    // Module links point at a card (#meta, #google ...): open it.
-    const hash = window.location.hash.replace('#', '');
-    if (hash && this.cards.some(c => c.platform === hash)) this.openPlatform(hash);
-    document.addEventListener('click', this.closeMenus);
+    // Back from a provider sign-in this page started: choose what to keep.
+    let back = null;
+    try {
+      const raw = window.sessionStorage.getItem(RETURN_KEY);
+      window.sessionStorage.removeItem(RETURN_KEY);
+      if (raw) back = raw.charAt(0) === '{' ? JSON.parse(raw) : { key: raw, ids: null };
+    } catch (e) { back = null; }
+    if (back && this.allViews.some(v => v.key === back.key)) {
+      if (this.flashMessage && this.flashMessage.tone === 'is-error') {
+        this.openConnect(back.key);
+        this.connectFailed = true;
+      } else {
+        this.openChoose(back.key, back.ids);
+      }
+    } else {
+      // Module links point at a provider (#meta, #google ...) or a platform (#instagram).
+      const hash = window.location.hash.replace('#', '');
+      const view = this.allViews.find(v => v.key === hash) || this.allViews.find(v => v.card === hash);
+      if (view) {
+        if (view.status === 'not_connected') this.openConnect(view.key);
+        else this.openManage(view.key);
+      }
+    }
     document.addEventListener('keydown', this.onKeydown);
   },
 
   beforeDestroy() {
-    document.removeEventListener('click', this.closeMenus);
     document.removeEventListener('keydown', this.onKeydown);
     document.body.style.overflow = '';
   },
@@ -823,10 +1032,10 @@ export default {
       if (value) this.flashTimer = setTimeout(() => { this.flashMessage = null; }, value.tone === 'is-error' ? 9000 : 4500);
     },
 
-    // The page behind the panel doesn't scroll while it's open.
-    drawer(value) {
-      document.body.style.overflow = value ? 'hidden' : '';
-    }
+    // The page behind a modal or panel doesn't scroll while it's open.
+    connectKey() { this.lockScroll(); },
+    manageKey() { this.lockScroll(); },
+    chooseKey() { this.lockScroll(); }
   },
 
   methods: {
@@ -842,217 +1051,256 @@ export default {
       return Number(n || 0).toLocaleString(this.i18n.intl);
     },
 
-    // An account kind's structure plus its title / subtitle / ID label.
-    view(group, kind, base) {
+    initials(name) {
+      const parts = String(name || '?').trim().split(/\s+/).filter(Boolean);
+      return ((parts[0] || '?')[0] + (parts.length > 1 ? parts[1][0] : (parts[0] || '').slice(1, 2))).toUpperCase();
+    },
+
+    avatarStyle(asset) {
+      if (asset.avatar_url) return {};
+      const seed = String(asset.name || asset.id).split('').reduce((n, ch) => n + ch.charCodeAt(0), 0);
+      return { background: AVATAR_COLORS[seed % AVATAR_COLORS.length] };
+    },
+
+    assetName(asset) {
+      return asset.name || (asset.username ? '@' + asset.username : asset.external_id);
+    },
+
+    // Platform copy; Meta Ads has its own block next to the Meta group.
+    pText(key, field) {
+      return key === 'meta_ads' ? this.t('hub.meta_ads.' + field) : this.t('ui.platforms.' + key + '.' + field);
+    },
+
+    // ---------- platform views ----------
+
+    buildView(def) {
+      const card = this.cards.find(c => c.platform === def.card);
+      if (!card) return null;
+      const service = def.service ? (card.google_services || []).find(s => s.key === def.service) : null;
+      if (def.service && !service) return null;
+
+      const listed = new Set();
+      card.connections.forEach(conn => Object.values(conn.assets || {}).forEach(list => list.forEach(a => listed.add(a.id))));
+
+      const conns = [];
+      const accounts = [];
+      card.connections.forEach(conn => {
+        if (conn.status === 'revoked') return;
+        let mine = def.owns || (def.steps || []).includes(conn.step);
+        def.kinds.forEach(kind => (conn.assets[kind] || []).forEach(asset => {
+          mine = true;
+          // A second healthy sign-in for an account already listed (TikTok comments).
+          if (asset.linked_asset_id && listed.has(asset.linked_asset_id) && asset.token_ok && !conn.needs_attention) return;
+          accounts.push({ asset, kind, conn });
+        }));
+        if (mine) conns.push(conn);
+      });
+
+      // Google Ads & Analytics: any Google service other than the two that have their own card.
+      const services = def.flow === 'google'
+        ? (card.google_services || []).filter(s => !['youtube', 'business_profile'].includes(s.key) && s.status === 'connected')
+        : [];
+      const issue = this.viewIssue(def, conns, accounts);
+      const connected = accounts.length > 0 || services.length > 0;
+      const status = issue && (connected || (conns.length && def.flow !== 'google')) ? 'attention' : (connected ? 'connected' : 'not_connected');
+
+      const caps = CAP_ORDER.filter(cap => accounts.some(a => a.asset.enabled_capabilities.includes(cap)));
+      const unitKinds = def.unitKinds || def.kinds;
+      const primary = accounts.filter(a => unitKinds.includes(a.kind)).length;
+      const ads = accounts.filter(a => !unitKinds.includes(a.kind) && /ads|ad_account/.test(a.kind)).length;
+      const countLabel = [
+        primary ? this.tc(def.key === 'meta_ads' ? 'hub.meta_ads.unit' : 'ui.platforms.' + def.key + '.unit', primary) : null,
+        ads ? this.tc('ui.units.ad_account', ads) : null
+      ].filter(Boolean).join(' · ') || services.map(sv => this.t('google_services.services.' + sv.key + '.name')).join(' · ');
+
+      const offers = (card.presentation && card.presentation.benefits) || CAP_ORDER;
       return {
-        ...base,
-        title: this.t(group + '.' + kind + '.title'),
-        subtitle: this.t(group + '.' + kind + '.subtitle'),
-        idLabel: this.t(group + '.' + kind + '.id')
+        ...def,
+        name: this.pText(def.key, 'name'),
+        subtitle: this.pText(def.key, 'subtitle'),
+        description: this.pText(def.key, 'description'),
+        recommended: (this.workspace.recommended || []).includes(def.key),
+        conns, accounts, status, issue, caps, countLabel, ads,
+        offers: def.key === 'facebook' ? offers : CAP_ORDER.filter(c => offers.includes(c) && this.kindsOffer(card, def).includes(c)),
+        serviceUrl: service ? service.connect_url : null,
+        serviceNote: service && service.status === 'unavailable' ? this.t('ui.card.unavailable') : null,
+        available: this.viewAvailable(def, card, service)
       };
     },
 
-    rowState(row) {
-      const { conn, asset, section } = row;
-      const cap = (SECTIONS.find(s => s.key === section) || {}).capability;
-      if (conn.status === 'revoked') return { key: 'reconnect', label: this.t('state.disconnected'), tone: 'bad' };
-      if (conn.needs_attention && conn.status === 'expiring') return { key: 'expiring', label: this.t('state.expiring'), tone: 'warn' };
-      if (conn.needs_attention || !asset.token_ok) return { key: 'reconnect', label: this.t('state.reconnect'), tone: 'bad' };
-      if (asset.provider_status) return { key: 'provider', label: asset.provider_status, tone: 'warn' };
-      if (!asset.enabled_capabilities.length) return { key: 'off', label: this.t('state.off'), tone: 'muted' };
-      if (cap && asset.available_capabilities.includes(cap) && !asset.enabled_capabilities.includes(cap)) return { key: 'paused', label: this.t('state.paused'), tone: 'muted' };
-      return { key: 'ok', label: this.t('state.connected'), tone: 'ok' };
+    // Capabilities this view's account kinds can carry (driver asset_groups).
+    kindsOffer(card, def) {
+      const groups = (card.presentation && card.presentation.asset_groups) || {};
+      const out = new Set();
+      def.kinds.forEach(k => ((groups[k] || {}).capabilities || []).forEach(c => out.add(c)));
+      return out.size ? Array.from(out) : CAP_ORDER;
     },
 
-    setTab(key) {
-      this.tab = key;
-      this.openMenu = null;
+    viewAvailable(def, card, service) {
+      if (def.flow === 'service') return !!(service && service.connect_url && service.status !== 'unavailable');
+      if (def.flow === 'google' || def.flow === 'whatsapp') return true;
+      if (def.flow === 'openai') return card.steps.some(s => s.available);
+      return this.stepsFor(def, card).some(s => s.available);
     },
 
-    toggleMenu(key) {
-      this.openMenu = this.openMenu === key ? null : key;
+    stepsFor(view, cardArg) {
+      const card = cardArg || this.cards.find(c => c.platform === view.card);
+      if (!card) return [];
+      if (view.key === 'facebook' || view.key === 'meta_ads') return card.steps.filter(s => s.key === 'meta.login');
+      if (view.key === 'instagram') return card.steps.filter(s => ['meta.login', 'meta.instagram_login'].includes(s.key));
+      if (view.key === 'whatsapp') return card.steps.filter(s => s.key === 'meta.whatsapp');
+      return card.steps;
     },
 
-    closeMenus(event) {
-      if (this.openMenu && !event.target.closest('.ch-menu')) this.openMenu = null;
-    },
-
-    // Section shortcut in an account's menu.
-    sectionLink(sectionKey, row) {
-      if (sectionKey === 'social' && this.urls.composer) return { url: this.urls.composer, label: this.t('account.create_post'), icon: 'bx-edit-alt' };
-      if (sectionKey === 'messaging' && this.urls.inbox) return { url: this.urls.inbox, label: this.t('account.open_inbox'), icon: 'bx-message-rounded-dots' };
-      if (sectionKey === 'ads' && this.urls.ads_create) {
-        const platform = { meta: 'facebook' }[row.card.platform] || row.card.platform;
-        return { url: this.urls.ads_create.replace('__PLATFORM__', platform), label: this.t('account.create_campaign'), icon: 'bx-rocket' };
+    viewIssue(def, conns, accounts) {
+      const first = accounts[0];
+      const name = (first && (first.asset.username ? '@' + first.asset.username : first.asset.name)) || this.pText(def.key, 'name');
+      const conn = conns.find(c => c.needs_attention);
+      if (conn) {
+        const d = conn.expires_in_days;
+        let text;
+        if (conn.status === 'expiring' && d !== null && d > 0) text = this.tc('ui.alerts.expiring', d, { name });
+        else if (conn.status === 'expiring') text = this.t('ui.alerts.expiring_today', { name });
+        else if (conn.status === 'expired') text = this.t('ui.alerts.expired', { name });
+        else if (conn.status === 'needs_reauth') text = this.t('ui.alerts.reauth');
+        else text = this.t('ui.alerts.error');
+        return { text, url: conn.reconnect_url, tone: conn.status === 'expiring' ? 'warn' : 'bad' };
       }
+      const broken = accounts.find(a => !a.asset.token_ok);
+      if (broken) return { text: this.t('ui.alerts.token', { name: broken.asset.name || name }), url: broken.conn.reconnect_url, tone: 'bad' };
+      const flagged = accounts.find(a => a.asset.provider_status);
+      if (flagged) return { text: flagged.asset.provider_status, url: null, tone: 'warn' };
       return null;
     },
 
-    toggleSection(row, section) {
-      this.openMenu = null;
-      const on = row.asset.enabled_capabilities.includes(section.capability);
-      this.toggleCapability(row.conn, row.asset, section.capability,
-        this.t(on ? 'toast.paused' : 'toast.resumed', { capability: this.capabilityLower(section.capability), name: row.asset.name || row.view.title }));
-    },
-
-    copyId(row) {
-      this.openMenu = null;
-      const params = { label: row.view.idLabel, id: row.asset.external_id };
-      const done = () => { this.flashMessage = { tone: 'is-success', text: this.t('toast.copied', params) }; };
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(String(row.asset.external_id)).then(done).catch(() => {
-          this.flashMessage = { tone: 'is-error', text: this.t('toast.copy_failed', params) };
-        });
-      } else {
-        this.flashMessage = { tone: 'is-success', text: this.t('toast.copy_plain', params) };
+    // The one line under a platform's name.
+    detail(v) {
+      if (v.issue) return v.issue.text;
+      if (v.status === 'not_connected') {
+        // Meta rows carry the "Recommended" tag already; say what the platform does instead.
+        if (v.recommended) return v.group === 'meta' ? v.description : this.t('hub.recommended');
+        return this.workspace.has_goals && v.group !== 'more' ? this.t('hub.optional') : v.description;
       }
+      if (v.key === 'facebook') {
+        return [v.countLabel, v.accounts.slice(0, 2).map(a => this.assetName(a.asset)).join(', ')].filter(Boolean).join(' · ');
+      }
+      if (v.key === 'meta_ads') {
+        const cur = v.accounts[0] && v.accounts[0].asset.username;
+        return [v.countLabel, cur].filter(Boolean).join(' · ');
+      }
+      const main = v.accounts.find(a => !/ads|ad_account/.test(a.kind)) || v.accounts[0];
+      if (!main) return v.countLabel;
+      const handle = main.asset.username ? '@' + main.asset.username : this.assetName(main.asset);
+      const days = main.conn.expires_in_days;
+      const extra = v.ads ? this.tc('ui.units.ad_account', v.ads) : (days !== null && days >= 0 ? this.tc('hub.renews', Math.max(1, days)) : null);
+      return [handle, extra].filter(Boolean).join(' · ');
     },
 
-    openPicker() {
-      this.openMenu = null;
-      this.drawer = 'picker';
+    // The platform's one button: Fix now, Manage or Connect.
+    action(v) {
+      if (v.issue) return { label: this.t('ui.card.fix'), cls: 'ch-btn-dark', url: v.issue.url };
+      if (v.status !== 'not_connected') return { label: this.t('ui.card.manage'), cls: 'ch-btn-secondary', run: 'manage' };
+      if (!v.available) return { label: this.t('ui.card.unavailable'), cls: 'ch-btn-disabled', disabled: true };
+      return { label: this.t('hub.connect'), cls: v.group === 'meta' ? 'ch-btn-secondary' : 'ch-btn-primary', run: 'connect' };
     },
 
-    // Also what #meta / #google ... links from other pages open.
-    openPlatform(platform) {
-      this.openMenu = null;
-      this.waManual = false;
-      this.apiKeyOpen = false;
-      this.confirming = null;
-      this.drawer = platform;
-      this.initPicks(platform);
+    runAction(v) {
+      const a = this.action(v);
+      if (a.run === 'connect') this.openConnect(v.key);
+      else this.openManage(v.key);
     },
 
-    // First open: suggest Publishing on a platform with nothing connected yet.
-    initPicks(platform) {
-      const card = this.cards.find(c => c.platform === platform);
-      if (!card || !(card.capability_options || []).length || this.picked[platform]) return;
-      const suggest = card.connections.length ? [] : card.capability_options.filter(o => o.key === 'posting' && o.selectable).map(o => o.key);
-      this.$set(this.picked, platform, suggest);
-      this.fetchPlan(card);
+    filtered(views) {
+      if (this.filter === 'all') return views;
+      return views.filter(v => v.status === this.filter);
     },
 
-    pickedFor(card) {
-      return this.picked[card.platform] || [];
+    statusTone(status) {
+      return { connected: 'is-ok', attention: 'is-warn', not_connected: 'is-muted' }[status];
     },
 
-    isPicked(card, opt) {
-      return opt.selectable && this.pickedFor(card).includes(opt.key);
+    accountHealth(a) {
+      const conn = a.conn;
+      const days = conn.expires_in_days;
+      if (conn.status === 'revoked' || (conn.needs_attention && conn.status !== 'expiring') || !a.asset.token_ok) {
+        return { label: this.t('ui.accounts.reconnect'), access: this.t('ui.accounts.action'), tone: 'is-bad', attention: true };
+      }
+      if (conn.needs_attention) {
+        return { label: this.t('ui.accounts.expiring'), access: days !== null ? this.tc('hub.accounts.ends', Math.max(1, days)) : this.t('ui.accounts.action'), tone: 'is-warn', attention: true };
+      }
+      if (a.asset.provider_status) return { label: this.t('ui.accounts.action'), access: a.asset.provider_status, tone: 'is-bad', attention: true };
+      if (!a.asset.enabled_capabilities.length) return { label: this.t('ui.accounts.off'), access: this.t('ui.accounts.not_used'), tone: 'is-muted', attention: false };
+      let access;
+      if (days !== null && days >= 0) access = this.tc('ui.accounts.renews', Math.max(1, days));
+      else if (a.kind === 'whatsapp') access = this.t('hub.accounts.via_login', { platform: 'Meta' });
+      else access = this.t('hub.accounts.refreshes');
+      return { label: this.t('ui.accounts.healthy'), access, tone: 'is-ok', attention: false };
     },
 
-    togglePick(card, opt) {
-      const current = this.pickedFor(card);
-      this.$set(this.picked, card.platform, current.includes(opt.key) ? current.filter(k => k !== opt.key) : current.concat(opt.key));
-      this.fetchPlan(card);
+    healthBox(conn) {
+      if (conn.needs_attention || conn.status === 'revoked') {
+        const tone = conn.status === 'expiring' ? 'is-warn' : 'is-bad';
+        return { tone, icon: 'bx-error-circle', label: this.attentionTitle(conn) };
+      }
+      return { tone: 'is-ok', icon: 'bx-check-shield', label: this.t('ui.manage.healthy') };
     },
 
-    // The backend decides the sign-ins; this only previews them.
-    fetchPlan(card) {
-      const capabilities = this.pickedFor(card);
-      clearTimeout(this.planTimer);
-      if (!capabilities.length) { this.$delete(this.plans, card.platform); return; }
-      this.$set(this.plans, card.platform, 'loading');
-      this.planTimer = setTimeout(() => {
-        window.axios.post(this.authorizeUrl(card.platform, 'plan'), { capabilities })
-          .then(({ data }) => { if (this.pickedFor(card).join() === capabilities.join()) this.$set(this.plans, card.platform, data); })
-          .catch(() => this.$set(this.plans, card.platform, 'error'));
-      }, 250);
+    renewLabel(conn) {
+      const d = conn.expires_in_days;
+      if (d === null || d === undefined) return this.t('ui.manage.auto');
+      return d >= 0 ? this.tc('ui.manage.renews', Math.max(1, d)) : null;
     },
 
-    authorizeUrl(platform, name = 'authorize') {
-      return this.urls[name].replace('__PLATFORM__', platform);
+    // What this sign-in could grant but wasn't allowed.
+    missingCaps(conn) {
+      if (!conn.upgradable || conn.status === 'revoked') return [];
+      const offered = conn.offered_capabilities || [];
+      return CAP_ORDER.filter(c => offered.includes(c) && !conn.capabilities.includes(c));
     },
 
-    catalogStatus(status) {
-      const look = {
-        connected: { tone: 'is-ok', icon: 'bx-check-circle' },
-        available: { tone: 'is-info', icon: 'bx-lock-open-alt' },
-        not_granted: { tone: 'is-warn', icon: 'bx-error' },
-        reconnect: { tone: 'is-bad', icon: 'bx-refresh' },
-        approval_required: { tone: 'is-muted', icon: 'bx-time-five' },
-        unavailable: { tone: 'is-muted', icon: 'bx-block' }
-      }[status] || { tone: 'is-muted', icon: 'bx-help-circle' };
-      return { ...look, label: this.t('catalog_status.' + status) };
+    manageAccountsOf(conn) {
+      const list = this.manageViewData.accounts.filter(a => a.conn.id === conn.id);
+      return this.manageAccount ? list.filter(a => a.asset.id === this.manageAsset) : list;
     },
 
-    closeDrawer() {
-      this.drawer = null;
-      if (window.location.hash) history.replaceState(null, '', window.location.pathname + window.location.search);
+    // A Page's Instagram accounts, or an Instagram account's Page.
+    linkedOf(a) {
+      const meta = this.allViews.filter(v => v.card === 'meta');
+      const find = key => (meta.find(v => v.key === key) || { accounts: [] }).accounts;
+      if (a.kind === 'page') {
+        return find('instagram').filter(i => String(i.asset.linked_page_id) === String(a.asset.external_id)).map(i => ({ ...i, viewKey: 'instagram' }));
+      }
+      if (a.kind === 'instagram' && a.asset.linked_page_id) {
+        return find('facebook').filter(p => String(p.asset.external_id) === String(a.asset.linked_page_id)).map(p => ({ ...p, viewKey: 'facebook' }));
+      }
+      return [];
     },
 
-    onKeydown(event) {
-      if (event.key === 'Escape' && this.drawer) this.closeDrawer();
+    kindBrand(a) { return (KIND_ICONS[a.kind] || ['brand'])[0]; },
+    kindIcon(a) { return (KIND_ICONS[a.kind] || [null, 'bx-link'])[1]; },
+    kindLabel(a) {
+      const title = this.t('views.' + a.kind + '.title');
+      const sub = this.t('views.' + a.kind + '.subtitle');
+      const base = title.startsWith('views.') ? a.kind : title + (sub.startsWith('views.') ? '' : ' ' + sub);
+      if (a.kind === 'instagram' && a.asset.linked_page_id) {
+        const page = this.linkedOf(a)[0];
+        if (page) return title + ' · ' + this.t('hub.accounts.via_page', { name: this.assetName(page.asset) });
+      }
+      return base;
     },
 
-    // Picker row status: what the user has there today.
-    pickState(card) {
-      if (card.connections.some(c => c.needs_attention && c.status !== 'revoked')) return { label: this.t('card.needs_attention'), tone: 'warn' };
-      const accounts = card.connections.reduce((n, c) => n + Object.values(c.assets || {}).reduce((m, list) => m + list.length, 0), 0);
-      if (card.connected) return { label: this.tc('card.accounts', accounts), tone: 'ok' };
-      if (!card.steps.some(st => st.available) && card.platform !== 'meta') return { label: this.t('not_available'), tone: 'muted' };
-      return { label: this.t('connect'), tone: 'brand' };
-    },
-
-    // Only the capabilities this platform offers (Google has no inbox).
-    cardCapabilities(card) {
-      const offered = (card.presentation && card.presentation.benefits) || CAPABILITIES.map(c => c.key);
-      return this.capabilities.filter(c => offered.includes(c.key));
-    },
-
-    // Only what this consent can grant, when its step says (TikTok's three sign-ins).
-    connCapabilities(card, conn) {
-      const offered = conn.offered_capabilities;
-      return offered ? this.capabilities.filter(c => offered.includes(c.key)) : this.cardCapabilities(card);
-    },
-
-    capability(key) {
-      return this.capabilities.find(c => c.key === key) || { label: key, icon: 'bx-check' };
-    },
-
-    // Mid-sentence capability name ("Pause publishing").
-    capabilityLower(key) {
-      return this.capability(key).label.toLocaleLowerCase(this.locale);
-    },
-
-    statusInfo(status) {
-      const tone = { active: 'is-ok', expiring: 'is-warn', expired: 'is-warn', needs_reauth: 'is-bad', revoked: 'is-muted', error: 'is-bad' }[status];
-      return tone ? { label: this.t('statuses.' + status), tone } : { label: status, tone: 'is-muted' };
-    },
-
-    cardStatus(card) {
-      if (card.connections.some(c => c.needs_attention && c.status !== 'revoked')) return { label: this.t('card.needs_attention'), tone: 'is-warn', icon: 'bx-error' };
-      if (card.connected) return { label: this.t('card.connected'), tone: 'is-ok', icon: 'bx-check-circle' };
-      return { label: this.t('card.not_connected'), tone: 'is-muted', icon: 'bx-plug' };
+    capShort(key) { return this.t('ui.caps.' + key + '.short'); },
+    capLabel(key) { return this.t('ui.caps.' + key + '.label'); },
+    capHint(key) { return this.t('ui.caps.' + key + '.hint'); },
+    capIcon(key) { return CAPS[key] || 'bx-check'; },
+    capLong(key, platform) {
+      const text = ((this.messages.capabilities || {})[key]) || {};
+      return text[platform] || text.default || this.capHint(key);
     },
 
     attentionTitle(conn) {
       const known = ['expiring', 'expired', 'needs_reauth', 'revoked', 'error'];
       return this.t('attention.' + (known.includes(conn.status) ? conn.status : 'default'));
-    },
-
-    // Icons come from the platform's driver (presentation.step_icons).
-    stepIcon(card, key) {
-      const icons = (card.presentation && card.presentation.step_icons) || {};
-      const fallback = (card.presentation && card.presentation.icons && card.presentation.icons[0]) || { icon: 'bx-link', brand: 'meta' };
-      const found = icons[key] || fallback;
-      return { icon: found.icon, cls: 'is-' + found.brand };
-    },
-
-
-
-    // Groups and their order come from the platform's driver (presentation.asset_groups).
-    assetGroups(card, conn) {
-      const groups = (card.presentation && card.presentation.asset_groups) || {};
-      return Object.keys(groups)
-        .map(kind => ({ kind, ...groups[kind], items: conn.assets[kind] || [] }))
-        .filter(g => g.items.length);
-    },
-
-    expiryLabel(conn) {
-      const d = conn.expires_in_days;
-      if (d < 0) return this.t('expiry.expired');
-      if (d === 0) return this.t('expiry.today');
-      return this.tc('expiry.days', d);
     },
 
     ago(iso) {
@@ -1063,11 +1311,138 @@ export default {
       return this.t('ago.days', { count: Math.round(s / 86400) });
     },
 
+    // ---------- navigation ----------
+
+    setMode(mode) {
+      this.mode = mode;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    openConnect(key) {
+      this.manageKey = null;
+      this.chooseKey = null;
+      this.connectFailed = false;
+      this.waManual = false;
+      this.connectKey = key;
+      const v = key !== 'picker' ? this.allViews.find(x => x.key === key) : null;
+      if (!v) { this.connectChoice = null; return; }
+      if (v.flow === 'instagram') {
+        const methods = this.instagramMethods.filter(m => m.available);
+        this.connectChoice = methods.length ? methods[0].key : null;
+      } else {
+        const steps = this.stepsFor(v).filter(s => s.available);
+        const pick = steps.find(s => s.primary && !s.connected) || steps.find(s => !s.connected) || steps[0];
+        this.connectChoice = pick ? pick.key : null;
+      }
+    },
+
+    closeConnect() {
+      this.connectKey = null;
+      this.connectFailed = false;
+    },
+
+    openManage(key, assetId = null, choose = false) {
+      this.connectKey = null;
+      this.chooseKey = null;
+      this.confirming = null;
+      this.chooseMode = choose;
+      this.manageAsset = assetId;
+      this.manageKey = key;
+    },
+
+    closeManage() {
+      this.manageKey = null;
+      this.manageAsset = null;
+      this.chooseMode = false;
+      if (window.location.hash) history.replaceState(null, '', window.location.pathname + window.location.search);
+    },
+
+    // After a sign-in: pick which of the new accounts this workspace uses.
+    openChoose(key, beforeIds) {
+      if (!Array.isArray(beforeIds)) { this.openManage(key, null, true); return; }
+      this.chooseBefore = beforeIds;
+      this.chooseKey = key;
+      const data = this.chooseData;
+      const fresh = data ? data.items.filter(i => !i.already) : [];
+      if (!fresh.length) { this.chooseKey = null; this.openManage(key, null, true); return; }
+      const picks = {};
+      fresh.forEach(i => { picks[i.asset.id] = i.asset.enabled_capabilities.length > 0 || i.asset.available_capabilities.length === 0; });
+      this.chosen = picks;
+    },
+
+    closeChoose() {
+      if (this.chooseSaving) return;
+      this.chooseKey = null;
+    },
+
+    isChosen(item) {
+      return item.already || !!this.chosen[item.asset.id];
+    },
+
+    toggleChosen(item) {
+      if (item.already) return;
+      this.$set(this.chosen, item.asset.id, !this.chosen[item.asset.id]);
+    },
+
+    // New accounts left unticked stay in the list but are switched off here.
+    confirmChoose() {
+      const data = this.chooseData;
+      const changes = data.items.filter(i => !i.already).map(i => {
+        const want = !!this.chosen[i.asset.id];
+        const has = i.asset.enabled_capabilities.length > 0;
+        if (want === has) return null;
+        return { item: i, next: want ? i.asset.available_capabilities.slice() : [] };
+      }).filter(Boolean);
+      const count = this.chosenNew.length;
+      const finish = (failed) => {
+        this.chooseSaving = false;
+        this.chooseKey = null;
+        this.flashMessage = failed
+          ? { tone: 'is-error', text: this.t('hub.choose.failed') }
+          : (count ? { tone: 'is-success', text: this.tc('hub.choose.done', count, { workspace: this.workspaceName }) } : null);
+      };
+      if (!changes.length) { finish(false); return; }
+      this.chooseSaving = true;
+      Promise.all(changes.map(c => window.axios.patch(this.url('asset', c.item.asset.id), { enabled_capabilities: c.next })
+        .then(({ data: res }) => {
+          const card = this.cards.find(x => x.connections.some(conn => conn.id === c.item.conn.id));
+          this.replaceConnection(card, res.connection);
+          return true;
+        })
+        .catch(() => false)))
+        .then(results => finish(results.includes(false)));
+    },
+
+    // Remember which accounts existed, so the return trip can show only what's new.
+    rememberReturn(key) {
+      const ids = [];
+      this.cards.forEach(c => c.connections.forEach(conn => Object.values(conn.assets || {}).forEach(list => list.forEach(a => ids.push(a.id)))));
+      try { window.sessionStorage.setItem(RETURN_KEY, JSON.stringify({ key, ids })); } catch (e) { /* storage blocked */ }
+    },
+
+    lockScroll() {
+      document.body.style.overflow = this.connectKey || this.manageKey || this.chooseKey ? 'hidden' : '';
+    },
+
+    onKeydown(event) {
+      if (event.key !== 'Escape') return;
+      if (this.chooseKey) this.closeChoose();
+      else if (this.connectKey) this.closeConnect();
+      else if (this.manageKey) this.closeManage();
+    },
+
+    authorizeUrl(platform, name = 'authorize') {
+      return this.urls[name].replace('__PLATFORM__', platform);
+    },
+
     url(name, id) {
       return this.urls[name].replace('__ID__', id);
     },
 
+    // ---------- actions (existing endpoints) ----------
+
     replaceConnection(card, updated) {
+      if (!card) return;
       const i = card.connections.findIndex(c => c.id === updated.id);
       if (i !== -1) this.$set(card.connections, i, updated);
     },
@@ -1077,24 +1452,21 @@ export default {
       this.save(conn, asset, next);
     },
 
-    toggleCapability(conn, asset, cap, successText) {
+    toggleCapability(conn, asset, cap) {
       const on = asset.enabled_capabilities.includes(cap);
       const next = on ? asset.enabled_capabilities.filter(c => c !== cap) : asset.enabled_capabilities.concat(cap);
-      this.save(conn, asset, next, successText);
+      this.save(conn, asset, next);
     },
 
     // Optimistic: flip now, put it back if the server says no.
-    save(conn, asset, next, successText) {
-      const card = this.cards.find(c => c.connections.includes(conn));
+    save(conn, asset, next) {
+      const card = this.cards.find(c => c.connections.some(x => x.id === conn.id));
       const previous = asset.enabled_capabilities;
       asset.enabled_capabilities = next;
       this.$set(this.saving, asset.id, true);
 
       window.axios.patch(this.url('asset', asset.id), { enabled_capabilities: next })
-        .then(({ data }) => {
-          this.replaceConnection(card, data.connection);
-          if (successText) this.flashMessage = { tone: 'is-success', text: successText };
-        })
+        .then(({ data }) => this.replaceConnection(card, data.connection))
         .catch(() => {
           asset.enabled_capabilities = previous;
           this.flashMessage = { tone: 'is-error', text: this.t('toast.save_failed') };
@@ -1113,6 +1485,22 @@ export default {
             : { tone: 'is-success', text: this.t('toast.checked', { platform: card.label }) };
         })
         .catch(() => { this.flashMessage = { tone: 'is-error', text: this.t('toast.check_failed') }; })
+        .finally(() => this.$delete(this.busy, conn.id));
+    },
+
+    disconnect(card, conn) {
+      if (!card || !conn) return;
+      this.$set(this.busy, conn.id, 'disconnect');
+
+      window.axios.delete(this.url('disconnect', conn.id))
+        .then(({ data }) => {
+          const i = this.cards.findIndex(c => c.platform === card.platform);
+          this.$set(this.cards, i, data.card);
+          this.confirming = null;
+          this.manageAsset = null;
+          this.flashMessage = { tone: 'is-success', text: this.t('toast.disconnected') };
+        })
+        .catch(() => { this.flashMessage = { tone: 'is-error', text: this.t('toast.disconnect_failed') }; })
         .finally(() => this.$delete(this.busy, conn.id));
     },
 
@@ -1165,6 +1553,7 @@ export default {
           window.axios.post(cfg.store_url, { code, phone_number_id: session.phone_number_id, waba_id: session.waba_id })
             .then(({ data }) => {
               this.flashMessage = { tone: 'is-success', text: data.message || this.t('toast.wa_connected') };
+              this.rememberReturn('whatsapp');
               setTimeout(() => window.location.reload(), 900);
             })
             .catch((error) => {
@@ -1181,482 +1570,440 @@ export default {
         done();
         this.flashMessage = { tone: 'is-error', text: this.t('toast.fb_load_failed') };
       });
-    },
-
-    disconnect(card, conn) {
-      this.$set(this.busy, conn.id, 'disconnect');
-
-      window.axios.delete(this.url('disconnect', conn.id))
-        .then(({ data }) => {
-          const i = this.cards.indexOf(card);
-          this.$set(this.cards, i, data.card);
-          this.confirming = null;
-          this.flashMessage = { tone: 'is-success', text: this.t('toast.disconnected') };
-        })
-        .catch(() => { this.flashMessage = { tone: 'is-error', text: this.t('toast.disconnect_failed') }; })
-        .finally(() => this.$delete(this.busy, conn.id));
     }
   }
 };
 </script>
 
 <style scoped>
+/* Socialeaz design system (Canva "Workspaces & Social Connections", Nov 2026). */
 .ch {
-  --ink: #161B2B; --text: #4B5263; --muted: #8A92A3; --line: #E7E9F0; --line-soft: #F1F3F7;
-  --brand: #6D4AFF; --brand-2: #8F6BFF; --brand-soft: #F2EEFF;
-  --fb: linear-gradient(180deg, #18ACFE 0%, #0163E0 100%);
-  --ig: radial-gradient(circle at 30% 107%, #FDF497 0%, #FDF497 5%, #FD5949 45%, #D6249F 60%, #285AEB 90%);
-  --wa: linear-gradient(180deg, #5FFC7B 0%, #28D146 100%);
-  --meta: linear-gradient(135deg, #0866FF 0%, #00A3FF 100%);
-  padding: 24px; display: flex; flex-direction: column; gap: 20px;
+  --p600: #2563EB; --p700: #1D4ED8; --p100: #DBE8FE; --p50: #EFF5FF; --accent: #4F46E5;
+  --ink: #0F172A; --ink5: #64748B; --line: #E5EAF2; --canvas: #F5F7FB;
+  --ok: #15803D; --ok-bg: #DCFCE7; --warn: #B45309; --warn-bg: #FEF3C7; --bad: #B91C1C; --bad-bg: #FEE2E2;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 22px;
+  --sh-sm: 0 1px 2px rgba(15,23,42,.05); --sh-md: 0 4px 14px rgba(15,23,42,.06); --sh-lg: 0 24px 60px rgba(15,23,42,.18);
+  font-family: Inter, 'Noto Sans Arabic', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--ink); padding: 24px; display: flex; flex-direction: column; gap: 20px; min-width: 0;
 }
+.ch *, .ch *::before, .ch *::after { box-sizing: border-box; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.ch-muted { color: var(--ink5); }
+.sm-text { font-size: 12px; }
+.ch-warn-text { color: var(--warn); }
+.ch-link { padding: 0; border: 0; background: none; color: var(--p600); font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
+.ch-link:hover { text-decoration: underline; }
+.ch-inline-form { display: inline; margin: 0; }
+[dir="rtl"] .ch-flip { transform: scaleX(-1); }
 
-.ch-head { display: flex; align-items: center; gap: 14px; }
-.ch-head-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; color: var(--brand); background: linear-gradient(135deg, #F2EEFF, #E8F0FF); flex-shrink: 0; }
-.ch-title { margin: 0 0 2px; font-size: 26px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); line-height: 1.25; }
-.ch-sub { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+/* Buttons */
+.ch-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 0 16px; border: 1px solid transparent; border-radius: var(--r-md); font: inherit; font-size: 14px; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer; text-decoration: none; transition: background .15s, border-color .15s, box-shadow .15s, color .15s; }
+.ch-btn i { font-size: 18px; }
+.ch-btn.sm { min-height: 34px; padding: 0 12px; font-size: 13px; border-radius: var(--r-sm); }
+.ch-btn-lg { min-height: 50px; padding: 0 22px; font-size: 15px; border-radius: var(--r-md); }
+.ch-btn-block { width: 100%; }
+.ch-btn-primary { background: var(--p600); color: #fff; box-shadow: 0 6px 16px rgba(37,99,235,.24); }
+.ch-btn-primary:hover { background: var(--p700); color: #fff; }
+.ch-btn-secondary { background: #fff; border-color: var(--line); color: var(--ink); box-shadow: var(--sh-sm); }
+.ch-btn-secondary:hover { border-color: #CBD5E1; color: var(--ink); }
+.ch-btn-soft { background: var(--p50); color: var(--p600); }
+.ch-btn-soft:hover { background: var(--p100); color: var(--p700); }
+.ch-btn-ghost { background: transparent; color: var(--ink); }
+.ch-btn-ghost:hover { background: var(--canvas); }
+.ch-btn-dark { background: var(--ink); color: #fff; }
+.ch-btn-dark:hover { background: #1E293B; color: #fff; }
+.ch-btn-danger { background: #fff; border-color: #FECACA; color: var(--bad); }
+.ch-btn-danger:hover { background: var(--bad-bg); }
+.ch-btn-danger-solid { background: var(--bad); color: #fff; }
+.ch-btn-disabled { background: var(--canvas); color: var(--ink5); cursor: default; }
+.ch-btn:disabled { opacity: .55; cursor: not-allowed; }
+.ch-btn:focus-visible, .ch-icon-btn:focus-visible, .ch-seg-btn:focus-visible, .ch-kpi:focus-visible, .ch-tr:focus-visible, .ch-linked:focus-visible, .ch-picker-item:focus-visible { outline: 3px solid rgba(37,99,235,.35); outline-offset: 2px; }
+.ch-icon-btn { display: grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0; border: 1px solid var(--line); border-radius: var(--r-md); background: #fff; color: var(--ink); font-size: 20px; cursor: pointer; }
+.ch-icon-btn:hover { background: var(--canvas); }
 
-.ch-flash {
-  position: fixed; right: 24px; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 1100; max-width: min(440px, calc(100vw - 32px));
-  display: flex; align-items: center; gap: 10px; padding: 13px 14px 13px 16px; border-radius: 14px; font-size: 13.5px; font-weight: 500;
-  box-shadow: 0 18px 40px rgba(16,24,40,.18); animation: ch-toast-in .22s ease-out;
-}
+/* Pills, tags, chips */
+.ch-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.ch-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.ch-pill.sm { padding: 3px 8px; font-size: 11.5px; }
+.ch-pill.is-ok { background: var(--ok-bg); color: var(--ok); }
+.ch-pill.is-warn { background: var(--warn-bg); color: var(--warn); }
+.ch-pill.is-bad { background: var(--bad-bg); color: var(--bad); }
+.ch-pill.is-muted { background: #F1F5F9; color: var(--ink5); }
+.ch-tag { display: inline-block; margin-inline-start: 6px; padding: 2px 8px; border-radius: 999px; background: var(--p50); color: var(--p600); font-size: 11.5px; font-weight: 600; vertical-align: middle; }
+.ch-tag.is-ok { background: var(--ok-bg); color: var(--ok); }
+.ch-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ch-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border: 1px solid var(--p100); border-radius: var(--r-sm); background: var(--p50); color: var(--p700); font-size: 12.5px; font-weight: 600; }
+.ch-chip.is-off { border-color: var(--line); background: #fff; color: var(--ink5); text-decoration: line-through; }
+
+/* Brand tiles (44px, radius 12) */
+.ch-tile { display: inline-grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: var(--r-md); color: #fff; font-size: 24px; font-weight: 800; }
+.ch-tile.sm { width: 36px; height: 36px; border-radius: 10px; font-size: 20px; }
+.ch-tile.xs { width: 26px; height: 26px; border-radius: 7px; font-size: 16px; }
+.ch-tile.lg { width: 72px; height: 72px; border-radius: 18px; font-size: 38px; }
+.ch-tile.is-facebook { background: #1877F2; }
+.ch-tile.is-instagram { background: radial-gradient(circle at 30% 107%, #FDF497 0%, #FD5949 45%, #D6249F 60%, #285AEB 90%); }
+.ch-tile.is-threads, .ch-tile.is-tiktok, .ch-tile.is-x { background: #000; }
+.ch-tile.is-snapchat { background: #FFFC00; color: #000; }
+.ch-tile.is-linkedin { background: #0A66C2; }
+.ch-tile.is-youtube { background: #fff; color: #FF0000; border: 1px solid var(--line); }
+.ch-tile.is-gbp, .ch-tile.is-google { background: #fff; color: #1A73E8; border: 1px solid var(--line); }
+.ch-tile.is-meta { background: #fff; color: #0866FF; border: 1px solid var(--line); }
+.ch-tile.is-whatsapp { background: #25D366; }
+.ch-tile.is-pinterest { background: #E60023; }
+.ch-tile.is-openai { background: #10A37F; }
+.ch-tile.is-brand { background: linear-gradient(135deg, var(--p600), var(--accent)); }
+
+/* Avatars */
+.ch-avatars { display: inline-flex; }
+.ch-avatar { position: relative; display: inline-grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border: 2px solid #fff; border-radius: 50%; background: var(--p600); color: #fff; font-size: 11px; font-weight: 700; overflow: visible; }
+.ch-avatars .ch-avatar + .ch-avatar { margin-inline-start: -8px; }
+.ch-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.ch-avatar.is-more { background: #F1F5F9; color: var(--ink5); }
+.ch-avatar.lg { width: 42px; height: 42px; font-size: 14px; }
+.ch-avatar-badge { position: absolute; inset-inline-end: -4px; bottom: -4px; width: 18px; height: 18px; border: 2px solid #fff; border-radius: 6px; font-size: 11px; }
+
+/* Header */
+.ch-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.ch-crumb { margin: 0 0 6px; color: var(--ink5); font-size: 14px; }
+.ch-crumb-strong { color: var(--p600); font-weight: 600; }
+.ch-title { margin: 0 0 6px; font-size: 26px; line-height: 34px; font-weight: 700; letter-spacing: -.02em; color: var(--ink); }
+.ch-sub { margin: 0; color: var(--ink5); font-size: 14.5px; line-height: 22px; }
+.ch-head-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* Banners (gate, wizard, guided flow) */
+.ch-banner { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px 16px; border: 1px solid var(--p100); border-radius: var(--r-lg); background: var(--p50); }
+.ch-banner.is-gate { border-color: #FDE68A; background: #FFFBEB; }
+.ch-banner.is-done { border-color: #BBF7D0; background: #F0FDF4; }
+.ch-banner-icon { display: grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: var(--r-md); background: #fff; color: var(--p600); font-size: 20px; }
+.is-gate .ch-banner-icon { color: var(--warn); }
+.ch-banner-text { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; color: var(--ink5); }
+.ch-banner-text strong { color: var(--ink); font-size: 14.5px; }
+.ch-banner-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.ch-progress { height: 6px; margin-top: 4px; border-radius: 99px; background: #fff; overflow: hidden; }
+.ch-progress span { display: block; height: 100%; background: var(--p600); }
+
+/* Filters */
+.ch-filterbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ch-seg { display: inline-flex; gap: 2px; padding: 4px; border: 1px solid var(--line); border-radius: var(--r-md); background: #fff; overflow-x: auto; max-width: 100%; }
+.ch-seg-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: 0; border-radius: var(--r-sm); background: none; color: var(--ink5); font: inherit; font-size: 14px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+.ch-seg-btn:hover { color: var(--ink); }
+.ch-seg-btn.is-active { background: var(--p600); color: #fff; }
+.ch-seg-count { padding: 1px 7px; border-radius: 999px; background: #F1F5F9; color: var(--ink5); font-size: 12px; }
+.is-active .ch-seg-count { background: rgba(255,255,255,.22); color: #fff; }
+
+/* Platform cards */
+.ch-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.ch-card { display: flex; flex-direction: column; gap: 14px; min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: var(--r-xl); background: #fff; box-shadow: var(--sh-md); }
+.ch-card.is-attention { border-color: #FCD34D; box-shadow: 0 0 0 1px #FDE68A, var(--sh-md); }
+.ch-card.is-not_connected { border-style: dashed; box-shadow: none; }
+.ch-card-head { display: flex; align-items: flex-start; gap: 12px; }
+.ch-card-title { flex: 1; min-width: 0; }
+.ch-card-title h3 { margin: 0; font-size: 17px; line-height: 24px; font-weight: 650; color: var(--ink); }
+.ch-card-title p { margin: 2px 0 0; color: var(--ink5); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-card-accounts { display: flex; align-items: center; gap: 10px; min-height: 30px; }
+.ch-card-count { font-size: 14px; color: var(--ink); }
+.ch-card-alert { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border: 1px solid #FDE68A; border-radius: var(--r-md); background: #FFFBEB; color: #92400E; font-size: 13.5px; line-height: 1.45; }
+.ch-card-alert.is-bad { border-color: #FECACA; background: #FEF2F2; color: var(--bad); }
+.ch-card-alert i { font-size: 17px; margin-top: 1px; }
+.ch-card-desc { flex: 1; margin: 0; color: var(--ink5); font-size: 14px; line-height: 22px; }
+.ch-card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: auto; }
+.ch-empty-filter { grid-column: 1 / -1; margin: 0; padding: 28px; border: 1px dashed var(--line); border-radius: var(--r-lg); color: var(--ink5); text-align: center; }
+
+/* More integrations */
+.ch-more { display: flex; flex-direction: column; gap: 12px; }
+
+.ch-more-head p { margin: 2px 0 0; color: var(--ink5); font-size: 13.5px; }
+.ch-more-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ch-mini { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: #fff; }
+.ch-mini-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ch-mini-text strong { font-size: 14.5px; }
+.ch-mini-text small { color: var(--ink5); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Accounts table */
+.ch-tablebar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ch-search, .ch-select { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: #fff; color: var(--ink5); }
+.ch-search { flex: 1 1 260px; max-width: 320px; }
+.ch-search input, .ch-select select { width: 100%; border: 0; outline: none; background: none; color: var(--ink); font: inherit; font-size: 14px; }
+.ch-search:focus-within, .ch-select:focus-within { border-color: var(--p600); box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+.ch-seg-end { margin-inline-start: auto; }
+.ch-table { border: 1px solid var(--line); border-radius: var(--r-xl); background: #fff; box-shadow: var(--sh-sm); overflow: hidden; }
+.ch-tr { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.3fr) minmax(0, .8fr) minmax(0, .9fr); align-items: center; gap: 16px; width: 100%; padding: 14px 20px; border: 0; border-top: 1px solid var(--line); background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.ch-tr:hover { background: #FAFBFD; }
+.ch-th { border-top: 0; background: #FAFBFD; color: var(--ink5); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; cursor: default; }
+.ch-td-account { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ch-td-name { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.ch-td-name strong { font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-td-name small { color: var(--ink5); font-size: 12.5px; }
+.ch-td-used { color: var(--ink); font-size: 14px; }
+.ch-td-health { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.ch-td-health small { color: var(--ink5); font-size: 12.5px; }
+
+/* Modal */
+.ch-modal-backdrop { position: fixed; inset: 0; z-index: 1095; display: grid; place-items: center; padding: 24px; background: rgba(15,23,42,.45); overflow-y: auto; }
+.ch-modal { display: flex; flex-direction: column; width: min(1000px, 100%); max-height: calc(100vh - 48px); border-radius: 24px; background: #fff; box-shadow: var(--sh-lg); overflow: hidden; }
+.ch-modal-head, .ch-drawer-head { display: flex; align-items: center; gap: 14px; padding: 20px 24px; border-bottom: 1px solid var(--line); }
+.ch-modal-title { flex: 1; min-width: 0; }
+.ch-modal-title h2 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 700; }
+.ch-modal-title p { margin: 2px 0 0; color: var(--ink5); font-size: 14px; }
+.ch-modal-title p strong { color: var(--ink); }
+.ch-modal-body { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.ch-modal-foot { display: flex; align-items: center; gap: 14px; padding: 16px 24px; border-top: 1px solid var(--line); }
+.ch-modal-foot .sm-text { margin-inline-start: auto; }
+.ch-modal-h3 { margin: 0; font-size: 17px; font-weight: 650; }
+.ch-modal-h3.is-center, .ch-modal-sub.is-center { text-align: center; }
+.ch-modal-sub { margin: -8px 0 0; color: var(--ink5); font-size: 14px; line-height: 22px; }
+.ch-stepper { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ch-stepper li { display: flex; align-items: center; gap: 6px; color: var(--ink5); font-size: 13.5px; font-weight: 500; }
+.ch-stepper li + li::before { content: ''; width: 28px; height: 2px; margin-inline-end: 4px; background: var(--line); }
+.ch-stepper-dot { display: grid; place-items: center; width: 26px; height: 26px; border: 1.5px solid #CBD5E1; border-radius: 50%; font-size: 12px; }
+.ch-stepper li.is-current { color: var(--p600); font-weight: 600; }
+.ch-stepper li.is-current .ch-stepper-dot { border-color: var(--p600); background: var(--p600); color: #fff; box-shadow: 0 0 0 4px var(--p50); }
+
+.ch-split { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 24px; }
+.ch-aside { display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: var(--r-lg); background: var(--canvas); align-self: start; }
+.ch-list-title { margin: 16px 0 8px; font-size: 15px; font-weight: 650; }
+.ch-aside .ch-list-title { margin-top: 0; }
+.ch-perms { display: flex; flex-direction: column; margin: 8px 0 0; padding: 0; list-style: none; }
+.ch-perms li { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.ch-perms li > span:nth-child(2) { flex: 1; display: flex; flex-direction: column; }
+.ch-perms strong { font-size: 14.5px; }
+.ch-perms small { color: var(--ink5); font-size: 13px; line-height: 1.5; }
+.ch-perms code { padding: 2px 8px; border-radius: 6px; background: var(--canvas); color: var(--ink5); font-size: 11.5px; white-space: nowrap; }
+.ch-perm-icon { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border: 1px solid var(--line); border-radius: 10px; color: var(--p600); font-size: 18px; }
+.ch-numbered { margin: 0; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.ch-handshake { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 8px; }
+.ch-dots { color: var(--ink5); font-size: 22px; }
+
+.ch-note { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 12px 14px; border-radius: var(--r-md); font-size: 13.5px; line-height: 1.55; }
+.ch-note i { font-size: 17px; margin-top: 1px; flex-shrink: 0; }
+.ch-note .ch-link { margin-inline-start: auto; white-space: nowrap; }
+.ch-note.is-info { background: var(--p50); color: #1E3A8A; }
+.ch-note.is-ok { background: #F0FDF4; color: #14532D; }
+.ch-note.is-warn { background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; }
+.ch-note.is-bad { background: #FEF2F2; color: var(--bad); }
+
+/* Choice cards */
+.ch-methods { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ch-method, .ch-option { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1.5px solid var(--line); border-radius: var(--r-lg); background: #fff; cursor: pointer; }
+.ch-method.is-picked, .ch-option.is-picked { border-color: var(--p600); box-shadow: 0 0 0 3px var(--p50); }
+.ch-method.is-disabled, .ch-option.is-disabled { opacity: .55; cursor: not-allowed; }
+.ch-method input, .ch-option input { position: absolute; opacity: 0; pointer-events: none; }
+.ch-method-head { display: flex; align-items: flex-start; gap: 12px; }
+.ch-method-head > span:last-child { display: flex; flex-direction: column; }
+.ch-method-head strong { font-size: 16px; }
+.ch-method-head small, .ch-option-text small { color: var(--ink5); font-size: 13px; line-height: 1.5; }
+.ch-radio { flex-shrink: 0; width: 20px; height: 20px; margin-top: 2px; border: 2px solid #CBD5E1; border-radius: 50%; }
+.is-picked .ch-radio { border: 6px solid var(--p600); }
+.ch-method input:focus-visible ~ .ch-method-head .ch-radio, .ch-option input:focus-visible + .ch-radio { box-shadow: 0 0 0 3px rgba(37,99,235,.3); }
+.ch-options { display: flex; flex-direction: column; gap: 10px; }
+.ch-option { flex-direction: row; align-items: flex-start; padding: 14px 16px; }
+.ch-option-text { display: flex; flex-direction: column; gap: 2px; }
+.ch-option-text strong { font-size: 14.5px; }
+.ch-before { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 14px 18px; border: 1px solid var(--line); border-radius: var(--r-lg); font-size: 14px; }
+.ch-before span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink5); }
+.ch-before i { color: var(--ok); font-size: 18px; }
+.ch-form { display: flex; flex-direction: column; gap: 12px; }
+.ch-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; }
+.ch-form input { height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--r-md); font: inherit; font-size: 14px; font-weight: 400; }
+.ch-form input:focus { outline: none; border-color: var(--p600); box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+.ch-wa-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.ch-picker { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ch-picker-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-lg); background: #fff; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.ch-picker-item:hover:not(:disabled) { border-color: var(--p100); background: var(--p50); }
+.ch-picker-item:disabled { opacity: .55; cursor: not-allowed; }
+.ch-picker-item > i { color: var(--ink5); font-size: 20px; }
+[dir="rtl"] .ch-picker-item > i { transform: scaleX(-1); }
+.ch-picker-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ch-picker-text strong { font-size: 14.5px; }
+.ch-picker-text small { color: var(--ink5); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Manage panel */
+.ch-drawer-backdrop { position: fixed; inset: 0; z-index: 1090; background: rgba(15,23,42,.4); }
+.ch-drawer { position: fixed; z-index: 1092; top: 0; bottom: 0; inset-inline-end: 0; display: flex; flex-direction: column; width: min(520px, 100vw); background: #fff; box-shadow: var(--sh-lg); }
+.ch-drawer-body { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 18px; }
+.ch-drawer-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px 24px; border-top: 1px solid var(--line); }
+.ch-success { display: flex; gap: 12px; padding: 16px; border-radius: var(--r-lg); background: #F0FDF4; }
+.ch-success > div { display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; color: #14532D; line-height: 1.5; }
+.ch-success strong { color: var(--ink); font-size: 15px; }
+.ch-success-icon { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; background: var(--ok); color: #fff; font-size: 22px; }
+.ch-conn { display: flex; flex-direction: column; gap: 12px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.ch-conn:last-child { border-bottom: 0; }
+.ch-health { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; padding: 14px 16px; border: 1px solid #BBF7D0; border-radius: var(--r-lg); background: #F0FDF4; }
+.ch-health > i { font-size: 22px; color: var(--ok); }
+.ch-health.is-warn { border-color: #FDE68A; background: #FFFBEB; }
+.ch-health.is-warn > i { color: var(--warn); }
+.ch-health.is-bad { border-color: #FECACA; background: #FEF2F2; }
+.ch-health.is-bad > i { color: var(--bad); }
+.ch-health-text { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ink5); line-height: 1.5; }
+.ch-health-text strong { color: var(--ink); font-size: 14.5px; }
+.ch-health-actions { display: flex; gap: 8px; }
+.ch-account { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: var(--r-lg); }
+.ch-account.is-off { background: #FAFBFD; }
+.ch-account-head { display: flex; align-items: center; gap: 12px; }
+.ch-uses { display: flex; flex-direction: column; padding-top: 6px; border-top: 1px solid var(--line); }
+.ch-uses-title { margin: 4px 0; color: var(--ink5); font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.ch-use { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
+.ch-use + .ch-use { border-top: 1px solid #F1F5F9; }
+.ch-use > span { display: flex; flex-direction: column; }
+.ch-use strong { font-size: 14px; font-weight: 600; }
+.ch-use small { color: var(--ink5); font-size: 12.5px; }
+.ch-none { margin: 0; font-size: 13.5px; }
+.ch-danger { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; border: 1px solid #FECACA; border-radius: var(--r-lg); background: #FFF7F7; }
+.ch-danger > div { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ink5); line-height: 1.5; }
+.ch-danger strong { color: var(--bad); font-size: 14px; }
+.ch-confirm { display: inline-flex; gap: 6px; }
+
+/* Switch */
+.ch-switch { position: relative; display: inline-block; flex-shrink: 0; width: 44px; height: 26px; cursor: pointer; }
+.ch-switch.sm { width: 38px; height: 22px; }
+.ch-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.ch-switch span { position: absolute; inset: 0; border-radius: 999px; background: #CBD5E1; transition: background .15s; pointer-events: none; }
+.ch-switch span::after { content: ''; position: absolute; top: 3px; inset-inline-start: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform .15s; }
+.ch-switch.sm span::after { width: 16px; height: 16px; }
+.ch-switch input:checked + span { background: var(--p600); }
+.ch-switch input:checked + span::after { transform: translateX(18px); }
+.ch-switch.sm input:checked + span::after { transform: translateX(16px); }
+[dir="rtl"] .ch-switch input:checked + span::after { transform: translateX(-18px); }
+[dir="rtl"] .ch-switch.sm input:checked + span::after { transform: translateX(-16px); }
+.ch-switch input:focus-visible + span { box-shadow: 0 0 0 3px rgba(37,99,235,.3); }
+.ch-switch input:disabled + span { opacity: .5; }
+
+/* Toast */
+.ch-flash { position: fixed; right: 24px; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 1100; max-width: min(440px, calc(100vw - 32px)); display: flex; align-items: center; gap: 10px; padding: 13px 14px 13px 16px; border-radius: 14px; font-size: 13.5px; font-weight: 500; box-shadow: 0 18px 40px rgba(16,24,40,.18); animation: ch-toast-in .22s ease-out; }
 [dir="rtl"] .ch-flash { right: auto; left: 24px; }
-@keyframes ch-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .ch-flash { animation: none; } }
-@media (max-width: 575.98px) { .ch-flash { right: 16px; left: 16px; bottom: 16px; max-width: none; } }
 .ch-flash i { font-size: 18px; }
 .ch-flash.is-success { background: #E8F8EE; color: #166534; }
-.ch-flash.is-error { background: #FDECEC; color: #B42318; }
-.ch-flash-x { margin-left: auto; border: none; background: none; color: inherit; font-size: 18px; cursor: pointer; }
+.ch-flash.is-error { background: #FDECEC; color: #991B1B; }
+.ch-flash-x { display: grid; place-items: center; margin-inline-start: auto; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; opacity: .7; }
+@keyframes ch-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
-.ch-inline-form { display: inline-flex; margin: 0; }
-.ch-step-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.ch-step.has-form { flex-wrap: wrap; }
-.ch-wa-form { flex-basis: 100%; display: flex; flex-direction: column; gap: 12px; padding-top: 14px; margin-top: 4px; border-top: 1px dashed var(--line); }
-.ch-wa-form p { margin: 0; font-size: 12.5px; color: var(--muted); }
-.ch-wa-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.ch-wa-fields label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; color: var(--text); }
-.ch-wa-fields label.is-wide { grid-column: 1 / -1; }
-.ch-wa-fields input { height: 38px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 13px; color: var(--ink); background: #fff; }
-.ch-wa-fields input:focus { outline: none; border-color: #0866FF; box-shadow: 0 0 0 3px rgba(8, 102, 255, .12); }
-.ch-wa-form .ch-btn { align-self: flex-start; }
-@media (max-width: 575px) { .ch-wa-fields { grid-template-columns: 1fr; } }
-.ch-wizard { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 16px 18px; border-radius: 16px; background: linear-gradient(135deg, #EEF4FF 0%, #F3F8FF 100%); border: 1px solid #D6E4FF; }
-.ch-wizard.is-done { background: #E8F8EE; border-color: #C9EDD6; }
-.ch-wizard-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--meta); color: #fff; font-size: 20px; flex-shrink: 0; }
-.ch-wizard.is-done .ch-wizard-icon { background: #16A34A; }
-.ch-wizard-text { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; }
-.ch-wizard-text strong { color: var(--ink); font-size: 14.5px; }
-.ch-wizard-text span { color: var(--text); font-size: 13px; }
-.ch-wizard-bar { margin-top: 8px; height: 6px; border-radius: 6px; background: rgba(8, 102, 255, .14); overflow: hidden; }
-.ch-wizard-bar span { display: block; height: 100%; background: #0866FF; border-radius: 6px; transition: width .3s; }
-.ch-wizard.is-done .ch-wizard-bar { display: none; }
-.ch-wizard-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.ch-wizard.is-gate { background: #FFF8EB; border-color: #FBE3B5; }
-.ch-wizard.is-gate .ch-wizard-icon { background: #F59E0B; }
-
-.ch-card { background: #fff; border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.04); padding: 22px 24px; display: flex; flex-direction: column; gap: 18px; }
-.ch-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.ch-brand { display: flex; align-items: center; gap: 14px; }
-.ch-brand h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--ink); line-height: 1.3; }
-.ch-brand p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
-.ch-brand-stack { display: inline-flex; }
-.ch-brand-stack .ch-badge + .ch-badge { margin-left: -10px; }
-.ch-badge { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; color: #fff; font-size: 20px; border: 2px solid #fff; box-shadow: 0 4px 10px rgba(16,24,40,.12); }
-
-.is-facebook { background: var(--fb); }
-.is-instagram { background: var(--ig); }
-.is-whatsapp { background: var(--wa); }
-.is-meta { background: var(--meta); }
-.is-google { background: #4285F4; }
-.is-x { background: #000000; }
-.is-linkedin { background: linear-gradient(180deg, #0A66C2 0%, #004182 100%); }
-.is-tiktok, .is-threads { background: #000000; }
-.is-pinterest { background: linear-gradient(180deg, #F0002A 0%, #BD001C 100%); }
-.is-snapchat { background: #FFFC00; color: #000000; }
-.is-openai { background: linear-gradient(180deg, #1F1F1F 0%, #000000 100%); color: #fff; }
-.ch-key-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.is-youtube { background: linear-gradient(180deg, #FF3D3D 0%, #E60000 100%); }
-
-.ch-pill { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }
-.ch-pill.is-ok { background: #E8F8EE; color: #16A34A; }
-.ch-pill.is-warn { background: #FFF6E5; color: #D97706; }
-.ch-pill.is-muted { background: #F1F3F7; color: #64748B; }
-
-.ch-steps { display: flex; flex-direction: column; gap: 10px; }
-.ch-step { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
-.ch-step.is-primary { background: linear-gradient(180deg, #F7FAFF, #fff); border-color: #CFE0FF; }
-.ch-step.is-off { background: #FAFBFC; }
-.ch-step-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.ch-step-main strong { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 14px; }
-.ch-step-desc { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
-.ch-step-note { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; color: #B45309; font-size: 12px; }
-.ch-step-icon { width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0; display: grid; place-items: center; color: #fff; font-size: 19px; }
-.ch-step-icon.sm { width: 32px; height: 32px; border-radius: 9px; font-size: 16px; }
-.ch-mini-ok { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; font-weight: 700; color: #16A34A; background: #E8F8EE; padding: 1px 7px; border-radius: 6px; }
-
-.ch-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 16px; border-radius: 11px; font-size: 13.5px; font-weight: 600; text-decoration: none; border: 1px solid transparent; cursor: pointer; white-space: nowrap; transition: transform .15s, box-shadow .15s, background .15s, color .15s, border-color .15s; }
-.ch-btn.sm { height: 34px; padding: 0 12px; font-size: 12.5px; border-radius: 10px; }
-.ch-btn-primary { background: var(--meta); color: #fff; box-shadow: 0 6px 16px rgba(8,102,255,.28); }
-.ch-btn-primary:hover { color: #fff; transform: translateY(-1px); box-shadow: 0 10px 22px rgba(8,102,255,.32); }
-.ch-btn-ghost { background: #fff; border-color: var(--line); color: var(--text); }
-.ch-btn-ghost:hover { border-color: #C9D7F5; color: #0866FF; }
-.ch-btn-danger-ghost { background: #fff; border-color: var(--line); color: #B42318; }
-.ch-btn-danger-ghost:hover { border-color: #F5C2C0; background: #FFF7F7; }
-.ch-btn-danger { background: #DC2626; color: #fff; }
-.ch-btn-disabled { background: #F1F3F7; color: var(--muted); cursor: default; }
-.ch-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
-
-.ch-empty { text-align: center; padding: 18px 12px 6px; }
-.ch-empty-art { width: 64px; height: 64px; margin: 0 auto 12px; border-radius: 18px; display: grid; place-items: center; background: #EEF4FF; color: #0866FF; font-size: 30px; }
-.ch-empty h3 { margin: 0 0 6px; padding: 0; font-size: 16px; font-weight: 700; line-height: 1.35; color: var(--ink); }
-.ch-empty p { margin: 0 auto 14px; max-width: 520px; color: var(--muted); font-size: 13px; line-height: 1.55; }
-.ch-gets { list-style: none; margin: 0 auto; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-width: 640px; text-align: start; }
-.ch-gets li { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: #F8FAFF; color: var(--text); font-size: 12.5px; }
-.ch-gets i { color: #0866FF; font-size: 17px; }
-
-.ch-conn { border-top: 1px solid var(--line-soft); padding-top: 18px; display: flex; flex-direction: column; gap: 14px; }
-.ch-conn-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.ch-conn-id { display: flex; align-items: center; gap: 12px; }
-.ch-conn-id strong { color: var(--ink); font-size: 14px; }
-.ch-conn-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 3px; font-size: 12px; color: var(--muted); }
-.ch-conn-meta i { font-size: 14px; vertical-align: -2px; }
-.ch-conn-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.ch-confirm { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: #B42318; font-weight: 600; }
-
-.ch-status { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; }
-.ch-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; }
-.ch-status.is-ok { color: #16A34A; } .ch-status.is-warn { color: #D97706; } .ch-status.is-bad { color: #DC2626; } .ch-status.is-muted { color: #64748B; }
-.ch-muted { color: var(--muted); font-size: 12px; }
-.ch-warn-text { color: #D97706; font-weight: 600; }
-
-.ch-alert { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; font-size: 13px; }
-.ch-alert i { font-size: 20px; }
-.ch-alert div { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-.ch-alert.is-warn { background: #FFF8EB; color: #92400E; }
-.ch-alert.is-bad, .ch-alert.is-muted { background: #FDECEC; color: #991B1B; }
-.ch-alert.is-info { background: #EEF4FF; color: #1E3A8A; }
-
-.ch-caps { display: flex; flex-wrap: wrap; gap: 8px; }
-.ch-cap { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 10px; background: #F4F5F9; color: var(--muted); font-size: 12.5px; font-weight: 600; }
-.ch-cap.is-on { background: #EEF4FF; color: #0B4FD1; }
-.ch-cap i { font-size: 15px; }
-.ch-cap-up { margin-inline-start: 4px; color: var(--brand); font-weight: 700; text-decoration: none; }
-.ch-cap-up:hover { text-decoration: underline; }
-
-.ch-group { display: flex; flex-direction: column; gap: 8px; }
-.ch-group-head { display: flex; align-items: center; gap: 8px; }
-.ch-group-head h4 { margin: 0; padding: 0; line-height: 1.35; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--ink); }
-.ch-group-head h4 i { font-size: 16px; color: var(--muted); }
-.ch-count { font-size: 11px; font-weight: 700; background: #F1F3F7; color: var(--text); padding: 1px 7px; border-radius: 6px; }
-.ch-assets { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
-.ch-asset { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #fff; transition: background .15s, opacity .15s; }
-.ch-asset + .ch-asset { border-top: 1px solid var(--line-soft); }
-.ch-asset:hover { background: #FBFCFF; }
-.ch-asset.is-off .ch-avatar, .ch-asset.is-off .ch-asset-id { opacity: .5; }
-.ch-avatar { width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0; overflow: hidden; display: grid; place-items: center; color: #fff; font-size: 17px; }
-.ch-avatar img { width: 100%; height: 100%; object-fit: cover; background: #fff; }
-.ch-asset-id { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.ch-asset-id strong { font-size: 13.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ch-asset-id small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ch-asset-id small.ch-dup-note { white-space: normal; color: #B45309; margin-top: 2px; display: flex; gap: 4px; align-items: flex-start; }
-.ch-asset-caps { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
-.ch-toggle-pill { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; }
-.ch-toggle-pill i { font-size: 14px; }
-.ch-toggle-pill.is-on { background: #EEF4FF; border-color: #BFD3FF; color: #0B4FD1; }
-.ch-toggle-pill:hover:not(:disabled) { border-color: #9DBBFF; }
-.ch-toggle-pill:disabled { opacity: .6; cursor: progress; }
-
-.ch-switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; cursor: pointer; }
-.ch-switch input { opacity: 0; width: 0; height: 0; }
-.ch-switch span { position: absolute; inset: 0; border-radius: 999px; background: #D5D9E2; transition: background .15s; }
-.ch-switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform .15s; }
-.ch-switch input:checked + span { background: #0866FF; }
-.ch-switch input:checked + span::after { transform: translateX(18px); }
-.ch-switch input:disabled + span { opacity: .5; cursor: not-allowed; }
-.ch-none { margin: 0; }
-
-
-[dir="rtl"] .ch-brand-stack .ch-badge + .ch-badge { margin-left: 0; margin-right: -10px; }
-[dir="rtl"] .ch-flash-x { margin-left: 0; margin-right: auto; }
-[dir="rtl"] .ch-switch span::after { left: auto; right: 3px; }
-[dir="rtl"] .ch-switch input:checked + span::after { transform: translateX(-18px); }
-[dir="rtl"] .bx-chevron-right, [dir="rtl"] .bx-right-arrow-alt, [dir="rtl"] .bx-arrow-back { transform: scaleX(-1); }
-
-@media (max-width: 767.98px) {
-  .ch { padding: 14px; }
-  .ch-card { padding: 16px; }
-  .ch-step { flex-direction: column; align-items: stretch; }
-  .ch-asset { flex-wrap: wrap; }
-  .ch-asset-caps { width: 100%; justify-content: flex-start; padding-inline-start: 50px; }
-  .ch-gets { grid-template-columns: 1fr; }
-}
-
-/* =========================================================
-   Overview: summary, tabs, account grid, sidebar
-========================================================= */
-.ch-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; align-items: start; }
-.ch-main { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
-.ch-side { display: flex; flex-direction: column; gap: 18px; position: sticky; top: 90px; }
-
-.ch-hero {
-  display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 22px 24px; border-radius: 18px;
-  border: 1px solid #DCE5FB;
-  background: radial-gradient(120% 160% at 0% 0%, #E9F0FF 0%, rgba(233,240,255,0) 60%), linear-gradient(180deg, #F7F9FF 0%, #F3F6FE 100%);
-}
-.ch-hero-icon { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; font-size: 28px; color: #fff; flex-shrink: 0;
-  background: linear-gradient(135deg, #3B82F6, #2563EB); box-shadow: 0 10px 24px rgba(37,99,235,.3); }
-.ch-hero-text { flex: 1 1 260px; min-width: 0; }
-.ch-hero-text h2 { margin: 0 0 4px; font-size: 17px; font-weight: 700; color: var(--ink); }
-.ch-hero-text p { margin: 0; font-size: 13px; color: var(--text); line-height: 1.55; max-width: 52ch; }
-.ch-hero-stats { display: flex; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 6px; }
-.ch-hero-stat { display: flex; flex-direction: column; gap: 4px; min-width: 112px; padding: 8px 14px; border: none; background: none; text-align: start; cursor: pointer; border-radius: 10px; }
-.ch-hero-stat + .ch-hero-stat { border-inline-start: 1px solid var(--line-soft); border-start-start-radius: 0; border-end-start-radius: 0; }
-.ch-hero-stat:hover { background: #F7F9FF; }
-.ch-hero-stat-top { display: flex; align-items: center; gap: 8px; }
-.ch-hero-stat-top strong { font-size: 24px; font-weight: 700; color: var(--ink); line-height: 1; font-variant-numeric: tabular-nums; }
-.ch-hero-stat small { font-size: 11.5px; color: var(--muted); }
-.ch-hero-stat-icon { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; }
-.ch-hero-stat-icon.is-blue, .ch-quick-icon.is-blue { background: #E8F0FF; color: #2563EB; }
-.ch-hero-stat-icon.is-purple, .ch-quick-icon.is-purple { background: #F3E8FF; color: #9333EA; }
-.ch-hero-stat-icon.is-green, .ch-quick-icon.is-green { background: #E7F7EE; color: #16A34A; }
-.ch-quick-icon.is-violet { background: #F2EEFF; color: var(--brand); }
-
-.ch-tabs { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 4px; padding: 5px; background: #fff; border: 1px solid var(--line); border-radius: 14px; width: fit-content; max-width: 100%; }
-.ch-tab { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 12px; border: 1px solid transparent; border-radius: 10px; background: none; color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-.ch-tab i { font-size: 15px; color: var(--muted); }
-.ch-tab:hover { background: #F7F8FB; }
-.ch-tab.is-active { background: #EEF4FF; border-color: #D6E4FF; color: #1D4ED8; }
-.ch-tab.is-active i { color: #2563EB; }
-.ch-tab-count { min-width: 22px; height: 20px; padding: 0 6px; border-radius: 999px; background: #F1F3F7; color: var(--muted); font-size: 11px; display: inline-grid; place-items: center; }
-.ch-tab.is-active .ch-tab-count { background: #DCE8FF; color: #1D4ED8; }
-
-.ch-section { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 20px 20px 22px; box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.03); }
-.ch-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
-.ch-section-head h3 { margin: 0 0 3px; font-size: 16px; font-weight: 700; color: var(--ink); }
-.ch-section-head p { margin: 0; font-size: 12.5px; color: #3B6FD8; }
-.ch-section-link { display: inline-flex; align-items: center; gap: 2px; border: none; background: none; color: #2563EB; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-
-.ch-acct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
-.ch-acct { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; background: #fff; transition: border-color .15s, box-shadow .15s, transform .15s; min-width: 0; }
-.ch-acct:hover { border-color: #D6DDF0; box-shadow: 0 10px 24px rgba(16,24,40,.07); transform: translateY(-1px); }
-.ch-acct.is-dim .ch-acct-top, .ch-acct.is-dim .ch-acct-avatar, .ch-acct.is-dim .ch-acct-id { opacity: .6; }
-.ch-acct-top { display: flex; align-items: flex-start; gap: 12px; padding: 16px 14px 14px; min-width: 0; }
-.ch-acct-logo.ch-badge { width: 44px; height: 44px; border-radius: 50%; font-size: 22px; border: none; box-shadow: 0 6px 14px rgba(16,24,40,.12); flex-shrink: 0; }
-.ch-acct-type { flex: 1; min-width: 0; display: flex; flex-direction: column; padding-top: 2px; }
-.ch-acct-type strong { font-size: 14.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ch-acct-type small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ch-state { flex-shrink: 0; height: 22px; padding: 0 8px; border-radius: 6px; display: inline-flex; align-items: center; font-size: 11px; font-weight: 600; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
-.ch-state.is-ok { background: #E7F7EE; color: #15803D; }
-.ch-state.is-warn { background: #FFF6E5; color: #B45309; }
-.ch-state.is-bad { background: #FDECEC; color: #DC2626; }
-.ch-state.is-muted { background: #F1F3F7; color: #64748B; }
-.ch-acct-bottom { display: flex; align-items: center; gap: 10px; padding: 12px 8px 12px 14px; border-top: 1px solid var(--line-soft); margin-top: auto; }
-.ch-acct-avatar { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex-shrink: 0; overflow: hidden; background: #F3F5FA; border: 1px solid var(--line); color: var(--text); font-size: 17px; }
-.ch-acct-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.ch-acct-id { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.ch-acct-id strong { font-size: 13px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ch-acct-id small { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-
-.ch-menu { position: relative; }
-.ch-kebab { width: 30px; height: 30px; border-radius: 8px; border: none; background: none; color: #98A0B3; font-size: 18px; display: grid; place-items: center; cursor: pointer; }
-.ch-kebab:hover, .ch-kebab[aria-expanded="true"] { background: #F1F3F8; color: var(--ink); }
-.ch-menu-list { position: absolute; inset-inline-end: 0; bottom: calc(100% + 6px); z-index: 30; min-width: 210px; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 18px 40px rgba(16,24,40,.16); display: flex; flex-direction: column; }
-.ch-menu-list a, .ch-menu-list button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border: none; border-radius: 8px; background: none; color: var(--text); font-size: 13px; font-weight: 500; text-align: start; text-decoration: none; cursor: pointer; }
-.ch-menu-list a:hover, .ch-menu-list button:hover:not(:disabled) { background: #F2EEFF; color: var(--brand); }
-.ch-menu-list button:disabled { opacity: .5; cursor: default; }
-.ch-menu-list i { font-size: 16px; color: var(--muted); }
-.ch-menu-list .is-accent, .ch-menu-list .is-accent i { color: #DC2626; }
-.ch-menu-sep { height: 1px; margin: 4px 6px; background: var(--line-soft); }
-.ch-state .bx-spin { font-size: 13px; margin-inline-end: 4px; }
-
-.ch-acct-add { align-items: center; justify-content: center; text-align: center; gap: 6px; min-height: 148px; padding: 18px; border: 1.5px dashed #CFD6E6; background: #FBFCFF; cursor: pointer; font: inherit; }
-.ch-acct-add:hover { border-color: #93B4F5; background: #F5F8FF; }
-.ch-acct-add-icon { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; color: #2563EB; background: #E8F0FF; }
-.ch-acct-add strong { font-size: 13.5px; color: var(--ink); }
-.ch-acct-add small { font-size: 12px; color: var(--muted); line-height: 1.45; max-width: 30ch; }
-
-
-.ch-accounts-title { margin: 18px 0 8px; font-size: 13px; font-weight: 700; color: var(--ink); }
-.ch-account-label { font-weight: 500; color: var(--muted); overflow-wrap: anywhere; }
-.ch-panel { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 18px; box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.03); position: relative; overflow: hidden; }
-.ch-panel h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 15px; font-weight: 700; color: var(--ink); }
-.ch-panel h3 i { font-size: 18px; color: var(--brand); }
-.ch-quick-form { margin: 0; }
-.ch-quick { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: inherit; text-decoration: none; text-align: start; cursor: pointer; font: inherit; transition: border-color .15s, box-shadow .15s; }
-.ch-quick + .ch-quick, .ch-quick-form + .ch-quick, .ch-quick + .ch-quick-form { margin-top: 10px; }
-.ch-quick:hover { border-color: #CFC4FF; box-shadow: 0 6px 16px rgba(16,24,40,.06); color: inherit; }
-.ch-quick > span:nth-child(2) { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.ch-quick strong { font-size: 13px; color: var(--ink); }
-.ch-quick small { font-size: 11.5px; color: var(--muted); }
-.ch-quick > .bx-chevron-right { color: #B4BBCB; font-size: 18px; }
-.ch-quick-icon { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; font-size: 20px; flex-shrink: 0; }
-
-.ch-donut-wrap { position: relative; width: 150px; height: 150px; margin: 4px auto 14px; }
-.ch-donut { width: 100%; height: 100%; transform: rotate(-90deg); }
-.ch-donut circle { fill: none; stroke-width: 12; }
-.ch-donut-track { stroke: #EEF1F6; }
-.ch-donut-seg { stroke-linecap: butt; transition: stroke-dasharray .4s; }
-.ch-donut-label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-.ch-donut-label strong { font-size: 28px; font-weight: 700; color: var(--ink); line-height: 1.1; font-variant-numeric: tabular-nums; }
-.ch-donut-label small { font-size: 11px; color: var(--muted); line-height: 1.3; }
-.ch-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.ch-legend li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
-.ch-legend strong { margin-inline-start: auto; color: var(--ink); font-variant-numeric: tabular-nums; }
-.ch-legend .dot { width: 9px; height: 9px; border-radius: 50%; }
-.ch-legend .dot.is-ok { background: #16A34A; }
-.ch-legend .dot.is-warn { background: #F59E0B; }
-.ch-legend .dot.is-bad { background: #EF4444; }
-
-.ch-help { background: linear-gradient(160deg, #fff 55%, #F2F6FF 100%); }
-.ch-help h3 i { color: #F59E0B; }
-.ch-help p { margin: 0 0 14px; font-size: 12.5px; color: var(--text); line-height: 1.55; max-width: 24ch; }
-.ch-help-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 999px; background: #E8F0FF; color: #1D4ED8; font-size: 12.5px; font-weight: 600; text-decoration: none; position: relative; z-index: 1; }
-.ch-help-btn:hover { background: #DCE8FF; color: #1D4ED8; }
-.ch-help-art { position: absolute; inset-inline-end: -6px; bottom: -6px; width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center; font-size: 42px; color: #3B82F6; background: radial-gradient(circle, #DCE8FF 0%, rgba(220,232,255,0) 70%); }
-
-@media (max-width: 1199.98px) {
-  .ch-layout { grid-template-columns: minmax(0, 1fr); }
-  .ch-side { position: static; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-}
-@media (max-width: 575.98px) {
-  .ch-hero-stats { width: 100%; }
-  .ch-hero-stat { min-width: 0; flex: 1; padding: 8px 10px; }
-  .ch-tabs { width: 100%; }
-}
-
-/* =========================================================
-   Side panel: platform picker + platform detail
-========================================================= */
-.ch-drawer-backdrop { position: fixed; inset: 0; z-index: 1090; background: rgba(15, 18, 34, .42); backdrop-filter: blur(2px); }
-.ch-drawer {
-  position: fixed; top: 0; right: 0; bottom: 0; z-index: 1091; width: min(620px, 100vw);
-  display: flex; flex-direction: column; background: #F7F8FC;
-  box-shadow: -24px 0 60px rgba(16, 24, 40, .22); border-radius: 20px 0 0 20px; overflow: hidden;
-}
-[dir="rtl"] .ch-drawer { right: auto; left: 0; border-radius: 0 20px 20px 0; }
-.ch-drawer-head {
-  display: flex; align-items: center; gap: 12px; padding: 18px 20px; background: #fff; border-bottom: 1px solid var(--line);
-  padding-top: calc(18px + env(safe-area-inset-top, 0px));
-}
-.ch-drawer-title { flex: 1; min-width: 0; }
-.ch-drawer-title h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--ink); line-height: 1.3; }
-.ch-drawer-title p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ch-drawer-icon-btn { width: 38px; height: 38px; flex-shrink: 0; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--text); font-size: 20px; display: grid; place-items: center; cursor: pointer; }
-.ch-drawer-icon-btn:hover { border-color: #CFC4FF; color: var(--brand); }
-.ch-drawer-logos, .ch-pick-logos { display: inline-flex; flex-shrink: 0; }
-.ch-drawer-logos .ch-badge, .ch-pick-logos .ch-badge { width: 38px; height: 38px; border-radius: 12px; font-size: 19px; }
-.ch-drawer-logos .ch-badge + .ch-badge, .ch-pick-logos .ch-badge + .ch-badge { margin-inline-start: -12px; }
-.ch-drawer-body { flex: 1; overflow-y: auto; padding: 18px 20px calc(24px + env(safe-area-inset-bottom, 0px)); }
-
-.ch-fade-enter-active, .ch-fade-leave-active { transition: opacity .2s ease; }
+/* Transitions */
+.ch-fade-enter-active, .ch-fade-leave-active { transition: opacity .18s ease; }
 .ch-fade-enter, .ch-fade-leave-to { opacity: 0; }
-.ch-slide-enter-active, .ch-slide-leave-active { transition: transform .26s cubic-bezier(.2, .8, .2, 1); }
-.ch-slide-enter, .ch-slide-leave-to { transform: translateX(104%); }
-[dir="rtl"] .ch-slide-enter, [dir="rtl"] .ch-slide-leave-to { transform: translateX(-104%); }
-@media (prefers-reduced-motion: reduce) { .ch-slide-enter-active, .ch-slide-leave-active, .ch-fade-enter-active, .ch-fade-leave-active { transition: none; } }
-
-/* Picker list (panel) */
-.ch-pick-list { display: flex; flex-direction: column; gap: 10px; }
-.ch-pick-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; text-align: start; cursor: pointer; font: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
-.ch-pick-row:hover { border-color: #CFC4FF; box-shadow: 0 8px 20px rgba(16,24,40,.07); transform: translateY(-1px); }
-.ch-pick-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.ch-pick-row-text strong { font-size: 14.5px; color: var(--ink); }
-.ch-pick-row-text small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ch-pick-row > .bx-chevron-right { font-size: 20px; color: #B4BBCB; }
-.ch-state.is-brand { background: var(--brand-soft); color: var(--brand); }
-
-/* Picker grid (first run, on the page) */
-.ch-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
-.ch-pick { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: #fff; text-align: start; cursor: pointer; font: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
-.ch-pick:hover { border-color: #CFC4FF; box-shadow: 0 12px 28px rgba(16,24,40,.08); transform: translateY(-2px); }
-.ch-pick .ch-pick-logos { margin-bottom: 6px; }
-.ch-pick strong { font-size: 15px; color: var(--ink); }
-.ch-pick small { font-size: 12px; color: var(--muted); line-height: 1.45; }
-.ch-pick-caps { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-.ch-pick-caps span { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 999px; background: #F4F5F9; color: var(--text); font-size: 11px; font-weight: 600; }
-.ch-pick-cta { margin-top: auto; padding-top: 10px; display: inline-flex; align-items: center; gap: 4px; color: var(--brand); font-size: 13px; font-weight: 700; }
-
-/* The platform card inside the panel: lighter, card-in-panel look */
-.ch-card-drawer { background: transparent; border: none; box-shadow: none; padding: 0; gap: 14px; }
-.ch-card-drawer > .ch-card-head { display: none; }
-.ch-card-drawer .ch-steps { gap: 10px; }
-.ch-card-drawer .ch-step { border-radius: 14px; padding: 14px; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
-.ch-card-drawer .ch-step.is-primary { background: #fff; border-color: #D6DDF0; box-shadow: 0 6px 18px rgba(16,24,40,.06); }
-.ch-card-drawer .ch-step-actions { flex-shrink: 0; }
-.ch-card-drawer .ch-btn-primary { background: linear-gradient(135deg, var(--brand), var(--brand-2)); box-shadow: 0 6px 16px rgba(109,74,255,.28); }
-.ch-card-drawer .ch-btn-primary:hover { box-shadow: 0 10px 22px rgba(109,74,255,.34); }
-.ch-card-drawer .ch-empty { background: #fff; border: 1px dashed #D6DDF0; border-radius: 14px; padding: 18px; }
-.ch-card-drawer .ch-gets { grid-template-columns: minmax(0, 1fr); }
-.ch-card-drawer .ch-conn { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
-.ch-card-drawer .ch-conn-head { align-items: flex-start; }
-.ch-card-drawer .ch-asset-caps { justify-content: flex-start; }
-@media (max-width: 575.98px) {
-  .ch-drawer { border-radius: 0; }
-  .ch-card-drawer .ch-step { flex-wrap: wrap; }
-  .ch-card-drawer .ch-step-actions { width: 100%; justify-content: flex-start; }
-  .ch-card-drawer .ch-asset { flex-wrap: wrap; }
+.ch-slide-enter-active, .ch-slide-leave-active { transition: transform .22s ease; }
+.ch-slide-enter, .ch-slide-leave-to { transform: translateX(100%); }
+[dir="rtl"] .ch-slide-enter, [dir="rtl"] .ch-slide-leave-to { transform: translateX(-100%); }
+@media (prefers-reduced-motion: reduce) {
+  .ch-flash { animation: none; }
+  .ch-fade-enter-active, .ch-fade-leave-active, .ch-slide-enter-active, .ch-slide-leave-active { transition: none; }
 }
 
-/* Choose what to connect (docs/connection-capabilities.md) */
-.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
-.ch-choose { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
-.ch-choose-head h3 { margin: 0; font-size: 15.5px; font-weight: 700; color: var(--ink); }
-.ch-choose-head p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
-.ch-opts { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; border-top: 1px solid var(--line-soft); }
-.ch-opt { position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 12px 4px; margin: 0; border-bottom: 1px solid var(--line-soft); cursor: pointer; }
-.ch-opt:last-child { border-bottom: none; }
-.ch-opt input { position: absolute; opacity: 0; width: 22px; height: 22px; margin: 0; top: 13px; inset-inline-start: 4px; cursor: inherit; }
-.ch-opt-box { width: 22px; height: 22px; flex-shrink: 0; margin-top: 1px; border-radius: 50%; border: 2px solid #CBD2DE; display: grid; place-items: center; color: transparent; font-size: 15px; transition: background .15s, border-color .15s; }
-.ch-opt.is-picked .ch-opt-box { background: var(--ink); border-color: var(--ink); color: #fff; }
-.ch-opt input:focus-visible + .ch-opt-box { outline: 2px solid var(--brand); outline-offset: 2px; }
-.ch-opt.is-locked { cursor: default; }
-.ch-opt.is-locked .ch-opt-box { border-style: dashed; background: var(--line-soft); }
-.ch-opt.is-locked .ch-opt-text strong { color: var(--text); }
-.ch-opt-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.ch-opt-text strong { font-size: 14px; color: var(--ink); }
-.ch-opt-text span { font-size: 12.5px; color: var(--text); line-height: 1.45; }
-.ch-opt-text small { display: inline-flex; align-items: flex-start; gap: 4px; font-size: 11.5px; color: var(--muted); line-height: 1.45; }
-.ch-opt-text small i { margin-top: 2px; }
-.ch-opt-text .ch-opt-note { color: #B45309; }
-.ch-opt-badges { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
-.ch-opt-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
-.ch-opt-badge.is-ok { background: #E8F8EE; color: #15803D; }
-.ch-opt-badge.is-info { background: #EEF4FF; color: #1D4ED8; }
-.ch-opt-badge.is-warn { background: #FFF6E5; color: #B45309; }
-.ch-opt-badge.is-bad { background: #FDECEC; color: #B42318; }
-.ch-opt-badge.is-muted { background: #F1F3F7; color: #64748B; }
-.ch-choose-foot { display: flex; flex-direction: column; gap: 8px; }
-.ch-plan { font-size: 12.5px; color: var(--text); }
-.ch-plan strong { display: block; color: var(--ink); font-size: 13px; }
-.ch-plan ol { margin: 4px 0 0; padding-inline-start: 18px; }
-.ch-choose-btn { width: 100%; height: 46px; border-radius: 999px; font-size: 14px; }
-.ch-choose-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
-@media (max-width: 575.98px) { .ch-opt { flex-wrap: wrap; } .ch-opt-badges { flex-direction: row; width: 100%; padding-inline-start: 34px; align-items: center; } }
+/* Responsive */
+@media (max-width: 1199.98px) {
+  .ch-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ch-stepper .ch-stepper-label { display: none; }
+}
+@media (max-width: 991.98px) {
+  .ch-split, .ch-methods { grid-template-columns: minmax(0, 1fr); }
+  .ch-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ch-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .ch-row-chips { grid-column: 2 / -1; grid-row: 2; }
+  .ch-row .ch-status { display: none; }
+  .ch-tr { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .ch-td-used, .ch-th span:nth-child(2) { display: none; }
+}
+@media (max-width: 767.98px) {
+  .ch { padding: 16px; gap: 16px; }
+  .ch-grid, .ch-more-grid, .ch-picker { grid-template-columns: minmax(0, 1fr); }
+  .ch-head { align-items: stretch; }
+  .ch-head-actions { width: 100%; }
+  .ch-head-actions .ch-btn { flex: 1; }
+  .ch-title { font-size: 24px; }
+  .ch-filterbar { flex-direction: column; align-items: stretch; }
+    .ch-modal-backdrop { padding: 0; place-items: end stretch; }
+  .ch-modal { width: 100%; max-height: 92vh; border-radius: 22px 22px 0 0; }
+  .ch-stepper { display: none; }
+  .ch-modal-head, .ch-modal-body, .ch-modal-foot, .ch-drawer-head, .ch-drawer-body, .ch-drawer-foot { padding-inline: 16px; }
+  .ch-modal-foot { flex-wrap: wrap; }
+  .ch-modal-foot .sm-text { order: 3; width: 100%; margin: 0; text-align: center; }
+  .ch-modal-foot .ch-btn-lg { flex: 1; }
+  .ch-tablebar { flex-direction: column; align-items: stretch; }
+  .ch-search { max-width: none; }
+  .ch-seg-end { margin-inline-start: 0; }
+  .ch-th { display: none; }
+  .ch-tr { grid-template-columns: minmax(0, 1fr) auto; padding: 12px 14px; }
+  .ch-td-health { display: none; }
+  .ch-kpis { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .ch-meta-head { flex-wrap: wrap; }
+  .ch-meta-head .ch-btn { width: 100%; }
+  .ch-pick-list.is-two { grid-template-columns: minmax(0, 1fr); }
+  .ch-flash { right: 16px; left: 16px; bottom: 16px; max-width: none; }
+}
+/* PDF design: KPIs, Meta group, other platforms, choose accounts */
+.ch-section-label { margin: 0; color: var(--ink5); font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.ch-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.ch-kpi { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--r-lg); background: #fff; color: inherit; font: inherit; text-align: start; box-shadow: var(--sh-sm); }
+button.ch-kpi { cursor: pointer; }
+.ch-kpi small { color: var(--ink5); font-size: 13px; }
+.ch-kpi strong { font-size: 26px; line-height: 32px; font-weight: 700; }
+.ch-kpi strong span { color: var(--ink5); font-size: 15px; font-weight: 500; }
+.ch-kpi strong.ch-kpi-sm { display: flex; align-items: center; gap: 8px; font-size: 16px; line-height: 32px; }
+.ch-kpi.is-warn { border-color: #FDE68A; background: #FFFBEB; }
+.ch-kpi.is-warn small, .ch-kpi.is-warn strong { color: #92400E; }
+.ch-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
+.ch-dot.is-muted { background: #CBD5E1; }
+.ch-status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.ch-status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.ch-status.is-ok { color: var(--ok); }
+.ch-status.is-warn { color: var(--warn); }
+.ch-status.is-muted { color: var(--ink5); }
+.ch-status.is-muted::before { background: #CBD5E1; }
+.ch-chip.is-grey { border-color: transparent; background: #F1F5F9; color: #334155; font-weight: 500; }
+.ch-tile.is-metab { background: #0866FF; color: #fff; font-size: 20px; }
 
-/* Guided authorization */
-.ch-flow { display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: 18px; background: #fff; border: 1px solid #D6E4FF; box-shadow: 0 8px 24px rgba(8,102,255,.08); }
-.ch-flow.is-done { border-color: #C9EDD6; box-shadow: 0 8px 24px rgba(22,163,74,.08); }
-.ch-flow-head { display: flex; align-items: center; gap: 12px; }
-.ch-flow-title { flex: 1; min-width: 0; }
-.ch-flow-title h2 { margin: 0; font-size: 17px; font-weight: 700; color: var(--ink); }
-.ch-flow-title p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
-.ch-flow-steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 10px; flex-wrap: wrap; }
-.ch-flow-steps li { flex: 1 1 200px; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: #FAFBFD; }
-.ch-flow-steps li.is-current { border-color: #9DBDFF; background: #F3F7FF; }
-.ch-flow-dot { width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: #E7E9F0; color: var(--text); }
-.ch-flow-steps li.is-current .ch-flow-dot { background: #0866FF; color: #fff; }
-.ch-flow-steps li.is-done .ch-flow-dot { background: #16A34A; color: #fff; font-size: 16px; }
-.ch-flow-steps li.is-failed .ch-flow-dot { background: #FDECEC; color: #B42318; }
-.ch-flow-step-text { min-width: 0; display: flex; flex-direction: column; }
-.ch-flow-step-text strong { font-size: 13px; color: var(--ink); }
-.ch-flow-step-text small { font-size: 11.5px; color: var(--muted); }
-.ch-flow-next { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px; border-radius: 14px; background: #F3F7FF; }
-.ch-flow-next-text { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--text); }
-.ch-flow-next-text strong { font-size: 14px; color: var(--ink); }
-.ch-flow-grants { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.ch-flow-results { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
-.ch-flow-results li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
-.ch-flow-results strong { flex: 1; font-size: 13px; color: var(--ink); }
+.ch-meta { border: 1px solid var(--line); border-radius: var(--r-xl); background: #fff; box-shadow: var(--sh-sm); overflow: hidden; }
+.ch-meta-head { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border-bottom: 1px solid var(--line); }
+.ch-meta-text { flex: 1; min-width: 0; }
+.ch-meta-text h2 { margin: 0; font-size: 17px; font-weight: 700; }
+.ch-meta-text p { margin: 2px 0 0; color: var(--ink5); font-size: 13.5px; line-height: 1.5; }
+.ch-row { display: grid; grid-template-columns: auto minmax(160px, 1.2fr) minmax(0, 1.4fr) 140px auto; align-items: center; gap: 14px; padding: 14px 20px; }
+.ch-row + .ch-row { border-top: 1px solid var(--line); }
+.ch-row-main { display: flex; flex-direction: column; min-width: 0; }
+.ch-row-main strong { font-size: 15px; font-weight: 650; }
+.ch-row-main small { color: var(--ink5); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-row-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ch-row-action .ch-btn { min-width: 92px; }
+
+.ch-filterbar .ch-seg-sm .ch-seg-btn { padding: 6px 12px; font-size: 13px; }
+.ch-card-title h3 { margin: 0; font-size: 16px; line-height: 22px; font-weight: 650; color: var(--ink); }
+.ch-card-detail { margin: 0; color: var(--ink5); font-size: 13.5px; line-height: 1.5; min-height: 20px; }
+.ch-card .ch-card-actions { display: flex; }
+.ch-more-head p { margin: 4px 0 0; color: var(--ink5); font-size: 13.5px; }
+
+.ch-td-end { text-align: end; justify-self: end; }
+.ch-td-access { font-size: 13.5px; color: var(--ink5); }
+.ch-td-access.is-is-warn { color: var(--warn); }
+.ch-td-access.is-is-bad { color: var(--bad); }
+.ch-tr.is-selected { background: var(--p50); box-shadow: inset 3px 0 0 var(--p600); }
+[dir="rtl"] .ch-tr.is-selected { box-shadow: inset -3px 0 0 var(--p600); }
+.ch-select select { appearance: auto; }
+
+.ch-stepper li.is-done { color: var(--ok); }
+.ch-stepper li.is-done .ch-stepper-dot { border-color: var(--ok); background: var(--ok); color: #fff; }
+.ch-choose { display: flex; flex-direction: column; gap: 4px; }
+.ch-signed { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--r-md); background: var(--canvas); font-size: 14px; }
+.ch-signed .ch-link { margin-inline-start: auto; }
+.ch-pick-list { display: flex; flex-direction: column; gap: 10px; }
+.ch-pick-list.is-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ch-pick { border: 1.5px solid var(--line); border-radius: var(--r-lg); background: #fff; overflow: hidden; }
+.ch-pick.is-on { border-color: var(--p600); background: #F8FAFF; }
+.ch-pick.is-already { opacity: .65; background: var(--canvas); }
+.ch-pick-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin: 0; cursor: pointer; }
+.ch-pick-row.is-child { margin-inline-start: 34px; padding-inline-start: 12px; border-top: 1px solid var(--line); }
+.ch-pick-row input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--p600); }
+.ch-pick-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ch-pick-text strong { font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-pick-text small { color: var(--ink5); font-size: 12.5px; }
+.ch-note-plain { margin: 2px 0 0; }
+.ch-checks { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.ch-checks li { display: flex; gap: 10px; }
+.ch-checks li > i { display: grid; place-items: center; flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: var(--ok-bg); color: var(--ok); font-size: 14px; }
+.ch-checks li > span { display: flex; flex-direction: column; }
+.ch-checks strong { font-size: 14px; }
+.ch-checks small { color: var(--ink5); font-size: 12.5px; line-height: 1.45; }
+.ch-linked { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: #fff; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.ch-linked.is-is-warn { border-color: #FDE68A; background: #FFFBEB; }
+.ch-linked.is-is-bad { border-color: #FECACA; background: #FEF2F2; }
+.ch-linked > i { color: var(--ink5); font-size: 18px; }
 </style>

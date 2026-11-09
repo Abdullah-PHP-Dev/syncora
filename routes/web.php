@@ -186,8 +186,13 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 
 	Route::middleware(['auth', 'active.user'])->group(function () {
+        Route::prefix('workspaces')->name('seller-workspaces.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\WorkspaceController::class, 'index'])->name('index');
+            Route::post('/', [\App\Http\Controllers\WorkspaceController::class, 'store'])->middleware('throttle:20,1')->name('store');
+            Route::post('{workspace}/open', [\App\Http\Controllers\WorkspaceController::class, 'open'])->whereNumber('workspace')->name('open');
+            Route::post('invitations/{member}/{action}', [\App\Http\Controllers\WorkspaceController::class, 'respond'])->whereNumber('member')->whereIn('action', ['accept', 'decline'])->name('respond');
+        });
         Route::prefix('workspaces')->name('seller-workspaces.')->controller(\App\Http\Controllers\Admin\SellerTeamController::class)->group(function () {
-            Route::get('/', 'workspaces')->name('index');
             Route::get('invitations/{token}', 'invitation')->name('invitation');
             Route::post('invitations/{token}', 'accept')->name('accept');
             Route::post('leave', 'leave')->name('leave');

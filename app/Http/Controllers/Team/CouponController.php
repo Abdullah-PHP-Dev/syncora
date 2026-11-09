@@ -46,7 +46,7 @@ class CouponController extends Controller
     {
         return view('team.coupons.form', [
             'coupon' => $coupon, 'bundles' => Bundle::orderBy('sort_order')->get(),
-            'sellers' => User::role('seller')->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', ['admin', 'customer_support']))->orderBy('name')->get(['id', 'name', 'email']),
+            'sellers' => User::role('seller')->whereNull('workspace_owner_id')->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', ['admin', 'customer_support']))->orderBy('name')->get(['id', 'name', 'email']),
             'redemptions' => $coupon->exists ? $coupon->redemptions()->with('user')->latest('id')->paginate(15, ['*'], 'redemptions') : collect(),
             'changes' => $coupon->exists ? $coupon->changes()->with('actor')->latest('id')->limit(10)->get() : collect(),
         ]);
@@ -96,7 +96,7 @@ class CouponController extends Controller
         foreach (['bundle_ids', 'seller_ids'] as $key) {
             $data[$key] = array_map('intval', $data[$key]);
         }
-        if ($data['seller_ids'] && User::role('seller')->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', ['admin', 'customer_support']))->whereIn('id', $data['seller_ids'])->count() !== count($data['seller_ids'])) {
+        if ($data['seller_ids'] && User::role('seller')->whereNull('workspace_owner_id')->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', ['admin', 'customer_support']))->whereIn('id', $data['seller_ids'])->count() !== count($data['seller_ids'])) {
             throw ValidationException::withMessages(['seller_ids' => __('coupons.sellers_only')]);
         }
         DB::transaction(function () use ($coupon, $data, $request) {

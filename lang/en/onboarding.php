@@ -1,0 +1,60 @@
+<?php
+
+// Registration wizard (auth/register - RegisterWizard.vue) and the welcome flash.
+return [
+    'title' => 'Create your workspace',
+    'subtitle' => 'Two quick steps and you are ready to connect your channels.',
+    'steps' => [
+        'organization' => 'Organization',
+        'account' => 'Account',
+        'progress' => 'Step :current of :total',
+    ],
+    'organization' => [
+        'heading' => 'What is your organization called?',
+        'help' => 'This becomes your workspace name. You can change it later in your business profile.',
+    ],
+    'account' => [
+        'heading' => 'Create your sign-in',
+        'help' => 'You will be the owner of :organization.',
+    ],
+    'fields' => [
+        'organization_name' => 'Organization name',
+        'organization_placeholder' => 'e.g. Riyadh Coffee Co.',
+        'email' => 'Work email',
+        'password' => 'Password',
+        'password_placeholder' => 'Create a strong password',
+        'password_confirmation' => 'Confirm password',
+        'password_confirmation_placeholder' => 'Repeat your password',
+    ],
+    'password_hint' => 'Use at least 8 characters.',
+    'show_password' => 'Show password',
+    'hide_password' => 'Hide password',
+    'terms_prefix' => 'I agree to the',
+    'terms' => 'Terms of Service',
+    'and' => 'and',
+    'privacy' => 'Privacy Policy',
+    'next' => 'Next',
+    'previous' => 'Previous',
+    'register' => 'Register',
+    'registering' => 'Creating your workspace…',
+    'have_account' => 'Already have an account?',
+    'sign_in' => 'Sign in',
+    'legal' => 'Your workspace starts on the free plan. Upgrade anytime.',
+    'check_details' => 'Please check your details.',
+    'validation' => [
+        'organization_required' => 'Enter your organization name.',
+        'organization_min' => 'Use at least 2 characters.',
+        'organization_max' => 'Use 150 characters or fewer.',
+        'organization_chars' => 'The characters < and > are not allowed.',
+        'email_required' => 'Enter your email address.',
+        'email_invalid' => 'Enter a valid email address, like you@company.com.',
+        'password_required' => 'Create a password.',
+        'password_min' => 'Use at least 8 characters.',
+        'password_mismatch' => 'The passwords do not match.',
+        'terms' => 'Accept the Terms of Service and Privacy Policy to continue.',
+    ],
+    'errors' => [
+        'unavailable' => 'Sign-up is temporarily unavailable. Our team has been notified - please try again shortly or contact support.',
+    ],
+    'welcome' => 'Welcome to Socialeaz! :organization is ready on the :plan plan. Connect your first channel to get started.',
+];

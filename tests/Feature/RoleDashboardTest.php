@@ -60,6 +60,8 @@ class RoleDashboardTest extends TestCase
 
     public function test_login_uses_role_dashboard_even_with_an_intended_admin_url(): void
     {
+        // One workspace each: no picker step (covered by WorkspaceTest).
+        $this->mock(\App\Services\WorkspaceService::class)->shouldReceive('needsPicker')->andReturnFalse();
         foreach ([['seller'], ['admin']] as $roles) {
             $user = $this->userWithRoles($roles);
             $request = Mockery::mock(\App\Http\Requests\Auth\LoginRequest::class)->makePartial();

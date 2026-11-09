@@ -181,7 +181,7 @@ class SellerPackageAccessTest extends TestCase
         $user = User::factory()->create(['email' => 'member@example.test']);
         $teams->accept($user, $token);
         Route::middleware(['web', 'auth', 'seller', 'subscription', 'package.feature'])->get('/_package/workspace', fn () => response()->json(['owner' => auth()->id(), 'actor' => request()->attributes->get('workspace_actor')?->id]))->name('admin.posts.workspace-test');
-        Route::middleware(['web', 'auth', 'seller', 'subscription', 'package.feature'])->get('/_package/workspace-view', fn () => view('admin.seller-team.workspaces', ['memberships' => collect()]))->name('admin.posts.workspace-view');
+        Route::middleware(['web', 'auth', 'seller', 'subscription', 'package.feature'])->get('/_package/workspace-view', fn () => \Illuminate\Support\Facades\Blade::render("@extends('layouts.app') @section('content') probe @endsection"))->name('admin.posts.workspace-view');
         Route::middleware(['web', 'auth'])->post('/broadcasting/auth', fn () => response()->json(['owner' => auth()->id()]));
         $this->actingAs($user)->post('/workspaces/'.$member->id.'/enter')->assertRedirect();
         $this->get('/_package/workspace-view')->assertOk()->assertSee('Working in')->assertDontSee('My team');
@@ -216,6 +216,10 @@ class SellerPackageAccessTest extends TestCase
         $member->delete();
         $this->getJson('/posts/composer')->assertForbidden();
         $this->assertFalse(session()->has('seller_workspace_member'));
+        // The picker shows each workspace's connection health.
+        if (! \Illuminate\Support\Facades\Schema::hasTable('social_connections')) {
+            (require database_path('migrations/2026_10_07_110000_create_social_connections_table.php'))->up();
+        }
         $this->get('/workspaces')->assertOk();
     }
 

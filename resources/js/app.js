@@ -29,6 +29,7 @@ import SnapchatCampaignBuilder from './components/ads/snapchat/SnapchatCampaignB
 import GoogleCampaignBuilder from './components/ads/google/GoogleCampaignBuilder.vue';
 import EmailTemplateDesigner from './components/email/EmailTemplateDesigner.vue';
 import GoogleSuite from './components/google/GoogleSuite.vue';
+import WorkspacePicker from './components/workspaces/WorkspacePicker.vue';
 
 window.Alpine = Alpine;
 // Needed so admin/chats/dashboard.blade.php's plain inline <script> (a
@@ -66,6 +67,7 @@ Vue.component('google-campaign-builder', GoogleCampaignBuilder);
 Vue.component('email-template-designer', EmailTemplateDesigner);
 Vue.component('connection-hub', ConnectionHub);
 Vue.component('google-suite', GoogleSuite);
+Vue.component('workspace-picker', WorkspacePicker);
 
 new Vue({
     el: '#app',

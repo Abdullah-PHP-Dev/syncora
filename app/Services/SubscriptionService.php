@@ -25,7 +25,7 @@ class SubscriptionService
 
         $this->ensureSeller($user);
 
-        $bundle = Bundle::query()->where('is_free', true)->where('is_active', true)->first();
+        $bundle = $this->freePlan();
 
         if (! $bundle) {
             throw new RuntimeException('Free bundle not found.');
@@ -50,6 +50,12 @@ class SubscriptionService
 
             return $subscription;
         });
+    }
+
+    /** The administrator-configured free plan (Team\PlanController), if one is active. */
+    public function freePlan(): ?Bundle
+    {
+        return Bundle::query()->where('is_free', true)->where('is_active', true)->orderBy('sort_order')->orderBy('id')->first();
     }
 
     public function renew(Subscription $subscription, string $cycle): Subscription

@@ -11,6 +11,7 @@
         :wizard='@json($wizard)'
         :flow='@json($flow)'
         :eligible='@json($eligible)'
+        :workspace='@json($workspace)'
         :flash='@json(array_filter(['success' => session('success'), 'error' => session('error')]))'
         :messages='@json(__('connections'))'
         locale="{{ app()->getLocale() }}"

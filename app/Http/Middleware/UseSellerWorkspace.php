@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\SellerTeamMember;
 use App\Services\PackageAccessService;
 use App\Services\SellerTeamService;
+use App\Services\WorkspaceService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,8 +19,11 @@ class UseSellerWorkspace
         $id = $request->session()->get('seller_workspace_member');
         $route = $request->route()?->getName() ?? '';
         // Workspace selection, invitations, and logout always use the real identity.
-        if (! $actor || ! $id || Str::is(['seller-workspaces.*', 'logout'], $route)) {
+        if (! $actor || Str::is(['seller-workspaces.*', 'logout'], $route)) {
             return $next($request);
+        }
+        if (! $id) {
+            return $this->ownedWorkspace($request, $next, $actor, $route);
         }
         abort_if($actor->is_active === false || $actor->isTeamMember(), 403);
         $member = SellerTeamMember::whereKey($id)->where('user_id', $actor->id)->first();
@@ -50,6 +54,39 @@ class UseSellerWorkspace
         // Request-only identity: the login session remains the member's own account.
         // Existing controllers scope all workspace resources and quotas to this owner.
         Auth::guard('web')->setUser($member->owner);
+        try {
+            return $next($request);
+        } finally {
+            Auth::guard('web')->setUser($actor);
+        }
+    }
+
+    /**
+     * One of the actor's own brand/client workspaces is open: run the request
+     * as that workspace's account, so every module's user_id scoping applies
+     * to it. Ownership is re-checked on every request (WorkspaceService::active).
+     */
+    private function ownedWorkspace(Request $request, Closure $next, $actor, string $route)
+    {
+        // Nothing opened: the person's own account (their default workspace).
+        if (! $request->session()->has(WorkspaceService::SESSION_KEY)) {
+            return $next($request);
+        }
+        $workspace = app(WorkspaceService::class)->active($request, $actor);
+        if (! $workspace) {
+            return $next($request);
+        }
+        $request->attributes->set('workspace', $workspace);
+        // Billing, sign-in and personal settings stay with the person, not the brand.
+        $personal = Str::is(['admin.subscription.*', 'payment.*', 'payments.*', 'password.*', 'verification.*', 'admin.profiles.*', 'profile.*'], $route)
+            || $request->is('*subscription/*', 'subscription/*');
+        if ($workspace->isDefault() || $personal) {
+            return $next($request);
+        }
+        $account = $workspace->account;
+        abort_unless($account && $account->is_active !== false, 403);
+        $request->attributes->set('workspace_actor', $actor);
+        Auth::guard('web')->setUser($account);
         try {
             return $next($request);
         } finally {

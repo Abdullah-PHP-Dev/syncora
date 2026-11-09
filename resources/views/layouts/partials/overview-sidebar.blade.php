@@ -130,6 +130,32 @@
         </a>
         <button type="button" class="admin-sidebar-collapse layout-menu-toggle" aria-label="{{ __('admin.navbar.toggle_sidebar') }}" title="{{ __('admin.navbar.toggle_sidebar') }}"><i class="bx bx-chevron-left" aria-hidden="true"></i></button>
     </div>
+    @php
+        // The open workspace: an owned brand/client (UseSellerWorkspace sets it) or a joined team workspace.
+        $sidebarWorkspace = request()->attributes->get('workspace');
+        // Nothing opened: the seller's own account is their default workspace.
+        $sidebarWorkspaceName = $sidebarWorkspace?->name
+            ?? request()->attributes->get('workspace_member')?->owner?->name
+            ?? ($team ? null : auth()->user()->name);
+    @endphp
+    @if($sidebarWorkspaceName && Route::has('seller-workspaces.index'))
+        <a href="{{ route('seller-workspaces.index') }}" class="ov-ws-switch" title="{{ __('workspaces.switcher.switch') }}">
+            <span class="ov-ws-avatar" aria-hidden="true">{{ mb_strtoupper(collect(preg_split('/\s+/u', trim($sidebarWorkspaceName)))->filter()->take(2)->map(fn ($w) => mb_substr($w, 0, 1))->implode('')) }}</span>
+            <span class="ov-ws-text"><strong>{{ $sidebarWorkspaceName }}</strong><small>{{ __('workspaces.switcher.switch') }}</small></span>
+            <i class="bx bx-sort-alt-2" aria-hidden="true"></i>
+        </a>
+        <style>
+            .ov-ws-switch { display: flex; align-items: center; gap: 10px; margin: 4px 14px 10px; padding: 9px 10px; border: 1px solid var(--theme-border, #edf0fa); border-radius: 14px; background: #fff; color: var(--theme-ink, #09072d); text-decoration: none; }
+            .ov-ws-switch:hover { border-color: #D9C6FF; background: var(--theme-soft, #f1eaff); color: var(--theme-ink, #09072d); }
+            .ov-ws-switch:focus-visible { outline: 3px solid rgba(114,10,255,.35); outline-offset: 2px; }
+            .ov-ws-avatar { display: grid; place-items: center; flex-shrink: 0; width: 34px; height: 34px; border-radius: 10px; background: var(--theme-gradient, linear-gradient(110deg, #004cff, #710bff)); color: #fff; font-size: 13px; font-weight: 700; }
+            .ov-ws-text { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; }
+            .ov-ws-text strong { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .ov-ws-text small { color: var(--theme-muted, #626498); font-size: 12px; }
+            .ov-ws-switch > i { color: var(--theme-muted, #626498); font-size: 18px; }
+            .layout-menu-collapsed:not(.layout-menu-hover) .ov-ws-text, .layout-menu-collapsed:not(.layout-menu-hover) .ov-ws-switch > i { display: none; }
+        </style>
+    @endif
     <nav class="admin-sidebar-body ov-sidebar-body" aria-label="{{ __('overview.sidebar_navigation') }}">
         <ul class="menu-inner ov-sidebar-menu">
             @foreach($groups as $heading => $links)

@@ -126,6 +126,9 @@ class HubPresenter
                 'name' => $asset->name,
                 'username' => $asset->username,
                 'avatar_url' => $asset->avatar_url,
+                // Page category ("Software company") and, for Instagram, the Page it's linked to.
+                'category' => $asset->category,
+                'linked_page_id' => $asset->metadata['linked_page_id'] ?? null,
                 'external_id' => $asset->platform_account_id,
                 'token_ok' => (bool) $asset->is_token_valid,
                 // Same Instagram account as a Page-linked one (InstagramDuplicates).

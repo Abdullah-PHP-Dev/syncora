@@ -58,13 +58,6 @@ class SellerTeamController extends Controller
         return $request->expectsJson() ? response()->noContent() : back()->with('success', __('seller_team.removed'));
     }
 
-    public function workspaces(Request $request)
-    {
-        $memberships = SellerTeamMember::where('user_id', $request->user()->id)->whereNotNull('accepted_at')->with('owner')->get();
-
-        return view('admin.seller-team.workspaces', compact('memberships'));
-    }
-
     public function invitation(Request $request, string $token)
     {
         $member = SellerTeamMember::where('token_hash', hash('sha256', $token))->whereNull('accepted_at')->where('expires_at', '>', now())->with('owner')->firstOrFail();
@@ -88,6 +81,7 @@ class SellerTeamController extends Controller
         foreach ($landing as $module => $route) {
             if (in_array($member->permissions[$module] ?? 'none', ['read', 'write'], true) && $access->allows($member->owner, $module) && Route::has($route)) {
                 $request->session()->put('seller_workspace_member', $member->id);
+                $request->session()->forget(\App\Services\WorkspaceService::SESSION_KEY);
 
                 return redirect()->route($route);
             }
@@ -98,7 +92,7 @@ class SellerTeamController extends Controller
 
     public function leave(Request $request)
     {
-        $request->session()->forget('seller_workspace_member');
+        $request->session()->forget(['seller_workspace_member', \App\Services\WorkspaceService::SESSION_KEY]);
 
         return redirect()->route('seller-workspaces.index');
     }

@@ -28,7 +28,21 @@ class PackageAccessService
 
     public function subscription(User $user): ?Subscription
     {
-        return $user->subscription()->latest('subscriptions.id')->first();
+        // A workspace account runs on its owner's subscription.
+        $billing = $this->billingUser($user);
+
+        return $billing ? $billing->subscription()->latest('subscriptions.id')->first() : null;
+    }
+
+    /** Who pays: the workspace owner for workspace accounts, else the user. */
+    public function billingUser(User $user): ?User
+    {
+        if (! $user->isWorkspaceAccount()) {
+            return $user;
+        }
+        $owner = $user->workspaceOwner;
+
+        return $owner && $owner->is_active !== false ? $owner : null;
     }
 
     public function active(?Subscription $subscription): bool
