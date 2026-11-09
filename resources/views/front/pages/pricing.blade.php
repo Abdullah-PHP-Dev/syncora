@@ -167,13 +167,13 @@
                 <img src="{{ asset('assets/img/payment/card.png') }}" alt="Visa / Mastercard" width="120" height="50" loading="lazy">
 
             </div>
-            <div class="pricing-payment-method">
+            <div class="pricing-payment-method pricing-payment-coming-soon">
+                <span class="pricing-payment-status">{{ __('Coming soon') }}</span>
                 <img src="{{ asset('assets/img/payment/tammara.png') }}" alt="Tamara" width="120" height="50" loading="lazy">
-
             </div>
-            <div class="pricing-payment-method">
+            <div class="pricing-payment-method pricing-payment-coming-soon">
+                <span class="pricing-payment-status">{{ __('Coming soon') }}</span>
                 <img src="{{ asset('assets/img/payment/tabby-01.png') }}" alt="Tabby" width="120" height="50" loading="lazy">
-
             </div>
             <div class="pricing-payment-method">
                 <span class="pricing-apple-pay" aria-label="Apple Pay"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.1 12.4c0-2.1 1.7-3.2 1.8-3.3-1-1.5-2.6-1.7-3.2-1.7-1.4-.2-2.8.9-3.5.9-.7 0-1.8-.9-3-.9-1.6 0-3.1.9-3.9 2.3-1.7 2.9-.4 7.3 1.2 9.6.8 1.1 1.7 2.3 2.9 2.2 1.2 0 1.6-.7 3.1-.7s1.9.7 3.2.7c1.3 0 2.1-1.1 2.9-2.2.9-1.3 1.3-2.6 1.3-2.7-.1 0-2.8-1.1-2.8-4.2ZM14.8 5.8c.6-.8 1.1-1.9 1-3-.9 0-2 .6-2.7 1.4-.6.7-1.2 1.8-1.1 2.9 1 .1 2.1-.5 2.8-1.3Z"/></svg>Pay</span>
