@@ -64,7 +64,7 @@ class GoogleHubTest extends TestCase
 
         $card = collect(app(HubPresenter::class)->forUser($this->user->id)['cards'])->firstWhere('platform', 'google');
 
-        $this->assertSame('YouTube · Google Ads · Analytics', $card['presentation']['subtitle']);
+        $this->assertSame('YouTube · Business Profile · Google Ads · Analytics', $card['presentation']['subtitle']);
         $this->assertSame(['posting', 'ads', 'insights'], $card['presentation']['benefits']);
         $connections = collect($card['connections'])->keyBy('step');
 

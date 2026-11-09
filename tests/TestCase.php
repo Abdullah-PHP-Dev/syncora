@@ -14,4 +14,29 @@ abstract class TestCase extends BaseTestCase
         // this, settings read in one test class leak into the next.
         \App\Support\Settings::forgetRequestCache();
     }
+
+    /**
+     * Tests build partial schemas by hand, but every seller request resolves
+     * the open workspace (UseSellerWorkspace). Production always has these
+     * tables once migrated; add them wherever a fixture created users.
+     */
+    public function call($method, $uri, $parameters = [], $cookies = [], $files = [], $server = [], $content = null)
+    {
+        $schema = \Illuminate\Support\Facades\Schema::getFacadeRoot();
+        if ($schema->hasTable('users') && ! $schema->hasTable('business_profiles')) {
+            // The default workspace is named after the business profile.
+            (require database_path('migrations/2026_09_26_100002_create_business_profiles_table.php'))->up();
+        }
+        if ($schema->hasTable('users') && (! $schema->hasTable('workspaces') || ! $schema->hasColumn('users', 'workspace_owner_id'))) {
+            $features = $schema->hasTable('package_features');
+            $had = $features && \Illuminate\Support\Facades\DB::table('package_features')->where('key', 'workspaces')->exists();
+            (require database_path('migrations/2026_11_09_100000_create_workspaces.php'))->up();
+            if ($features && ! $had) {
+                // Only the schema: these tests assert their own plan catalog.
+                \Illuminate\Support\Facades\DB::table('package_features')->where('key', 'workspaces')->delete();
+            }
+        }
+
+        return parent::call($method, $uri, $parameters, $cookies, $files, $server, $content);
+    }
 }

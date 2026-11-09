@@ -8,9 +8,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
+use Laravel\Sanctum\HasApiTokens;
+
 
 class User extends Authenticatable
 {
+	use HasApiTokens;
+
 	use HasRoles;
 	/** @use HasFactory<UserFactory> */
 	use HasFactory, Notifiable;
@@ -33,6 +37,7 @@ class User extends Authenticatable
 		'facebook_id',
 		'provider',
 		'api_token',
+		'workspace_owner_id',
 	];
 
 	/**
@@ -58,6 +63,23 @@ class User extends Authenticatable
             'is_active' => 'boolean',
 		];
 	}
+
+    /** Workspace accounts (WorkspaceService::create) belong to, and are billed to, their owner. */
+    public function workspaceOwner()
+    {
+        return $this->belongsTo(User::class, 'workspace_owner_id');
+    }
+
+    public function isWorkspaceAccount(): bool
+    {
+        return $this->workspace_owner_id !== null;
+    }
+
+    /** Workspace accounts have no inbox of their own: mail goes to the owner. */
+    public function routeNotificationForMail($notification = null): string
+    {
+        return $this->isWorkspaceAccount() && $this->workspaceOwner ? $this->workspaceOwner->email : $this->email;
+    }
 
     public function isTeamMember(): bool
     {

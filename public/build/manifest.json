@@ -1,4 +1,8 @@
 {
+  "__plugin-vue2_normalizer-0Mbq2nVt.js": {
+    "file": "assets/_plugin-vue2_normalizer-0Mbq2nVt.js",
+    "name": "_plugin-vue2_normalizer"
+  },
   "resources/css/app.css": {
     "file": "assets/app-LfZbRXbl.css",
     "src": "resources/css/app.css",
@@ -36,12 +40,15 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-C4e87GVl.js",
+    "file": "assets/app-DgmnJw-I.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
+    "imports": [
+      "__plugin-vue2_normalizer-0Mbq2nVt.js"
+    ],
     "css": [
-      "assets/app-DsjFD-F2.css"
+      "assets/app-DEVkBnuR.css"
     ]
   },
   "resources/js/apps.js": {
@@ -49,5 +56,14 @@
     "name": "apps",
     "src": "resources/js/apps.js",
     "isEntry": true
+  },
+  "resources/js/register.js": {
+    "file": "assets/register-Dyi64RdR.js",
+    "name": "register",
+    "src": "resources/js/register.js",
+    "isEntry": true,
+    "imports": [
+      "__plugin-vue2_normalizer-0Mbq2nVt.js"
+    ]
   }
 }

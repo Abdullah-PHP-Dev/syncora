@@ -41,9 +41,18 @@ class SellerTeamService
     {
         $invitation = SellerTeamMember::where('token_hash', hash('sha256', $token))->firstOrFail();
 
-        return $this->usage->locked($invitation->owner, function ($subscription) use ($user, $invitation, $token) {
+        return $this->acceptInvitation($user, $invitation);
+    }
+
+    /**
+     * Also used from the workspace picker, where the invitation is matched by
+     * the signed-in email instead of the emailed token.
+     */
+    public function acceptInvitation(User $user, SellerTeamMember $invitation): SellerTeamMember
+    {
+        return $this->usage->locked($invitation->owner, function ($subscription) use ($user, $invitation) {
             $member = SellerTeamMember::whereKey($invitation->id)->lockForUpdate()->firstOrFail();
-            abort_unless(hash_equals((string) $member->token_hash, hash('sha256', $token)) && ! $member->accepted_at && $member->expires_at?->isFuture(), 404);
+            abort_unless(! $member->accepted_at && $member->expires_at?->isFuture(), 404);
             abort_unless(Str::lower($user->email) === Str::lower($member->email) && $user->id !== $member->owner_id && ! $user->isTeamMember(), 403);
             $this->access->authorize($member->owner, 'team_management');
             // A downgrade can invalidate invitations already occupying a seat.
@@ -52,6 +61,12 @@ class SellerTeamService
 
             return $member;
         });
+    }
+
+    public function decline(User $user, SellerTeamMember $invitation): void
+    {
+        abort_unless(! $invitation->accepted_at && Str::lower($user->email) === Str::lower($invitation->email), 404);
+        $invitation->update(['expires_at' => now(), 'token_hash' => null]);
     }
 
     public function usable(SellerTeamMember $member): bool

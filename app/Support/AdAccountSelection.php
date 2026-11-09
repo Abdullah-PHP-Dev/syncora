@@ -59,6 +59,9 @@ class AdAccountSelection
 
         return $options->firstWhere('id', $chosen)
             ?? $options->first()
-            ?? SocialAccount::where('user_id', $userId)->where('platform', self::accountPlatform($platform))->first();
+            // Never a Google Business Profile location - those share platform 'google' but can't run ads.
+            ?? SocialAccount::where('user_id', $userId)->where('platform', self::accountPlatform($platform))
+                ->where(fn ($q) => $q->whereNull('account_type')->orWhere('account_type', '!=', 'location'))
+                ->first();
     }
 }

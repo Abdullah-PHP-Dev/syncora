@@ -26,9 +26,20 @@ class AuthenticatedSessionController extends Controller
     {
         $request->authenticate();
 
+        // Workspace accounts belong to their owner and are never signed into directly.
+        if ($request->user()->isWorkspaceAccount()) {
+            Auth::guard('web')->logout();
+            throw \Illuminate\Validation\ValidationException::withMessages(['email' => trans('auth.failed')]);
+        }
+
         $request->session()->regenerate();
 
-        $request->session()->forget('url.intended');
+        $request->session()->forget(['url.intended', 'seller_workspace_member', \App\Services\WorkspaceService::SESSION_KEY]);
+
+        // Several brands or clients: choose where to work first.
+        if (app(\App\Services\WorkspaceService::class)->needsPicker($request->user())) {
+            return redirect()->route('seller-workspaces.index');
+        }
 
         return redirect(app(\App\Services\DashboardService::class)->url($request->user()));
     }

@@ -186,8 +186,13 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 
 
 	Route::middleware(['auth', 'active.user'])->group(function () {
+        Route::prefix('workspaces')->name('seller-workspaces.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\WorkspaceController::class, 'index'])->name('index');
+            Route::post('/', [\App\Http\Controllers\WorkspaceController::class, 'store'])->middleware('throttle:20,1')->name('store');
+            Route::post('{workspace}/open', [\App\Http\Controllers\WorkspaceController::class, 'open'])->whereNumber('workspace')->name('open');
+            Route::post('invitations/{member}/{action}', [\App\Http\Controllers\WorkspaceController::class, 'respond'])->whereNumber('member')->whereIn('action', ['accept', 'decline'])->name('respond');
+        });
         Route::prefix('workspaces')->name('seller-workspaces.')->controller(\App\Http\Controllers\Admin\SellerTeamController::class)->group(function () {
-            Route::get('/', 'workspaces')->name('index');
             Route::get('invitations/{token}', 'invitation')->name('invitation');
             Route::post('invitations/{token}', 'accept')->name('accept');
             Route::post('leave', 'leave')->name('leave');
@@ -663,6 +668,12 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					->name('connections.wizard.finish');
 				Route::post('connections/openai/key', [ConnectionHubController::class, 'connectOpenAi'])
 					->name('connections.openai.key');
+				// One Google service (config/google_services.php): asks Google for
+				// that service's scopes only, then runs the normal connect flow.
+				// Registered first so 'google' doesn't fall into {platform}/connect/{step}.
+				Route::get('connections/google/services/{service}/connect', [ConnectionHubController::class, 'connectGoogleService'])
+					->name('connections.google.connect')
+					->middleware('throttle:10,1');
 				Route::get('connections/{platform}/connect/{step}', [ConnectionHubController::class, 'connect'])
 					->name('connections.connect');
 				// Pick capabilities -> planned provider consents, one at a
@@ -723,6 +734,12 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 							Route::post('search-console/inspect', 'inspect')->name('inspect')->middleware('throttle:20,1');
 							Route::get('google-ads', 'googleAds')->name('google-ads');
 							Route::get('pagespeed', 'pageSpeed')->name('pagespeed')->middleware('throttle:12,1');
+							Route::put('pagespeed/key', 'savePageSpeedKey')->name('pagespeed-key')->middleware('throttle:10,1');
+							Route::delete('pagespeed/key', 'deletePageSpeedKey')->name('pagespeed-key.destroy')->middleware('throttle:10,1');
+							Route::get('business-profile', 'businessProfile')->name('business-profile');
+							Route::get('business-profile/reviews', 'businessProfileReviews')->name('business-profile.reviews');
+							Route::post('business-profile/locations/sync', 'businessProfileSync')->name('business-profile.sync')->middleware('throttle:6,1');
+							Route::put('business-profile/reply', 'businessProfileReply')->name('business-profile.reply')->middleware('throttle:30,1');
 							Route::post('properties/sync', 'discover')->name('properties.sync')->middleware('throttle:10,1');
 							Route::put('properties/selection', 'select')->name('properties.select');
 							Route::put('preferences', 'preferences')->name('preferences');

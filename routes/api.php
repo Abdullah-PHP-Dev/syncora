@@ -7,8 +7,12 @@ Route::post('/payments/tamara/webhook', [\App\Http\Controllers\Payments\TamaraCo
     ->name('payments.tamara.webhook');
 
 Route::get('/user', function (Request $request) {
-    return $request->user();
+	return $request->user()->load([
+		                              'businessProfile',
+		                              'subscription',
+	                              ]);
 })->middleware('auth:sanctum');
+
 
 //Route::group(['prefix' => 'api'], function ($router) {
     // Post-comment webhooks - separate from the messaging.* group below,
@@ -179,3 +183,10 @@ Route::get('/user', function (Request $request) {
     // the right subaccount is identified without a URL segment.
     Route::post('/webhooks/sendgrid/events', [\App\Http\Controllers\Api\EmailMarketing\SendGridWebhookController::class, 'receive'])->name('email_marketing.sendgrid.receive');
 // });
+
+require __DIR__.'/mcp-auth.php';
+require __DIR__.'/mcp-media.php';
+require __DIR__.'/mcp-connections.php';
+require __DIR__.'/mcp-profile.php';
+require __DIR__.'/mcp-facebook.php';
+require __DIR__.'/mcp-posts.php';

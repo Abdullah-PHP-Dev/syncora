@@ -83,11 +83,13 @@ class GoogleConnectionTest extends TestCase
         parse_str(parse_url(app(SocialAuthService::class)->redirect('google')->getTargetUrl(), PHP_URL_QUERY), $q);
         $this->assertSame('posts-client', $q['client_id']);
         $this->assertSame('true', $q['include_granted_scopes']);
-        $this->assertStringNotContainsString('business.manage', $q['scope']);
-
-        Settings::set('connections.flags.google.business_profile', '1');
-        parse_str(parse_url(app(SocialAuthService::class)->redirect('google')->getTargetUrl(), PHP_URL_QUERY), $q);
+        // Business Profile API access is approved: requested by default...
         $this->assertStringContainsString('auth/business.manage', $q['scope']);
+
+        // ...and an admin can still switch it off.
+        Settings::set('connections.flags.google.business_profile', '0');
+        parse_str(parse_url(app(SocialAuthService::class)->redirect('google')->getTargetUrl(), PHP_URL_QUERY), $q);
+        $this->assertStringNotContainsString('business.manage', $q['scope']);
     }
 
     public function test_callback_records_one_google_connection_and_lists_ads_without_developer_token(): void
@@ -110,6 +112,37 @@ class GoogleConnectionTest extends TestCase
         $this->assertSame(SocialConnection::ACTIVE, $connection->status); // refreshable: hourly access-token expiry is fine
         $this->assertSame($connection->id, SocialAccount::where('platform', 'youtube')->sole()->social_connection_id);
         Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), 'listAccessibleCustomers') && ! $r->hasHeader('developer-token'));
+    }
+
+    public function test_callback_imports_business_profile_locations_into_the_google_panel(): void
+    {
+        Http::fake([
+            'oauth2.googleapis.com/token' => Http::response(['access_token' => 'g-access', 'refresh_token' => 'g-refresh', 'expires_in' => 3599, 'scope' => 'https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/business.manage']),
+            'www.googleapis.com/youtube/v3/channels*' => Http::response(['items' => []]),
+            'googleads.googleapis.com/*' => Http::response(['resourceNames' => []]),
+            'mybusinessaccountmanagement.googleapis.com/*' => Http::response(['accounts' => [['name' => 'accounts/111']]]),
+            'mybusinessbusinessinformation.googleapis.com/*' => Http::response(['locations' => [['name' => 'locations/555', 'title' => 'Riyadh Store']]]),
+            '*' => Http::response([], 404),
+        ]);
+        session(['social_oauth_state_google' => 's']);
+
+        app(SocialAuthService::class)->callback('google', 'code', 's');
+
+        $connection = SocialConnection::where('platform', 'google')->sole();
+        $this->assertContains('posting', $connection->capabilities);
+        $this->assertContains('insights', $connection->capabilities);
+        $location = SocialAccount::where(['platform' => 'google', 'account_type' => 'location'])->sole();
+        $this->assertSame($connection->id, $location->social_connection_id);
+        $this->assertStringContainsString('1 Business Profile location(s)', (string) session('success'));
+
+        // The Hub groups it as a Business Profile location - not as a Google Ads account.
+        $card = app(\App\Services\Connections\HubPresenter::class)->card($this->user->id, 'google');
+        $this->assertArrayHasKey('business_profile', $card['presentation']['asset_groups']);
+        $assets = collect($card['connections'])->flatMap(fn ($c) => collect($c['assets'])->flatten(1));
+        $row = $assets->firstWhere('external_id', '555');
+        $this->assertSame('business_profile', $row['kind']);
+        $this->assertSame(['posting', 'insights'], $row['available_capabilities']);
+        $this->assertNull($assets->firstWhere('kind', 'google_ads'));
     }
 
     // ---- driver --------------------------------------------------------

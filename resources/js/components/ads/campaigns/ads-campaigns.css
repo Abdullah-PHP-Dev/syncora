@@ -18,7 +18,7 @@
 .adc-crumbs span:last-child { color: var(--ink); }
 
 /* header */
-.adc-head { position: relative; overflow: hidden; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.25rem; padding: 1.15rem 1.3rem; background: radial-gradient(70% 140% at 100% 0%, var(--pf-glow), transparent 60%), #fff; }
+.adc-head { position: relative; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.25rem; padding: 1.15rem 1.3rem; background: radial-gradient(70% 140% at 100% 0%, var(--pf-glow), transparent 60%), #fff; }
 .adc-mark { width: 58px; height: 58px; border-radius: 17px; display: grid; place-items: center; flex-shrink: 0; color: #fff; font-size: 2rem; background: radial-gradient(circle at 30% 107%, #FDF497 0%, #FDF497 5%, #FD5949 45%, #D6249F 60%, #285AEB 90%); box-shadow: 0 10px 22px rgba(214, 36, 159, .28); }
 .adc-mark.facebook { background: linear-gradient(145deg, #2D88FF, #1464D8); box-shadow: 0 10px 22px rgba(24, 119, 242, .28); }
 .adc-mark.brand-solid { background: var(--pf-bg, var(--pf)); color: var(--pf-on, #fff); box-shadow: 0 10px 22px rgba(16, 24, 40, .14); }

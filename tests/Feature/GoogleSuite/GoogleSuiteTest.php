@@ -37,7 +37,6 @@ class GoogleSuiteTest extends TestCase
         parent::setUp();
         $this->createConnectionTables();
         $this->createSettingsTable();
-        (require database_path('migrations/2026_10_27_100000_create_google_suite_tables.php'))->up();
         Settings::set('posts.google.client_id', 'client-1');
         Settings::set('posts.google.client_secret', 'secret-1');
         $this->user = User::create(['name' => 'Seller', 'email' => 's@example.com', 'password' => bcrypt('x')]);
@@ -561,7 +560,7 @@ class GoogleSuiteTest extends TestCase
         $error = $this->getJson($url)->json('error');
         $this->assertSame('pagespeed_quota', $error['code']);
         $this->assertTrue($error['retryable']);
-        Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), 'key=psi-key'));
+        Http::assertSent(fn (HttpRequest $r) => $r->hasHeader('X-goog-api-key', 'psi-key') && ! str_contains($r->url(), 'psi-key'));
 
         // A rejected key or a disabled API is setup too.
         $reply = [403, 'PageSpeed Insights API has not been used in project 1 before or it is disabled.'];

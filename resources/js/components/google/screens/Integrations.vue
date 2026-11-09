@@ -78,17 +78,32 @@ export default {
           service: 'pagespeed', outcome: 'performance', tone: 'is-success', status: t('status.available'), chip: { tone: 'is-brand', text: t('speed.no_signin') },
           actions: [{ url: u.pagespeed, label: t('speed.open') }],
         }] },
-        { key: 'optional', cards: [{
-          service: 'business_profile', outcome: 'local', planned: true, tone: 'is-neutral', status: t('status.planned'), chip: { tone: 'is-neutral', text: t('integrations.optional_chip') },
-          actions: [{ url: u.business_profile, label: t('common.learn_more') }],
-        }] },
+        { key: 'optional', cards: [this.businessProfileCard(u)] },
         { key: 'later', cards: [{
           service: 'tag_manager', outcome: 'tracking', planned: true, tone: 'is-neutral', status: t('status.later'), chip: { tone: 'is-neutral', text: t('integrations.advanced_chip') },
-          actions: [{ url: u.tag_manager, label: t('common.learn_more') }, { url: u.pixels, label: t('integrations.pixels_link') }],
+          actions: [{ url: u.tag_manager, label: t('common.learn_more') }],
         }] },
       ];
     },
   },
-  methods: { t, serviceName, tr: (key) => raw(key) || [] },
+  methods: {
+    t,
+    serviceName,
+    tr: (key) => raw(key) || [],
+    /* Business Profile runs on the main Google sign-in (Connection Hub), not the read-only Suite consent. */
+    businessProfileCard(u) {
+      const gbp = suite.extra.business_profile || { enabled: false };
+      const base = { service: 'business_profile', outcome: 'local', chip: { tone: 'is-neutral', text: t('integrations.optional_chip') } };
+      if (!gbp.enabled) return { ...base, planned: true, tone: 'is-neutral', status: t('status.planned'), actions: [{ url: u.business_profile, label: t('common.learn_more') }] };
+      if (!gbp.connected) return { ...base, tone: 'is-neutral', status: t('status.not_connected'), actions: [{ url: u.hub_google, label: t('common.connect') }, { url: u.business_profile, label: t('common.learn_more') }] };
+      if (!gbp.granted) return { ...base, tone: 'is-danger', status: t('status.reauth'), actions: [{ url: u.hub_google, label: t('common.reconnect') }] };
+      if (!gbp.locations.length) return { ...base, tone: 'is-warning', status: t('status.needs_setup'), actions: [{ url: u.business_profile, label: t('common.open_dashboard') }] };
+      return {
+        ...base, tone: 'is-success', status: t('status.connected'),
+        property: gbp.locations.length === 1 ? gbp.locations[0].name : t('gbp.locations_count', { n: gbp.locations.length }),
+        actions: [{ url: u.business_profile, label: t('common.open_dashboard') }],
+      };
+    },
+  },
 };
 </script>

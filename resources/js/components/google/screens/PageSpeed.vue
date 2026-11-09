@@ -29,6 +29,7 @@
 
     <gs-state v-if="running" kind="loading" :title="t('speed.running_title')" :text="t('speed.running_text')" />
     <gs-state v-else-if="error" kind="error" :error="error" @retry="run(true)" />
+    <p v-if="!running && keyProblem" class="gs-note"><i class="bx bx-key"></i><a href="#speed-api-key" class="gs-link">{{ t('speed_key.jump') }}</a></p>
     <gs-state v-else-if="!d && !checking" kind="empty" icon="bx-tachometer" :title="t('speed.empty_title')" :text="t('speed.empty_text')" />
 
     <template v-if="d && !running">
@@ -111,22 +112,71 @@
       </p>
       <p v-for="(w, i) in d.warnings" :key="i" class="gs-note gs-text-warning"><i class="bx bx-error"></i>{{ w }}</p>
     </template>
+
+    <!-- The workspace's own PageSpeed Insights API key: tests then run on its own Google quota. -->
+    <section id="speed-api-key" class="gs-card gs-pad gs-speed-key" :class="{ 'is-attention': keyProblem }">
+      <div class="gs-card-head">
+        <div>
+          <h2>{{ t('speed_key.title') }}</h2>
+          <p class="gs-sub sm">{{ t(keyState.saved ? 'speed_key.sub_saved' : (keyState.platform_key ? 'speed_key.sub_optional' : 'speed_key.sub_required')) }}</p>
+        </div>
+        <span class="gs-chip" :class="keyState.saved ? 'is-success' : 'is-neutral'">{{ t(keyState.saved ? 'speed_key.chip_saved' : 'speed_key.chip_none') }}</span>
+      </div>
+
+      <div v-if="keyState.saved && !editingKey" class="gs-speed-key-saved">
+        <span class="gs-mono">AIza••••••••••••{{ keyState.last4 }}</span>
+        <template v-if="suite.canManage">
+          <button type="button" class="gs-btn gs-btn-ghost" :disabled="keySaving" @click="editingKey = true">{{ t('speed_key.replace') }}</button>
+          <button type="button" class="gs-btn gs-btn-ghost" :disabled="keySaving" @click="removeKey">{{ t('speed_key.remove') }}</button>
+        </template>
+      </div>
+
+      <form v-else-if="suite.canManage" class="gs-speed-key-row" autocomplete="off" @submit.prevent="saveKey">
+        <label class="gs-field">
+          <span class="gs-label">{{ t('speed_key.label') }}</span>
+          <input v-model.trim="apiKey" type="password" class="gs-input gs-mono" :placeholder="t('speed_key.placeholder')" autocomplete="off" spellcheck="false" maxlength="100" required :aria-invalid="keyError ? 'true' : null" :disabled="keySaving">
+          <span v-if="keyError" class="gs-field-error">{{ keyError }}</span>
+        </label>
+        <button type="submit" class="gs-btn gs-btn-primary" :disabled="keySaving || !apiKey">
+          <span v-if="keySaving" class="gs-spinner sm light" aria-hidden="true"></span>{{ t('speed_key.save') }}
+        </button>
+        <button v-if="keyState.saved" type="button" class="gs-btn gs-btn-ghost" :disabled="keySaving" @click="editingKey = false; apiKey = ''; keyError = ''">{{ t('common.cancel') }}</button>
+      </form>
+      <p v-else class="gs-muted sm">{{ t('speed_key.owner_only') }}</p>
+
+      <div>
+        <span class="gs-label">{{ t('speed_key.how_title') }}</span>
+        <ol>
+          <li v-for="(s, i) in tr('speed_key.how_steps')" :key="i">{{ s }}</li>
+        </ol>
+        <a href="https://developers.google.com/speed/docs/insights/v5/get-started#APIKey" target="_blank" rel="noopener" class="gs-link sm">{{ t('speed_key.docs') }}</a>
+      </div>
+      <p class="gs-note"><i class="bx bx-lock-alt"></i>{{ t('speed_key.security_note') }}</p>
+    </section>
   </div>
 </template>
 
 <script>
-import { suite, t, fmt, api, toast } from '../store';
+import { suite, t, raw, fmt, api, toast } from '../store';
 import GsState from '../ui/GsState.vue';
+
+const KEY_ERRORS = ['pagespeed_setup', 'pagespeed_key_invalid', 'pagespeed_quota'];
 
 /* PageSpeed Insights: one Lighthouse lab run plus Chrome UX Report field data, labelled separately. */
 export default {
   name: 'GsPageSpeed',
   components: { GsState },
-  data: () => ({ suite, url: suite.extra.website_url || '', strategy: 'mobile', running: false, checking: false, result: null, fieldError: '' }),
+  data: () => ({
+    suite, url: suite.extra.website_url || '', strategy: 'mobile', running: false, checking: false, result: null, fieldError: '',
+    keyState: suite.extra.pagespeed_key || { saved: false, last4: null, platform_key: false },
+    apiKey: '', keyError: '', keySaving: false, editingKey: false,
+  }),
   computed: {
     fmt: () => fmt,
     d() { return this.result && this.result.data; },
     error() { return this.result && this.result.error; },
+    /* The last test failed for a reason the workspace's own key fixes. */
+    keyProblem() { return !!(this.error && KEY_ERRORS.includes(this.error.code)); },
     fetchedAt() { return this.result && this.result.fetched_at; },
     arc() { const c = 2 * Math.PI * 52; const v = (this.d.score || 0) / 100; return `${c * v} ${c}`; },
     fieldMetrics() {
@@ -141,6 +191,30 @@ export default {
   mounted() { if (this.url) this.run(false, true); },
   methods: {
     t,
+    tr: (key) => raw(key) || [],
+    async saveKey() {
+      this.keySaving = true; this.keyError = '';
+      try {
+        const res = await api('put', suite.urls.api.pagespeed_key, { data: { api_key: this.apiKey } });
+        this.keyState = res.pagespeed_key;
+        this.apiKey = ''; this.editingKey = false;
+        // A failure the old key caused is stale now.
+        if (this.keyProblem) this.result = null;
+        toast(res.message);
+      } catch (e) {
+        this.keyError = (e.errors && e.errors.api_key && e.errors.api_key[0]) || e.message;
+      } finally { this.keySaving = false; }
+    },
+    async removeKey() {
+      this.keySaving = true;
+      try {
+        const res = await api('delete', suite.urls.api.pagespeed_key);
+        this.keyState = res.pagespeed_key;
+        toast(res.message);
+      } catch (e) {
+        toast(e.message, 'error');
+      } finally { this.keySaving = false; }
+    },
     band(score) { if (score === null || score === undefined) return 'none'; return score >= 90 ? 'good' : score >= 50 ? 'average' : 'poor'; },
     catTone(c) { return { FAST: 'is-success', AVERAGE: 'is-warning', SLOW: 'is-danger' }[c] || 'is-neutral'; },
     seconds(ms) { return ms >= 1000 ? `${fmt.dec(ms / 1000, 1)} s` : `${fmt.int(ms)} ms`; },

@@ -20,7 +20,8 @@ class GoogleSuiteScopes
 
     public static function requested(): array
     {
-        return ['openid', 'email', self::ANALYTICS, self::SEARCH_CONSOLE];
+        // config/google_services.php: identity scopes + GA4 + Search Console.
+        return GoogleServices::scopesFor(\App\Services\Connections\Drivers\GoogleDriver::ANALYTICS);
     }
 
     /** Reporting scopes the user left unticked on the consent screen. */

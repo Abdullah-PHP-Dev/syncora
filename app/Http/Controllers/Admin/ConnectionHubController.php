@@ -9,10 +9,13 @@ use App\Services\Connections\ConnectionRecorder;
 use App\Services\Connections\ConnectionService;
 use App\Services\Connections\Drivers\OpenAiDriver;
 use App\Services\Connections\HubPresenter;
+use App\Services\PackageAccessService;
+use App\Services\SellerTeamService;
 use App\Support\Connections\AuthorizationFlow;
 use App\Support\Connections\ConnectionWizard;
 use App\Support\Connections\OpenAiAds;
 use Illuminate\Http\JsonResponse;
+use App\Support\Google\GoogleServices;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -37,6 +40,7 @@ class ConnectionHubController extends Controller
             'wizard' => $this->wizardPayload(),
             'flow' => $this->flow->state((int) Auth::id()),
             'eligible' => Auth::user()->hasEligibleConnection(),
+            'workspace' => $this->workspacePayload(),
             'urls' => [
                 'whatsapp_manual' => route('admin.post-accounts.whatsapp.store'),
                 'openai_key' => route('admin.connections.openai.key'),
@@ -58,6 +62,27 @@ class ConnectionHubController extends Controller
                 'flow_cancel' => route('admin.connections.flow.cancel'),
             ],
         ]);
+    }
+
+    /**
+     * The open workspace. Auth::user() is that workspace's account here
+     * (UseSellerWorkspace), so the hub only ever lists its own connections.
+     */
+    private function workspacePayload(): array
+    {
+        $user = Auth::user();
+        $workspace = request()->attributes->get('workspace');
+        $goals = config('workspaces.goals');
+        $recommended = collect($workspace?->goals ?? [])->flatMap(fn ($g) => $goals[$g] ?? [])->unique()->values();
+
+        return [
+            'name' => $workspace?->name ?: ($user->businessProfile?->business_name ?: $user->name),
+            'kind' => $workspace?->kind ?? 'own',
+            'plan' => app(PackageAccessService::class)->subscription($user)?->bundle?->name,
+            'members' => app(SellerTeamService::class)->seats($user),
+            'has_goals' => ! empty($workspace?->goals),
+            'recommended' => $recommended,
+        ];
     }
 
     /** "Connect all recommended": straight into the first missing consent. */
@@ -146,6 +171,17 @@ class ConnectionHubController extends Controller
     }
 
     /** Start a card step's consent (also the "Upgrade access" target). */
+    /** Connect one Google service: its own scopes only, on the shared Google consent flow. */
+    public function connectGoogleService(string $service): Response
+    {
+        $definition = GoogleServices::get($service);
+        abort_unless($definition && ($definition['auth'] ?? null) === 'oauth' && GoogleServices::enabled($definition), 404);
+
+        GoogleServices::requestFor([$service]);
+
+        return $this->connect('google', $definition['step']);
+    }
+
     public function connect(string $platform, string $step): Response
     {
         return $this->connections->connect($platform, $step);

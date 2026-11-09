@@ -11,6 +11,8 @@ use App\Services\GoogleSuite\GoogleSuiteAuth;
 use App\Services\Connections\Drivers\LinkedInDriver;
 use App\Services\Connections\Drivers\TikTokDriver;
 use App\Support\Connections\ConnectionFlags;
+use App\Support\Google\GoogleServices;
+use App\Services\GoogleSuite\BusinessProfileService;
 use App\Support\Connections\GoogleAdsCustomers;
 use App\Support\Connections\GoogleClient;
 use App\Support\Connections\GrantedScopes;
@@ -484,47 +486,17 @@ class SocialAuthService
             'redirect_uri' => $this->callbackUrl('google'),
             'response_type' => 'code',
             'access_type' => 'offline',
-            'prompt' => 'consent',
+            // select_account: connecting a second Google account must offer the account chooser.
+            'prompt' => 'consent select_account',
             // Incremental authorization: a later consent keeps earlier grants.
             'include_granted_scopes' => 'true',
-            // Matched to exactly what's configured/submitted in Google
-            // Cloud Console for verification (per Google's Data Safety
-            // team feedback) - this app must request only these four,
-            // nothing else, for an exact scope match. Two real,
-            // confirmed-against-docs consequences of this exact list
-            // (not previously in Console, so not verified/approved):
-            //  - youtube.force-ssl removed: comments.insert/update/delete
-            //    (YoutubePostService::publishComment()/destroyComment())
-            //    accept ONLY youtube.force-ssl per Google's own API
-            //    reference - bare 'youtube' is not a substitute for these
-            //    specific methods, so comment reply/delete will start
-            //    failing with an insufficient-scope error until force-ssl
-            //    is re-added to both Console and here together.
-            //  - business.manage removed: Google Business Profile
-            //    posting/review-replies (GooglePostService.php,
-            //    mybusiness.googleapis.com calls) have no scope in this
-            //    list at all and will stop working entirely until
-            //    business.manage is re-added to both Console and here.
-            // youtube.upload + bare youtube (not youtube.readonly) still
-            // cover video upload, and video read/update/delete
-            // (confirmed: videos.update/delete accept the bare scope).
-            // analytics.readonly is requested here to match Console even
-            // though nothing in this app calls the Analytics API - the
-            // "Google Analytics" integration (Integration.php) is a
-            // pasted GA4 Measurement ID, not an OAuth/API integration.
-            'scope' => implode(' ', [
-
-                // 'https://www.googleapis.com/auth/youtube.readonly',
-                // 'https://www.googleapis.com/auth/youtube.force-ssl',
-                // 'https://www.googleapis.com/auth/business.manage',
-                'https://www.googleapis.com/auth/youtube.upload',
-                'https://www.googleapis.com/auth/youtube',
-                'https://www.googleapis.com/auth/adwords',
-                'https://www.googleapis.com/auth/analytics.readonly',
-                // Only once the Business Profile API access request is
-                // approved (and the scope added to the verified consent screen).
-                ...(ConnectionFlags::on('google.business_profile') ? ['https://www.googleapis.com/auth/business.manage'] : []),
-            ]),
+            // Scopes come from config/google_services.php: only the services
+            // picked in the Hub (plus openid/email to identify the Google
+            // account), or the full verified set when none was picked. Every
+            // scope must be on the OAuth consent screen in Google Cloud.
+            // Not requested: youtube.force-ssl (YouTube comment replies) -
+            // it isn't on the verified consent screen.
+            'scope' => implode(' ', GoogleServices::scopesFor(GoogleDriver::OAUTH, GoogleServices::pullRequest())),
             'state' => $state,
         ]);
 
@@ -556,9 +528,16 @@ class SocialAuthService
         $youtubeConnected = $this->connectYoutubeChannels($accessToken, $refreshToken, $expiresAt, $userId, $grantedScopes, $assetIds);
         $skippedCustomers = [];
         $adAccountsConnected = $this->connectGoogleAdsCustomers($accessToken, $refreshToken, $expiresAt, $userId, $grantedScopes, $assetIds, $skippedCustomers);
+        $locationsConnected = $this->connectBusinessLocations($accessToken, $refreshToken, $expiresAt, $userId, $grantedScopes, $assetIds);
 
         // The consent itself, for the Connection Hub (design doc §5).
-        ConnectionRecorder::record($userId, 'google', GoogleDriver::OAUTH, null, [
+        // Which Google account granted this (ID token from the openid/email
+        // scopes): one connection per Google account, so a second account
+        // never overwrites the first one's tokens.
+        $identity = GoogleServices::idTokenClaims($token['id_token'] ?? null);
+
+        ConnectionRecorder::record($userId, 'google', GoogleDriver::OAUTH, $identity['sub'] ?? null, [
+            ...(isset($identity['email']) ? ['provider_account_label' => $identity['email']] : []),
             'provider_app' => GoogleClient::current(),
             'access_token' => $accessToken,
             'refresh_token' => $refreshToken,
@@ -568,8 +547,77 @@ class SocialAuthService
 
         return redirect()->route($this->returnRoute())->with(
             'success',
-            trim("Connected {$youtubeConnected} YouTube channel(s) and {$adAccountsConnected} Google Ads account(s). " . GoogleAdsCustomers::skippedSummary($skippedCustomers))
+            trim("Connected {$youtubeConnected} YouTube channel(s) and {$adAccountsConnected} Google Ads account(s)"
+                . ($locationsConnected !== null ? " and {$locationsConnected} Business Profile location(s)" : '')
+                . '. ' . GoogleAdsCustomers::skippedSummary($skippedCustomers))
         );
+    }
+
+    /**
+     * Google Business Profile locations, once business.manage is granted
+     * (flag google.business_profile). Each location becomes a 'google'
+     * SocialAccount of type 'location' with its Business Profile account id
+     * in metadata.parent_account_id - what GooglePostService (local posts,
+     * review replies) and the Google Suite Business Profile screen read.
+     *
+     * @return int|null  locations imported, or null when Business Profile isn't part of this sign-in
+     */
+    private function connectBusinessLocations(string $accessToken, ?string $refreshToken, Carbon $expiresAt, int $userId, ?array $grantedScopes = null, array &$assetIds = []): ?int
+    {
+        if (! ConnectionFlags::on('google.business_profile')
+            || ! in_array('https://www.googleapis.com/auth/business.manage', $grantedScopes ?? [], true)) {
+            return null;
+        }
+
+        $headers = ['Authorization' => 'Bearer ' . $accessToken];
+        $connected = 0;
+        $accountsToken = null;
+
+        do {
+            $accounts = $this->api->get('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', $headers, array_filter(['pageSize' => 20, 'pageToken' => $accountsToken]));
+            if (! ($accounts['success'] ?? false)) {
+                \Log::warning('Business Profile: listing accounts failed', ['status' => $accounts['status'] ?? null, 'google_status' => $accounts['data']['error']['status'] ?? null]);
+                break;
+            }
+
+            foreach ($accounts['data']['accounts'] ?? [] as $account) {
+                // "accounts/123" -> "123"
+                $accountId = basename((string) ($account['name'] ?? ''));
+                if ($accountId === '') {
+                    continue;
+                }
+
+                $locationsToken = null;
+                do {
+                    $locations = $this->api->get("https://mybusinessbusinessinformation.googleapis.com/v1/accounts/{$accountId}/locations", $headers, array_filter([
+                        'readMask' => 'name,title,storefrontAddress,websiteUri,metadata',
+                        'pageSize' => 100,
+                        'pageToken' => $locationsToken,
+                    ]));
+                    if (! ($locations['success'] ?? false)) {
+                        \Log::warning('Business Profile: listing locations failed', ['account' => $accountId, 'status' => $locations['status'] ?? null, 'google_status' => $locations['data']['error']['status'] ?? null]);
+                        break;
+                    }
+
+                    foreach ($locations['data']['locations'] ?? [] as $location) {
+                        $locationAccount = BusinessProfileService::saveLocation($userId, [
+                            'access_token' => $accessToken, 'refresh_token' => $refreshToken,
+                            'expires_at' => $expiresAt, 'granted_scopes' => $grantedScopes,
+                        ], $account, $location);
+                        if ($locationAccount) {
+                            $connected++;
+                            $assetIds[] = $locationAccount->id;
+                        }
+                    }
+
+                    $locationsToken = $locations['data']['nextPageToken'] ?? null;
+                } while ($locationsToken);
+            }
+
+            $accountsToken = $accounts['data']['nextPageToken'] ?? null;
+        } while ($accountsToken);
+
+        return $connected;
     }
 
     private function connectYoutubeChannels(string $accessToken, ?string $refreshToken, Carbon $expiresAt, int $userId, ?array $grantedScopes = null, array &$assetIds = []): int

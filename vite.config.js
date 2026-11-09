@@ -12,6 +12,7 @@ export default defineConfig({
                 'resources/css/marketing-home.css',
                 'resources/js/app.js',
                 'resources/js/apps.js',
+                'resources/js/register.js',
             ],
             refresh: true,
         }),

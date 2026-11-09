@@ -213,9 +213,11 @@ class ConnectionGateTest extends TestCase
     {
         Event::fake([UserRegistered::class]);
         auth()->logout();
+        (require database_path('migrations/2026_08_18_000800_create_subscription_cycles_table.php'))->up();
+        \App\Models\Bundle::create(['slug' => 'free', 'name_en' => 'Free', 'name_ar' => 'مجاني', 'is_free' => true, 'is_active' => true, 'meta' => ['trial_days' => 15]]);
 
         $this->post(route('register'), [
-            'name' => 'New Seller', 'email' => 'new@example.com', 'password' => 'Password-123!', 'password_confirmation' => 'Password-123!',
+            'organization_name' => 'New Seller', 'email' => 'new@example.com', 'password' => 'Password-123!', 'password_confirmation' => 'Password-123!', 'terms' => '1',
         ])->assertRedirect(route('admin.connections.index'));
 
         $this->assertAuthenticated();

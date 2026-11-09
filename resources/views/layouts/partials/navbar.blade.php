@@ -204,6 +204,10 @@
         <!-- =================================================
              USER
         ================================================== -->
+        @php
+            // The signed-in person, even while a workspace runs the request as its own account.
+            $navUser = request()->attributes->get('workspace_actor') ?? auth()->user();
+        @endphp
         <div class="admin-user dropdown">
 
             <a href="javascript:void(0);"
@@ -223,12 +227,12 @@
                 <div class="admin-user-info d-none d-sm-flex">
 
                     <span class="admin-user-name">
-                        {{ auth()->user()->name ?? __('admin.navbar.guest_user') }}
+                        {{ $navUser->name ?? __('admin.navbar.guest_user') }}
                     </span>
 
                     <span class="admin-user-role">
-                        {{ auth()->user()->hasRole('admin') ? __('Team administrator') : (auth()->user()->hasRole('customer_support') ? __('Customer support') : __('Seller')) }}
-                        | {{ __('overview.user_id') }}: <bdi>{{ auth()->id() }}</bdi>
+                        {{ $navUser->hasRole('admin') ? __('Team administrator') : ($navUser->hasRole('customer_support') ? __('Customer support') : __('Seller')) }}
+                        | {{ __('overview.user_id') }}: <bdi>{{ $navUser->id }}</bdi>
                     </span>
 
                 </div>
@@ -258,11 +262,11 @@
                         <div>
 
                             <div class="admin-dropdown-name">
-                                {{ auth()->user()->name ?? __('admin.navbar.guest_user') }}
+                                {{ $navUser->name ?? __('admin.navbar.guest_user') }}
                             </div>
 
                             <div class="admin-dropdown-role">
-                                {{ auth()->user()->hasRole('admin') ? __('Team administrator') : (auth()->user()->hasRole('customer_support') ? __('Customer support') : __('Seller')) }}
+                                {{ $navUser->hasRole('admin') ? __('Team administrator') : ($navUser->hasRole('customer_support') ? __('Customer support') : __('Seller')) }}
                             </div>
 
                         </div>
@@ -282,7 +286,7 @@
                 <li>
 
                     <a class="dropdown-item admin-dropdown-item"
-                       href="{{ route('admin.profiles.show', ['profile' => Auth::user()->id]) }}">
+                       href="{{ route('admin.profiles.show', ['profile' => $navUser->id]) }}">
 
                         <span class="admin-dropdown-icon">
                             <i class="bx bx-user"></i>

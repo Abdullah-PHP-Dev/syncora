@@ -39,7 +39,7 @@ class GoogleSuitePresenter
                 GoogleProperty::GA4 => $properties->where('service', GoogleProperty::GA4)->values()->map(fn ($p) => $this->property($p))->all(),
                 GoogleProperty::SEARCH_CONSOLE => $properties->where('service', GoogleProperty::SEARCH_CONSOLE)->values()->map(fn ($p) => $this->property($p))->all(),
             ],
-            'preferences' => collect($preferences)->except('account')->all(),
+            'preferences' => GoogleSuiteSetting::visible($preferences),
             'events' => GoogleSyncEvent::where('user_id', $userId)->latest('id')->limit(12)->get()->map(fn ($e) => [
                 'id' => $e->id, 'service' => $e->service, 'event' => $e->event, 'status' => $e->status,
                 'message' => $e->message, 'at' => $e->created_at?->toIso8601String(),
@@ -49,6 +49,9 @@ class GoogleSuitePresenter
             // CSV export is its own package module (package_access.routes.data_export).
             'can_export' => app(PackageAccessService::class)->allows($request->user(), 'data_export'),
             'ads_account' => $this->adsAccount($userId),
+            // The workspace's own PageSpeed key: presence and last 4 characters only.
+            'pagespeed_key' => GoogleSuiteSetting::pageSpeedKeyStatus($userId) + ['platform_key' => PageSpeedService::apiKey() !== null],
+            'business_profile' => BusinessProfileService::status($userId),
             'urls' => $this->urls(),
             'messages' => __('google_suite'),
         ], $extra);
@@ -172,6 +175,8 @@ class GoogleSuitePresenter
             'ads_connect' => route('admin.ads.dashboard'),
             'upgrade' => route('admin.subscription.select'),
             'pixels' => route('admin.integrations.index'),
+            'hub_google' => route('admin.connections.index', ['platform' => 'google']),
+            'composer' => route('admin.posts.composer'),
             'privacy' => route('privacy'),
             'google_permissions' => 'https://myaccount.google.com/connections',
             'api' => [
@@ -182,6 +187,11 @@ class GoogleSuitePresenter
                 'inspect' => route('admin.google.api.inspect'),
                 'google_ads' => route('admin.google.api.google-ads'),
                 'pagespeed' => route('admin.google.api.pagespeed'),
+                'pagespeed_key' => route('admin.google.api.pagespeed-key'),
+                'business_profile' => route('admin.google.api.business-profile'),
+                'business_profile_reviews' => route('admin.google.api.business-profile.reviews'),
+                'business_profile_reply' => route('admin.google.api.business-profile.reply'),
+                'business_profile_sync' => route('admin.google.api.business-profile.sync'),
                 'discover' => route('admin.google.api.properties.sync'),
                 'select' => route('admin.google.api.properties.select'),
                 'preferences' => route('admin.google.api.preferences'),

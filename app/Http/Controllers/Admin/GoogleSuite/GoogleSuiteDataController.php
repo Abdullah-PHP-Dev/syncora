@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\GoogleProperty;
 use App\Models\GoogleSuiteSetting;
 use App\Services\Connections\ConnectionService;
+use App\Services\GoogleSuite\BusinessProfileService;
 use App\Services\GoogleSuite\Ga4Service;
 use App\Services\GoogleSuite\GoogleAdsReportService;
 use App\Services\GoogleSuite\PageSpeedService;
@@ -94,6 +95,76 @@ class GoogleSuiteDataController extends Controller
         return $this->respond($result);
     }
 
+    /**
+     * Save the workspace's own PageSpeed Insights API key. Owner only - it is
+     * a credential, like the Google connection itself. The response carries
+     * only the last 4 characters; the key is never sent back.
+     */
+    public function savePageSpeedKey(Request $request): JsonResponse
+    {
+        $this->ownerOnly($request);
+        $validated = $request->validate([
+            'api_key' => ['required', 'string', 'max:100', 'regex:' . GoogleSuiteSetting::API_KEY_PATTERN],
+        ], [
+            'api_key.regex' => __('google_suite.speed_key.invalid_format'),
+        ]);
+
+        GoogleSuiteSetting::setPageSpeedKey($this->userId($request), trim($validated['api_key']));
+
+        return response()->json([
+            'pagespeed_key' => GoogleSuiteSetting::pageSpeedKeyStatus($this->userId($request)) + ['platform_key' => PageSpeedService::apiKey() !== null],
+            'message' => __('google_suite.speed_key.saved'),
+        ]);
+    }
+
+    public function deletePageSpeedKey(Request $request): JsonResponse
+    {
+        $this->ownerOnly($request);
+        GoogleSuiteSetting::setPageSpeedKey($this->userId($request), null);
+
+        return response()->json([
+            'pagespeed_key' => GoogleSuiteSetting::pageSpeedKeyStatus($this->userId($request)) + ['platform_key' => PageSpeedService::apiKey() !== null],
+            'message' => __('google_suite.speed_key.removed'),
+        ]);
+    }
+
+    public function businessProfile(Request $request, BusinessProfileService $profile): JsonResponse
+    {
+        $validated = $request->validate(['location' => ['nullable', 'integer'], 'fresh' => ['nullable', 'boolean']]);
+
+        return $this->respond($profile->dashboard($this->userId($request), $this->range($request), $validated['location'] ?? null, $request->boolean('fresh')));
+    }
+
+    /** Look for the Google account's Business Profile locations again (the sign-in import may have found none). */
+    public function businessProfileSync(Request $request, BusinessProfileService $profile): JsonResponse
+    {
+        return $this->respond($profile->importLocations($this->userId($request)));
+    }
+
+    public function businessProfileReviews(Request $request, BusinessProfileService $profile): JsonResponse
+    {
+        $validated = $request->validate([
+            'location' => ['required', 'integer'],
+            'page_token' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        return $this->respond($profile->reviews($this->userId($request), (int) $validated['location'], $validated['page_token'] ?? null));
+    }
+
+    public function businessProfileReply(Request $request, BusinessProfileService $profile): JsonResponse
+    {
+        $validated = $request->validate([
+            'location' => ['required', 'integer'],
+            'review_id' => ['required', 'string', 'max:300', 'regex:/^[A-Za-z0-9_\-]+$/'],
+            // Google's limit for a review reply is 4,096 bytes.
+            'comment' => ['required', 'string', 'max:4096'],
+        ]);
+
+        $result = $profile->reply($this->userId($request), (int) $validated['location'], $validated['review_id'], trim($validated['comment']));
+
+        return response()->json($result, isset($result['error']) ? 422 : 200);
+    }
+
     public function inspect(Request $request): JsonResponse
     {
         $validated = $request->validate(['url' => ['required', 'url:http,https', 'max:2048']]);
@@ -141,7 +212,7 @@ class GoogleSuiteDataController extends Controller
 
         $saved = GoogleSuiteSetting::store($this->userId($request), $validated);
 
-        return response()->json(['preferences' => collect($saved)->except('account')->all(), 'message' => __('google_suite.preferences.saved')]);
+        return response()->json(['preferences' => GoogleSuiteSetting::visible($saved), 'message' => __('google_suite.preferences.saved')]);
     }
 
     public function refresh(Request $request): JsonResponse
@@ -290,5 +361,11 @@ class GoogleSuiteDataController extends Controller
     private function userId(Request $request): int
     {
         return (int) $request->user()->id;
+    }
+
+    /** Credentials stay with the workspace owner (same rule as connecting Google). */
+    private function ownerOnly(Request $request): void
+    {
+        abort_if($request->attributes->has('workspace_member'), 403, __('google_suite.speed_key.owner_only'));
     }
 }

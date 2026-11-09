@@ -669,3 +669,32 @@
   .gs-rp { min-height: 0; }
 }
 @media (max-width: 479px) { .gs-sc-tiles, .gs-kpis { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------------- Business Profile ---------------- */
+.gs-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.gs-gbp-picker .gs-input { min-width: 200px; max-width: 280px; }
+.gs-stars { color: #E8A100; letter-spacing: 1px; }
+.gs-stars-off { color: #DADCE6; }
+.gs-reviews { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.gs-review { padding: 16px 0; border-top: 1px solid var(--gs-line); display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.gs-review:first-child { border-top: 0; padding-top: 4px; }
+.gs-review-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.gs-review-text { margin: 0; white-space: pre-line; line-height: 1.55; }
+.gs-review-reply { width: 100%; background: var(--gs-wash); border-radius: 10px; padding: 10px 12px; }
+.gs-review-reply p { margin: 4px 0 0; white-space: pre-line; }
+.gs-review-form { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.gs-review-form textarea { min-height: 96px; resize: vertical; }
+
+/* ---------------- PageSpeed API key ---------------- */
+.gs-speed-key { display: flex; flex-direction: column; gap: 12px; }
+.gs-speed-key-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.gs-speed-key-row .gs-field { flex: 1 1 320px; }
+.gs-speed-key-saved { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.gs-speed-key ol { margin: 0; padding-inline-start: 18px; font-size: .84rem; color: var(--gs-muted, #5F6577); line-height: 1.6; }
+.gs-speed-key.is-attention { border-color: #F5DDB5; box-shadow: 0 0 0 3px var(--gs-warning-soft); }
+.gs-gbp-posts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.gs-gbp-post { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--gs-line); align-items: flex-start; }
+.gs-gbp-post:first-child { border-top: 0; padding-top: 0; }
+.gs-gbp-thumb { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex-shrink: 0; background: var(--gs-wash); }
+.gs-gbp-post-body { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.gs-gbp-post-body p { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }

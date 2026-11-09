@@ -2,6 +2,7 @@
 
 namespace App\Services\GoogleSuite;
 
+use App\Models\GoogleSuiteSetting;
 use App\Support\Google\GoogleApiException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
@@ -42,7 +43,7 @@ class PageSpeedService
         }
 
         try {
-            $result = ['data' => $this->analyse($url, $strategy, $locale), 'fetched_at' => now()->toIso8601String()];
+            $result = ['data' => $this->analyse($url, $strategy, $locale, self::keyFor($userId)), 'fetched_at' => now()->toIso8601String()];
         } catch (GoogleApiException $e) {
             return ['error' => $e->toArray()];
         }
@@ -58,22 +59,29 @@ class PageSpeedService
         return Cache::get($this->key($userId, $url, $strategy));
     }
 
-    public function analyse(string $url, string $strategy, string $locale): array
+    /**
+     * @param  array{key: ?string, own: bool}|null  $apiKey  from keyFor(); null uses the platform key
+     */
+    public function analyse(string $url, string $strategy, string $locale, ?array $apiKey = null): array
     {
-        $key = self::apiKey();
+        $apiKey ??= ['key' => self::apiKey(), 'own' => false];
+        $key = $apiKey['key'];
+        $own = $apiKey['own'];
         $query = array_filter([
             'url' => $url,
             'strategy' => strtoupper($strategy),
             'category' => 'PERFORMANCE',
             'locale' => $locale === 'ar' ? 'ar' : 'en',
-            'key' => $key,
         ]);
 
         // One Lighthouse run commonly takes 15-40 seconds.
         @set_time_limit(120);
 
         try {
-            $response = Http::acceptJson()->timeout(90)->get(self::API, $query);
+            // The key goes in a header, never the URL: URLs end up in proxy logs and exception messages.
+            $response = Http::acceptJson()->timeout(90)
+                ->withHeaders(array_filter(['X-goog-api-key' => $key]))
+                ->get(self::API, $query);
         } catch (ConnectionException $e) {
             throw new GoogleApiException(GoogleApiException::PROVIDER_OUTAGE, 'PageSpeed connection failed');
         }
@@ -83,6 +91,10 @@ class PageSpeedService
             $reason = (string) $response->json('error.details.0.reason', $response->json('error.errors.0.reason', ''));
 
             $code = match (true) {
+                // The workspace's own key was refused: they fix it on the page, not us.
+                // 401/403: bad, restricted or API-not-enabled key; 400 API_KEY_INVALID: mistyped key.
+                $own && (in_array($response->status(), [401, 403], true)
+                    || ($response->status() === 400 && (str_contains($reason, 'API_KEY') || str_contains($message, 'API key')))) => GoogleApiException::PAGESPEED_KEY_INVALID,
                 // Without a key every server shares Google's tiny anonymous quota.
                 $response->status() === 429 => $key ? GoogleApiException::PAGESPEED_QUOTA : GoogleApiException::PAGESPEED_SETUP,
                 // Bad/restricted key, or the PageSpeed API isn't enabled on the key's Cloud project.
@@ -94,9 +106,9 @@ class PageSpeedService
                 default => GoogleApiException::BAD_REQUEST,
             };
 
-            if ($code !== GoogleApiException::PAGE_UNREACHABLE) {
+            if (! in_array($code, [GoogleApiException::PAGE_UNREACHABLE, GoogleApiException::PAGESPEED_KEY_INVALID], true)) {
                 Log::warning('Google Suite: PageSpeed request failed', [
-                    'status' => $response->status(), 'reason' => $reason, 'message' => $message, 'api_key_configured' => (bool) $key,
+                    'status' => $response->status(), 'reason' => $reason, 'message' => $message, 'api_key_configured' => (bool) $key, 'own_key' => $own,
                 ]);
             }
 
@@ -106,7 +118,20 @@ class PageSpeedService
         return $this->map($response->json() ?? [], $strategy);
     }
 
-    /** Admin setting google.pagespeed.api_key (Admin › APIs), else GOOGLE_PAGESPEED_API_KEY. */
+    /**
+     * The key a workspace's tests run with: its own saved key first (its own
+     * Google quota), else the platform key.
+     *
+     * @return array{key: ?string, own: bool}
+     */
+    public static function keyFor(int $userId): array
+    {
+        $own = GoogleSuiteSetting::pageSpeedKey($userId);
+
+        return $own !== null ? ['key' => $own, 'own' => true] : ['key' => self::apiKey(), 'own' => false];
+    }
+
+    /** Platform key: admin setting google.pagespeed.api_key (Admin › APIs), else GOOGLE_PAGESPEED_API_KEY. */
     public static function apiKey(): ?string
     {
         return adminSetting('google.pagespeed.api_key') ?: config('services.google_pagespeed.key') ?: null;

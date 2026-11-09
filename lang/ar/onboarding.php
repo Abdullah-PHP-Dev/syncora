@@ -1,0 +1,60 @@
+<?php
+
+// معالج التسجيل (auth/register - RegisterWizard.vue) ورسالة الترحيب.
+return [
+    'title' => 'أنشئ مساحة عملك',
+    'subtitle' => 'خطوتان سريعتان وتصبح جاهزاً لربط قنواتك.',
+    'steps' => [
+        'organization' => 'المنظمة',
+        'account' => 'الحساب',
+        'progress' => 'الخطوة :current من :total',
+    ],
+    'organization' => [
+        'heading' => 'ما اسم منظمتك؟',
+        'help' => 'سيصبح هذا اسم مساحة عملك، ويمكنك تغييره لاحقاً من الملف التجاري.',
+    ],
+    'account' => [
+        'heading' => 'أنشئ بيانات الدخول',
+        'help' => 'ستكون مالك :organization.',
+    ],
+    'fields' => [
+        'organization_name' => 'اسم المنظمة',
+        'organization_placeholder' => 'مثال: شركة قهوة الرياض',
+        'email' => 'البريد الإلكتروني للعمل',
+        'password' => 'كلمة المرور',
+        'password_placeholder' => 'أنشئ كلمة مرور قوية',
+        'password_confirmation' => 'تأكيد كلمة المرور',
+        'password_confirmation_placeholder' => 'أعد كتابة كلمة المرور',
+    ],
+    'password_hint' => 'استخدم 8 أحرف على الأقل.',
+    'show_password' => 'إظهار كلمة المرور',
+    'hide_password' => 'إخفاء كلمة المرور',
+    'terms_prefix' => 'أوافق على',
+    'terms' => 'شروط الخدمة',
+    'and' => 'و',
+    'privacy' => 'سياسة الخصوصية',
+    'next' => 'التالي',
+    'previous' => 'السابق',
+    'register' => 'تسجيل',
+    'registering' => 'جارٍ إنشاء مساحة عملك…',
+    'have_account' => 'لديك حساب بالفعل؟',
+    'sign_in' => 'تسجيل الدخول',
+    'legal' => 'تبدأ مساحة عملك على الباقة المجانية، ويمكنك الترقية في أي وقت.',
+    'check_details' => 'يرجى مراجعة بياناتك.',
+    'validation' => [
+        'organization_required' => 'أدخل اسم منظمتك.',
+        'organization_min' => 'استخدم حرفين على الأقل.',
+        'organization_max' => 'استخدم 150 حرفاً أو أقل.',
+        'organization_chars' => 'لا يُسمح باستخدام الرمزين < و >.',
+        'email_required' => 'أدخل بريدك الإلكتروني.',
+        'email_invalid' => 'أدخل بريداً إلكترونياً صحيحاً، مثل you@company.com.',
+        'password_required' => 'أنشئ كلمة مرور.',
+        'password_min' => 'استخدم 8 أحرف على الأقل.',
+        'password_mismatch' => 'كلمتا المرور غير متطابقتين.',
+        'terms' => 'وافق على شروط الخدمة وسياسة الخصوصية للمتابعة.',
+    ],
+    'errors' => [
+        'unavailable' => 'التسجيل غير متاح مؤقتاً. تم إبلاغ فريقنا - يرجى المحاولة بعد قليل أو التواصل مع الدعم.',
+    ],
+    'welcome' => 'مرحباً بك في Socialeaz! أصبحت :organization جاهزة على باقة :plan. اربط قناتك الأولى للبدء.',
+];

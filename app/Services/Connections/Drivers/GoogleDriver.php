@@ -6,6 +6,7 @@ use App\Models\SocialAccount;
 use App\Models\SocialConnection;
 use App\Services\GoogleSuite\GoogleSuiteAuth;
 use App\Services\SocialAuth\SocialAuthService;
+use App\Support\Connections\ConnectionFlags;
 use App\Support\Connections\GoogleClient;
 use App\Support\Connections\GrantedScopes;
 use Illuminate\Support\Facades\DB;
@@ -47,15 +48,19 @@ class GoogleDriver extends BaseDriver
     public function presentation(): array
     {
         return [
-            'subtitle' => __('connections.platforms.google.subtitle'),
+            'subtitle' => __(ConnectionFlags::on('google.business_profile') ? 'connections.platforms.google.subtitle_gbp' : 'connections.platforms.google.subtitle'),
             'icons' => [['icon' => 'bxl-google', 'brand' => 'google'], ['icon' => 'bxl-youtube', 'brand' => 'youtube']],
             'connect_label' => __('connections.platforms.google.connect_label'),
-            'empty_title' => __('connections.platforms.google.empty_title'),
-            'empty_text' => __('connections.platforms.google.empty_text'),
+            'empty_title' => __(ConnectionFlags::on('google.business_profile') ? 'connections.platforms.google.empty_title_gbp' : 'connections.platforms.google.empty_title'),
+            'empty_text' => __(ConnectionFlags::on('google.business_profile') ? 'connections.platforms.google.empty_text_gbp' : 'connections.platforms.google.empty_text'),
             'benefits' => ['posting', 'ads', 'insights'],
             'asset_groups' => [
                 'youtube' => ['label' => __('connections.platforms.google.groups.youtube'), 'icon' => 'bxl-youtube', 'brand' => 'youtube', 'capabilities' => ['posting', 'insights']],
                 'google_ads' => ['label' => __('connections.platforms.google.groups.google_ads'), 'icon' => 'bx-bullseye', 'brand' => 'google', 'capabilities' => ['ads']],
+                // Imported at sign-in once business.manage is granted (SocialAuthService::connectBusinessLocations).
+                ...(ConnectionFlags::on('google.business_profile') ? ['business_profile' => [
+                    'label' => __('connections.platforms.google.groups.business_profile'), 'icon' => 'bx-store', 'brand' => 'google', 'capabilities' => ['posting', 'insights'],
+                ]] : []),
             ],
             'step_icons' => [
                 self::OAUTH => ['icon' => 'bxl-google', 'brand' => 'google'],
@@ -74,7 +79,12 @@ class GoogleDriver extends BaseDriver
 
     public function assetKind(SocialAccount $asset): string
     {
-        return $asset->platform === 'youtube' ? 'youtube' : 'google_ads';
+        return match (true) {
+            $asset->platform === 'youtube' => 'youtube',
+            // Business Profile locations share platform 'google' with Ads accounts.
+            $asset->account_type === 'location' => 'business_profile',
+            default => 'google_ads',
+        };
     }
 
     public function steps(): array
@@ -84,7 +94,7 @@ class GoogleDriver extends BaseDriver
         return [[
             'key' => self::OAUTH,
             'label' => __('connections.platforms.google.steps.oauth.label'),
-            'description' => __('connections.platforms.google.steps.oauth.description'),
+            'description' => __(ConnectionFlags::on('google.business_profile') ? 'connections.platforms.google.steps.oauth.description_gbp' : 'connections.platforms.google.steps.oauth.description'),
             'primary' => true,
             'available' => $available,
         ], [
@@ -157,10 +167,16 @@ class GoogleDriver extends BaseDriver
         // would also cut the others on the same client (e.g. dropping
         // Analytics would stop YouTube posting). Only revoke when this is
         // the last live Google consent; otherwise forget the tokens locally.
+        // The grant is also per Google account: another account's consent is a
+        // different grant. Unidentified consents (before openid was requested)
+        // are assumed to share it, which only ever skips a revoke.
         $shared = SocialConnection::where(['user_id' => $connection->user_id, 'platform' => 'google'])
             ->whereKeyNot($connection->id)
             ->where('provider_app', $connection->provider_app)
             ->whereIn('status', SocialConnection::USABLE)
+            ->when($connection->provider_account_id, fn ($q) => $q->where(fn ($q) => $q
+                ->whereNull('provider_account_id')
+                ->orWhere('provider_account_id', $connection->provider_account_id)))
             ->exists();
 
         if ($connection->step === self::ANALYTICS) {
