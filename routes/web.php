@@ -190,6 +190,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
             Route::get('/', [\App\Http\Controllers\WorkspaceController::class, 'index'])->name('index');
             Route::post('/', [\App\Http\Controllers\WorkspaceController::class, 'store'])->middleware('throttle:20,1')->name('store');
             Route::post('{workspace}/open', [\App\Http\Controllers\WorkspaceController::class, 'open'])->whereNumber('workspace')->name('open');
+            Route::patch('{workspace}', [\App\Http\Controllers\WorkspaceController::class, 'update'])->whereNumber('workspace')->middleware('throttle:30,1')->name('update');
             Route::post('invitations/{member}/{action}', [\App\Http\Controllers\WorkspaceController::class, 'respond'])->whereNumber('member')->whereIn('action', ['accept', 'decline'])->name('respond');
         });
         Route::prefix('workspaces')->name('seller-workspaces.')->controller(\App\Http\Controllers\Admin\SellerTeamController::class)->group(function () {

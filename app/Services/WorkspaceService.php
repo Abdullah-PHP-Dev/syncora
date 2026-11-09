@@ -11,7 +11,9 @@ use App\Models\Workspace;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -67,8 +69,19 @@ class WorkspaceService
     public function create(User $owner, array $data): Workspace
     {
         abort_unless($this->canOwn($owner), 403);
+        $logo = isset($data['logo']) ? $this->storeLogo($data['logo'], $owner) : null;
 
-        return DB::transaction(function () use ($owner, $data) {
+        try {
+            return $this->createRecords($owner, $data, $logo);
+        } catch (\Throwable $e) {
+            $this->deleteLogo($logo);
+            throw $e;
+        }
+    }
+
+    private function createRecords(User $owner, array $data, ?string $logo): Workspace
+    {
+        return DB::transaction(function () use ($owner, $data, $logo) {
             // Serialize creation per owner so two tabs can't both take the last slot.
             User::whereKey($owner->id)->lockForUpdate()->first();
             $this->ensureDefault($owner);
@@ -92,6 +105,7 @@ class WorkspaceService
                 'owner_id' => $owner->id,
                 'account_id' => $account->id,
                 'name' => $name,
+                'logo_path' => $logo,
                 'kind' => $data['kind'],
                 'industry' => $data['industry'] ?? null,
                 'country' => $data['country'] ?? null,
@@ -102,6 +116,70 @@ class WorkspaceService
                 'last_opened_at' => now(),
             ]);
         });
+    }
+
+    /** Change a workspace's details. Only its owner can; the default workspace keeps the person's own name. */
+    public function update(User $owner, Workspace $workspace, array $data): Workspace
+    {
+        abort_unless($workspace->owner_id === $owner->id && $this->canOwn($owner), 404);
+        $previousLogo = $workspace->logo_path;
+        $newLogo = isset($data['logo']) ? $this->storeLogo($data['logo'], $owner) : null;
+        $logo = $newLogo ?? (! empty($data['remove_logo']) ? null : $previousLogo);
+
+        try {
+            $saved = $this->updateRecords($workspace, $data, $logo);
+        } catch (\Throwable $e) {
+            $this->deleteLogo($newLogo);
+            throw $e;
+        }
+        if ($previousLogo && $previousLogo !== $logo) {
+            $this->deleteLogo($previousLogo);
+        }
+
+        return $saved;
+    }
+
+    private function updateRecords(Workspace $workspace, array $data, ?string $logo): Workspace
+    {
+        return DB::transaction(function () use ($workspace, $data, $logo) {
+            $name = trim(strip_tags($data['name']));
+            $workspace->update([
+                'logo_path' => $logo,
+                'name' => $name,
+                'kind' => $data['kind'],
+                'industry' => $data['industry'] ?? null,
+                'country' => $data['country'] ?? null,
+                'currency' => $data['currency'] ?? null,
+                'timezone' => $data['timezone'] ?? null,
+                'content_language' => $data['content_language'] ?? null,
+                'goals' => array_values($data['goals'] ?? []),
+            ]);
+            // A brand/client account is only this workspace: keep its name in step
+            // (team members see it as the workspace name).
+            if (! $workspace->isDefault()) {
+                $workspace->account->update(['name' => $name]);
+            }
+            BusinessProfile::updateOrCreate(['user_id' => $workspace->account_id], ['business_name' => $name]);
+
+            return $workspace->fresh();
+        });
+    }
+
+    /** Public file, named by the server (never by the uploader). */
+    private function storeLogo(UploadedFile $file, User $owner): string
+    {
+        $extension = $file->guessExtension() ?: 'png';
+        $path = 'uploads/workspace-logos/'.$owner->id.'/'.Str::uuid().'.'.$extension;
+        Storage::disk(config('workspaces.logo_disk'))->put($path, file_get_contents($file->getRealPath()), ['visibility' => 'public']);
+
+        return $path;
+    }
+
+    private function deleteLogo(?string $path): void
+    {
+        if ($path) {
+            rescue(fn () => Storage::disk(config('workspaces.logo_disk'))->delete($path), null, false);
+        }
     }
 
     /** Open one of the user's own workspaces (owner check here, never from input alone). */
@@ -123,6 +201,15 @@ class WorkspaceService
         }
 
         return $workspace;
+    }
+
+    /** Sign-in / sign-up with a single workspace: open it, so it is named everywhere. */
+    public function openDefault(Request $request, User $user): void
+    {
+        $default = $this->canOwn($user) ? Workspace::where('account_id', $user->id)->where('owner_id', $user->id)->first() : null;
+        if ($default) {
+            $request->session()->put(self::SESSION_KEY, $default->id);
+        }
     }
 
     /** More than one place to work: show the picker after sign-in. */

@@ -121,7 +121,9 @@ class SubscriptionController extends Controller
 		$currentSubscription = $policy->current($user);
 		$currentBundleId     = $currentSubscription ? $currentSubscription->bundle_id : null;
 		$packages            = Bundle::where('is_active', true)->where('is_free', false)->orderBy('sort_order')->get();
-		$packages            = $packages->values()->map(function ($package, $index) use ($currentBundleId, $currentSubscription, $policy) {
+        // The administrator's feature catalog (Plans > Features): what each plan includes, in admin order.
+        $catalog = \App\Models\PackageFeature::where('is_active', true)->orderBy('sort_order')->orderBy('id')->get();
+		$packages            = $packages->values()->map(function ($package, $index) use ($currentBundleId, $currentSubscription, $policy, $catalog) {
 			$monthlyPrice  = (float)$package->price;
 			$yearlyPrice   = (float)data_get($package->meta, 'yearly_price', $monthlyPrice * 12);
 			$monthlyPlanId = $package->monthly_plan_id ?? $package->id;
@@ -149,6 +151,12 @@ class SubscriptionController extends Controller
 				],
 
 				'display_features' => $package->display_features,
+                'entitlements' => $catalog->map(fn ($feature) => [
+                    'key' => $feature->key,
+                    'name' => $feature->name,
+                    'type' => $feature->type,
+                    'value' => ($package->entitlement_settings ?? [])[$feature->key] ?? null,
+                ])->values(),
                 'is_popular' => $package->is_popular,
                 'features'       => $features,
 				'is_current'     => $isCurrent,

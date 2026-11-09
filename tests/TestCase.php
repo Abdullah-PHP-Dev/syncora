@@ -36,6 +36,9 @@ abstract class TestCase extends BaseTestCase
                 \Illuminate\Support\Facades\DB::table('package_features')->where('key', 'workspaces')->delete();
             }
         }
+        if ($schema->hasTable('workspaces') && ! $schema->hasColumn('workspaces', 'logo_path')) {
+            (require database_path('migrations/2026_11_10_140000_add_logo_to_workspaces.php'))->up();
+        }
 
         return parent::call($method, $uri, $parameters, $cookies, $files, $server, $content);
     }

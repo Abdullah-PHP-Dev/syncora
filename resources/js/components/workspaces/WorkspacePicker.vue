@@ -36,11 +36,12 @@
       <div class="wp-grid">
         <article v-for="w in visible" :key="w.id" class="wp-card" :class="{ 'is-current': w.current }">
           <div class="wp-card-head">
-            <span class="wp-avatar" :style="{ background: color(w.name) }">{{ initials(w.name) }}</span>
+            <span class="wp-avatar" :class="{ 'has-logo': w.logo_url }" :style="w.logo_url ? {} : { background: color(w.name) }"><img v-if="w.logo_url" :src="w.logo_url" alt=""><template v-else>{{ initials(w.name) }}</template></span>
             <div class="wp-card-title">
-              <h3 :title="w.name">{{ w.name }} <span v-if="w.current" class="wp-tag">{{ t('current') }}</span><span v-else-if="w.id === lastUsedId" class="wp-tag">{{ t('last_used') }}</span></h3>
+              <h3 :title="w.name"><span class="wp-name">{{ w.name }}</span><span v-if="w.current" class="wp-tag">{{ t('current') }}</span><span v-else-if="w.id === lastUsedId" class="wp-tag">{{ t('last_used') }}</span></h3>
               <p>{{ t('kinds.' + w.kind) }} · {{ t('roles.' + w.role) }}</p>
             </div>
+            <button v-if="w.edit_url" type="button" class="wp-icon-btn wp-edit" :title="t('edit.button')" :aria-label="t('edit.button') + ': ' + w.name" @click="openEdit(w)"><i class="bx bx-pencil"></i></button>
           </div>
           <div v-if="w.platforms.length" class="wp-platforms">
             <span v-for="p in w.platforms.slice(0, 7)" :key="p" class="wp-pf" :style="pfStyle(p)" :title="p">{{ pfLabel(p) }}</span>
@@ -53,8 +54,10 @@
             </span>
             <form method="POST" :action="w.open_url">
               <input type="hidden" name="_token" :value="csrf">
-              <button type="submit" class="wp-btn" :class="w.platforms.length ? 'wp-btn-secondary' : 'wp-btn-primary'">
-                {{ w.platforms.length ? t('open') : t('finish_setup') }}
+              <!-- Owners finish setup on Connections; team members can't manage connections. -->
+              <input v-if="needsSetup(w)" type="hidden" name="to" value="setup">
+              <button type="submit" class="wp-btn" :class="needsSetup(w) ? 'wp-btn-primary' : 'wp-btn-secondary'">
+                {{ needsSetup(w) ? t('finish_setup') : t('open') }}
               </button>
             </form>
           </div>
@@ -78,17 +81,17 @@
     <!-- Create a workspace -->
     <transition name="wp-fade">
       <div v-if="creating" class="wp-backdrop" @click.self="closeCreate">
-        <form class="wp-modal" role="dialog" aria-modal="true" :aria-label="t('create.title')" novalidate @submit.prevent="submit" @keydown.esc="closeCreate">
+        <form class="wp-modal" role="dialog" aria-modal="true" :aria-label="editing ? t('edit.title') : t('create.title')" novalidate @submit.prevent="submit" @keydown.esc="closeCreate">
           <div class="wp-modal-main">
             <header class="wp-modal-head">
               <div>
-                <h2>{{ t('create.title') }}</h2>
-                <p>{{ t('create.subtitle') }}</p>
+                <h2>{{ editing ? t('edit.title') : t('create.title') }}</h2>
+                <p>{{ editing ? t('edit.subtitle') : t('create.subtitle') }}</p>
               </div>
               <button type="button" class="wp-icon-btn" :aria-label="t('create.cancel')" @click="closeCreate"><i class="bx bx-x"></i></button>
             </header>
 
-            <div v-if="atLimit || errors.workspace" class="wp-alert" role="alert">
+            <div v-if="!editing && (atLimit || errors.workspace)" class="wp-alert" role="alert">
               <i class="bx bx-crown"></i>
               <div><strong>{{ t('upgrade_title') }}</strong><span>{{ errors.workspace || tc('limit', picker.limit) }}</span></div>
               <a :href="picker.upgrade_url" class="wp-btn wp-btn-primary sm">{{ t('upgrade') }}</a>
@@ -100,6 +103,26 @@
               <input ref="name" v-model="form.name" type="text" maxlength="150" :placeholder="t('create.name_placeholder')" :aria-invalid="errors.name ? 'true' : 'false'" @input="errors.name = null">
               <small v-if="errors.name" class="wp-error">{{ errors.name }}</small>
             </label>
+
+            <div class="wp-field">
+              <span>{{ t('create.logo') }} <small class="wp-optional">{{ t('create.logo_optional') }}</small></span>
+              <div class="wp-logo">
+                <span class="wp-avatar lg" :class="{ 'has-logo': logoPreview }" :style="logoPreview ? {} : { background: color(form.name || '?') }">
+                  <img v-if="logoPreview" :src="logoPreview" alt=""><template v-else>{{ initials(form.name || '?') }}</template>
+                </span>
+                <div class="wp-logo-actions">
+                  <div class="wp-logo-buttons">
+                    <label class="wp-btn wp-btn-secondary sm wp-upload">
+                      <input ref="logo" type="file" accept="image/png,image/jpeg,image/webp" class="sr-only" @change="pickLogo">
+                      <i class="bx bx-upload" aria-hidden="true"></i> {{ logoPreview ? t('create.logo_change') : t('create.logo_upload') }}
+                    </label>
+                    <button v-if="logoPreview" type="button" class="wp-btn wp-btn-ghost sm" @click="clearLogo">{{ t('create.logo_remove') }}</button>
+                  </div>
+                  <small class="wp-help">{{ t('create.logo_help') }}</small>
+                </div>
+              </div>
+              <small v-if="errors.logo" class="wp-error">{{ errors.logo }}</small>
+            </div>
 
             <fieldset class="wp-field">
               <legend>{{ t('create.for') }}</legend>
@@ -157,12 +180,13 @@
             </fieldset>
 
             <footer class="wp-modal-foot">
-              <small>{{ t('create.invite_later') }}</small>
+              <small>{{ editing ? '' : t('create.invite_later') }}</small>
               <button type="button" class="wp-btn wp-btn-secondary" @click="closeCreate">{{ t('create.cancel') }}</button>
-              <button type="submit" class="wp-btn wp-btn-primary" :disabled="saving || atLimit">
+              <button type="submit" class="wp-btn wp-btn-primary" :disabled="saving || (!editing && atLimit)">
                 <i v-if="saving" class="bx bx-loader-alt bx-spin"></i>
-                {{ saving ? t('create.creating') : t('create.submit') }}
-                <i v-if="!saving" class="bx bx-right-arrow-alt wp-flip"></i>
+                <template v-if="editing">{{ saving ? t('edit.saving') : t('edit.submit') }}</template>
+                <template v-else>{{ saving ? t('create.creating') : t('create.submit') }}</template>
+                <i v-if="!saving && !editing" class="bx bx-right-arrow-alt wp-flip"></i>
               </button>
             </footer>
           </div>
@@ -170,7 +194,7 @@
           <aside class="wp-modal-side">
             <p class="wp-side-label">{{ t('create.preview') }}</p>
             <div class="wp-preview">
-              <span class="wp-avatar" :style="{ background: color(form.name || '?') }">{{ initials(form.name || '?') }}</span>
+              <span class="wp-avatar" :class="{ 'has-logo': logoPreview }" :style="logoPreview ? {} : { background: color(form.name || '?') }"><img v-if="logoPreview" :src="logoPreview" alt=""><template v-else>{{ initials(form.name || '?') }}</template></span>
               <div>
                 <strong>{{ form.name || t('create.name_placeholder') }}</strong>
                 <small>{{ [t('kinds.' + form.kind), form.industry ? t('industries.' + form.industry) : null, currency].filter(Boolean).join(' · ') }}</small>
@@ -184,7 +208,7 @@
               </li>
             </ul>
             <p v-else class="wp-help">{{ t('create.pick_goals') }}</p>
-            <div class="wp-next">
+            <div v-if="!editing" class="wp-next">
               <p class="wp-side-label">{{ t('create.next') }}</p>
               <ol>
                 <li v-for="(s, i) in nextSteps" :key="i"><span>{{ i + 1 }}</span> {{ s }}</li>
@@ -222,14 +246,17 @@ export default {
     return {
       query: '',
       creating: false,
+      // The card being edited, or null when creating.
+      editing: null,
+      // Logo: the picked file, what the dialog shows, and "take the current one off".
+      logoFile: null,
+      logoPreview: null,
+      removeLogo: false,
       saving: false,
       flash: this.flashText,
       errors: {},
-      form: {
-        name: '', kind: 'client', industry: '', country: 'SA',
-        timezone: this.picker.options.timezones.includes(zone) ? zone : 'Asia/Riyadh',
-        content_language: this.picker.locale === 'ar' ? 'ar' : 'both', goals: []
-      },
+      zone: this.picker.options.timezones.includes(zone) ? zone : 'Asia/Riyadh',
+      form: this.blankForm(this.picker.options.timezones.includes(zone) ? zone : 'Asia/Riyadh'),
       csrf: (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
     };
   },
@@ -269,6 +296,7 @@ export default {
       const seed = String(name).split('').reduce((n, c) => n + c.charCodeAt(0), 0);
       return COLORS[seed % COLORS.length];
     },
+    needsSetup(w) { return w.role === 'owner' && !w.platforms.length; },
     pfLabel(p) { return (MARKS[p] || [String(p).slice(0, 2).toUpperCase()])[0]; },
     pfStyle(p) {
       const m = MARKS[p] || [null, '#64748B', '#fff'];
@@ -285,11 +313,65 @@ export default {
       if (s < 86400) return this.t('ago.hours', { count: Math.round(s / 3600) });
       return this.t('ago.days', { count: Math.round(s / 86400) });
     },
+    blankForm(zone) {
+      return {
+        name: '', kind: 'client', industry: '', country: 'SA', timezone: zone || this.zone,
+        content_language: this.picker.locale === 'ar' ? 'ar' : 'both', goals: []
+      };
+    },
     openCreate() {
+      if (this.editing) { this.editing = null; this.form = this.blankForm(); }
+      this.resetLogo(null);
       this.creating = true;
       this.errors = {};
       document.body.style.overflow = 'hidden';
       this.$nextTick(() => this.$refs.name && this.$refs.name.focus());
+    },
+    openEdit(w) {
+      const d = w.details || {};
+      const blank = this.blankForm();
+      this.editing = w;
+      // Older workspaces may have no country, time zone or language yet: offer the defaults.
+      this.form = {
+        name: d.name || w.name, kind: d.kind || w.kind, industry: d.industry || '',
+        country: d.country || blank.country, timezone: d.timezone || blank.timezone,
+        content_language: d.content_language || blank.content_language, goals: (d.goals || []).slice()
+      };
+      this.resetLogo(d.logo_url || w.logo_url || null);
+      this.creating = true;
+      this.errors = {};
+      document.body.style.overflow = 'hidden';
+      this.$nextTick(() => this.$refs.name && this.$refs.name.focus());
+    },
+    resetLogo(url) {
+      if (this.logoPreview && this.logoPreview.startsWith('blob:')) URL.revokeObjectURL(this.logoPreview);
+      this.logoFile = null;
+      this.logoPreview = url;
+      this.removeLogo = false;
+      if (this.$refs.logo) this.$refs.logo.value = '';
+    },
+    // Checked here for a quick answer; the server checks again (type, size, dimensions).
+    pickLogo(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+        this.$set(this.errors, 'logo', this.t('create.logo_type'));
+        event.target.value = '';
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        this.$set(this.errors, 'logo', this.t('create.logo_size'));
+        event.target.value = '';
+        return;
+      }
+      this.resetLogo(URL.createObjectURL(file));
+      this.logoFile = file;
+      this.$set(this.errors, 'logo', null);
+    },
+    clearLogo() {
+      const hadSaved = this.editing && !this.logoFile && this.logoPreview;
+      this.resetLogo(null);
+      this.removeLogo = !!hadSaved || !!this.editing;
     },
     closeCreate() {
       if (this.saving) return;
@@ -301,9 +383,45 @@ export default {
       if (!this.form.name.trim()) { this.errors = { name: this.t('create.name_required') }; return; }
       this.saving = true;
       this.errors = {};
-      const payload = { ...this.form, industry: this.form.industry || null };
-      window.axios.post(this.picker.store_url, payload)
-        .then(({ data }) => { window.location.href = data.redirect; })
+      // Multipart, so the logo travels with the details (PATCH is sent as POST + _method).
+      const payload = new FormData();
+      ['name', 'kind', 'country', 'timezone', 'content_language'].forEach(k => payload.append(k, this.form[k] || ''));
+      if (this.form.industry) payload.append('industry', this.form.industry);
+      this.form.goals.forEach(g => payload.append('goals[]', g));
+      if (this.logoFile) payload.append('logo', this.logoFile);
+      if (this.removeLogo) payload.append('remove_logo', '1');
+      const card = this.editing;
+      if (card) payload.append('_method', 'PATCH');
+      const request = window.axios.post(card ? card.edit_url : this.picker.store_url, payload);
+      request
+        .then(({ data }) => {
+          if (!card) { window.location.href = data.redirect; return; }
+          // Saved: update the card in place.
+          Object.assign(card, { name: data.workspace.name, logo_url: data.workspace.logo_url, kind: data.workspace.kind, industry: data.workspace.industry, details: data.workspace });
+          this.saving = false;
+          this.closeCreate();
+          this.editing = null;
+          this.flash = data.message;
+          // The sidebar switcher is server-rendered: follow the new name of the open workspace.
+          const sidebar = card.current && document.querySelector('.ov-ws-text strong');
+          if (sidebar) {
+            sidebar.textContent = data.workspace.name;
+            const avatar = document.querySelector('.ov-ws-switch .ov-ws-avatar');
+            if (avatar) {
+              avatar.textContent = '';
+              if (data.workspace.logo_url) {
+                const img = document.createElement('img');
+                img.src = data.workspace.logo_url;
+                img.alt = '';
+                avatar.appendChild(img);
+                avatar.classList.add('has-logo');
+              } else {
+                avatar.textContent = this.initials(data.workspace.name);
+                avatar.classList.remove('has-logo');
+              }
+            }
+          }
+        })
         .catch((error) => {
           this.saving = false;
           const bag = (error.response && error.response.status === 422 && error.response.data.errors) || null;
@@ -312,7 +430,7 @@ export default {
             Object.keys(bag).forEach(k => { flat[k.split('.')[0]] = [].concat(bag[k])[0]; });
             this.errors = flat;
           } else {
-            this.errors = { general: this.t('create.failed') };
+            this.errors = { general: this.t(card ? 'edit.failed' : 'create.failed') };
           }
         });
     }
@@ -320,6 +438,14 @@ export default {
 
   created() {
     this.picker.workspaces.forEach(w => { w.platforms = this.sortPlatforms(w.platforms || []); });
+  },
+
+  mounted() {
+    // Sidebar "New workspace" links here with ?create=1.
+    if (this.picker.can_create && new URLSearchParams(window.location.search).get('create') === '1') {
+      this.openCreate();
+      history.replaceState(null, '', window.location.pathname);
+    }
   }
 };
 </script>
@@ -375,9 +501,25 @@ export default {
 .wp-card { display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 210px; padding: 20px; border: 1px solid var(--line); border-radius: 20px; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
 .wp-card.is-current { border-color: #C9A8FF; box-shadow: 0 0 0 3px var(--p50); }
 .wp-card-head { display: flex; align-items: center; gap: 12px; }
-.wp-avatar { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 12px; color: #fff; font-size: 15px; font-weight: 700; }
-.wp-card-title { min-width: 0; }
-.wp-card-title h3 { margin: 0; font-size: 16px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wp-avatar { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 12px; color: #fff; font-size: 15px; font-weight: 700; overflow: hidden; }
+.wp-avatar.lg { width: 64px; height: 64px; border-radius: 16px; font-size: 20px; }
+.wp-avatar.has-logo { background: #fff; border: 1px solid var(--line); }
+.wp-avatar img { width: 100%; height: 100%; object-fit: contain; }
+.wp-logo { display: flex; align-items: center; gap: 16px; }
+.wp-logo-actions { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.wp-logo-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.wp-logo-actions .wp-help { margin: 0; }
+.wp-upload { position: relative; cursor: pointer; }
+.wp-upload:focus-within { outline: 3px solid rgba(114, 10, 255, .35); outline-offset: 2px; }
+.wp-optional { color: var(--ink5); font-weight: 500; }
+.wp-btn-ghost { background: transparent; color: var(--ink5); }
+.wp-btn-ghost:hover { background: #F5F6FB; color: #B91C1C; }
+.wp-card-title { min-width: 0; flex: 1; }
+.wp-edit { flex-shrink: 0; align-self: flex-start; width: 34px; height: 34px; border-radius: 10px; font-size: 17px; color: var(--ink5); }
+.wp-edit:hover { color: var(--p600); border-color: #D9C6FF; background: var(--p50); }
+.wp-card-title h3 { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; margin: 0; font-size: 16px; font-weight: 650; }
+.wp-name { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wp-card-title h3 .wp-tag { margin-inline-start: 0; }
 .wp-card-title p { margin: 2px 0 0; color: var(--ink5); font-size: 13px; }
 .wp-tag { display: inline-block; margin-inline-start: 6px; padding: 2px 8px; border-radius: 999px; background: var(--p50); color: var(--p600); font-size: 11px; font-weight: 600; vertical-align: middle; }
 .wp-platforms { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -403,8 +545,11 @@ export default {
 
 /* Modal */
 .wp-backdrop { position: fixed; inset: 0; z-index: 1090; display: grid; place-items: center; padding: 24px; background: rgba(15,23,42,.5); overflow-y: auto; }
-.wp-modal { display: grid; grid-template-columns: minmax(0, 1fr) 300px; width: min(940px, 100%); max-height: calc(100vh - 48px); margin: 0; border-radius: 24px; background: #fff; box-shadow: 0 24px 60px rgba(15,23,42,.25); overflow: hidden; }
-.wp-modal-main { display: flex; flex-direction: column; gap: 16px; padding: 28px 32px; overflow-y: auto; }
+/* Each column is capped at the modal's height and scrolls on its own; a grid row sized to its content
+   would otherwise outgrow the modal and get clipped (footer buttons unreachable on short screens). */
+.wp-modal { --wp-modal-max: calc(100vh - 48px); display: grid; grid-template-columns: minmax(0, 1fr) 300px; width: min(940px, 100%); max-height: var(--wp-modal-max); margin: 0; border-radius: 24px; background: #fff; box-shadow: 0 24px 60px rgba(15,23,42,.25); overflow: hidden; }
+@supports (height: 100dvh) { .wp-modal { --wp-modal-max: calc(100dvh - 48px); } }
+.wp-modal-main { --wp-pad-y: 28px; --wp-pad-x: 32px; display: flex; flex-direction: column; gap: 16px; max-height: var(--wp-modal-max); padding: var(--wp-pad-y) var(--wp-pad-x); overflow-y: auto; overscroll-behavior: contain; }
 .wp-modal-head { display: flex; justify-content: space-between; gap: 12px; }
 .wp-modal-head h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; }
 .wp-modal-head p { margin: 0; color: var(--ink5); font-size: 14px; }
@@ -435,14 +580,16 @@ export default {
 .wp-goal.is-picked { border-color: var(--p600); background: var(--p50); }
 .wp-check { display: grid; place-items: center; width: 18px; height: 18px; border: 2px solid #CBD5E1; border-radius: 5px; color: transparent; font-size: 14px; }
 .is-picked .wp-check { border-color: var(--p600); background: var(--p600); color: #fff; }
-.wp-modal-foot { display: flex; align-items: center; gap: 10px; margin-top: 6px; padding-top: 18px; border-top: 1px solid var(--line); }
+/* Sticky action bar: stays at the bottom of the scrolling form, full-bleed over the column padding.
+   Sticky offsets are measured inside the scroller's padding, hence the negative bottom on desktop. */
+.wp-modal-foot { position: sticky; bottom: calc(-1 * var(--wp-pad-y)); z-index: 2; display: flex; align-items: center; gap: 10px; margin: auto calc(-1 * var(--wp-pad-x)) calc(-1 * var(--wp-pad-y)); padding: 16px var(--wp-pad-x) 20px; border-top: 1px solid var(--line); background: #fff; box-shadow: 0 -10px 24px rgba(15,23,42,.05); }
 .wp-modal-foot small { flex: 1; color: var(--ink5); font-size: 13px; }
 .wp-alert { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0; padding: 12px 14px; border: 1px solid #FDE68A; border-radius: 14px; background: #FFFBEB; font-size: 13.5px; color: #92400E; }
 .wp-alert i { font-size: 20px; }
 .wp-alert > div { flex: 1; min-width: 180px; display: flex; flex-direction: column; }
 .wp-alert strong { color: var(--ink); }
 .wp-alert.is-bad { border-color: #FECACA; background: #FEF2F2; color: #B91C1C; }
-.wp-modal-side { display: flex; flex-direction: column; gap: 12px; padding: 28px 24px; background: var(--canvas); border-inline-start: 1px solid var(--line); overflow-y: auto; }
+.wp-modal-side { display: flex; flex-direction: column; gap: 12px; max-height: var(--wp-modal-max); padding: 28px 24px; background: var(--canvas); border-inline-start: 1px solid var(--line); overflow-y: auto; overscroll-behavior: contain; }
 .wp-side-label { margin: 6px 0 0; color: var(--ink5); font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .wp-preview { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
 .wp-preview > div { min-width: 0; display: flex; flex-direction: column; }
@@ -465,7 +612,10 @@ export default {
 
 @media (max-width: 991.98px) {
   .wp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .wp-modal { grid-template-columns: minmax(0, 1fr); }
+  /* Stacked: the whole modal scrolls (form, then preview); the action bar still sticks to its bottom. */
+  .wp-modal { grid-template-columns: minmax(0, 1fr); overflow-y: auto; overscroll-behavior: contain; }
+  .wp-modal-main, .wp-modal-side { max-height: none; overflow: visible; }
+  .wp-modal-foot { bottom: 0; } /* the scroller is now .wp-modal, which has no padding */
   .wp-modal-side { border-inline-start: 0; border-top: 1px solid var(--line); }
   .wp-next { margin-top: 8px; }
 }
@@ -476,10 +626,11 @@ export default {
   .wp-head-actions .wp-btn { flex: 1; }
   .wp-grid, .wp-row, .wp-choices { grid-template-columns: minmax(0, 1fr); }
   .wp-backdrop { padding: 0; place-items: end stretch; }
-  .wp-modal { max-height: 94vh; border-radius: 22px 22px 0 0; }
-  .wp-modal-main { padding: 22px 16px; }
+  .wp-modal { --wp-modal-max: 94vh; border-radius: 22px 22px 0 0; }
+  @supports (height: 100dvh) { .wp-modal { --wp-modal-max: 94dvh; } }
+  .wp-modal-main { --wp-pad-y: 22px; --wp-pad-x: 16px; }
   .wp-modal-side { padding: 20px 16px; }
-  .wp-modal-foot { flex-wrap: wrap; }
+  .wp-modal-foot { flex-wrap: wrap; padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
   .wp-modal-foot small { flex-basis: 100%; }
   .wp-modal-foot .wp-btn { flex: 1; }
 }

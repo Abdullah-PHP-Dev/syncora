@@ -30,12 +30,15 @@ class WorkspaceController extends Controller
         $cards = $owned->map(fn (Workspace $w) => [
             'id' => 'w'.$w->id,
             'name' => $w->name,
+            'logo_url' => $w->logo_url,
             'kind' => $w->kind,
             'role' => 'owner',
             'industry' => $w->industry,
             'last_opened_at' => $w->last_opened_at?->toIso8601String(),
             'current' => $active && $active->id === $w->id,
             'open_url' => route('seller-workspaces.open', $w),
+            'edit_url' => route('seller-workspaces.update', $w),
+            'details' => $this->editable($w),
         ] + $health[$w->account_id])->concat($joined->map(fn (SellerTeamMember $m) => [
             'id' => 'm'.$m->id,
             'name' => $m->owner->name,
@@ -79,6 +82,23 @@ class WorkspaceController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $data = $this->validated($request);
+
+        $workspace = $this->workspaces->create($request->user(), $data);
+        $this->workspaces->open($request, $workspace);
+
+        return response()->json(['redirect' => route('admin.connections.index')], 201);
+    }
+
+    public function update(Request $request, Workspace $workspace): JsonResponse
+    {
+        $workspace = $this->workspaces->update($request->user(), $workspace, $this->validated($request));
+
+        return response()->json(['workspace' => $this->editable($workspace), 'message' => __('workspaces.edit.saved')]);
+    }
+
+    private function validated(Request $request): array
+    {
         $data = $request->validate([
             'name' => ['required', 'string', 'min:2', 'max:150', 'not_regex:/[<>]/'],
             'kind' => ['required', Rule::in(['own', 'client'])],
@@ -88,19 +108,33 @@ class WorkspaceController extends Controller
             'content_language' => ['nullable', Rule::in(config('workspaces.languages'))],
             'goals' => ['nullable', 'array'],
             'goals.*' => [Rule::in(array_keys(config('workspaces.goals')))],
+            // Raster images only (SVG can carry scripts); the server names and stores the file.
+            'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048', 'dimensions:min_width=64,min_height=64,max_width=4096,max_height=4096'],
+            'remove_logo' => ['nullable', 'boolean'],
         ]);
         // Currency follows the country; never taken from input.
         $data['currency'] = isset($data['country']) ? config('workspaces.countries')[$data['country']] : null;
 
-        $workspace = $this->workspaces->create($request->user(), $data);
-        $this->workspaces->open($request, $workspace);
+        return $data;
+    }
 
-        return response()->json(['redirect' => route('admin.connections.index')], 201);
+    /** What the edit dialog prefills and the card shows after saving. */
+    private function editable(Workspace $w): array
+    {
+        return [
+            'name' => $w->name, 'logo_url' => $w->logo_url, 'kind' => $w->kind, 'industry' => $w->industry, 'country' => $w->country,
+            'timezone' => $w->timezone, 'content_language' => $w->content_language, 'goals' => $w->goals ?? [],
+        ];
     }
 
     public function open(Request $request, Workspace $workspace): RedirectResponse
     {
         $this->workspaces->open($request, $workspace);
+
+        // "Finish setup" on a workspace with no platforms: straight to its Connections.
+        if ($request->input('to') === 'setup') {
+            return redirect()->route('admin.connections.index');
+        }
 
         return redirect()->intended(route('dashboard'));
     }

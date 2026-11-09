@@ -121,6 +121,27 @@
             }));
         }
     }
+    // Owners: mark links to modules their plan doesn't include (the backend answers 403 there).
+    $planLocked = [];
+    if (! $team && ! $workspaceMember && auth()->user()->hasRole('seller')) {
+        $planLocked = rescue(function () use ($groups) {
+            $access = app(\App\Services\PackageAccessService::class);
+            $allowed = [];
+            $locked = [];
+            foreach ($groups as $links) {
+                foreach ($links as [$destination]) {
+                    foreach ($access->modulesForRoute($destination) as $module) {
+                        $allowed[$module] ??= $access->allows(auth()->user(), $module);
+                        if (! $allowed[$module]) {
+                            $locked[$destination] = true;
+                        }
+                    }
+                }
+            }
+
+            return $locked;
+        }, [], false);
+    }
 @endphp
 <aside id="layout-menu" class="layout-menu menu-vertical admin-sidebar overview-sidebar" aria-label="{{ __('overview.sidebar_navigation') }}">
     <div class="admin-sidebar-header ov-sidebar-header">
@@ -139,22 +160,126 @@
             ?? ($team ? null : auth()->user()->name);
     @endphp
     @if($sidebarWorkspaceName && Route::has('seller-workspaces.index'))
-        <a href="{{ route('seller-workspaces.index') }}" class="ov-ws-switch" title="{{ __('workspaces.switcher.switch') }}">
-            <span class="ov-ws-avatar" aria-hidden="true">{{ mb_strtoupper(collect(preg_split('/\s+/u', trim($sidebarWorkspaceName)))->filter()->take(2)->map(fn ($w) => mb_substr($w, 0, 1))->implode('')) }}</span>
-            <span class="ov-ws-text"><strong>{{ $sidebarWorkspaceName }}</strong><small>{{ __('workspaces.switcher.switch') }}</small></span>
-            <i class="bx bx-sort-alt-2" aria-hidden="true"></i>
-        </a>
+        @php
+            // Switcher list for the signed-in person (not the workspace account the request runs as).
+            $wsPerson = request()->attributes->get('workspace_actor') ?? auth()->user();
+            $wsInitials = fn ($name) => mb_strtoupper(collect(preg_split('/\s+/u', trim((string) $name)))->filter()->take(2)->map(fn ($w) => mb_substr($w, 0, 1))->implode('')) ?: '?';
+            $wsMember = request()->attributes->get('workspace_member');
+            $wsOwned = $team ? collect() : rescue(fn () => \App\Models\Workspace::where('owner_id', $wsPerson->id)->orderByDesc('last_opened_at')->orderBy('id')->get(['id', 'name', 'logo_path', 'account_id', 'owner_id']), collect(), false);
+            $wsJoined = $team ? collect() : rescue(fn () => \App\Models\SellerTeamMember::where('user_id', $wsPerson->id)->whereNotNull('accepted_at')->with('owner:id,name')->get()->filter(fn ($m) => $m->owner), collect(), false);
+            // Current: the opened workspace, the joined one being worked in, or (nothing opened) the default.
+            $wsCurrentId = $sidebarWorkspace?->id ?? ($wsMember ? null : $wsOwned->firstWhere('account_id', $wsPerson->id)?->id);
+            $wsCurrentLogo = $sidebarWorkspace?->logo_url ?? $wsOwned->firstWhere('id', $wsCurrentId)?->logo_url;
+        @endphp
+        <div class="ov-ws" data-ws-switcher>
+            <button type="button" class="ov-ws-switch" aria-haspopup="true" aria-expanded="false" aria-controls="ov-ws-menu" title="{{ __('workspaces.switcher.switch') }}">
+                <span class="ov-ws-avatar {{ $wsCurrentLogo ? 'has-logo' : '' }}" aria-hidden="true">@if($wsCurrentLogo)<img src="{{ $wsCurrentLogo }}" alt="">@else{{ $wsInitials($sidebarWorkspaceName) }}@endif</span>
+                <span class="ov-ws-text"><strong>{{ $sidebarWorkspaceName }}</strong><small>{{ __('workspaces.switcher.switch') }}</small></span>
+                <i class="bx bx-sort-alt-2" aria-hidden="true"></i>
+            </button>
+            <div class="ov-ws-menu" id="ov-ws-menu" role="menu" hidden>
+                @if($wsOwned->isNotEmpty())
+                    <p class="ov-ws-label">{{ __('workspaces.switcher.yours') }}</p>
+                    @foreach($wsOwned as $ws)
+                        @if($ws->id === $wsCurrentId)
+                            <span class="ov-ws-item is-current" role="menuitem" aria-current="true" tabindex="-1">
+                                <span class="ov-ws-avatar sm {{ $ws->logo_path ? 'has-logo' : '' }}" aria-hidden="true">@if($ws->logo_path)<img src="{{ $ws->logo_url }}" alt="">@else{{ $wsInitials($ws->name) }}@endif</span><span class="ov-ws-name">{{ $ws->name }}</span><i class="bx bx-check" aria-hidden="true"></i>
+                            </span>
+                        @else
+                            <form method="POST" action="{{ route('seller-workspaces.open', $ws) }}">@csrf
+                                <button type="submit" class="ov-ws-item" role="menuitem" tabindex="-1"><span class="ov-ws-avatar sm is-alt {{ $ws->logo_path ? 'has-logo' : '' }}" aria-hidden="true">@if($ws->logo_path)<img src="{{ $ws->logo_url }}" alt="">@else{{ $wsInitials($ws->name) }}@endif</span><span class="ov-ws-name">{{ $ws->name }}</span></button>
+                            </form>
+                        @endif
+                    @endforeach
+                @endif
+                @if($wsJoined->isNotEmpty())
+                    <p class="ov-ws-label">{{ __('workspaces.switcher.joined') }}</p>
+                    @foreach($wsJoined as $membership)
+                        @if($wsMember && $wsMember->id === $membership->id)
+                            <span class="ov-ws-item is-current" role="menuitem" aria-current="true" tabindex="-1">
+                                <span class="ov-ws-avatar sm is-team" aria-hidden="true">{{ $wsInitials($membership->owner->name) }}</span><span class="ov-ws-name">{{ $membership->owner->name }}</span><i class="bx bx-check" aria-hidden="true"></i>
+                            </span>
+                        @else
+                            <form method="POST" action="{{ route('seller-workspaces.enter', $membership) }}">@csrf
+                                <button type="submit" class="ov-ws-item" role="menuitem" tabindex="-1"><span class="ov-ws-avatar sm is-team" aria-hidden="true">{{ $wsInitials($membership->owner->name) }}</span><span class="ov-ws-name">{{ $membership->owner->name }}</span></button>
+                            </form>
+                        @endif
+                    @endforeach
+                @endif
+                <div class="ov-ws-foot">
+                    <a href="{{ route('seller-workspaces.index') }}" class="ov-ws-item" role="menuitem" tabindex="-1"><span class="ov-ws-icon" aria-hidden="true"><i class="bx bx-grid-alt"></i></span><span class="ov-ws-name">{{ __('workspaces.switcher.all') }}</span></a>
+                    @unless($team)
+                        <a href="{{ route('seller-workspaces.index', ['create' => 1]) }}" class="ov-ws-item is-new" role="menuitem" tabindex="-1"><span class="ov-ws-icon" aria-hidden="true"><i class="bx bx-plus"></i></span><span class="ov-ws-name">{{ __('workspaces.switcher.new') }}</span></a>
+                    @endunless
+                </div>
+            </div>
+        </div>
         <style>
-            .ov-ws-switch { display: flex; align-items: center; gap: 10px; margin: 4px 14px 10px; padding: 9px 10px; border: 1px solid var(--theme-border, #edf0fa); border-radius: 14px; background: #fff; color: var(--theme-ink, #09072d); text-decoration: none; }
-            .ov-ws-switch:hover { border-color: #D9C6FF; background: var(--theme-soft, #f1eaff); color: var(--theme-ink, #09072d); }
-            .ov-ws-switch:focus-visible { outline: 3px solid rgba(114,10,255,.35); outline-offset: 2px; }
+            .ov-ws { position: relative; margin: 4px 14px 10px; }
+            .ov-ws-switch { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 1px solid var(--theme-border, #edf0fa); border-radius: 14px; background: #fff; color: var(--theme-ink, #09072d); font: inherit; text-align: start; cursor: pointer; }
+            .ov-ws-switch:hover, .ov-ws-switch[aria-expanded="true"] { border-color: #D9C6FF; background: var(--theme-soft, #f1eaff); }
+            .ov-ws-switch:focus-visible, .ov-ws-item:focus-visible { outline: 3px solid rgba(114,10,255,.35); outline-offset: 2px; }
             .ov-ws-avatar { display: grid; place-items: center; flex-shrink: 0; width: 34px; height: 34px; border-radius: 10px; background: var(--theme-gradient, linear-gradient(110deg, #004cff, #710bff)); color: #fff; font-size: 13px; font-weight: 700; }
+            .ov-ws-avatar.sm { width: 28px; height: 28px; border-radius: 8px; font-size: 11px; }
+            .ov-ws-avatar { overflow: hidden; }
+            .ov-ws-avatar.has-logo { background: #fff; border: 1px solid var(--theme-border, #edf0fa); }
+            .ov-ws-avatar img { width: 100%; height: 100%; object-fit: contain; }
+            .ov-ws-avatar.is-alt { background: #0F766E; }
+            .ov-ws-avatar.is-team { background: #9A3412; }
             .ov-ws-text { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; }
             .ov-ws-text strong { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
             .ov-ws-text small { color: var(--theme-muted, #626498); font-size: 12px; }
             .ov-ws-switch > i { color: var(--theme-muted, #626498); font-size: 18px; }
+            .ov-ws-menu { position: absolute; z-index: 1085; top: calc(100% + 6px); inset-inline: 0; max-height: min(420px, 70vh); overflow-y: auto; padding: 6px; border: 1px solid var(--theme-border, #edf0fa); border-radius: 14px; background: #fff; box-shadow: 0 18px 40px rgba(9, 7, 45, .14); }
+            .ov-ws-menu[hidden] { display: none; }
+            .ov-ws-menu form { margin: 0; }
+            .ov-ws-label { margin: 8px 8px 4px; color: var(--theme-muted, #626498); font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+            .ov-ws-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border: 0; border-radius: 10px; background: none; color: var(--theme-ink, #09072d); font: inherit; font-size: 13.5px; text-align: start; text-decoration: none; cursor: pointer; }
+            .ov-ws-item:hover { background: var(--theme-soft, #f1eaff); color: var(--theme-ink, #09072d); }
+            .ov-ws-item.is-current { background: #F7F5FF; cursor: default; font-weight: 600; }
+            .ov-ws-item > i { color: var(--theme-purple, #720aff); font-size: 18px; }
+            .ov-ws-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .ov-ws-foot { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--theme-border, #edf0fa); }
+            .ov-ws-icon { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; background: #F5F6FB; color: var(--theme-muted, #626498); font-size: 16px; }
+            .ov-ws-foot .ov-ws-item.is-new { color: var(--theme-purple, #720aff); font-weight: 600; }
+            .ov-ws-foot .ov-ws-item.is-new .ov-ws-icon { background: var(--theme-soft, #f1eaff); color: var(--theme-purple, #720aff); }
             .layout-menu-collapsed:not(.layout-menu-hover) .ov-ws-text, .layout-menu-collapsed:not(.layout-menu-hover) .ov-ws-switch > i { display: none; }
+            .layout-menu-collapsed:not(.layout-menu-hover) .ov-ws-menu { inset-inline-end: auto; width: 260px; }
         </style>
+        <script>
+            (function () {
+                var root = document.querySelector('[data-ws-switcher]');
+                if (!root || root.dataset.ready) return;
+                root.dataset.ready = '1';
+                var button = root.querySelector('.ov-ws-switch');
+                var menu = root.querySelector('.ov-ws-menu');
+                var items = function () { return Array.prototype.slice.call(menu.querySelectorAll('.ov-ws-item')); };
+                function open(focusFirst) {
+                    menu.hidden = false;
+                    button.setAttribute('aria-expanded', 'true');
+                    if (focusFirst) { var first = menu.querySelector('.ov-ws-item:not(.is-current)') || items()[0]; if (first) first.focus(); }
+                }
+                function close(returnFocus) {
+                    if (menu.hidden) return;
+                    menu.hidden = true;
+                    button.setAttribute('aria-expanded', 'false');
+                    if (returnFocus) button.focus();
+                }
+                button.addEventListener('click', function () { menu.hidden ? open(false) : close(false); });
+                button.addEventListener('keydown', function (e) {
+                    if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(true); }
+                });
+                menu.addEventListener('keydown', function (e) {
+                    var list = items(), i = list.indexOf(document.activeElement);
+                    if (e.key === 'ArrowDown') { e.preventDefault(); (list[i + 1] || list[0]).focus(); }
+                    else if (e.key === 'ArrowUp') { e.preventDefault(); (list[i - 1] || list[list.length - 1]).focus(); }
+                    else if (e.key === 'Tab') { close(false); }
+                });
+                // Escape closes it wherever focus is inside the switcher (menu opened by mouse keeps focus on the button).
+                root.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !menu.hidden) { e.preventDefault(); close(true); } });
+                document.addEventListener('click', function (e) { if (!root.contains(e.target)) close(false); });
+            })();
+        </script>
     @endif
     <nav class="admin-sidebar-body ov-sidebar-body" aria-label="{{ __('overview.sidebar_navigation') }}">
         <ul class="menu-inner ov-sidebar-menu">
@@ -183,7 +308,8 @@
                             <span class="ov-sidebar-icon"><i class="bx {{ $icon }}" aria-hidden="true"></i></span>
                             <span class="ov-sidebar-label">{{ __($label) }}</span>
                             @if($destination === 'admin.chats.dashboard' && ($unread ?? 0) > 0)<span class="ov-sidebar-badge">{{ $unread > 99 ? '99+' : $unread }}</span>@endif
-                            @if($connectionLocked && in_array($destination, $connectionGated, true))<i class="bx bx-lock-alt ov-sidebar-badge ov-sidebar-lock" title="{{ __('connections.gate.locked') }}" aria-label="{{ __('connections.gate.locked') }}"></i>@endif
+                            @if(isset($planLocked[$destination]))<i class="bx bx-crown ov-sidebar-badge ov-sidebar-lock" title="{{ __('package_access.sidebar_locked') }}" aria-label="{{ __('package_access.sidebar_locked') }}"></i>
+                            @elseif($connectionLocked && in_array($destination, $connectionGated, true))<i class="bx bx-lock-alt ov-sidebar-badge ov-sidebar-lock" title="{{ __('connections.gate.locked') }}" aria-label="{{ __('connections.gate.locked') }}"></i>@endif
                             @if($destination === 'admin.tickets.index' && ($openTickets ?? $ticketCounts['open'] ?? 0) > 0)<span class="ov-sidebar-badge">{{ min(99, $openTickets ?? $ticketCounts['open']) }}</span>@endif
                         @if($submenu)
                                 <span class="ov-sidebar-dropdown-toggle" aria-hidden="true"><i class="bx bx-chevron-down"></i></span>

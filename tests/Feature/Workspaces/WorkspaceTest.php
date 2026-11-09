@@ -33,6 +33,7 @@ class WorkspaceTest extends TestCase
         ]);
         $this->createConnectionTables();
         (require database_path('migrations/2026_11_09_100000_create_workspaces.php'))->up();
+        (require database_path('migrations/2026_11_10_140000_add_logo_to_workspaces.php'))->up();
 
         $this->owner = User::create(['name' => 'Agency', 'email' => 'owner@example.com', 'password' => Hash::make('Password-123!')]);
 
@@ -199,6 +200,106 @@ class WorkspaceTest extends TestCase
         $invite->update(['email' => 'owner@example.com']);
         $this->post(route('seller-workspaces.respond', [$invite, 'decline']))->assertRedirect(route('seller-workspaces.index'));
         $this->assertTrue($invite->fresh()->expires_at->isPast());
+    }
+
+    public function test_finish_setup_opens_the_workspace_on_connections(): void
+    {
+        $default = app(WorkspaceService::class)->ensureDefault($this->owner);
+
+        $this->actingAs($this->owner)->post(route('seller-workspaces.open', $default), ['to' => 'setup'])
+            ->assertRedirect(route('admin.connections.index'));
+        $this->assertSame($default->id, session(WorkspaceService::SESSION_KEY));
+
+        // Plain "Open" keeps going to the dashboard.
+        $this->post(route('seller-workspaces.open', $default))->assertRedirect(route('dashboard'));
+    }
+
+    public function test_owners_can_edit_a_workspace(): void
+    {
+        $this->allow(2);
+        $this->create()->assertCreated();
+        $workspace = Workspace::where('owner_id', $this->owner->id)->where('kind', 'client')->sole();
+
+        $this->patchJson(route('seller-workspaces.update', $workspace), [
+            'name' => 'Riyadh Roast & Co', 'kind' => 'own', 'industry' => 'retail', 'country' => 'AE',
+            'timezone' => 'Asia/Dubai', 'content_language' => 'en', 'goals' => ['google_reviews'], 'currency' => 'USD',
+        ])->assertOk()->assertJsonPath('workspace.name', 'Riyadh Roast & Co');
+
+        $workspace->refresh();
+        $this->assertSame(['own', 'retail', 'AE', 'AED', 'Asia/Dubai', 'en', ['google_reviews']],
+            [$workspace->kind, $workspace->industry, $workspace->country, $workspace->currency, $workspace->timezone, $workspace->content_language, $workspace->goals]);
+        // The brand's own account follows the new name (team members see it).
+        $this->assertSame('Riyadh Roast & Co', $workspace->account->name);
+        $this->assertSame('Riyadh Roast & Co', $workspace->account->businessProfile->business_name);
+    }
+
+    public function test_editing_the_default_workspace_keeps_the_persons_name(): void
+    {
+        $default = app(WorkspaceService::class)->ensureDefault($this->owner);
+
+        $this->actingAs($this->owner)->patchJson(route('seller-workspaces.update', $default), ['name' => 'Agency HQ', 'kind' => 'own'])->assertOk();
+
+        $this->assertSame('Agency HQ', $default->fresh()->name);
+        $this->assertSame('Agency', $this->owner->fresh()->name);
+    }
+
+    public function test_nobody_else_can_edit_a_workspace_and_input_is_validated(): void
+    {
+        $default = app(WorkspaceService::class)->ensureDefault($this->owner);
+        $intruder = User::create(['name' => 'Other', 'email' => 'other@example.com', 'password' => Hash::make('x')]);
+
+        $this->actingAs($intruder)->patchJson(route('seller-workspaces.update', $default), ['name' => 'Mine now', 'kind' => 'own'])->assertNotFound();
+        $this->assertSame('Agency', $default->fresh()->name);
+
+        $this->actingAs($this->owner)->patchJson(route('seller-workspaces.update', $default), ['name' => '<b>', 'kind' => 'agency', 'country' => 'ZZ'])
+            ->assertStatus(422)->assertJsonValidationErrors(['name', 'kind', 'country']);
+    }
+
+    public function test_a_logo_can_be_added_replaced_and_removed(): void
+    {
+        (require database_path('migrations/2026_11_10_140000_add_logo_to_workspaces.php'))->up();
+        $disk = \Illuminate\Support\Facades\Storage::fake(config('workspaces.logo_disk'));
+        $this->allow(2);
+
+        $this->create('Logo Co', ['logo' => \Illuminate\Http\UploadedFile::fake()->image('logo.png', 200, 200)])->assertCreated();
+        $workspace = Workspace::where('owner_id', $this->owner->id)->where('kind', 'client')->sole();
+        $first = $workspace->logo_path;
+        $this->assertStringStartsWith('uploads/workspace-logos/'.$this->owner->id.'/', $first);
+        $disk->assertExists($first);
+
+        // Replace: the old file goes, the new one is served.
+        $this->post(route('seller-workspaces.update', $workspace), ['_method' => 'PATCH', 'name' => 'Logo Co', 'kind' => 'client',
+            'logo' => \Illuminate\Http\UploadedFile::fake()->image('new.webp', 300, 300)], ['Accept' => 'application/json'])
+            ->assertOk()->assertJsonPath('workspace.logo_url', fn ($url) => is_string($url) && str_contains($url, 'workspace-logos'));
+        $second = $workspace->fresh()->logo_path;
+        $this->assertNotSame($first, $second);
+        $disk->assertMissing($first);
+        $disk->assertExists($second);
+
+        // Editing other details keeps the logo; remove_logo takes it off.
+        $this->patchJson(route('seller-workspaces.update', $workspace), ['name' => 'Logo Co 2', 'kind' => 'client'])->assertOk();
+        $this->assertSame($second, $workspace->fresh()->logo_path);
+        $this->patchJson(route('seller-workspaces.update', $workspace), ['name' => 'Logo Co 2', 'kind' => 'client', 'remove_logo' => true])
+            ->assertOk()->assertJsonPath('workspace.logo_url', null);
+        $disk->assertMissing($second);
+    }
+
+    public function test_only_safe_images_are_accepted_as_logos(): void
+    {
+        (require database_path('migrations/2026_11_10_140000_add_logo_to_workspaces.php'))->up();
+        \Illuminate\Support\Facades\Storage::fake(config('workspaces.logo_disk'));
+        $this->allow(5);
+        $upload = \Illuminate\Http\UploadedFile::class;
+
+        foreach ([
+            $upload::fake()->createWithContent('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"></svg>'),
+            $upload::fake()->create('logo.pdf', 10, 'application/pdf'),
+            $upload::fake()->image('tiny.png', 20, 20),
+            $upload::fake()->image('huge.png', 200, 200)->size(3000),
+        ] as $file) {
+            $this->create('Bad logo', ['logo' => $file])->assertStatus(422)->assertJsonValidationErrors('logo');
+        }
+        $this->assertSame(0, Workspace::where('owner_id', $this->owner->id)->where('kind', 'client')->count());
     }
 
     public function test_the_migration_backfills_a_default_workspace_once(): void

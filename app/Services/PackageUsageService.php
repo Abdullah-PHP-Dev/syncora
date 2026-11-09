@@ -24,6 +24,10 @@ class PackageUsageService
             // One stable owner lock serializes capacities and reservations across renewals.
             $owner = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
             abort_unless($owner->is_active, 403, __('package_access.expired'));
+            // Workspaces share their owner's allowances: serialize on the owner too.
+            if ($user->isWorkspaceAccount() && $user->workspace_owner_id) {
+                User::whereKey($user->workspace_owner_id)->lockForUpdate()->first();
+            }
             $subscription = $this->access->subscription($user);
             abort_unless($this->access->active($subscription), 403, __('package_access.expired'));
 
@@ -74,8 +78,9 @@ class PackageUsageService
         }
         $event ??= (string) Str::uuid();
 
-        return $this->locked($user, function ($subscription) use ($user, $key, $amount, $event) {
-            $exists = DB::table('package_usage')->where(['user_id' => $user->id, 'feature_key' => $key, 'event_key' => $event])->exists();
+        return $this->locked($user, function ($subscription) use ($key, $amount, $event) {
+            // Usage is recorded on the subscription owner (record()), so look it up there too.
+            $exists = DB::table('package_usage')->where(['user_id' => $subscription->user_id, 'feature_key' => $key, 'event_key' => $event])->exists();
             if (! $exists) {
                 $this->check($subscription, $key, $this->used($subscription, $key), $amount);
                 $this->record($subscription, $key, $event, $amount);
@@ -87,7 +92,9 @@ class PackageUsageService
 
     public function release(User $user, string $key, string $event): void
     {
-        DB::table('package_usage')->where(['user_id' => $user->id, 'feature_key' => $key, 'event_key' => $event])->delete();
+        // Same owner as record(): a workspace's refunds land on its owner's allowance.
+        $owner = $this->access->subscription($user)?->user_id ?? $user->id;
+        DB::table('package_usage')->where(['user_id' => $owner, 'feature_key' => $key, 'event_key' => $event])->delete();
     }
 
     private function record(Subscription $subscription, string $key, string $event, int $amount): void
@@ -134,7 +141,7 @@ class PackageUsageService
                 $this->check($subscription, 'content_categories', PostCategory::where('user_id', $user->id)->count());
             } elseif ($model instanceof Post) {
                 $this->access->authorize($user, 'publishing');
-                $postUsage = ! $model->exists || ! DB::table('package_usage')->where(['user_id' => $user->id, 'feature_key' => 'scheduled_published_posts', 'event_key' => 'post:'.$model->id])->exists();
+                $postUsage = ! $model->exists || ! DB::table('package_usage')->where(['user_id' => $subscription->user_id, 'feature_key' => 'scheduled_published_posts', 'event_key' => 'post:'.$model->id])->exists();
                 if ($postUsage) {
                     $this->check($subscription, 'scheduled_published_posts', $this->used($subscription, 'scheduled_published_posts'));
                 }

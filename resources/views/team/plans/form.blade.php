@@ -37,6 +37,7 @@
                     @foreach(config('package_access.modules') as $module => $definition)
                     <div class="package-feature-row"><div><label for="access_{{ $module }}">{{ __($definition['label']) }}</label></div><div class="package-feature-control">
                         <select class="form-select" id="access_{{ $module }}" name="access[{{ $module }}][mode]">@foreach(['disabled', 'preview', 'included', 'addon_required'] as $mode)<option value="{{ $mode }}" @selected(old('access.'.$module.'.mode', $plan->access_settings[$module]['mode'] ?? 'disabled') === $mode)>{{ __('package_access.'.$mode) }}</option>@endforeach</select>
+                        @error('access.'.$module.'.mode')<span class="package-field-error">{{ $message }}</span>@enderror
                         <label class="mt-2" for="tier_{{ $module }}">{{ __('package_access.tier') }}</label><select class="form-select" id="tier_{{ $module }}" name="access[{{ $module }}][tier]">@foreach(['none', 'standard', 'basic', 'limited', 'expanded', 'full', 'advanced', 'preview', 'addon', 'included', 'multi_user'] as $tier)<option value="{{ $tier }}" @selected(old('access.'.$module.'.tier', $plan->access_settings[$module]['tier'] ?? 'standard') === $tier)>{{ __(ucfirst(str_replace('_', ' ', $tier))) }}</option>@endforeach</select>
                     </div></div>
                     @endforeach

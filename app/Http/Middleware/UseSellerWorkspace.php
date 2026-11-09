@@ -20,6 +20,14 @@ class UseSellerWorkspace
         $route = $request->route()?->getName() ?? '';
         // Workspace selection, invitations, and logout always use the real identity.
         if (! $actor || Str::is(['seller-workspaces.*', 'logout'], $route)) {
+            if ($actor && ! $id && $route !== 'logout' && $request->session()->has(WorkspaceService::SESSION_KEY)) {
+                // For display only (sidebar switcher); the request keeps the real identity.
+                $workspace = app(WorkspaceService::class)->active($request, $actor);
+                if ($workspace) {
+                    $request->attributes->set('workspace', $workspace);
+                }
+            }
+
             return $next($request);
         }
         if (! $id) {

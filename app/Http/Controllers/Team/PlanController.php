@@ -105,6 +105,27 @@ class PlanController extends Controller
         if ($data['is_free'] && ((float) $data['price'] !== 0.0 || (float) $data['yearly_price'] !== 0.0)) {
             return back()->withErrors(['price' => __('Free plans must have zero prices.')])->withInput();
         }
+        // A counted module is only granted when its limit allows at least one
+        // (PackageAccessService::allows); otherwise "Included" silently grants nothing.
+        $limitErrors = [];
+        foreach ($data['access'] ?? [] as $module => $setting) {
+            $definition = config("package_access.modules.$module");
+            if (! ($definition['numeric'] ?? false) || ! in_array($setting['mode'], ['included', 'preview'], true)) {
+                continue;
+            }
+            $source = $definition['source'];
+            $value = array_key_exists($source, $data['entitlements'] ?? []) ? $data['entitlements'][$source] : ($plan->entitlement_settings[$source] ?? null);
+            if (! is_numeric($value) || ((int) $value !== -1 && (int) $value < 1)) {
+                $feature = $features->firstWhere('key', $source);
+                $limitErrors['access.'.$module.'.mode'] = __('package_access.limit_required', [
+                    'module' => __(config("package_access.modules.$module.label", $module)),
+                    'limit' => $feature?->name ?? $source,
+                ]);
+            }
+        }
+        if ($limitErrors) {
+            return back()->withErrors($limitErrors)->withInput();
+        }
         $isUpdate = $plan->exists;
         $savedPlan = DB::transaction(function () use ($plan, $data, $features, $request) {
             // Lock the catalog in a consistent order before changing recommendations.

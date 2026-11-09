@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Workspace extends Model
 {
     protected $fillable = [
-        'owner_id', 'account_id', 'name', 'kind', 'industry', 'country', 'currency',
+        'owner_id', 'account_id', 'name', 'logo_path', 'kind', 'industry', 'country', 'currency',
         'timezone', 'content_language', 'goals', 'last_opened_at',
     ];
 
@@ -30,6 +30,12 @@ class Workspace extends Model
     public function account(): BelongsTo
     {
         return $this->belongsTo(User::class, 'account_id');
+    }
+
+    /** Public URL of the uploaded logo, or null (cards and the switcher fall back to initials). */
+    public function getLogoUrlAttribute(): ?string
+    {
+        return $this->logo_path ? \Illuminate\Support\Facades\Storage::disk(config('workspaces.logo_disk'))->url($this->logo_path) : null;
     }
 
     /** The owner's original account (created at sign-up). */

@@ -30,7 +30,8 @@ return [
         'email_marketing' => ['admin.email.*'],
         'google_analytics' => ['admin.google.*'],
     ],
-    'write_get_routes' => ['*.redirect', '*.callback', '*.connect', '*.sync', '*.auth.*', '*.create', '*.edit'],
+    // GET routes that use a feature rather than look at it ("preview" blocks them). Exports hand the data over.
+    'write_get_routes' => ['*.redirect', '*.callback', '*.connect', '*.sync', '*.auth.*', '*.create', '*.edit', '*.export'],
     // These values are interpreted once during migration, never as runtime permissions.
     'legacy_tiers' => [
         'No' => ['mode' => 'disabled', 'tier' => 'none'],

@@ -62,6 +62,7 @@ class RegisteredUserController extends Controller
         $request->session()->regenerate();
         // Always land in the new account's own (default) workspace.
         $request->session()->forget('seller_workspace_member');
+        app(\App\Services\WorkspaceService::class)->openDefault($request, $user);
 
         // Onboarding: connect a social account first - Posts, Inbox and
         // Comments stay locked until one is (EnsureConnectedAccount).

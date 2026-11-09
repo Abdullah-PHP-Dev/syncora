@@ -404,7 +404,7 @@ class SellerPackageAccessTest extends TestCase
         $this->actingAs($seller)->getJson('/subscription/usage?user_id='.$other->id)->assertOk()
             ->assertJsonPath('usage.ai_credits.used', 1)->assertJsonPath('active', true);
         $subscription->update(['end_date' => '2026-10-17']);
-        $this->get('/subscription/usage')->assertOk()->assertSee('Your package and usage');
+        $this->get('/subscription/usage')->assertOk()->assertSee(__('package_access.page.title'));
         $this->getJson('/subscription/usage')->assertOk()->assertJsonPath('active', false);
     }
 
@@ -431,6 +431,10 @@ class SellerPackageAccessTest extends TestCase
         $admin->assignRole('admin');
         $access = array_fill_keys(array_keys(config('package_access.modules')), ['mode' => 'included', 'tier' => 'basic']);
         $access['inbox'] = ['mode' => 'preview', 'tier' => 'preview'];
+        // Counted modules need a limit field, which this legacy catalog doesn't offer.
+        foreach (['team_management', 'publishing', 'advertising', 'media', 'ai_content'] as $counted) {
+            $access[$counted] = ['mode' => 'disabled', 'tier' => 'none'];
+        }
         $data = ['name_en' => 'Managed', 'name_ar' => 'باقة', 'slug' => 'managed', 'price' => 49, 'yearly_price' => 411.6,
             'currency' => 'SAR', 'sort_order' => 1, 'is_active' => 1, 'is_popular' => 0, 'is_free' => 0, 'trial_days' => 14, 'version' => 0,
             'entitlements' => collect(config('package_features'))->map(fn ($f) => $f['default'])->all(), 'access' => $access];
@@ -505,5 +509,78 @@ class SellerPackageAccessTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors('package');
         $this->assertSame(2, $usage->used($subscription, 'ai_credits'));
         Http::assertSentCount(2);
+    }
+
+    public function test_workspace_usage_is_charged_deduplicated_and_refunded_on_the_owner(): void
+    {
+        (require database_path('migrations/2026_11_09_100000_create_workspaces.php'))->up();
+        $owner = $this->seller();
+        $subscription = $this->subscribe($owner, limits: ['ai_credits' => 5]);
+        $account = User::factory()->create(['workspace_owner_id' => $owner->id]);
+        $account->assignRole('seller');
+        $usage = app(PackageUsageService::class);
+
+        $usage->reserve($account, 'ai_credits', 1, 'evt-1');
+        $usage->reserve($account, 'ai_credits', 1, 'evt-1'); // same event: charged once
+        $this->assertSame(1, $usage->used($subscription->fresh(), 'ai_credits'));
+
+        $usage->release($account, 'ai_credits', 'evt-1'); // a failed request is refunded
+        $this->assertSame(0, $usage->used($subscription->fresh(), 'ai_credits'));
+    }
+
+    public function test_preview_shows_a_module_but_does_not_export_its_data(): void
+    {
+        config(['package_access.routes.data_export' => array_merge(config('package_access.routes.data_export'), ['admin.qa.export'])]);
+        Route::middleware(['web', 'auth', 'seller', 'subscription', 'package.feature'])->get('/_package/export', fn () => response()->json(['ok' => true]))->name('admin.qa.export');
+        $seller = $this->seller();
+        $this->subscribe($seller, ['data_export' => ['mode' => 'preview', 'tier' => 'preview']]);
+
+        $this->actingAs($seller)->getJson('/_package/export')->assertForbidden()->assertJsonPath('code', 'package_feature_denied');
+
+        Bundle::where('slug', 'test-'.$seller->id)->first()->update(['access_settings' => array_fill_keys(array_keys(config('package_access.modules')), ['mode' => 'included', 'tier' => 'standard'])]);
+        $this->getJson('/_package/export')->assertOk();
+    }
+
+    public function test_a_counted_module_cannot_be_included_without_a_limit(): void
+    {
+        Role::findOrCreate('admin', 'web');
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        // Only the enforced limit is on the form for this test.
+        \App\Models\PackageFeature::query()->update(['is_active' => false]);
+        \App\Models\PackageFeature::create(['key' => 'publishing_accounts', 'name_en' => 'Social accounts for publishing', 'type' => 'capacity', 'is_active' => true]);
+        $access = array_fill_keys(array_keys(config('package_access.modules')), ['mode' => 'disabled', 'tier' => 'none']);
+        $access['publishing'] = ['mode' => 'included', 'tier' => 'standard'];
+        $payload = fn (int $accounts) => [
+            'version' => 0, 'name_en' => 'Starter', 'name_ar' => 'المبتدئ', 'slug' => 'qa-starter', 'price' => 49, 'yearly_price' => 490,
+            'currency' => 'SAR', 'sort_order' => 1, 'is_active' => 1, 'is_popular' => 0, 'is_free' => 0, 'trial_days' => 14,
+            'access' => $access, 'entitlements' => ['publishing_accounts' => $accounts],
+        ];
+
+        $this->actingAs($admin)->post(route('plans.store'), $payload(0))->assertSessionHasErrors('access.publishing.mode');
+        $this->assertFalse(Bundle::where('slug', 'qa-starter')->exists());
+
+        $this->post(route('plans.store'), $payload(3))->assertSessionHasNoErrors();
+        $this->assertSame(3, Bundle::where('slug', 'qa-starter')->sole()->entitlement_settings['publishing_accounts']);
+    }
+
+    public function test_the_admin_catalog_offers_the_enforced_limits(): void
+    {
+        \App\Models\PackageFeature::updateOrCreate(['key' => 'social_posts'], ['name_en' => 'Social publishing', 'type' => 'boolean', 'is_active' => true]);
+        \App\Models\PackageFeature::create(['key' => 'workspaces', 'name_en' => 'Workspaces', 'type' => 'capacity', 'is_active' => true]);
+        \App\Models\PackageFeature::create(['key' => 'ai_credits', 'name_en' => 'Renamed by admin', 'type' => 'quota', 'is_active' => false]);
+
+        $migration = require database_path('migrations/2026_11_10_120000_activate_enforced_package_features.php');
+        $migration->up();
+        $migration->up();
+
+        $active = \App\Models\PackageFeature::where('is_active', true)->pluck('key')->all();
+        foreach (array_keys(config('package_reference.features')) as $key) {
+            $this->assertContains($key, $active);
+        }
+        $this->assertContains('workspaces', $active);
+        $this->assertNotContains('social_posts', $active); // legacy, read by nothing
+        $this->assertSame('Renamed by admin', \App\Models\PackageFeature::where('key', 'ai_credits')->value('name_en'));
+        $this->assertSame(1, \App\Models\PackageFeature::where('key', 'publishing_accounts')->count());
     }
 }

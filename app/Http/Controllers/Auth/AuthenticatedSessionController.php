@@ -36,10 +36,12 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->forget(['url.intended', 'seller_workspace_member', \App\Services\WorkspaceService::SESSION_KEY]);
 
-        // Several brands or clients: choose where to work first.
-        if (app(\App\Services\WorkspaceService::class)->needsPicker($request->user())) {
+        // Several brands or clients: choose where to work first; otherwise open the only one.
+        $workspaces = app(\App\Services\WorkspaceService::class);
+        if ($workspaces->needsPicker($request->user())) {
             return redirect()->route('seller-workspaces.index');
         }
+        $workspaces->openDefault($request, $request->user());
 
         return redirect(app(\App\Services\DashboardService::class)->url($request->user()));
     }

@@ -22,6 +22,9 @@ return [
 
     'languages' => ['ar', 'en', 'both'],
 
+    // Where workspace logos are stored (public files, like email-template images).
+    'logo_disk' => env('WORKSPACE_LOGO_DISK', 'r2'),
+
     'goals' => [
         'leads_whatsapp' => ['whatsapp'],
         'paid_ads' => ['meta_ads', 'instagram', 'tiktok'],
