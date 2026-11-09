@@ -190,3 +190,4 @@ require __DIR__.'/mcp-connections.php';
 require __DIR__.'/mcp-profile.php';
 require __DIR__.'/mcp-facebook.php';
 require __DIR__.'/mcp-posts.php';
+require __DIR__.'/mcp-social-accounts.php';
