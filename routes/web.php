@@ -185,6 +185,14 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 	Route::post('/r2-upload', [\App\Http\Controllers\R2Controller::class, 'upload'])->name('r2.upload');*/
 
 
+	// Team invitation links work signed out: a new teammate sets a password on the
+	// page itself (the private link proves the email); others sign in to accept.
+	Route::prefix('workspaces')->name('seller-workspaces.')->controller(\App\Http\Controllers\Admin\SellerTeamController::class)->group(function () {
+		Route::get('invitations/{token}', 'invitation')->name('invitation');
+		Route::post('invitations/{token}', 'accept')->name('accept');
+		Route::post('invitations/{token}/join', 'join')->middleware(['guest', 'throttle:10,1'])->name('join');
+	});
+
 	Route::middleware(['auth', 'active.user'])->group(function () {
         Route::prefix('workspaces')->name('seller-workspaces.')->group(function () {
             Route::get('/', [\App\Http\Controllers\WorkspaceController::class, 'index'])->name('index');
@@ -194,8 +202,6 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
             Route::post('invitations/{member}/{action}', [\App\Http\Controllers\WorkspaceController::class, 'respond'])->whereNumber('member')->whereIn('action', ['accept', 'decline'])->name('respond');
         });
         Route::prefix('workspaces')->name('seller-workspaces.')->controller(\App\Http\Controllers\Admin\SellerTeamController::class)->group(function () {
-            Route::get('invitations/{token}', 'invitation')->name('invitation');
-            Route::post('invitations/{token}', 'accept')->name('accept');
             Route::post('leave', 'leave')->name('leave');
             Route::post('{member}/enter', 'enter')->name('enter');
         });

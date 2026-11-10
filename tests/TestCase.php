@@ -39,6 +39,10 @@ abstract class TestCase extends BaseTestCase
         if ($schema->hasTable('workspaces') && ! $schema->hasColumn('workspaces', 'logo_path')) {
             (require database_path('migrations/2026_11_10_140000_add_logo_to_workspaces.php'))->up();
         }
+        if ($schema->hasTable('seller_team_members') && ! $schema->hasColumn('seller_team_members', 'role')) {
+            (require database_path('migrations/2026_11_11_100000_add_role_to_seller_team_members.php'))->up();
+        }
+        (require database_path('migrations/2026_11_11_120000_add_name_to_seller_team_members.php'))->up();
 
         return parent::call($method, $uri, $parameters, $cookies, $files, $server, $content);
     }

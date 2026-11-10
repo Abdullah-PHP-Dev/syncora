@@ -31,8 +31,8 @@ class GoogleSuitePresenter
             'screen' => $screen,
             'locale' => app()->getLocale(),
             'dir' => app()->getLocale() === 'ar' ? 'rtl' : 'ltr',
-            // Connecting, reconnecting and disconnecting stay with the owner (UseSellerWorkspace).
-            'can_manage' => ! $request->attributes->has('workspace_member'),
+            // Connecting, reconnecting and disconnecting stay with the owner and Admins (UseSellerWorkspace).
+            'can_manage' => $request->attributes->get('workspace_member')?->isAdmin() ?? true,
             'configured' => GoogleSuiteAuth::configured(),
             'account' => $this->account($connection, $preferences),
             'properties' => [

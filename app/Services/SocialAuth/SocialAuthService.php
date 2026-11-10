@@ -10,6 +10,7 @@ use App\Services\Connections\Drivers\GoogleDriver;
 use App\Services\GoogleSuite\GoogleSuiteAuth;
 use App\Services\Connections\Drivers\LinkedInDriver;
 use App\Services\Connections\Drivers\TikTokDriver;
+use App\Support\Connections\AccountOwnership;
 use App\Support\Connections\ConnectionFlags;
 use App\Support\Google\GoogleServices;
 use App\Services\GoogleSuite\BusinessProfileService;
@@ -270,6 +271,10 @@ class SocialAuthService
         ]);
 
         foreach ($pagesResponse['data']['data'] ?? [] as $page) {
+            // Each Page checked on its own: one connected elsewhere doesn't stop the rest.
+            if (! AccountOwnership::allows('facebook', $page['id'], $userId, $page['name'] ?? null)) {
+                continue;
+            }
             $pageAccount = SocialAccount::updateOrCreate(
                 ['platform' => 'facebook', 'platform_account_id' => $page['id'], 'user_id' => $userId],
                 [
@@ -337,7 +342,8 @@ class SocialAuthService
                 Log::warning('Facebook conversation backfill failed after unified connect.', ['channel_id' => $pageChannel->id, 'error' => $e->getMessage()]);
             }
 
-            if (!empty($page['instagram_business_account']['id'])) {
+            if (!empty($page['instagram_business_account']['id'])
+                && AccountOwnership::allows('instagram', $page['instagram_business_account']['id'], $userId, isset($page['instagram_business_account']['username']) ? '@'.$page['instagram_business_account']['username'] : null)) {
                 $ig = $page['instagram_business_account'];
 
                 $igAccount = SocialAccount::updateOrCreate(
@@ -424,6 +430,9 @@ class SocialAuthService
 
             // The Ads API builds act_{accountId} from the bare id; rows saved
             // as "act_..." by older connects are updated in place.
+            if (! AccountOwnership::allows('facebook', $bareId, $userId, $adAccount['name'] ?? null)) {
+                continue;
+            }
             $fbAdAccount = SocialAccount::where(['platform' => 'facebook', 'user_id' => $userId])
                 ->whereIn('platform_account_id', [$bareId, 'act_' . $bareId])
                 ->first() ?? new SocialAccount(['platform' => 'facebook', 'user_id' => $userId]);
@@ -629,6 +638,9 @@ class SocialAuthService
         $connected = 0;
 
         foreach ($response['data']['items'] ?? [] as $channel) {
+            if (! AccountOwnership::allows('youtube', $channel['id'], $userId, $channel['snippet']['title'] ?? null)) {
+                continue;
+            }
             $channelAccount = SocialAccount::updateOrCreate(
                 ['platform' => 'youtube', 'platform_account_id' => $channel['id'], 'user_id' => $userId],
                 [
@@ -716,6 +728,9 @@ class SocialAuthService
                 SocialAccount::where(['platform' => 'google', 'platform_account_id' => $customerId, 'user_id' => $userId])
                     ->update(['has_ads_permission' => false, 'social_connection_id' => null]);
 
+                continue;
+            }
+            if (! AccountOwnership::allows('google', $customerId, $userId, $detail['descriptiveName'] ?? null)) {
                 continue;
             }
 
@@ -831,6 +846,9 @@ class SocialAuthService
             $orgResponse = $this->api->get($baseUrl . 'organizations/' . $orgId, $headers);
             $org = $orgResponse['success'] ? $orgResponse['data'] : [];
 
+            if (! AccountOwnership::allows('linkedin', $orgId, $userId, $org['localizedName'] ?? null)) {
+                continue;
+            }
             $orgAccount = SocialAccount::updateOrCreate(
                 ['platform' => 'linkedin', 'platform_account_id' => $orgId, 'user_id' => $userId],
                 [
@@ -891,6 +909,9 @@ class SocialAuthService
                 continue;
             }
 
+            if (! AccountOwnership::allows('linkedin', $accountId, $userId, $account['name'] ?? null)) {
+                continue;
+            }
             $linkedinAdAccount = SocialAccount::updateOrCreate(
                 ['platform' => 'linkedin', 'platform_account_id' => $accountId, 'user_id' => $userId],
                 [

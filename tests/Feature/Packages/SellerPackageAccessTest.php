@@ -9,6 +9,7 @@ use App\Models\Post;
 use App\Models\PostCategory;
 use App\Models\SocialAccount;
 use App\Models\Subscription;
+use App\Models\SellerTeamMember;
 use App\Models\User;
 use App\Services\EmailMarketingServices\SendGridCampaignService;
 use App\Services\PackageAccessService;
@@ -78,6 +79,8 @@ class SellerPackageAccessTest extends TestCase
         });
         (require database_path('migrations/2026_10_18_120000_add_seller_package_access.php'))->up();
         (require database_path('migrations/2026_10_18_140000_create_seller_team_members.php'))->up();
+        (require database_path('migrations/2026_11_11_100000_add_role_to_seller_team_members.php'))->up();
+        (require database_path('migrations/2026_11_11_120000_add_name_to_seller_team_members.php'))->up();
         foreach (['admin', 'customer_support', 'seller'] as $role) {
             Role::findOrCreate($role, 'web');
         }
@@ -161,7 +164,9 @@ class SellerPackageAccessTest extends TestCase
         $this->actingAs($wrong)->postJson('/workspaces/invitations/'.$token)->assertForbidden();
         $user = User::factory()->create(['email' => 'member@example.test']);
         $this->actingAs($user)->get('/workspaces/invitations/'.$token)->assertOk();
-        $this->post('/workspaces/invitations/'.$token)->assertRedirect(route('seller-workspaces.index'));
+        // Accepting opens the workspace straight away.
+        $this->post('/workspaces/invitations/'.$token)->assertRedirect();
+        $this->assertSame($member->id, session('seller_workspace_member'));
         $this->assertSame($user->id, $member->fresh()->user_id);
         $this->assertNull($member->fresh()->token_hash);
         $this->postJson('/workspaces/invitations/'.$token)->assertNotFound();
@@ -199,6 +204,145 @@ class SellerPackageAccessTest extends TestCase
         $this->getJson('/_package/workspace')->assertForbidden()->assertJsonPath('feature', 'publishing');
         $this->post('/workspaces/leave')->assertRedirect();
         $this->assertSame($user->id, auth()->id());
+    }
+
+    /** Signs a teammate in and opens the owner's workspace as them. */
+    private function enterAs(User $owner, string $email, string $role, array $permissions = []): array
+    {
+        [$member, $token] = app(SellerTeamService::class)->invite($owner, $email, $permissions, $role);
+        $user = User::factory()->create(['email' => $email]);
+        app(SellerTeamService::class)->accept($user, $token);
+        $this->actingAs($user)->post('/workspaces/'.$member->id.'/enter')->assertRedirect();
+
+        return [$member->fresh(), $user];
+    }
+
+    private function connectionProbes(): void
+    {
+        foreach (['/_package/connections' => 'admin.connections.probe', '/_package/oauth/redirect' => 'admin.social-accounts.probe.redirect'] as $uri => $name) {
+            Route::middleware(['web', 'auth', 'seller', 'subscription', 'package.feature'])->get($uri, fn () => response()->json(['owner' => auth()->id()]))->name($name);
+        }
+    }
+
+    public function test_an_admin_uses_every_plan_module_and_connections_but_never_billing(): void
+    {
+        $owner = $this->seller();
+        $subscription = $this->subscribe($owner, ['ai_agent' => ['mode' => 'disabled']], ['team_members' => 3]);
+        $this->connectionProbes();
+        [$admin, $user] = $this->enterAs($owner, 'admin@example.test', SellerTeamMember::ROLE_ADMIN);
+
+        $this->assertTrue($admin->isAdmin());
+        $this->assertSame('write', $admin->permissions['publishing']);
+        // Modules: full write, running as the owner.
+        $this->postJson('/_package/inbox')->assertOk();
+        $this->getJson('/_package/inbox/connect')->assertOk();
+        // Connections and OAuth, also as the owner (so accounts land in the owner's workspace).
+        $this->getJson('/_package/connections')->assertOk()->assertJsonPath('owner', $owner->id);
+        $this->getJson('/_package/oauth/redirect')->assertOk()->assertJsonPath('owner', $owner->id);
+        // Billing and plans stay with the owner.
+        $this->getJson('/subscription/checkout')->assertForbidden();
+        $this->getJson('/plans')->assertForbidden();
+        // The owner's plan still decides: a module it lacks, or a used-up capacity, is refused.
+        $this->assertFalse(app(PackageAccessService::class)->allows($owner, 'ai_agent'));
+        $subscription->bundle->update(['entitlement_settings' => array_replace($subscription->bundle->entitlement_settings, ['ai_credits' => 0])]);
+        $this->postJson('/_package/ai')->assertForbidden()->assertJsonPath('feature', 'ai_content');
+        $this->assertSame($user->id, auth()->id());
+    }
+
+    public function test_a_member_still_cannot_open_connections_or_the_team(): void
+    {
+        $owner = $this->seller();
+        $this->subscribe($owner, limits: ['team_members' => 3]);
+        $this->connectionProbes();
+        $this->enterAs($owner, 'member@example.test', SellerTeamMember::ROLE_MEMBER, ['inbox' => 'write']);
+
+        $this->postJson('/_package/inbox')->assertOk();
+        $this->getJson('/_package/connections')->assertForbidden();
+        $this->getJson('/_package/oauth/redirect')->assertForbidden();
+        $this->getJson('/seller-team')->assertForbidden();
+    }
+
+    public function test_an_admin_manages_members_within_the_seat_limit_but_not_admins(): void
+    {
+        $owner = $this->seller();
+        $this->subscribe($owner, limits: ['team_members' => 4]);
+        [$other] = app(SellerTeamService::class)->invite($owner, 'other-admin@example.test', [], SellerTeamMember::ROLE_ADMIN);
+        [$admin] = $this->enterAs($owner, 'admin@example.test', SellerTeamMember::ROLE_ADMIN);
+
+        $this->getJson('/seller-team')->assertOk()->assertJsonCount(2, 'members');
+        $this->get('/seller-team')->assertOk()->assertSee('Admin')->assertDontSee('name="role" value="admin"', false);
+        // Members: yes. Admins: owner only.
+        $id = $this->postJson('/seller-team', ['email' => 'writer@example.test', 'role' => 'member', 'permissions' => ['publishing' => 'write']])->assertCreated()->json('member.id');
+        $this->assertSame($owner->id, SellerTeamMember::find($id)->owner_id);
+        $this->postJson('/seller-team', ['email' => 'boss@example.test', 'role' => 'admin'])->assertForbidden();
+        $this->patchJson('/seller-team/'.$id, ['role' => 'admin'])->assertForbidden();
+        $this->patchJson('/seller-team/'.$id, ['role' => 'member', 'permissions' => ['publishing' => 'read']])->assertOk();
+        $this->assertSame('read', SellerTeamMember::find($id)->permissions['publishing']);
+        // Seats are the owner's plan: owner + 2 admins + writer = 4 of 4.
+        $this->postJson('/seller-team', ['email' => 'fifth@example.test', 'role' => 'member', 'permissions' => ['publishing' => 'read']])->assertUnprocessable()->assertJsonValidationErrors('package');
+        // Never another Admin, nor themselves.
+        $this->deleteJson('/seller-team/'.$other->id)->assertForbidden();
+        $this->deleteJson('/seller-team/'.$admin->id)->assertForbidden();
+        $this->patchJson('/seller-team/'.$admin->id, ['role' => 'member', 'permissions' => []])->assertForbidden();
+        $this->deleteJson('/seller-team/'.$id)->assertNoContent();
+    }
+
+    public function test_the_owner_promotes_and_demotes_admins(): void
+    {
+        $owner = $this->seller();
+        $this->subscribe($owner, limits: ['team_members' => 2]);
+        $id = $this->actingAs($owner)->postJson('/seller-team', ['email' => 'm@example.test', 'role' => 'member', 'permissions' => ['inbox' => 'read']])->assertCreated()->json('member.id');
+        $this->assertFalse(SellerTeamMember::find($id)->isAdmin());
+
+        $this->patchJson('/seller-team/'.$id, ['role' => 'admin'])->assertOk();
+        $promoted = SellerTeamMember::find($id);
+        $this->assertTrue($promoted->isAdmin());
+        $this->assertSame('write', $promoted->permission('email_marketing'));
+
+        $this->patchJson('/seller-team/'.$id, ['role' => 'member', 'permissions' => ['inbox' => 'read']])->assertOk();
+        $demoted = SellerTeamMember::find($id);
+        $this->assertFalse($demoted->isAdmin());
+        $this->assertSame('none', $demoted->permission('email_marketing'));
+        $this->assertFalse($demoted->canUse('inbox', true));
+        // The seat limit is unchanged by roles: still one teammate allowed.
+        $this->postJson('/seller-team', ['email' => 'x@example.test', 'role' => 'admin'])->assertUnprocessable()->assertJsonValidationErrors('package');
+    }
+
+    public function test_a_teammate_joins_one_workspace_only_and_seats_are_shared_across_the_organization(): void
+    {
+        $owner = $this->seller();
+        $this->subscribe($owner, limits: ['team_members' => 3]);
+        $this->actingAs($owner)->get('/seller-team')->assertOk(); // TestCase adds the workspace columns on first request
+        $brand = User::factory()->create(['name' => 'Brand B', 'email' => 'brand-b@example.invalid', 'workspace_owner_id' => $owner->id]);
+        $brand->assignRole('seller');
+        $teams = app(SellerTeamService::class);
+        Route::middleware(['web', 'auth', 'seller', 'subscription', 'package.feature'])->get('/_package/whoami', fn () => response()->json(['account' => auth()->id()]))->name('admin.chats.whoami');
+
+        // Invited from inside Brand B: tied to Brand B's account, not the owner's.
+        [$member, $token] = $teams->invite($brand, 'brand-editor@example.test', ['inbox' => 'write']);
+        $this->assertSame($brand->id, $member->owner_id);
+        // The organization's owner can't take a seat in their own workspace.
+        try {
+            $teams->invite($brand, $owner->email, ['inbox' => 'read']);
+            $this->fail('The owner was invited to their own workspace.');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('email', $e->errors());
+        }
+        $teams->invite($owner, 'main-writer@example.test', ['inbox' => 'read']);
+        // One pool of seats: owner + 2 people = 3 of 3, from either workspace.
+        $this->assertSame(3, $teams->seats($owner));
+        $this->assertSame(3, $teams->seats($brand));
+        $this->assertLimit(fn () => $teams->invite($brand, 'third@example.test', ['inbox' => 'read']));
+        // The same person added to another workspace needs no new seat.
+        $teams->invite($owner, 'brand-editor@example.test', ['inbox' => 'read']);
+        $this->assertSame(3, $teams->seats($owner));
+
+        // Inside, every request runs as Brand B only.
+        $user = User::factory()->create(['email' => 'brand-editor@example.test']);
+        $teams->accept($user, $token);
+        $this->actingAs($user)->post('/workspaces/'.$member->id.'/enter')->assertRedirect();
+        $this->getJson('/_package/whoami')->assertOk()->assertJsonPath('account', $brand->id);
+        $this->assertTrue($teams->usable($member->fresh()));
     }
 
     public function test_expired_invitations_and_removed_members_cannot_enter_workspace(): void

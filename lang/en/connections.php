@@ -965,4 +965,10 @@ return [
             'sign_in' => 'via :step',
         ],
     ],
+
+    // One Page / account, one workspace (AccountOwnership).
+    'duplicate' => [
+        'one' => "The Page :name is already connected to another organization or workspace. You cannot connect the same Page again.",
+        'skipped' => '{1} :names is already connected to another organization or workspace, so it wasn\'t connected here. The same Page or account can\'t be connected twice.|[2,*] These are already connected to another organization or workspace, so they weren\'t connected here: :names. The same Page or account can\'t be connected twice.',
+    ],
 ];

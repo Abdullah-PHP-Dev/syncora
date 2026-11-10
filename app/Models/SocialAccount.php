@@ -88,8 +88,59 @@ class SocialAccount extends Model
         'user_token',
     ];
 
+    /** @var \Illuminate\Contracts\Cache\Lock|null held from creating/updating until the row is committed */
+    protected $ownershipLock = null;
+
+    /**
+     * One Page / account, one tenant (AccountOwnership): every write path that
+     * creates or moves an account goes through here, so OAuth callbacks, API
+     * requests and syncs can't give another workspace or organization's Page a
+     * second owner. Import loops skip such accounts earlier (AccountOwnership::allows).
+     */
+    protected function guardOwnership(): void
+    {
+        $externalId = (string) ($this->platform_account_id ?? '');
+        if ($externalId === '' || ! $this->platform || ! $this->user_id) {
+            return;
+        }
+        // Serialize concurrent callbacks for the same account across tenants.
+        $lock = \Illuminate\Support\Facades\Cache::lock(\App\Support\Connections\AccountOwnership::lockKey($this->platform, $externalId), 15);
+        $label = $this->name ?: ($this->username ? '@'.$this->username : $externalId);
+        try {
+            $lock->block((int) config('connections.ownership_lock_wait', 5));
+        } catch (\Illuminate\Contracts\Cache\LockTimeoutException) {
+            // Another workspace is connecting this exact account right now.
+            throw new \App\Exceptions\SocialAccountConnectedElsewhere($label);
+        }
+        if (\App\Support\Connections\AccountOwnership::heldElsewhere($this->platform, $externalId, (int) $this->user_id)) {
+            $lock->release();
+            throw new \App\Exceptions\SocialAccountConnectedElsewhere($label);
+        }
+        $this->ownershipLock = $lock;
+    }
+
+    /** Release once the new owner is committed, so the next callback sees it. */
+    protected function releaseOwnershipLock(): void
+    {
+        if (! $this->ownershipLock) {
+            return;
+        }
+        $lock = $this->ownershipLock;
+        $this->ownershipLock = null;
+        rescue(fn () => $this->getConnection()->afterCommit(fn () => $lock->release()), fn () => $lock->release(), false);
+    }
+
     protected static function booted(): void
     {
+        static::creating(fn (self $account) => $account->guardOwnership());
+        static::updating(function (self $account) {
+            if ($account->isDirty(['user_id', 'platform', 'platform_account_id'])) {
+                $account->guardOwnership();
+            }
+        });
+        static::created(fn (self $account) => $account->releaseOwnershipLock());
+        static::updated(fn (self $account) => $account->releaseOwnershipLock());
+
         // fill()/save() can't write straight to social_account_post_details
         // or social_account_ad_details (they're a separate table, and on a
         // brand-new SocialAccount there's no id to key them by yet until

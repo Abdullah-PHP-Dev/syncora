@@ -156,6 +156,10 @@ class FacebookAdService
 
                 $avatarUrl = $avatarUrl ?: ($item['pages'][0]['picture']['data']['url'] ?? null);
 
+                // One Page / account, one workspace: leave out accounts another workspace or organization has.
+                if (! \App\Support\Connections\AccountOwnership::allows('facebook', $rawAccountId, Auth::id(), $fbData['name'] ?? null)) {
+                    continue;
+                }
                 $fbAccountRecord = $this->apiService->success(
                     [
                         'platform'      => 'facebook',
@@ -228,6 +232,10 @@ class FacebookAdService
             foreach ($instagrams as $igAccount) {
                 $igId = $igAccount['id'];
                 $instagramSaved = $igAccount['name'];
+                // One Page / account, one workspace: leave out accounts another workspace or organization has.
+                if (! \App\Support\Connections\AccountOwnership::allows('instagram', $igId, Auth::id(), isset($igAccount['username']) ? '@'.$igAccount['username'] : ($igAccount['name'] ?? null))) {
+                    continue;
+                }
                 $igAccountRecord = $this->apiService->success(
                     [
                         'platform'      => 'instagram',

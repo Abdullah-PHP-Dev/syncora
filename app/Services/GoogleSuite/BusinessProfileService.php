@@ -246,6 +246,10 @@ class BusinessProfileService
         if ($accountId === '' || $locationId === '') {
             return null;
         }
+        // One location, one workspace: another workspace or organization already has it.
+        if (! \App\Support\Connections\AccountOwnership::allows('google', $locationId, $userId, $location['title'] ?? null)) {
+            return null;
+        }
 
         $address = $location['storefrontAddress'] ?? [];
         $addressText = trim(implode(', ', array_filter([

@@ -13,6 +13,8 @@ return [
     'usage_title' => 'Your package and usage', 'expired_label' => 'Inactive or expired', 'used' => 'Used', 'allowed' => 'Allowance', 'usage_help' => 'Storage includes retained gallery files. Scheduled posts count once per destination. Usage allowances follow your package period.', 'period_start' => 'Allowance period started',
     // Usage page (admin/subscription/usage.blade.php).
     'limit_required' => ':module needs a limit above 0 for ":limit" (or -1 for unlimited). Set the limit, or choose Disabled.',
+    'sidebar_locked_member' => 'Not in this organization’s plan. Ask the owner to upgrade.',
+    'member_upgrade' => 'Only the organization owner can change the plan. Ask them to upgrade to unlock this.',
     'sidebar_locked' => 'Not in your plan. Upgrade to unlock.',
     'page' => [
         'title' => 'Your plan and usage',

@@ -158,6 +158,10 @@ class TiktokAdService
         foreach ($advertiserIds as $advertiserId) {
             $details = $advertiserDetails->get($advertiserId, []);
 
+            // One Page / account, one workspace: leave out accounts another workspace or organization has.
+            if (! \App\Support\Connections\AccountOwnership::allows($platform, $advertiserId, Auth::id(), $details['name'] ?? null)) {
+                continue;
+            }
             $result = $this->apiService->success(
                 [
                     'platform'      => $platform,

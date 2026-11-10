@@ -151,7 +151,7 @@ class AdCampaignController extends Controller
     {
         $this->selectedAdAccount('facebook'); // Instagram ads run on the Facebook ad account
         $member = request()->attributes->get('workspace_member');
-        $memberCanWrite = ! $member || ($member->permissions['advertising'] ?? 'none') === 'write';
+        $memberCanWrite = ! $member || $member->canUse('advertising', true);
 
         $data = (new FacebookCampaignsPageService(Auth::id(), $memberCanWrite, $platform))->build();
         // Scheduled reports go to whoever is signed in; export needs the Data export module.
@@ -229,7 +229,7 @@ class AdCampaignController extends Controller
     {
         $this->selectedAdAccount($platform);
         $member = request()->attributes->get('workspace_member');
-        $memberCanWrite = ! $member || ($member->permissions['advertising'] ?? 'none') === 'write';
+        $memberCanWrite = ! $member || $member->canUse('advertising', true);
 
         $data = (new CampaignsPageService(Auth::id(), $platform, $memberCanWrite))->build();
         $data['reports'] = $data['account']

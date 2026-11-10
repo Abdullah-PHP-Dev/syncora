@@ -288,7 +288,7 @@ class GoogleChatMessagingService
         foreach ($spacesResponse['data']['spaces'] ?? [] as $space) {
             $spaceName = $space['name'] ?? null;
 
-            if (!$spaceName) {
+            if (!$spaceName || ! \App\Support\Connections\AccountOwnership::allows('google_chat', $spaceName, $userId, $space['displayName'] ?? null)) {
                 continue;
             }
 

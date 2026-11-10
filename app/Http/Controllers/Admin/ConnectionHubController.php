@@ -35,7 +35,16 @@ class ConnectionHubController extends Controller
 
     public function index(): View
     {
+        // Accounts the last connection left out because another workspace or
+        // organization already has them (AccountOwnership); shown with the result.
+        $flash = array_filter(['success' => session('success'), 'error' => session('error')]);
+        if ($skipped = \App\Support\Connections\AccountOwnership::pullSkipped()) {
+            $notice = trans_choice('connections.duplicate.skipped', count($skipped), ['names' => implode(', ', $skipped)]);
+            $flash = ['error' => trim(implode(' ', array_filter([$flash['success'] ?? null, $flash['error'] ?? null, $notice])))];
+        }
+
         return view('admin.connections.index', [
+            'flash' => $flash,
             'hub' => $this->presenter->forUser((int) Auth::id()),
             'wizard' => $this->wizardPayload(),
             'flow' => $this->flow->state((int) Auth::id()),

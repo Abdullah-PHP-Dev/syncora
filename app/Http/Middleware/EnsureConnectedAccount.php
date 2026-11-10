@@ -30,9 +30,10 @@ class EnsureConnectedAccount
             return response()->json(['message' => $message, 'code' => 'connection_required', 'connect_url' => route('admin.connections.index')], 403);
         }
 
-        // A team member can't open the Hub (UseSellerWorkspace blocks it),
+        // A Member can't open the Hub (UseSellerWorkspace blocks it; Admins can),
         // so send them to their workspaces list instead.
-        if ($request->attributes->has('workspace_member')) {
+        $member = $request->attributes->get('workspace_member');
+        if ($member && ! ($member instanceof \App\Models\SellerTeamMember && $member->isAdmin())) {
             return redirect()->route('seller-workspaces.index')->with('error', __('connections.gate.workspace'));
         }
 

@@ -163,7 +163,8 @@ trait InstagramMessagingTrait
         $assetIds = [];
 
         foreach ($pagesResponse['data']['data'] as $page) {
-            if (!empty($page['instagram_business_account']['id'])) {
+            if (!empty($page['instagram_business_account']['id'])
+                && \App\Support\Connections\AccountOwnership::allows('instagram', $page['instagram_business_account']['id'], Auth::id(), $page['instagram_business_account']['username'] ?? null)) {
                 $ig = $page['instagram_business_account'];
                 $pageAccessToken = $page['access_token'];
 

@@ -22,7 +22,7 @@ class WorkspaceController extends Controller
     {
         $user = $request->user();
         $owned = $this->workspaces->owned($user);
-        $joined = SellerTeamMember::where('user_id', $user->id)->whereNotNull('accepted_at')->with('owner')->get()->filter(fn ($m) => $m->owner)->values();
+        $joined = SellerTeamMember::where('user_id', $user->id)->whereNotNull('accepted_at')->with('owner', 'workspace')->get()->filter(fn ($m) => $m->owner)->values();
         $health = $this->workspaces->health($owned->pluck('account_id')->merge($joined->pluck('owner_id'))->unique()->values()->all());
         $active = $request->session()->has('seller_workspace_member') ? null
             : ($this->workspaces->active($request, $user) ?? $owned->firstWhere('account_id', $user->id));
@@ -41,7 +41,7 @@ class WorkspaceController extends Controller
             'details' => $this->editable($w),
         ] + $health[$w->account_id])->concat($joined->map(fn (SellerTeamMember $m) => [
             'id' => 'm'.$m->id,
-            'name' => $m->owner->name,
+            'name' => $m->workspace_name,
             'kind' => 'joined',
             'role' => 'member',
             'industry' => null,
@@ -55,9 +55,13 @@ class WorkspaceController extends Controller
         return view('workspaces.index', ['picker' => [
             'user' => ['name' => $user->name, 'first_name' => Str::before(trim($user->name), ' ')],
             'workspaces' => $cards,
-            'invitations' => $this->workspaces->invitations($user)->map(fn (SellerTeamMember $m) => [
+            // One invitation per organization; accepting it joins every workspace it lists.
+            'invitations' => $this->workspaces->invitations($user)
+                ->groupBy(fn (SellerTeamMember $m) => $m->owner->workspace_owner_id ?? $m->owner_id)
+                ->map(fn ($rows) => $rows->sortBy('id')->first()->setAttribute('workspace_list', $rows->sortBy('id')->map->workspace_name->implode(', ')))
+                ->values()->map(fn (SellerTeamMember $m) => [
                 'id' => $m->id,
-                'workspace' => $m->owner->name,
+                'workspace' => $m->workspace_list,
                 'invited_at' => $m->created_at?->toIso8601String(),
                 'accept_url' => route('seller-workspaces.respond', [$m, 'accept']),
                 'decline_url' => route('seller-workspaces.respond', [$m, 'decline']),

@@ -63,7 +63,11 @@
         <!-- =================================================
              SUBSCRIPTION STATUS
         ================================================== -->
-        @if(!auth()->user()->isTeamMember())
+        @php
+            $navTeammate = request()->attributes->has('workspace_member') || ! auth()->user()->hasAnyRole(['seller', 'admin', 'customer_support']);
+        @endphp
+        {{-- Teammates work on someone else's plan and can't open billing. --}}
+        @if(!auth()->user()->isTeamMember() && !$navTeammate)
         @php
             $packageAccess = app(\App\Services\PackageAccessService::class);
             $headerSubscription = $packageAccess->subscription(auth()->user());
@@ -207,6 +211,15 @@
         @php
             // The signed-in person, even while a workspace runs the request as its own account.
             $navUser = request()->attributes->get('workspace_actor') ?? auth()->user();
+            // Inside a joined workspace: their role there (Admin/Member); a teammate-only login: "Team member".
+            $navMembership = request()->attributes->get('workspace_member');
+            $navRole = match (true) {
+                $navUser->hasRole('admin') => __('Team administrator'),
+                $navUser->hasRole('customer_support') => __('Customer support'),
+                (bool) $navMembership => __('seller_team.roles.'.$navMembership->role),
+                ! $navUser->hasRole('seller') => __('seller_team.team_member'),
+                default => __('Seller'),
+            };
         @endphp
         <div class="admin-user dropdown">
 
@@ -231,7 +244,7 @@
                     </span>
 
                     <span class="admin-user-role">
-                        {{ $navUser->hasRole('admin') ? __('Team administrator') : ($navUser->hasRole('customer_support') ? __('Customer support') : __('Seller')) }}
+                        {{ $navRole }}
                         | {{ __('overview.user_id') }}: <bdi>{{ $navUser->id }}</bdi>
                     </span>
 
@@ -266,7 +279,7 @@
                             </div>
 
                             <div class="admin-dropdown-role">
-                                {{ $navUser->hasRole('admin') ? __('Team administrator') : ($navUser->hasRole('customer_support') ? __('Customer support') : __('Seller')) }}
+                                {{ $navRole }}
                             </div>
 
                         </div>
@@ -321,6 +334,7 @@
 
 
                 <!-- Billing -->
+                @unless($navTeammate)
                 <li>
 
                     <a class="dropdown-item admin-dropdown-item"
@@ -337,6 +351,7 @@
                     </a>
 
                 </li>
+                @endunless
 
 
                 <li>

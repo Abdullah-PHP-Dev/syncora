@@ -116,14 +116,21 @@
         foreach ($groups as $heading => $links) {
             $groups[$heading] = array_values(array_filter($links, function ($link) use ($workspaceMember, $access) {
                 if ($link[0] === 'seller-workspaces.index') return true;
+                // Help Center for everyone; Admins also Dashboard, Connections, My team and Support tickets.
+                if ($workspaceMember->allowsRoute($link[0])) return true;
+                // Modules they were given. Ones the agency's plan lacks stay visible with a lock (below), like the owner sees them.
                 $modules = $access->modulesForRoute($link[0]);
-                return $modules !== [] && collect($modules)->every(fn ($module) => in_array($workspaceMember->permissions[$module] ?? 'none', ['read', 'write'], true) && $access->allows(auth()->user(), $module));
+                return $modules !== [] && collect($modules)->every(fn ($module) => $workspaceMember->canUse($module));
             }));
         }
+    } elseif (! $team && ! auth()->user()->hasAnyRole(['seller', 'admin', 'customer_support']) && ! auth()->user()->isWorkspaceAccount()) {
+        // A teammate-only account outside a workspace: just its workspace list.
+        $groups = ['overview.sidebar_workspace' => [['seller-workspaces.index', 'seller_team.workspaces', 'bx-buildings']]];
     }
-    // Owners: mark links to modules their plan doesn't include (the backend answers 403 there).
     $planLocked = [];
-    if (! $team && ! $workspaceMember && auth()->user()->hasRole('seller')) {
+    $lockText = $workspaceMember ? __('package_access.sidebar_locked_member') : __('package_access.sidebar_locked');
+    // Owners and teammates: mark links to modules the (agency's) plan doesn't include (the backend answers 403 there).
+    if (! $team && auth()->user()->hasRole('seller')) {
         $planLocked = rescue(function () use ($groups) {
             $access = app(\App\Services\PackageAccessService::class);
             $allowed = [];
@@ -156,7 +163,7 @@
         $sidebarWorkspace = request()->attributes->get('workspace');
         // Nothing opened: the seller's own account is their default workspace.
         $sidebarWorkspaceName = $sidebarWorkspace?->name
-            ?? request()->attributes->get('workspace_member')?->owner?->name
+            ?? request()->attributes->get('workspace_member')?->workspace_name
             ?? ($team ? null : auth()->user()->name);
     @endphp
     @if($sidebarWorkspaceName && Route::has('seller-workspaces.index'))
@@ -197,11 +204,11 @@
                     @foreach($wsJoined as $membership)
                         @if($wsMember && $wsMember->id === $membership->id)
                             <span class="ov-ws-item is-current" role="menuitem" aria-current="true" tabindex="-1">
-                                <span class="ov-ws-avatar sm is-team" aria-hidden="true">{{ $wsInitials($membership->owner->name) }}</span><span class="ov-ws-name">{{ $membership->owner->name }}</span><i class="bx bx-check" aria-hidden="true"></i>
+                                <span class="ov-ws-avatar sm is-team" aria-hidden="true">{{ $wsInitials($membership->workspace_name) }}</span><span class="ov-ws-name">{{ $membership->workspace_name }}</span><i class="bx bx-check" aria-hidden="true"></i>
                             </span>
                         @else
                             <form method="POST" action="{{ route('seller-workspaces.enter', $membership) }}">@csrf
-                                <button type="submit" class="ov-ws-item" role="menuitem" tabindex="-1"><span class="ov-ws-avatar sm is-team" aria-hidden="true">{{ $wsInitials($membership->owner->name) }}</span><span class="ov-ws-name">{{ $membership->owner->name }}</span></button>
+                                <button type="submit" class="ov-ws-item" role="menuitem" tabindex="-1"><span class="ov-ws-avatar sm is-team" aria-hidden="true">{{ $wsInitials($membership->workspace_name) }}</span><span class="ov-ws-name">{{ $membership->workspace_name }}</span></button>
                             </form>
                         @endif
                     @endforeach
@@ -308,7 +315,7 @@
                             <span class="ov-sidebar-icon"><i class="bx {{ $icon }}" aria-hidden="true"></i></span>
                             <span class="ov-sidebar-label">{{ __($label) }}</span>
                             @if($destination === 'admin.chats.dashboard' && ($unread ?? 0) > 0)<span class="ov-sidebar-badge">{{ $unread > 99 ? '99+' : $unread }}</span>@endif
-                            @if(isset($planLocked[$destination]))<i class="bx bx-crown ov-sidebar-badge ov-sidebar-lock" title="{{ __('package_access.sidebar_locked') }}" aria-label="{{ __('package_access.sidebar_locked') }}"></i>
+                            @if(isset($planLocked[$destination]))<i class="bx bx-crown ov-sidebar-badge ov-sidebar-lock" title="{{ $lockText }}" aria-label="{{ $lockText }}"></i>
                             @elseif($connectionLocked && in_array($destination, $connectionGated, true))<i class="bx bx-lock-alt ov-sidebar-badge ov-sidebar-lock" title="{{ __('connections.gate.locked') }}" aria-label="{{ __('connections.gate.locked') }}"></i>@endif
                             @if($destination === 'admin.tickets.index' && ($openTickets ?? $ticketCounts['open'] ?? 0) > 0)<span class="ov-sidebar-badge">{{ min(99, $openTickets ?? $ticketCounts['open']) }}</span>@endif
                         @if($submenu)

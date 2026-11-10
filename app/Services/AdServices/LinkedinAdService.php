@@ -289,6 +289,10 @@ class LinkedinAdService
             // Organization to author as.
             $orgId = LinkedInAdAccounts::organizationId($detail);
 
+            // One Page / account, one workspace: leave out accounts another workspace or organization has.
+            if (! \App\Support\Connections\AccountOwnership::allows('linkedin', $accountId, Auth::id(), $detail['name'] ?? null)) {
+                continue;
+            }
             $result = $this->apiService->success(
                 [
                     'platform'      => 'linkedin',

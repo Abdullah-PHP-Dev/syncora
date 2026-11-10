@@ -204,6 +204,10 @@ class SnapchatAdService
                     continue;
                 }
 
+                // One Page / account, one workspace: leave out accounts another workspace or organization has.
+                if (! \App\Support\Connections\AccountOwnership::allows('snapchat', $adAccountId, Auth::id(), $adAccount['name'] ?? null)) {
+                    continue;
+                }
                 $result = $this->apiService->success(
                     [
                         'platform'            => 'snapchat',

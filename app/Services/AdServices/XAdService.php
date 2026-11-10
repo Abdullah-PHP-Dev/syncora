@@ -284,6 +284,10 @@ class XAdService
             if (empty($acct['id']) || ($acct['deleted'] ?? false)) {
                 continue;
             }
+            // One Page / account, one workspace: leave out accounts another workspace or organization has.
+            if (! \App\Support\Connections\AccountOwnership::allows('x', $acct['id'], Auth::id(), $acct['name'] ?? null)) {
+                continue;
+            }
             $record = $this->apiService->success(
                 [
                     'platform'            => 'x',

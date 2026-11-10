@@ -205,6 +205,10 @@ trait GoogleAdsApiTrait
                 continue;
             }
 
+            // One Page / account, one workspace: leave out accounts another workspace or organization has.
+            if (! \App\Support\Connections\AccountOwnership::allows('google', $customerId, Auth::id(), $detail['descriptiveName'] ?? null)) {
+                continue;
+            }
             $saved = $this->apiService->success(
                 [
                     // Always 'google', regardless of which tile (Google

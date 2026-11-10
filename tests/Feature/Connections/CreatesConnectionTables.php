@@ -35,6 +35,10 @@ trait CreatesConnectionTables
         if (! \Illuminate\Support\Facades\Schema::hasTable('seller_team_members')) {
             (require database_path('migrations/2026_10_18_140000_create_seller_team_members.php'))->up();
         }
+        if (! \Illuminate\Support\Facades\Schema::hasColumn('seller_team_members', 'role')) {
+            (require database_path('migrations/2026_11_11_100000_add_role_to_seller_team_members.php'))->up();
+        }
+        (require database_path('migrations/2026_11_11_120000_add_name_to_seller_team_members.php'))->up();
     }
 
     /** admin_settings, so adminSetting() can be set via Settings::set(). */

@@ -31,6 +31,14 @@ class UseSellerWorkspace
             return $next($request);
         }
         if (! $id) {
+            // A teammate-only account (joined from an invitation, no organization of its own)
+            // has nothing to show outside a workspace: send it to its workspace list.
+            if ($this->teammateOnly($actor) && ! Str::is(['password.*', 'verification.*', 'profile.*', 'admin.profiles.*', 'seller-workspaces.*', 'login', 'register', 'logout'], $route)) {
+                abort_if($request->expectsJson(), 403, __('seller_team.unavailable'));
+
+                return redirect()->route('seller-workspaces.index');
+            }
+
             return $this->ownedWorkspace($request, $next, $actor, $route);
         }
         abort_if($actor->is_active === false || $actor->isTeamMember(), 403);
@@ -43,15 +51,17 @@ class UseSellerWorkspace
         $broadcast = $request->is('broadcasting/auth') && $request->isMethod('post')
             && preg_match('/^private-(?:inbox\.[0-9]+|conversation\.[0-9]+)$/D', (string) $request->input('channel_name'));
         $modules = $broadcast ? ['inbox'] : $access->modulesForRoute($route);
+        // An Admin also manages connections and the team; everything still runs
+        // as the owner, so the owner's plan, seats and capacities apply unchanged.
+        $adminRoute = $member->allowsRoute($route);
         // Unmapped routes (billing, profiles, team administration, integrations,
         // platform administration, etc.) never inherit the owner's identity.
-        abort_unless($modules !== [] && ! in_array('team_management', $modules, true), 403, __('seller_team.permission_denied'));
-        // Provider credentials and OAuth connections remain owner-managed.
-        abort_if(Str::is(['admin.post-accounts.*', 'admin.messaging.auth.*', '*.redirect', '*.callback', '*.connect', '*.disconnect'], $route), 403, __('seller_team.permission_denied'));
+        abort_unless($adminRoute || ($modules !== [] && ! in_array('team_management', $modules, true)), 403, __('seller_team.permission_denied'));
+        // Provider credentials and OAuth connections remain with the owner (and Admins).
+        abort_if(! $member->isAdmin() && Str::is(['admin.post-accounts.*', 'admin.messaging.auth.*', '*.redirect', '*.callback', '*.connect', '*.disconnect'], $route), 403, __('seller_team.permission_denied'));
         $write = ! $broadcast && (! $request->isMethodSafe() || Str::is(config('package_access.write_get_routes'), $route));
         foreach ($modules as $module) {
-            $permission = $member->permissions[$module] ?? 'none';
-            abort_unless($permission === 'write' || ($permission === 'read' && ! $write), 403, __('seller_team.permission_denied'));
+            abort_unless($member->canUse($module, $write), 403, __('seller_team.permission_denied'));
             if ($broadcast) {
                 // Broadcast routes do not pass through the seller module middleware.
                 $access->authorize($member->owner, $module, false);
@@ -74,6 +84,11 @@ class UseSellerWorkspace
      * as that workspace's account, so every module's user_id scoping applies
      * to it. Ownership is re-checked on every request (WorkspaceService::active).
      */
+    private function teammateOnly($actor): bool
+    {
+        return ! $actor->hasAnyRole(['seller', 'admin', 'customer_support']) && ! $actor->isWorkspaceAccount();
+    }
+
     private function ownedWorkspace(Request $request, Closure $next, $actor, string $route)
     {
         // Nothing opened: the person's own account (their default workspace).

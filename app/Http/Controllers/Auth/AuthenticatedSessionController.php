@@ -32,9 +32,15 @@ class AuthenticatedSessionController extends Controller
             throw \Illuminate\Validation\ValidationException::withMessages(['email' => trans('auth.failed')]);
         }
 
+        // Came from a team invitation link: go back to it to accept.
+        $invitation = $request->session()->pull('team_invitation');
+
         $request->session()->regenerate();
 
         $request->session()->forget(['url.intended', 'seller_workspace_member', \App\Services\WorkspaceService::SESSION_KEY]);
+        if (is_string($invitation) && $invitation !== '') {
+            return redirect()->route('seller-workspaces.invitation', $invitation);
+        }
 
         // Several brands or clients: choose where to work first; otherwise open the only one.
         $workspaces = app(\App\Services\WorkspaceService::class);

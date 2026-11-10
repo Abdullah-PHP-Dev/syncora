@@ -366,6 +366,6 @@ class GoogleSuiteDataController extends Controller
     /** Credentials stay with the workspace owner (same rule as connecting Google). */
     private function ownerOnly(Request $request): void
     {
-        abort_if($request->attributes->has('workspace_member'), 403, __('google_suite.speed_key.owner_only'));
+        abort_if($request->attributes->get('workspace_member')?->isAdmin() === false, 403, __('google_suite.speed_key.owner_only'));
     }
 }
