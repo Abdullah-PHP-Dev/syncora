@@ -204,6 +204,8 @@ class SocialAuthService
             'instagram_manage_insights', 'instagram_manage_messages', 'ads_management', 'ads_read',
             // Ads run as the Page (object_story_spec.page_id in FacebookAdService).
             'pages_manage_ads',
+            // Lead Ads → CRM: read instant-form leads (Page "leadgen" webhook, LeadCapture).
+            'leads_retrieval',
         ])];
     }
 

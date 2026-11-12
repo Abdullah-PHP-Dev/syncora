@@ -8,6 +8,9 @@
     <button type="button" class="details-close" id="closeDetailsBtn" title="{{ __('Hide panel') }}"><i class="bx bx-x"></i></button>
 </div>
 
+{{-- CRM panel (crm-inbox-panel), mounted by mountCrmPanel() in dashboard.blade.php when CRM is available. --}}
+<div class="details-section"><div id="crmPanelMount"></div></div>
+
 <div class="details-section">
     <div class="details-section-title">{{ __(':name\'s Contact Details', ['name' => $conversation->customer_name ?: __('Unknown')]) }}</div>
     <div class="details-row">

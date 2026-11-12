@@ -179,9 +179,11 @@ class FacebookMessengerService
      */
     public function subscribeToWebhooks(MessageChannel $channel): void
     {
-        $result = $this->graphApiCall('POST', $channel->external_id . '/subscribed_apps', ['subscribed_fields' => \App\Services\PostServices\MetaPostService::PAGE_WEBHOOK_FIELDS], $channel->socialAccount->access_token);
+        // Same field list as the posts side (incl. CRM leadgen when granted): a Page's
+        // subscribed_apps call replaces the list, so both must send it whole.
+        $result = \App\Services\Crm\MetaLeads::subscribe($channel->socialAccount, $channel->socialAccount->access_token);
 
-        if ($result['success'] && ($result['data']['success'] ?? false)) {
+        if ($result['ok']) {
             $channel->update(['webhook_subscribed' => true]);
         } else {
             Log::warning('Facebook channel webhook subscribe failed.', ['channel_id' => $channel->id, 'error' => $result['error'] ?? null]);

@@ -192,6 +192,16 @@ class TiktokAdService
             'access_token' => $accessToken,
         ], $assetIds);
 
+        // CRM: Instant Form leads from these advertisers (TikTok LEAD webhook). Best-effort:
+        // the ads connection stands even if the app lacks the lead permission.
+        foreach (SocialAccount::whereIn('id', $assetIds)->get() as $advertiser) {
+            try {
+                \App\Services\Crm\TikTokLeads::subscribe($advertiser, true);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('TikTok lead subscription skipped.', ['advertiser' => $advertiser->platform_account_id, 'error' => $e->getMessage()]);
+            }
+        }
+
         return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('success', "Connected {$connected} TikTok advertiser account(s).");
     }
 

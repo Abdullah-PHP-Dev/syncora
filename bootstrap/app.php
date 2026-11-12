@@ -43,6 +43,7 @@ return tap(
                                'subscription' => \App\Http\Middleware\EnsureActiveSubscription::class,
                                'package.feature' => \App\Http\Middleware\EnsurePackageFeature::class,
                                'connected' => \App\Http\Middleware\EnsureConnectedAccount::class,
+                               'crm.workspace' => \App\Http\Middleware\EnsureCrmWorkspace::class,
 	                           ]);
 
             // RFC 8058 one-click unsubscribe requests are POSTed directly

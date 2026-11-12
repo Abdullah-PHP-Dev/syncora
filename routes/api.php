@@ -184,6 +184,13 @@ Route::get('/user', function (Request $request) {
     Route::post('/webhooks/sendgrid/events', [\App\Http\Controllers\Api\EmailMarketing\SendGridWebhookController::class, 'receive'])->name('email_marketing.sendgrid.receive');
 // });
 
+// CRM lead capture for website forms / form tools (token = workspace secret; see CRM settings).
+Route::post('/crm/capture/{token}', \App\Http\Controllers\Api\CrmCaptureController::class)
+    ->where('token', '[A-Za-z0-9]{48}')->middleware('throttle:30,1')->name('api.crm.capture');
+// CRM: TikTok Instant Form leads (LEAD subscription callback; see App\Services\Crm\TikTokLeads).
+Route::match(['get', 'post'], '/crm/tiktok/leads/{token}', \App\Http\Controllers\Api\CrmTikTokLeadController::class)
+    ->where('token', '[a-f0-9]{40}')->middleware('throttle:600,1')->name('api.crm.tiktok.leads');
+
 require __DIR__.'/mcp-auth.php';
 require __DIR__.'/mcp-media.php';
 require __DIR__.'/mcp-connections.php';

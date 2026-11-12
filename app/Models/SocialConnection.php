@@ -22,7 +22,7 @@ class SocialConnection extends Model
     public const REVOKED = 'revoked';
     public const ERROR = 'error';
 
-    public const CAPABILITIES = ['posting', 'messaging', 'ads', 'insights', 'engagement'];
+    public const CAPABILITIES = ['posting', 'messaging', 'ads', 'insights', 'engagement', 'leads'];
 
     /**
      * last_error of a connection the user disconnected themselves: revoked,

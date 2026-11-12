@@ -15,12 +15,13 @@ return [
         'data_import' => ['label' => 'Data import', 'source' => 'data_import'],
         'google_analytics' => ['label' => 'Google Analytics integration', 'source' => 'google_analytics'],
         'post_approval' => ['label' => 'Post approval', 'source' => 'post_approval'],
+        'crm' => ['label' => 'CRM', 'source' => 'crm_access'],
     ],
     // Specific rules run before general module rules. Multiple matches all apply.
     'routes' => [
-        'data_export' => ['admin.knowledge-base.export', 'admin.email.campaigns.export', 'admin.google.api.reports.export', 'admin.ads.campaigns.export'],
-        'data_import' => ['admin.knowledge-base.import', 'admin.email.lists.subscribers.import'],
-        'ai_content' => ['admin.posts.generate-ai-*', 'admin.posts.ask*', 'admin.email.templates.generateAi', 'admin.knowledge-base.improve', 'admin.ads.campaigns.ai-insights.generate'],
+        'data_export' => ['admin.knowledge-base.export', 'admin.email.campaigns.export', 'admin.google.api.reports.export', 'admin.ads.campaigns.export', 'admin.crm.contacts.export', 'admin.crm.reports.export'],
+        'data_import' => ['admin.knowledge-base.import', 'admin.email.lists.subscribers.import', 'admin.crm.api.contacts.import.*'],
+        'ai_content' => ['admin.posts.generate-ai-*', 'admin.posts.ask*', 'admin.email.templates.generateAi', 'admin.knowledge-base.improve', 'admin.ads.campaigns.ai-insights.generate', 'admin.crm.ai.*'],
         'ai_agent' => ['admin.ai-copilot.*', 'admin.knowledge-base.*', 'admin.chats.copilot.*', 'admin.chats.resume-ai'],
         'comments' => ['admin.comments.*', 'admin.posts.comments.*', 'admin.post-comments.*', 'admin.tiktok-comments.*'],
         'publishing' => ['admin.posts.*', 'admin.post-accounts.*', 'admin.post-categories.*', 'admin.categories.*'],
@@ -29,6 +30,7 @@ return [
         'media' => ['admin.media-gallery.*'],
         'email_marketing' => ['admin.email.*'],
         'google_analytics' => ['admin.google.*'],
+        'crm' => ['admin.crm.*'],
     ],
     // GET routes that use a feature rather than look at it ("preview" blocks them). Exports hand the data over.
     'write_get_routes' => ['*.redirect', '*.callback', '*.connect', '*.sync', '*.auth.*', '*.create', '*.edit', '*.export'],

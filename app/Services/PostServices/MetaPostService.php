@@ -593,29 +593,19 @@ protected function publishPostOnMeta($post, $account)
      */
     public function subscribeToWebhooks(SocialAccount $account): bool
     {
+        // One field list for every caller (posts, Messenger, CRM lead ads): see Crm\MetaLeads.
         try {
-            $response = $this->api->request(
-                'post',
-                $this->baseUrl . $account->platform_account_id . '/subscribed_apps',
-                [],
-                ['subscribed_fields' => self::PAGE_WEBHOOK_FIELDS, 'access_token' => $account->access_token]
-            );
-
-            if ($response->successful() && ($response->json()['success'] ?? false)) {
-                $account->update(['metadata' => array_merge($account->metadata ?? [], ['webhook_subscriptions' => true])]);
-
-                return true;
+            $result = \App\Services\Crm\MetaLeads::subscribe($account, $account->access_token);
+            if (! $result['ok']) {
+                Log::warning('Failed to subscribe Facebook Page to webhooks.', ['account_id' => $account->id, 'error' => $result['error']]);
             }
 
-            Log::warning('Failed to subscribe Facebook Page to webhooks.', [
-                'account_id' => $account->id,
-                'error'      => $response->json()['error']['message'] ?? $response->body(),
-            ]);
+            return $result['ok'];
         } catch (\Throwable $e) {
             Log::warning('Facebook Page webhook subscription threw.', ['account_id' => $account->id, 'error' => $e->getMessage()]);
-        }
 
-        return false;
+            return false;
+        }
     }
 
     /**

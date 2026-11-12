@@ -957,5 +957,6 @@
     "The reply couldn't be sent. Please try again.": "The reply couldn't be sent. Please try again.",
     "Sending...": "Sending...",
     "just now": "just now",
-    "Couldn't reach the server. Check your connection and try again.": "Couldn't reach the server. Check your connection and try again."
+    "Couldn't reach the server. Check your connection and try again.": "Couldn't reach the server. Check your connection and try again.",
+    "CRM": "CRM"
 }

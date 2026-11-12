@@ -159,6 +159,13 @@
             <div class="cm-filter-note"><i class="bx bx-filter-alt"></i> {{ __('Showing comments on one post.') }} <a href="{{ $query(['post' => null]) }}">{{ __('Show all posts') }}</a></div>
         @endif
 
+        @php
+            // CRM (M-03): buying-intent flag + Create lead / View contact, when the plan and role allow CRM.
+            $crmMember = request()->attributes->get('workspace_member');
+            $crmOn = app(\App\Services\PackageAccessService::class)->allows(auth()->user(), 'crm', true) && (! $crmMember || $crmMember->canUse('crm', true));
+            $crmKnown = $crmOn ? \App\Models\Crm\ContactIdentity::whereIn('external_id', $comments->map(fn ($c) => $c->user_platform_id ?: ($c->user_name ? 'name:'.$c->user_name : null))->filter()->unique()->values())
+                ->get(['platform', 'external_id', 'contact_id'])->keyBy(fn ($i) => $i->platform.'|'.$i->external_id) : collect();
+        @endphp
         @forelse ($comments as $comment)
             @php
                 [$pName, $pIcon, $pColor] = $meta($comment->platform);
@@ -182,6 +189,7 @@
                         <strong dir="auto">{{ $comment->user_name ?: __('Unknown') }}</strong>
                         <span>{{ $pName }}@if($comment->socialAccount) · {{ $comment->socialAccount->name }}@endif</span>
                         <span title="{{ $when?->translatedFormat('M j, Y g:i A') }}">{{ $when?->diffForHumans() }}</span>
+                        @if ($crmOn && \App\Services\Crm\BuyingIntent::detect($comment->content))<span class="badge rounded-pill" style="background:#ecfdf3;color:#15803d;font-weight:600">{{ __('crm.comments.buying_intent') }}</span>@endif
                         @if ($comment->replies_count)<span><i class="bx bx-reply"></i> {{ trans_choice(':count reply|:count replies', $comment->replies_count, ['count' => $comment->replies_count]) }}</span>@endif
                     </div>
                     <div class="cm-text" dir="auto">{{ $comment->content }}</div>
@@ -227,6 +235,14 @@
                         <button type="button" class="btn btn-primary btn-sm" data-cm-reply><i class="bx bx-reply"></i> {{ __('Reply') }}</button>
                         <a href="{{ $postUrl }}" class="btn btn-sm cm-btn" data-cm-open><i class="bx bx-show"></i> {{ __('View post') }}</a>
                     @endif
+                    @if ($crmOn)
+                        @php $crmContact = $crmKnown->get($comment->platform.'|'.($comment->user_platform_id ?: 'name:'.$comment->user_name)); @endphp
+                        @if ($crmContact)
+                            <a href="{{ route('admin.crm.contacts.show', $crmContact->contact_id) }}" class="btn btn-sm cm-btn"><i class="bx bx-user"></i> {{ __('crm.comments.view_contact') }}</a>
+                        @elseif ($comment->user_platform_id || $comment->user_name)
+                            <button type="button" class="btn btn-sm cm-btn" data-crm-lead="{{ route('admin.crm.api.comments.lead', $comment) }}"><i class="bx bx-user-plus"></i> {{ __('crm.comments.create_lead') }}</button>
+                        @endif
+                    @endif
                     @unless ($comment->read_at)
                         <button type="button" class="btn btn-sm cm-btn is-ghost" data-cm-read="{{ route('admin.comments.read', $comment) }}"><i class="bx bx-check"></i> {{ __('Mark read') }}</button>
                     @endunless
@@ -264,6 +280,22 @@
     // Delegated: the Vue #app root re-mounts after load.
     (function () {
         const csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+
+        // CRM: comment → lead; the button becomes a link to the contact.
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('[data-crm-lead]');
+            if (!btn || btn.disabled) return;
+            btn.disabled = true;
+            fetch(btn.dataset.crmLead, { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf(), 'Accept': 'application/json' } })
+                .then(r => r.ok ? r.json() : Promise.reject(r))
+                .then(res => {
+                    const link = document.createElement('a');
+                    link.href = res.url; link.className = btn.className;
+                    link.innerHTML = '<i class="bx bx-user"></i> ' + @json(__('crm.comments.view_contact'));
+                    btn.replaceWith(link);
+                })
+                .catch(() => { btn.disabled = false; alert(@json(__('crm.common.error'))); });
+        });
 
         function markRead(row) {
             const url = row.querySelector('[data-cm-read]')?.dataset.cmRead;

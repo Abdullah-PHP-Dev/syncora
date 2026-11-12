@@ -59,12 +59,12 @@ class CapabilityAuthorizationTest extends TestCase
 
     public function test_statuses_come_from_granted_capabilities_not_from_connecting(): void
     {
-        $this->assertSame(array_fill_keys(['posting', 'ads', 'messaging', 'engagement', 'insights'], 'available'), $this->statuses('meta'));
+        $this->assertSame(array_fill_keys(['posting', 'ads', 'messaging', 'engagement', 'insights', 'leads'], 'available'), $this->statuses('meta'));
 
         // Consent ran; the user unticked the ads permissions.
         $this->connection('meta', MetaDriver::LOGIN, ['posting', 'insights']);
 
-        $this->assertSame(['posting' => 'connected', 'ads' => 'not_granted', 'messaging' => 'not_granted', 'engagement' => 'not_granted', 'insights' => 'connected'], $this->statuses('meta'));
+        $this->assertSame(['posting' => 'connected', 'ads' => 'not_granted', 'messaging' => 'not_granted', 'engagement' => 'not_granted', 'insights' => 'connected', 'leads' => 'not_granted'], $this->statuses('meta'));
     }
 
     public function test_expired_and_revoked_consents_need_a_reconnect(): void

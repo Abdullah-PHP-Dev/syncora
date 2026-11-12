@@ -30,6 +30,8 @@ import GoogleCampaignBuilder from './components/ads/google/GoogleCampaignBuilder
 import EmailTemplateDesigner from './components/email/EmailTemplateDesigner.vue';
 import GoogleSuite from './components/google/GoogleSuite.vue';
 import WorkspacePicker from './components/workspaces/WorkspacePicker.vue';
+import CrmApp from './components/crm/CrmApp.vue';
+import CrmInboxPanel from './components/crm/CrmInboxPanel.vue';
 
 window.Alpine = Alpine;
 // Needed so admin/chats/dashboard.blade.php's plain inline <script> (a
@@ -68,6 +70,8 @@ Vue.component('email-template-designer', EmailTemplateDesigner);
 Vue.component('connection-hub', ConnectionHub);
 Vue.component('google-suite', GoogleSuite);
 Vue.component('workspace-picker', WorkspacePicker);
+Vue.component('crm-app', CrmApp);
+Vue.component('crm-inbox-panel', CrmInboxPanel);
 
 new Vue({
     el: '#app',

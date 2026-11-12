@@ -1658,6 +1658,41 @@
                 window.currentConversationPlatform = @json($activeConversation->platform);
             @endif
 
+            // CRM side panel (App\Http\Controllers\Admin\Crm\CrmInboxController):
+            // only when this workspace's plan includes CRM and the teammate's
+            // role allows it. It reads/links CRM records; messaging is untouched.
+            @php
+                $crmMember = request()->attributes->get('workspace_member');
+                $crmAccess = app(\App\Services\PackageAccessService::class);
+                $crmInboxConfig = $crmAccess->allows(auth()->user(), 'crm') && (! $crmMember || $crmMember->canUse('crm')) ? [
+                    'api' => \Illuminate\Support\Str::beforeLast(route('admin.crm.api.overview'), '/overview'),
+                    'messages' => __('crm'),
+                    'locale' => app()->getLocale(),
+                    'currency' => request()->attributes->get('workspace')?->currency ?: 'SAR',
+                    'canWrite' => $crmAccess->allows(auth()->user(), 'crm', true) && (! $crmMember || $crmMember->canUse('crm', true)),
+                ] : null;
+            @endphp
+            const crmInboxConfig = @json($crmInboxConfig);
+            let crmPanelInstance = null;
+            function mountCrmPanel(conversationId) {
+                if (crmPanelInstance) {
+                    crmPanelInstance.$destroy();
+                    crmPanelInstance = null;
+                }
+                const mountEl = document.getElementById('crmPanelMount');
+                if (!mountEl) return;
+                if (!crmInboxConfig || typeof Vue === 'undefined') {
+                    mountEl.remove();
+                    return;
+                }
+                crmPanelInstance = new Vue({
+                    render: h => h('crm-inbox-panel', { props: { conversationId: Number(conversationId), config: crmInboxConfig } }),
+                }).$mount(mountEl);
+            }
+            @if ($activeConversation)
+                mountCrmPanel({{ $activeConversation->id }}); // this script already runs on window "load"
+            @endif
+
             // Same label/icon/color maps as the Blade side above (kept in
             // sync manually since one is computed server-side and the
             // other runs in the browser when swapping conversations via
@@ -1855,6 +1890,8 @@
                         <div class="details-placeholder"><i class="bx bx-time-five"></i> ${t('Not available yet')}</div>
                     </div>
                 `);
+                $panel.find('.details-header').after('<div class="details-section"><div id="crmPanelMount"></div></div>');
+                mountCrmPanel(conversation.id);
             }
 
             function escapeAttr(str) {

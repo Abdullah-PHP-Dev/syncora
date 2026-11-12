@@ -261,7 +261,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
                 Route::resource('seller-team', \App\Http\Controllers\Admin\SellerTeamController::class)
                     ->parameters(['seller-team' => 'member'])->only(['index', 'store', 'update', 'destroy']);
 
-				Route::view('/dashboard/crm', 'admin.crm-dashboard')
+				// The old theme demo ("Customer Ratings") was never a CRM: send it to the real one.
+				Route::get('/dashboard/crm', fn () => redirect()->route('admin.crm.overview', [], 301))
 					->name('crm-dashboard');
 
 				/*
@@ -914,6 +915,123 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				// AI COPILOT ANALYTICS - KPIs over the existing
 				// copilot_messages audit trail, no new tracking.
 				Route::get('ai-copilot/analytics', [AiCopilotAnalyticsController::class, 'index'])->name('ai-copilot.analytics.index');
+
+				// CRM - workspace-scoped (App\Models\Crm\Concerns\BelongsToWorkspace).
+				// Pages are Blade shells; data is JSON under crm/api. Access: the "crm"
+				// package module + team permission (config/package_access.php).
+				Route::prefix('crm')->name('crm.')->middleware('crm.workspace')->group(function () {
+					Route::controller(\App\Http\Controllers\Admin\Crm\CrmPageController::class)->group(function () {
+						Route::get('/', 'overview')->name('overview');
+						Route::get('contacts', 'contacts')->name('contacts.index');
+						Route::get('contacts/{contact}', 'contact')->whereNumber('contact')->name('contacts.show');
+						Route::get('companies', 'companies')->name('companies.index');
+						Route::get('companies/{company}', 'company')->whereNumber('company')->name('companies.show');
+						Route::get('leads', 'leads')->name('leads.index');
+						Route::get('deals', 'deals')->name('deals.index');
+						Route::get('activities', 'activities')->name('activities.index');
+						Route::get('settings', 'settings')->name('settings.index');
+						Route::get('automations', 'automations')->name('automations.index');
+						Route::get('reports', 'reports')->name('reports.index');
+					});
+					Route::get('reports/export', [\App\Http\Controllers\Admin\Crm\ReportController::class, 'export'])->middleware('throttle:10,1')->name('reports.export');
+					Route::get('contacts/export', [\App\Http\Controllers\Admin\Crm\ContactController::class, 'export'])->middleware('throttle:10,1')->name('contacts.export');
+					Route::post('ai/contacts/{contact}/brief', [\App\Http\Controllers\Admin\Crm\CrmAiController::class, 'brief'])->whereNumber('contact')->middleware('throttle:10,1')->name('ai.brief');
+
+					Route::prefix('api')->name('api.')->middleware('throttle:240,1')->group(function () {
+						Route::get('overview', [\App\Http\Controllers\Admin\Crm\CrmOverviewController::class, 'overview'])->name('overview');
+						Route::get('search', [\App\Http\Controllers\Admin\Crm\CrmOverviewController::class, 'search'])->name('search');
+
+						Route::controller(\App\Http\Controllers\Admin\Crm\ContactController::class)->group(function () {
+							Route::get('contacts', 'index')->name('contacts.index');
+							Route::post('contacts', 'store')->name('contacts.store');
+							Route::get('contacts/duplicates', 'duplicates')->name('contacts.duplicates');
+							Route::post('contacts/bulk', 'bulk')->name('contacts.bulk');
+							Route::get('contacts/{contact}', 'show')->whereNumber('contact')->name('contacts.show');
+							Route::put('contacts/{contact}', 'update')->whereNumber('contact')->name('contacts.update');
+							Route::delete('contacts/{contact}', 'destroy')->whereNumber('contact')->name('contacts.destroy');
+							Route::post('contacts/{contact}/activities', 'log')->whereNumber('contact')->name('contacts.log');
+						});
+						Route::controller(\App\Http\Controllers\Admin\Crm\CompanyController::class)->group(function () {
+							Route::get('companies', 'index')->name('companies.index');
+							Route::post('companies', 'store')->name('companies.store');
+							Route::get('companies/{company}', 'show')->whereNumber('company')->name('companies.show');
+							Route::put('companies/{company}', 'update')->whereNumber('company')->name('companies.update');
+							Route::delete('companies/{company}', 'destroy')->whereNumber('company')->name('companies.destroy');
+						});
+						Route::controller(\App\Http\Controllers\Admin\Crm\LeadController::class)->group(function () {
+							Route::get('leads', 'index')->name('leads.index');
+							Route::post('leads', 'store')->name('leads.store');
+							Route::post('leads/assign', 'assign')->name('leads.assign');
+							Route::patch('leads/{lead}', 'update')->whereNumber('lead')->name('leads.update');
+							Route::post('leads/{lead}/convert', 'convert')->whereNumber('lead')->name('leads.convert');
+							Route::post('leads/{lead}/disqualify', 'disqualify')->whereNumber('lead')->name('leads.disqualify');
+							Route::delete('leads/{lead}', 'destroy')->whereNumber('lead')->name('leads.destroy');
+						});
+						Route::controller(\App\Http\Controllers\Admin\Crm\DealController::class)->group(function () {
+							Route::get('deals', 'index')->name('deals.index');
+							Route::post('deals', 'store')->name('deals.store');
+							Route::get('deals/{deal}', 'show')->whereNumber('deal')->name('deals.show');
+							Route::put('deals/{deal}', 'update')->whereNumber('deal')->name('deals.update');
+							Route::post('deals/{deal}/move', 'move')->whereNumber('deal')->name('deals.move');
+							Route::delete('deals/{deal}', 'destroy')->whereNumber('deal')->name('deals.destroy');
+						});
+						Route::controller(\App\Http\Controllers\Admin\Crm\ActivityController::class)->group(function () {
+							Route::get('activities', 'index')->name('activities.index');
+							Route::get('activities/team', 'team')->name('activities.team');
+							Route::post('activities', 'store')->name('activities.store');
+							Route::patch('activities/{activity}', 'update')->whereNumber('activity')->name('activities.update');
+							Route::delete('activities/{activity}', 'destroy')->whereNumber('activity')->name('activities.destroy');
+						});
+						Route::controller(\App\Http\Controllers\Admin\Crm\PipelineController::class)->group(function () {
+							Route::get('pipelines', 'index')->name('pipelines.index');
+							Route::post('pipelines', 'store')->name('pipelines.store');
+							Route::put('pipelines/{pipeline}', 'update')->whereNumber('pipeline')->name('pipelines.update');
+							Route::delete('pipelines/{pipeline}', 'destroy')->whereNumber('pipeline')->name('pipelines.destroy');
+						});
+						Route::controller(\App\Http\Controllers\Admin\Crm\AutomationController::class)->group(function () {
+							Route::get('automations', 'index')->name('automations.index');
+							Route::post('automations', 'store')->name('automations.store');
+							Route::post('automations/preview', 'preview')->name('automations.preview');
+							Route::put('automations/{automation}', 'update')->whereNumber('automation')->name('automations.update');
+							Route::post('automations/{automation}/toggle', 'toggle')->whereNumber('automation')->name('automations.toggle');
+							Route::delete('automations/{automation}', 'destroy')->whereNumber('automation')->name('automations.destroy');
+						});
+						Route::controller(\App\Http\Controllers\Admin\Crm\ReportController::class)->group(function () {
+							Route::get('reports/sales', 'sales')->name('reports.sales');
+							Route::get('reports/sources', 'sources')->name('reports.sources');
+							Route::get('reports/spend', 'spend')->middleware('throttle:12,1')->name('reports.spend');
+						});
+						Route::controller(\App\Http\Controllers\Admin\Crm\SettingsController::class)->group(function () {
+							Route::get('settings', 'show')->name('settings.show');
+							Route::put('settings', 'update')->name('settings.update');
+							Route::post('settings/capture/rotate', 'rotateCapture')->name('settings.capture.rotate');
+							Route::post('settings/fields', 'storeField')->name('settings.fields.store');
+							Route::put('settings/fields/{field}', 'updateField')->whereNumber('field')->name('settings.fields.update');
+							Route::delete('settings/fields/{field}', 'destroyField')->whereNumber('field')->name('settings.fields.destroy');
+							Route::post('settings/tags', 'tag')->name('settings.tags');
+							Route::post('settings/leads', 'leads')->middleware('throttle:10,1')->name('settings.leads');
+						});
+						Route::controller(\App\Http\Controllers\Admin\Crm\SegmentController::class)->group(function () {
+							Route::get('segments', 'index')->name('segments.index');
+							Route::post('segments', 'store')->name('segments.store');
+							Route::delete('segments/{segment}', 'destroy')->whereNumber('segment')->name('segments.destroy');
+							Route::post('segments/{segment}/email-list', 'toEmailList')->whereNumber('segment')->middleware('throttle:10,1')->name('segments.email-list');
+						});
+						Route::controller(\App\Http\Controllers\Admin\Crm\ImportController::class)->group(function () {
+							Route::post('contacts/import/preview', 'preview')->middleware('throttle:20,1')->name('contacts.import.preview');
+							Route::post('contacts/import', 'run')->middleware('throttle:10,1')->name('contacts.import.run');
+							Route::get('contacts/duplicate-groups', 'duplicates')->name('contacts.duplicate-groups');
+							Route::post('contacts/merge', 'merge')->name('contacts.merge');
+						});
+						Route::post('comments/{comment}/lead', [\App\Http\Controllers\Admin\Crm\CrmCommentController::class, 'lead'])->whereNumber('comment')->name('comments.lead');
+						Route::controller(\App\Http\Controllers\Admin\Crm\CrmInboxController::class)->group(function () {
+							Route::get('inbox/{conversation}', 'show')->whereNumber('conversation')->name('inbox.show');
+							Route::post('inbox/{conversation}/link', 'link')->whereNumber('conversation')->name('inbox.link');
+							Route::post('inbox/{conversation}/unlink', 'unlink')->whereNumber('conversation')->name('inbox.unlink');
+							Route::post('inbox/{conversation}/activities', 'note')->whereNumber('conversation')->name('inbox.note');
+						});
+					});
+				});
 
 
 				// EMAIL MARKETING

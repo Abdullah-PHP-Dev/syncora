@@ -44,7 +44,7 @@ class MetaScopesTest extends TestCase
             'pages_messaging', 'read_insights', 'business_management',
             'instagram_basic', 'instagram_content_publish', 'instagram_manage_comments',
             'instagram_manage_insights', 'instagram_manage_messages', 'ads_management', 'ads_read',
-            'pages_manage_ads',
+            'pages_manage_ads', 'leads_retrieval',
         ], $this->scopes($location));
     }
 

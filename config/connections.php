@@ -50,6 +50,8 @@ return [
             'ads' => ['ads_management', 'ads_read'],
             'insights' => ['read_insights', 'instagram_manage_insights', 'instagram_business_manage_insights'],
             'engagement' => ['pages_manage_engagement', 'instagram_manage_comments', 'instagram_business_manage_comments'],
+            // Lead Ads instant forms → CRM (Page "leadgen" webhook + lead retrieval).
+            'leads' => ['leads_retrieval'],
         ],
 
         // X: posts.x OAuth 2.0 scopes; the OAuth 1.0a Ads consent is the
@@ -127,6 +129,7 @@ return [
             'messaging' => ['step' => App\Services\Connections\Drivers\MetaDriver::LOGIN, 'partial' => true],
             'engagement' => ['step' => App\Services\Connections\Drivers\MetaDriver::LOGIN],
             'insights' => ['step' => App\Services\Connections\Drivers\MetaDriver::LOGIN],
+            'leads' => ['step' => App\Services\Connections\Drivers\MetaDriver::LOGIN],
         ],
 
         'google' => [
@@ -157,6 +160,8 @@ return [
             'insights' => ['step' => App\Services\Connections\Drivers\TikTokDriver::LOGIN_KIT],
             'engagement' => ['step' => App\Services\Connections\Drivers\TikTokDriver::COMMENTS],
             'ads' => ['step' => App\Services\Connections\Drivers\TikTokDriver::BUSINESS],
+            // Instant Form leads: same TikTok for Business consent; recorded once the LEAD subscription succeeds.
+            'leads' => ['step' => App\Services\Connections\Drivers\TikTokDriver::BUSINESS],
             'messaging' => ['step' => null, 'approval' => 'tiktok.business_messaging'],
         ],
 

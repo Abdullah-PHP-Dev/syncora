@@ -251,6 +251,12 @@ return [
             'google' => 'Read Analytics data for reports',
             'default' => 'Read insights for reports',
         ],
+        'leads' => [
+            'label' => 'Lead ads',
+            'meta' => 'Receive Facebook and Instagram lead form submissions in the CRM',
+            'tiktok' => 'Receive TikTok Instant Form leads in the CRM',
+            'default' => 'Receive lead form submissions in the CRM',
+        ],
         'engagement' => [
             'label' => 'Comments',
             'meta' => 'Read and reply to comments on Page and Instagram posts',
@@ -383,6 +389,7 @@ return [
             'messaging' => ['account' => 'A Facebook Page or a linked Instagram professional account.', 'note' => 'Messenger and Instagram messages. WhatsApp connects through its own sign-in.'],
             'engagement' => ['account' => 'A Facebook Page or a linked Instagram professional account.'],
             'insights' => ['account' => 'A Facebook Page or a linked Instagram professional account.'],
+            'leads' => ['account' => 'A Facebook Page that runs lead ads (instant forms).', 'note' => 'Leads arrive in the CRM as they are submitted. Meta must approve the leads_retrieval permission for this app.'],
         ],
         'google' => [
             'posting' => ['account' => 'A YouTube channel or a Google Business Profile location.'],
@@ -406,6 +413,7 @@ return [
             'insights' => ['account' => 'A TikTok account.'],
             'engagement' => ['account' => 'A TikTok account.', 'note' => 'Uses a separate TikTok sign-in.'],
             'ads' => ['account' => 'A TikTok for Business advertiser account.', 'note' => 'Uses a separate TikTok for Business sign-in.'],
+            'leads' => ['account' => 'A TikTok for Business advertiser account.', 'note' => 'Same TikTok for Business sign-in as Ads. Instant Form leads arrive in the CRM.'],
             'messaging' => ['note' => 'Waiting for TikTok to approve Business Messaging for SocialEaz.'],
         ],
         'snapchat' => [
@@ -779,6 +787,7 @@ return [
             'engagement' => ['short' => 'Comments', 'label' => 'Comments', 'hint' => 'Reply & moderate'],
             'insights' => ['short' => 'Insights', 'label' => 'Insights', 'hint' => 'Include in Reports'],
             'ads' => ['short' => 'Ads', 'label' => 'Ads', 'hint' => 'Campaigns in Ads Manager'],
+            'leads' => ['short' => 'Leads', 'label' => 'Lead ads', 'hint' => 'Lead forms into the CRM'],
         ],
         'platforms' => [
             'facebook' => ['name' => 'Facebook', 'subtitle' => 'Pages · Posts, Inbox & Ads', 'description' => 'Publish to your Pages, answer Messenger and run Meta ads.', 'unit' => '{1} 1 Page|[2,*] :count Pages'],

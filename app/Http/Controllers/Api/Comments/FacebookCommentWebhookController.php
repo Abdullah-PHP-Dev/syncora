@@ -62,6 +62,13 @@ class FacebookCommentWebhookController extends Controller
         $this->postService->handleCommentWebhook($payload, 'facebook');
         $this->messengerService->handleWebhook($payload);
 
+        // CRM: Page "leadgen" changes (Meta Lead Ads) become CRM leads. Never affects the above.
+        try {
+            app(\App\Services\Crm\LeadCapture::class)->handleMetaWebhook($payload);
+        } catch (\Throwable $e) {
+            Log::warning('CRM lead capture skipped.', ['error' => $e->getMessage()]);
+        }
+
         return response('EVENT_RECEIVED', 200);
     }
 }

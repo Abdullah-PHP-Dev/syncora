@@ -32,6 +32,18 @@
             ['admin.knowledge-base.index', 'admin.sidebar.knowledge_base', 'bx-book-open', []],
             ['admin.ai-copilot.knowledge-gaps.index', 'admin.sidebar.knowledge_gaps', 'bx-help-circle', []],
         ],
+        // CRM (workspace-scoped), one collapsible group - sub-pages per docs/crm-design.
+        'admin.crm.overview' => [
+            ['admin.crm.overview', 'crm.nav.overview', 'bx-grid-alt', []],
+            ['admin.crm.contacts.index', 'crm.nav.contacts', 'bx-user', []],
+            ['admin.crm.companies.index', 'crm.nav.companies', 'bx-buildings', []],
+            ['admin.crm.leads.index', 'crm.nav.leads', 'bx-target-lock', []],
+            ['admin.crm.deals.index', 'crm.nav.deals', 'bx-briefcase', []],
+            ['admin.crm.activities.index', 'crm.nav.activities', 'bx-check-square', []],
+            ['admin.crm.automations.index', 'crm.nav.automations', 'bx-bolt-circle', []],
+            ['admin.crm.reports.index', 'crm.nav.reports', 'bx-bar-chart-alt-2', []],
+            ['admin.crm.settings.index', 'crm.nav.settings', 'bx-cog', []],
+        ],
         // Google Suite - Analytics & Insights (GoogleSuiteController), one collapsible group.
         'admin.google.overview' => [
             ['admin.google.overview', 'google_suite.nav.overview', 'bx-pie-chart-alt-2', []],
@@ -55,6 +67,8 @@
     $childAliases = [
         'admin.google.integrations' => ['admin.google.setup', 'admin.google.status', 'admin.google.properties', 'admin.google.business-profile', 'admin.google.tag-manager'],
         'admin.google.preferences' => ['admin.google.health', 'admin.google.settings'],
+        'admin.crm.contacts.index' => ['admin.crm.contacts.show'],
+        'admin.crm.companies.index' => ['admin.crm.companies.show'],
     ];
     if (!$team) {
         foreach ($platforms as $platform => [$platformLabel, $platformIcon]) {
@@ -102,6 +116,7 @@
         'admin.sidebar.engagement' => [
             ['admin.chats.dashboard', 'admin.sidebar.inbox', 'bx-message-square-dots'],
             ['admin.comments.dashboard', 'admin.sidebar.comments', 'bx-comment-dots'],
+            ['admin.crm.overview', 'crm.nav.crm', 'bx-id-card'],
         ],
         'admin.sidebar.ai_assistant' => [
             ['admin.ai-copilot.analytics.index', 'admin.sidebar.ai_copilot', 'bx-brain'],
@@ -302,7 +317,8 @@
                         $submenu = $children[$destination] ?? [];
                         $submenuOpen = ($destination === 'admin.ads.dashboard' && request()->routeIs('admin.ads.*'))
                             || ($destination === 'admin.posts.dashboard' && request()->routeIs('admin.posts.*'))
-                            || ($destination === 'admin.google.overview' && request()->routeIs('admin.google.*'));
+                            || ($destination === 'admin.google.overview' && request()->routeIs('admin.google.*'))
+                            || ($destination === 'admin.crm.overview' && request()->routeIs('admin.crm.*'));
                         $active = $active || $submenuOpen;
                         $submenuId = 'ov-sidebar-'.str_replace('.', '-', $destination);
                     @endphp

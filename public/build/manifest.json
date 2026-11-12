@@ -4,7 +4,7 @@
     "name": "_plugin-vue2_normalizer"
   },
   "resources/css/app.css": {
-    "file": "assets/app-LfZbRXbl.css",
+    "file": "assets/app-DygpXtlj.css",
     "src": "resources/css/app.css",
     "isEntry": true,
     "name": "app",
@@ -40,7 +40,7 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-B3SSNKRm.js",
+    "file": "assets/app-B_8xeMaC.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -48,7 +48,7 @@
       "__plugin-vue2_normalizer-0Mbq2nVt.js"
     ],
     "css": [
-      "assets/app-DyXr8Kuc.css"
+      "assets/app-BNzOBcIj.css"
     ]
   },
   "resources/js/apps.js": {

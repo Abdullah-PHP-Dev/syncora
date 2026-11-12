@@ -636,7 +636,7 @@ const CAPS = {
   ads: 'bx-bullseye',
   insights: 'bx-bar-chart-alt-2'
 };
-const CAP_ORDER = ['posting', 'messaging', 'engagement', 'ads', 'insights'];
+const CAP_ORDER = ['posting', 'messaging', 'engagement', 'ads', 'leads', 'insights'];
 
 // The page shows one card per platform people know (Facebook, Instagram ...),
 // while connections stay per provider sign-in (driver `card`): a view picks
