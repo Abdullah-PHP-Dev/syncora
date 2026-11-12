@@ -10,6 +10,11 @@
 
             <div v-if="!info" class="crm-card crm-muted">{{ crm.t('common.loading') }}</div>
 
+            <crm-settings-lists v-else-if="section === 'lists'" :settings="info.settings" :defaults="info.defaults || {}" @saved="load" />
+            <crm-settings-scoring v-else-if="section === 'scoring'" />
+            <crm-settings-notifications v-else-if="section === 'notifications'" />
+            <crm-settings-ai v-else-if="section === 'ai'" :settings="info.settings" @saved="load" />
+
             <!-- S-01 / S-07 / S-08 -->
             <section v-else-if="section === 'general'" class="crm-card">
                 <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
@@ -172,16 +177,20 @@ Content-Type: application/json
 
 <script>
 import CrmHeader from '../ui/CrmHeader.vue';
+import CrmSettingsLists from '../ui/CrmSettingsLists.vue';
+import CrmSettingsScoring from '../ui/CrmSettingsScoring.vue';
+import CrmSettingsNotifications from '../ui/CrmSettingsNotifications.vue';
+import CrmSettingsAi from '../ui/CrmSettingsAi.vue';
 
 export default {
     name: 'CrmSettings',
-    components: { CrmHeader },
+    components: { CrmHeader, CrmSettingsLists, CrmSettingsScoring, CrmSettingsNotifications, CrmSettingsAi },
     inject: ['crm'],
     data() {
         return {
             section: 'general', info: null, general: null, busy: false, field: { label: '', type: 'text', options: '' },
             pipelines: this.crm.pipelines, current: null, draft: null,
-            sections: [{ key: 'general', icon: 'bx-cog' }, { key: 'pipelines', icon: 'bx-git-branch' }, { key: 'fields', icon: 'bx-list-plus' }, { key: 'tags', icon: 'bx-purchase-tag' }, { key: 'capture', icon: 'bx-broadcast' }],
+            sections: [{ key: 'general', icon: 'bx-cog' }, { key: 'pipelines', icon: 'bx-git-branch' }, { key: 'fields', icon: 'bx-list-plus' }, { key: 'tags', icon: 'bx-purchase-tag' }, { key: 'lists', icon: 'bx-list-ul' }, { key: 'scoring', icon: 'bx-trending-up' }, { key: 'notifications', icon: 'bx-bell' }, { key: 'ai', icon: 'bxs-magic-wand' }, { key: 'capture', icon: 'bx-broadcast' }],
         };
     },
     computed: { lastOpen() { return this.draft.stages.map((s) => s.kind).lastIndexOf('open'); } },
@@ -201,7 +210,11 @@ export default {
             try { const r = await fn(); this.crm.notify(this.crm.t('common.saved')); return r; } catch (e) { this.crm.notify(this.crm.error(e), 'error'); return null; } finally { this.busy = false; }
         },
         setOverride(id, value) { if (value) this.$set(this.general.member_overrides, id, value); else this.$delete(this.general.member_overrides, id); },
-        async saveGeneral() { await this.run(() => this.crm.api.put('settings', this.general)); this.load(); },
+        async saveGeneral() {
+            const g = this.general;
+            const payload = { member_visibility: g.member_visibility, member_overrides: g.member_overrides, idle_days: g.idle_days, require_lost_reason: !!g.require_lost_reason, auto_create_contacts: !!g.auto_create_contacts };
+            await this.run(() => this.crm.api.put('settings', payload)); this.load();
+        },
         async rotate() {
             if (!window.confirm(this.crm.t('settings.rotate_confirm'))) return;
             const r = await this.run(() => this.crm.api.post('settings/capture/rotate'));

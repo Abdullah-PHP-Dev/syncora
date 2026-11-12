@@ -28,7 +28,8 @@ trait Presents
         return [
             'id' => $l->id, 'status' => $l->status, 'source' => $l->source, 'campaign' => $l->campaign, 'interest' => $l->interest,
             'estimated_value' => $l->estimated_value !== null ? (float) $l->estimated_value : null, 'currency' => $l->currency,
-            'score' => $l->score, 'disqualify_reason' => $l->disqualify_reason, 'deal_id' => $l->deal_id,
+            'score' => $l->score, 'disqualify_reason' => $l->disqualify_reason, 'deal_id' => $l->deal_id, 'url' => route('admin.crm.leads.show', $l),
+            'first_response_minutes' => $l->meta['first_response_minutes'] ?? null,
             'owner' => $l->owner ? ['id' => $l->owner->id, 'name' => $l->owner->name] : null,
             'contact' => $l->contact ? $this->contactRow($l->contact) : null,
             'created_at' => $l->created_at?->toIso8601String(),
@@ -41,7 +42,7 @@ trait Presents
             'id' => $d->id, 'name' => $d->name, 'value' => (float) $d->value, 'currency' => $d->currency, 'probability' => $d->probability,
             'pipeline_id' => $d->pipeline_id, 'stage_id' => $d->stage_id, 'stage' => $d->stage?->name, 'status' => $d->status,
             'expected_close_date' => $d->expected_close_date?->toDateString(), 'source' => $d->source, 'lost_reason' => $d->lost_reason,
-            'position' => $d->position, 'won_at' => $d->won_at?->toIso8601String(),
+            'position' => $d->position, 'won_at' => $d->won_at?->toIso8601String(), 'url' => route('admin.crm.deals.show', $d),
             'idle_days' => $d->status === 'open' ? (int) ($d->stage_changed_at ?? $d->created_at)?->diffInDays(now()) : 0,
             'owner' => $d->owner ? ['id' => $d->owner->id, 'name' => $d->owner->name] : null,
             'contact' => $d->contact ? ['id' => $d->contact->id, 'name' => $d->contact->full_name, 'url' => route('admin.crm.contacts.show', $d->contact)] : null,
@@ -53,6 +54,7 @@ trait Presents
     {
         return [
             'id' => $a->id, 'type' => $a->type, 'subject' => $a->subject, 'body' => $a->body, 'meta' => $a->meta,
+            'priority' => $a->priority, 'outcome' => $a->outcome, 'duration_minutes' => $a->duration_minutes,
             'due_at' => $a->due_at?->toIso8601String(), 'completed_at' => $a->completed_at?->toIso8601String(),
             'overdue' => $a->type === 'task' && ! $a->completed_at && $a->due_at?->isPast(),
             'owner' => $a->owner ? ['id' => $a->owner->id, 'name' => $a->owner->name] : null,

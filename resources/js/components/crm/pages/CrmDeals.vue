@@ -33,7 +33,7 @@
                 </div>
                 <article v-for="d in byStage(stage.id)" :key="d.id" :class="['crm-deal', { dragging: dragId === d.id }]" :draggable="crm.canWrite" @dragstart="dragId = d.id" @dragend="dragId = null; dropStage = null">
                     <div class="d-flex justify-content-between gap-2">
-                        <strong>{{ d.name }}</strong>
+                        <a :href="d.url" class="crm-deal-name" style="font-weight:700;color:inherit" draggable="false">{{ d.name }}</a>
                         <span v-if="crm.canWrite" class="crm-btn crm-btn-ghost crm-btn-sm crm-icon-btn" style="position:relative;height:24px;width:24px;flex:none">
                             <i class="bx bx-dots-horizontal-rounded"></i>
                             <select style="position:absolute;inset:0;opacity:0;cursor:pointer" :aria-label="crm.t('contacts.change_stage')" :value="d.stage_id" @change="moveTo(d, Number($event.target.value))">
@@ -64,7 +64,7 @@
                 </tr></thead>
                 <tbody>
                     <tr v-for="d in deals" :key="d.id">
-                        <td><strong>{{ d.name }}</strong></td>
+                        <td><a :href="d.url" style="font-weight:700;color:inherit">{{ d.name }}</a></td>
                         <td><a v-if="d.contact" :href="d.contact.url">{{ d.contact.name }}</a><span v-else>{{ d.company ? d.company.name : '—' }}</span></td>
                         <td><span :class="['crm-chip', d.status === 'open' ? 'qualified' : d.status]">{{ d.stage }}</span></td>
                         <td class="crm-ltr"><strong>{{ crm.money(d.value, d.currency) }}</strong></td>
@@ -83,30 +83,25 @@
         </div>
 
         <crm-deal-modal v-if="dealModal" :defaults="{ pipeline_id: pipelineId, ...dealModal }" @close="dealModal = null" @saved="load" />
-        <crm-modal v-if="lost" :title="crm.t('deals.mark_lost')" :subtitle="lost.deal.name" icon="bx-x" tone="danger" width="460px" :close-label="crm.t('common.close')" @close="lost = null">
-            <label class="crm-label" for="lost-r">{{ crm.t('deals.lost_reason') }}</label>
-            <input id="lost-r" v-model.trim="lost.reason" class="crm-input" maxlength="160">
-            <template #footer>
-                <button type="button" class="crm-btn" @click="lost = null">{{ crm.t('common.cancel') }}</button>
-                <button type="button" class="crm-btn crm-btn-danger" @click="confirmLost">{{ crm.t('deals.mark_lost') }}</button>
-            </template>
-        </crm-modal>
+        <crm-won-modal v-if="won" :deal="won.deal" @close="won = null" @confirm="finish('won', $event)" />
+        <crm-lost-modal v-if="lost" :deal="lost.deal" :required="crm.options.requireLostReason" @close="lost = null" @confirm="finish('lost', $event)" />
     </div>
 </template>
 
 <script>
 import CrmHeader from '../ui/CrmHeader.vue';
 import CrmDealModal from '../ui/CrmDealModal.vue';
-import CrmModal from '../ui/CrmModal.vue';
+import CrmWonModal from '../ui/CrmWonModal.vue';
+import CrmLostModal from '../ui/CrmLostModal.vue';
 
 export default {
     name: 'CrmDeals',
-    components: { CrmHeader, CrmDealModal, CrmModal },
+    components: { CrmHeader, CrmDealModal, CrmWonModal, CrmLostModal },
     inject: ['crm'],
     data() {
         return {
             pipelineId: (this.crm.pipelines.find((p) => p.is_default) || this.crm.pipelines[0] || {}).id,
-            pipeline: null, deals: [], totals: null, loading: true, view: 'board', owner: '', dragId: null, dropStage: null, dealModal: null, lost: null,
+            pipeline: null, deals: [], totals: null, loading: true, view: 'board', owner: '', dragId: null, dropStage: null, dealModal: null, lost: null, won: null,
         };
     },
     computed: { stages() { return this.pipeline ? this.pipeline.stages : []; } },
@@ -130,20 +125,25 @@ export default {
         moveTo(deal, stageId) {
             const stage = this.stages.find((s) => s.id === stageId);
             if (!stage || stage.id === deal.stage_id) return;
-            if (stage.kind === 'lost') { this.lost = { deal, stage, reason: '' }; return; }
+            if (stage.kind === 'lost') { this.lost = { deal, stage }; return; }
+            if (stage.kind === 'won') { this.won = { deal, stage }; return; }
             this.move(deal, stage);
         },
-        confirmLost() { const { deal, stage, reason } = this.lost; this.lost = null; this.move(deal, stage, reason); },
-        async move(deal, stage, reason = null, undo = true) {
+        finish(kind, details) {
+            const { deal, stage } = this[kind];
+            this[kind] = null;
+            this.move(deal, stage, details);
+        },
+        async move(deal, stage, details = {}, undo = true) {
             const from = deal.stage_id;
             const index = this.deals.indexOf(deal);
             this.$set(this.deals, index, { ...deal, stage_id: stage.id, stage: stage.name, status: stage.kind, probability: stage.probability });
             try {
-                const res = await this.crm.api.post(`deals/${deal.id}/move`, { stage_id: stage.id, lost_reason: reason });
+                const res = await this.crm.api.post(`deals/${deal.id}/move`, { stage_id: stage.id, ...(details || {}) });
                 this.$set(this.deals, this.deals.findIndex((d) => d.id === deal.id), res.data);
                 const message = stage.kind === 'won' ? this.crm.t('deals.won_ok') : this.crm.t('deals.moved', { name: deal.name, stage: stage.name });
                 const fromStage = this.stages.find((s) => s.id === from);
-                this.crm.notify(message, 'success', undo && fromStage ? { label: this.crm.t('common.undo'), run: () => this.move(res.data, fromStage, null, false) } : null);
+                this.crm.notify(message, 'success', undo && fromStage ? { label: this.crm.t('common.undo'), run: () => this.move(res.data, fromStage, {}, false) } : null);
                 this.refreshTotals();
             } catch (e) {
                 this.$set(this.deals, index, deal);

@@ -24,11 +24,14 @@ import CrmActivities from './pages/CrmActivities.vue';
 import CrmSettings from './pages/CrmSettings.vue';
 import CrmAutomations from './pages/CrmAutomations.vue';
 import CrmReports from './pages/CrmReports.vue';
+import CrmLead from './pages/CrmLead.vue';
+import CrmDeal from './pages/CrmDeal.vue';
+import CrmInsights from './pages/CrmInsights.vue';
 
 const PAGES = {
     overview: CrmOverview, contacts: CrmContacts, contact: CrmContactProfile, companies: CrmCompanies,
     company: CrmCompanyProfile, leads: CrmLeads, deals: CrmDeals, activities: CrmActivities, settings: CrmSettings,
-    automations: CrmAutomations, reports: CrmReports,
+    automations: CrmAutomations, reports: CrmReports, lead: CrmLead, deal: CrmDeal, insights: CrmInsights,
 };
 
 export default {
@@ -46,7 +49,11 @@ export default {
     },
     computed: {
         pageComponent() { return PAGES[this.page] || CrmOverview; },
-        pageProps() { return { contactId: this.props.contactId, companyId: this.props.companyId }; },
+        pageProps() {
+            const map = { contact: 'contactId', company: 'companyId', lead: 'leadId', deal: 'dealId' };
+            const key = map[this.page];
+            return key ? { [key]: this.props[key] } : {};
+        },
     },
     methods: {
         notify(message, type, action) {

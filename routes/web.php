@@ -927,6 +927,9 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 						Route::get('companies', 'companies')->name('companies.index');
 						Route::get('companies/{company}', 'company')->whereNumber('company')->name('companies.show');
 						Route::get('leads', 'leads')->name('leads.index');
+						Route::get('leads/{lead}', 'lead')->whereNumber('lead')->name('leads.show');
+						Route::get('deals/{deal}', 'deal')->whereNumber('deal')->name('deals.show');
+						Route::get('insights', 'insights')->name('insights.index');
 						Route::get('deals', 'deals')->name('deals.index');
 						Route::get('activities', 'activities')->name('activities.index');
 						Route::get('settings', 'settings')->name('settings.index');
@@ -936,10 +939,16 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 					Route::get('reports/export', [\App\Http\Controllers\Admin\Crm\ReportController::class, 'export'])->middleware('throttle:10,1')->name('reports.export');
 					Route::get('contacts/export', [\App\Http\Controllers\Admin\Crm\ContactController::class, 'export'])->middleware('throttle:10,1')->name('contacts.export');
 					Route::post('ai/contacts/{contact}/brief', [\App\Http\Controllers\Admin\Crm\CrmAiController::class, 'brief'])->whereNumber('contact')->middleware('throttle:10,1')->name('ai.brief');
+					Route::post('ai/contacts/{contact}/ask', [\App\Http\Controllers\Admin\Crm\CrmAiController::class, 'askContact'])->whereNumber('contact')->middleware('throttle:10,1')->name('ai.ask-contact');
+					Route::post('ai/leads/{lead}/qualify', [\App\Http\Controllers\Admin\Crm\CrmAiController::class, 'qualify'])->whereNumber('lead')->middleware('throttle:10,1')->name('ai.qualify');
+					Route::post('ai/ask', [\App\Http\Controllers\Admin\Crm\CrmAiController::class, 'ask'])->middleware('throttle:10,1')->name('ai.ask');
 
 					Route::prefix('api')->name('api.')->middleware('throttle:240,1')->group(function () {
 						Route::get('overview', [\App\Http\Controllers\Admin\Crm\CrmOverviewController::class, 'overview'])->name('overview');
 						Route::get('search', [\App\Http\Controllers\Admin\Crm\CrmOverviewController::class, 'search'])->name('search');
+						Route::get('insights', [\App\Http\Controllers\Admin\Crm\CrmOverviewController::class, 'insights'])->name('insights');
+						Route::get('notifications', [\App\Http\Controllers\Admin\Crm\CrmOverviewController::class, 'notifications'])->name('notifications');
+						Route::patch('notifications/{notification}/read', [\App\Http\Controllers\Admin\Crm\CrmOverviewController::class, 'readNotification'])->whereNumber('notification')->name('notifications.read');
 
 						Route::controller(\App\Http\Controllers\Admin\Crm\ContactController::class)->group(function () {
 							Route::get('contacts', 'index')->name('contacts.index');
@@ -962,6 +971,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 							Route::get('leads', 'index')->name('leads.index');
 							Route::post('leads', 'store')->name('leads.store');
 							Route::post('leads/assign', 'assign')->name('leads.assign');
+							Route::get('leads/{lead}', 'show')->whereNumber('lead')->name('leads.show');
 							Route::patch('leads/{lead}', 'update')->whereNumber('lead')->name('leads.update');
 							Route::post('leads/{lead}/convert', 'convert')->whereNumber('lead')->name('leads.convert');
 							Route::post('leads/{lead}/disqualify', 'disqualify')->whereNumber('lead')->name('leads.disqualify');
@@ -999,11 +1009,15 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 						Route::controller(\App\Http\Controllers\Admin\Crm\ReportController::class)->group(function () {
 							Route::get('reports/sales', 'sales')->name('reports.sales');
 							Route::get('reports/sources', 'sources')->name('reports.sources');
-							Route::get('reports/spend', 'spend')->middleware('throttle:12,1')->name('reports.spend');
+							Route::get('reports/spend', 'spend')->middleware('throttle:12,1,crm-spend')->name('reports.spend');
 						});
 						Route::controller(\App\Http\Controllers\Admin\Crm\SettingsController::class)->group(function () {
 							Route::get('settings', 'show')->name('settings.show');
 							Route::put('settings', 'update')->name('settings.update');
+							Route::get('settings/scoring', 'scoring')->name('settings.scoring');
+							Route::get('settings/notifications', 'notifications')->name('settings.notifications');
+							Route::put('settings/notifications', 'saveNotifications')->name('settings.notifications.update');
+							Route::post('settings/scoring/rescore', 'rescore')->middleware('throttle:6,1,crm-rescore')->name('settings.rescore');
 							Route::post('settings/capture/rotate', 'rotateCapture')->name('settings.capture.rotate');
 							Route::post('settings/fields', 'storeField')->name('settings.fields.store');
 							Route::put('settings/fields/{field}', 'updateField')->whereNumber('field')->name('settings.fields.update');
@@ -1018,8 +1032,8 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 							Route::post('segments/{segment}/email-list', 'toEmailList')->whereNumber('segment')->middleware('throttle:10,1')->name('segments.email-list');
 						});
 						Route::controller(\App\Http\Controllers\Admin\Crm\ImportController::class)->group(function () {
-							Route::post('contacts/import/preview', 'preview')->middleware('throttle:20,1')->name('contacts.import.preview');
-							Route::post('contacts/import', 'run')->middleware('throttle:10,1')->name('contacts.import.run');
+							Route::post('contacts/import/preview', 'preview')->middleware('throttle:20,1,crm-import-preview')->name('contacts.import.preview');
+							Route::post('contacts/import', 'run')->middleware('throttle:10,1,crm-import')->name('contacts.import.run');
 							Route::get('contacts/duplicate-groups', 'duplicates')->name('contacts.duplicate-groups');
 							Route::post('contacts/merge', 'merge')->name('contacts.merge');
 						});

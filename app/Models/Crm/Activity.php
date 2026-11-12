@@ -20,11 +20,11 @@ class Activity extends Model
     protected $table = 'crm_activities';
 
     protected $fillable = [
-        'workspace_id', 'type', 'subject', 'body', 'due_at', 'completed_at', 'owner_id', 'created_by',
+        'workspace_id', 'type', 'priority', 'subject', 'body', 'outcome', 'duration_minutes', 'remind_at', 'due_at', 'completed_at', 'owner_id', 'created_by',
         'contact_id', 'company_id', 'lead_id', 'deal_id', 'conversation_id', 'meta',
     ];
 
-    protected $casts = ['due_at' => 'datetime', 'completed_at' => 'datetime', 'meta' => 'array'];
+    protected $casts = ['due_at' => 'datetime', 'completed_at' => 'datetime', 'remind_at' => 'datetime', 'meta' => 'array'];
 
     public function owner(): BelongsTo
     {

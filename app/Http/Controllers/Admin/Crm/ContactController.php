@@ -32,6 +32,7 @@ class ContactController extends Controller
                 'mine' => Contact::where('owner_id', $this->context->actorId())->count(),
                 'customers' => Contact::where('lifecycle', 'customer')->count(),
                 'unassigned' => Contact::whereNull('owner_id')->count(),
+                'hot' => Contact::where('score', '>=', \App\Services\Crm\LeadScorer::config($this->context->workspaceId())['bands']['hot'])->count(),
             ],
         ]);
     }
@@ -156,16 +157,37 @@ class ContactController extends Controller
             'type' => ['required', Rule::in(['note', 'call', 'meeting', 'email', 'task'])],
             'subject' => ['nullable', 'string', 'max:200'], 'body' => ['nullable', 'string', 'max:5000'],
             'due_at' => ['nullable', 'date'], 'owner_id' => ['nullable', Rule::in($this->context->memberIds())],
-            'deal_id' => ['nullable', 'integer'],
+            'deal_id' => ['nullable', 'integer'], 'lead_id' => ['nullable', 'integer'], 'priority' => ['nullable', Rule::in(['low', 'medium', 'high'])],
+            'outcome' => ['nullable', 'string', 'max:30'], 'duration_minutes' => ['nullable', 'integer', 'min:0', 'max:1440'],
+            // A-02: schedule a follow-up and move the related deal in the same step.
+            'follow_up' => ['nullable', 'array'], 'follow_up.type' => ['required_with:follow_up', Rule::in(['task', 'call', 'meeting'])],
+            'follow_up.subject' => ['required_with:follow_up', 'string', 'max:200'], 'follow_up.due_at' => ['required_with:follow_up', 'date'],
+            'follow_up.remind_minutes' => ['nullable', 'integer', 'min:0', 'max:10080'],
+            'move_stage_id' => ['nullable', 'integer'],
         ]);
+        $followUp = $data['follow_up'] ?? null;
+        $moveStage = $data['move_stage_id'] ?? null;
+        unset($data['follow_up'], $data['move_stage_id']);
         abort_if(empty($data['subject']) && empty($data['body']), 422, __('crm.activities.empty'));
         $activity = Activity::create($data + [
             'contact_id' => $contact->id, 'created_by' => $this->context->actorId(),
             'owner_id' => $data['owner_id'] ?? $this->context->actorId(),
             'completed_at' => $data['type'] === 'task' ? null : now(),
             'deal_id' => isset($data['deal_id']) ? $contact->deals()->whereKey($data['deal_id'])->value('id') : null,
+            // Logged from the lead profile: keep it on that lead's history (only this person's leads).
+            'lead_id' => isset($data['lead_id']) ? $contact->leads()->whereKey($data['lead_id'])->value('id') : null,
         ]);
         $contact->update(['last_activity_at' => now()]);
+        if ($followUp) {
+            $due = \Illuminate\Support\Carbon::parse($followUp['due_at']);
+            Activity::create(['type' => $followUp['type'], 'subject' => $followUp['subject'], 'due_at' => $due, 'priority' => 'medium',
+                'remind_at' => isset($followUp['remind_minutes']) ? $due->copy()->subMinutes((int) $followUp['remind_minutes']) : null,
+                'contact_id' => $contact->id, 'deal_id' => $activity->deal_id, 'owner_id' => $activity->owner_id, 'created_by' => $this->context->actorId()]);
+        }
+        if ($moveStage && $activity->deal_id && ($deal = \App\Models\Crm\Deal::find($activity->deal_id))
+            && ($stage = \App\Models\Crm\Stage::where('pipeline_id', $deal->pipeline_id)->where('kind', 'open')->find($moveStage))) {
+            app(\App\Services\Crm\DealService::class)->move($deal, $stage);
+        }
 
         return response()->json(['data' => $this->activityRow($activity->load('owner', 'author'))], 201);
     }
@@ -193,6 +215,7 @@ class ContactController extends Controller
             ->when(($f['tab'] ?? null) === 'mine', fn ($query) => $query->where('owner_id', $context->actorId()))
             ->when(($f['tab'] ?? null) === 'customers', fn ($query) => $query->where('lifecycle', 'customer'))
             ->when(($f['tab'] ?? null) === 'unassigned', fn ($query) => $query->whereNull('owner_id'))
+            ->when(($f['tab'] ?? null) === 'hot', fn ($query) => $query->where('score', '>=', \App\Services\Crm\LeadScorer::config($context->workspaceId())['bands']['hot']))
             ->when($f['lifecycle'] ?? null, fn ($query, $v) => $query->whereIn('lifecycle', (array) $v))
             ->when($f['owner_id'] ?? null, fn ($query, $v) => $query->where('owner_id', $v))
             ->when($f['source'] ?? null, fn ($query, $v) => $query->where('source', $v))

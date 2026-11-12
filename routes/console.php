@@ -51,3 +51,31 @@ Artisan::command('inspire', function () {
 })->purpose('Backfill Meta and TikTok lead ads into the CRM');
 
 \Illuminate\Support\Facades\Schedule::command('crm:sync-leads')->everyThreeHours()->withoutOverlapping(60);
+
+// CRM: refresh lead scores daily ("days without activity" changes even when nothing happens).
+\Illuminate\Support\Facades\Artisan::command('crm:rescore', function () {
+    $scorer = app(\App\Services\Crm\LeadScorer::class);
+    $count = 0;
+    \App\Models\Crm\Contact::withoutGlobalScopes()->whereNull('deleted_at')
+        ->whereIn('id', \App\Models\Crm\Lead::withoutGlobalScopes()->whereNull('deleted_at')->whereNotIn('status', ['converted', 'unqualified'])->select('contact_id'))
+        ->chunkById(500, function ($contacts) use ($scorer, &$count) {
+            foreach ($contacts as $contact) {
+                try {
+                    $scorer->rescore($contact);
+                    $count++;
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            }
+        });
+    $this->info("Rescored {$count} contacts");
+})->purpose('Recalculate CRM lead scores for open leads');
+
+\Illuminate\Support\Facades\Schedule::command('crm:rescore')->dailyAt('03:20')->withoutOverlapping(120);
+
+// CRM: task reminders (remind_at) to the bell / email, once each.
+\Illuminate\Support\Facades\Artisan::command('crm:reminders', function () {
+    $this->info('Reminders sent: '.app(\App\Services\Crm\CrmNotifier::class)->sendReminders());
+})->purpose('Send due CRM task reminders');
+
+\Illuminate\Support\Facades\Schedule::command('crm:reminders')->everyFiveMinutes()->withoutOverlapping(10);

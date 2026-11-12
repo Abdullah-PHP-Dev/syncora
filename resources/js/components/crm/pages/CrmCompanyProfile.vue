@@ -29,7 +29,7 @@
                     <p v-if="!data.contacts.length" class="crm-muted crm-small">{{ crm.t('contacts.empty_title') }}</p>
                     <h3 class="crm-card-title mt-4 mb-2">{{ crm.t('nav.deals') }} ({{ data.deals.length }})</h3>
                     <div v-for="d in data.deals" :key="d.id" class="d-flex justify-content-between align-items-center py-2" style="border-bottom:1px solid #f3f1f9">
-                        <div><strong>{{ d.name }}</strong><div class="crm-small crm-muted crm-ltr">{{ crm.money(d.value, d.currency) }}</div></div>
+                        <div><a :href="d.url" style="font-weight:700;color:inherit">{{ d.name }}</a><div class="crm-small crm-muted crm-ltr">{{ crm.money(d.value, d.currency) }}</div></div>
                         <span :class="['crm-chip', d.status === 'open' ? 'qualified' : d.status]">{{ d.stage }}</span>
                     </div>
                     <p v-if="!data.deals.length" class="crm-muted crm-small">{{ crm.t('contacts.no_deals') }}</p>

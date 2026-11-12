@@ -14,6 +14,18 @@ class CrmSettings
         'idle_days' => 7,
         'require_lost_reason' => false,
         'auto_create_contacts' => false, // new Inbox conversations become contacts
+        // S-03: lists people pick from. Built-in entries are translation keys; anything else is the workspace's own label.
+        'sources' => ['instagram', 'whatsapp', 'facebook', 'tiktok', 'snapchat', 'x', 'linkedin', 'google_ads', 'website', 'email', 'referral', 'phone', 'walk_in', 'other'],
+        'extra_statuses' => [],          // open lead statuses between Contacted and Qualified, e.g. "Nurturing"
+        'disqualify_reasons' => ['budget', 'not_interested', 'spam', 'duplicate', 'competitor', 'no_response', 'outside_area', 'other'],
+        'lost_reasons' => ['price', 'competitor', 'no_budget', 'no_response', 'timing', 'product_fit'],
+        'win_reasons' => ['price', 'quality', 'delivery', 'service', 'relationship', 'product_fit'],
+        // S-06 lead scoring (see LeadScorer).
+        'scoring' => null,
+        // S-11 AI features.
+        'ai' => ['brief' => true, 'ask' => true, 'qualification' => true, 'intent_signal' => true],
+        // S-12 per-member notifications: user id => event => [in_app, email].
+        'notifications' => [],
     ];
 
     private static array $memo = [];
@@ -27,7 +39,8 @@ class CrmSettings
     {
         $row = Setting::forWorkspace($workspaceId)->first() ?? new Setting(['workspace_id' => $workspaceId]);
         $row->workspace_id = $workspaceId;
-        $row->settings = array_replace(self::DEFAULTS, $row->settings ?? [], array_intersect_key($values, self::DEFAULTS));
+        // Lists replace wholesale (array_replace would merge them by index).
+        $row->settings = array_merge(self::DEFAULTS, $row->settings ?? [], array_intersect_key($values, self::DEFAULTS));
         $row->save();
         unset(self::$memo[$workspaceId]);
 

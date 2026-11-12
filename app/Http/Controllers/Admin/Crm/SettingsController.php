@@ -10,6 +10,7 @@ use App\Models\SocialAccount;
 use App\Services\Crm\CrmContext;
 use App\Services\Crm\CrmLimits;
 use App\Services\Crm\CrmSettings;
+use App\Services\Crm\LeadScorer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -26,6 +27,7 @@ class SettingsController extends Controller
 
         return response()->json([
             'settings' => CrmSettings::for($ws),
+            'defaults' => array_intersect_key(CrmSettings::DEFAULTS, array_flip(['sources', 'extra_statuses', 'disqualify_reasons', 'lost_reasons', 'win_reasons'])),
             'fields' => Field::orderBy('entity')->orderBy('sort_order')->get(),
             'tags' => $this->tags(),
             'team' => SellerTeamMember::with('user:id,name,email')->where('owner_id', $ws)->whereNotNull('accepted_at')->whereNotNull('user_id')->get()
@@ -58,8 +60,92 @@ class SettingsController extends Controller
             $valid = SellerTeamMember::where('owner_id', $this->context->workspaceId())->pluck('id')->all();
             $data['member_overrides'] = array_intersect_key($data['member_overrides'], array_flip($valid));
         }
+        // S-03 lists. Lead statuses are stored on the lead (20 chars) and must not shadow the built-in ones.
+        foreach (['sources' => 40, 'extra_statuses' => 20, 'disqualify_reasons' => 40, 'lost_reasons' => 80, 'win_reasons' => 80] as $list => $max) {
+            if ($request->has($list)) {
+                $request->validate([$list => ['present', 'array', 'max:30'], $list.'.*' => ['required', 'string', 'max:'.$max, 'distinct']]);
+                $data[$list] = array_values(array_unique(array_map('trim', $request->input($list))));
+            }
+        }
+        if (isset($data['extra_statuses']) && array_intersect($data['extra_statuses'], \App\Models\Crm\Lead::STATUSES)) {
+            abort(422, __('crm.settings.status_reserved'));
+        }
+        foreach (['sources', 'disqualify_reasons'] as $list) {
+            abort_if(isset($data[$list]) && ! $data[$list], 422, __('crm.settings.list_needs_one'));
+        }
+        if ($request->has('ai')) { // S-11
+            $request->validate(['ai' => ['array'], 'ai.*' => ['boolean']]);
+            $data['ai'] = collect(CrmSettings::DEFAULTS['ai'])->map(fn ($on, $key) => (bool) ($request->input('ai.'.$key) ?? $on))->all();
+        }
+        if ($request->has('scoring')) {
+            $data['scoring'] = $this->validatedScoring($request);
+        }
 
         return response()->json(['settings' => CrmSettings::save($this->context->workspaceId(), $data)]);
+    }
+
+    /** S-06 rules are free-form nested config: validate, then whitelist each rule's keys. */
+    private function validatedScoring(Request $request): array
+    {
+        $fields = array_merge(\App\Services\Crm\AutomationEngine::FIELDS, LeadScorer::SIGNALS);
+        $request->validate([
+            'scoring' => ['array'], 'scoring.enabled' => ['boolean'], 'scoring.intent_signal' => ['boolean'],
+            'scoring.bands.hot' => ['required', 'integer', 'min:1', 'max:100'], 'scoring.bands.warm' => ['required', 'integer', 'min:0', 'lt:scoring.bands.hot'],
+            'scoring.rules' => ['present', 'array', 'max:40'],
+            'scoring.rules.*.group' => ['required', Rule::in(LeadScorer::GROUPS)], 'scoring.rules.*.field' => ['required', Rule::in($fields)],
+            'scoring.rules.*.operator' => ['required', Rule::in(\App\Services\Crm\AutomationEngine::OPERATORS)],
+            'scoring.rules.*.value' => ['nullable', 'max:120'], 'scoring.rules.*.points' => ['required', 'integer', 'min:-100', 'max:100'],
+            'scoring.rules.*.on' => ['boolean'],
+        ]);
+        $in = $request->input('scoring');
+
+        return [
+            'enabled' => (bool) ($in['enabled'] ?? true), 'intent_signal' => (bool) ($in['intent_signal'] ?? true),
+            'bands' => ['hot' => (int) $in['bands']['hot'], 'warm' => (int) $in['bands']['warm']],
+            'rules' => array_map(fn ($r) => [
+                'group' => $r['group'], 'field' => $r['field'], 'operator' => $r['operator'],
+                'value' => is_scalar($r['value'] ?? null) ? $r['value'] : null, 'points' => (int) $r['points'], 'on' => (bool) ($r['on'] ?? true),
+            ], array_values($in['rules'] ?? [])),
+        ];
+    }
+
+    /** S-12: the signed-in person's own alert choices (each teammate sets theirs). */
+    public function notifications()
+    {
+        return response()->json(['events' => \App\Services\Crm\CrmNotifier::preferences($this->context->workspaceId(), $this->context->actorId())]);
+    }
+
+    public function saveNotifications(Request $request)
+    {
+        $request->validate(['events' => ['required', 'array'], 'events.*.in_app' => ['boolean'], 'events.*.email' => ['boolean']]);
+        $mine = collect($request->input('events'))->only(\App\Services\Crm\CrmNotifier::EVENTS)
+            ->map(fn ($v) => ['in_app' => (bool) ($v['in_app'] ?? true), 'email' => (bool) ($v['email'] ?? false)])->all();
+        $all = CrmSettings::for($this->context->workspaceId())['notifications'] ?: [];
+        $all[$this->context->actorId()] = $mine;
+        CrmSettings::save($this->context->workspaceId(), ['notifications' => $all]);
+
+        return $this->notifications();
+    }
+
+    /** S-06: scoring config with defaults, plus how each band converted over the last 90 days. */
+    public function scoring()
+    {
+        $ws = $this->context->workspaceId();
+
+        return response()->json(['scoring' => LeadScorer::config($ws), 'defaults' => LeadScorer::defaults(), 'backtest' => app(LeadScorer::class)->backtest($ws),
+            'fields' => array_merge(\App\Services\Crm\AutomationEngine::FIELDS, LeadScorer::SIGNALS), 'operators' => \App\Services\Crm\AutomationEngine::OPERATORS]);
+    }
+
+    /** Recalculate every open contact's score with the saved rules (capped per call). */
+    public function rescore()
+    {
+        $scorer = app(LeadScorer::class);
+        $count = 0;
+        Contact::where(fn ($q) => $q->whereHas('leads', fn ($l) => $l->whereNotIn('status', ['converted', 'unqualified']))
+            ->orWhere('last_activity_at', '>=', now()->subDays(90)))->orderByDesc('last_activity_at')->limit(2000)->get()
+            ->each(function ($c) use ($scorer, &$count) { $scorer->rescore($c); $count++; });
+
+        return response()->json(['rescored' => $count, 'backtest' => $scorer->backtest($this->context->workspaceId())]);
     }
 
     public function rotateCapture()

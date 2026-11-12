@@ -43,6 +43,21 @@ class CrmPageController extends Controller
         return $this->page('leads');
     }
 
+    public function lead(\App\Models\Crm\Lead $lead)
+    {
+        return $this->page('lead', ['leadId' => $lead->id], $lead->contact?->full_name ?? __('crm.nav.leads'));
+    }
+
+    public function deal(\App\Models\Crm\Deal $deal)
+    {
+        return $this->page('deal', ['dealId' => $deal->id], $deal->name);
+    }
+
+    public function insights()
+    {
+        return $this->page('insights');
+    }
+
     public function deals()
     {
         return $this->page('deals');
@@ -80,21 +95,26 @@ class CrmPageController extends Controller
                 'members' => $this->context->members(),
                 'actorId' => $this->context->actorId(),
                 'pipelines' => $this->pipelines->all(),
-                'options' => self::options(),
+                'options' => self::options($this->context->workspaceId()),
+                'bands' => \App\Services\Crm\LeadScorer::config($this->context->workspaceId())['bands'],
                 'currency' => request()->attributes->get('workspace')?->currency ?: 'SAR',
                 'fields' => \App\Models\Crm\Field::where('entity', 'contact')->orderBy('sort_order')->get(['key', 'label', 'type', 'options']),
             ],
         ]);
     }
 
-    public static function options(): array
+    public static function options(?int $workspaceId = null): array
     {
+        $settings = $workspaceId ? \App\Services\Crm\CrmSettings::for($workspaceId) : \App\Services\Crm\CrmSettings::DEFAULTS;
+
         return [
+            'extraStatuses' => $settings['extra_statuses'], 'lostReasons' => $settings['lost_reasons'], 'winReasons' => $settings['win_reasons'],
             'lifecycles' => Contact::LIFECYCLES,
             'leadStatuses' => \App\Models\Crm\Lead::STATUSES,
-            'disqualifyReasons' => \App\Models\Crm\Lead::DISQUALIFY_REASONS,
+            'disqualifyReasons' => $settings['disqualify_reasons'],
             'activityTypes' => ['task', 'call', 'meeting', 'note', 'email'],
-            'sources' => ['instagram', 'whatsapp', 'facebook', 'tiktok', 'snapchat', 'x', 'linkedin', 'google_ads', 'website', 'email', 'referral', 'phone', 'walk_in', 'other'],
+            'sources' => $settings['sources'],
+            'requireLostReason' => (bool) ($settings['require_lost_reason'] ?? false),
         ];
     }
 }

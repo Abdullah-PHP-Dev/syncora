@@ -19,6 +19,9 @@ class ActivityController extends Controller
     {
         $view = $request->query('view', 'open');
         $query = Activity::with(['owner:id,name', 'author:id,name', 'contact:id,first_name,last_name', 'deal:id,name'])
+            ->when($request->query('owner_id') === 'unassigned', fn ($q) => $q->whereNull('owner_id'))
+            ->when($request->query('type'), fn ($q, $t) => $q->where('type', $t))
+            ->when($request->query('priority'), fn ($q, $p) => $q->where('priority', $p))
             ->when($request->query('owner_id') === 'me', fn ($q) => $q->where('owner_id', $this->context->actorId()))
             ->when(is_numeric($request->query('owner_id')), fn ($q) => $q->where('owner_id', $request->query('owner_id')));
 
@@ -41,6 +44,9 @@ class ActivityController extends Controller
                 'open' => (clone $openTasks)->count(),
                 'overdue' => (clone $openTasks)->where('due_at', '<', now())->count(),
                 'today' => (clone $openTasks)->whereBetween('due_at', [now()->startOfDay(), now()->endOfDay()])->count(),
+                'week' => (clone $openTasks)->whereBetween('due_at', [now()->startOfWeek(), now()->endOfWeek()])->count(),
+                'completed_week' => Activity::where('type', 'task')->where('completed_at', '>=', now()->startOfWeek())->count(),
+                'auto_created' => Activity::where('type', 'task')->whereNull('completed_at')->where('meta->automation', true)->count(),
             ],
         ]);
     }
@@ -75,6 +81,8 @@ class ActivityController extends Controller
             'type' => ['required', Rule::in(['task', 'call', 'meeting', 'note', 'email'])],
             'subject' => ['required', 'string', 'max:200'], 'body' => ['nullable', 'string', 'max:5000'],
             'due_at' => ['nullable', 'date'], 'owner_id' => ['nullable', Rule::in($this->context->memberIds())],
+            'priority' => ['nullable', Rule::in(['low', 'medium', 'high'])], 'outcome' => ['nullable', 'string', 'max:30'],
+            'duration_minutes' => ['nullable', 'integer', 'min:0', 'max:1440'], 'remind_at' => ['nullable', 'date'],
             'contact_id' => ['nullable', Rule::exists('crm_contacts', 'id')->where('workspace_id', $ws)],
             'deal_id' => ['nullable', Rule::exists('crm_deals', 'id')->where('workspace_id', $ws)],
             'lead_id' => ['nullable', Rule::exists('crm_leads', 'id')->where('workspace_id', $ws)],
@@ -94,6 +102,7 @@ class ActivityController extends Controller
         $data = $request->validate([
             'subject' => ['sometimes', 'string', 'max:200'], 'body' => ['nullable', 'string', 'max:5000'],
             'due_at' => ['nullable', 'date'], 'owner_id' => ['nullable', Rule::in($this->context->memberIds())],
+            'priority' => ['nullable', Rule::in(['low', 'medium', 'high'])],
             'completed' => ['sometimes', 'boolean'],
         ]);
         if (array_key_exists('completed', $data)) {

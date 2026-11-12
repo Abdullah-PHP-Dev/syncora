@@ -83,6 +83,13 @@ const props = defineProps({
     required: true
   },
 
+  // CRM alerts (G-02) come from the CRM's own endpoint, which follows the
+  // CRM plan and team permission; when it is not allowed it is simply skipped.
+  crmIndexUrl: {
+    type: String,
+    default: ''
+  },
+
   // Both carry a literal ':id' placeholder, replaced with the item's real
   // id before the request - same convention as admin/chats/dashboard.blade.php's
   // own *UrlTemplate constants.
@@ -162,9 +169,17 @@ async function refresh() {
   loading.value = true;
 
   try {
-    const { data } = await axios.get(props.indexUrl);
-    count.value = data.count || 0;
-    items.value = data.items || [];
+    const [main, crm] = await Promise.allSettled([
+      axios.get(props.indexUrl),
+      props.crmIndexUrl ? axios.get(props.crmIndexUrl) : Promise.reject(new Error('no crm')),
+    ]);
+    const feeds = [main, crm].filter((r) => r.status === 'fulfilled').map((r) => r.value.data);
+    if (feeds.length) {
+      count.value = feeds.reduce((sum, d) => sum + (d.count || 0), 0);
+      items.value = feeds.flatMap((d) => d.items || [])
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 15);
+    }
   } catch (e) {
     // A failed poll shouldn't wipe out whatever was already showing -
     // just try again on the next interval/Echo event.
@@ -182,7 +197,7 @@ function toggleOpen() {
 }
 
 function typeIcon(type) {
-  return { comment: 'bx bx-comment-detail', connection: 'bx bx-plug' }[type] || 'bx bx-message-rounded-dots';
+  return { comment: 'bx bx-comment-detail', connection: 'bx bx-plug', crm: 'bx bx-id-card' }[type] || 'bx bx-message-rounded-dots';
 }
 
 function markRead(item) {
@@ -190,6 +205,11 @@ function markRead(item) {
   // connection is fixed (NotificationController).
   if (item.type === 'connection') {
     return Promise.resolve();
+  }
+
+  // Items that bring their own mark-read URL (CRM alerts).
+  if (item.read_url) {
+    return axios.patch(item.read_url);
   }
 
   const template = item.type === 'comment'
@@ -331,6 +351,10 @@ onBeforeUnmount(() => {
 
 .notif-item-type-icon.conversation {
   background: #7c5cff;
+}
+
+.notif-item-type-icon.crm {
+  background: #16a34a;
 }
 
 .notif-item-type-icon.connection {

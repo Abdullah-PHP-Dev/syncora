@@ -34,7 +34,7 @@ class AutomationEngine
 
     /** Condition fields: "record.attribute". */
     public const FIELDS = [
-        'contact.lifecycle', 'contact.source', 'contact.score', 'contact.tags', 'contact.language', 'contact.owner_id',
+        'contact.lifecycle', 'contact.source', 'contact.score', 'contact.tags', 'contact.language', 'contact.owner_id', 'contact.email', 'contact.phone',
         'lead.source', 'lead.status', 'lead.estimated_value', 'lead.campaign',
         'deal.value', 'deal.pipeline_id', 'deal.stage_id', 'deal.source', 'deal.owner_id',
     ];
@@ -152,10 +152,10 @@ class AutomationEngine
     {
         foreach ($automation->conditions ?? [] as $condition) {
             [$record, $attribute] = array_pad(explode('.', (string) ($condition['field'] ?? ''), 2), 2, null);
-            if (! in_array($condition['field'] ?? '', self::FIELDS, true)) {
+            if (! in_array($condition['field'] ?? '', self::FIELDS, true) && ! in_array($condition['field'] ?? '', LeadScorer::SIGNALS, true)) {
                 return false;
             }
-            $actual = $subject[$record]?->{$attribute};
+            $actual = isset($subject[$record]) ? ($subject[$record]->{$attribute} ?? null) : null;
             if (! $this->compare($actual, $condition['operator'] ?? 'equals', $condition['value'] ?? null)) {
                 return false;
             }

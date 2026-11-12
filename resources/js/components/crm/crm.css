@@ -113,6 +113,7 @@
 .crm-alert.warn { background: var(--crm-amber-bg); color: #92400e; }
 .crm-alert.info { background: var(--crm-soft); color: #4c1d95; }
 .crm-alert.danger { background: var(--crm-red-bg); color: #991b1b; }
+.crm-alert.success { background: var(--crm-green-bg); color: #166534; }
 
 /* Overlays */
 .crm-overlay { position: fixed; inset: 0; background: rgba(18, 15, 45, .38); z-index: 1090; display: flex; }
@@ -172,3 +173,18 @@
     .crm-drawer { width: 100%; }
     .crm-hide-sm { display: none !important; }
 }
+/* Lead score bands, KPI tiles, stage path, deal grid */
+.crm-chip.band-hot { background: var(--crm-red-bg); color: var(--crm-red); }
+.crm-chip.band-warm { background: var(--crm-amber-bg); color: var(--crm-amber); }
+.crm-chip.band-cold { background: #f1f0f7; color: #514f6d; }
+.crm-kpi .crm-kpi-value { margin-block: 6px 2px; font-size: 22px; }
+button.crm-kpi { cursor: pointer; font: inherit; color: inherit; }
+.crm-path { display: flex; gap: 4px; flex-wrap: wrap; }
+.crm-path > * { flex: 1 1 90px; justify-content: center; }
+.crm-detail-grid { display: grid; grid-template-columns: minmax(230px, 1fr) minmax(0, 2fr) minmax(250px, 1.1fr); gap: 16px; align-items: start; }
+.crm-check-row { display: flex; gap: 10px; align-items: flex-start; padding-block: 8px; border-bottom: 1px solid var(--crm-border); }
+.crm-check-row:last-child { border-bottom: 0; }
+.crm-msg { max-width: 85%; padding: 7px 10px; border-radius: 10px; font-size: 12.5px; unicode-bidi: plaintext; white-space: pre-line; margin-block: 4px; }
+.crm-msg.inbound { background: #f4f3f9; margin-inline-end: auto; }
+.crm-msg.outbound { background: var(--crm-soft); margin-inline-start: auto; }
+@media (max-width: 1100px) { .crm-detail-grid { grid-template-columns: 1fr; } }

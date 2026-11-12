@@ -93,4 +93,41 @@ class CrmOverviewController extends Controller
             'deals' => Deal::where('name', 'like', "%{$q}%")->limit(4)->get()->map(fn ($d) => ['id' => $d->id, 'name' => $d->name, 'sub' => $d->currency.' '.number_format((float) $d->value)]),
         ]);
     }
+
+    /** AI-01: findings from this workspace's numbers (no AI credit). */
+    public function insights(\App\Services\Crm\CrmInsights $insights)
+    {
+        $facts = $insights->facts($this->context->workspaceId());
+
+        return response()->json(['facts' => $facts, 'cards' => $insights->cards($facts),
+            'ai' => (\App\Services\Crm\CrmSettings::for($this->context->workspaceId())['ai']['ask'] ?? true) !== false]);
+    }
+
+    /** G-02: the signed-in person's unread CRM alerts, in the navbar bell's item format. */
+    public function notifications()
+    {
+        $unread = $this->mine()->whereNull('read_at');
+
+        return response()->json([
+            'count' => (clone $unread)->count(),
+            'items' => (clone $unread)->latest('id')->take(10)->get()->map(fn (\App\Models\Crm\Notification $n) => [
+                'type' => 'crm', 'id' => $n->id, 'author' => $n->title, 'avatar' => null,
+                'preview' => $n->body ?: __('crm.notify.open_crm'), 'platform' => null,
+                'url' => $n->url ?: route('admin.crm.overview'), 'read_url' => route('admin.crm.api.notifications.read', $n->id),
+                'created_at' => $n->created_at,
+            ]),
+        ]);
+    }
+
+    public function readNotification(int $notification)
+    {
+        $this->mine()->whereKey($notification)->update(['read_at' => now()]);
+
+        return response()->json(['success' => true]);
+    }
+
+    private function mine()
+    {
+        return \App\Models\Crm\Notification::where('workspace_id', $this->context->workspaceId())->where('user_id', $this->context->actorId());
+    }
 }

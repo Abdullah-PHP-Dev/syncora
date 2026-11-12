@@ -27,7 +27,7 @@ trait CrmFixtures
             '2026_06_19_150647_create_ad_campaigns_table', '2026_07_31_220836_create_email_lists_table', '2026_07_31_220837_create_email_subscribers_table',
             '2026_07_31_220838_create_email_list_subscriber_table', '2026_09_18_000001_create_email_subaccounts_table', '2026_09_18_000007_add_sendgrid_columns_to_email_lists_table',
             '2026_09_18_000008_add_sendgrid_columns_to_email_subscribers_table', '2026_09_18_223326_add_source_to_email_subscribers_table',
-            '2026_11_12_120000_create_crm_tables', '2026_11_12_120100_connect_crm_to_existing_modules', '2026_11_12_130000_add_crm_automations_settings_and_capture'] as $migration) {
+            '2026_11_12_120000_create_crm_tables', '2026_11_12_120100_connect_crm_to_existing_modules', '2026_11_12_130000_add_crm_automations_settings_and_capture', '2026_11_12_140000_add_crm_detail_columns', '2026_11_12_150000_create_crm_notifications_table'] as $migration) {
             (require database_path('migrations/'.$migration.'.php'))->up();
         }
         CrmSettings::flush();

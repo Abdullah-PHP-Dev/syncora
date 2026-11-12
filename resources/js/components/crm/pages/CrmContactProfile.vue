@@ -62,16 +62,7 @@
                     </nav>
 
                     <template v-if="tab === 'activity'">
-                        <form v-if="crm.canWrite" class="mb-3" @submit.prevent="logActivity">
-                            <textarea v-model.trim="note.body" class="crm-textarea" rows="2" :placeholder="crm.t('contacts.write_note')" :aria-label="crm.t('contacts.write_note')"></textarea>
-                            <div class="d-flex gap-2 mt-2 flex-wrap align-items-center">
-                                <div class="crm-seg">
-                                    <button v-for="type in ['note', 'call', 'meeting', 'email', 'task']" :key="type" type="button" :class="{ active: note.type === type }" @click="note.type = type">{{ crm.t('activity_types.' + type) }}</button>
-                                </div>
-                                <input v-if="note.type === 'task'" v-model="note.due_at" type="datetime-local" class="crm-input" style="width:auto;height:32px" :aria-label="crm.t('activities.due')">
-                                <button type="submit" class="crm-btn crm-btn-primary crm-btn-sm" style="margin-inline-start:auto" :disabled="!note.body || saving">{{ crm.t('contacts.log') }}</button>
-                            </div>
-                        </form>
+                        <crm-log-form v-if="crm.canWrite" :contact-id="c.id" :deal-id="openDeals.length === 1 ? openDeals[0].id : null" :stages="openDeals.length === 1 ? stagesOf(openDeals[0]) : []" :closable="false" @saved="load" />
 
                         <div v-if="upcoming.length" class="mb-3">
                             <div class="crm-small crm-muted mb-2" style="font-weight:700;letter-spacing:.05em;text-transform:uppercase">{{ crm.t('contacts.upcoming') }}</div>
@@ -109,15 +100,15 @@
                     <template v-else-if="tab === 'deals'">
                         <p v-if="!data.deals.length" class="crm-muted crm-small">{{ crm.t('contacts.no_deals') }}</p>
                         <div v-for="d in data.deals" :key="d.id" class="d-flex justify-content-between align-items-center py-2" style="border-bottom:1px solid #f3f1f9">
-                            <div><strong>{{ d.name }}</strong><div class="crm-small crm-muted"><span class="crm-ltr">{{ crm.money(d.value, d.currency) }}</span> · {{ d.expected_close_date || '—' }}</div></div>
+                            <div><a :href="d.url" style="font-weight:700;color:inherit">{{ d.name }}</a><div class="crm-small crm-muted"><span class="crm-ltr">{{ crm.money(d.value, d.currency) }}</span> · {{ d.expected_close_date || '—' }}</div></div>
                             <span :class="['crm-chip', d.status === 'open' ? 'qualified' : d.status]">{{ d.stage }}</span>
                         </div>
                     </template>
 
                     <template v-else>
                         <div v-for="l in data.leads" :key="l.id" class="d-flex justify-content-between align-items-center py-2" style="border-bottom:1px solid #f3f1f9">
-                            <div><strong>{{ crm.sourceLabel(l.source) }}</strong><div class="crm-small crm-muted">{{ l.interest || '—' }} · {{ crm.date(l.created_at) }}</div></div>
-                            <span :class="['crm-chip', l.status]">{{ crm.t('lead_status.' + l.status) }}</span>
+                            <div><a :href="l.url" style="font-weight:700;color:inherit">{{ crm.sourceLabel(l.source) }}</a><div class="crm-small crm-muted">{{ l.interest || '—' }} · {{ crm.date(l.created_at) }}</div></div>
+                            <span :class="['crm-chip', l.status]">{{ crm.opt('lead_status', l.status) }}</span>
                         </div>
                     </template>
                 </section>
@@ -131,7 +122,7 @@
                         </div>
                         <p v-if="!openDeals.length" class="crm-muted crm-small mb-0">{{ crm.t('contacts.no_deals') }}</p>
                         <div v-for="d in openDeals" :key="d.id" class="d-flex justify-content-between align-items-center py-2">
-                            <div class="min-w-0"><strong class="crm-small d-block">{{ d.name }}</strong><div class="crm-small crm-muted"><span class="crm-ltr">{{ crm.money(d.value, d.currency) }}</span></div></div>
+                            <div class="min-w-0"><a :href="d.url" class="crm-small d-block" style="font-weight:700;color:inherit">{{ d.name }}</a><div class="crm-small crm-muted"><span class="crm-ltr">{{ crm.money(d.value, d.currency) }}</span></div></div>
                             <span class="crm-chip qualified">{{ d.stage }}</span>
                         </div>
                     </div>
@@ -157,13 +148,14 @@ import CrmHeader from '../ui/CrmHeader.vue';
 import CrmContactDrawer from '../ui/CrmContactDrawer.vue';
 import CrmDealModal from '../ui/CrmDealModal.vue';
 import CrmAiCard from '../ui/CrmAiCard.vue';
+import CrmLogForm from '../ui/CrmLogForm.vue';
 
 export default {
     name: 'CrmContactProfile',
-    components: { CrmHeader, CrmContactDrawer, CrmDealModal, CrmAiCard },
+    components: { CrmHeader, CrmContactDrawer, CrmDealModal, CrmAiCard, CrmLogForm },
     inject: ['crm'],
     props: { contactId: { type: Number, required: true } },
-    data: () => ({ data: null, tab: 'activity', edit: false, dealModal: false, saving: false, note: { type: 'note', body: '', due_at: '' } }),
+    data: () => ({ data: null, tab: 'activity', edit: false, dealModal: false }),
     computed: {
         c() { return this.data && this.data.contact; },
         tabs() {
@@ -182,20 +174,7 @@ export default {
         async load() {
             try { this.data = await this.crm.api.get(`contacts/${this.contactId}`); } catch (e) { this.crm.notify(this.crm.error(e), 'error'); }
         },
-        async logActivity() {
-            this.saving = true;
-            const isTask = this.note.type === 'task';
-            try {
-                await this.crm.api.post(`contacts/${this.contactId}/activities`, {
-                    type: this.note.type, body: isTask ? null : this.note.body, subject: isTask ? this.note.body : null,
-                    due_at: isTask ? (this.note.due_at || null) : null,
-                });
-                this.note.body = ''; this.note.due_at = '';
-                this.crm.notify(this.crm.t('common.saved'));
-                this.load();
-            } catch (e) { this.crm.notify(this.crm.error(e), 'error'); }
-            this.saving = false;
-        },
+        stagesOf(deal) { const p = this.crm.pipelines.find((x) => x.id === deal.pipeline_id); return p ? p.stages.filter((st) => st.kind === 'open') : []; },
         async complete(task) {
             try { await this.crm.api.patch(`activities/${task.id}`, { completed: true }); this.load(); } catch (e) { this.crm.notify(this.crm.error(e), 'error'); }
         },

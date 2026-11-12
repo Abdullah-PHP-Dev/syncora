@@ -24,12 +24,12 @@ class Contact extends Model
 
     protected $fillable = [
         'workspace_id', 'owner_id', 'company_id', 'first_name', 'last_name', 'arabic_name', 'email', 'phone',
-        'job_title', 'lifecycle', 'source', 'language', 'preferred_channel', 'score', 'whatsapp_consent',
+        'job_title', 'lifecycle', 'source', 'language', 'preferred_channel', 'score', 'whatsapp_consent', 'do_not_contact',
         'tags', 'custom_fields', 'last_activity_at', 'created_by',
     ];
 
     protected $casts = [
-        'tags' => 'array', 'custom_fields' => 'array', 'whatsapp_consent' => 'boolean',
+        'tags' => 'array', 'custom_fields' => 'array', 'whatsapp_consent' => 'boolean', 'do_not_contact' => 'boolean',
         'score' => 'integer', 'last_activity_at' => 'datetime',
     ];
 

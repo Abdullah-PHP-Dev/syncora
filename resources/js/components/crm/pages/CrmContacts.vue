@@ -140,7 +140,7 @@ export default {
         rows: [], meta: {}, counts: {}, loading: true, tab: 'all', q: '', sort: 'created_at', dir: 'desc', page: 1,
         filters: { lifecycle: '', source: '', owner_id: '', has_conversation: false, tag: '' }, selected: [], drawer: false, timer: null,
         importing: false, dupes: false, segments: [], segmentId: '', emailLists: [], emailModal: null,
-        tabs: [{ key: 'all' }, { key: 'mine' }, { key: 'customers' }, { key: 'unassigned' }],
+        tabs: [{ key: 'all' }, { key: 'mine' }, { key: 'hot' }, { key: 'customers' }, { key: 'unassigned' }],
     }),
     computed: {
         params() { return { tab: this.tab, q: this.q, sort: this.sort, dir: this.dir, page: this.page, ...this.filters, has_conversation: this.filters.has_conversation ? 1 : '', segment_id: this.segmentId }; },

@@ -15,7 +15,18 @@
                         {{ crm.t('activities.filter_' + f) }}<span v-if="counts[f] !== undefined" class="crm-muted"> {{ counts[f] }}</span>
                     </button>
                 </div>
-                <label class="crm-check crm-small"><input v-model="mine" type="checkbox" @change="load"> {{ crm.t('activities.only_mine') }}</label>
+                <div class="crm-seg" role="group" :aria-label="crm.t('common.owner')">
+                    <button v-for="o in ['', 'me', 'unassigned']" :key="o" type="button" :class="{ active: who === o }" @click="who = o; load()">{{ crm.t('activities.who_' + (o || 'team')) }}</button>
+                </div>
+                <select v-model="priority" class="crm-select" style="width:auto" :aria-label="crm.t('activities.priority')" @change="load">
+                    <option value="">{{ crm.t('activities.priority') }}: {{ crm.t('common.any') }}</option>
+                    <option v-for="p in ['high', 'medium', 'low']" :key="p" :value="p">{{ crm.t('priorities.' + p) }}</option>
+                </select>
+            </div>
+            <div class="crm-small crm-muted d-flex gap-3 flex-wrap mb-2">
+                <span><i class="bx bx-calendar-week"></i> {{ crm.t('activities.sum_week', { n: counts.week || 0 }) }}</span>
+                <span><i class="bx bx-check-double"></i> {{ crm.t('activities.sum_completed', { n: counts.completed_week || 0 }) }}</span>
+                <span><i class="bx bx-bot"></i> {{ crm.t('activities.sum_auto', { n: counts.auto_created || 0 }) }}</span>
             </div>
             <div class="crm-card" style="padding:6px 14px">
                 <p v-if="!loading && !items.length" class="crm-muted crm-small py-3 mb-0">{{ crm.t('activities.empty_tasks') }}</p>
@@ -24,10 +35,11 @@
                     <div class="flex-grow-1 min-w-0">
                         <div :style="a.completed_at ? 'text-decoration:line-through;color:var(--crm-muted)' : 'font-weight:600'">{{ a.subject }}</div>
                         <div class="crm-small crm-muted">
-                            <a v-if="a.contact" :href="a.contact.url">{{ a.contact.name }}</a><span v-if="a.deal"> · {{ a.deal.name }}</span>
+                            <a v-if="a.contact" :href="a.contact.url">{{ a.contact.name }}</a><span v-if="a.deal"> · <a :href="crm.pageUrl('deal', a.deal.id)">{{ a.deal.name }}</a></span>
                             <span v-if="a.owner"> · {{ a.owner.name }}</span>
                         </div>
                     </div>
+                    <span v-if="a.priority" :class="['crm-chip plain', a.priority === 'high' ? 'danger' : a.priority === 'medium' ? 'warn' : '']">{{ crm.t('priorities.' + a.priority) }}</span>
                     <span v-if="a.due_at" :class="['crm-chip plain', a.overdue ? 'danger' : isToday(a.due_at) ? 'warn' : '']">{{ a.overdue ? crm.t('common.overdue') + ' · ' : '' }}{{ crm.date(a.due_at, true) }}</span>
                     <button v-if="crm.canWrite" type="button" class="crm-btn crm-btn-ghost crm-icon-btn crm-btn-sm" :aria-label="crm.t('common.delete')" @click="remove(a)"><i class="bx bx-trash"></i></button>
                 </div>
@@ -63,7 +75,7 @@
                         <span class="crm-tl-icon"><i :class="['bx', { call: 'bx-phone', meeting: 'bx-calendar', note: 'bx-note', email: 'bx-envelope' }[a.type]]"></i></span>
                         <div class="flex-grow-1 min-w-0">
                             <div class="d-flex justify-content-between gap-2"><strong class="crm-small">{{ crm.t('activity_types.' + a.type) }}<span v-if="a.contact"> · <a :href="a.contact.url">{{ a.contact.name }}</a></span></strong><span class="crm-small crm-muted">{{ crm.ago(a.created_at) }}</span></div>
-                            <div v-if="a.author" class="crm-small crm-muted">{{ crm.t('common.by', { name: a.author.name }) }}</div>
+                            <div v-if="a.author" class="crm-small crm-muted">{{ crm.t('common.by', { name: a.author.name }) }}<span v-if="a.outcome"> · {{ crm.opt('outcomes', a.outcome) }}</span><span v-if="a.duration_minutes"> · {{ crm.t('activities.minutes', { n: a.duration_minutes }) }}</span></div>
                             <div v-if="a.body || a.subject" class="crm-bubble" dir="auto">{{ a.body || a.subject }}</div>
                         </div>
                     </li>
@@ -98,6 +110,10 @@
             <div class="crm-field"><label class="crm-label" for="tk-body">{{ crm.t('activities.details') }}</label><textarea id="tk-body" v-model="task.body" class="crm-textarea"></textarea></div>
             <div class="crm-row2">
                 <div class="crm-field"><label class="crm-label" for="tk-due">{{ crm.t('activities.due') }}</label><input id="tk-due" v-model="task.due_at" type="datetime-local" class="crm-input"></div>
+                <div class="crm-field"><label class="crm-label" for="tk-pri">{{ crm.t('activities.priority') }}</label>
+                    <select id="tk-pri" v-model="task.priority" class="crm-select"><option v-for="p in ['low', 'medium', 'high']" :key="p" :value="p">{{ crm.t('priorities.' + p) }}</option></select></div>
+            </div>
+            <div class="crm-row2">
                 <div class="crm-field"><label class="crm-label" for="tk-own">{{ crm.t('activities.assignee') }}</label>
                     <select id="tk-own" v-model="task.owner_id" class="crm-select"><option v-for="m in crm.members" :key="m.id" :value="m.id">{{ m.name }}</option></select></div>
             </div>
@@ -119,7 +135,7 @@ export default {
     name: 'CrmActivities',
     components: { CrmHeader, CrmDrawer },
     inject: ['crm'],
-    data: () => ({ tab: 'tasks', filter: 'open', mine: false, items: [], counts: {}, team: [], loading: true, month: new Date(), task: null, contacts: [], busy: false }),
+    data: () => ({ tab: 'tasks', filter: 'open', who: '', priority: '', items: [], counts: {}, team: [], loading: true, month: new Date(), task: null, contacts: [], busy: false }),
     computed: {
         monthLabel() { return this.month.toLocaleDateString(this.crm.locale === 'ar' ? 'ar-SA-u-nu-latn-ca-gregory' : 'en-GB', { month: 'long', year: 'numeric' }); },
         weekdays() {
@@ -147,7 +163,7 @@ export default {
             try {
                 if (this.tab === 'team') { this.team = (await this.crm.api.get('activities/team')).data; }
                 else {
-                    const params = { view: this.tab === 'tasks' ? this.filter : this.tab, owner_id: this.mine ? 'me' : '' };
+                    const params = { view: this.tab === 'tasks' ? this.filter : this.tab, owner_id: this.who, priority: this.tab === 'tasks' ? this.priority : '' };
                     if (this.tab === 'calendar') {
                         const y = this.month.getFullYear(); const m = this.month.getMonth();
                         Object.assign(params, { from: new Date(y, m, -6).toISOString(), to: new Date(y, m + 1, 7).toISOString() });
@@ -169,7 +185,7 @@ export default {
             try { await this.crm.api.del(`activities/${a.id}`); this.load(); } catch (e) { this.crm.notify(this.crm.error(e), 'error'); }
         },
         async openTask() {
-            this.task = { type: 'task', subject: '', body: '', due_at: '', owner_id: this.crm.actorId, contact_id: null };
+            this.task = { type: 'task', subject: '', body: '', due_at: '', priority: 'medium', owner_id: this.crm.actorId, contact_id: null };
             if (!this.contacts.length) this.contacts = (await this.crm.api.get('contacts', { sort: 'last_activity_at' }).catch(() => ({ data: [] }))).data;
         },
         async saveTask() {

@@ -56,13 +56,28 @@ class DealController extends Controller
         return response()->json(['data' => $this->dealRow($deal->load('contact', 'company', 'owner', 'stage'))], 201);
     }
 
+    /** D-05 deal detail: stage path, time in stage, people, activity and history. */
     public function show(Deal $deal)
     {
-        $deal->load(['contact', 'company', 'owner', 'stage', 'pipeline.stages']);
+        $deal->load(['contact.company', 'company', 'owner', 'stage', 'pipeline.stages', 'lead']);
+        $people = collect([$deal->contact])->filter()
+            ->concat($deal->company ? $deal->company->contacts()->whereKeyNot($deal->contact_id ?? 0)->limit(10)->get() : [])
+            ->map(fn ($c) => ['id' => $c->id, 'name' => $c->full_name, 'job_title' => $c->job_title, 'primary' => $c->id === $deal->contact_id, 'url' => route('admin.crm.contacts.show', $c)]);
+        $stageDays = (int) ($deal->stage_changed_at ?? $deal->created_at)->diffInDays(now());
+        $avgDays = Deal::where('pipeline_id', $deal->pipeline_id)->whereNotNull('stage_changed_at')->where('status', 'open')->get(['stage_changed_at', 'created_at'])
+            ->avg(fn ($d) => $d->stage_changed_at->diffInDays(now()));
 
         return response()->json([
-            'deal' => $this->dealRow($deal),
-            'timeline' => $deal->activities()->with(['author:id,name', 'owner:id,name'])->latest()->limit(50)->get()->map(fn ($a) => $this->activityRow($a)),
+            'deal' => $this->dealRow($deal) + [
+                'notes' => $deal->notes, 'win_reasons' => $deal->win_reasons ?? [], 'competitor' => $deal->competitor,
+                'weighted' => round((float) $deal->value * $deal->probability / 100, 2), 'created_at' => $deal->created_at?->toIso8601String(),
+                'stage_days' => $stageDays, 'avg_stage_days' => $avgDays !== null ? (int) round($avgDays) : null,
+                'campaign' => $deal->lead?->campaign, 'lead_id' => $deal->lead_id,
+            ],
+            'stages' => $deal->pipeline->stages->map->only(['id', 'name', 'kind', 'probability', 'color']),
+            'pipeline' => ['id' => $deal->pipeline->id, 'name' => $deal->pipeline->name],
+            'people' => $people->values(),
+            'timeline' => $deal->activities()->with(['author:id,name', 'owner:id,name', 'contact:id,first_name,last_name'])->latest()->limit(80)->get()->map(fn ($a) => $this->activityRow($a)),
         ]);
     }
 
@@ -75,11 +90,20 @@ class DealController extends Controller
 
     public function move(Request $request, Deal $deal)
     {
-        $data = $request->validate(['stage_id' => ['required', 'integer'], 'position' => ['nullable', 'integer', 'min:0'], 'lost_reason' => ['nullable', 'string', 'max:160']]);
+        $data = $request->validate([
+            'stage_id' => ['required', 'integer'], 'position' => ['nullable', 'integer', 'min:0'], 'lost_reason' => ['nullable', 'string', 'max:160'],
+            // D-07 won / D-08 lost details
+            'value' => ['nullable', 'numeric', 'min:0', 'max:999999999'], 'won_at' => ['nullable', 'date'],
+            'win_reasons' => ['nullable', 'array', 'max:10'], 'win_reasons.*' => ['string', 'max:80'],
+            'competitor' => ['nullable', 'string', 'max:160'], 'notes' => ['nullable', 'string', 'max:5000'],
+            'mark_customer' => ['sometimes', 'boolean'], 'onboarding_task' => ['nullable', 'string', 'max:200'], 'reengage_days' => ['nullable', 'integer', 'min:1', 'max:365'],
+        ]);
         $stage = Stage::where('pipeline_id', $deal->pipeline_id)->findOrFail($data['stage_id']);
         abort_if($stage->kind === 'lost' && empty($data['lost_reason']) && \App\Services\Crm\CrmSettings::for($this->context->workspaceId())['require_lost_reason'], 422, __('crm.deals.lost_reason_required'));
 
-        return response()->json(['data' => $this->dealRow($this->deals->move($deal, $stage, $data['position'] ?? null, $data['lost_reason'] ?? null))]);
+        $details = array_intersect_key($data, array_flip(['value', 'won_at', 'win_reasons', 'competitor', 'notes', 'mark_customer', 'onboarding_task', 'reengage_days']));
+
+        return response()->json(['data' => $this->dealRow($this->deals->move($deal, $stage, $data['position'] ?? null, $data['lost_reason'] ?? null, $details))]);
     }
 
     public function destroy(Deal $deal)
@@ -103,6 +127,7 @@ class DealController extends Controller
             'company_id' => ['nullable', Rule::exists('crm_companies', 'id')->where('workspace_id', $ws)->whereNull('deleted_at')],
             'owner_id' => ['nullable', Rule::in($this->context->memberIds())],
             'expected_close_date' => ['nullable', 'date'], 'source' => ['nullable', 'string', 'max:40'],
+            'notes' => ['nullable', 'string', 'max:5000'],
         ]);
     }
 }

@@ -54,6 +54,10 @@ export function createContext({ props, urls, messages, locale, userName }) {
         scoreColor: (s) => (s >= 70 ? '#16a34a' : s >= 45 ? '#d97706' : '#94a3b8'),
         memberName(id) { return (ctx.members.find((m) => m.id === id) || {}).name || t('common.unassigned'); },
         sourceLabel(s) { return s ? t(`sources.${s}`).replace(/^sources\./, s) : '—'; },
+        // A configurable list entry: built-in keys are translated, custom entries are shown as typed.
+        opt(prefix, key) { const path = `${prefix}.${key}`; const v = t(path); return v === path ? key : v; },
+        bands: props.bands || { hot: 75, warm: 50 },
+        band(score) { const b = props.bands || { hot: 75, warm: 50 }; return score >= b.hot ? 'hot' : score >= b.warm ? 'warm' : 'cold'; },
         pageUrl(name, id) { return id ? withId(urls.pages[name], id) : urls.pages[name]; },
     };
     return ctx;

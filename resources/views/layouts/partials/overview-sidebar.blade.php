@@ -40,6 +40,7 @@
             ['admin.crm.leads.index', 'crm.nav.leads', 'bx-target-lock', []],
             ['admin.crm.deals.index', 'crm.nav.deals', 'bx-briefcase', []],
             ['admin.crm.activities.index', 'crm.nav.activities', 'bx-check-square', []],
+            ['admin.crm.insights.index', 'crm.nav.insights', 'bx-bulb', []],
             ['admin.crm.automations.index', 'crm.nav.automations', 'bx-bolt-circle', []],
             ['admin.crm.reports.index', 'crm.nav.reports', 'bx-bar-chart-alt-2', []],
             ['admin.crm.settings.index', 'crm.nav.settings', 'bx-cog', []],
@@ -69,6 +70,8 @@
         'admin.google.preferences' => ['admin.google.health', 'admin.google.settings'],
         'admin.crm.contacts.index' => ['admin.crm.contacts.show'],
         'admin.crm.companies.index' => ['admin.crm.companies.show'],
+        'admin.crm.leads.index' => ['admin.crm.leads.show'],
+        'admin.crm.deals.index' => ['admin.crm.deals.show'],
     ];
     if (!$team) {
         foreach ($platforms as $platform => [$platformLabel, $platformIcon]) {

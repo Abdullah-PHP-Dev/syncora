@@ -4,6 +4,12 @@
             <button v-if="crm.canWrite" type="button" class="crm-btn crm-btn-primary" @click="openCreate"><i class="bx bx-plus"></i> {{ crm.t('leads.new') }}</button>
         </crm-header>
 
+        <div class="crm-grid mb-3" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+            <div class="crm-card crm-kpi"><div class="crm-small crm-muted">{{ crm.t('leads.kpi_today') }}</div><div class="crm-kpi-value">{{ kpis.today || 0 }}</div><div class="crm-small crm-muted">{{ crm.t('leads.kpi_yesterday', { n: kpis.yesterday || 0 }) }}</div></div>
+            <div class="crm-card crm-kpi"><div class="crm-small crm-muted">{{ crm.t('leads.kpi_first_response') }}</div><div class="crm-kpi-value">{{ kpis.avg_first_response === null || kpis.avg_first_response === undefined ? '—' : crm.t('leads.minutes_short', { n: kpis.avg_first_response }) }}</div><div class="crm-small crm-muted">{{ crm.t('leads.kpi_last_7') }}</div></div>
+            <button type="button" class="crm-card crm-kpi text-start" style="border:1px solid var(--crm-border, #eee)" @click="owner = 'none'; reload()"><div class="crm-small crm-muted">{{ crm.t('leads.kpi_unassigned') }}</div><div class="crm-kpi-value" :style="kpis.unassigned ? 'color:var(--crm-red)' : ''">{{ kpis.unassigned || 0 }}</div><div class="crm-small crm-muted">{{ crm.t('leads.kpi_unassigned_hint') }}</div></button>
+            <div class="crm-card crm-kpi"><div class="crm-small crm-muted">{{ crm.t('leads.kpi_qualified_rate') }}</div><div class="crm-kpi-value">{{ kpis.qualified_rate === null || kpis.qualified_rate === undefined ? '—' : kpis.qualified_rate + '%' }}</div><div class="crm-small crm-muted">{{ crm.t('leads.kpi_last_30') }}</div></div>
+        </div>
         <nav class="crm-tabs" role="tablist">
             <button v-for="s in tabs" :key="s" type="button" role="tab" :class="['crm-tab', { active: status === s }]" @click="setStatus(s)">
                 {{ s === '' ? crm.t('leads.tab_all') : crm.t('lead_status.' + s) }}<span class="count">{{ counts[s === '' ? 'all' : s] || 0 }}</span>
@@ -20,24 +26,31 @@
                 <option value="">{{ crm.t('common.source') }}: {{ crm.t('common.any') }}</option>
                 <option v-for="s in crm.options.sources" :key="s" :value="s">{{ crm.sourceLabel(s) }}</option>
             </select>
+            <select v-model="band" class="crm-select" :aria-label="crm.t('leads.score')" @change="reload">
+                <option value="">{{ crm.t('leads.score') }}: {{ crm.t('common.any') }}</option>
+                <option v-for="b in ['hot', 'warm', 'cold']" :key="b" :value="b">{{ crm.t('bands.' + b) }}</option>
+            </select>
+            <input v-model.trim="campaign" class="crm-input" style="width:170px" :placeholder="crm.t('leads.campaign')" :aria-label="crm.t('leads.campaign')" @change="reload">
             <button v-if="selected.length && crm.canWrite" type="button" class="crm-btn crm-btn-soft" @click="assignModal = true"><i class="bx bx-user-check"></i> {{ crm.t('leads.assign') }} ({{ selected.length }})</button>
         </div>
 
         <div class="crm-table-wrap">
             <table class="crm-table">
                 <thead><tr>
-                    <th style="width:36px"></th><th>{{ crm.t('leads.lead') }}</th><th>{{ crm.t('common.source') }}</th><th>{{ crm.t('common.status') }}</th>
+                    <th style="width:36px"></th><th>{{ crm.t('leads.lead') }}</th><th>{{ crm.t('common.source') }}</th><th>{{ crm.t('common.status') }}</th><th>{{ crm.t('leads.score') }}</th>
                     <th class="crm-hide-sm">{{ crm.t('leads.interest') }}</th><th>{{ crm.t('leads.estimated_value') }}</th><th>{{ crm.t('common.owner') }}</th>
                     <th>{{ crm.t('common.created') }}</th><th></th>
                 </tr></thead>
                 <tbody>
-                    <tr v-if="loading"><td colspan="9" class="crm-muted">{{ crm.t('common.loading') }}</td></tr>
+                    <tr v-if="loading"><td colspan="10" class="crm-muted">{{ crm.t('common.loading') }}</td></tr>
                     <tr v-for="l in rows" v-else :key="l.id" :class="{ selected: selected.includes(l.id) }">
                         <td><input v-if="crm.canWrite" v-model="selected" type="checkbox" :value="l.id" :aria-label="l.contact && l.contact.name"></td>
                         <td><div class="crm-person"><span :class="['crm-avatar', crm.avatarClass(l.contact.id)]">{{ crm.initials(l.contact.name) }}</span>
-                            <div class="min-w-0"><a :href="l.contact.url" class="crm-person-name">{{ l.contact.name }}</a><div class="crm-person-sub crm-ltr">{{ l.contact.phone || l.contact.email }}</div></div></div></td>
+                            <div class="min-w-0"><a :href="l.url" class="crm-person-name">{{ l.contact.name }}</a><div class="crm-person-sub crm-ltr">{{ l.contact.phone || l.contact.email }}</div></div></div></td>
                         <td>{{ crm.sourceLabel(l.source) }}<div v-if="l.campaign" class="crm-small crm-muted">{{ l.campaign }}</div></td>
-                        <td><span :class="['crm-chip', l.status]">{{ crm.t('lead_status.' + l.status) }}</span><div v-if="l.disqualify_reason" class="crm-small crm-muted">{{ crm.t('reasons.' + l.disqualify_reason) }}</div></td>
+                        <td><span :class="['crm-chip', l.status]">{{ crm.opt('lead_status', l.status) }}</span><div v-if="l.disqualify_reason" class="crm-small crm-muted">{{ crm.opt('reasons', l.disqualify_reason) }}</div></td>
+                        <td><span :class="['crm-chip', 'band-' + crm.band(l.score)]">{{ l.score }} · {{ crm.t('bands.' + crm.band(l.score)) }}</span>
+                            <div v-if="l.first_response_minutes !== null && l.first_response_minutes !== undefined" class="crm-small crm-muted">{{ crm.t('leads.first_reply_in', { n: l.first_response_minutes }) }}</div></td>
                         <td class="crm-hide-sm crm-small" style="max-width:220px" dir="auto">{{ l.interest || '—' }}</td>
                         <td class="crm-ltr">{{ l.estimated_value !== null ? crm.money(l.estimated_value, l.currency) : '—' }}</td>
                         <td>{{ l.owner ? l.owner.name : crm.t('common.unassigned') }}</td>
@@ -45,8 +58,8 @@
                         <td style="white-space:nowrap">
                             <template v-if="crm.canWrite && !['converted', 'unqualified'].includes(l.status)">
                                 <button v-if="l.status === 'new'" type="button" class="crm-btn crm-btn-sm crm-btn-ghost" @click="setLeadStatus(l, 'contacted')">{{ crm.t('leads.mark_contacted') }}</button>
-                                <button type="button" class="crm-btn crm-btn-sm crm-btn-soft" @click="openConvert(l)">{{ crm.t('leads.convert') }}</button>
-                                <button type="button" class="crm-btn crm-btn-sm crm-btn-ghost crm-icon-btn" :aria-label="crm.t('leads.disqualify')" :title="crm.t('leads.disqualify')" @click="disq = { lead: l, reason: 'not_interested', note: '' }"><i class="bx bx-block"></i></button>
+                                <button type="button" class="crm-btn crm-btn-sm crm-btn-soft" @click="conv = l">{{ crm.t('leads.convert') }}</button>
+                                <button type="button" class="crm-btn crm-btn-sm crm-btn-ghost crm-icon-btn" :aria-label="crm.t('leads.disqualify')" :title="crm.t('leads.disqualify')" @click="disq = l"><i class="bx bx-block"></i></button>
                             </template>
                             <span v-else-if="l.status === 'converted'" class="crm-small crm-muted"><i class="bx bx-check-circle" style="color:var(--crm-green)"></i> {{ crm.t('lead_status.converted') }}</span>
                         </td>
@@ -104,48 +117,8 @@
             </template>
         </crm-modal>
 
-        <!-- L-05 Convert -->
-        <crm-modal v-if="conv" :title="crm.t('leads.convert_title')" :subtitle="conv.lead.contact.name" icon="bx-check-circle" :close-label="crm.t('common.close')" @close="conv = null">
-            <div class="crm-alert info mb-3"><i class="bx bx-user"></i> {{ crm.t('leads.keep_person', { name: conv.lead.contact.name }) }}</div>
-            <div class="crm-field"><label class="crm-label" for="cv-co">{{ crm.t('leads.company_optional') }}</label><input id="cv-co" v-model.trim="conv.company_name" class="crm-input"></div>
-            <label class="crm-check mb-2"><input v-model="conv.create_deal" type="checkbox"> <strong>{{ crm.t('leads.create_deal') }}</strong></label>
-            <div v-if="conv.create_deal" class="crm-card mb-3" style="padding:14px">
-                <div class="crm-row2">
-                    <div class="crm-field"><label class="crm-label" for="cv-dn">{{ crm.t('leads.deal_name') }}</label><input id="cv-dn" v-model.trim="conv.deal_name" class="crm-input"></div>
-                    <div class="crm-field"><label class="crm-label" for="cv-dv">{{ crm.t('common.value') }} ({{ crm.currency }})</label><input id="cv-dv" v-model.number="conv.value" type="number" min="0" class="crm-input" dir="ltr"></div>
-                </div>
-                <div class="crm-row2">
-                    <div class="crm-field"><label class="crm-label" for="cv-p">{{ crm.t('leads.pipeline') }}</label>
-                        <select id="cv-p" v-model="conv.pipeline_id" class="crm-select" @change="conv.stage_id = stagesFor(conv.pipeline_id)[0].id"><option v-for="p in crm.pipelines" :key="p.id" :value="p.id">{{ p.name }}</option></select></div>
-                    <div class="crm-field"><label class="crm-label" for="cv-s">{{ crm.t('leads.stage') }}</label>
-                        <select id="cv-s" v-model="conv.stage_id" class="crm-select"><option v-for="s in stagesFor(conv.pipeline_id)" :key="s.id" :value="s.id">{{ s.name }}</option></select></div>
-                </div>
-                <div class="crm-row2">
-                    <div class="crm-field mb-0"><label class="crm-label" for="cv-c">{{ crm.t('leads.expected_close') }}</label><input id="cv-c" v-model="conv.expected_close_date" type="date" class="crm-input"></div>
-                    <div class="crm-field mb-0"><label class="crm-label" for="cv-o">{{ crm.t('common.owner') }}</label>
-                        <select id="cv-o" v-model="conv.owner_id" class="crm-select"><option v-for="m in crm.members" :key="m.id" :value="m.id">{{ m.name }}</option></select></div>
-                </div>
-            </div>
-            <div class="crm-field mb-0"><label class="crm-label" for="cv-t">{{ crm.t('leads.follow_up') }}</label><input id="cv-t" v-model.trim="conv.task_subject" class="crm-input" :placeholder="crm.t('common.optional')"></div>
-            <template #footer>
-                <button type="button" class="crm-btn" @click="conv = null">{{ crm.t('common.cancel') }}</button>
-                <button type="button" class="crm-btn crm-btn-primary" :disabled="busy || (conv.create_deal && !conv.deal_name)" @click="convert"><i class="bx bx-check"></i> {{ crm.t('leads.convert') }}</button>
-            </template>
-        </crm-modal>
-
-        <!-- L-06 Disqualify -->
-        <crm-modal v-if="disq" :title="crm.t('leads.disqualify_title')" :subtitle="disq.lead.contact.name" icon="bx-x" tone="danger" width="480px" :close-label="crm.t('common.close')" @close="disq = null">
-            <label class="crm-label">{{ crm.t('leads.reason') }}</label>
-            <div class="d-flex flex-wrap gap-2 mb-3">
-                <button v-for="r in crm.options.disqualifyReasons" :key="r" type="button" :class="['crm-btn crm-btn-sm', disq.reason === r ? 'crm-btn-soft' : '']" :aria-pressed="disq.reason === r" @click="disq.reason = r">{{ crm.t('reasons.' + r) }}</button>
-            </div>
-            <label class="crm-label" for="dq-note">{{ crm.t('leads.note') }}</label>
-            <textarea id="dq-note" v-model="disq.note" class="crm-textarea"></textarea>
-            <template #footer>
-                <button type="button" class="crm-btn" @click="disq = null">{{ crm.t('common.cancel') }}</button>
-                <button type="button" class="crm-btn crm-btn-danger" :disabled="busy" @click="disqualify">{{ crm.t('leads.disqualify') }}</button>
-            </template>
-        </crm-modal>
+        <crm-convert-modal v-if="conv" :lead="conv" @close="conv = null" @done="conv = null; load()" />
+        <crm-disqualify-modal v-if="disq" :lead="disq" @close="disq = null" @done="disq = null; load()" />
     </div>
 </template>
 
@@ -153,13 +126,15 @@
 import CrmHeader from '../ui/CrmHeader.vue';
 import CrmDrawer from '../ui/CrmDrawer.vue';
 import CrmModal from '../ui/CrmModal.vue';
+import CrmConvertModal from '../ui/CrmConvertModal.vue';
+import CrmDisqualifyModal from '../ui/CrmDisqualifyModal.vue';
 
 export default {
     name: 'CrmLeads',
-    components: { CrmHeader, CrmDrawer, CrmModal },
+    components: { CrmHeader, CrmDrawer, CrmModal, CrmConvertModal, CrmDisqualifyModal },
     inject: ['crm'],
     data: () => ({
-        rows: [], meta: {}, counts: {}, loading: true, status: '', q: '', owner: '', source: '', page: 1, timer: null, busy: false,
+        rows: [], meta: {}, counts: {}, kpis: {}, band: '', campaign: '', loading: true, status: '', q: '', owner: '', source: '', page: 1, timer: null, busy: false,
         selected: [], create: null, assignModal: false, assignTo: null, conv: null, disq: null,
         tabs: ['', 'new', 'contacted', 'qualified', 'unqualified', 'converted'],
     }),
@@ -168,8 +143,8 @@ export default {
         async load() {
             this.loading = true;
             try {
-                const res = await this.crm.api.get('leads', { status: this.status, q: this.q, owner_id: this.owner, source: this.source, page: this.page });
-                Object.assign(this, { rows: res.data, meta: res.meta, counts: res.counts });
+                const res = await this.crm.api.get('leads', { status: this.status, q: this.q, owner_id: this.owner, source: this.source, band: this.band, campaign: this.campaign, page: this.page });
+                Object.assign(this, { rows: res.data, meta: res.meta, counts: res.counts, kpis: res.kpis || {} });
             } catch (e) { this.crm.notify(this.crm.error(e), 'error'); }
             this.loading = false;
         },
@@ -177,7 +152,6 @@ export default {
         debounced() { clearTimeout(this.timer); this.timer = setTimeout(this.reload, 300); },
         setStatus(s) { this.status = s; this.reload(); },
         go(page) { this.page = page; this.load(); },
-        stagesFor(pipelineId) { const p = this.crm.pipelines.find((x) => x.id === pipelineId); return p ? p.stages.filter((s) => s.kind === 'open') : []; },
         openCreate() { this.create = { name: '', phone: '', email: '', source: 'phone', campaign: '', interest: '', owner_id: this.crm.actorId, estimated_value: null, follow_up: true }; },
         async run(fn, done) {
             this.busy = true;
@@ -186,24 +160,6 @@ export default {
         async saveLead() { if (await this.run(() => this.crm.api.post('leads', { ...this.create, currency: this.crm.currency }))) this.create = null; },
         async assign() { if (await this.run(() => this.crm.api.post('leads/assign', { ids: this.selected, owner_id: this.assignTo }))) { this.assignModal = false; this.selected = []; } },
         setLeadStatus(lead, status) { this.run(() => this.crm.api.patch(`leads/${lead.id}`, { status })); },
-        openConvert(lead) {
-            const pipeline = this.crm.pipelines[0] || { stages: [] };
-            const stage = pipeline.stages.find((s) => s.kind === 'open' && s.sort_order > 0) || pipeline.stages[0];
-            this.conv = {
-                lead, company_name: lead.contact.company ? lead.contact.company.name : '', create_deal: true,
-                deal_name: lead.interest ? lead.interest.slice(0, 60) : lead.contact.name, value: lead.estimated_value || 0,
-                pipeline_id: pipeline.id, stage_id: stage && stage.id, expected_close_date: '', owner_id: lead.owner ? lead.owner.id : this.crm.actorId, task_subject: '',
-            };
-        },
-        async convert() {
-            const { lead, ...data } = this.conv;
-            const payload = { ...data, currency: this.crm.currency, expected_close_date: data.expected_close_date || null, company_name: data.company_name || null, task_subject: data.task_subject || null };
-            if (await this.run(() => this.crm.api.post(`leads/${lead.id}/convert`, payload), this.crm.t('leads.converted_ok'))) this.conv = null;
-        },
-        async disqualify() {
-            const { lead, reason, note } = this.disq;
-            if (await this.run(() => this.crm.api.post(`leads/${lead.id}/disqualify`, { reason, note }))) this.disq = null;
-        },
     },
 };
 </script>

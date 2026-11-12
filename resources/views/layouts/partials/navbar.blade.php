@@ -198,6 +198,7 @@
         <div id="notification-center-root">
             <notification-center
                 index-url="{{ route('admin.notifications.index') }}"
+                crm-index-url="{{ route('admin.crm.api.notifications') }}"
                 comment-read-url-template="{{ route('admin.comments.read', ['comment' => ':id']) }}"
                 conversation-read-url-template="{{ route('admin.chats.read', ['conversation' => ':id']) }}"
                 current-user-id="{{ auth()->id() }}"

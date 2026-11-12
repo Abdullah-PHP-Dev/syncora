@@ -13,6 +13,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Lead extends Model
 {
+
+    /** G-02: tell the new owner when work is handed to them (not when they take it themselves). */
+    protected static function booted(): void
+    {
+        static::created(fn (self $m) => $m->owner_id ? app(\App\Services\Crm\CrmNotifier::class)->leadAssigned($m) : null);
+        static::updated(fn (self $m) => $m->wasChanged('owner_id') && $m->owner_id ? app(\App\Services\Crm\CrmNotifier::class)->leadAssigned($m) : null);
+    }
     use BelongsToWorkspace, SoftDeletes;
 
     public const STATUSES = ['new', 'contacted', 'qualified', 'unqualified', 'converted'];
@@ -26,10 +33,10 @@ class Lead extends Model
 
     protected $fillable = [
         'workspace_id', 'contact_id', 'owner_id', 'status', 'source', 'campaign', 'ad_campaign_id', 'conversation_id',
-        'interest', 'estimated_value', 'currency', 'score', 'disqualify_reason', 'disqualify_note', 'converted_at', 'deal_id', 'created_by', 'external_lead_id', 'meta',
+        'interest', 'estimated_value', 'currency', 'score', 'disqualify_reason', 'disqualify_note', 'converted_at', 'deal_id', 'created_by', 'external_lead_id', 'meta', 'qualification', 'score_breakdown',
     ];
 
-    protected $casts = ['estimated_value' => 'decimal:2', 'score' => 'integer', 'converted_at' => 'datetime', 'meta' => 'array'];
+    protected $casts = ['estimated_value' => 'decimal:2', 'score' => 'integer', 'converted_at' => 'datetime', 'meta' => 'array', 'qualification' => 'array', 'score_breakdown' => 'array'];
 
     public function contact(): BelongsTo
     {
