@@ -22,7 +22,11 @@ class CrmCaptureController extends Controller
             'message' => ['nullable', 'string', 'max:2000'], 'source' => ['nullable', 'string', 'max:40'],
             'campaign' => ['nullable', 'string', 'max:160'], 'value' => ['nullable', 'numeric', 'min:0', 'max:999999999'],
             'submission_id' => ['nullable', 'string', 'max:90'],
+            'utm_campaign' => ['nullable', 'string', 'max:160'], 'utm_source' => ['nullable', 'string', 'max:40'],
         ]);
+        // Standard UTM fields from landing pages fill campaign/source when those are not sent.
+        $data['campaign'] = $data['campaign'] ?? $data['utm_campaign'] ?? null;
+        $data['source'] = $data['source'] ?? (isset($data['utm_source']) ? mb_strtolower($data['utm_source']) : null);
         $id = $capture->captureForm($token, $data);
         abort_unless($id, 404);
 
