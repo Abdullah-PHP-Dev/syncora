@@ -40,9 +40,10 @@ class ImportController extends Controller
 
     public function duplicates()
     {
-        return response()->json(['data' => collect($this->import->duplicateGroups())->map(fn ($g) => $g + [
-            'contacts' => $g['contacts']->map(fn ($c) => $this->contactRow($c) + ['deals_count' => $c->deals_count, 'leads_count' => $c->leads_count]),
-        ])]);
+        // array_merge, not "+": the formatted rows must replace the raw models (which have no "name").
+        return response()->json(['data' => collect($this->import->duplicateGroups())->map(fn ($g) => array_merge($g, [
+            'contacts' => $g['contacts']->map(fn ($c) => $this->contactRow($c) + ['deals_count' => $c->deals_count, 'leads_count' => $c->leads_count])->values(),
+        ]))]);
     }
 
     public function merge(Request $request)

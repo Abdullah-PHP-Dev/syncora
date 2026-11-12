@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Crm\Deal;
 use App\Services\Crm\CrmReports;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /** R-01 Sales performance, R-02 Lead sources & ROI. */
 class ReportController extends Controller
@@ -33,14 +32,15 @@ class ReportController extends Controller
         return response()->json(['data' => $this->reports->spend($days, $this->reports->sources($days)['by_source']->all())]);
     }
 
-    public function export(Request $request): StreamedResponse
+    public function export(Request $request): \Illuminate\Http\Response
     {
         $months = in_array($request->integer('months'), [3, 6, 12], true) ? $request->integer('months') : 6;
         $query = Deal::with(['stage:id,name', 'owner:id,name', 'contact:id,first_name,last_name', 'company:id,name'])
             ->where('created_at', '>=', now()->startOfMonth()->subMonthsNoOverflow($months - 1))->orderBy('id');
 
-        return response()->streamDownload(function () use ($query) {
-            $out = fopen('php://output', 'w');
+        // Built in memory, not streamed: the locale middleware adds a cookie, which a StreamedResponse cannot carry (HTTP 500 on /en/... URLs).
+        $out = fopen('php://temp', 'w+');
+        (function () use ($query, $out) {
             fwrite($out, "\xEF\xBB\xBF");
             fputcsv($out, ['id', 'deal', 'value', 'currency', 'stage', 'status', 'owner', 'contact', 'company', 'source', 'created_at', 'won_at', 'lost_at', 'lost_reason']);
             $query->chunk(500, function ($deals) use ($out) {
@@ -49,8 +49,12 @@ class ReportController extends Controller
                         $d->company?->name, $d->source, $d->created_at, $d->won_at, $d->lost_at, $d->lost_reason]);
                 }
             });
-            fclose($out);
-        }, 'crm-deals-'.now()->format('Y-m-d').'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+        })();
+        rewind($out);
+        $csv = stream_get_contents($out);
+        fclose($out);
+
+        return response($csv, 200, ['Content-Type' => 'text/csv; charset=UTF-8', 'Content-Disposition' => 'attachment; filename="'.'crm-deals-'.now()->format('Y-m-d').'.csv"']);
     }
 
     private function days(Request $request): int

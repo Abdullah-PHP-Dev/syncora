@@ -160,4 +160,12 @@ class CrmDetailScreensTest extends TestCase
         $this->getJson($this->url('settings.scoring'))->assertOk()->assertJsonPath('scoring.bands.hot', 50)->assertJsonStructure(['defaults' => ['rules'], 'fields', 'operators', 'backtest']);
         $this->actingAs($this->hala)->getJson($this->url('settings.scoring'))->assertOk()->assertJsonPath('scoring.bands.hot', 75);
     }
+
+    public function test_lead_search_by_name_does_not_match_every_phone(): void
+    {
+        $this->lead(['name' => 'Khalid Al-Mutairi', 'phone' => '0507781192']);
+        $this->lead(['name' => 'Hessa Web', 'phone' => '0593310284']);
+        $this->getJson($this->url('leads.index', ['q' => 'Khalid']))->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.contact.name', 'Khalid Al-Mutairi');
+        $this->getJson($this->url('leads.index', ['q' => '0593310284']))->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.contact.name', 'Hessa Web');
+    }
 }

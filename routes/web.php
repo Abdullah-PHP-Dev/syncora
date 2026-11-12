@@ -936,14 +936,14 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 						Route::get('automations', 'automations')->name('automations.index');
 						Route::get('reports', 'reports')->name('reports.index');
 					});
-					Route::get('reports/export', [\App\Http\Controllers\Admin\Crm\ReportController::class, 'export'])->middleware('throttle:10,1')->name('reports.export');
-					Route::get('contacts/export', [\App\Http\Controllers\Admin\Crm\ContactController::class, 'export'])->middleware('throttle:10,1')->name('contacts.export');
-					Route::post('ai/contacts/{contact}/brief', [\App\Http\Controllers\Admin\Crm\CrmAiController::class, 'brief'])->whereNumber('contact')->middleware('throttle:10,1')->name('ai.brief');
-					Route::post('ai/contacts/{contact}/ask', [\App\Http\Controllers\Admin\Crm\CrmAiController::class, 'askContact'])->whereNumber('contact')->middleware('throttle:10,1')->name('ai.ask-contact');
-					Route::post('ai/leads/{lead}/qualify', [\App\Http\Controllers\Admin\Crm\CrmAiController::class, 'qualify'])->whereNumber('lead')->middleware('throttle:10,1')->name('ai.qualify');
-					Route::post('ai/ask', [\App\Http\Controllers\Admin\Crm\CrmAiController::class, 'ask'])->middleware('throttle:10,1')->name('ai.ask');
+					Route::get('reports/export', [\App\Http\Controllers\Admin\Crm\ReportController::class, 'export'])->middleware('throttle:10,1,crm-export')->name('reports.export');
+					Route::get('contacts/export', [\App\Http\Controllers\Admin\Crm\ContactController::class, 'export'])->middleware('throttle:10,1,crm-export')->name('contacts.export');
+					Route::post('ai/contacts/{contact}/brief', [\App\Http\Controllers\Admin\Crm\CrmAiController::class, 'brief'])->whereNumber('contact')->middleware('throttle:10,1,crm-ai')->name('ai.brief');
+					Route::post('ai/contacts/{contact}/ask', [\App\Http\Controllers\Admin\Crm\CrmAiController::class, 'askContact'])->whereNumber('contact')->middleware('throttle:10,1,crm-ai')->name('ai.ask-contact');
+					Route::post('ai/leads/{lead}/qualify', [\App\Http\Controllers\Admin\Crm\CrmAiController::class, 'qualify'])->whereNumber('lead')->middleware('throttle:10,1,crm-ai')->name('ai.qualify');
+					Route::post('ai/ask', [\App\Http\Controllers\Admin\Crm\CrmAiController::class, 'ask'])->middleware('throttle:10,1,crm-ai')->name('ai.ask');
 
-					Route::prefix('api')->name('api.')->middleware('throttle:240,1')->group(function () {
+					Route::prefix('api')->name('api.')->middleware('throttle:240,1,crm-api')->group(function () {
 						Route::get('overview', [\App\Http\Controllers\Admin\Crm\CrmOverviewController::class, 'overview'])->name('overview');
 						Route::get('search', [\App\Http\Controllers\Admin\Crm\CrmOverviewController::class, 'search'])->name('search');
 						Route::get('insights', [\App\Http\Controllers\Admin\Crm\CrmOverviewController::class, 'insights'])->name('insights');
@@ -1023,13 +1023,13 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 							Route::put('settings/fields/{field}', 'updateField')->whereNumber('field')->name('settings.fields.update');
 							Route::delete('settings/fields/{field}', 'destroyField')->whereNumber('field')->name('settings.fields.destroy');
 							Route::post('settings/tags', 'tag')->name('settings.tags');
-							Route::post('settings/leads', 'leads')->middleware('throttle:10,1')->name('settings.leads');
+							Route::post('settings/leads', 'leads')->middleware('throttle:10,1,crm-lead-sync')->name('settings.leads');
 						});
 						Route::controller(\App\Http\Controllers\Admin\Crm\SegmentController::class)->group(function () {
 							Route::get('segments', 'index')->name('segments.index');
 							Route::post('segments', 'store')->name('segments.store');
 							Route::delete('segments/{segment}', 'destroy')->whereNumber('segment')->name('segments.destroy');
-							Route::post('segments/{segment}/email-list', 'toEmailList')->whereNumber('segment')->middleware('throttle:10,1')->name('segments.email-list');
+							Route::post('segments/{segment}/email-list', 'toEmailList')->whereNumber('segment')->middleware('throttle:10,1,crm-email-list')->name('segments.email-list');
 						});
 						Route::controller(\App\Http\Controllers\Admin\Crm\ImportController::class)->group(function () {
 							Route::post('contacts/import/preview', 'preview')->middleware('throttle:20,1,crm-import-preview')->name('contacts.import.preview');

@@ -17,6 +17,18 @@ class ContactMatcher
         return strlen($digits) >= 7 ? substr($digits, -9) : null;
     }
 
+    /**
+     * Digits to search phone_key with: a full number in any format (05…, +9665…, 9665…)
+     * becomes its last 9 digits like the stored key; a short fragment is used as typed;
+     * fewer than 3 digits means "not a phone search" (never '%%').
+     */
+    public static function searchDigits(string $query): ?string
+    {
+        $digits = preg_replace('/\D+/', '', $query);
+
+        return strlen($digits) >= 9 ? substr($digits, -9) : (strlen($digits) >= 3 ? $digits : null);
+    }
+
     /** Existing contacts in this workspace with the same phone or email. */
     public function duplicates(?string $phone, ?string $email, ?int $exceptId = null): Collection
     {

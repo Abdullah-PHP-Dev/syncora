@@ -82,12 +82,13 @@ class CrmOverviewController extends Controller
         if (mb_strlen($q) < 2) {
             return response()->json(['contacts' => [], 'companies' => [], 'deals' => []]);
         }
-        $digits = preg_replace('/\D+/', '', $q);
+        $digits = \App\Services\Crm\ContactMatcher::searchDigits($q);
+        $digits = $digits && strlen($digits) >= 4 ? $digits : null;
 
         return response()->json([
             'contacts' => Contact::where(fn ($w) => $w->where('first_name', 'like', "%{$q}%")->orWhere('last_name', 'like', "%{$q}%")
                 ->orWhere('arabic_name', 'like', "%{$q}%")->orWhere('email', 'like', "%{$q}%")
-                ->when(strlen($digits) >= 4, fn ($x) => $x->orWhere('phone_key', 'like', "%{$digits}%")))
+                ->when($digits, fn ($x) => $x->orWhere('phone_key', 'like', "%{$digits}%")))
                 ->limit(6)->get()->map(fn ($c) => ['id' => $c->id, 'name' => $c->full_name, 'sub' => $c->phone ?: $c->email, 'url' => route('admin.crm.contacts.show', $c)]),
             'companies' => Company::where('name', 'like', "%{$q}%")->limit(4)->get()->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'url' => route('admin.crm.companies.show', $c)]),
             'deals' => Deal::where('name', 'like', "%{$q}%")->limit(4)->get()->map(fn ($d) => ['id' => $d->id, 'name' => $d->name, 'sub' => $d->currency.' '.number_format((float) $d->value)]),
