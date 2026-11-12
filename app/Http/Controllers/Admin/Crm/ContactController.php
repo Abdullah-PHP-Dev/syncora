@@ -11,7 +11,6 @@ use App\Services\Crm\CrmContext;
 use App\Services\Crm\Timeline;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ContactController extends Controller
 {
@@ -132,12 +131,13 @@ class ContactController extends Controller
         return response()->json(['updated' => $contacts->count()]);
     }
 
-    public function export(Request $request): StreamedResponse
+    public function export(Request $request): \Illuminate\Http\Response
     {
         $query = $this->filtered($request)->with(['owner:id,name', 'company:id,name'])->orderBy('id');
 
-        return response()->streamDownload(function () use ($query) {
-            $out = fopen('php://output', 'w');
+        // Built in memory, not streamed: the locale middleware adds a cookie, which a StreamedResponse cannot carry (HTTP 500 on /en/... URLs).
+        $out = fopen('php://temp', 'w+');
+        (function () use ($query, $out) {
             fwrite($out, "\xEF\xBB\xBF"); // Excel opens UTF-8 (Arabic names) correctly with a BOM.
             fputcsv($out, ['id', 'first_name', 'last_name', 'arabic_name', 'phone', 'email', 'company', 'lifecycle', 'source', 'score', 'owner', 'tags', 'created_at']);
             $query->chunk(500, function ($rows) use ($out) {
@@ -146,8 +146,12 @@ class ContactController extends Controller
                         $c->source, $c->score, $c->owner?->name, implode('|', $c->tags ?? []), $c->created_at?->toDateTimeString()]);
                 }
             });
-            fclose($out);
-        }, 'contacts-'.now()->format('Y-m-d').'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+        })();
+        rewind($out);
+        $csv = stream_get_contents($out);
+        fclose($out);
+
+        return response($csv, 200, ['Content-Type' => 'text/csv; charset=UTF-8', 'Content-Disposition' => 'attachment; filename="'.'contacts-'.now()->format('Y-m-d').'.csv"']);
     }
 
     /** Log a note, call, meeting or email on the contact (and touch last activity). */
@@ -206,12 +210,12 @@ class ContactController extends Controller
     public static function applyFilters($query, array $f, CrmContext $context)
     {
         $q = trim((string) ($f['q'] ?? ''));
-        $digits = preg_replace('/\D+/', '', $q);
+        $digits = \App\Services\Crm\ContactMatcher::searchDigits($q);
 
         return $query
             ->when($q !== '', fn ($query) => $query->where(fn ($w) => $w->where('first_name', 'like', "%{$q}%")->orWhere('last_name', 'like', "%{$q}%")
                 ->orWhere('arabic_name', 'like', "%{$q}%")->orWhere('email', 'like', "%{$q}%")
-                ->when(strlen($digits) >= 3, fn ($x) => $x->orWhere('phone_key', 'like', "%{$digits}%"))))
+                ->when($digits, fn ($x) => $x->orWhere('phone_key', 'like', "%{$digits}%"))))
             ->when(($f['tab'] ?? null) === 'mine', fn ($query) => $query->where('owner_id', $context->actorId()))
             ->when(($f['tab'] ?? null) === 'customers', fn ($query) => $query->where('lifecycle', 'customer'))
             ->when(($f['tab'] ?? null) === 'unassigned', fn ($query) => $query->whereNull('owner_id'))

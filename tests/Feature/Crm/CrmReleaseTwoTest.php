@@ -169,7 +169,9 @@ class CrmReleaseTwoTest extends TestCase
         $this->getJson($this->url('deals.index'));
         $stage = \App\Models\Crm\Stage::withoutGlobalScopes()->where('workspace_id', $this->rawda->id)->first();
         $deal = $this->postJson($this->url('deals.store'), ['name' => 'Sofa', 'value' => 10, 'pipeline_id' => $stage->pipeline_id, 'stage_id' => $stage->id, 'contact_id' => $dupId])->json('data.id');
-        $this->getJson($this->url('contacts.duplicate-groups'))->assertOk()->assertJsonCount(1, 'data');
+        $groups = $this->getJson($this->url('contacts.duplicate-groups'))->assertOk()->assertJsonCount(1, 'data');
+        $this->assertContains('N. Qahtani', array_column($groups->json('data.0.contacts'), 'name'), 'the merge dialog shows names');
+        $this->assertSame(1, collect($groups->json('data.0.contacts'))->firstWhere('name', 'N. Qahtani')['deals_count']);
         $this->postJson($this->url('contacts.merge'), ['primary_id' => $noura->id, 'ids' => [$dupId]])->assertOk();
         $this->assertSame($noura->id, Deal::withoutGlobalScopes()->find($deal)->contact_id);
         $this->assertSoftDeleted('crm_contacts', ['id' => $dupId]);

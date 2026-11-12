@@ -32,7 +32,9 @@ class LeadController extends Controller
                 match ($band) { 'hot' => $query->where('score', '>=', $bands['hot']), 'warm' => $query->whereBetween('score', [$bands['warm'], $bands['hot'] - 1]), default => $query->where('score', '<', $bands['warm']) };
             })
             ->when($q !== '', fn ($query) => $query->whereHas('contact', fn ($c) => $c->where('first_name', 'like', "%{$q}%")
-                ->orWhere('last_name', 'like', "%{$q}%")->orWhere('phone_key', 'like', '%'.preg_replace('/\D+/', '', $q).'%')))
+                ->orWhere('last_name', 'like', "%{$q}%")
+                // A query without enough digits must not match every phone ('%%').
+                ->when(\App\Services\Crm\ContactMatcher::searchDigits($q), fn ($x, $digits) => $x->orWhere('phone_key', 'like', "%{$digits}%"))))
             ->latest()->paginate(25);
 
         $counts = Lead::selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
