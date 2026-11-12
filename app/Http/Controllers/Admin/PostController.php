@@ -85,23 +85,59 @@ class PostController extends Controller
         if ($dateFrom && $dateTo) {
             $postQuery->whereBetween('created_at', [$dateFrom, $dateTo]);
         }
-        // Status counts
-        $totalPosts = (clone $postQuery)->count();
-        $publishedPosts = (clone $postQuery)->where('status', 'published')->count();
-        $scheduledPosts = (clone $postQuery)->where('status', 'scheduled')->count();
-        $pendingPosts   = (clone $postQuery)->whereIn('status', ['pending', 'PROCESSING', 'IN_PROGRESS'])->count();
-        $failedPosts    = (clone $postQuery)->where('status', 'failed')->count();
-        $draftPosts     = (clone $postQuery)->where('status', 'draft')->count();
-    
+        // Status counts and engagement totals in one pass (was eleven queries;
+        // same filters, and the same column collation for the status matches).
+        $totals = (clone $postQuery)->toBase()->selectRaw(
+            "COUNT(*) AS total,
+            SUM(CASE WHEN status = 'published' THEN 1 END) AS published,
+            SUM(CASE WHEN status = 'scheduled' THEN 1 END) AS scheduled,
+            SUM(CASE WHEN status IN ('pending', 'PROCESSING', 'IN_PROGRESS') THEN 1 END) AS pending,
+            SUM(CASE WHEN status = 'failed' THEN 1 END) AS failed,
+            SUM(CASE WHEN status = 'draft' THEN 1 END) AS draft,
+            SUM(likes) AS likes, SUM(shares) AS shares, SUM(views) AS views,
+            SUM(impressions) AS impressions, SUM(reach) AS reach"
+        )->first();
+        $totalPosts     = (int) $totals->total;
+        $publishedPosts = (int) $totals->published;
+        $scheduledPosts = (int) $totals->scheduled;
+        $pendingPosts   = (int) $totals->pending;
+        $failedPosts    = (int) $totals->failed;
+        $draftPosts     = (int) $totals->draft;
+
         // Engagement totals
-        $totalLikes    = (clone $postQuery)->sum('likes');
+        $totalLikes    = (int) $totals->likes;
         $totalComments = PostComment::whereHas('post', function($q) use ($userId) {
             $q->where('user_id', $userId);
         })->count();
-        $totalShares      = (clone $postQuery)->sum('shares');
-        $totalViews       = (clone $postQuery)->sum('views');
-        $totalImpressions = (clone $postQuery)->sum('impressions');
-        $totalReach       = (clone $postQuery)->sum('reach');
+        $totalShares      = (int) $totals->shares;
+        $totalViews       = (int) $totals->views;
+        $totalImpressions = (int) $totals->impressions;
+        $totalReach       = (int) $totals->reach;
+
+        // Chart series in one query per chart instead of one per bucket and
+        // metric. Each bucket is a [start, end) created_at range, which matches
+        // the whereMonth/whereYear and whereDate filters it replaces exactly
+        // and stays portable (no YEAR()/DATE() functions) and index-friendly.
+        $bucketTotals = function ($query, array $buckets, array $metrics): array {
+            $select = [];
+            $bindings = [];
+            foreach ($buckets as $i => [$start, $end]) {
+                foreach ($metrics as $alias => $expression) {
+                    $select[] = "SUM(CASE WHEN created_at >= ? AND created_at < ? THEN {$expression} END) AS {$alias}_{$i}";
+                    array_push($bindings, $start, $end);
+                }
+            }
+
+            $row = (array) $query->toBase()->where('created_at', '>=', $buckets[0][0])
+                ->selectRaw(implode(', ', $select), $bindings)->first();
+
+            $aliases = array_keys($metrics);
+
+            return array_map(
+                fn ($i) => array_combine($aliases, array_map(fn ($alias) => (int) ($row["{$alias}_{$i}"] ?? 0), $aliases)),
+                array_keys($buckets)
+            );
+        };
         $totalEngagement = $totalLikes + $totalComments + $totalShares + $totalViews;
 
         // ---- Categories with post counts ----
@@ -117,16 +153,18 @@ class PostController extends Controller
         $monthlyLikes = [];
         $monthlyViews = [];
         $monthlyImpressions = [];
+        $monthBuckets = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = now()->subMonths($i);
             $months[] = $date->format('M');
-            $monthPosts = (clone $postQuery)
-                ->whereMonth('created_at', $date->month)
-                ->whereYear('created_at', $date->year);
-            $monthlyPostCounts[] = (clone $monthPosts)->count();
-            $monthlyLikes[]      = (int) (clone $monthPosts)->sum('likes');
-            $monthlyViews[]      = (int) (clone $monthPosts)->sum('views');
-            $monthlyImpressions[] = (int) (clone $monthPosts)->sum('impressions');
+            $start = $date->copy()->startOfMonth();
+            $monthBuckets[] = [$start, $start->copy()->addMonthNoOverflow()];
+        }
+        foreach ($bucketTotals(clone $postQuery, $monthBuckets, ['posts' => '1', 'likes' => 'likes', 'views' => 'views', 'impressions' => 'impressions']) as $month) {
+            $monthlyPostCounts[]  = $month['posts'];
+            $monthlyLikes[]       = $month['likes'];
+            $monthlyViews[]       = $month['views'];
+            $monthlyImpressions[] = $month['impressions'];
         }
 
         // Compute month-over-month growth for the "Growth" card
@@ -194,13 +232,17 @@ class PostController extends Controller
         $dailyReach = [];
         $dailyEngagement = [];
         $dailyClicks = [];
+        $dayBuckets = [];
         for ($i = 6; $i >= 0; $i--) {
             $day = now()->subDays($i);
             $dailyLabels[] = $day->format('M d');
-            $dayPosts = Post::where('user_id', $userId)->whereDate('created_at', $day->toDateString());
-            $dailyReach[] = (int) (clone $dayPosts)->sum('reach');
-            $dailyEngagement[] = (int) (clone $dayPosts)->sum(DB::raw('likes + comments + shares'));
-            $dailyClicks[] = (int) (clone $dayPosts)->sum('clicks');
+            $start = $day->copy()->startOfDay();
+            $dayBuckets[] = [$start, $start->copy()->addDay()];
+        }
+        foreach ($bucketTotals(Post::where('user_id', $userId), $dayBuckets, ['reach' => 'reach', 'engagement' => 'likes + comments + shares', 'clicks' => 'clicks']) as $day) {
+            $dailyReach[]      = $day['reach'];
+            $dailyEngagement[] = $day['engagement'];
+            $dailyClicks[]     = $day['clicks'];
         }
 
         // ---- Recent + top performing posts (for the two-column feed) ----
