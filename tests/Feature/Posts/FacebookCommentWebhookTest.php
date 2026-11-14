@@ -202,6 +202,62 @@ class FacebookCommentWebhookTest extends TestCase
         $this->assertSame(['Hello', 'Track my order'], $sent->map(fn ($job) => (new \ReflectionProperty($job, 'body'))->getValue($job))->all());
     }
 
+    private function deliverMessage(string $pageId, string $mid): \Illuminate\Testing\TestResponse
+    {
+        $body = json_encode(['object' => 'page', 'entry' => [['id' => $pageId, 'time' => time(), 'messaging' => [
+            ['sender' => ['id' => 'PSID9'], 'recipient' => ['id' => $pageId], 'message' => ['mid' => $mid, 'text' => 'Is it available?']],
+        ]]]]);
+
+        return $this->call('POST', '/api/comments/facebook', [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_X_HUB_SIGNATURE_256' => 'sha256=' . hash_hmac('sha256', $body, 'app-secret')], $body);
+    }
+
+    public function test_messages_still_arrive_when_the_page_token_is_missing_or_moved(): void
+    {
+        \Illuminate\Support\Facades\Bus::fake();
+        \Illuminate\Support\Facades\Http::fake(['*' => \Illuminate\Support\Facades\Http::response(['first_name' => 'Sara', 'last_name' => 'Ali'])]);
+        DB::table('message_channels')->insert(['social_account_id' => $this->accountId, 'platform' => 'facebook', 'external_id' => 'PAGE1', 'created_at' => now(), 'updated_at' => now()]);
+
+        // Token moved to asset_token (Connection Hub): the name lookup uses it.
+        DB::table('social_accounts')->where('id', $this->accountId)->update(['access_token' => null, 'asset_token' => 'page-token']);
+        $this->deliverMessage('PAGE1', 'm10')->assertOk();
+        \Illuminate\Support\Facades\Http::assertSent(fn ($r) => str_contains($r->url(), 'PSID9') && $r->header('Authorization') === ['Bearer page-token']);
+
+        // No token at all (Page disconnected): used to be a 500 and a lost message; now stored without a name.
+        DB::table('social_accounts')->where('id', $this->accountId)->update(['asset_token' => null]);
+        $this->deliverMessage('PAGE1', 'm11')->assertOk();
+
+        $mids = collect();
+        \Illuminate\Support\Facades\Bus::assertDispatched(\App\Jobs\Messaging\ProcessInboundMessage::class, function ($job) use ($mids) {
+            $mids->push((new \ReflectionProperty($job, 'externalMessageId'))->getValue($job));
+
+            return true;
+        });
+        $this->assertSame(['m10', 'm11'], $mids->all());
+    }
+
+    public function test_a_page_without_an_inbox_channel_is_acknowledged_and_logged(): void
+    {
+        \Illuminate\Support\Facades\Bus::fake();
+        \Illuminate\Support\Facades\Log::spy();
+        $this->deliverMessage('UNKNOWN_PAGE', 'm20')->assertOk();
+        \Illuminate\Support\Facades\Bus::assertNotDispatched(\App\Jobs\Messaging\ProcessInboundMessage::class);
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->withArgs(fn ($msg, $ctx = []) => str_contains($msg, 'no Inbox channel') && ($ctx['page_id'] ?? null) === 'UNKNOWN_PAGE');
+    }
+
+    public function test_a_failing_comment_handler_does_not_lose_messages(): void
+    {
+        \Illuminate\Support\Facades\Bus::fake();
+        \Illuminate\Support\Facades\Http::fake(['*' => \Illuminate\Support\Facades\Http::response([])]);
+        DB::table('message_channels')->insert(['social_account_id' => $this->accountId, 'platform' => 'facebook', 'external_id' => 'PAGE1', 'created_at' => now(), 'updated_at' => now()]);
+        $this->mock(\App\Services\PostServices\MetaPostService::class, function ($m) {
+            $m->shouldReceive('verifySignature')->andReturn(true);
+            $m->shouldReceive('handleCommentWebhook')->andThrow(new \RuntimeException('boom'));
+        });
+
+        $this->deliverMessage('PAGE1', 'm30')->assertOk();
+        \Illuminate\Support\Facades\Bus::assertDispatched(\App\Jobs\Messaging\ProcessInboundMessage::class);
+    }
+
     public function test_commenter_avatars_are_looked_up_once(): void
     {
         Settings::set('posts.facebook.base_url', 'https://graph.facebook.com/v25.0/');

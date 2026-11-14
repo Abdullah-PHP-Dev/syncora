@@ -87,8 +87,11 @@ trait MetaMessagingTrait
         return hash_hmac('sha256', $accessToken, (string) adminSetting('posts.facebook.client_secret'));
     }
 
-    protected function graphApiCall(string $method, string $path, array $params, string $accessToken)
+    protected function graphApiCall(string $method, string $path, array $params, ?string $accessToken)
     {
+        if (! $accessToken) {
+            return ['success' => false, 'error' => 'No access token for this account - reconnect it in Connections.'];
+        }
         $headers = ['Authorization' => "Bearer {$accessToken}"];
         $url = $this->graphApiUrl($path);
         $params['appsecret_proof'] = $this->metaAppSecretProof($accessToken);

@@ -42,7 +42,7 @@ class SubscribeMetaPages extends Command
         $failed = 0;
 
         foreach ($pages as $page) {
-            if (! $page->access_token) {
+            if (! \App\Services\MessagingServices\FacebookMessengerService::pageToken($page)) {
                 $result = 'skipped - no readable token (reconnect the Page)';
                 $failed++;
             } elseif ($this->option('check')) {

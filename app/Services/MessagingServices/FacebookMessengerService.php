@@ -39,7 +39,7 @@ class FacebookMessengerService
             'messaging_type' => 'RESPONSE',
             'recipient'      => ['id' => $conversation->customer_external_id],
             'message'        => $message,
-        ], $account->access_token);
+        ], self::pageToken($account));
 
         if (!$result['success']) {
             return $result;
@@ -55,6 +55,22 @@ class FacebookMessengerService
      * verification time, so this checks against the shared app-level
      * token rather than any one channel's.
      */
+    /**
+     * The Page token, wherever it lives now: Page connects store it in
+     * asset_token (and access_token); MovePageTokens / disconnect /
+     * refresh paths can leave access_token empty. Same order as
+     * ConnectionService::tokenFor(), without its capability gate -
+     * receiving a message must never depend on it.
+     */
+    public static function pageToken(?\App\Models\SocialAccount $account): ?string
+    {
+        if (! $account) {
+            return null;
+        }
+
+        return $account->asset_token ?: ($account->access_token ?: $account->connection?->access_token) ?: null;
+    }
+
     public function verifyWebhook(Request $request): ?string
     {
         return $this->verifyMetaWebhook($request, adminSetting('messaging.meta.webhook_verify_token'));
@@ -75,52 +91,70 @@ class FacebookMessengerService
     public function handleWebhook(array $payload): void
     {
         foreach ($payload['entry'] ?? [] as $entry) {
-
             $pageId = $entry['id'] ?? null;
+            $events = $entry['messaging'] ?? [];
+            if (! $events) {
+                continue; // feed/leadgen changes - handled elsewhere
+            }
 
-            $channel = $pageId ? MessageChannel::where('platform', 'facebook')->where('external_id', $pageId)->first() : null;
+            $channel = $pageId ? MessageChannel::with('socialAccount')->where('platform', 'facebook')->where('external_id', $pageId)->first() : null;
+            if (! $channel || ! $channel->socialAccount) {
+                // The usual reason messages "don't arrive": Meta delivers, but this Page isn't an Inbox channel here.
+                Log::warning('Facebook message for a Page with no Inbox channel - not stored.', ['page_id' => $pageId, 'channel_id' => $channel?->id, 'events' => count($events)]);
 
-            if (!$channel) {
                 continue;
             }
+            $token = self::pageToken($channel->socialAccount);
+            if (! $token) {
+                Log::warning('Facebook Page has no token (disconnected?) - storing messages without customer names.', ['page_id' => $pageId, 'social_account_id' => $channel->social_account_id]);
+            }
 
-            foreach ($entry['messaging'] ?? [] as $event) {
-                // A tap on a button/quick menu (messaging_postbacks) is the
-                // customer "saying" that button's title - keep it in the
-                // conversation like a typed message.
-                if (empty($event['message']) && !empty($event['postback'])) {
-                    $event['message'] = [
-                        'mid'  => $event['postback']['mid'] ?? null,
-                        'text' => $event['postback']['title'] ?? $event['postback']['payload'] ?? null,
-                    ];
+            foreach ($events as $event) {
+                try {
+                    $this->handleMessagingEvent($channel, $event, $token);
+                } catch (\Throwable $e) {
+                    Log::error('Facebook message event failed.', ['page_id' => $pageId, 'mid' => $event['message']['mid'] ?? null, 'error' => $e->getMessage()]);
                 }
-
-                // Delivery/read receipts and echoes of our own outbound
-                // sends also arrive here - only genuine inbound customer
-                // messages (with actual content) should create a Message.
-                if (empty($event['message']) || !empty($event['message']['is_echo'])) {
-                    continue;
-                }
-
-                $attachments = collect($event['message']['attachments'] ?? [])->map(fn($a) => [
-                    'type' => $a['type'] ?? 'file',
-                    'url'  => $a['payload']['url'] ?? null,
-                ])->filter(fn($a) => $a['url'])->values()->all();
-
-                $profile = $this->fetchUserProfile($event['sender']['id'], $channel->socialAccount->access_token);
-
-                ProcessInboundMessage::dispatch(
-                    socialAccountId: $channel->social_account_id,
-                    customerExternalId: $event['sender']['id'],
-                    customerName: $profile['name'] ?? null,
-                    customerAvatarUrl: $profile['profile_pic'] ?? null,
-                    externalMessageId: $event['message']['mid'] ?? null,
-                    type: !empty($attachments) ? $attachments[0]['type'] : 'text',
-                    body: $event['message']['text'] ?? null,
-                    attachments: $attachments,
-                );
             }
         }
+    }
+
+    private function handleMessagingEvent(MessageChannel $channel, array $event, ?string $token): void
+    {
+        // A tap on a button/quick menu (messaging_postbacks) is the
+        // customer "saying" that button's title - keep it in the
+        // conversation like a typed message.
+        if (empty($event['message']) && ! empty($event['postback'])) {
+            $event['message'] = [
+                'mid'  => $event['postback']['mid'] ?? null,
+                'text' => $event['postback']['title'] ?? $event['postback']['payload'] ?? null,
+            ];
+        }
+
+        // Delivery/read receipts and echoes of our own outbound
+        // sends also arrive here - only genuine inbound customer
+        // messages (with actual content) should create a Message.
+        if (empty($event['message']) || ! empty($event['message']['is_echo']) || empty($event['sender']['id'])) {
+            return;
+        }
+
+        $attachments = collect($event['message']['attachments'] ?? [])->map(fn ($a) => [
+            'type' => $a['type'] ?? 'file',
+            'url'  => $a['payload']['url'] ?? null,
+        ])->filter(fn ($a) => $a['url'])->values()->all();
+
+        $profile = $this->fetchUserProfile($event['sender']['id'], $token);
+
+        ProcessInboundMessage::dispatch(
+            socialAccountId: $channel->social_account_id,
+            customerExternalId: $event['sender']['id'],
+            customerName: $profile['name'] ?? null,
+            customerAvatarUrl: $profile['profile_pic'] ?? null,
+            externalMessageId: $event['message']['mid'] ?? null,
+            type: ! empty($attachments) ? $attachments[0]['type'] : 'text',
+            body: $event['message']['text'] ?? null,
+            attachments: $attachments,
+        );
     }
 
     /**
@@ -131,8 +165,11 @@ class FacebookMessengerService
      * approved yet) just means the conversation falls back to "Unknown"
      * rather than losing the message.
      */
-    protected function fetchUserProfile(string $psid, string $accessToken): array
+    protected function fetchUserProfile(string $psid, ?string $accessToken): array
     {
+        if (! $accessToken) {
+            return []; // no Page token: keep the message, just without a name
+        }
 
         $result = $this->graphApiCall('GET', $psid, ['fields' => 'first_name,last_name,profile_pic'], $accessToken);
                 
@@ -157,7 +194,7 @@ class FacebookMessengerService
      */
     public function syncChannelDetails(MessageChannel $channel): void
     {
-        $result = $this->graphApiCall('GET', $channel->external_id, ['fields' => 'about,category,phone,website,fan_count'], $channel->socialAccount->access_token);
+        $result = $this->graphApiCall('GET', $channel->external_id, ['fields' => 'about,category,phone,website,fan_count'], self::pageToken($channel->socialAccount));
 
         if (!$result['success']) {
             Log::warning('Facebook channel details sync failed.', ['channel_id' => $channel->id, 'error' => $result['error'] ?? null]);
@@ -181,7 +218,7 @@ class FacebookMessengerService
     {
         // Same field list as the posts side (incl. CRM leadgen when granted): a Page's
         // subscribed_apps call replaces the list, so both must send it whole.
-        $result = \App\Services\Crm\MetaLeads::subscribe($channel->socialAccount, $channel->socialAccount->access_token);
+        $result = \App\Services\Crm\MetaLeads::subscribe($channel->socialAccount, self::pageToken($channel->socialAccount));
 
         if ($result['ok']) {
             $channel->update(['webhook_subscribed' => true]);
@@ -207,7 +244,7 @@ class FacebookMessengerService
         $result = $this->graphApiCall('GET', $channel->external_id . '/conversations', [
             'fields' => "participants,updated_time,messages.limit({$messageLimit}){id,message,from,created_time}",
             'limit'  => $conversationLimit,
-        ], $channel->socialAccount->access_token);
+        ], self::pageToken($channel->socialAccount));
 
         if (!$result['success']) {
             Log::warning('Facebook conversation backfill failed.', ['channel_id' => $channel->id, 'error' => $result['error'] ?? null]);
@@ -232,7 +269,7 @@ class FacebookMessengerService
                     continue;
                 }
 
-                $profile = $this->fetchUserProfile($customer['id'], $channel->socialAccount->access_token);
+                $profile = $this->fetchUserProfile($customer['id'], self::pageToken($channel->socialAccount));
 
                 $conversation = Conversation::updateOrCreate(
                     ['social_account_id' => $channel->social_account_id, 'customer_external_id' => $customer['id']],

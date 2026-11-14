@@ -727,7 +727,7 @@ protected function publishPostOnMeta($post, $account)
      */
     public function pageSubscription(SocialAccount $account): array
     {
-        $response = $this->api->request('get', $this->baseUrl . $account->platform_account_id . '/subscribed_apps', [], ['access_token' => $account->access_token]);
+        $response = $this->api->request('get', $this->baseUrl . $account->platform_account_id . '/subscribed_apps', [], ['access_token' => \App\Services\MessagingServices\FacebookMessengerService::pageToken($account)]);
 
         if (! $response->successful()) {
             return ['error' => $response->json('error.message') ?? $response->body()];

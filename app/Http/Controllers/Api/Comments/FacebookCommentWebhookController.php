@@ -59,8 +59,19 @@ class FacebookCommentWebhookController extends Controller
 
         $payload = $request->all();
 
-        $this->postService->handleCommentWebhook($payload, 'facebook');
-        $this->messengerService->handleWebhook($payload);
+        // Each handler on its own: a failure in one (eg. a comment edge case) must
+        // not lose the others' events, and Meta must still get a 200 - repeated
+        // errors make Meta retry and eventually disable the webhook.
+        foreach ([
+            'comments' => fn () => $this->postService->handleCommentWebhook($payload, 'facebook'),
+            'messages' => fn () => $this->messengerService->handleWebhook($payload),
+        ] as $part => $handler) {
+            try {
+                $handler();
+            } catch (\Throwable $e) {
+                Log::error('Facebook webhook '.$part.' handler failed.', ['error' => $e->getMessage(), 'pages' => collect($payload['entry'] ?? [])->pluck('id')->all()]);
+            }
+        }
 
         // CRM: Page "leadgen" changes (Meta Lead Ads) become CRM leads. Never affects the above.
         try {
