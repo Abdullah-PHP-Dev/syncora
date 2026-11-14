@@ -38,8 +38,9 @@
     <section class="contact-faq" id="support-faq" aria-labelledby="contact-faq-title">
         <div><p class="theme-eyebrow">{{ __('A GOOD PLACE TO START') }}</p><h2 id="contact-faq-title">{{ __('How can we help?') }}</h2><p>{{ __('Find a quick answer or reach out to our team.') }}</p></div>
         <div>
-            @foreach(config('marketing-faqs.contact') as $faq)
-            <details @if($loop->first) open @endif><summary>{{ __($faq['question']) }}<span aria-hidden="true">+</span></summary><p>{{ __($faq['answer']) }}@isset($faq['link']) <a href="{{ route($faq['link']['route']) }}">{{ __($faq['link']['label']) }} →</a>@endisset</p></details>
+            {{-- Published FAQs from Admin > FAQs (sanitised HTML), else config/marketing-faqs.php - see ContactFaqs. --}}
+            @foreach(\App\Support\Seo\ContactFaqs::for(app()->getLocale()) as $faq)
+            <details @if($loop->first) open @endif><summary dir="auto">{{ $faq['question'] }}<span aria-hidden="true">+</span></summary><div class="contact-faq-answer" dir="auto">{!! $faq['html'] !!}@isset($faq['link']) <a href="{{ route($faq['link']['route']) }}">{{ __($faq['link']['label']) }} →</a>@endisset</div></details>
             @endforeach
         </div>
     </section>

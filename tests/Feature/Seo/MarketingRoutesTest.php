@@ -187,6 +187,43 @@ class MarketingRoutesTest extends TestCase
         $this->assertNull(collect($seo->schema('pricing', 'en', 'Title', 'Description')['@graph'])->firstWhere('@type', 'FAQPage'));
     }
 
+    public function test_contact_page_shows_published_admin_faqs_safely(): void
+    {
+        $this->bootLocale('en');
+        \Illuminate\Support\Facades\Schema::create('faq_categories', function ($t) {
+            $t->id(); $t->unsignedBigInteger('user_id')->nullable(); $t->string('name'); $t->unsignedInteger('sort_order')->default(0); $t->timestamps();
+        });
+        \Illuminate\Support\Facades\Schema::create('faqs', function ($t) {
+            $t->id(); $t->unsignedBigInteger('faq_category_id')->nullable(); $t->unsignedBigInteger('user_id')->nullable();
+            $t->text('question'); $t->longText('answer'); $t->string('language', 10)->default('en'); $t->string('status')->default('draft'); $t->timestamps();
+        });
+        $billing = \Illuminate\Support\Facades\DB::table('faq_categories')->insertGetId(['name' => 'Billing', 'sort_order' => 2]);
+        $start = \Illuminate\Support\Facades\DB::table('faq_categories')->insertGetId(['name' => 'Getting started', 'sort_order' => 1]);
+        $row = fn ($q, $a, $extra = []) => \Illuminate\Support\Facades\DB::table('faqs')->insert($extra + ['question' => $q, 'answer' => $a, 'language' => 'en', 'status' => 'published']);
+        $row('Can I cancel anytime?', '<p>Yes, from <strong>Billing</strong>.</p><script>alert(1)</script>', ['faq_category_id' => $billing]);
+        $row('How do I connect Instagram?', '<p>Open Connections.</p><ul><li>Pick Meta</li></ul>', ['faq_category_id' => $start]);
+        $row('Draft question', '<p>hidden</p>', ['status' => 'draft']);
+        $row('A seller\'s own FAQ', '<p>hidden</p>', ['user_id' => 7]);
+        $row('هل يدعم العربية؟', '<p>نعم.</p>', ['language' => 'ar']);
+
+        $html = $this->get('/en/contact')->assertOk()->getContent();
+        $this->assertLessThan(strpos($html, 'Can I cancel anytime?'), strpos($html, 'How do I connect Instagram?'), 'ordered by category');
+        $this->assertStringContainsString('<strong>Billing</strong>', $html);
+        $this->assertStringContainsString('<li>Pick Meta</li>', $html);
+        $this->assertStringNotContainsString('alert(1)', $html, 'answers are sanitised');
+        foreach (['Draft question', 'A seller', 'هل يدعم', 'How do I contact support?'] as $hidden) {
+            $this->assertStringNotContainsString($hidden, $html);
+        }
+
+        $seo = app(\App\Support\Seo\MarketingSeo::class);
+        $this->assertSame([['question' => 'How do I connect Instagram?', 'answer' => 'Open Connections. Pick Meta'], ['question' => 'Can I cancel anytime?', 'answer' => 'Yes, from Billing.']], $seo->faqs('contact', 'en'));
+        $this->assertSame('هل يدعم العربية؟', $seo->faqs('contact', 'ar')[0]['question'], 'visitors get their own language');
+        \Illuminate\Support\Facades\DB::table('faqs')->where('language', 'ar')->delete();
+        $this->assertSame('How do I connect Instagram?', $seo->faqs('contact', 'ar')[0]['question'], 'then English');
+        \Illuminate\Support\Facades\DB::table('faqs')->delete();
+        $this->assertSame('How do I contact support?', $seo->faqs('contact', 'en')[0]['question'], 'built-in questions when none are published');
+    }
+
     public function test_auth_pages_stay_noindex(): void
     {
         $this->bootLocale('en');

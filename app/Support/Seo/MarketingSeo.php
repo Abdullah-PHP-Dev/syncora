@@ -196,6 +196,10 @@ class MarketingSeo
             }
         }
 
+        if ($route === 'contact') { // same list the page shows (Admin > FAQs, else config)
+            return array_map(fn ($faq) => ['question' => $faq['question'], 'answer' => $faq['text']], ContactFaqs::for($locale));
+        }
+
         return array_map(fn ($faq) => [
             'question' => __($faq['question'], [], $locale),
             'answer' => __($faq['answer'], [], $locale),

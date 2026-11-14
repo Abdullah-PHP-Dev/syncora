@@ -19,6 +19,12 @@
 .contact-faq summary span { font-size: 24px; color: var(--theme-purple); }
 .contact-faq details[open] summary span { transform: rotate(45deg); }
 .contact-faq details p { margin-bottom: 20px; }
+/* Answers from Admin > FAQs are rich text: lists, links, several paragraphs. */
+.contact-faq-answer { color: var(--theme-muted); font-size: 14px; line-height: 1.8; padding-bottom: 20px; overflow-wrap: anywhere; unicode-bidi: plaintext; }
+.contact-faq-answer > :last-child { margin-bottom: 0; }
+.contact-faq-answer p { margin: 0 0 10px; }
+.contact-faq-answer ul, .contact-faq-answer ol { margin: 0 0 10px; padding-inline-start: 20px; }
+.contact-faq-answer img { max-width: 100%; height: auto; border-radius: 12px; }
 .contact-faq a { color: var(--theme-purple); font-weight: 600; }
 .contact-faq summary:focus-visible { outline: 3px solid var(--theme-purple); outline-offset: 4px; }
 @media(max-width:900px) { .contact-grid { grid-template-columns: minmax(0,1fr); } .contact-card { padding: 28px; } }
