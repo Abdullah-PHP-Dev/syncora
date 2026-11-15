@@ -62,7 +62,8 @@ class ProfileController extends Controller
             $data['password'] = bcrypt($data['password']);
         }
         
-        $user = User::find($id);
+        abort_unless((string) $request->user()->id === (string) $id, 403);
+        $user = $request->user();
         $user->update($data);
 
         return response()->json([

@@ -25,11 +25,15 @@ class ProfileTest extends TestCase
     {
         $user = User::factory()->create();
 
+        $originalEmail = $user->email;
+        $verifiedAt = $user->email_verified_at;
+
         $response = $this
             ->actingAs($user)
             ->patch('/profile', [
                 'name' => 'Test User',
                 'email' => 'test@example.com',
+                'mobile' => '+966500000000',
             ]);
 
         $response
@@ -39,8 +43,9 @@ class ProfileTest extends TestCase
         $user->refresh();
 
         $this->assertSame('Test User', $user->name);
-        $this->assertSame('test@example.com', $user->email);
-        $this->assertNull($user->email_verified_at);
+        $this->assertSame($originalEmail, $user->email);
+        $this->assertSame('+966500000000', $user->mobile);
+        $this->assertTrue($verifiedAt->equalTo($user->email_verified_at));
     }
 
     public function test_email_verification_status_is_unchanged_when_the_email_address_is_unchanged(): void
