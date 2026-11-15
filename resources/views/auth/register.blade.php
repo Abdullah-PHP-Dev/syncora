@@ -80,6 +80,28 @@
                     </div>
                 </div>
 
+                {{-- Mobile --}}
+                <div class="auth-field">
+                    <label for="mobile">{{ __('Mobile number') }}</label>
+
+                    <div class="auth-input-wrap">
+                        <i class="bi bi-phone"></i>
+
+                        <input
+                                type="tel"
+                                id="mobile"
+                                name="mobile"
+                                value="{{ old('mobile') }}"
+                                placeholder="+966500000000"
+                                autocomplete="tel"
+                                dir="ltr"
+                                maxlength="16"
+                                pattern="\+?[0-9]{9,15}"
+                                required
+                        >
+                    </div>
+                </div>
+
                 {{-- Password --}}
                 <div class="auth-field">
                     <label for="password">{{ __('Password') }}</label>
