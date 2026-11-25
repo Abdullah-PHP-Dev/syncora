@@ -20,6 +20,9 @@ class NotificationIndexTest extends TestCase
     {
         parent::setUp();
         $this->createConnectionTables();
+        // The bell also lists platform notifications (user_notifications).
+        (require database_path('migrations/2026_11_23_100000_create_platform_notification_tables.php'))->up();
+        (require database_path('migrations/2026_11_24_100000_create_platform_email_template_tables.php'))->up();
         Schema::create('post_comments', function ($t) {
             $t->id();
             foreach (['platform', 'comment_id', 'sender_type', 'user_name', 'status'] as $c) {

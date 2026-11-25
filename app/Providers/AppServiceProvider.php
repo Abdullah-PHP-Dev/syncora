@@ -22,6 +22,14 @@ class AppServiceProvider extends ServiceProvider
         // Meta "Require App Secret": sign every Graph API call (see the class).
         \Illuminate\Support\Facades\Http::globalRequestMiddleware(new \App\Support\Http\MetaAppSecretProof());
 
+        // Platform notifications: model observers and listeners (config/notifications.php).
+        \App\Services\Notifications\NotificationHooks::register();
+
+        // Administrator email templates: each action has its own counter (an unnamed throttle
+        // shares one per user, so live previews while typing used up the test-send allowance).
+        \Illuminate\Support\Facades\RateLimiter::for('platform-email-preview', fn ($request) => \Illuminate\Cache\RateLimiting\Limit::perMinute(120)->by('pe-preview:'.$request->user()?->id));
+        \Illuminate\Support\Facades\RateLimiter::for('platform-email-test', fn ($request) => \Illuminate\Cache\RateLimiting\Limit::perMinute(10)->by('pe-test:'.$request->user()?->id));
+
         // CRM: link new Inbox conversations from known handles (see the class).
         \App\Models\Messaging\Conversation::created(fn ($conversation) => app(\App\Services\Crm\LinkNewConversation::class)($conversation));
         // CRM: a message from a linked customer refreshes their last activity and lead score.

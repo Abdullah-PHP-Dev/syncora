@@ -17,6 +17,12 @@ return tap(
         )
         ->withMiddleware(function (Middleware $middleware) {
 
+            // Opt-in (TRUSTED_PROXIES in .env, e.g. 127.0.0.1 for a local ngrok tunnel): use the
+            // proxy's X-Forwarded-Host/Proto so links and signed URLs match the public address.
+            if ($trusted = env('TRUSTED_PROXIES')) {
+                $middleware->trustProxies(at: $trusted === '*' ? '*' : array_map('trim', explode(',', $trusted)));
+            }
+
             // Must run before the web group's cookie and session middleware.
             $middleware->prependToGroup('web', \App\Http\Middleware\PreservePaymentReturnSession::class);
 
@@ -60,11 +66,16 @@ return tap(
             $middleware->appendToGroup('web', \App\Http\Middleware\SecurityHeaders::class);
             // Current platform/module for cross-module links (App\Support\WorkContext).
             $middleware->appendToGroup('web', \App\Http\Middleware\RememberWorkContext::class);
+            $middleware->appendToGroup('web', \App\Http\Middleware\RememberUiLocale::class);
+            // New sign-ups confirm their email before using the app (before the workspace swap: checks the real person).
+            $middleware->appendToGroup('web', \App\Http\Middleware\EnsureEmailIsVerified::class);
             $middleware->appendToGroup('web', \App\Http\Middleware\UseSellerWorkspace::class);
 
             $middleware->validateCsrfTokens(except: [
                 'callback/payment',
                 'email/unsubscribe/*',
+                // RFC 8058 one-click unsubscribe (mail providers POST without a CSRF token; the URL is signed).
+                'n/unsubscribe',
             ]);
         })
         ->withSchedule(function (Schedule $schedule) {
@@ -92,6 +103,13 @@ return tap(
             // the Hub's warnings and the notification bell - see
             // CheckConnectionStatus.
             $schedule->command('connections:check-status')->hourly()->withoutOverlapping();
+
+            // Platform notifications (config/notifications.php): time-based events, digests in each
+            // person's local slot, and retention. All emits are deduplicated, so overlaps are harmless.
+            $schedule->command('notifications:send-due')->everyMinute()->withoutOverlapping(10)->onOneServer();
+            $schedule->command('notifications:scan')->everyTenMinutes()->withoutOverlapping(30)->onOneServer();
+            $schedule->command('notifications:digests')->hourlyAt(2)->withoutOverlapping(30)->onOneServer();
+            $schedule->command('notifications:prune')->dailyAt('03:40')->withoutOverlapping(60)->onOneServer();
 
             // Google Suite: warm GA4 / Search Console reports per workspace
             // sync preference - see SyncGoogleSuites.

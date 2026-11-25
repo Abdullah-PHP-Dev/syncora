@@ -87,6 +87,8 @@ class SellerTeamService
             $joined = SellerTeamMember::whereIn('owner_id', $this->organizationAccounts($account))->where('email', $email)
                 ->whereNotNull('accepted_at')->whereNotNull('user_id')->first();
             $token = null;
+            // As they were before this change (the loop below saves into the same models).
+            $snapshot = $existing->map(fn (SellerTeamMember $m) => clone $m);
             $rows = collect();
             foreach ($assignments as $accountId => $assignment) {
                 $row = $existing[$accountId] ?? new SellerTeamMember(['owner_id' => $accountId, 'email' => $email]);
@@ -111,6 +113,7 @@ class SellerTeamService
                 // Workspaces left out (within scope) lose this person. (Eloquent's except() matches model ids, not keys.)
                 $existing->filter(fn (SellerTeamMember $m) => ! array_key_exists((int) $m->owner_id, $assignments))->each->delete();
             }
+            \App\Services\Notifications\Emitters\TeamNotifications::assigned($account, $email, $rows, $snapshot, $token);
 
             return [$rows, $token];
         });
@@ -125,6 +128,7 @@ class SellerTeamService
             $rows = SellerTeamMember::whereIn('owner_id', $scope)->where('email', $target->email)->get();
             abort_if($rows->isEmpty(), 403, __('seller_team.admin_cannot_manage'));
             abort_if($viewer && $rows->contains(fn (SellerTeamMember $m) => $m->isAdmin() || $m->id === $viewer->id), 403, __('seller_team.admin_cannot_manage'));
+            \App\Services\Notifications\Emitters\TeamNotifications::removed($rows);
             $rows->each->delete();
         });
     }
@@ -164,7 +168,9 @@ class SellerTeamService
             $this->access->authorize($member->owner, 'team_management');
             // A downgrade can invalidate invitations already occupying a seat.
             $this->usage->check($subscription, 'team_members', $this->seats($member->owner), 0);
+            $accepted = $this->pendingSiblings($member)->get();
             $this->pendingSiblings($member)->update(['user_id' => $user->id, 'accepted_at' => now(), 'token_hash' => null]);
+            \App\Services\Notifications\Emitters\TeamNotifications::accepted($user, $accepted);
 
             return $member->fresh();
         });

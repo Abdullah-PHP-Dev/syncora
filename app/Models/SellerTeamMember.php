@@ -21,8 +21,8 @@ class SellerTeamMember extends Model
         'admin.seller-team.index', 'admin.seller-team.store', 'admin.seller-team.update', 'admin.seller-team.destroy',
     ];
 
-    /** Pages every teammate may open inside a workspace (documentation, no workspace data). */
-    public const MEMBER_ROUTES = ['admin.help-center.*'];
+    /** Pages every teammate may open inside a workspace (documentation; their own notifications, filtered by permission). */
+    public const MEMBER_ROUTES = ['admin.help-center.*', 'admin.notifications.*'];
 
     /** Every route this teammate may open regardless of module permissions (the plan still applies). */
     public function allowsRoute(string $route): bool

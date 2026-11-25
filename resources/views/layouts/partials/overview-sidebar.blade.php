@@ -95,6 +95,7 @@
             ['package-features.index', 'Feature catalog', 'bx-grid-alt'],
             ['admin.faqs.index', 'overview.sidebar_faqs', 'bx-book-open'],
             ['admin.apis.index', 'overview.integrations', 'bx-plug'],
+            ['admin.platform-emails.index', 'platform_emails.title', 'bx-envelope'],
         ] : []),
     ] : [
         'overview.navigation' => [
@@ -109,17 +110,17 @@
         'google_suite.nav.section' => [
             ['admin.google.overview', 'google_suite.title', 'bxl-google'],
         ],
+        'admin.sidebar.engagement' => [
+            ['admin.chats.dashboard', 'admin.sidebar.inbox', 'bx-message-square-dots'],
+            ['admin.comments.dashboard', 'admin.sidebar.comments', 'bx-comment-dots'],
+            ['admin.email.dashboard', 'admin.sidebar.email_marketing', 'bx-envelope'],
+            ['admin.crm.overview', 'crm.nav.crm', 'bx-id-card'],
+        ],
         'overview.sidebar_workspace' => [
             ['seller-workspaces.index', 'seller_team.workspaces', 'bx-buildings'],
             ['admin.seller-team.index', 'seller_team.title', 'bx-group'],
             ['admin.connections.index', 'admin.sidebar.connections', 'bx-link'],
             ['admin.media-gallery.index', 'admin.sidebar.media_gallery', 'bx-images'],
-            ['admin.email.dashboard', 'admin.sidebar.email_marketing', 'bx-envelope'],
-        ],
-        'admin.sidebar.engagement' => [
-            ['admin.chats.dashboard', 'admin.sidebar.inbox', 'bx-message-square-dots'],
-            ['admin.comments.dashboard', 'admin.sidebar.comments', 'bx-comment-dots'],
-            ['admin.crm.overview', 'crm.nav.crm', 'bx-id-card'],
         ],
         'admin.sidebar.ai_assistant' => [
             ['admin.ai-copilot.analytics.index', 'admin.sidebar.ai_copilot', 'bx-brain'],

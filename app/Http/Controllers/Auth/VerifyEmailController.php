@@ -14,14 +14,19 @@ class VerifyEmailController extends Controller
      */
     public function __invoke(EmailVerificationRequest $request): RedirectResponse
     {
-        if ($request->user()->hasVerifiedEmail()) {
-            return redirect()->intended(app(\App\Services\DashboardService::class)->url($request->user()).'?verified=1');
+        $user = $request->user();
+        if (! $user->hasVerifiedEmail() && $user->markEmailAsVerified()) {
+            event(new Verified($user));
         }
+        // New sellers continue onboarding: connect a social account first (EnsureConnectedAccount).
+        $next = $user->hasRole('seller') && \Illuminate\Support\Facades\Route::has('admin.connections.index')
+            ? route('admin.connections.index')
+            : app(\App\Services\DashboardService::class)->url($user);
 
-        if ($request->user()->markEmailAsVerified()) {
-            event(new Verified($request->user()));
-        }
-
-        return redirect()->intended(app(\App\Services\DashboardService::class)->url($request->user()).'?verified=1');
+        return redirect()->intended($next)->with('connect_notice', [
+            'type' => 'success',
+            'title' => __('Email verified'),
+            'message' => __('Your account is ready. Connect your first social account to get started.'),
+        ]);
     }
 }

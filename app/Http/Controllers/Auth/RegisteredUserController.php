@@ -48,12 +48,13 @@ class RegisteredUserController extends Controller
 	    $user->assignRole('seller');
 
         event(new UserRegistered($user));
-       /* event(new Registered($user));*/
+        // SEC-01: sends the branded verification email (immediately) via Laravel's listener.
+        event(new Registered($user));
 
         Auth::login($user);
 
-        // Onboarding: connect a social account first - Posts, Inbox and
-        // Comments stay locked until one is (EnsureConnectedAccount).
-        return redirect()->route('admin.connections.index');
+        // The account stays locked until the email is confirmed (EnsureEmailIsVerified). The
+        // verification link then continues to onboarding (connect a social account first).
+        return redirect()->route('verification.notice')->with('just_registered', true);
     }
 }

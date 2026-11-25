@@ -13,6 +13,7 @@ export default defineConfig({
                 'resources/js/app.js',
                 'resources/js/apps.js',
                 'resources/js/register.js',
+                'resources/js/verify-email.js',
             ],
             refresh: true,
         }),

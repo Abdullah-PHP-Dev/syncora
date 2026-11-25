@@ -47,6 +47,14 @@ Route::get('/robots.txt', [\App\Http\Controllers\SeoController::class, 'robots']
 Route::get('/payments/tamara/return/{order}', [\App\Http\Controllers\Payments\TamaraController::class, 'returned'])
     ->middleware(['auth', 'signed:orderId,status'])->name('payments.tamara.return');
 
+// Email notification links (signed; outside the locale prefix so one link works in every language).
+Route::get('/n/{event}/{user}', [\App\Http\Controllers\NotificationLinkController::class, 'go'])
+    ->whereNumber(['event', 'user'])->withoutMiddleware([\App\Http\Middleware\UseSellerWorkspace::class])->name('notifications.go');
+Route::match(['get', 'post'], '/n/unsubscribe', [\App\Http\Controllers\NotificationLinkController::class, 'unsubscribe'])
+    ->middleware('throttle:30,1')->withoutMiddleware([\App\Http\Middleware\UseSellerWorkspace::class])->name('notifications.unsubscribe');
+Route::get('/n/manage', [\App\Http\Controllers\NotificationLinkController::class, 'manage'])
+    ->withoutMiddleware([\App\Http\Middleware\UseSellerWorkspace::class])->name('notifications.manage');
+
 // All providers use the same unlocalized URL, including browser POST returns.
 Route::match(['get', 'post'], '/callback/payment', \App\Http\Controllers\Payments\PaymentCallbackController::class)
     ->withoutMiddleware([\App\Http\Middleware\UseSellerWorkspace::class])
@@ -313,6 +321,27 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				// these global secrets, while admins (team members) were
 				// blocked by EnsureSeller. Route names unchanged (admin.apis.*).
 				Route::resource('/apis', AdminAPIController::class);
+
+				// COMMUNICATION MANAGEMENT - platform email templates, branding and the
+				// email log. Super administrators only (customer_support and sellers never).
+				Route::prefix('platform-emails')->name('platform-emails.')->controller(\App\Http\Controllers\Admin\PlatformEmailTemplateController::class)->group(function () {
+					Route::get('/', 'index')->name('index');
+					Route::get('branding', 'branding')->name('branding');
+					Route::put('branding', 'saveBranding')->name('branding.update');
+					Route::get('logs', 'logs')->name('logs');
+					Route::get('create', 'create')->name('create');
+					Route::post('create', 'startCreate')->name('create.start');
+					Route::get('{key}/{locale}', 'edit')->where('locale', 'en|ar')->name('edit');
+					Route::post('{key}/{locale}/draft', 'saveDraft')->name('draft');
+					Route::post('{key}/{locale}/publish', 'publish')->name('publish');
+					Route::post('{key}/{locale}/reset', 'reset')->name('reset');
+					Route::post('{key}/{locale}/duplicate', 'duplicate')->name('duplicate');
+					Route::post('{key}/{locale}/toggle', 'toggle')->name('toggle');
+					Route::post('{key}/{locale}/preview', 'preview')->middleware('throttle:platform-email-preview')->name('preview');
+					Route::post('{key}/{locale}/test', 'test')->middleware('throttle:platform-email-test')->name('test');
+					Route::get('{key}/{locale}/versions', 'versions')->name('versions');
+					Route::post('{key}/{locale}/versions/{version}/restore', 'restore')->whereNumber('version')->name('restore');
+				});
 			});
 
 		/*
@@ -341,6 +370,30 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 		| route('tickets.index')) - route names here are unchanged
 		| (admin.tickets.index etc), only the middleware moved.
 		*/
+		/*
+		| NOTIFICATIONS - every signed-in person (owners with or without an
+		| active plan, teammates, support staff) reads and manages their OWN
+		| notifications: billing and support notices must reach people even
+		| when their plan lapsed. Items are always scoped to the real person.
+		*/
+		Route::name('admin.')->group(function () {
+				Route::get('notifications', [NotificationController::class, 'index'])
+				->name('notifications.index');
+			// Unified notification center (platform notifications, config/notifications.php).
+			Route::controller(\App\Http\Controllers\Admin\NotificationCenterController::class)->prefix('notifications')->name('notifications.')->group(function () {
+				Route::get('center', 'page')->name('center');
+				Route::get('feed', 'feed')->name('feed');
+				Route::post('read-all', 'readAll')->name('read-all');
+				Route::delete('read', 'clearRead')->name('clear-read');
+				Route::get('settings', 'settings')->name('settings');
+				Route::put('settings', 'saveSettings')->name('settings.update');
+				Route::post('verification', 'resendVerification')->middleware('throttle:6,60')->name('verification');
+				Route::patch('{userNotification}/read', 'read')->whereNumber('userNotification')->name('read');
+				Route::delete('{userNotification}', 'dismiss')->whereNumber('userNotification')->name('dismiss');
+				Route::get('{userNotification}/open', 'open')->whereNumber('userNotification')->name('open');
+			});
+		});
+
 		Route::middleware('role:admin|customer_support|seller')
 			->name('admin.')
 			->group(function () {
@@ -799,8 +852,6 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				// badge/dropdown in the navbar. Conversation-type items reuse
 				// chats.read above; comments needed their own mark-read route
 				// since PostComment had no read-tracking before this.
-				Route::get('notifications', [NotificationController::class, 'index'])
-					->name('notifications.index');
 				Route::patch('platform/comments/{comment}/read', [NotificationController::class, 'markCommentRead'])
 					->name('comments.read');
 

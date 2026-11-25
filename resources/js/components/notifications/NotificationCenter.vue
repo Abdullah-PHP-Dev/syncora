@@ -17,13 +17,16 @@
     <div v-if="open" class="notif-dropdown">
 
       <div class="notif-dropdown-header">
-        <span>Notifications</span>
-        <span v-if="count > 0" class="notif-count-pill">{{ displayCount }}</span>
+        <span>{{ t('title') }}</span>
+        <span class="notif-header-actions">
+          <span v-if="count > 0" class="notif-count-pill">{{ displayCount }}</span>
+          <a v-if="settingsUrl" :href="settingsUrl" class="notif-header-icon" :title="t('settings')" :aria-label="t('settings')"><i class="bx bx-cog"></i></a>
+        </span>
       </div>
 
-      <div v-if="loading && !items.length" class="notif-empty">Loading…</div>
+      <div v-if="loading && !items.length" class="notif-empty">{{ t('loading') }}</div>
 
-      <div v-else-if="!items.length" class="notif-empty">You're all caught up.</div>
+      <div v-else-if="!items.length" class="notif-empty">{{ t('empty') }}</div>
 
       <a
           v-for="item in items"
@@ -32,7 +35,12 @@
           class="notif-item"
           @click.prevent="openItem(item)">
 
+        <span v-if="item.type === 'platform'" class="notif-platform-icon" :class="'tone-' + item.tone">
+          <i :class="'bx ' + item.icon"></i>
+        </span>
+
         <account-avatar-badge
+            v-else
             :avatar-url="item.avatar"
             :icon="platformIcon(item.platform)"
             :color="platformColor(item.platform)"
@@ -40,16 +48,23 @@
 
         <span class="notif-item-body">
           <span class="notif-item-top">
-            <span class="notif-item-type-icon" :class="item.type">
+            <span v-if="item.type !== 'platform'" class="notif-item-type-icon" :class="item.type">
               <i :class="typeIcon(item.type)"></i>
             </span>
-            <span class="notif-item-author">{{ item.author }}</span>
+            <span v-else-if="item.priority === 0" class="notif-critical-dot" aria-hidden="true"></span>
+            <span class="notif-item-author">{{ item.author }}<template v-if="item.count > 1"> (×{{ item.count }})</template></span>
             <span class="notif-item-time">{{ timeAgo(item.created_at) }}</span>
           </span>
-          <span class="notif-item-preview">{{ item.preview }}</span>
+          <span v-if="item.preview" class="notif-item-preview">{{ item.preview }}</span>
+          <span v-if="item.workspace" class="notif-item-workspace"><bdi>{{ item.workspace }}</bdi></span>
         </span>
 
       </a>
+
+      <div class="notif-dropdown-footer">
+        <button v-if="readAllUrl && count > 0" type="button" class="notif-footer-btn" @click="readAll">{{ t('mark_all_read') }}</button>
+        <a v-if="centerUrl" :href="centerUrl" class="notif-footer-btn">{{ t('view_all') }}</a>
+      </div>
 
     </div>
 
@@ -103,6 +118,12 @@ const props = defineProps({
     required: true
   },
 
+  // Translated UI strings from the navbar (resources/views/layouts/partials/navbar.blade.php).
+  labels: {
+    type: Object,
+    default: () => ({})
+  },
+
   currentUserId: {
     type: [Number, String],
     default: null
@@ -137,27 +158,39 @@ function platformColor(platform) {
   return (platformMeta[platform] || {}).color || '#7c5cff';
 }
 
+const fallbackLabels = {
+  title: 'Notifications', empty: "You're all caught up.", loading: 'Loading…', mark_all_read: 'Mark all as read',
+  view_all: 'View all notifications', settings: 'Notification settings', just_now: 'just now', m: ':count m ago', h: ':count h ago', d: ':count d ago'
+};
+
+function t(key, count) {
+  const text = (props.labels && props.labels[key]) || fallbackLabels[key] || key;
+  return count === undefined ? text : text.replace(':count', count);
+}
+
 function timeAgo(value) {
   if (!value) return '';
 
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
 
-  if (seconds < 60) return 'just now';
+  if (seconds < 60) return t('just_now');
 
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return minutes + 'm ago';
+  if (minutes < 60) return t('m', minutes);
 
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return hours + 'h ago';
+  if (hours < 24) return t('h', hours);
 
-  const days = Math.floor(hours / 24);
-  return days + 'd ago';
+  return t('d', Math.floor(hours / 24));
 }
 
 const open = ref(false);
 const loading = ref(false);
 const count = ref(0);
 const items = ref([]);
+const centerUrl = ref('');
+const settingsUrl = ref('');
+const readAllUrl = ref('');
 
 // count > 9 shows "9+", matching the existing dash-bell-badge convention
 // (admin/posts/dashboard.blade.php's own Upcoming-Posts-adjacent bell).
@@ -174,11 +207,16 @@ async function refresh() {
       props.crmIndexUrl ? axios.get(props.crmIndexUrl) : Promise.reject(new Error('no crm')),
     ]);
     const feeds = [main, crm].filter((r) => r.status === 'fulfilled').map((r) => r.value.data);
+    if (main.status === 'fulfilled') {
+      centerUrl.value = main.value.data.center_url || '';
+      settingsUrl.value = main.value.data.settings_url || '';
+      readAllUrl.value = main.value.data.read_all_url || '';
+    }
     if (feeds.length) {
       count.value = feeds.reduce((sum, d) => sum + (d.count || 0), 0);
       items.value = feeds.flatMap((d) => d.items || [])
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        .slice(0, 15);
+        .slice(0, 20);
     }
   } catch (e) {
     // A failed poll shouldn't wipe out whatever was already showing -
@@ -200,10 +238,15 @@ function typeIcon(type) {
   return { comment: 'bx bx-comment-detail', connection: 'bx bx-plug', crm: 'bx bx-id-card' }[type] || 'bx bx-message-rounded-dots';
 }
 
+function readAll() {
+  axios.post(readAllUrl.value).finally(refresh);
+}
+
 function markRead(item) {
   // Connection warnings have no read state - they clear once the
-  // connection is fixed (NotificationController).
-  if (item.type === 'connection') {
+  // connection is fixed (NotificationController). Platform items are
+  // marked read by their own "open" link (which also opens the right workspace).
+  if (item.type === 'connection' || item.type === 'platform') {
     return Promise.resolve();
   }
 
@@ -260,8 +303,8 @@ onBeforeUnmount(() => {
 .notif-dropdown {
   position: absolute;
   top: calc(100% + 10px);
-  right: 0;
-  width: 340px;
+  inset-inline-end: 0;
+  width: 360px;
   max-height: 420px;
   overflow-y: auto;
   background: #fff;
@@ -371,7 +414,7 @@ onBeforeUnmount(() => {
 }
 
 .notif-item-time {
-  margin-left: auto;
+  margin-inline-start: auto;
   font-size: 11px;
   color: #8b8d9c;
   flex-shrink: 0;
@@ -383,6 +426,91 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.notif-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notif-header-icon {
+  color: #8b8d9c;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.notif-header-icon:hover {
+  color: #7c5cff;
+}
+
+.notif-platform-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.notif-platform-icon.tone-success { background: #16A34A; }
+.notif-platform-icon.tone-info { background: #2563EB; }
+.notif-platform-icon.tone-warning { background: #D97706; }
+.notif-platform-icon.tone-action { background: #7C3AED; }
+.notif-platform-icon.tone-critical { background: #DC2626; }
+.notif-platform-icon.tone-report { background: #0F172A; }
+
+.notif-critical-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #DC2626;
+  flex-shrink: 0;
+}
+
+.notif-item-workspace {
+  font-size: 11px;
+  color: #8b8d9c;
+}
+
+.notif-dropdown-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #fff;
+  border-top: 1px solid rgba(20, 20, 40, 0.08);
+}
+
+.notif-footer-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #7c5cff;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.notif-footer-btn:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 575px) {
+  .notif-dropdown {
+    position: fixed;
+    top: 64px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: 75vh;
+  }
 }
 
 </style>

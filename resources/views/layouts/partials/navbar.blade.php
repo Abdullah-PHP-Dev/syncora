@@ -195,10 +195,17 @@
              outside the #app root's DOM subtree, so this can't be
              registered as a plain component inside that root.
         ================================================== -->
+        @php
+            $notificationLabels = [
+                'title' => __('notifications.ui.title'), 'empty' => __('notifications.ui.empty'), 'loading' => __('notifications.ui.loading'),
+                'mark_all_read' => __('notifications.ui.mark_all_read'), 'view_all' => __('notifications.ui.view_all'), 'settings' => __('notifications.ui.settings'),
+                'just_now' => __('notifications.ui.just_now'), 'm' => __('notifications.ui.minutes_ago'), 'h' => __('notifications.ui.hours_ago'), 'd' => __('notifications.ui.days_ago'),
+            ];
+        @endphp
         <div id="notification-center-root">
             <notification-center
                 index-url="{{ route('admin.notifications.index') }}"
-                crm-index-url="{{ route('admin.crm.api.notifications') }}"
+                :labels='@json($notificationLabels)'
                 comment-read-url-template="{{ route('admin.comments.read', ['comment' => ':id']) }}"
                 conversation-read-url-template="{{ route('admin.chats.read', ['conversation' => ':id']) }}"
                 current-user-id="{{ auth()->id() }}"
@@ -361,6 +368,14 @@
 
 
                 @endif
+
+                <!-- Notification settings: every person (owners, teammates, staff) manages their own. -->
+                <li>
+                    <a class="dropdown-item admin-dropdown-item" href="{{ route('admin.notifications.settings') }}">
+                        <span class="admin-dropdown-icon"><i class="bx bx-bell"></i></span>
+                        <span>{{ __('notifications.ui.settings') }}</span>
+                    </a>
+                </li>
 
                 <!-- Logout -->
                 <li>

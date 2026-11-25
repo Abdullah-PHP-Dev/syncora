@@ -2,7 +2,8 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Translation\HasLocalePreference;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -11,7 +12,7 @@ use Spatie\Permission\Traits\HasRoles;
 use Laravel\Sanctum\HasApiTokens;
 
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail, HasLocalePreference
 {
 	use HasApiTokens;
 
@@ -61,6 +62,8 @@ class User extends Authenticatable
 			'email_verified_at' => 'datetime',
 			'password' => 'hashed',
             'is_active' => 'boolean',
+            'notification_settings' => 'array',
+            'marketing_opt_in_at' => 'datetime',
 		];
 	}
 
@@ -160,17 +163,56 @@ class User extends Authenticatable
 		return $this->hasMany(Order::class);
 	}
 
-	public function notifications()
+	/** Platform notification center items for this person (see config/notifications.php). */
+	public function platformNotifications()
 	{
-		return $this->belongsToMany(
-			Notification::class,
-			'notification_recipients'
-		)
-			->withPivot([
-				            'read_at',
-				            'created_at',
-				            'updated_at',
-			            ]);
+		return $this->hasMany(\App\Models\Notifications\UserNotification::class);
+	}
+
+	/** Emails and Laravel notifications reach this person in their own language. */
+	public function preferredLocale(): string
+	{
+		return \App\Services\Notifications\RecipientContext::locale($this);
+	}
+
+	/** SEC-01: branded, bilingual, sent immediately. Only email/password sign-ups ask for it (Registered event). */
+	public function sendEmailVerificationNotification(): void
+	{
+		// A six-digit code and a confirmation link, issued fresh for every email.
+		app(\App\Services\Auth\EmailVerification::class)->send($this);
+	}
+
+	/** SEC-03: branded, bilingual, immediate replacement for Laravel's default reset email. */
+	public function sendPasswordResetNotification($token): void
+	{
+		$this->sendAccountEmail(new \App\Notifications\Auth\BrandedResetPassword($token));
+	}
+
+	/** Sent immediately (no queue). A mail-server error is logged, never shown as a crash to the person signing up. */
+	public function sendAccountEmail(\Illuminate\Notifications\Notification $notification): bool
+	{
+		try {
+			\App\Services\Notifications\Links::withPublicRoot(fn () => $this->notifyNow($notification));
+
+			return true;
+		} catch (\Throwable $e) {
+			\Illuminate\Support\Facades\Log::error('Account email not sent.', ['user' => $this->id, 'type' => class_basename($notification), 'error' => $e->getMessage()]);
+
+			return false;
+		}
+	}
+
+	/** Verification is asked of accounts created after the feature shipped (older accounts are not nagged). */
+	public function shouldVerifyEmail(): bool
+	{
+		return ! $this->hasVerifiedEmail() && ! $this->isWorkspaceAccount()
+			&& $this->created_at && $this->created_at->gte(\Illuminate\Support\Carbon::parse(config('notifications.verification_since')));
+	}
+
+	/** Blocks the app until verified: self-registered sellers only (staff and invited teammates are created verified or by an admin). */
+	public function mustVerifyBeforeUse(): bool
+	{
+		return $this->shouldVerifyEmail() && $this->hasRole('seller');
 	}
 
 	public function hasActiveSubscription()

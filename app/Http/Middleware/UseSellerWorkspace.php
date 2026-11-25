@@ -33,7 +33,7 @@ class UseSellerWorkspace
         if (! $id) {
             // A teammate-only account (joined from an invitation, no organization of its own)
             // has nothing to show outside a workspace: send it to its workspace list.
-            if ($this->teammateOnly($actor) && ! Str::is(['password.*', 'verification.*', 'profile.*', 'admin.profiles.*', 'seller-workspaces.*', 'login', 'register', 'logout'], $route)) {
+            if ($this->teammateOnly($actor) && ! Str::is(['password.*', 'verification.*', 'profile.*', 'admin.profiles.*', 'admin.notifications.*', 'seller-workspaces.*', 'login', 'register', 'logout'], $route)) {
                 abort_if($request->expectsJson(), 403, __('seller_team.unavailable'));
 
                 return redirect()->route('seller-workspaces.index');

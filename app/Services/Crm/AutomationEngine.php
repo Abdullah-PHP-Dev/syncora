@@ -14,7 +14,6 @@ use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 /**
  * CRM automations (AU-01/02): trigger → conditions (all must match) → actions.
@@ -26,6 +25,9 @@ use Illuminate\Support\Facades\Mail;
  */
 class AutomationEngine
 {
+    /** The automation whose actions are running (named in its notify messages). */
+    private ?Automation $running = null;
+
     public const TRIGGERS = ['lead_created', 'contact_created', 'deal_created', 'deal_stage_changed', 'deal_won', 'deal_lost', 'conversation_linked', 'lead_idle', 'deal_idle'];
 
     public const TIME_TRIGGERS = ['lead_idle', 'deal_idle'];
@@ -119,6 +121,7 @@ class AutomationEngine
         $results = [];
         $status = 'done';
         try {
+            $this->running = $automation;
             DB::transaction(function () use ($automation, $subject, &$results) {
                 foreach ($automation->actions as $action) {
                     $results[] = [$action['type'] ?? '?' => $this->act($action, $subject)];
@@ -244,14 +247,16 @@ class AutomationEngine
 
                 return 'stage';
             case 'add_to_email_list':
-                $list = EmailList::where('user_id', Auth::id())->find($action['email_list_id'] ?? 0);
+                // The list belongs to the workspace account (runIdle() signs in as it, like a request).
+                $list = EmailList::where('user_id', $this->context->workspaceId())->find($action['email_list_id'] ?? 0);
 
                 return $list && $contact ? 'email list +'.app(EmailListBridge::class)->add($list, collect([$contact]))['added'] : 'no list';
             case 'notify':
                 $member = User::whereIn('id', $this->context->memberIds())->find($action['member_id'] ?? 0);
-                if ($member?->email) {
-                    $text = $this->fill($action['message'] ?? '{name}', $subject);
-                    Mail::raw($text."\n\n".($contact ? route('admin.crm.contacts.show', $contact) : ''), fn ($m) => $m->to($member->email)->subject('Socialeaz CRM: '.mb_substr($text, 0, 80)));
+                if ($member) {
+                    // Audit A5: through the notification system (bell + queued email, preferences respected).
+                    CrmNotifier::automationMessage($this->context->workspaceId(), $member->id, (string) ($this->running?->name ?? 'CRM'),
+                        $this->fill($action['message'] ?? '{name}', $subject), $contact ? route('admin.crm.contacts.show', $contact) : null);
                 }
 
                 return 'notified';

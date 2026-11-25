@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Messaging\Conversation;
 use App\Models\PostComment;
 use App\Models\SocialConnection;
+use App\Models\Notifications\UserNotification;
+use App\Services\Notifications\NotificationPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -28,17 +30,22 @@ class NotificationController extends Controller
     public function index(): JsonResponse
     {
         $userId = Auth::id();
+        // Inside a joined workspace Auth is the workspace account; the derived items follow
+        // the teammate's own module permissions, persisted ones belong to the real person.
+        $member = request()->attributes->get('workspace_member');
+        $person = request()->attributes->get('workspace_actor') ?? Auth::user();
+        $can = fn (string $module) => ! $member || $member->canUse($module);
 
-        $unreadComments = PostComment::where('user_id', $userId)->unread()->count();
+        $unreadComments = $can('comments') ? PostComment::where('user_id', $userId)->unread()->count() : 0;
 
         $conversationsQuery = fn () => Conversation::whereHas(
             'channel',
             fn ($q) => $q->where('user_id', $userId)->enabledFor('messaging')
         );
 
-        $unreadMessages = (int) $conversationsQuery()->sum('unread_count');
+        $unreadMessages = $can('inbox') ? (int) $conversationsQuery()->sum('unread_count') : 0;
 
-        $commentItems = PostComment::where('user_id', $userId)
+        $commentItems = ! $can('comments') ? collect() : PostComment::where('user_id', $userId)
             ->unread()
             ->with('post:id,platform')
             ->latest()
@@ -66,7 +73,7 @@ class NotificationController extends Controller
                 ];
             });
 
-        $conversationItems = $conversationsQuery()
+        $conversationItems = ! $can('inbox') ? collect() : $conversationsQuery()
             ->where('unread_count', '>', 0)
             ->latest('last_message_at')
             ->take(10)
@@ -88,7 +95,7 @@ class NotificationController extends Controller
         // Connections that need the user (expiring, reconnect needed,
         // revoked by the provider) - derived from status like the rest of
         // this list, so an item disappears once it's fixed.
-        $connectionItems = SocialConnection::where('user_id', $userId)
+        $connectionItems = ($member && ! $member->isAdmin()) ? collect() : SocialConnection::where('user_id', $userId)
             ->attentionNeeded()
             ->latest('updated_at')
             ->take(5)
@@ -108,14 +115,26 @@ class NotificationController extends Controller
                 'created_at' => $connection->updated_at,
             ]);
 
-        $items = $connectionItems->concat($commentItems)->concat($conversationItems)
+        // Platform notifications (failed posts, billing, team, support, CRM, ...). Connection
+        // problems are already shown above from live status, so only "disconnected by a
+        // teammate" comes from the stored list (no duplicate bell items).
+        $platform = UserNotification::where('user_id', $person->id)->unread()
+            ->where(fn ($q) => $q->where('category', '!=', 'connections')->orWhere('event', 'connections.disconnected'));
+        $presenter = app(NotificationPresenter::class);
+        $platformItems = (clone $platform)->orderBy('priority')->latest('updated_at')->take(15)->get()
+            ->map(fn (UserNotification $n) => $presenter->item($n, $person));
+
+        $items = $connectionItems->concat($platformItems)->concat($commentItems)->concat($conversationItems)
             ->sortByDesc('created_at')
             ->values()
-            ->take(15);
+            ->take(20);
 
         return response()->json([
-            'count' => $unreadComments + $unreadMessages + $connectionItems->count(),
+            'count' => $unreadComments + $unreadMessages + $connectionItems->count() + (clone $platform)->count(),
             'items' => $items,
+            'center_url' => route('admin.notifications.center'),
+            'settings_url' => route('admin.notifications.settings'),
+            'read_all_url' => route('admin.notifications.read-all'),
         ]);
     }
 

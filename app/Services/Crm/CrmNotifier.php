@@ -5,63 +5,46 @@ namespace App\Services\Crm;
 use App\Models\Crm\Activity;
 use App\Models\Crm\Deal;
 use App\Models\Crm\Lead;
-use App\Models\Crm\Notification;
 use App\Models\SellerTeamMember;
 use App\Models\User;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
+use App\Services\Notifications\Emitters\Support;
+use App\Services\Notifications\NotificationCatalogue;
+use App\Services\Notifications\Notify;
+use App\Services\Notifications\PreferenceResolver;
 
 /**
- * G-02 / S-12: tells the right person about CRM events, in the navbar bell
- * and optionally by email, following each person's own preferences.
+ * G-02 / S-12: tells the right person about CRM events. Now an adapter of the platform
+ * notification system (App\Services\Notifications\Notify): same events and recipients as
+ * before, but queued (never inside the lead/deal save or a webhook), rendered in each
+ * reader's own language, and following the person's preferences in notification_preferences.
  * Nobody is told about something they did themselves. Never throws.
  */
 class CrmNotifier
 {
     public const EVENTS = ['lead_assigned', 'lead_unassigned', 'deal_assigned', 'deal_won', 'deal_lost', 'task_reminder'];
 
-    /** Defaults when a person has not chosen: everything in the bell, email only for work handed to them. */
-    public const DEFAULTS = [
-        'lead_assigned' => ['in_app' => true, 'email' => true], 'lead_unassigned' => ['in_app' => true, 'email' => false],
-        'deal_assigned' => ['in_app' => true, 'email' => false], 'deal_won' => ['in_app' => true, 'email' => false],
-        'deal_lost' => ['in_app' => true, 'email' => false], 'task_reminder' => ['in_app' => true, 'email' => true],
-    ];
-
     public function __construct(private CrmContext $context) {}
 
+    /** The person's current choice per CRM event in this workspace (shape kept for the CRM settings tab). */
     public static function preferences(int $workspaceId, int $userId): array
     {
-        $saved = CrmSettings::for($workspaceId)['notifications'][$userId] ?? [];
+        $user = User::find($userId);
+        $catalogue = app(NotificationCatalogue::class);
 
-        return collect(self::DEFAULTS)->map(fn ($d, $event) => [
-            'in_app' => (bool) ($saved[$event]['in_app'] ?? $d['in_app']), 'email' => (bool) ($saved[$event]['email'] ?? $d['email']),
-        ])->all();
+        return collect(self::EVENTS)->mapWithKeys(function ($event) use ($user, $workspaceId, $catalogue) {
+            $choice = $user ? app(PreferenceResolver::class)->for($user, $catalogue->get('crm.'.$event), $workspaceId) : ['in_app' => true, 'email' => 'off'];
+
+            return [$event => ['in_app' => $choice['in_app'], 'email' => $choice['email'] !== 'off']];
+        })->all();
     }
 
-    /** @param  int[]  $userIds */
-    public function send(int $workspaceId, array $userIds, string $event, string $title, ?string $body, ?string $url, ?int $exceptActor = null): int
+    /** Saves choices from the CRM settings tab into the platform preferences (this workspace only). */
+    public static function savePreferences(int $workspaceId, User $user, array $events): void
     {
-        $sent = 0;
-        foreach (array_unique(array_filter($userIds)) as $userId) {
-            if ($userId === $exceptActor) {
-                continue;
-            }
-            try {
-                $prefs = self::preferences($workspaceId, $userId)[$event] ?? ['in_app' => true, 'email' => false];
-                if ($prefs['in_app']) {
-                    Notification::create(['workspace_id' => $workspaceId, 'user_id' => $userId, 'event' => $event, 'title' => mb_substr($title, 0, 200),
-                        'body' => $body ? mb_substr($body, 0, 300) : null, 'url' => $url]);
-                    $sent++;
-                }
-                if ($prefs['email'] && ($person = User::find($userId)) && $person->email) {
-                    Mail::raw(trim($title."\n\n".($body ?? '')."\n\n".($url ?? '')), fn ($m) => $m->to($person->email)->subject('Socialeaz CRM: '.mb_substr($title, 0, 90)));
-                }
-            } catch (\Throwable $e) {
-                Log::warning('CRM notification skipped.', ['event' => $event, 'user' => $userId, 'error' => $e->getMessage()]);
-            }
+        foreach (array_intersect_key($events, array_flip(self::EVENTS)) as $event => $choice) {
+            app(PreferenceResolver::class)->save($user, $workspaceId, 'event', 'crm.'.$event,
+                (bool) ($choice['in_app'] ?? true), ($choice['email'] ?? false) ? 'immediate' : 'off');
         }
-
-        return $sent;
     }
 
     /** The person clicking, or null for webhooks and scheduled jobs (then the owner must hear about it too). */
@@ -79,36 +62,47 @@ class CrmNotifier
             ->whereNotNull('accepted_at')->whereNotNull('user_id')->pluck('user_id')->all());
     }
 
+    private function emit(string $event, int $workspaceId, $subject, array $users, array $params, string $url, array $extra = []): void
+    {
+        Notify::event('crm.'.$event, array_merge([
+            'workspace' => $workspaceId, 'subject' => $subject, 'actor' => $this->acting(), 'users' => $users,
+            'params' => $params, 'url' => $url, 'group_url' => Support::url('admin.crm.overview'), 'dedup' => implode(':', $users).':'.now()->timestamp,
+        ], $extra));
+    }
+
+    private static function contactName(Lead $lead): string
+    {
+        return $lead->contact()->withoutGlobalScopes()->first()?->full_name ?: '—';
+    }
+
     public function leadAssigned(Lead $lead): void
     {
         if ($lead->owner_id) {
-            $name = $lead->contact()->withoutGlobalScopes()->first()?->full_name ?? '';
-            $this->send($lead->workspace_id, [$lead->owner_id], 'lead_assigned', __('crm.notify.lead_assigned', ['name' => $name]),
-                $lead->interest, route('admin.crm.leads.show', $lead->id), $this->acting());
+            $this->emit('lead_assigned', $lead->workspace_id, $lead, [$lead->owner_id],
+                ['name' => self::contactName($lead), 'source' => (string) ($lead->source ?: '—'), 'interest' => (string) $lead->interest],
+                route('admin.crm.leads.show', $lead->id));
         }
     }
 
     public function leadUnassigned(Lead $lead): void
     {
-        $name = $lead->contact()->withoutGlobalScopes()->first()?->full_name ?? '';
-        $this->send($lead->workspace_id, self::managers($lead->workspace_id), 'lead_unassigned', __('crm.notify.lead_unassigned', ['name' => $name, 'source' => $lead->source ?? '—']),
-            $lead->interest, route('admin.crm.leads.show', $lead->id), $this->acting());
+        $this->emit('lead_unassigned', $lead->workspace_id, $lead, self::managers($lead->workspace_id),
+            ['name' => self::contactName($lead), 'source' => (string) ($lead->source ?: '—')], route('admin.crm.leads.show', $lead->id));
     }
 
     public function dealAssigned(Deal $deal): void
     {
         if ($deal->owner_id) {
-            $this->send($deal->workspace_id, [$deal->owner_id], 'deal_assigned', __('crm.notify.deal_assigned', ['name' => $deal->name]),
-                null, route('admin.crm.deals.show', $deal->id), $this->acting());
+            $this->emit('deal_assigned', $deal->workspace_id, $deal, [$deal->owner_id], ['name' => (string) $deal->name], route('admin.crm.deals.show', $deal->id));
         }
     }
 
     public function dealClosed(Deal $deal): void
     {
         $event = $deal->status === 'won' ? 'deal_won' : 'deal_lost';
-        $this->send($deal->workspace_id, array_merge([$deal->owner_id], self::managers($deal->workspace_id)), $event,
-            __('crm.notify.'.$event, ['name' => $deal->name, 'value' => $deal->currency.' '.number_format((float) $deal->value)]),
-            $deal->status === 'lost' ? $deal->lost_reason : null, route('admin.crm.deals.show', $deal->id), $this->acting());
+        $this->emit($event, $deal->workspace_id, $deal, array_values(array_filter(array_merge([$deal->owner_id], self::managers($deal->workspace_id)))),
+            ['name' => (string) $deal->name, 'value' => $deal->currency.' '.number_format((float) $deal->value), 'reason' => (string) ($deal->lost_reason ?: '')],
+            route('admin.crm.deals.show', $deal->id), ['dedup' => $event]);
     }
 
     /** Due reminders (remind_at reached), each sent once. Returns how many. */
@@ -121,10 +115,23 @@ class CrmNotifier
             ->limit(500)->get()->each(function (Activity $task) use (&$count) {
                 $task->forceFill(['meta' => array_merge($task->meta ?? [], ['reminded' => true])])->saveQuietly();
                 $url = $task->deal_id ? route('admin.crm.deals.show', $task->deal_id) : ($task->contact_id ? route('admin.crm.contacts.show', $task->contact_id) : route('admin.crm.activities.index'));
-                $count += $this->send($task->workspace_id, [$task->owner_id], 'task_reminder', __('crm.notify.task_reminder', ['subject' => $task->subject]),
-                    $task->due_at ? __('crm.notify.due_at', ['time' => $task->due_at->format('d M H:i')]) : null, $url);
+                Notify::event('crm.task_reminder', [
+                    'workspace' => $task->workspace_id, 'subject' => $task, 'users' => [$task->owner_id],
+                    'params' => ['subject' => (string) $task->subject], 'dates' => array_filter(['due' => $task->due_at]), 'url' => $url,
+                    'dedup' => 'reminder:'.optional($task->remind_at)->timestamp,
+                ]);
+                $count++;
             });
 
         return $count;
+    }
+
+    /** CRM-18: an automation's "notify" action - in the bell and by email, following preferences. */
+    public static function automationMessage(int $workspaceId, int $memberId, string $automation, string $message, ?string $url): void
+    {
+        Notify::event('crm.automation_notify', [
+            'workspace' => $workspaceId, 'users' => [$memberId], 'params' => ['automation' => $automation, 'message' => $message],
+            'url' => $url ?? Support::url('admin.crm.overview'),
+        ]);
     }
 }

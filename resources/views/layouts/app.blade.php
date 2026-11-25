@@ -98,6 +98,18 @@
                             <a class="btn btn-sm btn-outline-primary" href="{{ route('seller-workspaces.index') }}">{{ __('seller_team.workspaces') }}</a>
                         </div>
                     @endif
+                    @php
+                        $verifyPerson = request()->attributes->get('workspace_actor') ?? auth()->user();
+                    @endphp
+                    @if($verifyPerson && method_exists($verifyPerson, 'shouldVerifyEmail') && $verifyPerson->shouldVerifyEmail())
+                        {{-- SEC-01: soft prompt; nothing is blocked while unverified. --}}
+                        <div class="alert alert-warning d-flex align-items-center justify-content-between gap-3 flex-wrap" role="status">
+                            <span>{{ __('notifications.ui.verify_banner') }}</span>
+                            <form method="POST" action="{{ route('admin.notifications.verification') }}" class="m-0">@csrf
+                                <button type="submit" class="btn btn-sm btn-warning">{{ __('notifications.ui.verify_resend') }}</button>
+                            </form>
+                        </div>
+                    @endif
                     @yield('content')
 
                 </div>

@@ -67,6 +67,7 @@ class PackageUsageService
     {
         $limit = $this->limit($subscription, $key);
         if ($limit !== -1 && $current + $amount > $limit * $multiplier) {
+            \App\Services\Notifications\Emitters\UsageNotifications::blocked($subscription, $key, $limit);
             throw ValidationException::withMessages(['package' => __('package_access.limit', ['feature' => config("package_reference.features.$key.name_".app()->getLocale(), $key)])]);
         }
     }
@@ -82,8 +83,10 @@ class PackageUsageService
             // Usage is recorded on the subscription owner (record()), so look it up there too.
             $exists = DB::table('package_usage')->where(['user_id' => $subscription->user_id, 'feature_key' => $key, 'event_key' => $event])->exists();
             if (! $exists) {
-                $this->check($subscription, $key, $this->used($subscription, $key), $amount);
+                $used = $this->used($subscription, $key);
+                $this->check($subscription, $key, $used, $amount);
                 $this->record($subscription, $key, $event, $amount);
+                \App\Services\Notifications\Emitters\UsageNotifications::consumed($subscription, $key, $used, $used + $amount, $this->limit($subscription, $key));
             }
 
             return $event;

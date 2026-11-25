@@ -55,8 +55,13 @@
                 <div class="account-section-heading"><span class="account-icon"><i class="bi bi-key" aria-hidden="true"></i></span><div><h2 id="security-heading">{{ __('profile.password_title') }}</h2><p>{{ __('profile.password_help') }}</p></div></div>
                 <div class="account-fields">
                     <div class="account-field">
+                        <label for="profile-current-password">{{ __('profile.current_password') }}</label>
+                        <input id="profile-current-password" type="password" name="current_password" class="form-control" autocomplete="current-password" aria-describedby="error-current_password">
+                        <p id="error-current_password" class="error-message error-current_password" aria-live="polite"></p>
+                    </div>
+                    <div class="account-field">
                         <label for="profile-password">{{ __('profile.new_password') }}</label>
-                        <input id="profile-password" type="password" name="password" class="form-control" autocomplete="new-password" minlength="6" aria-describedby="error-password">
+                        <input id="profile-password" type="password" name="password" class="form-control" autocomplete="new-password" minlength="8" aria-describedby="error-password">
                         <p id="error-password" class="error-message error-password" aria-live="polite"></p>
                     </div>
                     <div class="account-field">

@@ -5,7 +5,7 @@ namespace Tests\Feature\Crm;
 use App\Http\Middleware\EnsurePackageFeature;
 use App\Models\Crm\Activity;
 use App\Models\Crm\Lead;
-use App\Models\Crm\Notification;
+use App\Models\Notifications\UserNotification as Notification;
 use App\Models\Crm\Stage;
 use App\Models\SellerTeamMember;
 use App\Models\User;
@@ -50,13 +50,13 @@ class CrmNotificationsAiTest extends TestCase
         // Assigned to Sara by Rawda → Sara is told; an unowned lead → the admin (not Rawda, who created it).
         $this->actingAs($this->rawda)->postJson($this->url('leads.store'), ['name' => 'Noura', 'phone' => '0552148830', 'owner_id' => $this->sara->id])->assertCreated();
         $this->postJson($this->url('leads.store'), ['name' => 'Nobody', 'phone' => '0551112222', 'owner_id' => null])->assertCreated();
-        $this->assertSame(1, Notification::where('user_id', $this->sara->id)->where('event', 'lead_assigned')->count());
-        $this->assertSame(1, Notification::where('user_id', $this->omar->id)->where('event', 'lead_unassigned')->count());
+        $this->assertSame(1, Notification::where('user_id', $this->sara->id)->where('event', 'crm.lead_assigned')->count());
+        $this->assertSame(1, Notification::where('user_id', $this->omar->id)->where('event', 'crm.lead_unassigned')->count());
         $this->assertSame(0, Notification::where('user_id', $this->rawda->id)->count(), 'nobody is told about their own action');
 
         // The bell shows Sara her own CRM item inside the workspace, and reading it clears it.
         $bell = $this->asSara()->getJson($this->url('notifications'))->assertOk()->assertJsonPath('count', 1);
-        $item = collect($bell->json('items'))->firstWhere('type', 'crm');
+        $item = collect($bell->json('items'))->firstWhere('category', 'crm');
         $this->assertNotNull($item);
         $this->assertStringContainsString('Noura', $item['author']);
         $this->patchJson($item['read_url'])->assertOk();
@@ -73,17 +73,17 @@ class CrmNotificationsAiTest extends TestCase
         $this->flushSession();
         $this->actingAs($this->rawda)->getJson($this->url('settings.notifications'))->assertJsonPath('events.lead_assigned.in_app', true);
         $this->postJson($this->url('leads.store'), ['name' => 'Second', 'phone' => '0553334444', 'owner_id' => $this->sara->id])->assertCreated();
-        $this->assertSame(1, Notification::where('user_id', $this->sara->id)->where('event', 'lead_assigned')->count());
+        $this->assertSame(1, Notification::where('user_id', $this->sara->id)->where('event', 'crm.lead_assigned')->count());
 
         // Deal won → owner and managers hear about it.
         $this->getJson($this->url('pipelines.index'))->assertOk();
         $open = Stage::withoutGlobalScopes()->where('workspace_id', $this->rawda->id)->where('kind', 'open')->firstOrFail();
         $won = Stage::withoutGlobalScopes()->where('workspace_id', $this->rawda->id)->where('kind', 'won')->firstOrFail();
         $dealId = $this->postJson($this->url('deals.store'), ['name' => 'Sofa', 'value' => 5000, 'pipeline_id' => $open->pipeline_id, 'stage_id' => $open->id, 'owner_id' => $this->sara->id])->json('data.id');
-        $this->assertTrue(Notification::where('user_id', $this->sara->id)->where('event', 'deal_assigned')->exists());
+        $this->assertTrue(Notification::where('user_id', $this->sara->id)->where('event', 'crm.deal_assigned')->exists());
         $this->postJson($this->url('deals.move', $dealId), ['stage_id' => $won->id])->assertOk();
-        $this->assertTrue(Notification::where('user_id', $this->sara->id)->where('event', 'deal_won')->exists());
-        $this->assertTrue(Notification::where('user_id', $this->omar->id)->where('event', 'deal_won')->exists());
+        $this->assertTrue(Notification::where('user_id', $this->sara->id)->where('event', 'crm.deal_won')->exists());
+        $this->assertTrue(Notification::where('user_id', $this->omar->id)->where('event', 'crm.deal_won')->exists());
     }
 
     public function test_task_reminders_are_sent_once(): void
@@ -92,7 +92,7 @@ class CrmNotificationsAiTest extends TestCase
             'due_at' => now()->addMinutes(10), 'remind_at' => now()->subMinute()]);
         $this->artisan('crm:reminders')->assertSuccessful();
         $this->artisan('crm:reminders')->assertSuccessful();
-        $this->assertSame(1, Notification::where('user_id', $this->sara->id)->where('event', 'task_reminder')->count());
+        $this->assertSame(1, Notification::where('user_id', $this->sara->id)->where('event', 'crm.task_reminder')->count());
         $this->assertTrue($task->fresh()->meta['reminded']);
     }
 

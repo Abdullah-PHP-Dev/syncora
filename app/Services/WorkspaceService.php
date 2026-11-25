@@ -72,7 +72,13 @@ class WorkspaceService
         $logo = isset($data['logo']) ? $this->storeLogo($data['logo'], $owner) : null;
 
         try {
-            return $this->createRecords($owner, $data, $logo);
+            $workspace = $this->createRecords($owner, $data, $logo);
+            \App\Services\Notifications\Notify::event('team.workspace_created', [
+                'workspace' => (int) $workspace->account_id, 'subject' => $workspace, 'params' => ['workspace' => $workspace->name],
+                'url' => route('admin.connections.index'), 'dedup' => 'created',
+            ]);
+
+            return $workspace;
         } catch (\Throwable $e) {
             $this->deleteLogo($logo);
             throw $e;

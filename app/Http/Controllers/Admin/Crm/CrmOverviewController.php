@@ -104,19 +104,15 @@ class CrmOverviewController extends Controller
             'ai' => (\App\Services\Crm\CrmSettings::for($this->context->workspaceId())['ai']['ask'] ?? true) !== false]);
     }
 
-    /** G-02: the signed-in person's unread CRM alerts, in the navbar bell's item format. */
+    /** G-02: the signed-in person's unread CRM alerts (from the unified notification center), in the bell's item format. */
     public function notifications()
     {
-        $unread = $this->mine()->whereNull('read_at');
+        $unread = $this->mine()->unread();
 
         return response()->json([
             'count' => (clone $unread)->count(),
-            'items' => (clone $unread)->latest('id')->take(10)->get()->map(fn (\App\Models\Crm\Notification $n) => [
-                'type' => 'crm', 'id' => $n->id, 'author' => $n->title, 'avatar' => null,
-                'preview' => $n->body ?: __('crm.notify.open_crm'), 'platform' => null,
-                'url' => $n->url ?: route('admin.crm.overview'), 'read_url' => route('admin.crm.api.notifications.read', $n->id),
-                'created_at' => $n->created_at,
-            ]),
+            'items' => (clone $unread)->latest('id')->take(10)->get()
+                ->map(fn ($n) => app(\App\Services\Notifications\NotificationPresenter::class)->item($n)),
         ]);
     }
 
@@ -129,6 +125,7 @@ class CrmOverviewController extends Controller
 
     private function mine()
     {
-        return \App\Models\Crm\Notification::where('workspace_id', $this->context->workspaceId())->where('user_id', $this->context->actorId());
+        return \App\Models\Notifications\UserNotification::where('workspace_id', $this->context->workspaceId())
+            ->where('user_id', $this->context->actorId())->where('category', 'crm');
     }
 }

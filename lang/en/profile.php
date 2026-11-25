@@ -16,6 +16,7 @@ return [
     'email_help' => 'This is your sign-in email and cannot be changed here.',
     'password_title' => 'Password & security',
     'password_help' => 'Leave these fields empty to keep your current password.',
+    'current_password' => 'Current password',
     'new_password' => 'New password',
     'save_hint' => 'Your changes are applied when you save.',
     'save' => 'Save changes',

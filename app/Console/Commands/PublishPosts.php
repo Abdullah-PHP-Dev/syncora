@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Post;
+use App\Services\Notifications\Emitters\PublishingNotifications;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use App\Services\PostServices\MetaPostService;
@@ -64,8 +65,15 @@ class PublishPosts extends Command
 
         // A run that died while sending leaves its claim behind. The post may
         // or may not have reached the platform, so it is never re-sent blindly.
-        Post::where('status', 'publishing')->where('updated_at', '<', now()->subMinutes(self::STUCK_MINUTES))
-            ->update(['status' => 'failed', 'error_message' => 'Publishing was interrupted. Check the platform before posting it again.']);
+        // Each claim is settled atomically (conditional update), then reported as "interrupted":
+        // the owner is told to check the platform before re-posting (PUB-06), never "it failed".
+        Post::where('status', 'publishing')->where('updated_at', '<', now()->subMinutes(self::STUCK_MINUTES))->pluck('id')
+            ->each(function ($id) {
+                if (Post::whereKey($id)->where('status', 'publishing')->where('updated_at', '<', now()->subMinutes(self::STUCK_MINUTES))
+                    ->update(['status' => 'failed', 'error_message' => PublishingNotifications::INTERRUPTED.'. Check the platform before posting it again.', 'updated_at' => now()])) {
+                    $this->reportOutcome($id);
+                }
+            });
 
         // Only posts waiting to go out whose time has come. "!= completed" also
         // picked up failed posts (retried every run, forever) and drafts.
@@ -141,10 +149,25 @@ class PublishPosts extends Command
             }
 
             // Never leave a crashed post claimed - it would block the seller.
-            Post::whereKey($post->id)->whereIn('status', ['publishing', 'pending'])->update([
+            if (Post::whereKey($post->id)->whereIn('status', ['publishing', 'pending'])->update([
                 'status' => 'failed',
                 'error_message' => Post::cleanErrorMessage($e->getMessage()),
-            ]);
+                'updated_at' => now(),
+            ])) {
+                $this->reportOutcome($post->id);
+            }
+        }
+    }
+
+    /** Status settled by a query update (no model events): tell the notification system directly. */
+    private function reportOutcome(int $id): void
+    {
+        try {
+            if ($post = Post::find($id)) {
+                PublishingNotifications::statusChanged($post);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Publishing notification skipped.', ['post' => $id, 'error' => $e->getMessage()]);
         }
     }
 

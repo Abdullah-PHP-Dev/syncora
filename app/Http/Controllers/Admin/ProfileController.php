@@ -55,16 +55,25 @@ class ProfileController extends Controller
      */
     public function update(ProfileUpdateRequest $request, $id)
     {
-        $data = $request->validated();
-        if (empty($data['password'])) {
-            unset($data['password']);
-        } else {
-            $data['password'] = bcrypt($data['password']);
-        }
-        
         abort_unless((string) $request->user()->id === (string) $id, 403);
+        $data = $request->validated();
+        unset($data['current_password']);
+        $changingPassword = ! empty($data['password']);
+        if ($changingPassword) {
+            $data['password'] = \Illuminate\Support\Facades\Hash::make($data['password']);
+        } else {
+            unset($data['password']);
+        }
         $user = $request->user();
         $user->update($data);
+        if ($changingPassword) {
+            // Sign out every other session; the alert email goes out from UserObserver.
+            $user->forceFill(['remember_token' => \Illuminate\Support\Str::random(60)])->saveQuietly();
+            if (config('session.driver') === 'database') {
+                \Illuminate\Support\Facades\DB::table(config('session.table', 'sessions'))->where('user_id', $user->id)
+                    ->where('id', '!=', $request->session()->getId())->delete();
+            }
+        }
 
         return response()->json([
             'success' => true,

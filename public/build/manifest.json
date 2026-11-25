@@ -1,6 +1,6 @@
 {
-  "__plugin-vue2_normalizer-0Mbq2nVt.js": {
-    "file": "assets/_plugin-vue2_normalizer-0Mbq2nVt.js",
+  "__plugin-vue2_normalizer-DA92qRM-.js": {
+    "file": "assets/_plugin-vue2_normalizer-DA92qRM-.js",
     "name": "_plugin-vue2_normalizer"
   },
   "resources/css/app.css": {
@@ -40,15 +40,15 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-CXN6q_V5.js",
+    "file": "assets/app-BGzoztoe.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
     "imports": [
-      "__plugin-vue2_normalizer-0Mbq2nVt.js"
+      "__plugin-vue2_normalizer-DA92qRM-.js"
     ],
     "css": [
-      "assets/app-D9dS7amA.css"
+      "assets/app-ChSXFrKu.css"
     ]
   },
   "resources/js/apps.js": {
@@ -58,12 +58,21 @@
     "isEntry": true
   },
   "resources/js/register.js": {
-    "file": "assets/register-Dyi64RdR.js",
+    "file": "assets/register-8okss3za.js",
     "name": "register",
     "src": "resources/js/register.js",
     "isEntry": true,
     "imports": [
-      "__plugin-vue2_normalizer-0Mbq2nVt.js"
+      "__plugin-vue2_normalizer-DA92qRM-.js"
+    ]
+  },
+  "resources/js/verify-email.js": {
+    "file": "assets/verify-email-jILXBsyo.js",
+    "name": "verify-email",
+    "src": "resources/js/verify-email.js",
+    "isEntry": true,
+    "imports": [
+      "__plugin-vue2_normalizer-DA92qRM-.js"
     ]
   }
 }

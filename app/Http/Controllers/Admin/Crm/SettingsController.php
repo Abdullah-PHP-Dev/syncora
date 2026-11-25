@@ -118,11 +118,9 @@ class SettingsController extends Controller
     public function saveNotifications(Request $request)
     {
         $request->validate(['events' => ['required', 'array'], 'events.*.in_app' => ['boolean'], 'events.*.email' => ['boolean']]);
-        $mine = collect($request->input('events'))->only(\App\Services\Crm\CrmNotifier::EVENTS)
-            ->map(fn ($v) => ['in_app' => (bool) ($v['in_app'] ?? true), 'email' => (bool) ($v['email'] ?? false)])->all();
-        $all = CrmSettings::for($this->context->workspaceId())['notifications'] ?: [];
-        $all[$this->context->actorId()] = $mine;
-        CrmSettings::save($this->context->workspaceId(), ['notifications' => $all]);
+        // Stored with every other notification choice (notification_preferences), for this workspace.
+        $person = \App\Models\User::findOrFail($this->context->actorId());
+        \App\Services\Crm\CrmNotifier::savePreferences($this->context->workspaceId(), $person, (array) $request->input('events'));
 
         return $this->notifications();
     }

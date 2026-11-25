@@ -1,0 +1,72 @@
+/* Email verification screens (layouts/verification). Clean, centered, spacious. */
+:root { --ve-bg: #f0f2fc; --ve-ink: #14112b; --ve-muted: #5d6283; --ve-brand: #710aff; --ve-brand-2: #3a1cff; --ve-gradient: linear-gradient(135deg, #1749ff 0%, #710aff 100%); --ve-field: #f0f2fc; --ve-danger: #c0264f; --ve-success: #08855a; }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+.ve-body { min-height: 100vh; background: var(--ve-bg); color: var(--ve-ink); font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+[dir=rtl] .ve-body, .ve-body:lang(ar) { font-family: "Noto Sans Arabic", Inter, system-ui, sans-serif; }
+.ve-shell { min-height: 100vh; padding: 32px; display: flex; }
+.ve-card { flex: 1; display: flex; flex-direction: column; background: #fff; border-radius: 28px; padding: 40px 56px 56px; box-shadow: 0 10px 40px rgba(40, 30, 120, .05); }
+.ve-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.ve-logo img { display: block; height: 40px; width: auto; }
+.ve-header-links { display: flex; align-items: center; gap: 24px; }
+.ve-support { display: inline-flex; align-items: center; gap: 8px; color: var(--ve-ink); font-weight: 700; font-size: 16px; text-decoration: none; }
+.ve-support:hover span { text-decoration: underline; }
+.ve-lang { color: var(--ve-muted); font-size: 16px; text-decoration: none; }
+.ve-lang:hover { color: var(--ve-brand); }
+.ve-content { flex: 1; display: flex; align-items: center; justify-content: center; padding: 48px 0 16px; }
+.ve-panel { width: 100%; max-width: 560px; text-align: center; }
+.ve-badge { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 18px; padding: 5px 12px; border-radius: 999px; background: #eafbf3; color: var(--ve-success); font-size: 13px; font-weight: 600; }
+.ve-title { margin: 0 0 14px; font-size: clamp(26px, 4vw, 40px); line-height: 1.2; letter-spacing: -.02em; font-weight: 800; }
+.ve-lead { margin: 0; color: var(--ve-muted); font-size: 17px; line-height: 1.7; }
+.ve-lead strong { color: var(--ve-ink); font-weight: 700; overflow-wrap: anywhere; }
+.ve-form { margin-top: 44px; }
+.ve-otp { display: flex; justify-content: center; gap: 14px; direction: ltr; }
+.ve-otp input { width: 72px; height: 76px; padding: 0; border: 2px solid transparent; border-radius: 14px; background: var(--ve-field); color: var(--ve-ink); font: inherit; font-size: 30px; font-weight: 700; text-align: center; caret-color: var(--ve-brand); outline: none; transition: border-color .15s, background .15s, box-shadow .15s; -moz-appearance: textfield; }
+.ve-otp input:focus { border-color: #2f5bff; background: #fff; box-shadow: 0 0 0 4px rgba(47, 91, 255, .12); }
+.ve-otp input.is-filled { background: #fff; border-color: #dcd6ff; }
+.ve-otp.is-error input { border-color: var(--ve-danger); background: #fff5f8; animation: ve-shake .3s; }
+.ve-otp.is-success input { border-color: var(--ve-success); background: #effbf5; }
+.ve-otp input:disabled { opacity: .7; }
+@keyframes ve-shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.ve-message { min-height: 24px; margin: 18px 0 0; font-size: 14px; line-height: 1.6; }
+.ve-message.is-error { color: var(--ve-danger); }
+.ve-message.is-success { color: var(--ve-success); font-weight: 600; }
+.ve-message.is-info { color: var(--ve-muted); }
+.ve-button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-width: 240px; min-height: 52px; margin-top: 10px; padding: 0 28px; border: 0; border-radius: 14px; background: var(--ve-gradient); color: #fff !important; font: inherit; font-size: 15px; font-weight: 700; text-decoration: none; cursor: pointer; transition: box-shadow .15s, opacity .15s; }
+.ve-button:hover:not(:disabled) { box-shadow: 0 10px 24px rgba(54, 11, 255, .22); }
+.ve-button:disabled { opacity: .55; cursor: not-allowed; }
+.ve-button-light { background: #fff; color: var(--ve-ink) !important; border: 1px solid #dfe3f3; }
+.ve-spinner { width: 18px; height: 18px; border: 2px solid rgba(255, 255, 255, .45); border-top-color: #fff; border-radius: 50%; animation: ve-spin .7s linear infinite; }
+@keyframes ve-spin { to { transform: rotate(360deg); } }
+.ve-meta { margin: 22px 0 0; color: var(--ve-muted); font-size: 14px; line-height: 1.7; }
+.ve-resend { margin: 26px 0 0; color: var(--ve-muted); font-size: 16px; }
+.ve-link { padding: 0; border: 0; background: none; color: #1749ff; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
+.ve-link:hover:not(:disabled) { text-decoration: underline; }
+.ve-link:disabled { color: var(--ve-muted); cursor: default; font-weight: 500; }
+.ve-footer { margin-top: 34px; padding-top: 22px; border-top: 1px solid #edf0f8; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 6px 14px; color: var(--ve-muted); font-size: 14px; }
+.ve-footer form { display: inline; margin: 0; }
+.ve-change { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.ve-change input { flex: 1 1 240px; max-width: 320px; min-height: 46px; padding: 0 14px; border: 1px solid #dfe3f3; border-radius: 12px; background: #fafbff; font: inherit; font-size: 15px; direction: ltr; text-align: start; }
+.ve-change input:focus { outline: none; border-color: var(--ve-brand); box-shadow: 0 0 0 3px rgba(113, 10, 255, .1); background: #fff; }
+.ve-change .ve-button { min-width: 0; min-height: 46px; margin: 0; }
+.ve-icon { display: grid; place-items: center; width: 76px; height: 76px; margin: 0 auto 22px; border-radius: 24px; background: #f1e6ff; color: var(--ve-brand); }
+.ve-icon.is-success { background: #e6f8ef; color: var(--ve-success); }
+.ve-icon.is-warning { background: #fff4e5; color: #b46900; }
+.ve-actions { margin-top: 30px; display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
+.ve-body :is(a, button, input):focus-visible { outline: 3px solid #2f5bff; outline-offset: 3px; }
+.ve-otp input:focus-visible { outline: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@media (max-width: 720px) {
+    .ve-shell { padding: 0; }
+    .ve-card { border-radius: 0; padding: 20px 16px 32px; box-shadow: none; }
+    .ve-logo img { height: 32px; }
+    .ve-header-links { gap: 14px; }
+    .ve-support span { display: none; }
+    .ve-content { align-items: flex-start; padding-top: 40px; }
+    .ve-lead { font-size: 15px; }
+    .ve-form { margin-top: 32px; }
+    .ve-otp { gap: 8px; }
+    .ve-otp input { width: 100%; max-width: 52px; height: 58px; font-size: 24px; border-radius: 12px; }
+    .ve-button { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .ve-otp.is-error input, .ve-spinner { animation: none; } }
