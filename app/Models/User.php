@@ -179,13 +179,14 @@ class User extends Authenticatable implements MustVerifyEmail, HasLocalePreferen
 	public function sendEmailVerificationNotification(): void
 	{
 		// A six-digit code and a confirmation link, issued fresh for every email.
-		app(\App\Services\Auth\EmailVerification::class)->send($this);
+		// Sent after the signup response, so a slow mail server never delays (or times out) signup.
+		app(\App\Services\Auth\EmailVerification::class)->send($this, afterResponse: true);
 	}
 
 	/** SEC-03: branded, bilingual, immediate replacement for Laravel's default reset email. */
 	public function sendPasswordResetNotification($token): void
 	{
-		$this->sendAccountEmail(new \App\Notifications\Auth\BrandedResetPassword($token));
+		\App\Support\AfterResponse::run(fn () => $this->sendAccountEmail(new \App\Notifications\Auth\BrandedResetPassword($token)), 'password reset email');
 	}
 
 	/** Sent immediately (no queue). A mail-server error is logged, never shown as a crash to the person signing up. */

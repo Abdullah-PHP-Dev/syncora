@@ -41,15 +41,24 @@ class EmailVerification
 
     public const LOCKED = 'locked';
 
-    /** Issues fresh credentials and emails them now. Returns false when the mail server refused. */
-    public function send(User $user): bool
+    /**
+     * Issues fresh credentials and emails them. Returns false when the mail server refused.
+     * $afterResponse: send once the page has been returned (signup); the result is then unknown (true).
+     */
+    public function send(User $user, bool $afterResponse = false): bool
     {
         if ($user->hasVerifiedEmail()) {
             return true;
         }
         [$code, $token] = $this->issue($user);
+        $notification = new BrandedVerifyEmail($code, $token);
+        if ($afterResponse) {
+            \App\Support\AfterResponse::run(fn () => $user->sendAccountEmail($notification), 'verification email');
 
-        return $user->sendAccountEmail(new BrandedVerifyEmail($code, $token));
+            return true;
+        }
+
+        return $user->sendAccountEmail($notification);
     }
 
     /** @return array{0: string, 1: string} the plain code and link token, for this one email only */

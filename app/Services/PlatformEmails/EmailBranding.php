@@ -20,7 +20,7 @@ class EmailBranding
 
         return [
             'app_name' => 'Socialeaz',
-            'logo_url' => asset('assets/img/logo/socialeaz-logo-32.png'),
+            'logo_url' => asset('assets/img/logo/logo.png'),
             'sender_name' => $from['name'],
             'sender_email' => $from['address'],
             'reply_to' => $from['reply_to'],

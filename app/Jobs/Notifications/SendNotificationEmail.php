@@ -42,7 +42,8 @@ class SendNotificationEmail implements ShouldQueue, ShouldBeEncrypted
      */
     public static function sendNow(int $deliveryId, array $transient = []): void
     {
-        DB::afterCommit(function () use ($deliveryId, $transient) {
+        // After commit, and after the HTTP response: a slow mail server never delays the action.
+        DB::afterCommit(fn () => \App\Support\AfterResponse::run(function () use ($deliveryId, $transient) {
             $job = new self($deliveryId, $transient);
             try {
                 \App\Services\Notifications\Links::withPublicRoot(fn () => $job->handle(app(RecipientResolver::class)));
@@ -53,7 +54,7 @@ class SendNotificationEmail implements ShouldQueue, ShouldBeEncrypted
                 }
                 Log::warning('Notification email not sent.', ['delivery' => $deliveryId, 'attempts' => $attempts, 'error' => $e->getMessage()]);
             }
-        });
+        }, 'notification email'));
     }
 
     public function handle(RecipientResolver $resolver): void
