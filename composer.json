@@ -16,6 +16,7 @@
         "league/flysystem-aws-s3-v3": "^3.35",
         "mcamara/laravel-localization": "^2.4",
         "mews/purifier": "^3.4",
+        "resend/resend-php": "^1.19",
         "spatie/laravel-activitylog": "^4.12",
         "spatie/laravel-permission": "^6.25",
         "textalk/websocket": "^1.5"

@@ -29,3 +29,5 @@ Homestead.json
 .phpactor.json
 auth.json
 /xchat-worker/node_modules
+
+/bootstrap/cache/config.php
