@@ -1183,11 +1183,11 @@ onMounted(async () => {
 .xb-posts { display: grid; gap: 8px; margin-top: 8px; max-height: 420px; overflow: auto; }
 .xb-post { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: #fff; text-align: start; transition: border-color .15s ease, background .15s ease; }
 .xb-post:hover { border-color: #b9c5cf; }
-.xb-post.on { border-color: var(--brand-2); background: var(--brand-soft); }
+.xb-post.on { border-color: #004cff; background: var(--brand-soft); }
 .xb-post img { width: 54px; height: 54px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
 .xb-post-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; font-size: .84rem; color: var(--text); }
 .xb-post-body small { color: var(--muted, #6b7280); font-size: .72rem; }
-.xb-post > .bx { font-size: 20px; color: var(--brand-2); flex-shrink: 0; }
+.xb-post > .bx { font-size: 20px; color: #004cff; flex-shrink: 0; }
 .xb-tweet { display: flex; gap: 10px; padding: 12px; border: 1px solid #eff3f4; border-radius: 16px; background: #fff; color: #0f1419; }
 .xb-av { flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: #0f1419; color: #fff; }
 .xb-av svg { width: 18px; height: 18px; }
@@ -1206,7 +1206,7 @@ onMounted(async () => {
 .xb-ad-label { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; font-size: .72rem; color: #536471; }
 .xb-sum { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; font-size: .82rem; color: var(--text); }
 .xb-sum li { display: flex; gap: 7px; align-items: flex-start; line-height: 1.35; }
-.xb-sum li i { color: var(--brand-2); font-size: 15px; margin-top: 1px; }
+.xb-sum li i { color: #004cff; font-size: 15px; margin-top: 1px; }
 .xb-estimate { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
 .xb-est-v { margin: 8px 0 0; font-size: 1.1rem; font-weight: 800; color: var(--ink); text-align: center; }
 .xb-est-v small { font-size: .75rem; font-weight: 500; color: #536471; }

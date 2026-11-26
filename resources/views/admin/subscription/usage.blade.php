@@ -42,7 +42,7 @@
 
 @push('styles')
 <style>
-    .us { --purple: var(--theme-purple, #720aff); --grad: var(--theme-gradient, linear-gradient(110deg, #004cff, #710bff)); --soft: var(--theme-soft, #f1eaff);
+    .us { --purple: var(--theme-purple, #004cff); --grad: var(--theme-gradient, linear-gradient(110deg, #004cff, #710bff)); --soft: var(--theme-soft, #f1eaff);
           --ink: var(--theme-ink, #09072d); --muted: var(--theme-muted, #626498); --line: var(--theme-border, #edf0fa);
           --ok: #15803D; --warn: #B45309; --bad: #B91C1C; max-width: 860px; margin: 0 auto; padding: 8px 0 40px; color: var(--ink); }
     .us *, .us *::before, .us *::after { box-sizing: border-box; }

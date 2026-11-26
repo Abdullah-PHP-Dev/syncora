@@ -263,12 +263,12 @@
             .ov-ws-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border: 0; border-radius: 10px; background: none; color: var(--theme-ink, #09072d); font: inherit; font-size: 13.5px; text-align: start; text-decoration: none; cursor: pointer; }
             .ov-ws-item:hover { background: var(--theme-soft, #f1eaff); color: var(--theme-ink, #09072d); }
             .ov-ws-item.is-current { background: #F7F5FF; cursor: default; font-weight: 600; }
-            .ov-ws-item > i { color: var(--theme-purple, #720aff); font-size: 18px; }
+            .ov-ws-item > i { color: var(--theme-purple, #004cff); font-size: 18px; }
             .ov-ws-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
             .ov-ws-foot { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--theme-border, #edf0fa); }
             .ov-ws-icon { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; background: #F5F6FB; color: var(--theme-muted, #626498); font-size: 16px; }
-            .ov-ws-foot .ov-ws-item.is-new { color: var(--theme-purple, #720aff); font-weight: 600; }
-            .ov-ws-foot .ov-ws-item.is-new .ov-ws-icon { background: var(--theme-soft, #f1eaff); color: var(--theme-purple, #720aff); }
+            .ov-ws-foot .ov-ws-item.is-new { color: var(--theme-purple, #004cff); font-weight: 600; }
+            .ov-ws-foot .ov-ws-item.is-new .ov-ws-icon { background: var(--theme-soft, #f1eaff); color: var(--theme-purple, #004cff); }
             .layout-menu-collapsed:not(.layout-menu-hover) .ov-ws-text, .layout-menu-collapsed:not(.layout-menu-hover) .ov-ws-switch > i { display: none; }
             .layout-menu-collapsed:not(.layout-menu-hover) .ov-ws-menu { inset-inline-end: auto; width: 260px; }
         </style>

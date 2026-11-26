@@ -184,7 +184,7 @@
 .pricing-plan-blue{--package-color:#3973c3;--package-soft:#edf4ff}
 .pricing-plan-violet{--package-color:#8057c9;--package-soft:#f3edff}
 .pricing-plan-amber{--package-color:#aa7833;--package-soft:#fcf4e6}
-.pricing-plan-featured{border-color:var(--theme-purple);background:linear-gradient(180deg,#faf7ff,#fff 42%);box-shadow:0 8px 24px #720aff0a}
+.pricing-plan-featured{border-color:var(--theme-purple);background:linear-gradient(180deg,#faf7ff,#fff 42%);box-shadow:0 8px 24px #004cff0a}
 .pricing-plan-header{display:grid;grid-template-columns:40px minmax(0,1fr);align-content:start;align-items:center;gap:16px 12px;min-height:0}
 .pricing-plan-icon,.pricing-plan-featured .pricing-plan-icon{width:40px;height:40px;border-radius:12px;margin:0;background:var(--package-soft);color:var(--package-color)}
 .pricing-plan-icon svg{width:22px;height:22px}

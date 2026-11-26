@@ -1079,7 +1079,7 @@
     display: inline-flex; align-items: center; gap: .4rem; height: 36px; padding: 0 1rem; border-radius: 10px;
     font-size: .8rem; font-weight: 600; text-decoration: none; border: none;
 }
-.cvm-btn-primary { background: linear-gradient(135deg, #6d4aff, #8f6bff); color: #fff; box-shadow: 0 4px 12px rgba(109,74,255,.3); }
+.cvm-btn-primary { background: linear-gradient(135deg, #6d4aff, #004cff); color: #fff; box-shadow: 0 4px 12px rgba(109,74,255,.3); }
 .cvm-btn-primary:hover { color: #fff; opacity: .93; }
 
 .cvm-body { padding: 0; }
@@ -1163,7 +1163,7 @@
 .cvm-link:hover { text-decoration: underline; }
 .cvm-avatar {
     position: relative; width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; overflow: hidden;
-    display: grid; place-items: center; background: linear-gradient(135deg, #8f6bff, #6d4aff); color: #fff; font-size: .78rem; font-weight: 700;
+    display: grid; place-items: center; background: linear-gradient(135deg, #004cff, #6d4aff); color: #fff; font-size: .78rem; font-weight: 700;
 }
 .cvm-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .cvm-avatar-lg { width: 44px; height: 44px; font-size: 1rem; }
@@ -1179,7 +1179,7 @@
 .cvm-composer-row { display: flex; align-items: center; gap: .5rem; border: 1px solid #e7e9f0; border-radius: 14px; padding: 4px 4px 4px .9rem; background: #fff; transition: border-color .15s, box-shadow .15s; }
 .cvm-composer-row:focus-within { border-color: #6d4aff; box-shadow: 0 0 0 3px rgba(109,74,255,.12); }
 .cvm-input { flex: 1; border: none; outline: none; font-size: .84rem; color: #161b2b; background: transparent; min-width: 0; }
-.cvm-send { width: 38px; height: 38px; border: none; border-radius: 10px; background: linear-gradient(135deg, #6d4aff, #8f6bff); color: #fff; display: grid; place-items: center; font-size: 1rem; flex-shrink: 0; }
+.cvm-send { width: 38px; height: 38px; border: none; border-radius: 10px; background: linear-gradient(135deg, #6d4aff, #004cff); color: #fff; display: grid; place-items: center; font-size: 1rem; flex-shrink: 0; }
 .cvm-send:disabled { opacity: .6; }
 [dir="rtl"] .cvm-bubble { border-radius: 14px 4px 14px 14px; }
 [dir="rtl"] .cvm-replies { padding-left: 0; padding-right: .75rem; }
@@ -1270,7 +1270,7 @@
    Premium pass - scoped to this page (.pd) so the shared
    dash-styles used by other dashboards are unchanged.
 ========================================================= */
-.socialeaz-dash.pd { --pd-ln: #e7e9f0; --pd-ln-soft: #f1f3f7; --pd-ink: #161b2b; --pd-brand: #6d4aff; --pd-brand-2: #8f6bff; }
+.socialeaz-dash.pd { --pd-ln: #e7e9f0; --pd-ln-soft: #f1f3f7; --pd-ink: #161b2b; --pd-brand: #6d4aff; --pd-brand-2: #004cff; }
 /* Never wider than the content column (a flex child would otherwise grow to its widest row on phones). */
 .socialeaz-dash.pd { min-width: 0; max-width: 100%; }
 .pd .dash-title { font-size: 1.45rem; letter-spacing: -.01em; color: var(--pd-ink); }

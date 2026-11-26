@@ -77,8 +77,8 @@
     .chn-head::before { content: ''; position: absolute; inset: 0 0 auto auto; width: 520px; height: 260px; background: radial-gradient(closest-side, rgba(0, 76, 255, .12), transparent), radial-gradient(closest-side at 80% 30%, rgba(82, 53, 255, .10), transparent); pointer-events: none; }
     .chn-head-top { position: relative; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
     .chn-head-title { display: flex; gap: 16px; align-items: flex-start; }
-    .chn-head-icon { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; font-size: 26px; color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-2)); box-shadow: 0 8px 20px rgba(0, 76, 255, .28); flex-shrink: 0; }
-    .chn-eyebrow { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--brand); margin-bottom: 4px; }
+    .chn-head-icon { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; font-size: 26px; color: #fff; background: linear-gradient(135deg, #004cff, #004cff); box-shadow: 0 8px 20px rgba(0, 76, 255, .28); flex-shrink: 0; }
+    .chn-eyebrow { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #004cff; margin-bottom: 4px; }
     .chn-head h4 { color: var(--ink); font-weight: 700; font-size: 1.45rem; margin: 0 0 6px; letter-spacing: -.01em; }
     .chn-head p { margin: 0; max-width: 560px; font-size: .9rem; line-height: 1.55; }
     .chn-head-actions { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -112,7 +112,7 @@
     .chn-search { position: relative; }
     .chn-search i { position: absolute; inset-inline-start: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 1.05rem; pointer-events: none; }
     .chn-search input { height: 38px; width: 240px; max-width: 100%; border: 1px solid var(--ln); border-radius: 10px; padding-block: 0; padding-inline: 36px 12px; font-size: .85rem; color: var(--ink); background: #fff; outline: none; transition: border-color .15s, box-shadow .15s; }
-    .chn-search input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0, 76, 255, .12); }
+    .chn-search input:focus { border-color: #004cff; box-shadow: 0 0 0 3px rgba(0, 76, 255, .12); }
 
     /* ---------- Connected accounts ---------- */
     .chn-card { background: #fff; border: 1px solid var(--ln); border-radius: var(--radius); box-shadow: 0 1px 2px rgba(16, 24, 40, .04); margin-bottom: 32px; overflow: hidden; }
@@ -135,7 +135,7 @@
     .chn-row-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     .chn-row-actions form { margin: 0; }
     .chn-empty { text-align: center; padding: 48px 24px; }
-    .chn-empty-icon { width: 64px; height: 64px; margin: 0 auto 14px; border-radius: 18px; display: grid; place-items: center; font-size: 30px; color: var(--brand); background: var(--brand-soft); }
+    .chn-empty-icon { width: 64px; height: 64px; margin: 0 auto 14px; border-radius: 18px; display: grid; place-items: center; font-size: 30px; color: #004cff; background: var(--brand-soft); }
     .chn-empty h6 { color: var(--ink); font-weight: 700; margin-bottom: 4px; }
     .chn-no-match { display: none; padding: 28px; text-align: center; font-size: .85rem; color: var(--muted); }
 
@@ -157,14 +157,14 @@
     .chn-setup { display: inline-flex; align-items: center; gap: 4px; font-size: .7rem; font-weight: 600; color: var(--muted); }
     .chn-setup i { font-size: .85rem; }
     .chn-platform p { font-size: .82rem; line-height: 1.55; margin: 0 0 16px; flex: 1; }
-    .chn-platform p a { color: var(--brand); text-decoration: none; font-weight: 500; }
+    .chn-platform p a { color: #004cff; text-decoration: none; font-weight: 500; }
     .chn-platform p a:hover { text-decoration: underline; }
     .chn-platform-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .chn-connected { display: inline-flex; align-items: center; gap: 4px; font-size: .74rem; font-weight: 600; color: var(--ok); }
     .chn-connect { background: #fff; border: 1px solid var(--ln); color: var(--ink); }
     .chn-platform:hover .chn-connect { background: var(--pc); border-color: var(--pc); color: #fff; }
     .chn-extra { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--ln); font-size: .76rem; }
-    .chn-extra a { font-weight: 600; color: var(--brand); text-decoration: none; }
+    .chn-extra a { font-weight: 600; color: #004cff; text-decoration: none; }
     .chn-extra span { display: block; color: var(--muted); margin-top: 2px; }
 
     .chn-alert { display: flex; align-items: center; gap: 10px; border-radius: 12px; padding: 12px 16px; font-size: .86rem; font-weight: 500; margin-bottom: 20px; border: 1px solid; }

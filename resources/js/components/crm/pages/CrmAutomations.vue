@@ -63,7 +63,7 @@
 
             <div style="max-width:620px;margin-inline:auto">
                 <section class="crm-card mb-2" style="border-color:#c4b5fd">
-                    <div class="crm-small" style="color:var(--crm-purple);font-weight:800;letter-spacing:.06em">{{ crm.t('automations.trigger').toUpperCase() }}</div>
+                    <div class="crm-small" style="color:#004cff;font-weight:800;letter-spacing:.06em">{{ crm.t('automations.trigger').toUpperCase() }}</div>
                     <select v-model="draft.trigger" class="crm-select mt-2" :aria-label="crm.t('automations.trigger')">
                         <option v-for="t in schema.triggers" :key="t" :value="t">{{ crm.t('automations.trigger_' + t) }}</option>
                     </select>

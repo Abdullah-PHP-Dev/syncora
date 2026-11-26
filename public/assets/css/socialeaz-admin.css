@@ -88,7 +88,7 @@
 .admin-menu-toggle:hover {
     background: #f8f8fa;
     border-color: #d4d4d8;
-    color: #720aff;
+    color: #004cff;
 
     transform: translateY(-1px);
 }
@@ -212,7 +212,7 @@
 }
 
 .admin-search:hover > i {
-    color: #720aff;
+    color: #004cff;
 }
 
 .admin-search:focus-within {
@@ -228,13 +228,13 @@
 
 .admin-search:focus-within > i {
     background: #f1e6ff;
-    color: #720aff;
+    color: #004cff;
 }
 
 .admin-search:focus-within .admin-search-shortcut {
     border-color: #d9d9f5;
     background: #f8f6ff;
-    color: #720aff;
+    color: #004cff;
 }
 
 
@@ -313,7 +313,7 @@
     border-radius: 8px;
 
     background: #f1e6ff;
-    color: #720aff;
+    color: #004cff;
 
     font-size: 15px;
 }
@@ -342,7 +342,7 @@
 }
 
 .admin-subscription-status.is-free .admin-subscription-plan {
-    color: #720aff;
+    color: #004cff;
 }
 
 
@@ -382,7 +382,7 @@
 .admin-navbar-icon:hover {
     background: #f8f8fa;
     border-color: #d4d4d8;
-    color: #720aff;
+    color: #004cff;
 
     transform: translateY(-1px);
 }
@@ -432,7 +432,7 @@
 
 .admin-language-item:hover {
     background: #f5f3ff !important;
-    color: #720aff !important;
+    color: #004cff !important;
 }
 
 .admin-language-flag {
@@ -446,7 +446,7 @@
 .admin-language-check {
     margin-left: auto;
 
-    color: #720aff;
+    color: #004cff;
 
     font-size: 16px;
 }
@@ -472,7 +472,7 @@
     border: 2px solid #fff;
     border-radius: 50%;
 
-    background: #720aff;
+    background: #004cff;
 
     box-shadow:
             0 0 0 2px rgba(124,58,237,.12);
@@ -702,7 +702,7 @@
 
 .admin-dropdown-item:hover {
     background: #f5f3ff !important;
-    color: #720aff !important;
+    color: #004cff !important;
 }
 
 
@@ -735,7 +735,7 @@
 
 .admin-dropdown-item:hover .admin-dropdown-icon {
     background: #f1eaff;
-    color: #720aff;
+    color: #004cff;
 }
 
 
@@ -983,7 +983,7 @@
 
     background: #f4f1ff;
 
-    color: #720aff;
+    color: #004cff;
 
     font-size: 18px;
 }
@@ -1037,7 +1037,7 @@
 .premium-sidebar-collapse:hover {
     background: #f5f5f7;
 
-    color: #720aff;
+    color: #004cff;
 }
 
 
@@ -1118,7 +1118,7 @@
 
     background: #f0ecff;
 
-    color: #720aff;
+    color: #004cff;
 
     font-size: 17px;
 }
@@ -1308,7 +1308,7 @@
 .premium-menu-link:hover .premium-menu-icon {
     background: #f0ecff;
 
-    color: #720aff;
+    color: #004cff;
 
     transform: translateY(-1px);
 }
@@ -1355,12 +1355,12 @@
 
     border-radius: 0 4px 4px 0;
 
-    background: #720aff;
+    background: #004cff;
 }
 
 
 .premium-menu-item.active > .premium-menu-link .premium-menu-icon {
-    background: #720aff;
+    background: #004cff;
 
     color: #ffffff;
 
@@ -1389,7 +1389,7 @@
 
     background: #f0ecff;
 
-    color: #720aff;
+    color: #004cff;
 
     font-size: 9px;
     font-weight: 800;
@@ -1437,14 +1437,14 @@
 .premium-submenu .menu-link:hover {
     background: #fafafa !important;
 
-    color: #720aff !important;
+    color: #004cff !important;
 }
 
 
 .premium-submenu .menu-item.active > .menu-link {
     background: #fafafa !important;
 
-    color: #720aff !important;
+    color: #004cff !important;
 
     font-weight: 700;
 }
@@ -1460,7 +1460,7 @@
 
     border-radius: 50%;
 
-    background: #720aff;
+    background: #004cff;
 }
 
 
@@ -1478,7 +1478,7 @@
 
 
 .premium-menu-item.open > .premium-menu-link.menu-toggle::after {
-    color: #720aff !important;
+    color: #004cff !important;
 }
 
 
@@ -1569,7 +1569,7 @@
 
     background: #f4f1ff;
 
-    color: #720aff;
+    color: #004cff;
 
     font-size: 17px;
 }
@@ -1646,7 +1646,7 @@
 .premium-footer-links a:hover {
     background: #f5f5f7;
 
-    color: #720aff;
+    color: #004cff;
 }
 
 
@@ -2560,7 +2560,7 @@
 }
 
 .admin-sidebar-menu > .menu-item.active > .menu-link .menu-icon {
-    color: #720aff;
+    color: #004cff;
 }
 
 
@@ -2627,7 +2627,7 @@
 .admin-sidebar-menu .menu-sub .menu-item.active > .menu-link {
     background: transparent;
 
-    color: #720aff;
+    color: #004cff;
 
     font-weight: 600;
 }
@@ -2711,7 +2711,7 @@
 }
 
 .admin-nav-group.active > .admin-nav-chevron {
-    color: #720aff;
+    color: #004cff;
 }
 
 /* Height animation via grid rows: 0fr -> 1fr animates to the list's
@@ -2834,7 +2834,7 @@
 }
 
 .admin-nav-sub li.active > a i {
-    color: #720aff;
+    color: #004cff;
 }
 
 /* Dot on the guide line next to the current page. */
@@ -2853,7 +2853,7 @@
 
     border-radius: 50%;
 
-    background: #720aff;
+    background: #004cff;
 
     box-shadow: 0 0 0 3px #fff;
 }
@@ -2969,7 +2969,7 @@
 
     background: #f5f3ff;
 
-    color: #720aff;
+    color: #004cff;
 
     font-size: 16px;
 }
@@ -3263,7 +3263,7 @@
 }
 
 .admin-footer-link:hover {
-    color: #720aff;
+    color: #004cff;
 }
 
 

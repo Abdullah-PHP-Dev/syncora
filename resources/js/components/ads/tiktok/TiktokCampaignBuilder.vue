@@ -1186,8 +1186,8 @@ onMounted(async () => {
 .tt-post { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 0; border: 2px solid var(--line); border-radius: 12px; background: #fff; overflow: hidden; text-align: start; }
 .tt-post img, .tt-post .fb-media-ph { width: 100%; aspect-ratio: 9 / 16; object-fit: cover; }
 .tt-post small { padding: 0 6px 6px; font-size: .72rem; color: var(--text); line-height: 1.25; }
-.tt-post.on { border-color: var(--brand-2); }
-.tt-post > .bx { position: absolute; top: 6px; inset-inline-end: 6px; color: var(--brand-2); font-size: 22px; background: #fff; border-radius: 50%; }
+.tt-post.on { border-color: #004cff; }
+.tt-post > .bx { position: absolute; top: 6px; inset-inline-end: 6px; color: #004cff; font-size: 22px; background: #fff; border-radius: 50%; }
 .tt-details summary { cursor: pointer; font-weight: 600; color: var(--ink); }
 .tt-phone { margin: 4px auto 0; max-width: 260px; padding: 8px; border-radius: 30px; background: #0b0b0f; box-shadow: 0 12px 30px rgba(17, 24, 39, .25); }
 .tt-screen { position: relative; aspect-ratio: 9 / 16; border-radius: 22px; overflow: hidden; background: #1f2937; color: #fff; }

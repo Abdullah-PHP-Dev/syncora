@@ -4,16 +4,16 @@
 
 @push('styles')
 <style>
-    .cps { --ln: #e7e9f0; --ln-soft: #f1f3f7; --ink: #161b2b; --ink2: #545d70; --muted: #8a92a3; --brand: #6d4aff; --brand-2: #8f6bff; --brand-soft: #f2eeff; --ok: #079455; --ok-soft: #ecfdf3; --warn: #b54708; --warn-soft: #fffaeb; --danger: #d92d20; color: var(--ink2); }
+    .cps { --ln: #e7e9f0; --ln-soft: #f1f3f7; --ink: #161b2b; --ink2: #545d70; --muted: #8a92a3; --brand: #6d4aff; --brand-2: #004cff; --brand-soft: #f2eeff; --ok: #079455; --ok-soft: #ecfdf3; --warn: #b54708; --warn-soft: #fffaeb; --danger: #d92d20; color: var(--ink2); }
 
     /* Header */
     .cps-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
     .cps-head-title { display: flex; gap: 14px; align-items: flex-start; }
-    .cps-head-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-2)); box-shadow: 0 8px 18px rgba(109, 74, 255, .28); flex-shrink: 0; }
-    .cps-eyebrow { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--brand); margin-bottom: 2px; }
+    .cps-head-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; color: #fff; background: linear-gradient(135deg, #004cff, #004cff); box-shadow: 0 8px 18px rgba(109, 74, 255, .28); flex-shrink: 0; }
+    .cps-eyebrow { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #004cff; margin-bottom: 2px; }
     .cps-head h4 { color: var(--ink); font-weight: 700; font-size: 1.35rem; letter-spacing: -.01em; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .cps-head p { margin: 0; max-width: 620px; font-size: .87rem; line-height: 1.55; }
-    .cps-head p a { color: var(--brand); font-weight: 600; text-decoration: none; }
+    .cps-head p a { color: #004cff; font-weight: 600; text-decoration: none; }
     .cps-pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: .72rem; font-weight: 700; letter-spacing: 0; }
     .cps-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
     .cps-pill.is-off { background: var(--ln-soft); color: var(--muted); }
@@ -31,7 +31,7 @@
     .cps-toggle { display: flex; align-items: flex-start; gap: 16px; padding: 20px 22px; cursor: pointer; margin: 0; }
     .cps-toggle + .cps-toggle { border-top: 1px solid var(--ln-soft); }
     .cps-toggle-icon { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; font-size: 21px; flex-shrink: 0; background: var(--ln-soft); color: var(--ink2); transition: background .2s, color .2s; }
-    .cps-toggle.is-on .cps-toggle-icon { background: var(--brand-soft); color: var(--brand); }
+    .cps-toggle.is-on .cps-toggle-icon { background: var(--brand-soft); color: #004cff; }
     .cps-toggle-text { flex: 1; min-width: 0; }
     .cps-toggle-text strong { display: block; color: var(--ink); font-size: .92rem; margin-bottom: 3px; }
     .cps-toggle-text span { display: block; font-size: .82rem; line-height: 1.5; }
@@ -43,7 +43,7 @@
     .cps-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: inherit; }
     .cps-switch span { position: absolute; inset: 0; border-radius: 999px; background: #d0d5dd; transition: background .2s; pointer-events: none; }
     .cps-switch span::after { content: ''; position: absolute; top: 3px; inset-inline-start: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(16, 24, 40, .25); transition: transform .2s; }
-    .cps-switch input:checked + span { background: var(--brand); }
+    .cps-switch input:checked + span { background: #004cff; }
     .cps-switch input:checked + span::after { transform: translateX(20px); }
     [dir="rtl"] .cps-switch input:checked + span::after { transform: translateX(-20px); }
     .cps-switch input:focus-visible + span { box-shadow: 0 0 0 3px rgba(109, 74, 255, .25); }
@@ -59,18 +59,18 @@
     .cps-num input { width: 56px; height: 34px; border: none; text-align: center; font-weight: 700; color: var(--ink); font-size: .88rem; outline: none; -moz-appearance: textfield; }
     .cps-num input::-webkit-outer-spin-button, .cps-num input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     .cps-num span { padding: 0 10px; height: 34px; display: grid; place-items: center; background: var(--ln-soft); color: var(--muted); font-size: .8rem; font-weight: 600; }
-    .cps-num:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
-    .cps-range { width: 100%; accent-color: var(--brand); cursor: pointer; }
-    .cps-range.is-suggest { accent-color: #8f6bff; }
+    .cps-num:focus-within { border-color: #004cff; box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
+    .cps-range { width: 100%; accent-color: #004cff; cursor: pointer; }
+    .cps-range.is-suggest { accent-color: #004cff; }
 
     .cps-scale { margin-top: 6px; padding: 16px; border-radius: 12px; background: #fbfbfd; border: 1px solid var(--ln-soft); }
     .cps-scale-title { font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
     .cps-bar { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--ln-soft); }
     .cps-bar div { transition: width .2s; }
     .cps-bar .z-none { background: #d0d5dd; }
-    .cps-bar .z-suggest { background: #b9a6ff; }
-    .cps-bar .z-auto { background: linear-gradient(90deg, var(--brand), var(--brand-2)); }
-    .cps-bar .z-auto.is-off { background: #b9a6ff; }
+    .cps-bar .z-suggest { background: #004cff; }
+    .cps-bar .z-auto { background: linear-gradient(90deg, #004cff, #004cff); }
+    .cps-bar .z-auto.is-off { background: #004cff; }
     .cps-bar-ticks { display: flex; justify-content: space-between; font-size: .68rem; color: var(--muted); margin: 4px 0 12px; font-variant-numeric: tabular-nums; }
     .cps-legend { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
     .cps-legend div { font-size: .76rem; line-height: 1.45; }
@@ -92,7 +92,7 @@
     .cps-actions { display: flex; gap: 8px; }
     .cps-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 18px; border-radius: 10px; font-size: .85rem; font-weight: 600; border: 1px solid transparent; cursor: pointer; text-decoration: none; transition: box-shadow .15s, transform .15s, opacity .15s, background .15s; }
     .cps-btn i { font-size: 1.05rem; }
-    .cps-btn-brand { background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #fff; box-shadow: 0 4px 12px rgba(109, 74, 255, .25); }
+    .cps-btn-brand { background: linear-gradient(135deg, #004cff, #004cff); color: #fff; box-shadow: 0 4px 12px rgba(109, 74, 255, .25); }
     .cps-btn-brand:hover:not(:disabled) { color: #fff; transform: translateY(-1px); }
     .cps-btn-brand:disabled { opacity: .5; box-shadow: none; cursor: not-allowed; }
     .cps-btn-ghost { background: transparent; color: var(--ink2); }
@@ -105,12 +105,12 @@
     .cps-side h6 { color: var(--ink); font-weight: 700; font-size: .9rem; margin: 0 0 12px; }
     .cps-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
     .cps-steps li { display: flex; gap: 12px; font-size: .79rem; line-height: 1.45; color: var(--muted); }
-    .cps-steps li > span { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; font-size: .72rem; font-weight: 700; color: var(--brand); background: var(--brand-soft); }
+    .cps-steps li > span { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; font-size: .72rem; font-weight: 700; color: #004cff; background: var(--brand-soft); }
     .cps-steps strong { display: block; color: var(--ink); font-size: .82rem; }
     .cps-source { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--ln); border-radius: 12px; text-decoration: none; transition: border-color .15s, background .15s; }
     .cps-source + .cps-source { margin-top: 8px; }
     .cps-source:hover { border-color: #d9d0ff; background: #fbfaff; }
-    .cps-source-icon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-size: 18px; background: var(--brand-soft); color: var(--brand); flex-shrink: 0; }
+    .cps-source-icon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-size: 18px; background: var(--brand-soft); color: #004cff; flex-shrink: 0; }
     .cps-source-text { flex: 1; min-width: 0; }
     .cps-source-text strong { display: block; color: var(--ink); font-size: .84rem; }
     .cps-source-text span { font-size: .75rem; color: var(--muted); }
@@ -185,7 +185,7 @@
                 <div class="cps-thresholds">
                     <div class="cps-threshold">
                         <div class="cps-threshold-top">
-                            <label for="confidence_threshold_auto"><span class="cps-swatch" style="background:var(--brand)"></span> Auto-reply threshold</label>
+                            <label for="confidence_threshold_auto"><span class="cps-swatch" style="background:#004cff"></span> Auto-reply threshold</label>
                             <div class="cps-num"><input type="number" id="confidence_threshold_auto" name="confidence_threshold_auto" min="0" max="100" value="{{ $settings->confidence_threshold_auto }}" required><span>%</span></div>
                         </div>
                         <p>A match at or above this is confident enough to send unattended.</p>
@@ -194,7 +194,7 @@
 
                     <div class="cps-threshold">
                         <div class="cps-threshold-top">
-                            <label for="confidence_threshold_suggested"><span class="cps-swatch" style="background:#b9a6ff"></span> Suggestion threshold</label>
+                            <label for="confidence_threshold_suggested"><span class="cps-swatch" style="background:#004cff"></span> Suggestion threshold</label>
                             <div class="cps-num"><input type="number" id="confidence_threshold_suggested" name="confidence_threshold_suggested" min="0" max="100" value="{{ $settings->confidence_threshold_suggested }}" required><span>%</span></div>
                         </div>
                         <p>Below this, nothing is suggested - the conversation stays in your inbox for you.</p>
@@ -207,8 +207,8 @@
                         <div class="cps-bar-ticks"><span>0%</span><span>50%</span><span>100%</span></div>
                         <div class="cps-legend">
                             <div><strong><span class="cps-swatch" style="background:#d0d5dd"></span> Left for you</strong><em id="cpsLegendNone"></em></div>
-                            <div><strong><span class="cps-swatch" style="background:#b9a6ff"></span> Suggested to you</strong><em id="cpsLegendSuggest"></em></div>
-                            <div><strong><span class="cps-swatch" style="background:var(--brand)"></span> <span id="cpsLegendAutoTitle">Sent automatically</span></strong><em id="cpsLegendAuto"></em></div>
+                            <div><strong><span class="cps-swatch" style="background:#004cff"></span> Suggested to you</strong><em id="cpsLegendSuggest"></em></div>
+                            <div><strong><span class="cps-swatch" style="background:#004cff"></span> <span id="cpsLegendAutoTitle">Sent automatically</span></strong><em id="cpsLegendAuto"></em></div>
                         </div>
                     </div>
 

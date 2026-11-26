@@ -280,10 +280,10 @@ async function updateTicket(changes) {
 </script>
 
 <style scoped>
-.tt { --ln: #e7e9f0; --ln-soft: #f1f3f7; --ink: #161b2b; --ink2: #545d70; --muted: #8a92a3; --brand: #6d4aff; --brand-2: #8f6bff; --brand-soft: #f2eeff; --note: #b54708; --note-bg: #fffaeb; --note-ln: #fedf89; --danger: #d92d20; color: var(--ink2); }
+.tt { --ln: #e7e9f0; --ln-soft: #f1f3f7; --ink: #161b2b; --ink2: #545d70; --muted: #8a92a3; --brand: #6d4aff; --brand-2: #004cff; --brand-soft: #f2eeff; --note: #b54708; --note-bg: #fffaeb; --note-ln: #fedf89; --danger: #d92d20; color: var(--ink2); }
 
 .tt-back { display: inline-flex; align-items: center; gap: 4px; font-size: .8rem; font-weight: 600; color: var(--muted); text-decoration: none; margin-bottom: 12px; }
-.tt-back:hover { color: var(--brand); }
+.tt-back:hover { color: #004cff; }
 [dir="rtl"] .tt-back i { transform: scaleX(-1); }
 
 /* Header */
@@ -335,7 +335,7 @@ async function updateTicket(changes) {
 .tt-avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; font-size: .72rem; font-weight: 700; position: relative; z-index: 1; box-shadow: 0 0 0 3px #fff; }
 .tt-avatar i { font-size: 1.05rem; }
 .tt-avatar.is-seller { background: #eef0f5; color: var(--ink2); }
-.tt-avatar.is-agent { background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #fff; }
+.tt-avatar.is-agent { background: linear-gradient(135deg, #004cff, #004cff); color: #fff; }
 .tt-avatar.is-note { background: var(--note-bg); color: var(--note); border: 1px solid var(--note-ln); }
 .tt-avatar { margin-bottom: 2px; }
 .tt-msg-body { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
@@ -349,7 +349,7 @@ async function updateTicket(changes) {
 .tt-role.is-note { background: var(--note-bg); color: var(--note); }
 .tt-time { color: var(--muted); font-size: .74rem; }
 .tt-bubble { width: fit-content; max-width: 100%; padding: 11px 15px; border-radius: 16px; border-end-start-radius: 5px; font-size: .88rem; line-height: 1.6; color: var(--ink); word-break: break-word; border: 1px solid var(--ln); background: #fff; box-shadow: 0 1px 2px rgba(16, 24, 40, .05); }
-.tt-msg.is-mine .tt-bubble { border-end-start-radius: 16px; border-end-end-radius: 5px; background: linear-gradient(135deg, var(--brand), var(--brand-2)); border-color: transparent; color: #fff; box-shadow: 0 4px 12px rgba(109, 74, 255, .2); }
+.tt-msg.is-mine .tt-bubble { border-end-start-radius: 16px; border-end-end-radius: 5px; background: linear-gradient(135deg, #004cff, #004cff); border-color: transparent; color: #fff; box-shadow: 0 4px 12px rgba(109, 74, 255, .2); }
 .tt-msg.is-note .tt-bubble, .tt-msg.is-mine.is-note .tt-bubble { background: var(--note-bg); border: 1px dashed var(--note-ln); color: var(--ink); box-shadow: none; }
 
 /* Composer */
@@ -359,7 +359,7 @@ async function updateTicket(changes) {
 .tt-composer-tabs button.is-active { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(16, 24, 40, .1); }
 .tt-composer-tabs button.is-note { color: var(--note); }
 .tt-composer-box { border: 1px solid var(--ln); border-radius: 12px; background: #fff; transition: border-color .15s, box-shadow .15s; }
-.tt-composer-box:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
+.tt-composer-box:focus-within { border-color: #004cff; box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
 .tt-composer-box.is-note { background: #fffdf5; border-color: var(--note-ln); }
 .tt-composer-box.is-note:focus-within { border-color: #f79009; box-shadow: 0 0 0 3px rgba(247, 144, 9, .14); }
 .tt-composer-box textarea { display: block; width: 100%; border: none; background: transparent; resize: vertical; min-height: 96px; padding: 12px 14px; font-size: .88rem; line-height: 1.55; color: var(--ink); outline: none; }
@@ -368,7 +368,7 @@ async function updateTicket(changes) {
 .tt-hint kbd { font-size: .66rem; padding: 1px 5px; border-radius: 4px; background: var(--ln-soft); color: var(--ink2); border: 1px solid var(--ln); box-shadow: none; }
 .tt-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 16px; border-radius: 10px; font-size: .84rem; font-weight: 600; border: none; cursor: pointer; transition: box-shadow .15s, transform .15s, opacity .15s; }
 .tt-btn i { font-size: 1.05rem; }
-.tt-btn-brand { background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #fff; box-shadow: 0 4px 12px rgba(109, 74, 255, .25); }
+.tt-btn-brand { background: linear-gradient(135deg, #004cff, #004cff); color: #fff; box-shadow: 0 4px 12px rgba(109, 74, 255, .25); }
 .tt-btn-brand.is-note { background: #f79009; box-shadow: 0 4px 12px rgba(247, 144, 9, .25); }
 .tt-btn-brand:hover:not(:disabled) { transform: translateY(-1px); }
 .tt-btn-brand:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
@@ -404,8 +404,8 @@ async function updateTicket(changes) {
 .tt-status-opt:disabled { cursor: wait; }
 .tt-select { width: 100%; height: 38px; border: 1px solid var(--ln); border-radius: 9px; padding-block: 0; line-height: 36px; padding-inline: 12px 30px; font-size: .84rem; font-weight: 500; color: var(--ink); background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a92a3' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 12px center / 10px 6px; appearance: none; cursor: pointer; }
 [dir="rtl"] .tt-select { background-position: left 12px center; }
-.tt-select:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); outline: none; }
-.tt-saving { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: .76rem; color: var(--brand); }
+.tt-select:focus { border-color: #004cff; box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); outline: none; }
+.tt-saving { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: .76rem; color: #004cff; }
 
 @media (max-width: 991.98px) {
   .tt-grid { grid-template-columns: 1fr; }

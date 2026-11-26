@@ -35,7 +35,7 @@
             <div class="feature-connection-ring feature-connection-ring-outer" aria-hidden="true"></div>
             <div class="feature-connection-ring feature-connection-ring-inner" aria-hidden="true"></div>
             <svg class="feature-connection-lines" viewBox="0 0 400 360" preserveAspectRatio="none" aria-hidden="true">
-                <defs><linearGradient id="connection-gradient"><stop stop-color="#00bfff"/><stop offset="1" stop-color="#720aff"/></linearGradient></defs>
+                <defs><linearGradient id="connection-gradient"><stop stop-color="#00bfff"/><stop offset="1" stop-color="#004cff"/></linearGradient></defs>
                 <path d="M200 180 C140 180 140 72 80 72 M200 180 V36 M200 180 C260 180 260 72 320 72 M200 180 H360 M200 180 C260 180 260 288 320 288 M200 180 V324 M200 180 C140 180 140 288 80 288 M200 180 H40"/>
                 <g><circle cx="136" cy="119" r="4"/><circle cx="200" cy="96" r="4"/><circle cx="264" cy="119" r="4"/><circle cx="300" cy="180" r="4"/><circle cx="264" cy="241" r="4"/><circle cx="200" cy="264" r="4"/><circle cx="136" cy="241" r="4"/><circle cx="100" cy="180" r="4"/></g>
             </svg>

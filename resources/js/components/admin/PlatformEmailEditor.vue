@@ -379,9 +379,9 @@ onMounted(() => {
 .pee-module { font-weight: 700; font-size: 13px; }
 .pee-langs { display: inline-flex; gap: 4px; flex-wrap: wrap; }
 .pee-lang { border: 1px solid #e5e6f0; background: #fff; border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 600; color: #626498; text-decoration: none; cursor: pointer; }
-.pee-lang.active { background: #f3eeff; color: #720aff; border-color: transparent; }
+.pee-lang.active { background: #f3eeff; color: #004cff; border-color: transparent; }
 .pee-switch { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; margin: 0; }
-.pee-switch input { width: 36px; height: 20px; accent-color: #720aff; }
+.pee-switch input { width: 36px; height: 20px; accent-color: #004cff; }
 .pee-grid { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 18px; align-items: start; }
 .pee-main > section, .pee-side > section { margin-bottom: 14px; }
 .pee-side { position: sticky; top: 84px; }
@@ -395,7 +395,7 @@ onMounted(() => {
 .pee-block { border: 1px solid #eef0f5; border-radius: 12px; padding: 10px 12px 12px; margin-bottom: 10px; background: #fcfcff; }
 .pee-block-head { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 700; color: #626498; margin-bottom: 8px; }
 .pee-block-tools button, .pee-x { border: 0; background: none; color: #8b8d9c; width: 28px; height: 28px; border-radius: 7px; cursor: pointer; }
-.pee-block-tools button:hover:not(:disabled), .pee-x:hover { background: #f3eeff; color: #720aff; }
+.pee-block-tools button:hover:not(:disabled), .pee-x:hover { background: #f3eeff; color: #004cff; }
 .pee-block-tools button:disabled { opacity: .35; cursor: default; }
 .pee-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .pee-row { grid-template-columns: 1fr 1fr 32px; margin-bottom: 6px; }
@@ -406,7 +406,7 @@ onMounted(() => {
 .pee-state { font-size: 12px; color: #8b8d9c; }
 .pee-var { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; width: 100%; text-align: start; border: 1px solid #eef0f5; background: #fff; border-radius: 9px; padding: 7px 9px; margin-bottom: 6px; cursor: pointer; }
 .pee-var:hover { border-color: #c9b8ff; background: #faf8ff; }
-.pee-var code { font-size: 11.5px; color: #720aff; direction: ltr; }
+.pee-var code { font-size: 11.5px; color: #004cff; direction: ltr; }
 .pee-var span { font-size: 12px; color: #3a4152; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pee-var small { grid-column: 1 / -1; font-size: 11px; color: #8b8d9c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pee-envelope { font-size: 12px; line-height: 1.7; padding: 10px 12px; background: #f8f9fc; border-radius: 10px; margin-bottom: 10px; overflow-wrap: anywhere; }

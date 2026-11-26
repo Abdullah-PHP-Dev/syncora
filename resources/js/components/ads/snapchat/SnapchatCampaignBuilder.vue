@@ -1337,7 +1337,7 @@ onMounted(async () => {
 .sb-dest strong { font-size: .86rem; color: var(--ink); }
 .sb-dest small { font-size: .74rem; color: var(--muted, #6b7280); line-height: 1.3; }
 .sb-dest:hover:not(:disabled) { border-color: #c9ced8; }
-.sb-dest.on { border-color: var(--brand-2); background: var(--brand-soft); box-shadow: 0 0 0 3px rgba(0, 76, 255, .12); }
+.sb-dest.on { border-color: #004cff; background: var(--brand-soft); box-shadow: 0 0 0 3px rgba(0, 76, 255, .12); }
 .sb-dest:disabled { opacity: .45; cursor: not-allowed; }
 .sb-details summary { cursor: pointer; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 6px; }
 .sb-pos { align-items: flex-start; }
@@ -1353,7 +1353,7 @@ onMounted(async () => {
 .sb-dp-h { font-size: .64rem; color: var(--muted, #6b7280); }
 .sb-dp-day { border: 0; background: transparent; text-align: start; font-size: .76rem; font-weight: 600; color: var(--ink); padding: 0; }
 .sb-dp-cell { height: 18px; border: 0; border-radius: 3px; background: #eef0f4; padding: 0; }
-.sb-dp-cell.on { background: var(--brand-2); }
+.sb-dp-cell.on { background: #004cff; }
 .sb-dp-cell:hover { outline: 1px solid #b9c0cc; }
 .sb-dp-actions { display: flex; gap: 14px; margin-top: 8px; }
 .sb-bid-est { display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; padding-bottom: 2px; }
@@ -1395,7 +1395,7 @@ onMounted(async () => {
 .sb-phone-cta small { font-size: .66rem; opacity: .85; }
 .sb-sum { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; font-size: .82rem; color: var(--text); }
 .sb-sum li { display: flex; gap: 7px; align-items: flex-start; line-height: 1.35; }
-.sb-sum li i { color: var(--brand-2); font-size: 15px; margin-top: 1px; }
+.sb-sum li i { color: #004cff; font-size: 15px; margin-top: 1px; }
 .sb-estimate { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
 .sb-est-v { margin: 8px 0 0; font-size: 1.1rem; font-weight: 800; color: var(--ink); text-align: center; }
 .sb-est-v small { font-size: .75rem; font-weight: 500; color: #6b7280; }

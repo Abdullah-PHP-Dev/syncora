@@ -40,10 +40,10 @@
 
 /* buttons, pills, menus */
 .adc-btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; height: 38px; padding: 0 .95rem; border-radius: 10px; border: 1px solid transparent; font-size: .84rem; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap; transition: background .15s, border-color .15s, color .15s; }
-.adc-btn.primary { background: var(--brand) linear-gradient(105deg, #004CFF, #5235FF); color: #fff; box-shadow: 0 6px 16px rgba(0, 76, 255, .2); }
+.adc-btn.primary { background: #004cff linear-gradient(105deg, #004CFF, #5235FF); color: #fff; box-shadow: 0 6px 16px rgba(0, 76, 255, .2); }
 .adc-btn.primary:hover { background: #0043E0 linear-gradient(105deg, #0043E0, #4429F0); color: #fff; }
 .adc-btn.ghost { background: #fff; border-color: var(--line); color: var(--ink); }
-.adc-btn.ghost:hover:not(:disabled) { border-color: #B9CCFF; color: var(--brand); }
+.adc-btn.ghost:hover:not(:disabled) { border-color: #B9CCFF; color: #004cff; }
 .adc-btn.light { background: #fff; color: #4C1D95; }
 .adc-btn.light-ghost { background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .25); color: #fff; }
 .adc-btn.danger { background: #DC2626; color: #fff; }
@@ -51,7 +51,7 @@
 .adc-btn.sm { height: 32px; padding: 0 .7rem; font-size: .78rem; }
 .adc-btn.block { width: 100%; margin-top: .9rem; }
 .adc-btn:disabled { opacity: .55; cursor: not-allowed; }
-.adc-link { display: inline-flex; align-items: center; gap: 2px; border: 0; background: none; padding: 0; color: var(--brand); font-weight: 600; font-size: .8rem; cursor: pointer; text-decoration: none; }
+.adc-link { display: inline-flex; align-items: center; gap: 2px; border: 0; background: none; padding: 0; color: #004cff; font-weight: 600; font-size: .8rem; cursor: pointer; text-decoration: none; }
 .adc-pill, .adc-badge { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 999px; font-size: .72rem; font-weight: 600; white-space: nowrap; }
 .adc-pill .d, .adc-badge .d { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .adc-pill.ok, .adc-badge.ok { background: #E7F7EE; color: #15803D; }
@@ -64,7 +64,7 @@
 .adc-menu.end { inset-inline-start: auto; inset-inline-end: 0; }
 .adc-menu.wide { min-width: 300px; }
 .adc-menu > a, .adc-menu > button { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border: 0; background: none; border-radius: 8px; color: var(--text); font-size: .82rem; font-weight: 500; text-decoration: none; text-align: start; cursor: pointer; }
-.adc-menu > a:hover, .adc-menu > button:hover { background: var(--brand-soft); color: var(--brand); }
+.adc-menu > a:hover, .adc-menu > button:hover { background: var(--brand-soft); color: #004cff; }
 .adc-menu > .danger { color: #DC2626; }
 .adc-menu .muted { padding: 8px 10px; font-size: .78rem; color: var(--muted); }
 .adc-menu.form { padding: 12px; gap: 10px; min-width: 230px; }
@@ -76,7 +76,7 @@
 .adc-menu-acct .txt { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .adc-menu-acct bdi { font-weight: 600; color: var(--ink); font-size: .84rem; }
 .adc-menu-acct small { font-size: .72rem; color: var(--muted); }
-.adc-menu-foot { margin-top: 4px; border-top: 1px solid var(--line-soft); color: var(--brand) !important; font-weight: 600 !important; }
+.adc-menu-foot { margin-top: 4px; border-top: 1px solid var(--line-soft); color: #004cff !important; font-weight: 600 !important; }
 .adc-av { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: var(--pf-soft); color: var(--pf-ink); font-size: .76rem; font-weight: 700; }
 .adc-note { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 12px; background: #F5F8FF; border: 1px solid #DCE5FB; font-size: .8rem; }
 .adc-note > div { flex: 1; }
@@ -257,13 +257,13 @@
 .adc-count { min-width: 22px; height: 20px; padding: 0 7px; border-radius: 999px; display: inline-grid; place-items: center; background: var(--pf-soft); color: var(--pf-ink); font-size: .72rem; font-weight: 700; }
 .adc-chips { display: inline-flex; gap: 2px; padding: 3px; border-radius: 9px; background: #F1F3F7; }
 .adc-chips button { height: 28px; padding: 0 .65rem; border: 0; border-radius: 7px; background: none; color: var(--text); font-size: .8rem; font-weight: 600; cursor: pointer; }
-.adc-chips button.on { background: #fff; color: var(--brand); box-shadow: 0 1px 3px rgba(16, 24, 40, .1); }
+.adc-chips button.on { background: #fff; color: #004cff; box-shadow: 0 1px 3px rgba(16, 24, 40, .1); }
 .adc-tools { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
 .adc-search { position: relative; display: inline-flex; }
 .adc-search .bx { position: absolute; inset-inline-start: .65rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
 .adc-search input { height: 36px; width: 210px; border: 1px solid var(--line); border-radius: 10px; padding-inline: 2rem .75rem; font-size: .82rem; color: var(--ink); background: #fff; }
 .adc-search input:focus { outline: none; border-color: var(--brand-line); box-shadow: 0 0 0 3px var(--brand-soft); }
-.adc-dotn { min-width: 18px; height: 18px; border-radius: 999px; background: var(--brand); color: #fff; font-size: .68rem; display: inline-grid; place-items: center; }
+.adc-dotn { min-width: 18px; height: 18px; border-radius: 999px; background: #004cff; color: #fff; font-size: .68rem; display: inline-grid; place-items: center; }
 .adc-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin: 0 1.2rem .9rem; padding: .5rem .8rem; border-radius: 10px; background: var(--brand-soft); font-size: .82rem; }
 .adc-table-wrap { overflow-x: auto; }
 .adc-table { width: 100%; border-collapse: collapse; font-size: .82rem; min-width: 1100px; }
@@ -274,7 +274,7 @@
 .adc-table tbody tr:hover td, .adc-table tbody tr.sel td { background: var(--pf-hover); }
 .adc-table .num { text-align: end; }
 .adc-table .cb { width: 1%; }
-.adc-table input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--brand); }
+.adc-table input[type="checkbox"] { width: 16px; height: 16px; accent-color: #004cff; }
 .adc-c-cell { display: flex; align-items: center; gap: .6rem; min-width: 0; }
 .adc-c-ic { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: var(--pf-bg, var(--pf)); color: var(--pf-on, #fff); font-size: 1rem; flex-shrink: 0; }
 .adc-c-txt { display: flex; flex-direction: column; min-width: 0; }
@@ -294,8 +294,8 @@
 .adc-c-copy span { display: block; max-width: 260px; overflow: hidden; text-overflow: ellipsis; font-size: .76rem; color: var(--muted); }
 .adc-c-actions { display: inline-flex; gap: .3rem; }
 .adc-c-act { min-width: 30px; height: 30px; padding: 0 .4rem; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--text); display: inline-grid; place-items: center; font-size: 1rem; text-decoration: none; cursor: pointer; }
-.adc-c-act:hover:not(:disabled) { border-color: #B9CCFF; color: var(--brand); }
-.adc-c-act.on { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; font-size: .8rem; }
+.adc-c-act:hover:not(:disabled) { border-color: #B9CCFF; color: #004cff; }
+.adc-c-act.on { background: #004cff; border-color: #004cff; color: #fff; font-weight: 600; font-size: .8rem; }
 .adc-c-act.danger:hover:not(:disabled) { border-color: #FECACA; color: #DC2626; }
 .adc-table.narrow { min-width: 760px; }
 .adc-c-act:disabled { opacity: .45; cursor: not-allowed; }
@@ -351,7 +351,7 @@
 .adc-form .full { grid-column: 1 / -1; }
 .adc-form input, .adc-form select { height: 38px; border: 1px solid var(--line); border-radius: 9px; padding: 0 .65rem; font: inherit; font-weight: 500; font-size: .84rem; color: var(--ink); background: #fff; }
 .adc-form-note { display: flex; gap: .45rem; align-items: flex-start; padding: .55rem .7rem; border-radius: 10px; background: var(--wash); font-size: .8rem; }
-.adc-form-note .bx { color: var(--brand); margin-top: 2px; }
+.adc-form-note .bx { color: #004cff; margin-top: 2px; }
 
 .adc[dir="rtl"] .bx-chevron-left, .adc[dir="rtl"] .bx-chevron-right { transform: scaleX(-1); }
 .adc .bx-spin { animation: adc-spin 1s linear infinite; }

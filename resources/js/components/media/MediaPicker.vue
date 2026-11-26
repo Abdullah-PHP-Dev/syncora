@@ -232,7 +232,7 @@ defineExpose({ open });
 .mp-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .7rem; padding: .8rem 1.4rem 0; }
 .mp-tabs { display: inline-flex; gap: .3rem; padding: .22rem; background: #f4f5f9; border-radius: 11px; }
 .mp-tabs button { border: 0; background: transparent; height: 34px; min-width: 70px; padding: 0 .9rem; border-radius: 8px; font-size: .84rem; font-weight: 600; color: var(--ink2); cursor: pointer; }
-.mp-tabs button.on { background: var(--brand); color: #fff; }
+.mp-tabs button.on { background: #004cff; color: #fff; }
 .mp-search { position: relative; }
 .mp-search i { position: absolute; left: .75rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
 .mp-search .form-control { width: 260px; height: 38px; padding-left: 2.2rem; border-radius: 10px; border-color: var(--ln); font-size: .85rem; }
@@ -241,7 +241,7 @@ defineExpose({ open });
 .mp-grid.busy { opacity: .55; pointer-events: none; }
 .mp-item { display: flex; flex-direction: column; text-align: left; gap: .2rem; padding: .45rem; border: 2px solid var(--ln); border-radius: 12px; background: #fff; cursor: pointer; min-width: 0; transition: border-color .12s, box-shadow .12s; }
 .mp-item:hover { border-color: #cfc4ff; }
-.mp-item.sel { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0, 76, 255, .15); }
+.mp-item.sel { border-color: #004cff; box-shadow: 0 0 0 3px rgba(0, 76, 255, .15); }
 .mp-item.dis { opacity: .45; cursor: not-allowed; }
 .mp-thumb { position: relative; display: block; aspect-ratio: 4 / 3; border-radius: 8px; overflow: hidden; background: #0f1016; }
 .mp-thumb img, .mp-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -249,7 +249,7 @@ defineExpose({ open });
 .mp-dur { position: absolute; right: .35rem; bottom: .35rem; background: rgba(0, 0, 0, .7); color: #fff; font-size: .66rem; padding: .05rem .35rem; border-radius: 5px; }
 .mp-check { position: absolute; top: .35rem; right: .35rem; width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; background: rgba(0, 0, 0, .3); color: transparent; display: inline-flex; align-items: center; justify-content: center; font-size: 1rem; }
 .mp-check b { font-size: .72rem; color: #fff; }
-.mp-item.sel .mp-check { background: var(--brand); color: #fff; }
+.mp-item.sel .mp-check { background: #004cff; color: #fff; }
 .mp-name { font-size: .8rem; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: .3rem; }
 .mp-info { font-size: .7rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mp-compat { display: flex; flex-wrap: wrap; gap: .2rem; margin-top: .2rem; }
@@ -261,10 +261,10 @@ defineExpose({ open });
 .mp-empty strong { display: block; color: var(--ink); margin-bottom: .2rem; }
 .mp-empty span { display: block; }
 .mp-error { display: flex; align-items: center; gap: .5rem; padding: .6rem .8rem; border-radius: 10px; background: #fef3f2; color: #b42318; border: 1px solid #fecdca; font-size: .82rem; margin-bottom: .8rem; }
-.mp-upload-row { display: flex; align-items: center; gap: .7rem; padding: .6rem .8rem; border-radius: 10px; background: var(--brand-soft); margin-bottom: .8rem; color: var(--brand); }
+.mp-upload-row { display: flex; align-items: center; gap: .7rem; padding: .6rem .8rem; border-radius: 10px; background: var(--brand-soft); margin-bottom: .8rem; color: #004cff; }
 .mp-upload-name { font-size: .8rem; color: var(--ink); }
 .mp-progress { height: 5px; background: #fff; border-radius: 5px; overflow: hidden; margin-top: .3rem; }
-.mp-progress span { display: block; height: 100%; background: var(--brand); transition: width .2s; }
+.mp-progress span { display: block; height: 100%; background: #004cff; transition: width .2s; }
 .mp-pct { font-size: .75rem; color: var(--ink2); }
 .mp-pages { display: flex; justify-content: center; align-items: center; gap: .8rem; margin-top: 1rem; font-size: .8rem; color: var(--ink2); }
 .mp-pages button { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--ln); background: #fff; cursor: pointer; }
@@ -275,7 +275,7 @@ defineExpose({ open });
 .mp-btn:disabled { opacity: .55; cursor: not-allowed; }
 .mp-attach { display: inline-flex; align-items: center; gap: .4rem; background-image: linear-gradient(105deg, #004cff, #5235ff); border-color: transparent; color: #fff; }
 .mp-attach:hover:not(:disabled) { background-image: linear-gradient(105deg, #0043e0, #4429f0); color: #fff; }
-.mp-btn-outline { background: #fff; border-color: #cfdcff; color: var(--brand); }
+.mp-btn-outline { background: #fff; border-color: #cfdcff; color: #004cff; }
 .mp-btn-outline:hover:not(:disabled) { background: var(--brand-soft); }
 .mp-btn-light { background: #fff; border-color: var(--ln); color: var(--ink2); }
 @media (max-width: 575.98px) {

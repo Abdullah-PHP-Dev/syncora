@@ -27,7 +27,7 @@
                         <div class="d-flex align-items-end gap-2" style="height:200px;direction:ltr">
                             <div v-for="(m, i) in sales.by_month" :key="i" class="flex-grow-1 d-flex flex-column align-items-center justify-content-end" style="height:100%">
                                 <span class="crm-small crm-muted" style="font-size:10px">{{ m.won ? crm.money(m.won).replace(crm.currency + ' ', '') : '' }}</span>
-                                <div :style="{ width: '70%', maxWidth: '36px', height: Math.max(2, (m.won / maxMonth) * 160) + 'px', background: 'var(--crm-grad)', borderRadius: '6px 6px 2px 2px' }" :title="crm.money(m.won)"></div>
+                                <div :style="{ width: '70%', maxWidth: '36px', height: Math.max(2, (m.won / maxMonth) * 160) + 'px', background: '#004cff', borderRadius: '6px 6px 2px 2px' }" :title="crm.money(m.won)"></div>
                                 <span class="crm-small crm-muted mt-1">{{ m.label }}</span>
                             </div>
                         </div>

@@ -177,15 +177,15 @@ async function submit() {
 </script>
 
 <style scoped>
-.tc { --ln: #e7e9f0; --ln-soft: #f1f3f7; --ink: #161b2b; --ink2: #545d70; --muted: #8a92a3; --brand: #6d4aff; --brand-2: #8f6bff; --brand-soft: #f2eeff; --danger: #d92d20; color: var(--ink2); max-width: 1160px; margin: 0 auto; }
+.tc { --ln: #e7e9f0; --ln-soft: #f1f3f7; --ink: #161b2b; --ink2: #545d70; --muted: #8a92a3; --brand: #6d4aff; --brand-2: #004cff; --brand-soft: #f2eeff; --danger: #d92d20; color: var(--ink2); max-width: 1160px; margin: 0 auto; }
 
 /* Header */
 .tc-head { margin-bottom: 20px; }
 .tc-back { display: inline-flex; align-items: center; gap: 4px; font-size: .8rem; font-weight: 600; color: var(--muted); text-decoration: none; margin-bottom: 12px; }
-.tc-back:hover { color: var(--brand); }
+.tc-back:hover { color: #004cff; }
 [dir="rtl"] .tc-back i { transform: scaleX(-1); }
 .tc-head-title { display: flex; gap: 14px; align-items: center; }
-.tc-head-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-2)); box-shadow: 0 8px 18px rgba(109, 74, 255, .28); flex-shrink: 0; }
+.tc-head-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; color: #fff; background: linear-gradient(135deg, #004cff, #004cff); box-shadow: 0 8px 18px rgba(109, 74, 255, .28); flex-shrink: 0; }
 .tc-head h4 { color: var(--ink); font-weight: 700; font-size: 1.35rem; letter-spacing: -.01em; margin: 0 0 3px; }
 .tc-head p { margin: 0; font-size: .87rem; }
 
@@ -199,7 +199,7 @@ async function submit() {
 .tc-label span { color: var(--danger); }
 .tc-input { width: 100%; border: 1px solid var(--ln); border-radius: 10px; padding: 10px 13px; font-size: .9rem; color: var(--ink); background: #fff; outline: none; transition: border-color .15s, box-shadow .15s; }
 .tc-input::placeholder { color: #a5abb8; }
-.tc-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
+.tc-input:focus { border-color: #004cff; box-shadow: 0 0 0 3px rgba(109, 74, 255, .12); }
 .tc-input.is-invalid { border-color: #fda29b; }
 .tc-input.is-invalid:focus { box-shadow: 0 0 0 3px rgba(217, 45, 32, .12); }
 .tc-textarea { resize: vertical; min-height: 160px; line-height: 1.55; }
@@ -214,9 +214,9 @@ async function submit() {
 .tc-category:hover { border-color: #cfd4de; }
 .tc-category-icon { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 20px; background: var(--ln-soft); color: var(--ink2); transition: background .15s, color .15s; }
 .tc-category-name { font-size: .76rem; font-weight: 600; color: var(--ink); line-height: 1.3; }
-.tc-check { position: absolute; top: 7px; inset-inline-end: 7px; font-size: 1rem; color: var(--brand); opacity: 0; transition: opacity .15s; }
-.tc-category.is-active { border-color: var(--brand); background: #fbfaff; box-shadow: 0 0 0 3px rgba(109, 74, 255, .1); }
-.tc-category.is-active .tc-category-icon { background: var(--brand); color: #fff; }
+.tc-check { position: absolute; top: 7px; inset-inline-end: 7px; font-size: 1rem; color: #004cff; opacity: 0; transition: opacity .15s; }
+.tc-category.is-active { border-color: #004cff; background: #fbfaff; box-shadow: 0 0 0 3px rgba(109, 74, 255, .1); }
+.tc-category.is-active .tc-category-icon { background: #004cff; color: #fff; }
 .tc-category.is-active .tc-check { opacity: 1; }
 
 /* Priority options */
@@ -236,7 +236,7 @@ async function submit() {
 .tc-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 18px; border-top: 1px solid var(--ln-soft); }
 .tc-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 42px; padding: 0 18px; border-radius: 10px; font-size: .86rem; font-weight: 600; border: 1px solid transparent; text-decoration: none; cursor: pointer; transition: background .15s, border-color .15s, box-shadow .15s, transform .15s, opacity .15s; }
 .tc-btn i { font-size: 1.1rem; }
-.tc-btn-brand { background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #fff; box-shadow: 0 4px 12px rgba(109, 74, 255, .25); min-width: 160px; }
+.tc-btn-brand { background: linear-gradient(135deg, #004cff, #004cff); color: #fff; box-shadow: 0 4px 12px rgba(109, 74, 255, .25); min-width: 160px; }
 .tc-btn-brand:hover:not(:disabled) { color: #fff; box-shadow: 0 6px 16px rgba(109, 74, 255, .35); transform: translateY(-1px); }
 .tc-btn-brand:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
 .tc-btn-ghost { background: transparent; color: var(--ink2); }
@@ -251,17 +251,17 @@ async function submit() {
 .tc-help { background: linear-gradient(180deg, #f8f6ff 0%, #fff 100%); border-color: #e4dcff; }
 .tc-help h6 { margin-bottom: 4px; }
 .tc-help p { font-size: .8rem; margin-bottom: 14px; }
-.tc-help-icon { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; font-size: 20px; color: var(--brand); background: var(--brand-soft); margin-bottom: 12px; }
+.tc-help-icon { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; font-size: 20px; color: #004cff; background: var(--brand-soft); margin-bottom: 12px; }
 
 .tc-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
 .tc-steps li { display: flex; gap: 12px; font-size: .79rem; line-height: 1.45; color: var(--muted); }
-.tc-steps li > span { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; font-size: .72rem; font-weight: 700; color: var(--brand); background: var(--brand-soft); }
+.tc-steps li > span { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; font-size: .72rem; font-weight: 700; color: #004cff; background: var(--brand-soft); }
 .tc-steps strong { display: block; color: var(--ink); font-size: .82rem; }
 
 .tc-tips { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
 .tc-tips li { display: flex; gap: 8px; font-size: .79rem; line-height: 1.45; }
 .tc-tips i { color: #079455; font-size: 1.05rem; flex-shrink: 0; margin-top: 1px; }
-.tc-tips li:last-child i { color: var(--brand); }
+.tc-tips li:last-child i { color: #004cff; }
 
 @media (max-width: 1199.98px) {
   .tc-categories { grid-template-columns: repeat(3, minmax(0, 1fr)); }

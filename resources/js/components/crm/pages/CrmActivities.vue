@@ -31,7 +31,7 @@
             <div class="crm-card" style="padding:6px 14px">
                 <p v-if="!loading && !items.length" class="crm-muted crm-small py-3 mb-0">{{ crm.t('activities.empty_tasks') }}</p>
                 <div v-for="a in items" :key="a.id" class="d-flex gap-3 align-items-center py-2" style="border-bottom:1px solid #f3f1f9">
-                    <input type="checkbox" :checked="!!a.completed_at" :disabled="!crm.canWrite" :aria-label="a.subject" style="accent-color:var(--crm-purple);width:16px;height:16px" @change="toggle(a)">
+                    <input type="checkbox" :checked="!!a.completed_at" :disabled="!crm.canWrite" :aria-label="a.subject" style="accent-color:#004cff;width:16px;height:16px" @change="toggle(a)">
                     <div class="flex-grow-1 min-w-0">
                         <div :style="a.completed_at ? 'text-decoration:line-through;color:var(--crm-muted)' : 'font-weight:600'">{{ a.subject }}</div>
                         <div class="crm-small crm-muted">
@@ -57,7 +57,7 @@
                 <div style="display:grid;grid-template-columns:repeat(7,minmax(110px,1fr));min-width:770px">
                     <div v-for="d in weekdays" :key="d" class="crm-small crm-muted" style="padding:8px 10px;font-weight:700;border-bottom:1px solid var(--crm-border)">{{ d }}</div>
                     <div v-for="(cell, i) in calendar" :key="i" :style="{ minHeight: '104px', padding: '6px', borderBottom: '1px solid #f3f1f9', borderInlineEnd: '1px solid #f3f1f9', background: cell.inMonth ? '#fff' : '#fafafd' }">
-                        <div :class="['crm-small', cell.today ? '' : 'crm-muted']" :style="cell.today ? 'font-weight:800;color:var(--crm-purple)' : ''">{{ cell.day }}</div>
+                        <div :class="['crm-small', cell.today ? '' : 'crm-muted']" :style="cell.today ? 'font-weight:800;color:#004cff' : ''">{{ cell.day }}</div>
                         <div v-for="a in cell.items" :key="a.id" class="crm-small" :title="a.subject"
                             :style="{ background: a.type === 'meeting' ? '#eff4ff' : a.overdue ? '#fef2f2' : '#f3effe', borderRadius: '6px', padding: '2px 6px', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: a.completed_at ? 'line-through' : 'none' }">
                             {{ timeOf(a.due_at) }} {{ a.subject }}
@@ -94,7 +94,7 @@
                         <tr v-for="r in team" :key="r.member.id">
                             <td><span class="crm-person"><span :class="['crm-avatar sm', crm.avatarClass(r.member.id)]">{{ crm.initials(r.member.name) }}</span><strong>{{ r.member.name }}</strong></span></td>
                             <td>{{ r.calls }}</td><td>{{ r.meetings }}</td><td>{{ r.notes }}</td><td>{{ r.emails }}</td><td>{{ r.won }}</td>
-                            <td><span v-if="r.on_time !== null" class="crm-score">{{ r.on_time }}%<span class="crm-score-bar"><span :style="{ width: r.on_time + '%', background: 'var(--crm-grad)' }"></span></span></span><span v-else class="crm-muted">—</span></td>
+                            <td><span v-if="r.on_time !== null" class="crm-score">{{ r.on_time }}%<span class="crm-score-bar"><span :style="{ width: r.on_time + '%', background: '#004cff' }"></span></span></span><span v-else class="crm-muted">—</span></td>
                             <td class="crm-small crm-muted">{{ r.last_active ? crm.ago(r.last_active) : '—' }}</td>
                         </tr>
                     </tbody>

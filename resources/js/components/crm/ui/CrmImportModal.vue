@@ -2,7 +2,7 @@
     <crm-modal :title="crm.t('import.title')" :subtitle="crm.t('import.step_' + step)" icon="bx-import" width="720px" :close-label="crm.t('common.close')" @close="$emit('close')">
         <div v-if="step === 'upload'">
             <label class="crm-card d-block text-center" style="border-style:dashed;cursor:pointer;padding:32px">
-                <i class="bx bx-cloud-upload" style="font-size:34px;color:var(--crm-purple)"></i>
+                <i class="bx bx-cloud-upload" style="font-size:34px;color:#004cff"></i>
                 <div style="font-weight:700">{{ crm.t('import.choose') }}</div>
                 <div class="crm-small crm-muted">{{ crm.t('import.formats') }}</div>
                 <input type="file" accept=".csv,text/csv,text/plain" class="d-none" @change="upload">

@@ -224,7 +224,7 @@
 <script>
 import { createTranslator } from '../ads/facebook/i18n';
 
-const COLORS = ['#720AFF', '#064BFF', '#0F766E', '#9A3412', '#BE185D', '#0369A1', '#4338CA', '#B45309'];
+const COLORS = ['#004cff', '#064BFF', '#0F766E', '#9A3412', '#BE185D', '#0369A1', '#4338CA', '#B45309'];
 // Short platform marks (social_accounts.platform and Connections card keys).
 const MARKS = {
   facebook: ['f', '#1877F2', '#fff'], instagram: ['IG', '#C13584', '#fff'], whatsapp: ['WA', '#075E54', '#fff'],
@@ -453,7 +453,7 @@ export default {
 <style scoped>
 .wp {
   /* Socialeaz brand (brand-theme.css, loaded by layouts.app). */
-  --p600: var(--theme-purple, #720aff); --p700: var(--theme-hover, #6008ff); --p50: var(--theme-soft, #f1eaff); --p100: #E4D4FF;
+  --p600: var(--theme-purple, #004cff); --p700: var(--theme-hover, #6008ff); --p50: var(--theme-soft, #f1eaff); --p100: #E4D4FF;
   --grad: var(--theme-gradient, linear-gradient(110deg, #004cff, #710bff));
   --ink: var(--theme-ink, #09072d); --ink5: var(--theme-muted, #626498); --line: var(--theme-border, #edf0fa);
   --canvas: #F7F8FD; --ok: #15803D; --warn: #B45309;

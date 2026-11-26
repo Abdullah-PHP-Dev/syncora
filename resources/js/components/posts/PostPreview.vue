@@ -1045,7 +1045,7 @@ export default {
   --line:#E7E9F0;
   --line-soft:#F1F3F7;
   --brand:#6D4AFF;
-  --brand-2:#8F6BFF;
+  --brand-2:#004cff;
   --brand-soft:#F2EEFF;
   padding:24px;
   display:flex;
@@ -1126,10 +1126,10 @@ export default {
   white-space:nowrap;
 }
 .pp-btn-ghost{ background:#fff; border-color:var(--line); color:var(--text); }
-.pp-btn-ghost:hover{ border-color:#cfc4ff; color:var(--brand); }
+.pp-btn-ghost:hover{ border-color:#cfc4ff; color:#004cff; }
 .pp-btn-primary{
-  --pf:var(--brand);
-  background:var(--pf-fill, linear-gradient(135deg, var(--brand), var(--brand-2)));
+  --pf:#004cff;
+  background:var(--pf-fill, linear-gradient(135deg, #004cff, #004cff));
   color:var(--pf-ink, #fff);
   box-shadow:0 6px 16px color-mix(in srgb, var(--pf) 30%, transparent);
 }
@@ -1293,7 +1293,7 @@ export default {
 .mk-x-actions{ justify-content:space-between; font-weight:500; color:var(--muted); border-top:none; }
 
 .comments-toggle{ cursor:pointer; }
-.mk-actions .comments-toggle:hover, .mk-link.comments-toggle:hover{ color:var(--brand); }
+.mk-actions .comments-toggle:hover, .mk-link.comments-toggle:hover{ color:#004cff; }
 
 /* KPIs */
 .pp-kpis{ display:grid; grid-template-columns:repeat(var(--kpi-cols, 6), minmax(0, 1fr)); gap:10px; }
@@ -1351,7 +1351,7 @@ export default {
 .pp-count{
   display:inline-flex; align-items:center; height:20px; line-height:1;
   font-size:11px; font-weight:700;
-  background:var(--brand-soft); color:var(--brand);
+  background:var(--brand-soft); color:#004cff;
   padding:2px 8px; border-radius:7px;
 }
 
@@ -1365,7 +1365,7 @@ export default {
 .pp-empty-icon{
   width:52px; height:52px; border-radius:16px; margin-bottom:6px;
   display:grid; place-items:center;
-  background:var(--brand-soft); color:var(--brand); font-size:20px;
+  background:var(--brand-soft); color:#004cff; font-size:20px;
 }
 
 .pp-thread-list{ display:flex; flex-direction:column; gap:16px; max-height:520px; overflow-y:auto; padding-right:4px; }
@@ -1378,7 +1378,7 @@ export default {
   color:#fff; font-size:12px; font-weight:700;
 }
 .pp-avatar img{ width:100%; height:100%; object-fit:cover; }
-.pp-avatar-own{ background:linear-gradient(135deg, var(--brand), var(--brand-2)); }
+.pp-avatar-own{ background:linear-gradient(135deg, #004cff, #004cff); }
 .pp-comment.is-reply .pp-avatar{ width:28px; height:28px; font-size:10.5px; }
 
 .pp-bubble{
@@ -1391,11 +1391,11 @@ export default {
 }
 .pp-bubble strong{ display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink); margin-bottom:2px; }
 .pp-comment.own > .pp-comment-body > .pp-bubble{ background:var(--brand-soft); }
-.pp-you{ font-size:10px; font-weight:700; background:var(--brand); color:#fff; padding:1px 6px; border-radius:5px; }
+.pp-you{ font-size:10px; font-weight:700; background:#004cff; color:#fff; padding:1px 6px; border-radius:5px; }
 
 .pp-meta{ display:flex; align-items:center; gap:14px; padding:5px 6px 0; font-size:11.5px; color:var(--muted); }
 .pp-meta .fa-heart{ color:#EF4444; }
-.pp-link{ border:none; background:none; padding:0; color:var(--brand); font-weight:600; font-size:11.5px; cursor:pointer; }
+.pp-link{ border:none; background:none; padding:0; color:#004cff; font-weight:600; font-size:11.5px; cursor:pointer; }
 .pp-link:hover{ text-decoration:underline; }
 
 .pp-replies{
@@ -1417,12 +1417,12 @@ export default {
   background:#fff;
   transition:border-color .15s, box-shadow .15s;
 }
-.pp-input-row:focus-within{ border-color:var(--brand); box-shadow:0 0 0 3px rgba(109,74,255,.12); }
+.pp-input-row:focus-within{ border-color:#004cff; box-shadow:0 0 0 3px rgba(109,74,255,.12); }
 .pp-input-row input{ flex:1; min-width:0; border:none; outline:none; font-size:13.5px; color:var(--ink); background:transparent; height:34px; }
 .pp-send{
   width:38px; height:38px; flex-shrink:0;
   border:none; border-radius:11px;
-  background:linear-gradient(135deg, var(--brand), var(--brand-2));
+  background:linear-gradient(135deg, #004cff, #004cff);
   color:#fff; font-size:14px; cursor:pointer;
   display:grid; place-items:center;
   transition:opacity .15s;
@@ -1473,7 +1473,7 @@ export default {
   display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:8px; border:none; background:none;
   color:var(--text); font-size:13px; font-weight:500; text-decoration:none; text-align:left; cursor:pointer; width:100%;
 }
-.pp-menu-list a:hover, .pp-menu-list button:hover{ background:var(--brand-soft); color:var(--brand); }
+.pp-menu-list a:hover, .pp-menu-list button:hover{ background:var(--brand-soft); color:#004cff; }
 .pp-menu-list i{ width:16px; text-align:center; color:var(--muted); }
 
 /* Platform bar */
@@ -1523,7 +1523,7 @@ export default {
   transition:border-color .15s, box-shadow .15s, transform .15s;
 }
 .pp-dist-item:hover{ border-color:color-mix(in srgb, var(--pf) 35%, #fff); box-shadow:0 6px 14px rgba(16,24,40,.05); }
-.pp-dist-item:focus-visible{ outline:2px solid var(--brand); outline-offset:2px; }
+.pp-dist-item:focus-visible{ outline:2px solid #004cff; outline-offset:2px; }
 .pp-dist-item.active{
   border-color:color-mix(in srgb, var(--pf) 45%, #fff);
   background:linear-gradient(90deg, color-mix(in srgb, var(--pf) 11%, #fff) 0%, #fff 70%);
@@ -1554,7 +1554,7 @@ export default {
 .pp-kebab-sm{ width:26px; height:26px; font-size:12px; }
 
 /* Comments - one card per thread */
-.pp-count{ background:var(--brand-soft); color:var(--brand); }
+.pp-count{ background:var(--brand-soft); color:#004cff; }
 .pp-thread-list{ gap:10px; max-height:560px; padding-right:2px; }
 .pp-thread{ border:1px solid var(--line); border-radius:14px; padding:12px 12px 12px 14px; background:#fff; transition:border-color .15s, box-shadow .15s; }
 .pp-thread:hover{ border-color:#dcd6fb; box-shadow:0 6px 16px rgba(16,24,40,.05); }
@@ -1578,11 +1578,11 @@ export default {
 .pp-thread .pp-replies .pp-bubble{ background:#F7F8FB; padding:8px 10px; border-radius:10px; }
 
 .pp-composer{ align-items:center; gap:10px; }
-.pp-avatar-account{ background:#fff; border:1px solid var(--line); color:var(--brand); width:42px; height:42px; }
+.pp-avatar-account{ background:#fff; border:1px solid var(--line); color:#004cff; width:42px; height:42px; }
 .pp-composer .pp-input-row{ flex:1; height:46px; border-radius:14px; padding:0 14px; }
 .pp-comments > .pp-composer .pp-send{
   width:46px; height:46px; border-radius:50%; flex-shrink:0; font-size:16px;
-  background:linear-gradient(135deg, var(--brand), var(--brand-2)); color:#fff; border:none;
+  background:linear-gradient(135deg, #004cff, #004cff); color:#fff; border:none;
   box-shadow:0 8px 18px rgba(109,74,255,.32);
 }
 

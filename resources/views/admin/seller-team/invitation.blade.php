@@ -6,9 +6,9 @@
 <style>
     .inv-list{list-style:none;margin:0 0 20px;padding:0;display:flex;flex-direction:column;gap:8px}
     .inv-list li{display:flex;align-items:center;gap:10px;border:1px solid #ece8f7;border-radius:12px;padding:10px 12px;background:#faf8ff;font-size:14px}
-    .inv-list i{color:#720aff;font-size:17px}
+    .inv-list i{color:#004cff;font-size:17px}
     .inv-list strong{flex:1;min-width:0;overflow-wrap:anywhere}
-    .inv-role{font-size:12px;font-weight:700;color:#720aff;background:#f1eaff;border-radius:999px;padding:2px 10px}
+    .inv-role{font-size:12px;font-weight:700;color:#004cff;background:#f1eaff;border-radius:999px;padding:2px 10px}
     .inv-email{display:flex;align-items:center;gap:10px;border:1px solid #e4e3ee;border-radius:12px;padding:12px 14px;background:#f7f7fb;color:#4b4a63;font-size:14px;overflow-wrap:anywhere}
     .inv-secondary{display:block;text-align:center;margin-top:14px;font-size:14px}
 </style>

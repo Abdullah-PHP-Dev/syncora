@@ -42,11 +42,11 @@
                 </div>
                 <label class="crm-field d-flex justify-content-between gap-3 align-items-center" style="cursor:pointer">
                     <span><strong>{{ crm.t('settings.require_lost_reason') }}</strong><span class="crm-small crm-muted d-block">{{ crm.t('settings.require_lost_reason_hint') }}</span></span>
-                    <input v-model="general.require_lost_reason" type="checkbox" style="width:18px;height:18px;accent-color:var(--crm-purple)" :disabled="!crm.canWrite">
+                    <input v-model="general.require_lost_reason" type="checkbox" style="width:18px;height:18px;accent-color:#004cff" :disabled="!crm.canWrite">
                 </label>
                 <label class="crm-field d-flex justify-content-between gap-3 align-items-center" style="cursor:pointer">
                     <span><strong>{{ crm.t('settings.auto_create') }}</strong><span class="crm-small crm-muted d-block">{{ crm.t('settings.auto_create_hint') }}</span></span>
-                    <input v-model="general.auto_create_contacts" type="checkbox" style="width:18px;height:18px;accent-color:var(--crm-purple)" :disabled="!crm.canWrite">
+                    <input v-model="general.auto_create_contacts" type="checkbox" style="width:18px;height:18px;accent-color:#004cff" :disabled="!crm.canWrite">
                 </label>
                 <div class="crm-alert info"><i class="bx bx-id-card"></i>
                     {{ info.limits.limit === -1 ? crm.t('settings.limit_unlimited', { used: crm.number(info.limits.used) }) : crm.t('settings.limit_of', { used: crm.number(info.limits.used), limit: crm.number(info.limits.limit) }) }}

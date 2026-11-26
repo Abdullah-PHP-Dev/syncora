@@ -24,15 +24,15 @@
     .cm { --ln: #e7e9f0; --ln-soft: #f1f3f7; --ink: #161b2b; --ink2: #545d70; --muted: #8a92a3; --brand: #004cff; --brand-2: #5235ff; --brand-soft: #eef3ff; color: var(--ink2); }
     .cm-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
     .cm-head-title { display: flex; gap: 14px; align-items: flex-start; }
-    .cm-head-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-2)); box-shadow: 0 8px 18px rgba(0, 76, 255, .28); flex-shrink: 0; }
-    .cm-eyebrow { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--brand); margin-bottom: 2px; }
+    .cm-head-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; color: #fff; background: linear-gradient(135deg, #004cff, #004cff); box-shadow: 0 8px 18px rgba(0, 76, 255, .28); flex-shrink: 0; }
+    .cm-eyebrow { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #004cff; margin-bottom: 2px; }
     .cm-head h4 { color: var(--ink); font-weight: 700; font-size: 1.35rem; margin: 0 0 4px; letter-spacing: -.01em; }
     .cm-head p { margin: 0; font-size: .87rem; }
     .cm-stats { display: flex; gap: 10px; flex-wrap: wrap; }
     .cm-stat { background: #fff; border: 1px solid var(--ln); border-radius: 12px; padding: 10px 16px; min-width: 110px; }
     .cm-stat small { display: block; font-size: .72rem; font-weight: 600; color: var(--muted); }
     .cm-stat strong { font-size: 1.25rem; color: var(--ink); }
-    .cm-stat.is-unread strong { color: var(--brand); }
+    .cm-stat.is-unread strong { color: #004cff; }
 
     .cm-card { background: #fff; border: 1px solid var(--ln); border-radius: 16px; box-shadow: 0 1px 2px rgba(16, 24, 40, .04); overflow: hidden; }
     .cm-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; border-bottom: 1px solid var(--ln); }
@@ -46,11 +46,11 @@
     .cm-search { position: relative; margin: 0; }
     .cm-search i { position: absolute; inset-inline-start: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); }
     .cm-search input { height: 36px; width: 230px; border: 1px solid var(--ln); border-radius: 9px; padding-inline: 34px 10px; font-size: .83rem; outline: none; }
-    .cm-search input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0, 76, 255, .12); }
+    .cm-search input:focus { border-color: #004cff; box-shadow: 0 0 0 3px rgba(0, 76, 255, .12); }
     .cm-toggle { height: 36px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--ln); background: #fff; display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 600; color: var(--ink2); text-decoration: none; }
     .cm-toggle.is-on { background: var(--brand-soft); border-color: #cfdcff; color: #0039cc; }
     .cm-filter-note { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: #f7f9ff; border-bottom: 1px solid var(--ln); font-size: .8rem; }
-    .cm-filter-note a { color: var(--brand); font-weight: 600; text-decoration: none; }
+    .cm-filter-note a { color: #004cff; font-weight: 600; text-decoration: none; }
 
     .cm-row { display: flex; gap: 14px; padding: 16px; border-bottom: 1px solid var(--ln-soft); transition: background .15s; }
     .cm-row:last-child { border-bottom: none; }
@@ -64,7 +64,7 @@
     .cm-main { flex: 1; min-width: 0; }
     .cm-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .76rem; color: var(--muted); margin-bottom: 4px; }
     .cm-meta strong { color: var(--ink); font-size: .86rem; }
-    .cm-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); }
+    .cm-dot { width: 8px; height: 8px; border-radius: 50%; background: #004cff; }
     .cm-text { color: var(--ink); font-size: .88rem; line-height: 1.55; word-break: break-word; margin-bottom: 10px; }
     .cm-post { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--ln); border-radius: 10px; background: #fbfbfd; max-width: 560px; text-decoration: none; transition: border-color .15s; }
     .cm-post:hover { border-color: #cfdcff; }
@@ -85,10 +85,10 @@
     .cm-reply { font-size: .83rem; color: var(--ink); line-height: 1.5; word-break: break-word; }
     .cm-reply strong { font-size: .78rem; margin-inline-end: 6px; }
     .cm-reply small { color: var(--muted); font-size: .7rem; margin-inline-start: 6px; }
-    .cm-reply.is-own strong { color: var(--brand); }
+    .cm-reply.is-own strong { color: #004cff; }
     .cm-reply.is-new { animation: cm-flash 1.6s ease; }
     @keyframes cm-flash { from { background: var(--brand-soft); } to { background: transparent; } }
-    .cm-replies-more { font-size: .74rem; color: var(--brand); font-weight: 600; text-decoration: none; }
+    .cm-replies-more { font-size: .74rem; color: #004cff; font-weight: 600; text-decoration: none; }
 
     .cm-compose { display: none; margin: 4px 0 10px; border: 1px solid var(--ln); border-radius: 12px; background: #fff; padding: 10px; max-width: 640px; }
     .cm-compose.is-open { display: block; }
@@ -101,7 +101,7 @@
     .cm .btn[disabled] { opacity: .6; pointer-events: none; }
 
     .cm-empty { text-align: center; padding: 56px 20px; }
-    .cm-empty-icon { width: 60px; height: 60px; margin: 0 auto 12px; border-radius: 16px; display: grid; place-items: center; font-size: 28px; color: var(--brand); background: var(--brand-soft); }
+    .cm-empty-icon { width: 60px; height: 60px; margin: 0 auto 12px; border-radius: 16px; display: grid; place-items: center; font-size: 28px; color: #004cff; background: var(--brand-soft); }
     .cm-empty h6 { color: var(--ink); font-weight: 700; margin-bottom: 4px; }
     .cm-empty p { font-size: .85rem; color: var(--muted); margin-bottom: 16px; }
     .cm-pages { padding: 12px 16px; border-top: 1px solid var(--ln); }

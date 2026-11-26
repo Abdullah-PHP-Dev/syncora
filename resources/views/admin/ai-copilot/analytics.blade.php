@@ -14,12 +14,12 @@
 
 @push('styles')
 <style>
-    .cpa { --ln: #e7e9f0; --ln-soft: #f1f3f7; --ink: #161b2b; --ink2: #545d70; --muted: #8a92a3; --brand: #6d4aff; --brand-2: #8f6bff; --brand-soft: #f2eeff; --ok: #079455; --ok-soft: #ecfdf3; --warn: #b54708; --warn-soft: #fffaeb; --bad: #d92d20; --bad-soft: #fef3f2; color: var(--ink2); }
+    .cpa { --ln: #e7e9f0; --ln-soft: #f1f3f7; --ink: #161b2b; --ink2: #545d70; --muted: #8a92a3; --brand: #6d4aff; --brand-2: #004cff; --brand-soft: #f2eeff; --ok: #079455; --ok-soft: #ecfdf3; --warn: #b54708; --warn-soft: #fffaeb; --bad: #d92d20; --bad-soft: #fef3f2; color: var(--ink2); }
 
     .cpa-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
     .cpa-head-title { display: flex; gap: 14px; align-items: flex-start; }
-    .cpa-head-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-2)); box-shadow: 0 8px 18px rgba(109, 74, 255, .28); flex-shrink: 0; }
-    .cpa-eyebrow { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--brand); margin-bottom: 2px; }
+    .cpa-head-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; color: #fff; background: linear-gradient(135deg, #004cff, #004cff); box-shadow: 0 8px 18px rgba(109, 74, 255, .28); flex-shrink: 0; }
+    .cpa-eyebrow { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #004cff; margin-bottom: 2px; }
     .cpa-head h4 { color: var(--ink); font-weight: 700; font-size: 1.35rem; letter-spacing: -.01em; margin: 0 0 4px; }
     .cpa-head p { margin: 0; font-size: .87rem; }
     .cpa-period { display: inline-flex; gap: 2px; padding: 3px; background: var(--ln-soft); border-radius: 11px; }
@@ -31,7 +31,7 @@
     .cpa-card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 18px 20px 0; }
     .cpa-card-head h6 { color: var(--ink); font-weight: 700; font-size: .95rem; margin: 0; }
     .cpa-card-head p { margin: 2px 0 0; font-size: .78rem; color: var(--muted); }
-    .cpa-card-head a { font-size: .8rem; font-weight: 600; color: var(--brand); text-decoration: none; white-space: nowrap; }
+    .cpa-card-head a { font-size: .8rem; font-weight: 600; color: #004cff; text-decoration: none; white-space: nowrap; }
     .cpa-card-body { padding: 16px 20px 20px; }
 
     /* KPIs */
@@ -46,7 +46,7 @@
     .cpa-delta { display: inline-flex; align-items: center; font-weight: 700; }
     .cpa-delta.is-up { color: var(--ok); }
     .cpa-delta.is-down { color: var(--bad); }
-    .t-brand { background: var(--brand-soft); color: var(--brand); }
+    .t-brand { background: var(--brand-soft); color: #004cff; }
     .t-ok { background: var(--ok-soft); color: var(--ok); }
     .t-warn { background: var(--warn-soft); color: var(--warn); }
     .t-bad { background: var(--bad-soft); color: var(--bad); }
@@ -201,7 +201,7 @@
                     </div>
                     <ul class="cpa-mix">
                         <li><i style="background:#17b26a"></i><span>Auto-resolved</span><strong>{{ number_format($autoReplied) }}</strong><em>{{ $pct($autoReplied) }}%</em></li>
-                        <li><i style="background:#8f6bff"></i><span>Suggested</span><strong>{{ number_format($suggested) }}</strong><em>{{ $pct($suggested) }}%</em></li>
+                        <li><i style="background:#004cff"></i><span>Suggested</span><strong>{{ number_format($suggested) }}</strong><em>{{ $pct($suggested) }}%</em></li>
                         <li><i style="background:#d0d5dd"></i><span>No match</span><strong>{{ number_format($noMatch) }}</strong><em>{{ $pct($noMatch) }}%</em></li>
                     </ul>
                 @else
@@ -306,7 +306,7 @@
                     labels: trend.labels,
                     datasets: [
                         { label: 'Auto-resolved', data: trend.auto_replied, backgroundColor: '#17b26a', borderRadius: 4, stack: 's' },
-                        { label: 'Suggested', data: trend.suggested, backgroundColor: '#8f6bff', borderRadius: 4, stack: 's' },
+                        { label: 'Suggested', data: trend.suggested, backgroundColor: '#004cff', borderRadius: 4, stack: 's' },
                         { label: 'No match', data: trend.no_match, backgroundColor: '#d0d5dd', borderRadius: 4, stack: 's' },
                     ],
                 },
@@ -325,7 +325,7 @@
                 type: 'doughnut',
                 data: {
                     labels: ['Auto-resolved', 'Suggested', 'No match'],
-                    datasets: [{ data: [{{ $autoReplied }}, {{ $suggested }}, {{ $noMatch }}], backgroundColor: ['#17b26a', '#8f6bff', '#d0d5dd'], borderWidth: 0, hoverOffset: 4 }],
+                    datasets: [{ data: [{{ $autoReplied }}, {{ $suggested }}, {{ $noMatch }}], backgroundColor: ['#17b26a', '#004cff', '#d0d5dd'], borderWidth: 0, hoverOffset: 4 }],
                 },
                 options: { maintainAspectRatio: false, cutout: '74%', plugins: { legend: { display: false } } },
             });

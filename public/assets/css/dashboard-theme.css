@@ -1,6 +1,6 @@
 /* Homepage palette shared by every authenticated page, including RTL. */
 :root {
-    --bs-primary: #720aff;
+    --bs-primary: #004cff;
     --bs-primary-rgb: 114, 10, 255;
     --bs-primary-bg-subtle: #f1eaff;
     --bs-primary-border-subtle: #d9d9f5;
@@ -9,7 +9,7 @@
     --bs-heading-color: #09072d;
     --bs-secondary-color: #626498;
     --bs-border-color: #edf0fa;
-    --bs-link-color: #720aff;
+    --bs-link-color: #004cff;
     --bs-link-hover-color: #6008ff;
     --bs-body-bg: #f8f9ff;
 }
@@ -51,7 +51,7 @@
 .socialeaz-app .nav-pills .nav-link.active,
 .socialeaz-app .page-item.active .page-link,
 .socialeaz-app .form-check-input:checked { background-color: var(--theme-purple); border-color: var(--theme-purple); color: #fff; }
-.socialeaz-app .form-control:focus, .socialeaz-app .form-select:focus { border-color: var(--theme-purple); box-shadow: 0 0 0 .2rem #720aff18; }
+.socialeaz-app .form-control:focus, .socialeaz-app .form-select:focus { border-color: var(--theme-purple); box-shadow: 0 0 0 .2rem #004cff18; }
 .socialeaz-app .socialeaz-dash .dash-btn-primary { background: var(--theme-gradient); box-shadow: 0 4px 12px #360bff24; }
 .socialeaz-app .socialeaz-dash .email-hero { background: var(--theme-gradient); }
 .socialeaz-app .socialeaz-dash .email-hero .dash-btn-primary { background: #fff; color: #6008ff; }

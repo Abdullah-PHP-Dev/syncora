@@ -65,7 +65,7 @@
     .ads-acct-text strong { display: block; color: #161b2b; font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ads-acct-btn { display: inline-flex; align-items: center; gap: 5px; height: 36px; padding: 0 12px; border-radius: 9px; border: 1px solid #e7e9f0; background: #fff; color: #161b2b; font-size: .8rem; font-weight: 600; text-decoration: none; white-space: nowrap; }
     .ads-acct-btn:hover { background: #fafbfd; border-color: #cfd4de; color: #161b2b; }
-    .ads-acct-btn.is-primary { background: linear-gradient(135deg, #6d4aff, #8f6bff); border-color: transparent; color: #fff; box-shadow: 0 4px 12px rgba(109, 74, 255, .25); }
+    .ads-acct-btn.is-primary { background: linear-gradient(135deg, #6d4aff, #004cff); border-color: transparent; color: #fff; box-shadow: 0 4px 12px rgba(109, 74, 255, .25); }
     .ads-acct-menu { min-width: 260px; border-radius: 12px; padding: 6px; }
     .ads-acct-menu .dropdown-item { display: flex; align-items: center; gap: 8px; border-radius: 8px; font-size: .84rem; }
     .ads-acct-menu .dropdown-item.active { background: #f2eeff; color: #4f2fd6; }

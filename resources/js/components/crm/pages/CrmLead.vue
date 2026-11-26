@@ -123,7 +123,7 @@
                 </section>
 
                 <aside class="d-flex flex-column gap-3">
-                    <div class="crm-card" style="border-color:var(--crm-purple)">
+                    <div class="crm-card" style="border-color:#004cff">
                         <h3 class="crm-card-title mb-2"><i class="bx bx-bulb"></i> {{ crm.t('leads.next_step') }}</h3>
                         <p class="crm-small mb-0">{{ nextStep }}</p>
                     </div>

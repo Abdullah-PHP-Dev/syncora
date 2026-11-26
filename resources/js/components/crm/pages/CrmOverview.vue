@@ -60,7 +60,7 @@
                         <p class="crm-card-sub">{{ crm.t('overview.period', { days }) }}</p>
                         <div v-for="f in funnel" :key="f.key" class="mb-2">
                             <div class="d-flex justify-content-between crm-small"><span>{{ f.label }}</span><span><strong>{{ f.value }}</strong> <span class="crm-muted">{{ f.pct }}%</span></span></div>
-                            <div class="crm-score-bar" style="width:100%;height:7px"><span :style="{ width: f.pct + '%', background: 'var(--crm-grad)' }"></span></div>
+                            <div class="crm-score-bar" style="width:100%;height:7px"><span :style="{ width: f.pct + '%', background: '#004cff' }"></span></div>
                         </div>
                     </div>
                 </div>

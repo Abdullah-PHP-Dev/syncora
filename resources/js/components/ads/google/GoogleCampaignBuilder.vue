@@ -1378,7 +1378,7 @@ onMounted(async () => {
 /* A fieldset (locked bidding in edit mode) styled like the .fb-group div. */
 fieldset.fb-group { border: 0; border-top: 1px solid var(--line-soft); min-width: 0; margin: 16px 0 0; padding: 4px 0 0; }
 .gb-channels { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
-.gb-channels strong .bx { color: var(--brand-2); margin-inline-end: 4px; }
+.gb-channels strong .bx { color: #004cff; margin-inline-end: 4px; }
 .gb-ok { color: #15803D; font-size: 16px; }
 .gb-ytpreview { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #fff; }
 .gb-yt-video { position: relative; aspect-ratio: 16 / 9; background: #0f0f0f; }
@@ -1396,7 +1396,7 @@ fieldset.fb-group { border: 0; border-top: 1px solid var(--line-soft); min-width
 .gb-type small { font-size: .74rem; color: var(--muted, #6b7280); line-height: 1.3; }
 .gb-type .fb-tag { position: absolute; top: 8px; inset-inline-end: 8px; }
 .gb-type:hover { border-color: #c9ced8; }
-.gb-type.on { border-color: var(--brand-2); background: var(--brand-soft); box-shadow: 0 0 0 3px rgba(0, 76, 255, .12); }
+.gb-type.on { border-color: #004cff; background: var(--brand-soft); box-shadow: 0 0 0 3px rgba(0, 76, 255, .12); }
 .gb-type-link { border-style: dashed; }
 .gb-type-link .bxl-youtube { color: #FF0000 !important; }
 .gb-ext { margin-inline-start: auto; color: var(--muted, #6b7280); }
@@ -1404,7 +1404,7 @@ fieldset.fb-group { border: 0; border-top: 1px solid var(--line-soft); min-width
 .gb-group-h h6 { margin: 0; }
 .gb-bids { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
 .gb-bid { align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
-.gb-bid.on { border-color: var(--brand-2); background: var(--brand-soft); }
+.gb-bid.on { border-color: #004cff; background: var(--brand-soft); }
 .gb-bid span, .fb-check span { display: flex; flex-direction: column; gap: 2px; }
 .gb-bid small, .fb-check small { color: var(--muted, #6b7280); font-size: .74rem; line-height: 1.3; }
 .gb-goal-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 12px; margin-top: 10px; }
@@ -1419,7 +1419,7 @@ fieldset.fb-group { border: 0; border-top: 1px solid var(--line-soft); min-width
 .gb-adj span { color: var(--muted, #6b7280); font-size: .8rem; }
 .gb-device { display: grid; grid-template-columns: 1fr 120px auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px dashed var(--line); }
 .gb-device > span { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ink); font-size: .86rem; }
-.gb-device > span .bx { font-size: 18px; color: var(--brand-2); }
+.gb-device > span .bx { font-size: 18px; color: #004cff; }
 .gb-demo + .gb-demo { margin-top: 10px; }
 .sb-chipset { display: flex; flex-wrap: wrap; gap: 6px; }
 .fb-chip-btn.is-on { background: var(--ink); color: #fff; border-color: var(--ink); }
@@ -1432,7 +1432,7 @@ fieldset.fb-group { border: 0; border-top: 1px solid var(--line-soft); min-width
 .gb-idea { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; text-align: start; }
 .gb-idea strong { font-size: .82rem; color: var(--ink); }
 .gb-idea small { font-size: .7rem; color: var(--muted, #6b7280); }
-.gb-idea.on { border-color: var(--brand-2); background: var(--brand-soft); }
+.gb-idea.on { border-color: #004cff; background: var(--brand-soft); }
 .gb-paths { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .gb-text-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; margin-bottom: 6px; }
 .gb-count { font-size: .72rem; color: var(--muted, #6b7280); min-width: 42px; text-align: end; }
@@ -1464,7 +1464,7 @@ fieldset.fb-group { border: 0; border-top: 1px solid var(--line-soft); min-width
 [dir="rtl"] .gb-dpreview-cta .bx, [dir="rtl"] .fb-foot .bx-chevron-right, [dir="rtl"] .fb-foot .bx-chevron-left { transform: scaleX(-1); }
 .sb-sum { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; font-size: .82rem; color: var(--text); }
 .sb-sum li { display: flex; gap: 7px; align-items: flex-start; line-height: 1.35; }
-.sb-sum li i { color: var(--brand-2); font-size: 15px; margin-top: 1px; }
+.sb-sum li i { color: #004cff; font-size: 15px; margin-top: 1px; }
 @media (max-width: 767.98px) {
   .gb-radius { grid-template-columns: 1fr 1fr; }
   .gb-sched-row { grid-template-columns: 1fr 1fr; }

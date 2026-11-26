@@ -101,7 +101,7 @@
 .se-bwp .se-package-blue{--package-color:#3973c3;--package-soft:#edf4ff}
 .se-bwp .se-package-violet{--package-color:#8057c9;--package-soft:#f3edff}
 .se-bwp .se-package-amber{--package-color:#aa7833;--package-soft:#fcf4e6}
-.se-bwp .se-package-card.featured{border:1px solid var(--theme-purple);background:linear-gradient(180deg,#faf7ff,#fff 42%);box-shadow:0 8px 24px #720aff0a}
+.se-bwp .se-package-card.featured{border:1px solid var(--theme-purple);background:linear-gradient(180deg,#faf7ff,#fff 42%);box-shadow:0 8px 24px #004cff0a}
 .se-bwp .se-package-card .se-bwp-popular{background:var(--theme-gradient);font-size:10px;padding:6px 12px;inset-inline-end:18px;right:auto}
 .se-bwp .se-package-icon{width:40px;height:40px;border-radius:12px;background:var(--package-soft);color:var(--package-color);border:0;box-shadow:none}
 .se-bwp .se-package-icon svg{width:22px;height:22px;flex-shrink:0}

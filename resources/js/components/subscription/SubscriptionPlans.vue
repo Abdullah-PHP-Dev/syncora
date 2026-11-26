@@ -280,7 +280,7 @@ export default {
 <style scoped>
 .sp {
   /* Socialeaz brand (brand-theme.css, loaded by layouts.app). */
-  --purple: var(--theme-purple, #720aff); --blue: var(--theme-blue, #064bff); --grad: var(--theme-gradient, linear-gradient(110deg, #004cff, #710bff));
+  --purple: var(--theme-purple, #004cff); --blue: var(--theme-blue, #064bff); --grad: var(--theme-gradient, linear-gradient(110deg, #004cff, #710bff));
   --soft: var(--theme-soft, #f1eaff); --ink: var(--theme-ink, #09072d); --muted: var(--theme-muted, #626498); --line: var(--theme-border, #edf0fa);
   --ok: #15803D;
   max-width: 1180px; margin: 0 auto; padding: 8px 0 48px; color: var(--ink);
