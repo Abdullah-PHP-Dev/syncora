@@ -1240,7 +1240,7 @@ class LinkedInPostService
                     $response = Http::withHeaders($this->restHeaders($account))->get($url);
                 }
                 if (! $response->successful()) {
-                    $error = $this->readError($response, 'r_organization_social');
+                    $error = $this->readError($response, 'r_organization_social_feed');
                     Log::warning('LinkedIn comments fetch failed.', ['post_id' => $post->id, 'status' => $response->status(), 'error' => $response->json('message') ?? $response->body()]);
 
                     return $error;

@@ -104,6 +104,12 @@ class SocialAuthService
         // The provider sent the user back with ?error=... (consent denied,
         // or the app isn't approved for a requested scope) - show its own
         // reason instead of a generic message.
+        // LinkedIn: the app isn't approved for an optional scope - start the
+        // consent again without it rather than failing the connection.
+        if ($providerError && $platform === 'linkedin' && $this->linkedinScopeRefused($providerError)) {
+            return $this->redirect('linkedin');
+        }
+
         if ($providerError) {
             Log::warning(ucfirst($platform) . ' OAuth returned an error.', ['error' => $providerError]);
 
@@ -770,6 +776,38 @@ class SocialAuthService
     // and Advertising API products.
     // =====================================================================
 
+    /**
+     * Scopes a LinkedIn Page connection asks for. The first four are the ones
+     * it always used (posting, Page list, likes/comments counts). LinkedIn's
+     * current Community Management docs put more behind newer permissions:
+     * - r_organization_social_feed: list a Page post's comments (without it
+     *   LinkedIn answers "Not enough permissions to access:
+     *   partnerApiSocialActions.GET_ALL"); w_organization_social_feed: comment
+     *   and react as the Page.  .../community-management/shares/comments-api
+     * - rw_organization_admin: post statistics (impressions, clicks) and the
+     *   social-action webhook.  .../organizations/share-statistics
+     * Only scopes the LinkedIn app is approved for can be requested; one it
+     * isn't approved for is learned from LinkedIn's unauthorized_scope_error
+     * and left out from then on (linkedinScopeRefused()).
+     */
+    public const LINKEDIN_SCOPES = [
+        'w_member_social', 'r_organization_admin', 'r_organization_social', 'w_organization_social',
+        'r_organization_social_feed', 'w_organization_social_feed', 'rw_organization_admin',
+    ];
+
+    /** Settings key of the scopes this LinkedIn app turned out not to be approved for. */
+    public const LINKEDIN_REFUSED_SCOPES = 'posts.linkedin.refused_scopes';
+
+    /** @return string[] */
+    public static function linkedinScopes(): array
+    {
+        $configured = trim((string) adminSetting('posts.linkedin.scopes'));
+        $scopes = $configured !== '' ? preg_split('/[\s,]+/', $configured) : self::LINKEDIN_SCOPES;
+        $refused = array_filter(explode(',', (string) adminSetting(self::LINKEDIN_REFUSED_SCOPES)));
+
+        return array_values(array_diff(array_filter($scopes), $refused));
+    }
+
     private function redirectLinkedin(string $state)
     {
         $url = 'https://www.linkedin.com/oauth/v2/authorization?' . http_build_query([
@@ -777,11 +815,37 @@ class SocialAuthService
             'client_id' => adminSetting('posts.linkedin.client_id'),
             'redirect_uri' => $this->callbackUrl('linkedin'),
             'state' => $state,
-            'scope' => 'w_member_social r_organization_admin r_organization_social w_organization_social',
-         //   'scope' => 'openid profile w_member_social r_organization_admin r_organization_social w_organization_social rw_organization_admin r_ads rw_ads r_ads_reporting',
-        ]);
+            'scope' => implode(' ', self::linkedinScopes()),
+        ], '', '&', PHP_QUERY_RFC3986);
 
         return Redirect::away($url);
+    }
+
+    /**
+     * LinkedIn refused the consent because the app isn't approved for a
+     * scope: 'Scope "r_organization_social_feed" is not authorized for your
+     * application'. Remember it, so this and every later connect asks only
+     * for what the app has. Returns the scopes newly learned ([] if this
+     * isn't that error, or nothing new was learned - no redirect loop).
+     *
+     * @return string[]
+     */
+    private function linkedinScopeRefused(string $error): array
+    {
+        $decoded = html_entity_decode($error, ENT_QUOTES);
+        if (! str_contains($decoded, 'unauthorized_scope') && ! str_contains($decoded, 'is not authorized for your application')) {
+            return [];
+        }
+        preg_match_all('/[Ss]cope\s*["\'“”]?([a-z_]+)["\'“”]?\s*is not authorized/', $decoded, $m);
+        $refused = array_filter(explode(',', (string) adminSetting(self::LINKEDIN_REFUSED_SCOPES)));
+        // Only optional scopes can be dropped - without the posting ones there's no connection.
+        $new = array_values(array_diff(array_intersect($m[1], array_slice(self::LINKEDIN_SCOPES, 4)), $refused));
+        if ($new) {
+            \App\Support\Settings::set(self::LINKEDIN_REFUSED_SCOPES, implode(',', array_merge($refused, $new)));
+            Log::info('LinkedIn app is not approved for scopes; connecting without them.', ['scopes' => $new]);
+        }
+
+        return $new;
     }
 
     private function callbackLinkedin(string $code)
@@ -858,6 +922,8 @@ class SocialAuthService
                     'username' => $org['vanityName'] ?? null,
                     'account_type' => 'organization',
                     'access_token' => $accessToken,
+                    // LinkedInPostService refreshes the 60-day token from this; keep the old one if none was issued.
+                    ...(! empty($token['refresh_token']) ? ['refresh_token' => $token['refresh_token']] : []),
                     'is_token_valid' => true,
                     ...GrantedScopes::attributes($grantedScopes),
                     'expires_at' => $expiresAt,
@@ -867,12 +933,10 @@ class SocialAuthService
             $orgsConnected++;
             $assetIds[] = $orgAccount->id;
 
-            // subscribeToWebhooks() is a soft no-op on LinkedIn (it only
-            // records a callback URL - LinkedIn doesn't push organic
-            // engagement events under the standard API tier), but
-            // backfillRecentPosts() genuinely pulls in existing posts/
-            // comments, so it's still worth calling both for consistency
-            // with the other platforms.
+            // subscribeToWebhooks() subscribes the Page to LinkedIn's social
+            // action notifications when posts.linkedin.developer_app_id is set
+            // (and records why not otherwise); backfillRecentPosts() pulls in
+            // the Page's existing posts and comments.
             try {
                 $this->linkedInPostService->subscribeToWebhooks($orgAccount);
             } catch (\Throwable $e) {
@@ -920,6 +984,7 @@ class SocialAuthService
                     'name' => $account['name'] ?? "LinkedIn Ad Account {$accountId}",
                     'account_type' => 'ad_account',
                     'access_token' => $accessToken,
+                    ...(! empty($token['refresh_token']) ? ['refresh_token' => $token['refresh_token']] : []),
                     'is_token_valid' => true,
                     ...GrantedScopes::attributes($grantedScopes),
                     'expires_at' => $expiresAt,

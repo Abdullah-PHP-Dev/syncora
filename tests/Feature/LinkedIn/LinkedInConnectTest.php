@@ -17,6 +17,8 @@ use Tests\TestCase;
  */
 class LinkedInConnectTest extends TestCase
 {
+    use \Tests\Feature\Connections\CreatesConnectionTables;
+
     private User $user;
 
     protected function setUp(): void
@@ -34,6 +36,10 @@ class LinkedInConnectTest extends TestCase
             (require database_path('migrations/' . $migration))->up();
         }
 
+        if (! \Illuminate\Support\Facades\Schema::hasTable('admin_settings')) {
+            $this->createSettingsTable();
+        }
+        \App\Support\Settings::set('posts.linkedin.client_id', 'li-client');
         $this->user = User::create(['name' => 'Seller', 'email' => 'seller@example.com', 'password' => bcrypt('x')]);
         $this->actingAs($this->user);
         session(['social_oauth_state_linkedin' => 'state-1']);
@@ -95,5 +101,70 @@ class LinkedInConnectTest extends TestCase
 
         $this->assertStringContainsString('The user cancelled LinkedIn login', session('error'));
         Http::assertNothingSent();
+    }
+
+    /** @return string[] the scopes a LinkedIn consent redirect asks for */
+    private function requestedScopes($response): array
+    {
+        parse_str((string) parse_url($response->getTargetUrl(), PHP_URL_QUERY), $query);
+
+        return explode(' ', $query['scope']);
+    }
+
+    public function test_the_consent_asks_for_the_comment_and_statistics_permissions(): void
+    {
+        $response = app(SocialAuthService::class)->redirect('linkedin');
+
+        $this->assertStringStartsWith('https://www.linkedin.com/oauth/v2/authorization?', $response->getTargetUrl());
+        $this->assertSame(SocialAuthService::LINKEDIN_SCOPES, $this->requestedScopes($response));
+        foreach (['r_organization_social_feed', 'w_organization_social_feed', 'rw_organization_admin', 'w_organization_social', 'r_organization_admin'] as $scope) {
+            $this->assertContains($scope, $this->requestedScopes($response));
+        }
+    }
+
+    public function test_a_scope_the_app_isnt_approved_for_is_dropped_and_the_consent_restarted(): void
+    {
+        Http::fake();
+
+        // LinkedIn: ?error=unauthorized_scope_error&error_description=Scope "..." is not authorized for your application
+        $response = app(SocialAuthService::class)->callback('linkedin', '', 'state-1', null, 'Scope &quot;r_organization_social_feed&quot; is not authorized for your application');
+
+        $this->assertStringStartsWith('https://www.linkedin.com/oauth/v2/authorization?', $response->getTargetUrl());
+        $this->assertNotContains('r_organization_social_feed', $this->requestedScopes($response));
+        $this->assertContains('rw_organization_admin', $this->requestedScopes($response));
+        $this->assertNull(session('error'));
+        // Remembered: later connects skip it straight away.
+        $this->assertNotContains('r_organization_social_feed', $this->requestedScopes(app(SocialAuthService::class)->redirect('linkedin')));
+        Http::assertNothingSent();
+    }
+
+    public function test_a_refused_posting_scope_or_a_repeat_refusal_fails_with_linkedins_reason(): void
+    {
+        // Posting scopes are never dropped - the connection would be useless.
+        app(SocialAuthService::class)->callback('linkedin', '', 'state-1', null, 'Scope "w_organization_social" is not authorized for your application');
+        $this->assertStringContainsString('w_organization_social', session('error'));
+
+        // An optional scope already dropped and refused again: no redirect loop.
+        \App\Support\Settings::set(SocialAuthService::LINKEDIN_REFUSED_SCOPES, 'rw_organization_admin');
+        session(['social_oauth_state_linkedin' => 'state-1']);
+        $response = app(SocialAuthService::class)->callback('linkedin', '', 'state-1', null, 'Scope "rw_organization_admin" is not authorized for your application');
+        $this->assertStringNotContainsString('linkedin.com/oauth', $response->getTargetUrl());
+    }
+
+    public function test_the_refresh_token_is_kept_on_the_posting_account(): void
+    {
+        Http::fake([
+            'www.linkedin.com/oauth/v2/accessToken' => Http::response(['access_token' => 'li-token', 'expires_in' => 5184000, 'refresh_token' => 'li-refresh', 'refresh_token_expires_in' => 31536000,
+                'scope' => 'r_organization_social_feed,w_organization_social,rw_organization_admin']),
+            'api.linkedin.com/rest/organizationAcls*' => Http::response(['elements' => [['organization' => 'urn:li:organization:555060042', 'role' => 'ADMINISTRATOR']]]),
+            'api.linkedin.com/rest/organizations/555060042' => Http::response(['localizedName' => 'Socialeaz']),
+            '*' => Http::response([], 404),
+        ]);
+
+        app(SocialAuthService::class)->callback('linkedin', 'code-1', 'state-1');
+
+        $account = SocialAccount::where('platform', 'linkedin')->firstOrFail();
+        $this->assertSame('li-refresh', $account->refresh_token);
+        $this->assertContains('r_organization_social_feed', $account->scopes);
     }
 }
