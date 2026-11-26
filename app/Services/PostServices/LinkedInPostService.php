@@ -1038,8 +1038,8 @@ class LinkedInPostService
             $errors['statistics'] = $e->getMessage();
         }
 
-        if ($fill !== [] && ! isset($errors['social_actions'])) {
-            $this->fetchAndStoreComments($account, $post, 20);
+        if ($fill !== [] && ! isset($errors['social_actions']) && ($commentsError = $this->fetchAndStoreComments($account, $post))) {
+            $errors['comments'] = $commentsError;
         }
         $this->recordSync($post, $fill, $errors);
 
@@ -1213,56 +1213,101 @@ class LinkedInPostService
     }
 
     /**
-     * Stores a post's most recent first-level comments via updateOrCreate,
-     * so a re-run (reconnect, or a future scheduled resync) refreshes
-     * like counts on existing comment rows instead of erroring on a
-     * duplicate. Actor URNs are stored as the display name - resolving a
-     * commenter's real name would require a separate /rest/people call
-     * per commenter, which third-party members generally don't authorize
-     * under the org-scoped permissions this module requests.
+     * Import a post's first-level comments: GET /rest/socialActions/{urn}/comments
+     * (learn.microsoft.com/linkedin/marketing/community-management/shares/comments-api).
+     * The API documents no sort parameter - and Rest.li refuses parameters it
+     * doesn't know, which is why comments never arrived while the counts did -
+     * so the comments are paged with the standard start/count and kept newest
+     * first here. updateOrCreate keeps re-runs idempotent; a comment SocialEaz
+     * posted itself (stored under its comment URN) isn't duplicated.
+     *
+     * LinkedIn doesn't give third-party apps other members' names under the
+     * Page permissions, so a member shows as "LinkedIn member"; the Page's own
+     * comments show as the Page.
+     *
+     * @return string|null why the comments couldn't be read, null on success
      */
-    private function fetchAndStoreComments(SocialAccount $account, Post $post, int $limit = 5): void
+    private function fetchAndStoreComments(SocialAccount $account, Post $post, int $limit = 50): ?string
     {
+        $url = $this->baseUrl . 'socialActions/' . rawurlencode((string) $post->post_id) . '/comments';
+        $elements = [];
+
         try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $account->access_token,
-                'X-Restli-Protocol-Version' => '2.0.0',
-                'Linkedin-Version' => $this->linkedinVersion,
-            ])->get($this->baseUrl . 'socialActions/' . urlencode($post->post_id) . '/comments', [
-                'count'     => $limit,
-                'sortOrder' => 'REVERSE_CHRONOLOGICAL',
-            ]);
+            for ($start = 0; $start < $limit; $start += 50) {
+                $response = Http::withHeaders($this->restHeaders($account))->get($url, ['start' => $start, 'count' => min(50, $limit - $start)]);
+                // Some API versions refuse paging parameters too: the first page without them.
+                if ($response->status() === 400 && $start === 0) {
+                    $response = Http::withHeaders($this->restHeaders($account))->get($url);
+                }
+                if (! $response->successful()) {
+                    $error = $this->readError($response, 'r_organization_social');
+                    Log::warning('LinkedIn comments fetch failed.', ['post_id' => $post->id, 'status' => $response->status(), 'error' => $response->json('message') ?? $response->body()]);
 
-            if (!$response->successful()) {
-                Log::warning('LinkedIn comments fetch failed.', ['post_id' => $post->id, 'error' => $response->json()['message'] ?? $response->body()]);
-                return;
-            }
-
-            foreach (array_slice($response->json()['elements'] ?? [], 0, $limit) as $comment) {
-                if (empty($comment['id'])) {
-                    continue;
+                    return $error;
                 }
 
-                PostComment::updateOrCreate(
-                    ['comment_id' => $comment['id'], 'post_id' => $post->id],
-                    [
-                        'platform'        => 'linkedin',
-                        'user_id'         => $account->user_id,
-                        'social_account_id' => $account->id,
-                        'user_name'       => $comment['actor'] ?? 'LinkedIn user',
-                        'content'         => $comment['message']['text'] ?? '',
-                        'likes'           => $comment['likesSummary']['totalLikes'] ?? 0,
-                        'sender_type'     => 'customer',
-                        'is_reply'        => false,
-                        'status'          => 'approved',
-                        'posted_at'       => isset($comment['created']['time']) ? Carbon::createFromTimestampMs($comment['created']['time']) : now(),
-                        'imported_at'     => now(),
-                    ]
-                );
+                $page = $response->json('elements') ?? [];
+                $elements = array_merge($elements, $page);
+                if (count($page) < 50 || ! $response->json('paging.links')) {
+                    break;
+                }
             }
         } catch (\Throwable $e) {
             Log::warning('LinkedIn comments fetch threw.', ['post_id' => $post->id, 'error' => $e->getMessage()]);
+
+            return $e->getMessage();
         }
+
+        $orgUrn = 'urn:li:organization:' . $account->platform_account_id;
+        usort($elements, fn ($a, $b) => ($b['created']['time'] ?? 0) <=> ($a['created']['time'] ?? 0));
+
+        foreach (array_slice($elements, 0, $limit) as $comment) {
+            $id = (string) ($comment['id'] ?? '');
+            if ($id === '' || ! empty($comment['parentComment'])) {
+                continue;
+            }
+            $urn = $comment['commentUrn'] ?? $comment['$URN'] ?? null;
+            $actor = (string) ($comment['actor'] ?? '');
+            $own = $actor === $orgUrn;
+            $existing = PostComment::where('post_id', $post->id)->whereIn('comment_id', array_filter([$id, $urn]))->first();
+
+            $values = [
+                'platform' => 'linkedin',
+                'user_id' => $account->user_id,
+                'social_account_id' => $account->id,
+                'user_name' => $own ? ($account->name ?: 'Your Page') : ($this->actorName($comment) ?? 'LinkedIn member'),
+                'content' => (string) ($comment['message']['text'] ?? ''),
+                'likes' => (int) ($comment['likesSummary']['totalLikes'] ?? 0),
+                'sender_type' => $own ? 'support' : 'customer',
+                'is_reply' => false,
+                'status' => 'approved',
+                'posted_at' => isset($comment['created']['time']) ? Carbon::createFromTimestampMs($comment['created']['time']) : now(),
+                'imported_at' => now(),
+            ];
+
+            if ($existing) {
+                // A reply sent from SocialEaz keeps its author; only LinkedIn's figures change.
+                $existing->update($existing->sender_type === 'support' && ! $own ? array_intersect_key($values, array_flip(['content', 'likes', 'imported_at'])) : $values);
+            } else {
+                PostComment::create(['comment_id' => $id, 'post_id' => $post->id] + $values);
+            }
+        }
+
+        return null;
+    }
+
+    /** "First Last" when LinkedIn decorated the actor (actor~), else null. */
+    private function actorName(array $comment): ?string
+    {
+        $person = $comment['actor~'] ?? null;
+        if (! is_array($person)) {
+            return null;
+        }
+        $first = $person['localizedFirstName'] ?? null;
+        $last = $person['localizedLastName'] ?? (is_string($person['lastName'] ?? null) ? $person['lastName'] : null);
+        $name = trim(implode(' ', array_filter([$first, $last], 'is_string')));
+
+        return $name !== '' ? $name : ($person['localizedName'] ?? null);
     }
 
     /**

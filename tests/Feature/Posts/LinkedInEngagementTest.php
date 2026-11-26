@@ -72,6 +72,14 @@ class LinkedInEngagementTest extends TestCase
             $t->timestamp('read_at')->nullable();
             $t->timestamps();
         });
+        Schema::create('post_media', function ($t) {
+            $t->id();
+            $t->unsignedBigInteger('post_id')->nullable();
+            $t->string('media_url')->nullable();
+            $t->string('media_type')->nullable();
+            $t->string('thumbnail_url')->nullable();
+            $t->timestamps();
+        });
         Settings::set('posts.linkedin.base_url', self::API);
         Settings::set('posts.linkedin.client_secret', self::SECRET);
         $this->user = User::create(['name' => 'Seller', 'email' => 's@example.com', 'password' => bcrypt('x')]);
@@ -133,6 +141,76 @@ class LinkedInEngagementTest extends TestCase
         // Restli 2.0: List() literal, URNs encoded; versioned headers.
         Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), 'organizationalEntityShareStatistics?q=organizationalEntity&organizationalEntity=urn%3Ali%3Aorganization%3A99887766&shares=List(urn%3Ali%3Ashare%3A7400000000000000001)')
             && $r->hasHeader('X-Restli-Protocol-Version', '2.0.0') && $r->hasHeader('Linkedin-Version'));
+    }
+
+    public function test_comments_are_imported_without_the_undocumented_sort_parameter(): void
+    {
+        $this->fakeLinkedIn([self::API . 'socialActions/' . rawurlencode(self::URN) . '/comments*' => Http::response(['elements' => [
+            ['id' => '1001', 'actor' => 'urn:li:person:abc', 'message' => ['text' => 'Older comment'], 'created' => ['time' => 1764100000000]],
+            ['id' => '1002', 'actor' => 'urn:li:organization:99887766', 'message' => ['text' => 'Thanks from the Page'], 'created' => ['time' => 1764300000000]],
+            ['id' => '1003', 'actor' => 'urn:li:person:xyz', 'actor~' => ['localizedFirstName' => 'Sara', 'localizedLastName' => 'Ali'], 'message' => ['text' => 'Love it'], 'created' => ['time' => 1764200000000]],
+            ['id' => '1004', 'actor' => 'urn:li:person:abc', 'parentComment' => 'urn:li:comment:(urn:li:activity:1,1001)', 'message' => ['text' => 'nested reply'], 'created' => ['time' => 1764400000000]],
+        ]])]);
+
+        app(LinkedInPostService::class)->syncEngagement($this->post->fresh('socialAccount'));
+
+        Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), '/comments?start=0&count=50') && ! str_contains($r->url(), 'sortOrder'));
+        $comments = PostComment::where('post_id', $this->post->id)->orderByDesc('posted_at')->get();
+        $this->assertSame(
+            [['Thanks from the Page', 'Socialeaz', 'support'], ['Love it', 'Sara Ali', 'customer'], ['Older comment', 'LinkedIn member', 'customer']],
+            $comments->map(fn ($c) => [$c->content, $c->user_name, $c->sender_type])->all()
+        );
+        $this->assertNull($this->post->fresh()->platform_metadata['engagement_errors']);
+    }
+
+    public function test_if_linkedin_refuses_paging_parameters_the_first_page_is_read_without_them(): void
+    {
+        $url = self::API . 'socialActions/' . rawurlencode(self::URN) . '/comments';
+        $this->fakeLinkedIn([$url . '*' => fn (HttpRequest $r) => str_contains($r->url(), 'count=')
+            ? Http::response(['status' => 400, 'message' => 'Query parameter count is not allowed'], 400)
+            : Http::response(['elements' => [['id' => '2001', 'actor' => 'urn:li:person:abc', 'message' => ['text' => 'Hello'], 'created' => ['time' => 1764100000000]]]])]);
+
+        app(LinkedInPostService::class)->syncEngagement($this->post->fresh('socialAccount'));
+
+        $this->assertSame(['Hello'], PostComment::where('post_id', $this->post->id)->pluck('content')->all());
+    }
+
+    public function test_a_refused_comments_read_is_explained_not_silent(): void
+    {
+        $this->fakeLinkedIn([self::API . 'socialActions/' . rawurlencode(self::URN) . '/comments*' => Http::response(['status' => 403, 'message' => 'Not enough permissions to access: GET /socialActions/{id}/comments'], 403)]);
+
+        app(LinkedInPostService::class)->syncEngagement($this->post->fresh('socialAccount'));
+
+        $post = $this->post->fresh();
+        $this->assertSame(4, $post->comments); // the count still comes through
+        $this->assertStringContainsString('Not enough permissions', $post->platform_metadata['engagement_errors']['comments']);
+    }
+
+    public function test_a_reply_sent_from_socialeaz_is_not_imported_twice(): void
+    {
+        PostComment::forceCreate(['post_id' => $this->post->id, 'platform' => 'linkedin', 'comment_id' => 'urn:li:comment:(urn:li:activity:7400000000000000009,3001)',
+            'content' => 'Thanks!', 'sender_type' => 'support', 'user_name' => 'Zaheer', 'is_reply' => false]);
+        $this->fakeLinkedIn([self::API . 'socialActions/' . rawurlencode(self::URN) . '/comments*' => Http::response(['elements' => [
+            ['id' => '3001', 'commentUrn' => 'urn:li:comment:(urn:li:activity:7400000000000000009,3001)', 'actor' => 'urn:li:organization:99887766', 'message' => ['text' => 'Thanks!'], 'created' => ['time' => 1764100000000], 'likesSummary' => ['totalLikes' => 3]],
+        ]])]);
+
+        app(LinkedInPostService::class)->syncEngagement($this->post->fresh('socialAccount'));
+
+        $comments = PostComment::where('post_id', $this->post->id)->get();
+        $this->assertCount(1, $comments);
+        $this->assertSame([3, 'support'], [$comments[0]->likes, $comments[0]->sender_type]);
+    }
+
+    public function test_the_preview_shows_comments_imported_while_opening_it(): void
+    {
+        $this->actingAs($this->user);
+        $this->withoutMiddleware([\Mcamara\LaravelLocalization\Middleware\LocaleSessionRedirect::class, \Mcamara\LaravelLocalization\Middleware\LocaleCookieRedirect::class, \Mcamara\LaravelLocalization\Middleware\LaravelLocalizationRedirectFilter::class]);
+        $this->withoutVite();
+        $this->fakeLinkedIn();
+
+        $response = $this->get(route('admin.posts.preview', [$this->post->id, 'linkedin']));
+
+        $response->assertOk()->assertViewHas('post', fn ($post) => collect($post['engagement']['comments'])->pluck('content')->all() === ['Congrats!']);
     }
 
     public function test_ugc_posts_use_the_ugcposts_parameter(): void

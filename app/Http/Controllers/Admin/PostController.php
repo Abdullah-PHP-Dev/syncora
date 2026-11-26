@@ -760,7 +760,8 @@ class PostController extends Controller
             && (! $syncedAt || \Carbon\Carbon::parse($syncedAt)->lt(now()->subMinutes(5)))
         ) {
             $service->syncEngagement($post);
-            $post->load('media');
+            // The sync may have imported comments (LinkedIn): show them on this view, not the next.
+            $post->load(['media', 'postComments' => fn ($query) => $query->topLevel()->with('replies')]);
         }
     }
 
