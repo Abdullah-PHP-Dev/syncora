@@ -37,6 +37,20 @@ return [
 
     'cadences' => ['immediate' => 'فورًا', 'daily' => 'ملخص يومي', 'weekly' => 'ملخص أسبوعي', 'off' => 'إيقاف'],
 
+    // تنبيه الفريق عند تسجيل عميل جديد (support.new_signup)
+    'signup' => [
+        'intro' => '**:name** أنشأ حسابًا في Socialeaz للتو. هذه كل التفاصيل التي تحتاجها للترحيب به.',
+        'customer' => 'العميل',
+        'account' => 'الحساب',
+        'context' => 'تفاصيل التسجيل',
+        'name' => 'الاسم', 'email' => 'البريد الإلكتروني', 'mobile' => 'الجوال', 'business' => 'النشاط التجاري',
+        'plan' => 'الباقة', 'status' => 'الاشتراك', 'trial_end' => 'تنتهي التجربة', 'account_id' => 'رقم الحساب',
+        'when' => 'تاريخ التسجيل', 'language' => 'اللغة', 'country' => 'الدولة', 'device' => 'الجهاز', 'network' => 'الشبكة',
+        'reply' => 'مراسلة العميل',
+        'note' => 'أُرسل بريد التحقق (الرمز + الرابط). يبقى الحساب على شاشة التحقق حتى يؤكد العميل بريده. تعرض الشبكة الجزء الأول من عنوان IP فقط.',
+        'footer' => 'تنبيه داخلي لفريق Socialeaz — يُرسل إلى عناوين تنبيهات التسجيل.',
+    ],
+
     'details' => [
         'platform' => 'المنصة', 'account' => 'الحساب', 'reason' => 'السبب', 'plan' => 'الباقة', 'amount' => 'المبلغ',
         'ticket' => 'التذكرة', 'campaign' => 'الحملة', 'source' => 'المصدر', 'channel' => 'القناة',
@@ -135,7 +149,7 @@ return [
             'email_marketing.campaign_failed' => 'حملة لم تُرسل', 'google.sync_failing' => 'فشل مزامنة Google',
             'support.ticket_received' => 'استلام الطلب', 'support.reply_received' => 'رد من الدعم',
             'support.ticket_resolved' => 'حل الطلب', 'support.ticket_closed' => 'إغلاق الطلب',
-            'support.ticket_new' => 'تذكرة جديدة (فريق الدعم)', 'support.ticket_assigned' => 'تذكرة مسندة (فريق الدعم)',
+            'support.new_signup' => 'تسجيل عميل جديد (فريق الدعم)', 'support.ticket_new' => 'تذكرة جديدة (فريق الدعم)', 'support.ticket_assigned' => 'تذكرة مسندة (فريق الدعم)',
             'support.customer_replied' => 'رد العميل (فريق الدعم)', 'support.ticket_escalated' => 'تصعيد تذكرة (فريق الدعم)',
         ],
     ],
@@ -492,6 +506,16 @@ return [
             'title' => '[#:ticket] تم إغلاق طلبك',
             'body' => 'تم إغلاق ":subject". يمكنك فتح طلب جديد في أي وقت.',
             'cta' => 'عرض التذكرة',
+        ],
+        'support.new_signup' => [
+            'title' => 'تسجيل جديد: :name',
+            'chip' => 'عميل جديد',
+            'subject' => '🎉 عميل جديد سجّل — :name',
+            'preheader' => ':name (:email) أنشأ حسابًا في Socialeaz للتو.',
+            'headline' => 'انضم عميل جديد للتو',
+            'body' => 'أنشأ :name حسابًا في Socialeaz. تفاصيله أدناه.',
+            'note' => 'أُرسل إليه بريد التحقق. يبقى حسابه على شاشة التحقق حتى يؤكد بريده.',
+            'cta' => 'فتح ملف العميل',
         ],
         'support.ticket_new' => ['title' => '[#:ticket] تذكرة جديدة — :priority', 'body' => ':subject', 'cta' => 'فتح التذكرة'],
         'support.ticket_assigned' => ['title' => '[#:ticket] مُسندة إليك — :priority', 'body' => ':subject', 'cta' => 'فتح التذكرة'],

@@ -32,6 +32,14 @@ class TemplateRegistry
     /** Variables a published version must contain, or customers couldn't complete the action (the default is sent instead). */
     public const REQUIRED = ['auth.verify_email' => ['verification_otp', 'verification_url']];
 
+    /** Events whose built-in email is a designed template (sent through the renderer even before an admin edits it). */
+    public const DESIGNED = ['support.new_signup'];
+
+    /** Values an event carries beyond the placeholders its built-in wording happens to use. */
+    public const EVENT_VARS = [
+        'support.new_signup' => ['name', 'email', 'mobile', 'workspace', 'plan', 'status', 'end', 'when', 'language', 'country', 'device', 'network', 'account_id'],
+    ];
+
     public const GENERAL = ['customer_name', 'customer_email', 'workspace_name', 'application_name', 'application_url', 'support_email', 'current_date', 'current_year', 'action_url'];
 
     /** Realistic sample values for previews and test emails (never real customer data). */
@@ -48,6 +56,7 @@ class TemplateRegistry
         'device' => 'Chrome · Windows', 'network' => '188.50.x.x', 'source' => 'Facebook lead ad', 'method' => 'Tamara', 'interest' => 'Sofa set',
         'when' => '24 Nov 2026, 14:05 (AST)', 'end' => '27 Nov 2026', 'expires' => '1 Dec 2026, 09:00 (AST)', 'period_end' => '24 Dec 2026',
         'due' => '24 Nov 2026, 16:00 (AST)',
+        'mobile' => '+966 55 123 4567', 'status' => 'Trial', 'language' => 'English', 'country' => 'SA', 'account_id' => '#1042',
         'verification_otp' => '482915', 'otp_expiry' => '10', 'company_name' => 'Socialeaz',
     ];
 
@@ -99,6 +108,8 @@ class TemplateRegistry
             }
         }
 
+        $found = array_merge($found, self::EVENT_VARS[$key] ?? []);
+
         return array_values(array_unique(array_merge(self::GENERAL, array_diff($found, self::INTERNAL))));
     }
 
@@ -123,6 +134,9 @@ class TemplateRegistry
         $vars = $this->variables($key);
         if ($key === 'auth.verify_email') {
             return $this->verifyDefaults($locale);
+        }
+        if ($key === 'support.new_signup') {
+            return $this->signupDefaults($locale);
         }
         if (isset(self::AUTH[$key])) {
             $prefix = $key === 'auth.verify_email' ? 'verify' : 'reset';
@@ -159,6 +173,36 @@ class TemplateRegistry
             ['type' => 'text', 'text' => $t('note')],
         ], '');
         $content['cta_url'] = '';
+
+        return $content;
+    }
+
+    /** The designed built-in template for this email, or null when it uses the standard layout. */
+    public function designed(string $key, string $locale): ?array
+    {
+        return in_array($key, self::DESIGNED, true) ? $this->defaults($key, $locale) : null;
+    }
+
+    /** Team alert for a new customer: intro, three detail cards, profile button, reply link. */
+    private function signupDefaults(string $locale): array
+    {
+        $t = fn ($k, $r = []) => (string) trans('notifications.signup.'.$k, $r, $locale);
+        $card = fn (array $rows) => ['type' => 'card', 'rows' => array_map(fn ($label, $var) => ['label' => $t($label), 'value' => '{{ '.$var.' }}'], array_keys($rows), $rows)];
+        $line = fn ($part) => $this->tokens((string) (NotificationText::eventLines('support.new_signup', $locale)[$part] ?? ''), self::EVENT_VARS['support.new_signup']);
+
+        $content = self::content($line('subject'), $line('preheader'), $line('headline'), [
+            ['type' => 'text', 'text' => $t('intro', ['name' => '{{ name }}'])],
+            ['type' => 'heading', 'text' => $t('customer')],
+            $card(['name' => 'name', 'email' => 'email', 'mobile' => 'mobile', 'business' => 'workspace']),
+            ['type' => 'heading', 'text' => $t('account')],
+            $card(['plan' => 'plan', 'status' => 'status', 'trial_end' => 'end', 'account_id' => 'account_id']),
+            ['type' => 'heading', 'text' => $t('context')],
+            $card(['when' => 'when', 'language' => 'language', 'country' => 'country', 'device' => 'device', 'network' => 'network']),
+            ['type' => 'text', 'text' => $t('note')],
+        ], $line('cta'));
+        $content['secondary_text'] = $t('reply');
+        $content['secondary_url'] = 'mailto:{{email}}'; // no spaces: a link can't contain them
+        $content['footer'] = $t('footer');
 
         return $content;
     }

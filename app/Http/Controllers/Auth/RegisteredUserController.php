@@ -50,6 +50,8 @@ class RegisteredUserController extends Controller
         event(new UserRegistered($user));
         // SEC-01: sends the branded verification email (immediately) via Laravel's listener.
         event(new Registered($user));
+        // Tells the team (support@socialeaz.com) about the new customer, with their details.
+        \App\Services\Notifications\Emitters\SignupNotifications::registered($user);
 
         Auth::login($user);
 

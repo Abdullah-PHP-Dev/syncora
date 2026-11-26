@@ -249,3 +249,16 @@ At the product owner's request, notification emails no longer go through the que
 - **Requirement:** the scheduler (`php artisan schedule:work` locally, cron in production) must run for held-back emails. A queue worker is no longer needed for notifications.
 - **Trade-off:** the request that triggers an email now waits for the SMTP call, about 1–2 s per email.
 - **Links use `APP_URL`.** Laravel builds links from the current request's host, so emails sent during a request linked to whatever address the person used (locally `syncora.test`, which Hostinger/MailChannels blocks as `[CS] Message blocked`). `Links::withPublicRoot()` now builds every email (notifications, verification, password reset, admin test send) on `APP_URL`, then restores the site's own links.
+
+## Update 2026-11-26: team alert on every signup (`support.new_signup`)
+
+- **When:** every self-service signup (`RegisteredUserController::store` and `SellerRegistrationService::register`). Sent right after the account, role and trial plan exist, after commit and after the response.
+- **To:** `NOTIFICATIONS_SIGNUP_ALERT_TO` (comma-separated, default `support@socialeaz.com`; empty = off). Email only, no bell. Once per account (dedup `signup:{id}`).
+- **Content:** a designed template (`TemplateRegistry::DESIGNED`), sent even before an admin edits it, with the chip "New customer" and three cards:
+  - Customer: name, email, mobile, business;
+  - Account: plan, subscription status, trial end, account ID;
+  - Signup context: time, language, country (Cloudflare `CF-IPCountry`, when present), device, network (first half of the IP only).
+- **Buttons:** "Open customer profile" (`admin.profiles.show`) and "Email the customer" (`mailto:`).
+- **Editable:** Admin → Email templates → "New customer signup (staff)", EN and AR. Reset restores the design.
+- **Files:** `Emitters/SignupNotifications.php` (new), `config/notifications.php`, `lang/{en,ar}/notifications.php` (`events.support.new_signup`, `signup.*`), `TemplateRegistry` (`DESIGNED`, `EVENT_VARS`, `signupDefaults()`), `PlatformNotificationMail` (designed default, per-event `chip`).
+- **Tests:** `tests/Feature/Notifications/SignupAlertTest.php` (3).

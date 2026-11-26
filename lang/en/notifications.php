@@ -38,6 +38,20 @@ return [
 
     'cadences' => ['immediate' => 'Immediately', 'daily' => 'Daily digest', 'weekly' => 'Weekly digest', 'off' => 'Off'],
 
+    // Team alert for a new signup (support.new_signup): section titles and row labels.
+    'signup' => [
+        'intro' => '**:name** just created a Socialeaz account. Here is everything you need to welcome them.',
+        'customer' => 'Customer',
+        'account' => 'Account',
+        'context' => 'Signup context',
+        'name' => 'Name', 'email' => 'Email', 'mobile' => 'Mobile', 'business' => 'Business',
+        'plan' => 'Plan', 'status' => 'Subscription', 'trial_end' => 'Trial ends', 'account_id' => 'Account ID',
+        'when' => 'Signed up', 'language' => 'Language', 'country' => 'Country', 'device' => 'Device', 'network' => 'Network',
+        'reply' => 'Email the customer',
+        'note' => 'The verification email (code + link) has been sent. Until they confirm, the account stays on the verification screen. Network shows the first part of the IP address only.',
+        'footer' => 'Internal alert for the Socialeaz team — sent to the signup alert addresses.',
+    ],
+
     'details' => [
         'platform' => 'Platform', 'account' => 'Account', 'reason' => 'Reason', 'plan' => 'Plan', 'amount' => 'Amount',
         'ticket' => 'Ticket', 'campaign' => 'Campaign', 'source' => 'Source', 'channel' => 'Channel',
@@ -136,7 +150,7 @@ return [
             'email_marketing.campaign_failed' => 'Campaign not sent', 'google.sync_failing' => 'Google sync failing',
             'support.ticket_received' => 'Request received', 'support.reply_received' => 'Reply from support',
             'support.ticket_resolved' => 'Request resolved', 'support.ticket_closed' => 'Request closed',
-            'support.ticket_new' => 'New ticket (staff)', 'support.ticket_assigned' => 'Ticket assigned (staff)',
+            'support.new_signup' => 'New customer signup (staff)', 'support.ticket_new' => 'New ticket (staff)', 'support.ticket_assigned' => 'Ticket assigned (staff)',
             'support.customer_replied' => 'Customer replied (staff)', 'support.ticket_escalated' => 'Ticket escalated (staff)',
         ],
     ],
@@ -509,6 +523,16 @@ return [
             'title' => '[#:ticket] Your request was closed',
             'body' => '":subject" was closed. You can open a new request at any time.',
             'cta' => 'View ticket',
+        ],
+        'support.new_signup' => [
+            'title' => 'New signup: :name',
+            'chip' => 'New customer',
+            'subject' => '🎉 New customer signed up — :name',
+            'preheader' => ':name (:email) just created a Socialeaz account.',
+            'headline' => 'A new customer just joined',
+            'body' => ':name created a Socialeaz account. Their details are below.',
+            'note' => 'They have been sent the verification email. Until they confirm it, their account stays on the verification screen.',
+            'cta' => 'Open customer profile',
         ],
         'support.ticket_new' => ['title' => '[#:ticket] New ticket — :priority', 'body' => ':subject', 'cta' => 'Open ticket'],
         'support.ticket_assigned' => ['title' => '[#:ticket] Assigned to you — :priority', 'body' => ':subject', 'cta' => 'Open ticket'],

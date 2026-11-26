@@ -63,7 +63,7 @@ class PlatformNotificationMail extends Mailable
         // An administrator's published template for this email and language replaces the
         // built-in wording (single emails; grouped emails keep the built-in group wording).
         // A template only exists per language, so a reader never gets another language's text.
-        $custom = $count === 1 ? EmailTemplates::published($this->lead->event, $locale) : null;
+        $custom = $count === 1 ? (EmailTemplates::published($this->lead->event, $locale) ?? app(\App\Services\PlatformEmails\TemplateRegistry::class)->designed($this->lead->event, $locale)) : null;
         $overrides = [];
         if ($custom) {
             $vars = TemplateVariables::general($this->user, $this->workspaceName(), $ctaUrl, $locale, $first->to_address)
@@ -76,7 +76,7 @@ class PlatformNotificationMail extends Mailable
             $overrides = ['blocks_html' => $rendered['blocks_html'], 'secondary' => $rendered['secondary'], 'footer_custom' => $rendered['footer'], 'details' => []];
             $ctaUrl = $rendered['cta_url'] ?? $ctaUrl;
         }
-        $this->templateVersion = $custom ? 'v'.$custom['_version'] : 'default';
+        $this->templateVersion = isset($custom['_version']) ? 'v'.$custom['_version'] : 'default';
 
         $this->layout = self::layoutData($locale, $this->config['tone'], $text, $overrides + [
             'cta_url' => $ctaUrl,
@@ -89,6 +89,8 @@ class PlatformNotificationMail extends Mailable
                     'when' => NotificationText::date($event->occurred_at, $locale, $tz)];
             })->all() : [],
             'workspace' => $this->workspaceName(),
+            // An event may name its own status label (e.g. "New customer") instead of the tone's.
+            ...array_filter(['chip' => NotificationText::eventLines($this->lead->event, $locale)['chip'] ?? null]),
             'category' => trans('notifications.categories.'.$this->config['category'], [], $locale),
             'manage_url' => $this->user ? Links::preferences($this->user, $this->config['category']) : null,
             'unsubscribe_url' => $this->unsubscribeUrl(),

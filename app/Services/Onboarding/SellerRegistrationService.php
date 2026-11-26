@@ -49,6 +49,8 @@ class SellerRegistrationService
             // Existing mechanism: subscription + trial cycle from the plan's own
             // trial_days; entitlements are read live from the bundle afterwards.
             $this->subscriptions->assignFreeTrial($user);
+            // Sent after the transaction commits (nothing is sent if it rolls back).
+            \App\Services\Notifications\Emitters\SignupNotifications::registered($user);
 
             return $user;
         });

@@ -85,7 +85,7 @@ class PlatformEmailTemplatesTest extends TestCase
     public function test_every_built_in_default_is_a_valid_template_in_both_languages(): void
     {
         $registry = app(TemplateRegistry::class);
-        $this->assertCount(61, $registry->all());
+        $this->assertCount(62, $registry->all()); // +1: support.new_signup (team alert)
         foreach (array_keys($registry->all()) as $key) {
             foreach (TemplateRegistry::LOCALES as $locale) {
                 $content = app(TemplateValidator::class)->validate($key, $registry->defaults($key, $locale));
