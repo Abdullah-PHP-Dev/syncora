@@ -353,6 +353,7 @@ class LinkedInPostService
         $publishId = $response->header('x-restli-id');
 
         $post->post_id = $publishId;
+        $post->post_url = $publishId ? self::permalink($publishId) : $post->post_url;
         $post->error_message = '';
         $post->status = 'completed';
         $post->save();
@@ -909,26 +910,226 @@ class LinkedInPostService
     }
 
     /**
-     * LinkedIn has no self-serve "subscribe this org to webhooks" endpoint
-     * the way Meta's POST .../subscribed_apps does - organic comment/like/
-     * share events are not pushed to third-party apps under the standard
-     * Community Management API product this module authenticates against
-     * (see redirectLinkedin()). This records the callback URL an admin
-     * would register by hand if the org is ever approved for a push-
-     * capable LinkedIn product, and deliberately leaves
-     * webhook_subscriptions false so callers can tell engagement here is
-     * pull-based - see backfillRecentPosts()/fetchAndStoreComments() and
-     * LinkedinCommentWebhookController's docblock.
+     * Subscribe the Organization to LinkedIn's Organization Social Action
+     * Notifications (LIKE, COMMENT, SHARE, COMMENT_DELETE ... on its posts):
+     * PUT /rest/eventSubscriptions/(developerApplication:..,user:..,entity:..,
+     * eventType:ORGANIZATION_SOCIAL_ACTION_NOTIFICATIONS) {"webhook": url}.
+     * learn.microsoft.com/linkedin/marketing/community-management/organizations/organization-social-action-notifications
+     *
+     * LinkedIn requires: the app's webhook URL registered (and validated) in
+     * the developer portal's Webhooks tab, the member to be an ADMINISTRATOR
+     * of the Page and the rw_organization_admin permission. Until then this
+     * records why it isn't subscribed; engagement is kept current by polling
+     * (syncEngagement, posts:sync-engagement) either way.
      */
     public function subscribeToWebhooks(SocialAccount $account): void
     {
-        $account->update([
-            'metadata' => array_merge($account->metadata ?? [], [
-                'settings' => array_merge($account->metadata['settings'] ?? [], [
-                    'webhook_callback_url' => route('comments.webhook.linkedin.receive'),
-                ]),
-            ]),
+        $callback = route('comments.webhook.linkedin.receive');
+        $appId = adminSetting('posts.linkedin.client_id');
+        $result = ['subscribed' => false, 'reason' => 'not_configured'];
+
+        if ($appId) {
+            try {
+                $result = $this->subscribeOrganization($account, (string) $appId, $callback);
+            } catch (\Throwable $e) {
+                Log::warning('LinkedIn webhook subscription threw.', ['account_id' => $account->id, 'error' => $e->getMessage()]);
+                $result = ['subscribed' => false, 'reason' => 'error', 'error' => $e->getMessage()];
+            }
+        }
+
+        $metadata = $account->metadata ?? [];
+        $metadata['settings'] = array_merge($metadata['settings'] ?? [], [
+            'webhook_callback_url' => $callback,
+            'webhook_subscriptions' => $result['subscribed'],
+            'webhook_status' => $result + ['checked_at' => now()->toIso8601String()],
         ]);
+        $account->update(['metadata' => $metadata]);
+    }
+
+    /** @return array{subscribed: bool, reason?: string, error?: string, member?: string} */
+    private function subscribeOrganization(SocialAccount $account, string $appId, string $callback): array
+    {
+        if (! $this->refreshAccountToken($account)) {
+            return ['subscribed' => false, 'reason' => 'token_expired'];
+        }
+        $headers = $this->restHeaders($account);
+        $orgUrn = 'urn:li:organization:' . $account->platform_account_id;
+
+        // The connected member's person URN: their ADMINISTRATOR role on this Page.
+        $acls = Http::withHeaders($headers)->get($this->baseUrl . 'organizationAcls', ['q' => 'roleAssignee', 'role' => 'ADMINISTRATOR', 'state' => 'APPROVED']);
+        $member = collect($acls->json('elements') ?? [])->first(fn ($row) => ($row['organization'] ?? null) === $orgUrn)['roleAssignee'] ?? null;
+        if (! $acls->successful() || ! $member) {
+            return ['subscribed' => false, 'reason' => 'not_admin', 'error' => $acls->json('message')];
+        }
+
+        $key = '(developerApplication:' . rawurlencode('urn:li:developerApplication:' . $appId)
+            . ',user:' . rawurlencode($member)
+            . ',entity:' . rawurlencode($orgUrn)
+            . ',eventType:ORGANIZATION_SOCIAL_ACTION_NOTIFICATIONS)';
+        $response = Http::withHeaders($headers + ['Content-Type' => 'application/json'])
+            ->put($this->baseUrl . 'eventSubscriptions/' . $key, ['webhook' => $callback]);
+
+        if ($response->successful()) {
+            return ['subscribed' => true, 'member' => $member];
+        }
+        Log::warning('LinkedIn webhook subscription refused.', ['account_id' => $account->id, 'status' => $response->status(), 'error' => $response->json('message') ?? $response->body()]);
+
+        return ['subscribed' => false, 'reason' => in_array($response->status(), [401, 403], true) ? 'missing_permission' : 'refused', 'error' => $response->json('message')];
+    }
+
+    /**
+     * Re-read one published post's engagement. Likes and comments come from
+     * socialActions (r_organization_social - matches the LinkedIn feed);
+     * impressions, unique impressions, clicks and shares from
+     * organizationalEntityShareStatistics (rw_organization_admin, organic
+     * only). Each part is optional: a 403 on one keeps what the other gave
+     * and records why in platform_metadata.engagement_errors. LinkedIn
+     * reports no "views" for organic posts in these APIs - impressions are
+     * its reach metric - so views is left as it is rather than guessed.
+     * Never changes the post's status (a live post isn't "failed" because
+     * a read failed).
+     */
+    public function syncEngagement(Post $post): bool
+    {
+        $account = $post->socialAccount;
+        if (! $post->post_id || ! $account?->access_token) {
+            return false;
+        }
+
+        $errors = [];
+        $fill = [];
+        if (! $this->refreshAccountToken($account)) {
+            $this->recordSync($post, [], ['token' => 'LinkedIn connection expired - reconnect LinkedIn in Connections.']);
+
+            return false;
+        }
+        $headers = $this->restHeaders($account);
+
+        try {
+            $actions = Http::withHeaders($headers)->get($this->baseUrl . 'socialActions/' . rawurlencode($post->post_id));
+            if ($actions->successful()) {
+                $fill['likes'] = (int) ($actions->json('likesSummary.totalLikes') ?? 0);
+                $fill['comments'] = (int) ($actions->json('commentsSummary.aggregatedTotalComments') ?? $actions->json('commentsSummary.totalFirstLevelComments') ?? 0);
+            } else {
+                $errors['social_actions'] = $this->readError($actions, 'r_organization_social');
+            }
+        } catch (\Throwable $e) {
+            $errors['social_actions'] = $e->getMessage();
+        }
+
+        try {
+            $stats = $this->shareStatistics($account, $post->post_id, $headers);
+            if (isset($stats['error'])) {
+                $errors['statistics'] = $stats['error'];
+            } elseif ($stats !== []) {
+                $fill += array_filter([
+                    'likes' => $stats['likeCount'] ?? null,
+                    'comments' => $stats['commentCount'] ?? null,
+                ], fn ($v) => $v !== null);
+                $fill['impressions'] = (int) ($stats['impressionCount'] ?? 0);
+                $fill['reach'] = (int) ($stats['uniqueImpressionsCount'] ?? 0);
+                $fill['clicks'] = (int) ($stats['clickCount'] ?? 0);
+                $fill['shares'] = (int) ($stats['shareCount'] ?? 0);
+            } else {
+                // LinkedIn omits posts with no activity yet: zero, per its docs.
+                $fill += ['impressions' => 0, 'reach' => 0, 'clicks' => 0, 'shares' => 0];
+            }
+        } catch (\Throwable $e) {
+            $errors['statistics'] = $e->getMessage();
+        }
+
+        if ($fill !== [] && ! isset($errors['social_actions'])) {
+            $this->fetchAndStoreComments($account, $post, 20);
+        }
+        $this->recordSync($post, $fill, $errors);
+
+        return $fill !== [];
+    }
+
+    /** totalShareStatistics of one post: [] when LinkedIn has none yet, ['error' => ..] on refusal. */
+    private function shareStatistics(SocialAccount $account, string $postUrn, array $headers): array
+    {
+        $param = str_starts_with($postUrn, 'urn:li:ugcPost:') ? 'ugcPosts' : 'shares';
+        // Restli 2.0: List() stays literal, the URNs inside are encoded.
+        $url = $this->baseUrl . 'organizationalEntityShareStatistics?q=organizationalEntity'
+            . '&organizationalEntity=' . rawurlencode('urn:li:organization:' . $account->platform_account_id)
+            . '&' . $param . '=List(' . rawurlencode($postUrn) . ')';
+
+        $response = Http::withHeaders($headers)->get($url);
+        if (! $response->successful()) {
+            return ['error' => $this->readError($response, 'rw_organization_admin')];
+        }
+
+        return $response->json('elements.0.totalShareStatistics') ?? [];
+    }
+
+    private function readError($response, string $scope): string
+    {
+        $message = $response->json('message') ?? $response->body();
+
+        return in_array($response->status(), [401, 403], true)
+            ? "LinkedIn refused ({$response->status()}): the connection lacks {$scope} or the member isn't a Page admin. {$message}"
+            : "LinkedIn error {$response->status()}: {$message}";
+    }
+
+    private function recordSync(Post $post, array $fill, array $errors): void
+    {
+        if ($errors) {
+            Log::info('LinkedIn engagement sync incomplete.', ['post_id' => $post->id, 'errors' => $errors]);
+        }
+        $post->forceFill($fill + [
+            'platform_metadata' => array_merge($post->platform_metadata ?? [], [
+                'engagement_synced_at' => now()->toIso8601String(),
+                'engagement_errors' => $errors ?: null,
+            ]),
+        ])->save();
+    }
+
+    private function restHeaders(SocialAccount $account): array
+    {
+        return [
+            'Authorization' => 'Bearer ' . $account->access_token,
+            'X-Restli-Protocol-Version' => '2.0.0',
+            'Linkedin-Version' => $this->linkedinVersion,
+        ];
+    }
+
+    /**
+     * Refresh an expiring token without touching any post (ensureValidToken()
+     * marks the post failed - right while publishing, wrong for a live post).
+     */
+    private function refreshAccountToken(SocialAccount $account): bool
+    {
+        if (! empty($account->expires_at) && Carbon::parse($account->expires_at)->gt(now()->addMinutes(5))) {
+            return true;
+        }
+        if (empty($account->refresh_token)) {
+            return false;
+        }
+
+        $response = $this->api->request('post', 'https://www.linkedin.com/oauth/v2/accessToken', [], [
+            'client_id' => adminSetting('posts.linkedin.client_id'),
+            'client_secret' => adminSetting('posts.linkedin.client_secret'),
+            'grant_type' => 'refresh_token',
+            'refresh_token' => $account->refresh_token,
+        ], 'form');
+        if (! $response->successful() || ! $response->json('access_token')) {
+            return false;
+        }
+
+        $account->update([
+            'access_token' => $response->json('access_token'),
+            'refresh_token' => $response->json('refresh_token') ?? $account->refresh_token,
+            'expires_at' => now()->addSeconds((int) ($response->json('expires_in') ?? 3600)),
+        ]);
+        $account->refresh();
+
+        return true;
+    }
+
+    public static function permalink(string $postUrn): string
+    {
+        return 'https://www.linkedin.com/feed/update/' . $postUrn;
     }
 
     /**

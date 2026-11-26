@@ -22,7 +22,7 @@
     ]
   },
   "resources/css/marketing-home.css": {
-    "file": "assets/marketing-home-Bo6zdeJi.css",
+    "file": "assets/marketing-home-m0Mt_Sl7.css",
     "src": "resources/css/marketing-home.css",
     "isEntry": true,
     "name": "marketing-home",
@@ -31,7 +31,7 @@
     ]
   },
   "resources/css/marketing.css": {
-    "file": "assets/marketing-BDVb99xZ.css",
+    "file": "assets/marketing-DNlDZV_m.css",
     "src": "resources/css/marketing.css",
     "isEntry": true,
     "name": "marketing",
@@ -40,7 +40,7 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-BGzoztoe.js",
+    "file": "assets/app-D3Yk87hU.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -48,7 +48,7 @@
       "__plugin-vue2_normalizer-DA92qRM-.js"
     ],
     "css": [
-      "assets/app-ChSXFrKu.css"
+      "assets/app-ToXKYg2_.css"
     ]
   },
   "resources/js/apps.js": {

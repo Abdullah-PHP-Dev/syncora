@@ -570,8 +570,10 @@ function onAiGenerated({ kind, title: aiTitle, description: aiDescription, hasht
   }
 }
 
+// A real draft: saved per selected account, never published until it is
+// queued from the posts listing ("Publish now" / "Schedule…").
 function saveAsDraft() {
-  showError('check', t('errors.drafts'));
+  return submit('draft');
 }
 
 function selectedAccountsByPlatform() {
@@ -621,6 +623,7 @@ function buildFormData(mode) {
   } else {
     formData.append('schedule_mode', '0');
   }
+  if (mode === 'draft') formData.append('save_as_draft', '1');
 
   return formData;
 }

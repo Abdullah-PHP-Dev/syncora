@@ -164,6 +164,8 @@
               </div>
             </div>
 
+            <p v-if="activeMember.sync_note" class="pp-manage-note"><i class="fas fa-info-circle"></i> {{ activeMember.sync_note }}</p>
+
             <div v-if="activeMember.error_message" class="pp-alert">
               <i class="fas fa-exclamation-circle"></i>
               <div>
@@ -234,6 +236,10 @@
             </dl>
             <div v-if="updateUrlTemplate && activePlatform.capabilities" class="pp-manage">
               <button v-if="activePlatform.capabilities.can_edit" type="button" class="pp-btn pp-btn-ghost pp-btn-sm" @click="editTarget = activePlatform"><i class="far fa-edit"></i> {{ t('list.edit') }}</button>
+              <button v-if="activePlatform.capabilities.can_retry" type="button" class="pp-btn pp-btn-ghost pp-btn-sm" :disabled="stateBusy" @click="runState(activePlatform, 'retry')"><i class="fas fa-redo"></i> {{ t('list.retry') }}</button>
+              <button v-if="activePlatform.capabilities.can_cancel" type="button" class="pp-btn pp-btn-ghost pp-btn-sm" :disabled="stateBusy" @click="runState(activePlatform, 'cancel')"><i class="far fa-calendar-times"></i> {{ t('list.cancel_schedule') }}</button>
+              <button v-if="activePlatform.capabilities.can_publish" type="button" class="pp-btn pp-btn-ghost pp-btn-sm" :disabled="stateBusy" @click="runState(activePlatform, 'publish')"><i class="bx bx-send"></i> {{ t('list.publish_draft') }}</button>
+              <button v-if="activePlatform.capabilities.can_publish" type="button" class="pp-btn pp-btn-ghost pp-btn-sm" :disabled="stateBusy" @click="runState(activePlatform, 'schedule')"><i class="far fa-clock"></i> {{ t('list.schedule_draft') }}</button>
               <button v-if="activePlatform.capabilities.can_delete" type="button" class="pp-btn pp-btn-ghost pp-btn-sm pp-danger" @click="deleteTargets = [activePlatform]"><i class="far fa-trash-alt"></i> {{ activePlatform.capabilities.delete_remote || activePlatform.state !== 'published' ? t('list.delete') : t('list.remove_local') }}</button>
               <p v-if="activePlatform.capabilities.reason" class="pp-manage-note"><i class="fas fa-info-circle"></i> {{ t('caps.' + activePlatform.capabilities.reason) }}</p>
             </div>
@@ -366,6 +372,7 @@ import { platformMeta, reactionKindsByPlatform, brandVars } from '../../data/moc
 import { createTranslator } from '../ads/facebook/i18n';
 import PostEditDialog from './PostEditDialog.vue';
 import PostDeleteDialog from './PostDeleteDialog.vue';
+import { changePostState } from './postLifecycle';
 
 const avatarPalette = ['#F59E0B', '#3B82F6', '#EC4899', '#10B981', '#8B5CF6', '#EF4444', '#14B8A6', '#6366F1'];
 
@@ -455,6 +462,7 @@ export default {
 
     return {
       editTarget: null,
+      stateBusy: false,
       deleteTargets: [],
       post: null,
       // Row / comment menus: 'p{postId}' or 'c{commentId}', one open at a time.
@@ -619,6 +627,20 @@ export default {
           { label: 'Views', value: e.viewsCount, icon: 'fas fa-eye', color: '#3B82F6' },
           { label: 'Reach', value: e.reach || 0, icon: 'fas fa-users', color: '#F59E0B' },
           { label: 'Saves', value: e.bookmarks, icon: 'fas fa-bookmark', color: '#EC4899' }
+        ];
+      }
+
+      // LinkedIn Page posts: socialActions (likes, comments) and organic share
+      // statistics (impressions, unique impressions, clicks, shares). LinkedIn
+      // reports no views or saves for these posts.
+      if (this.activeKey === 'linkedin') {
+        return [
+          { label: 'Likes', value: e.reactionsTotal, icon: 'fas fa-thumbs-up', color: '#EF4444' },
+          { label: 'Comments', value: e.commentsCount, icon: 'fas fa-comment', color: '#6D4AFF' },
+          { label: 'Reposts', value: e.sharesCount, icon: 'fas fa-retweet', color: '#10B981' },
+          { label: 'Impressions', value: e.impressions, icon: 'fas fa-chart-line', color: '#3B82F6' },
+          { label: 'Unique impressions', value: e.reach || 0, icon: 'fas fa-users', color: '#F59E0B' },
+          { label: 'Clicks', value: e.clicks || 0, icon: 'fas fa-mouse-pointer', color: '#EC4899' }
         ];
       }
 
@@ -892,6 +914,22 @@ export default {
         window.Swal.fire({ toast: true, position: 'top-end', timer: 3500, showConfirmButton: false, icon: ok ? 'success' : 'error', title: message });
       } else {
         window.alert(message);
+      }
+    },
+
+    async runState(target, action) {
+      this.stateBusy = true;
+      try {
+        const data = await changePostState({ template: this.updateUrlTemplate, target, action, t: this.t });
+        if (!data) return;
+        this.notify(data.message, data.success);
+        if (data.success && data.post) {
+          Object.assign(target, { state: data.post.state, capabilities: data.post.capabilities, schedule_at: data.post.schedule_at });
+          const member = this.post.members && this.post.members[target.post_id];
+          if (member) member.error_message = data.post.error_message;
+        }
+      } finally {
+        this.stateBusy = false;
       }
     },
 

@@ -33,6 +33,23 @@ class Post extends Model
         return \Illuminate\Support\Str::limit(trim(preg_replace('/\s+/', ' ', $message)), 1000);
     }
 
+    private static ?bool $recordsPublishedAt = null;
+
+    /**
+     * posts.published_at arrived in 2026_11_27; until that migration has run
+     * a publish must not fail on the missing column. Checked once per process.
+     */
+    public static function recordsPublishedAt(): bool
+    {
+        return self::$recordsPublishedAt ??= \Illuminate\Support\Facades\Schema::hasColumn('posts', 'published_at');
+    }
+
+    /** Tests that build their own posts table reset the memo. */
+    public static function forgetSchemaCache(): void
+    {
+        self::$recordsPublishedAt = null;
+    }
+
     public function setErrorMessageAttribute($value): void
     {
         $this->attributes['error_message'] = self::cleanErrorMessage($value);
@@ -212,8 +229,8 @@ class Post extends Model
             //     $post->slug = \Illuminate\Support\Str::slug($post->title);
             // }
             
-            // Update published_at when status changes to published
-            if ($post->isDirty('status') && $post->status === 'published' && empty($post->published_at)) {
+            // The moment it went live. Publishers mark success 'completed'.
+            if ($post->isDirty('status') && in_array($post->status, ['completed', 'published'], true) && empty($post->published_at) && self::recordsPublishedAt()) {
                 $post->published_at = now();
             }
         });

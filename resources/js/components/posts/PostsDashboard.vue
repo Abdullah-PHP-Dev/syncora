@@ -350,11 +350,28 @@
                     <li v-if="platform.capabilities && platform.capabilities.can_edit" :key="'edit-' + platform.post_id">
                       <button type="button" class="dropdown-item" @click="editTarget = platform"><i class="far fa-edit"></i> {{ post.platforms.length > 1 ? t('list.edit_on', { platform: platform.name }) : t('list.edit') }}</button>
                     </li>
+                    <li v-if="platform.capabilities && platform.capabilities.can_retry" :key="'retry-' + platform.post_id">
+                      <button type="button" class="dropdown-item" :disabled="busyId === platform.post_id" @click="runState(platform, 'retry')"><i class="fas fa-redo"></i> {{ post.platforms.length > 1 ? t('list.retry_on', { platform: platform.name }) : t('list.retry') }}</button>
+                    </li>
+                    <li v-if="platform.capabilities && platform.capabilities.can_cancel" :key="'cancel-' + platform.post_id">
+                      <button type="button" class="dropdown-item" :disabled="busyId === platform.post_id" @click="runState(platform, 'cancel')"><i class="far fa-calendar-times"></i> {{ t('list.cancel_schedule') }}<template v-if="post.platforms.length > 1"> · {{ platform.name }}</template></button>
+                    </li>
+                    <template v-if="platform.capabilities && platform.capabilities.can_publish">
+                      <li :key="'publish-' + platform.post_id">
+                        <button type="button" class="dropdown-item" :disabled="busyId === platform.post_id" @click="runState(platform, 'publish')"><i class="bx bx-send"></i> {{ t('list.publish_draft') }}<template v-if="post.platforms.length > 1"> · {{ platform.name }}</template></button>
+                      </li>
+                      <li :key="'schedule-' + platform.post_id">
+                        <button type="button" class="dropdown-item" :disabled="busyId === platform.post_id" @click="runState(platform, 'schedule')"><i class="far fa-clock"></i> {{ t('list.schedule_draft') }}<template v-if="post.platforms.length > 1"> · {{ platform.name }}</template></button>
+                      </li>
+                    </template>
+                    <li v-if="platform.error_message" :key="'error-' + platform.post_id">
+                      <span class="dropdown-item-text small text-danger post-error-text"><i class="fas fa-exclamation-circle"></i> {{ t('list.platform_error', { platform: platform.name, reason: platform.error_message }) }}</span>
+                    </li>
                     <li v-if="platform.capabilities && platform.capabilities.can_delete" :key="'delete-' + platform.post_id">
                       <button type="button" class="dropdown-item text-danger" @click="deleteTargets = [platform]"><i class="far fa-trash-alt"></i> {{ deleteLabel(post, platform) }}</button>
                     </li>
                   </template>
-                  <li v-if="!post.platforms.some(p => p.capabilities && (p.capabilities.can_edit || p.capabilities.can_delete))">
+                  <li v-if="!post.platforms.some(p => p.capabilities && (p.capabilities.can_edit || p.capabilities.can_delete || p.capabilities.can_retry || p.capabilities.can_cancel || p.capabilities.can_publish))">
                     <span class="dropdown-item-text small text-muted" :title="capsReason(post)"><i class="fas fa-lock"></i> {{ t('list.no_actions') }}</span>
                   </li>
                 </template>
@@ -662,6 +679,7 @@ import { platformMeta, platformOrder, brandOf } from '../../data/mockPosts';
 import PostEditDialog from './PostEditDialog.vue';
 import PostDeleteDialog from './PostDeleteDialog.vue';
 import AccountAvatarBadge from './AccountAvatarBadge.vue';
+import { changePostState } from './postLifecycle';
 import { createTranslator } from '../ads/facebook/i18n';
 
 export default {
@@ -818,6 +836,7 @@ export default {
       selectMode: false,
       selected: [],
       editTarget: null,
+      busyId: null,
       deleteTargets: [],
       syncing: false,
       loading: false,
@@ -1089,6 +1108,18 @@ export default {
       }
     },
 
+    async runState(platform, action) {
+      this.busyId = platform.post_id;
+      try {
+        const data = await changePostState({ template: this.updateUrlTemplate, target: platform, action, t: this.t });
+        if (!data) return;
+        this.notify(data.message, data.success);
+        if (data.success) this.fetchPosts();
+      } finally {
+        this.busyId = null;
+      }
+    },
+
     onEdited(data) {
       this.editTarget = null;
       this.notify(data.message, true);
@@ -1162,6 +1193,7 @@ export default {
           capabilities: entry.capabilities || null,
           schedule_at: entry.schedule_at || null,
           published_at: entry.published_at || null,
+          error_message: entry.error_message || null,
           title: entry.title !== undefined ? entry.title : raw.title,
           content: entry.content !== undefined ? entry.content : raw.content,
           label: (entry.account_name || meta.name) + ' · ' + meta.name
@@ -2708,6 +2740,7 @@ export default {
 }
 .manage-btn{ display:inline-flex; align-items:center; gap:7px; width:auto !important; padding:0 14px; white-space:nowrap; font-size:.85rem; font-weight:600; }
 .manage-btn:disabled{ opacity:.6; cursor:not-allowed; }
+.post-error-text{ display:block; max-width:320px; white-space:normal; line-height:1.35; }
 .bulk-bar{ display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:0 0 16px; padding:10px 14px; border-radius:12px; background:#EEF3FF; border:1px solid #CFDCFF; font-size:.85rem; color:#161B2B; }
 .bulk-delete{ display:inline-flex; align-items:center; gap:6px; height:34px; padding:0 14px; border:0; border-radius:9px; background:#DC2626; color:#fff; font-weight:600; font-size:.82rem; cursor:pointer; }
 .bulk-delete:disabled{ opacity:.5; cursor:not-allowed; }

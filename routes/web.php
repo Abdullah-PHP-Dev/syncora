@@ -607,6 +607,7 @@ Route::group(['prefix' => LaravelLocalization::setLocale(), 'middleware' => [
 				Route::post('posts/quick', [PostController::class, 'quickStore'])->name('posts.quick');
 				// Post management (PostCapabilities decides what each platform allows).
 				Route::post('posts/bulk-delete', [PostController::class, 'bulkDestroy'])->name('posts.bulk-destroy');
+				Route::post('posts/{post}/state', [PostController::class, 'changeState'])->whereNumber('post')->middleware('throttle:30,1')->name('posts.state');
 				Route::post('posts/sync', [PostController::class, 'syncFromPlatforms'])->middleware('throttle:6,1')->name('posts.sync');
 				// New Vue-based Create Post page (PostComposer.vue) -
 				// deliberately a separate route from admin.posts.create

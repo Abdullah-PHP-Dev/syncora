@@ -35,6 +35,7 @@ class XPostLengthTest extends TestCase
             $t->unsignedBigInteger('user_id')->nullable();
             $t->unsignedBigInteger('social_account_id')->nullable();
             $t->string('post_id')->nullable();
+            $t->string('post_url')->nullable();
             $t->text('content')->nullable();
             $t->string('status')->nullable();
             $t->text('error_message')->nullable();

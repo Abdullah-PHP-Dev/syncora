@@ -749,6 +749,7 @@ class PostController extends Controller
             'facebook' => $this->metaService,
             'instagram' => $this->instagramService,
             'tiktok' => $this->tiktokService,
+            'linkedin' => $this->linkedinService,
             default => null,
         };
 
@@ -1036,6 +1037,9 @@ class PostController extends Controller
         $summary['platform_url'] = $post->platform_url;
         $summary['raw_status'] = strtolower((string) $post->status);
         $summary['error_message'] = $post->status === 'failed' ? $post->error_message : null;
+        // Why some counts couldn't be read (e.g. a LinkedIn permission), so a 0 isn't mistaken for no engagement.
+        $syncErrors = array_filter((array) ($post->platform_metadata['engagement_errors'] ?? []));
+        $summary['sync_note'] = $syncErrors ? 'Some figures couldn’t be read: ' . \Illuminate\Support\Str::limit(implode(' ', $syncErrors), 300) : null;
         $summary['account_avatar'] = $post->socialAccount->avatar_url ?? null;
         $summary['created_label'] = optional($post->created_at)->format('M j, Y · g:i A');
         $summary['scheduled_label'] = $post->schedule_mode && $post->schedule_at
@@ -1544,6 +1548,12 @@ class PostController extends Controller
     
                         $results[] = $response['data'] ?? $response['results'] ?? [];
                     }
+
+                    // Inside the transaction, so the publisher never sees them as pending.
+                    if (!empty($validated['save_as_draft'])) {
+                        Post::where('group_id', $validated['group_id'])->where('user_id', $userId)
+                            ->update(['status' => 'draft', 'schedule_mode' => 0, 'updated_at' => now()]);
+                    }
                 });
 
                 DB::commit();
@@ -1588,7 +1598,7 @@ class PostController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Posts published successfully!',
+            'message' => !empty($validated['save_as_draft']) ? __('posts_listing.lifecycle.draft_saved') : 'Posts published successfully!',
             'results' => $results,
             'redirect_url' => route('admin.posts.dashboard')
         ]);
@@ -1970,6 +1980,42 @@ class PostController extends Controller
     }
 
     /**
+     * SocialEaz-only lifecycle changes of one post: send a failed post again,
+     * stop a scheduled post (kept as a draft), or queue a draft now / at a time.
+     */
+    public function changeState(Request $request, $postId)
+    {
+        $post = Post::with(['socialAccount', 'media'])->where('user_id', Auth::id())->find($postId);
+        if (!$post) {
+            return response()->json(['success' => false, 'message' => __('posts_listing.manage.not_found')], 404);
+        }
+
+        $input = $request->validate([
+            'action' => ['required', 'in:retry,cancel,publish'],
+            'confirmed' => ['sometimes', 'boolean'],
+            'schedule_at' => ['nullable', 'date'],
+            'timezone' => ['nullable', 'timezone:all'],
+        ]);
+
+        $manager = app(PostManager::class);
+        $at = null;
+        if ($input['action'] === 'publish' && !empty($input['schedule_at'])) {
+            $at = self::toAppTime($input['schedule_at'], $input['timezone'] ?? null);
+            if ($at->lt(now()->addMinutes(10))) {
+                return response()->json(['success' => false, 'message' => __('posts_listing.manage.schedule_too_soon')], 422);
+            }
+        }
+
+        $result = match ($input['action']) {
+            'retry' => $manager->retry($post, (bool) ($input['confirmed'] ?? false)),
+            'cancel' => $manager->cancelSchedule($post),
+            'publish' => $manager->publishDraft($post, $at),
+        };
+
+        return response()->json($result + ['post' => $this->managedPost($post->fresh(['socialAccount', 'media']))], $result['success'] ? 200 : 422);
+    }
+
+    /**
      * Pull recent posts made outside SocialEaz from the connected accounts
      * whose platforms offer it (Facebook, Instagram, LinkedIn, YouTube, TikTok).
      */
@@ -2028,8 +2074,10 @@ class PostController extends Controller
             'state' => PostCapabilities::state($post),
             'platform_post_id' => $post->post_id,
             'schedule_at' => $post->schedule_mode ? $post->schedule_at?->toIso8601String() : null,
-            // No publish timestamp is stored: a post goes out at its schedule time, else when created.
-            'published_at' => PostCapabilities::state($post) === 'published' ? (($post->schedule_mode ? $post->schedule_at : null) ?? $post->created_at)?->toIso8601String() : null,
+            // Recorded since 2026-11-27; older posts estimate it (schedule time, else created).
+            'published_at' => PostCapabilities::state($post) === 'published' ? ($post->published_at ?? ($post->schedule_mode ? $post->schedule_at : null) ?? $post->created_at)?->toIso8601String() : null,
+            // The platform's own reason, shown on failed destinations.
+            'error_message' => PostCapabilities::state($post) === 'failed' ? $post->error_message : null,
             'capabilities' => PostCapabilities::for($post),
         ];
     }
@@ -2043,7 +2091,10 @@ class PostController extends Controller
             'title' => $post->title,
             'content' => $post->content,
             'state' => PostCapabilities::state($post),
+            'status' => ucfirst((string) $post->status),
             'schedule_at' => $post->schedule_mode ? $post->schedule_at?->toIso8601String() : null,
+            'post_url' => $post->post_url,
+            'error_message' => PostCapabilities::state($post) === 'failed' ? $post->error_message : null,
             'capabilities' => PostCapabilities::for($post),
         ];
     }
@@ -2060,7 +2111,7 @@ class PostController extends Controller
                 // Fetch top-level parent comments and eager load nested replies with their authors
                 $query->topLevel()->with(['replies.user', 'user']);
             }
-        ])->findOrFail($postId);
+        ])->where('user_id', Auth::id())->findOrFail($postId);
 
         return view('admin.posts.show', compact('post'));
         // $post = Post::with('socialAccount')->findOrFail($postId);

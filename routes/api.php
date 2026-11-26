@@ -43,16 +43,12 @@ Route::get('/user', function (Request $request) {
         Route::get('/youtube', [\App\Http\Controllers\Api\Comments\YoutubeWebhookController::class, 'verify'])->name('youtube.verify');
         Route::post('/youtube', [\App\Http\Controllers\Api\Comments\YoutubeWebhookController::class, 'receive'])->name('youtube.receive');
 
-        // LinkedIn has no GET verify handshake to register (unlike the Meta
-        // platforms above) - LinkedIn has no public push/webhook product for
-        // organic engagement in the first place under this module's scopes,
-        // so there's no challenge-response step to answer. This is the URL
-        // LinkedInPostService::subscribeToWebhooks() records on connect for
-        // an admin to register by hand if the org is ever approved for a
-        // push-capable LinkedIn product; until then comment/like/share data
-        // is kept current by polling - see
-        // LinkedInPostService::backfillRecentPosts() and
-        // LinkedinCommentWebhookController's docblock.
+        // LinkedIn Organization Social Action Notifications (likes,
+        // comments, shares on Page posts). GET answers LinkedIn's
+        // challengeCode validation; POST is signed with X-LI-Signature.
+        // Register this URL in the posting app's Webhooks tab - see
+        // LinkedinCommentWebhookController.
+        Route::get('/linkedin', [\App\Http\Controllers\Api\Comments\LinkedinCommentWebhookController::class, 'verify'])->name('linkedin.verify');
         Route::post('/linkedin', [\App\Http\Controllers\Api\Comments\LinkedinCommentWebhookController::class, 'receive'])->name('linkedin.receive');
 
         // Threads replies (topic "moderate", field "replies") - the callback

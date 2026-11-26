@@ -46,6 +46,8 @@ class PostRequest extends FormRequest
             // Only the seller's own categories.
             'category_id' => ['required', 'integer', Rule::exists('post_categories', 'id')->where('user_id', $this->user()?->id)],
             
+            // Saved as a draft: nothing is published until it's queued from the listing.
+            'save_as_draft' => ['nullable', 'boolean'],
             'schedule_mode' => ['nullable', 'boolean'],
             'schedule_at' => [
                 'nullable',

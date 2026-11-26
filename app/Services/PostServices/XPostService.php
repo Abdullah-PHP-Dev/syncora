@@ -409,6 +409,7 @@ class XPostService
 
         $post->status = 'completed';
         $post->post_id = $postId;
+        $post->post_url = self::permalink($postId);
         $post->error_message = null;
         $post->save();
 
@@ -691,7 +692,53 @@ class XPostService
         ];
     }
 
-/**
+/** Public link to a post (works without knowing the handle). */
+    public static function permalink(string $postId): string
+    {
+        return 'https://x.com/i/web/status/' . $postId;
+    }
+
+    /**
+     * Edit a published post's text: POST /2/tweets with
+     * edit_options.previous_post_id (docs.x.com/x-api/posts/create-or-edit-post).
+     * X makes the edit a new post id; PostManager stores it. PostCapabilities
+     * only offers this within X's rules (Premium, 30 minutes, 5 edits, text only).
+     */
+    public function editPublished(Post $post, array $data): array
+    {
+        if (!$this->ensureValidToken($post)) {
+            return ['success' => false, 'message' => 'Your X connection has expired. Reconnect X and try again.'];
+        }
+
+        $response = Http::withToken((string) $post->socialAccount->access_token)->acceptJson()
+            ->post($this->baseUrl . 'tweets', [
+                'text' => (string) ($data['content'] ?? ''),
+                'edit_options' => ['previous_post_id' => (string) $post->post_id],
+            ]);
+
+        if (!$response->successful()) {
+            $error = $response->json() ?? [];
+            $message = $error['detail'] ?? $error['errors'][0]['message'] ?? $error['title'] ?? 'X didn’t update the post.';
+            if ($response->status() === 403) {
+                $message .= ' X only allows editing your own posts within 30 minutes of posting, up to 5 times, with X Premium.';
+            }
+
+            return ['success' => false, 'status' => $response->status(), 'message' => $message];
+        }
+
+        $newId = (string) ($response->json('data.id') ?? '');
+        $meta = $post->platform_metadata ?? [];
+        $meta['x_edits'] = (int) ($meta['x_edits'] ?? 0) + 1;
+        $meta['x_edit_history'] = $response->json('data.edit_history_post_ids') ?? $response->json('data.edit_history_tweet_ids') ?? null;
+
+        return ['success' => true, 'status' => $response->status()] + ($newId !== '' ? [
+            'post_id' => $newId,
+            'post_url' => self::permalink($newId),
+            'platform_metadata' => $meta,
+        ] : ['platform_metadata' => $meta]);
+    }
+
+    /**
      * Publish a comment/reply to X (Twitter)
      */
     public function publishComment($data, $comment, $type)

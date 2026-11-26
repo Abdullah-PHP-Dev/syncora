@@ -73,6 +73,12 @@ return [
         'published_on' => 'Published :date',
         'scheduled_for' => 'Scheduled for :date',
         'created_on' => 'Created :date',
+        'retry' => 'Retry publishing',
+        'retry_on' => 'Retry on :platform',
+        'cancel_schedule' => 'Cancel schedule (keep as draft)',
+        'publish_draft' => 'Publish now',
+        'schedule_draft' => 'Schedule…',
+        'platform_error' => ':platform error: :reason',
     ],
 
     'quick' => [
@@ -111,6 +117,25 @@ return [
         'platform_read_only' => 'This platform’s API doesn’t allow editing or deleting published posts.',
         'local_only' => 'Delivered WhatsApp messages can’t be recalled - this only removes the post from SocialEaz.',
         'missing_permission' => 'This account hasn’t given SocialEaz permission to delete its posts. An admin must enable the platform’s delete permission for SocialEaz, then the account needs reconnecting.',
+        'retry_whatsapp' => 'A WhatsApp broadcast may have reached some recipients, so it isn’t resent automatically. Duplicate it to send it again.',
+        'retry_reached_platform' => 'The platform received this post, so resending it could post it twice. Check the platform first.',
+        'account_missing' => 'The account this post was for is no longer connected. Reconnect it in Connections.',
+        'retry_unavailable' => 'This post can’t be sent again.',
+        'x_edit_premium' => 'X only lets accounts with X Premium edit posts.',
+        'x_edit_window' => 'X only allows editing a post within 30 minutes of posting it.',
+        'x_edit_limit' => 'X allows at most 5 edits per post.',
+        'x_edit_media' => 'Only text posts can be edited on X from SocialEaz - X doesn’t confirm an edit keeps the post’s media.',
+    ],
+
+    'lifecycle' => [
+        'retry_queued' => 'Queued - SocialEaz will publish it within a minute.',
+        'retry_confirm' => 'Publishing was interrupted, so this post may already be live. Check the platform first - send it again anyway?',
+        'cancelled' => 'Schedule cancelled. The post is kept as a draft.',
+        'queued' => 'Queued - SocialEaz will publish it within a minute.',
+        'scheduled' => 'Scheduled.',
+        'draft_saved' => 'Draft saved. Nothing has been published.',
+        'changed_meanwhile' => 'This post changed in the meantime - refresh the page and try again.',
+        'schedule_prompt' => 'Publish at (your local time):',
     ],
 
     'manage' => [

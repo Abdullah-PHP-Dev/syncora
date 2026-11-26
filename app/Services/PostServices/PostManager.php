@@ -69,16 +69,92 @@ class PostManager
             return ['success' => false, 'message' => __('posts_listing.caps.' . ($caps['reason'] ?? 'platform_read_only'))];
         }
 
+        $native = [];
         if ($caps['edit_remote']) {
             $result = $this->onPlatform($post, fn ($service) => $service->editPublished($post, $data + ['title' => $post->title, 'content' => $post->content]));
             if (!($result['success'] ?? false)) {
                 return ['success' => false, 'message' => __('posts_listing.manage.update_failed_platform', ['reason' => $this->reason($result)])];
             }
+            // An X edit is a new post id (and link); keep pointing at the live one.
+            $native = array_filter(array_intersect_key($result, array_flip(['post_id', 'post_url', 'platform_metadata'])), fn ($v) => $v !== null && $v !== '');
         }
 
-        $post->fill($data)->save();
+        $post->fill($data)->forceFill($native)->save();
 
         return ['success' => true, 'message' => __($caps['edit_remote'] ? 'posts_listing.manage.updated_platform' : 'posts_listing.manage.updated')];
+    }
+
+    /**
+     * Send a failed post again - only where PostCapabilities::retry() says a
+     * resend can't duplicate it. It goes back to the publisher's queue
+     * (social:publish-posts), which re-checks the package and claims it, so
+     * nothing is sent from the web request.
+     *
+     * @return array{success: bool, message: string}
+     */
+    public function retry(Post $post, bool $confirmed = false): array
+    {
+        $caps = PostCapabilities::for($post);
+        if (!$caps['can_retry']) {
+            return ['success' => false, 'message' => __('posts_listing.caps.' . ($caps['reason'] ?? 'retry_unavailable'))];
+        }
+        if ($caps['retry_confirm'] && !$confirmed) {
+            return ['success' => false, 'confirm' => true, 'message' => __('posts_listing.lifecycle.retry_confirm')];
+        }
+
+        $meta = $post->platform_metadata ?? [];
+        unset($meta['publish_attempts']);
+        $meta['manual_retries'] = (int) ($meta['manual_retries'] ?? 0) + 1;
+
+        // Conditional: a second click (or tab) can't queue it twice.
+        $queued = Post::whereKey($post->id)->where('status', 'failed')->whereNull('post_id')->update([
+            'status' => 'pending',
+            'error_message' => null,
+            'platform_metadata' => json_encode($meta),
+            'updated_at' => now(),
+        ]);
+
+        return $queued
+            ? ['success' => true, 'message' => __('posts_listing.lifecycle.retry_queued')]
+            : ['success' => false, 'message' => __('posts_listing.lifecycle.changed_meanwhile')];
+    }
+
+    /** Stop a scheduled post from going out; it stays as a draft. */
+    public function cancelSchedule(Post $post): array
+    {
+        if (!PostCapabilities::for($post)['can_cancel']) {
+            return ['success' => false, 'message' => __('posts_listing.caps.in_progress')];
+        }
+
+        // Only while the publisher hasn't claimed it (it flips pending -> publishing).
+        $done = Post::whereKey($post->id)->whereIn('status', ['pending', 'scheduled'])->update([
+            'status' => 'draft',
+            'updated_at' => now(),
+        ]);
+
+        return $done
+            ? ['success' => true, 'message' => __('posts_listing.lifecycle.cancelled')]
+            : ['success' => false, 'message' => __('posts_listing.lifecycle.changed_meanwhile')];
+    }
+
+    /** Queue a draft: now, or at $at (app time, already validated as future). */
+    public function publishDraft(Post $post, ?\Carbon\Carbon $at = null): array
+    {
+        if (!PostCapabilities::for($post)['can_publish']) {
+            return ['success' => false, 'message' => __('posts_listing.caps.account_missing')];
+        }
+
+        $done = Post::whereKey($post->id)->where('status', 'draft')->update([
+            'status' => 'pending',
+            'schedule_mode' => $at ? 1 : 0,
+            'schedule_at' => $at,
+            'error_message' => null,
+            'updated_at' => now(),
+        ]);
+
+        return $done
+            ? ['success' => true, 'message' => __($at ? 'posts_listing.lifecycle.scheduled' : 'posts_listing.lifecycle.queued')]
+            : ['success' => false, 'message' => __('posts_listing.lifecycle.changed_meanwhile')];
     }
 
     /**

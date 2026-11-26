@@ -85,7 +85,6 @@ return [
         'server' => 'The server had a problem publishing this post. Please try again in a moment.',
         'generic' => 'Something went wrong while publishing. Please try again.',
         'ai_image_attach' => "The image was generated, but couldn't be attached automatically - please try again.",
-        'drafts' => 'Saving drafts isn\'t available yet. Use "Post Now" or "Schedule for later" instead.',
         'category' => 'Choose a category for this post (or add one with "+ New").',
         'accounts' => 'Select at least one account to post to.',
         'youtube_video' => 'YouTube only accepts videos. Add a video, or unselect your YouTube channel.',
