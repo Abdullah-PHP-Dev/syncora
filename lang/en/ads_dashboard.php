@@ -38,7 +38,7 @@ return [
     'insight_tracking' => 'Google Ads has no active conversion actions',
 
     'no_reporting_title' => 'Spend and results aren’t reported for these platforms yet',
-    'no_reporting_text' => 'Google Ads and ChatGPT Ads report spend, clicks and impressions here today. Other platforms show their campaigns, statuses and budgets only - nothing is estimated.',
+    'no_reporting_text' => 'Meta (Facebook and Instagram), Google Ads (with YouTube), TikTok, Snapchat, X, LinkedIn and ChatGPT Ads report spend and results here. Platforms without a connected reporting account show campaigns, statuses and budgets only - nothing is estimated.',
     'perf_error' => 'Couldn’t load reporting',
     'perf_error_text' => 'Please try again in a moment.',
     'platform_error' => ':platform reporting is unavailable',

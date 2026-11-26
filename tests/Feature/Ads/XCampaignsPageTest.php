@@ -119,6 +119,10 @@ class XCampaignsPageTest extends TestCase
     public function test_insights_cover_long_ranges_in_7_day_requests_and_leave_unreported_parts_empty(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-11-02 15:30', 'Asia/Riyadh')); // today has completed hours
+        // The fixture's subscription starts today (real date): start it before the pinned date.
+        if (\Illuminate\Support\Facades\Schema::hasTable('subscriptions')) {
+            \Illuminate\Support\Facades\DB::table('subscriptions')->update(['start_date' => '2026-10-01']);
+        }
         $campaign = $this->campaign('c1', 'Ramadan traffic');
         $this->fakeStats();
 

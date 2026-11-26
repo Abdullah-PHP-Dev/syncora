@@ -30,7 +30,7 @@ class FacebookCampaignsPageTest extends TestCase
         $this->createSettingsTable();
         $this->createAdTables();
         (require database_path('migrations/2026_10_29_120000_create_ad_report_schedules_table.php'))->up();
-        Settings::set('ads.facebook.base_url', 'https://graph.facebook.com/v22.0/act_{accountId}');
+        Settings::set('ads.facebook.base_url', 'https://graph.facebook.com/v25.0/act_{accountId}');
         Settings::set('ads.facebook.client_secret', 'app-secret');
         $this->user = User::create(['name' => 'Seller', 'email' => 's@example.com', 'password' => bcrypt('x')]);
         $this->actingAs($this->user);
@@ -99,7 +99,7 @@ class FacebookCampaignsPageTest extends TestCase
     {
         $account = $this->account('111');
         $campaign = $this->campaign($account, ['ad_campaign_id' => '12001', 'status' => 'paused']);
-        Http::fake(['graph.facebook.com/v22.0/12001' => Http::response(['success' => true])]);
+        Http::fake(['graph.facebook.com/v25.0/12001' => Http::response(['success' => true])]);
 
         $this->patchJson(route('admin.ads.campaigns.status', ['platform' => 'facebook', 'id' => $campaign->id]), ['status' => 'ACTIVE'])
             ->assertOk()->assertJson(['success' => true, 'status' => 'active']);
@@ -152,8 +152,8 @@ class FacebookCampaignsPageTest extends TestCase
     {
         $campaign = $this->campaign($this->account('111'), ['ad_campaign_id' => '12001']);
         Http::fake([
-            'graph.facebook.com/v22.0/12001/copies' => Http::response(['copied_campaign_id' => '12099']),
-            'graph.facebook.com/v22.0/act_111/campaigns*' => Http::response(['data' => [['id' => '12099', 'name' => 'Campaign - Copy', 'status' => 'PAUSED', 'objective' => 'OUTCOME_LEADS']]]),
+            'graph.facebook.com/v25.0/12001/copies' => Http::response(['copied_campaign_id' => '12099']),
+            'graph.facebook.com/v25.0/act_111/campaigns*' => Http::response(['data' => [['id' => '12099', 'name' => 'Campaign - Copy', 'status' => 'PAUSED', 'objective' => 'OUTCOME_LEADS']]]),
             'graph.facebook.com/*' => Http::response(['data' => []]),
         ]);
 
@@ -167,10 +167,10 @@ class FacebookCampaignsPageTest extends TestCase
     {
         $account = $this->account('111');
         Http::fake([
-            'graph.facebook.com/v22.0/act_111/campaigns*' => Http::response(['data' => [['id' => '12001', 'name' => 'Leads KSA', 'status' => 'ACTIVE', 'objective' => 'OUTCOME_LEADS', 'daily_budget' => '5000']]]),
-            'graph.facebook.com/v22.0/act_111/adsets*' => Http::response(['data' => [['id' => '23001', 'name' => 'Riyadh 25-34', 'status' => 'ACTIVE', 'campaign_id' => '12001', 'daily_budget' => '2500', 'optimization_goal' => 'LEAD_GENERATION']]]),
-            'graph.facebook.com/v22.0/act_111/ads*' => Http::response(['data' => [['id' => '34001', 'name' => 'Reel A', 'status' => 'PAUSED', 'adset_id' => '23001', 'campaign_id' => '12001', 'creative' => ['id' => '45001', 'title' => 'Book today', 'body' => 'عرض خاص', 'call_to_action_type' => 'SIGN_UP']]]]),
-            'graph.facebook.com/v22.0/act_111?*' => Http::response(['name' => 'Account', 'currency' => 'SAR', 'account_status' => 1, 'business' => ['id' => '7', 'name' => 'Socialeaz'], 'user_tasks' => ['ANALYZE', 'ADVERTISE']]),
+            'graph.facebook.com/v25.0/act_111/campaigns*' => Http::response(['data' => [['id' => '12001', 'name' => 'Leads KSA', 'status' => 'ACTIVE', 'objective' => 'OUTCOME_LEADS', 'daily_budget' => '5000']]]),
+            'graph.facebook.com/v25.0/act_111/adsets*' => Http::response(['data' => [['id' => '23001', 'name' => 'Riyadh 25-34', 'status' => 'ACTIVE', 'campaign_id' => '12001', 'daily_budget' => '2500', 'optimization_goal' => 'LEAD_GENERATION']]]),
+            'graph.facebook.com/v25.0/act_111/ads*' => Http::response(['data' => [['id' => '34001', 'name' => 'Reel A', 'status' => 'PAUSED', 'adset_id' => '23001', 'campaign_id' => '12001', 'creative' => ['id' => '45001', 'title' => 'Book today', 'body' => 'عرض خاص', 'call_to_action_type' => 'SIGN_UP']]]]),
+            'graph.facebook.com/v25.0/act_111?*' => Http::response(['name' => 'Account', 'currency' => 'SAR', 'account_status' => 1, 'business' => ['id' => '7', 'name' => 'Socialeaz'], 'user_tasks' => ['ANALYZE', 'ADVERTISE']]),
         ]);
 
         $this->postJson(route('admin.ads.campaigns.sync', ['platform' => 'facebook']))->assertOk()
@@ -192,7 +192,7 @@ class FacebookCampaignsPageTest extends TestCase
         $account = $this->account('111');
         $leads = $this->campaign($account, ['ad_campaign_id' => '12001', 'objective' => 'OUTCOME_LEADS']);
         $calls = 0;
-        Http::fake(['graph.facebook.com/v22.0/act_111/insights*' => function () use (&$calls) {
+        Http::fake(['graph.facebook.com/v25.0/act_111/insights*' => function () use (&$calls) {
             $calls++;
 
             return Http::response(['data' => $calls === 1
@@ -217,7 +217,7 @@ class FacebookCampaignsPageTest extends TestCase
         $account = $this->account('111');
         $this->campaign($account, ['ad_campaign_id' => '12001', 'objective' => 'OUTCOME_LEADS']);
         $until = now()->subDay()->toDateString();
-        Http::fake(['graph.facebook.com/v22.0/act_111/insights*' => function (HttpRequest $r) use ($until) {
+        Http::fake(['graph.facebook.com/v25.0/act_111/insights*' => function (HttpRequest $r) use ($until) {
             $lead = fn ($n, $extra = []) => array_merge([['action_type' => 'lead', 'value' => (string) $n]], $extra);
             return Http::response(['data' => match (true) {
                 ($r['time_increment'] ?? null) == 1 => [['date_start' => $until, 'spend' => '90', 'impressions' => '12000', 'clicks' => '300', 'inline_link_clicks' => '250', 'actions' => $lead(20, [['action_type' => 'landing_page_view', 'value' => '210']])]],
@@ -247,7 +247,7 @@ class FacebookCampaignsPageTest extends TestCase
     public function test_a_rejected_breakdown_leaves_the_rest_of_the_insights_intact(): void
     {
         $this->campaign($this->account('111'), ['ad_campaign_id' => '12001']);
-        Http::fake(['graph.facebook.com/v22.0/act_111/insights*' => function (HttpRequest $r) {
+        Http::fake(['graph.facebook.com/v25.0/act_111/insights*' => function (HttpRequest $r) {
             if (($r['breakdowns'] ?? null) === 'region') {
                 return Http::response(['error' => ['message' => 'Breakdown not supported']], 400);
             }
@@ -265,7 +265,7 @@ class FacebookCampaignsPageTest extends TestCase
     private function fakeMetaAndGemini(array|int $gemini): void
     {
         Http::fake([
-            'graph.facebook.com/v22.0/act_111/insights*' => Http::response(['data' => [['campaign_id' => '12001', 'objective' => 'OUTCOME_LEADS', 'spend' => '720.20', 'impressions' => '104980', 'reach' => '52000', 'clicks' => '2050', 'actions' => [['action_type' => 'lead', 'value' => '128']]]]]),
+            'graph.facebook.com/v25.0/act_111/insights*' => Http::response(['data' => [['campaign_id' => '12001', 'objective' => 'OUTCOME_LEADS', 'spend' => '720.20', 'impressions' => '104980', 'reach' => '52000', 'clicks' => '2050', 'actions' => [['action_type' => 'lead', 'value' => '128']]]]]),
             'generativelanguage.googleapis.com/*' => is_int($gemini)
                 ? Http::response(['error' => ['message' => 'overloaded']], $gemini)
                 : Http::response(['candidates' => [['content' => ['parts' => [['text' => json_encode($gemini)]]]]]]),

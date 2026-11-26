@@ -12,7 +12,8 @@ use App\Support\Google\ReportRange;
  * that report them: Google Ads (GAQL - spend, clicks, impressions,
  * conversions, value, daily trend, previous period), TikTok, Snapchat and X
  * (report / measurement / analytics API - spend, clicks, impressions, conversions,
- * daily trend, previous period) and ChatGPT Ads (spend, clicks, impressions for the period). Every other platform is
+ * daily trend, previous period), Meta (Marketing API insights for the whole ad account,
+ * Facebook and Instagram placements together), LinkedIn (adAnalytics) and ChatGPT Ads (spend, clicks, impressions for the period). Every other platform is
  * returned as "no_reporting" - nothing is estimated or filled in.
  */
 class AdsPerformanceService
@@ -22,8 +23,8 @@ class AdsPerformanceService
     /** Platforms whose campaigns run on the Google Ads customer. */
     private const GOOGLE_PLATFORMS = ['google', 'youtube'];
 
-    /** Platforms read through their insights service (TiktokInsightsService, SnapchatInsightsService, XInsightsService). */
-    private const INSIGHTS_PLATFORMS = ['tiktok', 'snapchat', 'x'];
+    /** Platforms read through their insights service (FacebookAdService, TiktokInsightsService, SnapchatInsightsService, XInsightsService). */
+    private const INSIGHTS_PLATFORMS = ['facebook', 'tiktok', 'snapchat', 'x', 'linkedin'];
 
     public function __construct(private int $userId)
     {
@@ -49,6 +50,10 @@ class AdsPerformanceService
             if (($platforms[$key]['status'] ?? 'not_connected') !== 'not_connected') {
                 $platforms[$key] = $this->insights($key, $days);
             }
+        }
+        // Instagram ads run on the Meta ad account: its spend is inside Meta's totals (never added twice).
+        if ($platforms['instagram']['status'] !== 'not_connected' || $platforms['facebook']['status'] === 'ok') {
+            $platforms['instagram'] = $platforms['facebook']['status'] === 'not_connected' ? $platforms['instagram'] : ['status' => 'in_meta'];
         }
         // YouTube campaigns are reported inside the Google Ads customer's totals.
         if ($platforms['youtube']['status'] !== 'not_connected') {
@@ -168,9 +173,12 @@ class AdsPerformanceService
     private function insights(string $platform, int $days): array
     {
         $service = match ($platform) {
+            // The seller's selected Meta ad account (resolved for the signed-in workspace owner).
+            'facebook' => rescue(fn () => app(FacebookAdService::class), null, false),
             'tiktok' => TiktokInsightsService::forUser($this->userId),
             'snapchat' => SnapchatInsightsService::forUser($this->userId),
             'x' => XInsightsService::forUser($this->userId),
+            'linkedin' => LinkedinInsightsService::forUser($this->userId),
         };
         $label = AdsDashboardService::PLATFORMS[$platform]['label'];
         $result = $service ? $service->insights($days) : ['success' => false, 'error' => "Connect a {$label} ad account first."];
@@ -223,7 +231,8 @@ class AdsPerformanceService
             if (($platforms[$key]['status'] ?? null) !== 'ok') {
                 continue;
             }
-            $local = AdCampaign::where('user_id', $this->userId)->where('platform', $key)->pluck('id')->map(fn ($id) => (string) $id)->all();
+            // Meta campaigns may come from the Facebook or the Instagram builder (same ad account).
+            $local = AdCampaign::where('user_id', $this->userId)->whereIn('platform', $key === 'facebook' ? ['facebook', 'instagram'] : [$key])->pluck('id')->map(fn ($id) => (string) $id)->all();
             foreach ($platforms[$key]['campaigns'] as $id => $metrics) {
                 if (in_array((string) $id, $local, true)) {
                     $out[(int) $id] = $metrics;

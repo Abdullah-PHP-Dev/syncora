@@ -21,6 +21,20 @@ use Illuminate\Support\Facades\Http;
 class MetaAdsGraph
 {
     /** Currencies Meta budgets in whole units (offset 1); every other one is minor units (offset 100). */
+    /**
+     * The Marketing API version every ads call uses. Marketing API versions expire sooner than
+     * Graph API ones (v22.0 expired 2026-02-19, v23.0 2026-06-09, v24.0 2026-10-06; v25.0 has no
+     * date yet - developers.facebook.com/docs/graph-api/changelog/versions). Calls to an expired
+     * version are refused (#2635), so one pinned version here, never one per call site.
+     */
+    public const VERSION = 'v25.0';
+
+    /** Any graph.facebook.com URL (e.g. the admin's base URL setting) moved to VERSION. */
+    public static function pin(string $url): string
+    {
+        return preg_replace('~(https://graph\.facebook\.com/)v\d+\.\d+~', '${1}'.self::VERSION, $url);
+    }
+
     private const ZERO_DECIMAL = ['CLP', 'COP', 'CRC', 'HUF', 'ISK', 'IDR', 'JPY', 'KRW', 'PYG', 'TWD', 'VND'];
 
     private ?array $accountInfo = null;
@@ -54,10 +68,7 @@ class MetaAdsGraph
     /** https://graph.facebook.com/vXX.X/ - the version configured for ads. */
     public function base(): string
     {
-        $configured = (string) adminSetting('ads.facebook.base_url');
-        preg_match('~^(https://graph\.facebook\.com/v\d+\.\d+)/~', $configured, $m);
-
-        return ($m[1] ?? 'https://graph.facebook.com/v22.0') . '/';
+        return 'https://graph.facebook.com/'.self::VERSION.'/';
     }
 
     public function get(string $path, array $params = []): array

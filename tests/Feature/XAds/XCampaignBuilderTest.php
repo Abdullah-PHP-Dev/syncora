@@ -37,7 +37,7 @@ class XCampaignBuilderTest extends TestCase
     {
         parent::setUp();
 
-        foreach ([AdCampaign::class, AdAdGroup::class, AdCreative::class, Ad::class, AdMedia::class, AdBuilderRun::class, SocialAccount::class, MediaAsset::class] as $model) {
+        foreach ([AdCampaign::class, AdAdGroup::class, AdCreative::class, Ad::class, AdMedia::class, AdBuilderRun::class, SocialAccount::class, MediaAsset::class, \App\Models\User::class] as $model) { // users: saving an account runs the plan-limit check
             $instance = new $model();
             Schema::dropIfExists($instance->getTable());
             Schema::create($instance->getTable(), function (Blueprint $table) use ($instance) {

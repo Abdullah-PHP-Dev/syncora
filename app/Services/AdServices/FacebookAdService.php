@@ -32,7 +32,8 @@ class FacebookAdService
         $this->apiService = $apiService;
         // Seller's selected ad account (App\Support\AdAccountSelection), not just ->first().
         $this->account = \App\Support\AdAccountSelection::resolve(Auth::user()->id, 'facebook');
-        $this->config = adminSetting('ads.facebook.base_url'); //config("services.ads.facebook");
+        // The admin's base URL keeps its host/path, but always on the pinned Marketing API version.
+        $this->config = ($configured = adminSetting('ads.facebook.base_url')) ? \App\Support\Ads\MetaAdsGraph::pin((string) $configured) : null;
         if ($this->account) {
             $this->header = $this->getHeaders();
         }
@@ -300,7 +301,7 @@ class FacebookAdService
      */
     protected function fetchBusinessProfilePicture(string $businessId, string $accessToken): ?string
     {
-        $response = $this->httpClient::get("https://graph.facebook.com/v22.0/{$businessId}", [
+        $response = $this->httpClient::get("https://graph.facebook.com/v25.0/{$businessId}", [
             'fields'          => 'profile_picture_uri',
             'access_token'    => $accessToken,
             'appsecret_proof' => $this->appSecretProof($accessToken),
@@ -323,7 +324,7 @@ class FacebookAdService
 
     protected function getFBAdAccount($accessToken)
     {
-        $endpoint = adminSetting('ads.facebook.account.endpoint', 'https://graph.facebook.com/v22.0/me/adaccounts');
+        $endpoint = \App\Support\Ads\MetaAdsGraph::pin((string) adminSetting('ads.facebook.account.endpoint', 'https://graph.facebook.com/v25.0/me/adaccounts'));
 
         $response = $this->httpClient::get($endpoint, [
             'fields'          => MetaAdAccounts::FIELDS,
@@ -382,7 +383,7 @@ class FacebookAdService
      */
     protected function getInstagramBusinessAccount($accessToken, string $adAccountId): ?array
     {
-        $response = $this->httpClient::get("https://graph.facebook.com/v22.0/{$adAccountId}/instagram_accounts", [
+        $response = $this->httpClient::get("https://graph.facebook.com/v25.0/{$adAccountId}/instagram_accounts", [
             'fields'          => 'id,username,name,profile_pic',
             'access_token'    => $accessToken,
             'appsecret_proof' => $this->appSecretProof($accessToken),
@@ -418,7 +419,7 @@ class FacebookAdService
         // /instagram_accounts edge, confirmed on a real account to
         // sometimes return empty even when Business Settings shows the
         // Instagram account as a connected asset of that ad account.
-        $response = $this->httpClient::get("https://graph.facebook.com/v22.0/{$businessId}", [
+        $response = $this->httpClient::get("https://graph.facebook.com/v25.0/{$businessId}", [
             'fields'          => 'owned_pages{id,name,username,about,category,link,fan_count,followers_count,access_token,picture{url},instagram_business_account{id,username,name,profile_picture_url}},client_pages{id,name,username,about,category,link,fan_count,followers_count,access_token,picture{url},instagram_business_account{id,username,name,profile_picture_url}}',
             'access_token'    => $accessToken,
             'appsecret_proof' => $this->appSecretProof($accessToken),
@@ -547,7 +548,7 @@ class FacebookAdService
     protected function accountNode(?SocialAccount $account = null): string
     {
         $account ??= $this->account;
-        $base = $this->config ?: 'https://graph.facebook.com/v22.0/act_{accountId}';
+        $base = $this->config ?: 'https://graph.facebook.com/v25.0/act_{accountId}';
 
         return str_replace('{accountId}', ltrim((string) $account->platform_account_id, 'act_'), $base);
     }
@@ -721,7 +722,7 @@ class FacebookAdService
 
         $status = strtoupper($status) === 'ACTIVE' ? 'ACTIVE' : 'PAUSED';
         $response = Http::asForm()->acceptJson()->timeout(30)
-            ->post("https://graph.facebook.com/v22.0/{$campaign->ad_campaign_id}", ['status' => $status] + $this->graphAuth($account));
+            ->post("https://graph.facebook.com/v25.0/{$campaign->ad_campaign_id}", ['status' => $status] + $this->graphAuth($account));
 
         if (!$response->successful() || !$response->json('success')) {
             return response()->json(['success' => false, 'message' => $response->json('error.error_user_msg') ?: $response->json('error.message') ?: 'Meta did not change the campaign status.'], 422);
@@ -744,7 +745,7 @@ class FacebookAdService
             return response()->json(['success' => false, 'message' => $error], 403);
         }
 
-        $response = Http::asForm()->acceptJson()->timeout(60)->post("https://graph.facebook.com/v22.0/{$campaign->ad_campaign_id}/copies", [
+        $response = Http::asForm()->acceptJson()->timeout(60)->post("https://graph.facebook.com/v25.0/{$campaign->ad_campaign_id}/copies", [
             'deep_copy' => 'true', 'status_option' => 'PAUSED',
         ] + $this->graphAuth($account));
 
@@ -1820,7 +1821,7 @@ class FacebookAdService
 
     private function getLocale($languages)
     {
-        $endpoint = 'https://graph.facebook.com/v22.0/search?type=adlocale&q=';
+        $endpoint = 'https://graph.facebook.com/v25.0/search?type=adlocale&q=';
         $locals = [];
         foreach ($languages as $language) {
             $response = $this->apiService->get($endpoint, $this->header['data'], [

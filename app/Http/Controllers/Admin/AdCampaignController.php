@@ -112,7 +112,7 @@ class AdCampaignController extends Controller
             'destroy'   => route('admin.ads.campaigns.destroy', ['platform' => $platform, 'campaign' => 'CAMPAIGN_ID']),
             'connections' => route('admin.connections.index'),
             // Live spend and results where the platform reports them (AdsPerformanceService).
-            'performance' => in_array($platform, ['google', 'youtube', 'openai'], true)
+            'performance' => in_array($platform, ['google', 'youtube', 'openai', 'linkedin'], true)
                 ? route('admin.ads.campaigns.performance', ['platform' => $platform]) : null,
         ];
         $data['can_sync'] = in_array($platform, ['facebook', 'openai'], true);
@@ -213,10 +213,19 @@ class AdCampaignController extends Controller
         return 'Connect a ' . (AdsDashboardService::PLATFORMS[$platform]['label'] ?? ucfirst($platform)) . ' ad account first.';
     }
 
-    /** The seller's own campaign on this platform, or 404. */
-    private function ownCampaign(string $platform, string $id): void
+    /**
+     * The signed-in seller's (workspace owner's) own campaign on this platform, or 404.
+     * Every action that reads or changes one campaign goes through here: several platform
+     * services look campaigns up by id alone, so without this another seller's id would reach them.
+     * Facebook and Instagram campaigns share the Meta ad account, so either key matches both.
+     */
+    private function ownCampaign(string $platform, string $id): AdCampaign
     {
-        abort_unless(AdCampaign::where('user_id', Auth::id())->where('platform', $platform)->whereKey($id)->exists(), 404);
+        $platforms = in_array($platform, ['facebook', 'instagram'], true) ? ['facebook', 'instagram'] : [$platform];
+        $campaign = ctype_digit($id) ? AdCampaign::where('user_id', Auth::id())->whereIn('platform', $platforms)->find((int) $id) : null;
+        abort_unless($campaign, 404);
+
+        return $campaign;
     }
 
     /**
@@ -309,6 +318,7 @@ class AdCampaignController extends Controller
     /** Copy a campaign on the platform (Facebook: Meta /copies, created paused). */
     public function duplicate($platform, string $id)
     {
+        $this->ownCampaign($platform, $id);
         $service = $this->socialAdManager->service($platform);
         abort_unless(method_exists($service, 'duplicate'), 404);
 
@@ -521,9 +531,9 @@ class AdCampaignController extends Controller
      */
     public function edit($platform, string $id)
     {
+        $campaign = $this->ownCampaign($platform, $id)->load(['socialAccount', 'adGroups', 'adGroups.creatives', 'adGroups.creatives.media', 'ads']);
         $account = $this->adAccountModel->where('user_id', Auth::id())->usableFor('ads')->where('platform', $platform === 'youtube' ? 'google' : $platform)->with('adDetails')->first();
         $countries = $this->countryModel->all();
-        $campaign = $this->adCampaignModel->with(['socialAccount', 'adGroups', 'adGroups.creatives', 'adGroups.creatives.media', 'ads'])->findOrFail($id);
         // Facebook / Instagram: the campaign builder in edit mode (same design
         // as the create page); the previous edit form stays at ?legacy=1.
         if (in_array($platform, ['facebook', 'instagram'], true) && ! request()->boolean('legacy')) {
@@ -581,6 +591,7 @@ class AdCampaignController extends Controller
      */
     public function update($platform, AdCampaignRequest $request, string $id)
     {
+        $this->ownCampaign($platform, $id);
         $request = $request->validated();
 
         return $this->socialAdManager->update($platform, $id, $request);
@@ -615,6 +626,8 @@ class AdCampaignController extends Controller
                 ->with($ok ? 'success' : 'error', $ok ? __('ads_campaigns.deleted') : ($result['error'] ?? __('ads_campaigns.delete_failed')));
         }
 
+        $this->ownCampaign($platform, $id);
+
         return $this->socialAdManager->destroy($platform, $id);
     }
 
@@ -636,6 +649,8 @@ class AdCampaignController extends Controller
 
             return response()->json($ok ? ['success' => true, 'status' => strtolower($request->input('status'))] : ['success' => false, 'message' => $result['error'] ?? __('ads_campaigns.platform.status_failed', ['name' => AdsDashboardService::PLATFORMS[$platform]['label']])], $ok ? 200 : 422);
         }
+
+        $this->ownCampaign($platform, $id);
 
         return $this->socialAdManager->updateStatus($platform, $id, $request->input('status'));
     }

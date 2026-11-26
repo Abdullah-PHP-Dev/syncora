@@ -34,7 +34,7 @@ class AdReportsTest extends TestCase
         $this->createSettingsTable();
         $this->createAdTables();
         (require database_path('migrations/2026_10_29_120000_create_ad_report_schedules_table.php'))->up();
-        Settings::set('ads.facebook.base_url', 'https://graph.facebook.com/v22.0/act_{accountId}');
+        Settings::set('ads.facebook.base_url', 'https://graph.facebook.com/v25.0/act_{accountId}');
         $this->user = User::create(['name' => 'Seller', 'email' => 'owner@brand.com', 'password' => bcrypt('x')]);
         $this->actingAs($this->user);
         $this->withoutMiddleware([LocaleSessionRedirect::class, LocaleCookieRedirect::class, LaravelLocalizationRedirectFilter::class]);
@@ -47,7 +47,7 @@ class AdReportsTest extends TestCase
     private function fakeInsights(string $campaignName = 'Leads KSA'): void
     {
         AdCampaign::create(['user_id' => $this->user->id, 'social_account_id' => $this->account->id, 'platform' => 'facebook', 'name' => $campaignName, 'status' => 'active', 'objective' => 'OUTCOME_LEADS', 'ad_campaign_id' => '12001']);
-        Http::fake(['graph.facebook.com/v22.0/act_111/insights*' => Http::response(['data' => [
+        Http::fake(['graph.facebook.com/v25.0/act_111/insights*' => Http::response(['data' => [
             ['campaign_id' => '12001', 'objective' => 'OUTCOME_LEADS', 'spend' => '720.20', 'impressions' => '104980', 'reach' => '52000', 'clicks' => '2050', 'actions' => [['action_type' => 'lead', 'value' => '128']]],
         ]])]);
     }

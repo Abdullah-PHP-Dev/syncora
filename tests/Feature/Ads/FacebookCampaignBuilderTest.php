@@ -33,7 +33,7 @@ class FacebookCampaignBuilderTest extends TestCase
 {
     use CreatesConnectionTables, CreatesAdTables;
 
-    private const G = 'https://graph.facebook.com/v22.0/';
+    private const G = 'https://graph.facebook.com/v25.0/';
 
     private User $user;
 
@@ -52,7 +52,7 @@ class FacebookCampaignBuilderTest extends TestCase
         $this->createSettingsTable();
         (require database_path('migrations/2026_10_14_120000_create_ad_builder_runs_table.php'))->up();
         $this->createAdTables();
-        Settings::set('ads.facebook.base_url', 'https://graph.facebook.com/v22.0/act_{accountId}');
+        Settings::set('ads.facebook.base_url', 'https://graph.facebook.com/v25.0/act_{accountId}');
 
         $this->user = User::create(['name' => 'Seller', 'email' => 's@example.com', 'password' => bcrypt('x')]);
         $this->actingAs($this->user);

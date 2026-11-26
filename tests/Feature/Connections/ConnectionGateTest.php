@@ -209,16 +209,23 @@ class ConnectionGateTest extends TestCase
         $this->assertTrue($controller->index()->getData()['eligible']);
     }
 
-    public function test_registration_lands_on_the_connections_page(): void
+    /** Signup verifies the email first; the verification then continues to Connections (EmailVerificationCodeTest). */
+    public function test_registration_lands_on_email_verification(): void
     {
+        if (! \Illuminate\Support\Facades\Schema::hasColumn('users', 'mobile')) { // legacy column, not in the test schema
+            \Illuminate\Support\Facades\Schema::table('users', fn ($t) => $t->string('mobile')->nullable());
+        }
+        if (! \Illuminate\Support\Facades\Schema::hasTable('email_verification_codes')) {
+            (require database_path('migrations/2026_11_26_100000_create_email_verification_codes_table.php'))->up();
+        }
         Event::fake([UserRegistered::class]);
         auth()->logout();
         (require database_path('migrations/2026_08_18_000800_create_subscription_cycles_table.php'))->up();
         \App\Models\Bundle::create(['slug' => 'free', 'name_en' => 'Free', 'name_ar' => 'مجاني', 'is_free' => true, 'is_active' => true, 'meta' => ['trial_days' => 15]]);
 
         $this->post(route('register'), [
-            'organization_name' => 'New Seller', 'email' => 'new@example.com', 'password' => 'Password-123!', 'password_confirmation' => 'Password-123!', 'terms' => '1',
-        ])->assertRedirect(route('admin.connections.index'));
+            'name' => 'New Seller', 'email' => 'new@example.com', 'mobile' => '+966551234567', 'password' => 'Password-123!', 'password_confirmation' => 'Password-123!', 'terms' => '1',
+        ])->assertRedirect(route('verification.notice'));
 
         $this->assertAuthenticated();
     }

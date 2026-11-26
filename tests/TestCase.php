@@ -13,6 +13,10 @@ abstract class TestCase extends BaseTestCase
         // Settings memoizes all settings in a static property; without
         // this, settings read in one test class leak into the next.
         \App\Support\Settings::forgetRequestCache();
+
+        // Fixtures create sellers without email_verified_at. The verification gate
+        // (EnsureEmailIsVerified) is tested on its own, where it is switched on.
+        config(['notifications.verification_since' => '2999-01-01']);
     }
 
     /**

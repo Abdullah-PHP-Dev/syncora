@@ -77,7 +77,7 @@ class PlatformCampaignsPageTest extends TestCase
             $this->account($platform);
         }
 
-        foreach (['google' => true, 'youtube' => true, 'openai' => true, 'linkedin' => false] as $platform => $reports) {
+        foreach (['google' => true, 'youtube' => true, 'openai' => true, 'linkedin' => true] as $platform => $reports) {
             $response = $this->get(route('admin.ads.campaigns.index', ['platform' => $platform]))->assertOk()->assertSee('<platform-campaigns', false);
             $data = $response->viewData('data');
             $this->assertSame($reports, $data['urls']['performance'] !== null, $platform);
@@ -117,9 +117,10 @@ class PlatformCampaignsPageTest extends TestCase
     public function test_platforms_without_reporting_say_so_and_ranges_are_checked(): void
     {
         $this->account('linkedin');
+        $this->account('instagram'); // reported inside Meta, never on its own
         Http::fake();
 
-        $this->getJson(route('admin.ads.campaigns.performance', ['platform' => 'linkedin']))->assertOk()->assertExactJson(['status' => 'no_reporting']);
+        $this->getJson(route('admin.ads.campaigns.performance', ['platform' => 'instagram']))->assertOk()->assertExactJson(['status' => 'no_reporting']);
         $this->getJson(route('admin.ads.campaigns.performance', ['platform' => 'x']))->assertOk()->assertExactJson(['status' => 'not_connected']);
         $this->getJson(route('admin.ads.campaigns.performance', ['platform' => 'linkedin', 'days' => 365]))->assertStatus(422);
         Http::assertNothingSent();
@@ -142,27 +143,34 @@ class PlatformCampaignsPageTest extends TestCase
         $this->assertStringNotContainsString('Brand video', $csv); // the YouTube campaign is on the YouTube page
     }
 
-    public function test_a_platform_without_reporting_exports_its_campaigns_and_says_spend_is_not_reported(): void
+    public function test_linkedin_export_carries_its_reported_spend_and_stays_formula_safe(): void
     {
         $account = $this->account('linkedin');
-        AdCampaign::create(['user_id' => $this->user->id, 'social_account_id' => $account->id, 'platform' => 'linkedin', 'name' => '=HYPERLINK("http://evil")', 'status' => 'enable', 'objective' => 'TRAFFIC', 'daily_budget' => 80]);
-        Http::fake();
+        AdCampaign::create(['user_id' => $this->user->id, 'social_account_id' => $account->id, 'platform' => 'linkedin', 'name' => '=HYPERLINK("http://evil")', 'status' => 'enable', 'objective' => 'WEBSITE_VISIT', 'daily_budget' => 80, 'ad_campaign_id' => '777']);
+        $this->fakeLinkedin();
 
         $csv = $this->get(route('admin.ads.campaigns.export', ['platform' => 'linkedin', 'days' => 30]))->assertOk()->getContent();
 
-        $this->assertStringContainsString('isn’t available for LinkedIn yet', $csv);
-        $this->assertStringContainsString('"Daily budget",80', $csv);
-        $this->assertStringContainsString("\"'=HYPERLINK(\"\"http://evil\"\")\",TRAFFIC,enable,80", $csv);
-        $this->assertStringNotContainsString('Amount spent', $csv);
-        Http::assertNothingSent();
+        $this->assertStringContainsString('"Amount spent",95.5', $csv);
+        $this->assertStringContainsString("\"'=HYPERLINK(\"\"http://evil\"\")\",WEBSITE_VISIT,enable,80", $csv);
+        $this->assertStringNotContainsString('isn’t available for LinkedIn', $csv);
+    }
+
+    /** LinkedIn adAnalytics: one campaign group (777) with spend, and an empty daily series. */
+    private function fakeLinkedin(): void
+    {
+        Http::fake(['api.linkedin.com/rest/adAnalytics*' => fn (HttpRequest $r) => Http::response(['elements' => str_contains($r->url(), 'pivot=CAMPAIGN_GROUP')
+            ? [['pivotValues' => ['urn:li:sponsoredCampaignGroup:777'], 'costInLocalCurrency' => '95.5', 'impressions' => 4000, 'clicks' => 80, 'landingPageClicks' => 70]]
+            : []])]);
     }
 
     public function test_reports_are_scheduled_per_platform_and_the_scheduler_emails_them(): void
     {
         Carbon::setTestNow(now('UTC')->next(Carbon::THURSDAY)->setTime(10, 0)); // after the fixture subscription starts
         $linkedin = $this->account('linkedin');
-        AdCampaign::create(['user_id' => $this->user->id, 'social_account_id' => $linkedin->id, 'platform' => 'linkedin', 'name' => 'Ramadan traffic', 'status' => 'enable', 'daily_budget' => 80]);
+        AdCampaign::create(['user_id' => $this->user->id, 'social_account_id' => $linkedin->id, 'platform' => 'linkedin', 'name' => 'Ramadan traffic', 'status' => 'enable', 'daily_budget' => 80, 'ad_campaign_id' => '777']);
         $this->account('google');
+        $this->fakeLinkedin(); // before Google's catch-all fake
         $this->fakeGoogleAds();
         Mail::fake();
 
@@ -182,7 +190,7 @@ class PlatformCampaignsPageTest extends TestCase
 
         Mail::assertSent(AdPerformanceReport::class, 2);
         Mail::assertSent(AdPerformanceReport::class, fn (AdPerformanceReport $m) => $m->schedule->platform === 'linkedin'
-            && str_contains($m->report['csv'], 'Ramadan traffic') && str_contains($m->render(), 'LinkedIn Ads report'));
+            && str_contains($m->report['csv'], 'Ramadan traffic') && str_contains($m->report['csv'], '"Amount spent",95.5') && str_contains($m->render(), 'LinkedIn Ads report'));
         Mail::assertSent(AdPerformanceReport::class, fn (AdPerformanceReport $m) => $m->schedule->platform === 'google'
             && str_contains($m->render(), 'Search KSA') && str_contains($m->attachments()[0]->as, 'google-ads-'));
         $this->assertSame(2, AdReportSchedule::whereNotNull('last_sent_at')->whereNull('last_error')->count());

@@ -33,7 +33,7 @@ class InstagramCampaignsPageTest extends TestCase
         $this->createSettingsTable();
         $this->createAdTables();
         (require database_path('migrations/2026_10_29_120000_create_ad_report_schedules_table.php'))->up();
-        Settings::set('ads.facebook.base_url', 'https://graph.facebook.com/v22.0/act_{accountId}');
+        Settings::set('ads.facebook.base_url', 'https://graph.facebook.com/v25.0/act_{accountId}');
         Settings::set('ads.facebook.client_secret', 'app-secret');
         $this->user = User::create(['name' => 'Seller', 'email' => 'owner@brand.com', 'password' => bcrypt('x')]);
         $this->actingAs($this->user);
@@ -57,7 +57,7 @@ class InstagramCampaignsPageTest extends TestCase
     {
         $row = fn (string $platform, array $extra) => ['publisher_platform' => $platform] + $extra;
         $purchase = fn ($n, $value) => ['actions' => [['action_type' => 'omni_purchase', 'value' => (string) $n]], 'action_values' => [['action_type' => 'omni_purchase', 'value' => (string) $value]]];
-        Http::fake(['graph.facebook.com/v22.0/act_111/insights*' => function (HttpRequest $r) use ($row, $purchase) {
+        Http::fake(['graph.facebook.com/v25.0/act_111/insights*' => function (HttpRequest $r) use ($row, $purchase) {
             return Http::response(['data' => match (true) {
                 ($r['date_preset'] ?? null) === 'today' => [['spend' => '42.5']],
                 ($r['level'] ?? null) === 'campaign' => [
