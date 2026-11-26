@@ -16,7 +16,7 @@
             <p class="theme-hero-lead">{{ __('The all-in-one AI social media workspace') }}<br class="theme-desktop-break"> {{ __('for creators, teams and agencies.') }}</p>
             <div class="theme-actions">
                 <a href="{{ route('register') }}" class="theme-button theme-button-primary">{{ __('Start for free') }} <span>→</span></a>
-                <a href="https://www.youtube.com/watch?v=sZ7QQ071v8Q" class="theme-button theme-button-outline">@include('front.partials.home-icon', ['icon' => 'play']) {{ __('Watch demo') }}</a>
+                <a target="_blank" href="https://www.youtube.com/watch?v=sZ7QQ071v8Q" class="theme-button theme-button-outline">@include('front.partials.home-icon', ['icon' => 'play']) {{ __('Watch demo') }}</a>
             </div>
             <div class="theme-proof">
                 <img src="{{ asset('assets/images/home-theme/avatars.webp') }}" width="137" height="45" alt="{{ __('Creators using Socialeaz') }}">
