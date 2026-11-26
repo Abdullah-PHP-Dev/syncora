@@ -510,7 +510,7 @@ return [
         'support.new_signup' => [
             'title' => 'تسجيل جديد: :name',
             'chip' => 'عميل جديد',
-            'subject' => '🎉 عميل جديد سجّل — :name',
+            'subject' => 'تسجيل عميل جديد: :name',
             'preheader' => ':name (:email) أنشأ حسابًا في Socialeaz للتو.',
             'headline' => 'انضم عميل جديد للتو',
             'body' => 'أنشأ :name حسابًا في Socialeaz. تفاصيله أدناه.',

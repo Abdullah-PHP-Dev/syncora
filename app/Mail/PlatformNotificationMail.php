@@ -122,7 +122,29 @@ class PlatformNotificationMail extends Mailable
             $subject .= ' — '.$this->layout['workspace'];
         }
 
+        if (($this->config['sender'] ?? null) === 'alerts') {
+            return $this->alertEnvelope($subject);
+        }
+
         return self::brandedEnvelope($subject);
+    }
+
+    /**
+     * Internal team alerts: a sender that isn't the team's own mailbox, and Reply-To the customer
+     * the alert is about (so "Reply" reaches them). Self-addressed mail lands in spam.
+     */
+    private function alertEnvelope(string $subject): Envelope
+    {
+        $brand = EmailBranding::get();
+        $from = (string) config('notifications.staff_alerts.from');
+        $from = filter_var($from, FILTER_VALIDATE_EMAIL) ? $from : $brand['sender_email'];
+        $customer = (string) ($this->lead->payload['params']['email'] ?? '');
+
+        return new Envelope(
+            from: new Address($from, (string) config('notifications.staff_alerts.from_name', $brand['sender_name'])),
+            replyTo: [new Address(filter_var($customer, FILTER_VALIDATE_EMAIL) ? $customer : $brand['reply_to'])],
+            subject: $subject,
+        );
     }
 
     /** Sender details from the administrator's email branding (config is the fallback). */

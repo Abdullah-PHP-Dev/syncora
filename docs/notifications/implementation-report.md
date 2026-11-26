@@ -262,3 +262,6 @@ At the product owner's request, notification emails no longer go through the que
 - **Editable:** Admin → Email templates → "New customer signup (staff)", EN and AR. Reset restores the design.
 - **Files:** `Emitters/SignupNotifications.php` (new), `config/notifications.php`, `lang/{en,ar}/notifications.php` (`events.support.new_signup`, `signup.*`), `TemplateRegistry` (`DESIGNED`, `EVENT_VARS`, `signupDefaults()`), `PlatformNotificationMail` (designed default, per-event `chip`).
 - **Tests:** `tests/Feature/Notifications/SignupAlertTest.php` (3).
+- **Spam fix (same day):** the first live alert landed in Hostinger's Junk (`X-Spam: Yes`, Cloudmark) although SPF, DKIM and DMARC passed. It was sent from `support@` to `support@` through Resend/SES, a self-addressed pattern that filters treat as spoofing.
+  - Team alerts now come from `NOTIFICATIONS_ALERTS_FROM` (default `alerts@socialeaz.com`, "Socialeaz Alerts"), with Reply-To set to the customer.
+  - The subject no longer has an emoji.

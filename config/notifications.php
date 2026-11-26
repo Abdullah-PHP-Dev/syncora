@@ -41,6 +41,10 @@ return [
     // Internal alerts for the Socialeaz team (comma-separated addresses; empty = off).
     'staff_alerts' => [
         'signup' => env('NOTIFICATIONS_SIGNUP_ALERT_TO', 'support@socialeaz.com'),
+        // Sender for team alerts. Must differ from the recipient: mail "from yourself" sent by an outside
+        // service (Resend / SES) is a spoofing pattern, and Hostinger's filter puts it in Junk.
+        'from' => env('NOTIFICATIONS_ALERTS_FROM', 'alerts@socialeaz.com'),
+        'from_name' => env('NOTIFICATIONS_ALERTS_FROM_NAME', 'Socialeaz Alerts'),
     ],
 
     // Legal footer line (company address / CR number) - set per environment.
@@ -163,7 +167,7 @@ return [
         'support.reply_received' => ['category' => 'support', 'priority' => 1, 'mandatory' => true, 'recipients' => ['owner'], 'tone' => 'action', 'group' => 5],
         'support.ticket_resolved' => ['category' => 'support', 'priority' => 2, 'mandatory' => true, 'recipients' => ['owner'], 'tone' => 'success'],
         'support.ticket_closed' => ['category' => 'support', 'priority' => 3, 'recipients' => ['owner'], 'tone' => 'info'],
-        'support.new_signup' => ['category' => 'support', 'priority' => 1, 'in_app' => false, 'recipients' => ['emails'], 'tone' => 'success', 'staff' => true],
+        'support.new_signup' => ['category' => 'support', 'priority' => 1, 'in_app' => false, 'recipients' => ['emails'], 'tone' => 'success', 'staff' => true, 'sender' => 'alerts'],
         'support.ticket_new' => ['category' => 'support', 'priority' => 1, 'recipients' => ['staff'], 'tone' => 'info', 'staff' => true],
         'support.ticket_assigned' => ['category' => 'support', 'priority' => 1, 'recipients' => ['users'], 'tone' => 'info', 'staff' => true],
         'support.customer_replied' => ['category' => 'support', 'priority' => 1, 'recipients' => ['users', 'staff'], 'fallback' => true, 'tone' => 'action', 'staff' => true, 'group' => 5],

@@ -527,7 +527,7 @@ return [
         'support.new_signup' => [
             'title' => 'New signup: :name',
             'chip' => 'New customer',
-            'subject' => '🎉 New customer signed up — :name',
+            'subject' => 'New customer signed up: :name',
             'preheader' => ':name (:email) just created a Socialeaz account.',
             'headline' => 'A new customer just joined',
             'body' => ':name created a Socialeaz account. Their details are below.',

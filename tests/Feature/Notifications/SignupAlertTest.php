@@ -49,7 +49,10 @@ class SignupAlertTest extends TestCase
         Mail::assertSent(PlatformNotificationMail::class, function (PlatformNotificationMail $mail) {
             $html = $mail->render();
 
-            return $mail->hasTo('support@socialeaz.com')
+            // Not "from yourself" (Hostinger files that as spam); Reply reaches the customer.
+            return $mail->hasTo('support@socialeaz.com') && $mail->hasFrom('alerts@socialeaz.com')
+                && $mail->hasReplyTo('sara.signup@example.com') && ! $mail->hasFrom('support@socialeaz.com')
+                && ! str_contains($mail->envelope()->subject, '🎉')
                 && str_contains($mail->envelope()->subject, 'Sara Ahmed')
                 && str_contains($html, 'sara.signup@example.com') && str_contains($html, '+966551234567')
                 && str_contains($html, 'New customer') && str_contains($html, 'Free Trial') && str_contains($html, 'mailto:sara.signup@example.com');
