@@ -291,6 +291,80 @@ class LinkedInEngagementTest extends TestCase
         $this->assertSame(['Sara Ali', 'https://media.licdn.com/sara.jpg'], [$member->fresh()->user_name, $member->fresh()->user_avatar_url]);
     }
 
+    private const COMMENT_URN = 'urn:li:comment:(urn:li:activity:7400000000000000009,7400000000000000555)';
+
+    private function asSeller(): void
+    {
+        $this->actingAs($this->user);
+        $this->withoutMiddleware([\Mcamara\LaravelLocalization\Middleware\LocaleSessionRedirect::class, \Mcamara\LaravelLocalization\Middleware\LocaleCookieRedirect::class, \Mcamara\LaravelLocalization\Middleware\LaravelLocalizationRedirectFilter::class]);
+    }
+
+    public function test_a_reply_is_posted_to_the_comment_as_the_page(): void
+    {
+        $this->asSeller();
+        $comment = PostComment::forceCreate(['post_id' => $this->post->id, 'platform' => 'linkedin', 'comment_id' => self::COMMENT_URN, 'social_account_id' => $this->account->id,
+            'content' => 'Sent my CV', 'user_name' => 'LinkedIn member', 'sender_type' => 'customer', 'status' => 'approved']);
+        Http::fake([self::API . 'socialActions/*' => Http::response(['id' => '7400000000000000777',
+            'commentUrn' => 'urn:li:comment:(urn:li:activity:7400000000000000009,7400000000000000777)'], 201, ['x-restli-id' => '7400000000000000777'])]);
+
+        $this->postJson(route('admin.posts.comments.reply', $comment->id), ['content' => 'Thanks, we got it!'])->assertOk()->assertJsonPath('success', true);
+
+        Http::assertSent(fn (HttpRequest $r) => $r->method() === 'POST'
+            && $r->url() === self::API . 'socialActions/' . rawurlencode(self::COMMENT_URN) . '/comments'
+            && $r['actor'] === 'urn:li:organization:99887766' && $r['object'] === self::URN
+            && $r['parentComment'] === self::COMMENT_URN && $r['message'] === ['text' => 'Thanks, we got it!']);
+        $reply = PostComment::where('parent_comment_id', $comment->id)->firstOrFail();
+        $this->assertSame(['urn:li:comment:(urn:li:activity:7400000000000000009,7400000000000000777)', 'Socialeaz', 'support', true],
+            [$reply->comment_id, $reply->user_name, $reply->sender_type, (bool) $reply->is_reply]);
+    }
+
+    public function test_replying_to_a_comment_imported_without_its_urn_looks_it_up_first(): void
+    {
+        $this->asSeller();
+        // Imported before URNs were kept: numeric id only.
+        $comment = PostComment::forceCreate(['post_id' => $this->post->id, 'platform' => 'linkedin', 'comment_id' => '7400000000000000555', 'social_account_id' => $this->account->id,
+            'content' => 'Sent my CV', 'user_name' => 'LinkedIn member', 'sender_type' => 'customer', 'status' => 'approved']);
+        Http::fake([
+            self::API . 'socialActions/' . rawurlencode(self::URN) . '/comments*' => Http::response(['elements' => [
+                ['id' => '7400000000000000555', 'object' => 'urn:li:activity:7400000000000000009', 'actor' => 'urn:li:person:abc', 'message' => ['text' => 'Sent my CV'], 'created' => ['time' => 1764100000000]],
+            ]]),
+            self::API . 'socialActions/' . rawurlencode(self::COMMENT_URN) . '/comments' => Http::response(['id' => '888'], 201, ['x-restli-id' => '888']),
+            self::API . 'people/*' => Http::response([], 403),
+        ]);
+
+        $this->postJson(route('admin.posts.comments.reply', $comment->id), ['content' => 'Thanks!'])->assertOk();
+
+        $this->assertSame(self::COMMENT_URN, $comment->fresh()->comment_id); // upgraded, built from object + id
+        Http::assertSent(fn (HttpRequest $r) => $r->method() === 'POST' && $r['parentComment'] === self::COMMENT_URN);
+        $this->assertSame('urn:li:comment:(urn:li:activity:7400000000000000009,888)', PostComment::where('parent_comment_id', $comment->id)->value('comment_id'));
+    }
+
+    public function test_a_new_comment_is_posted_on_the_post(): void
+    {
+        $this->asSeller();
+        Http::fake([self::API . 'socialActions/*' => Http::response(['id' => '999'], 201, ['x-restli-id' => '999'])]);
+
+        $this->postJson(route('admin.posts.comments.store', $this->post->id), ['content' => 'Applications close Friday.'])->assertOk()->assertJsonPath('success', true);
+
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === self::API . 'socialActions/' . rawurlencode(self::URN) . '/comments'
+            && $r['object'] === self::URN && ! isset($r['parentComment']) && $r['actor'] === 'urn:li:organization:99887766');
+        $this->assertSame(1, PostComment::where('post_id', $this->post->id)->whereNull('parent_comment_id')->where('sender_type', 'support')->count());
+    }
+
+    public function test_a_refused_reply_explains_why_and_changes_nothing(): void
+    {
+        $this->asSeller();
+        $comment = PostComment::forceCreate(['post_id' => $this->post->id, 'platform' => 'linkedin', 'comment_id' => self::COMMENT_URN, 'social_account_id' => $this->account->id,
+            'content' => 'Sent my CV', 'sender_type' => 'customer', 'status' => 'approved']);
+        Http::fake([self::API . 'socialActions/*' => Http::response(['status' => 403, 'message' => 'Not enough permissions to access: partnerApiSocialActions.CREATE'], 403)]);
+
+        $this->postJson(route('admin.posts.comments.reply', $comment->id), ['content' => 'Thanks!'])->assertStatus(422)
+            ->assertJsonPath('message', fn ($m) => str_contains($m, 'w_organization_social_feed'));
+
+        $this->assertSame(['approved', 'completed'], [$comment->fresh()->status, $this->post->fresh()->status]);
+        $this->assertSame(0, PostComment::where('parent_comment_id', $comment->id)->count());
+    }
+
     public function test_ugc_posts_use_the_ugcposts_parameter(): void
     {
         $this->post->forceFill(['post_id' => 'urn:li:ugcPost:7400000000000000002'])->save();

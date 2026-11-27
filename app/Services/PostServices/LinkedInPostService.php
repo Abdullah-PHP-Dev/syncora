@@ -452,266 +452,91 @@ class LinkedInPostService
     /** LinkedIn's reason for the last failed media upload (see publishPost()). */
     protected ?string $lastUploadError = null;
 
-    /** "403 - Not enough permissions to access ..." from a LinkedIn error response. */
-    private function linkedinError($response, string $what): string
-    {
-        $detail = $response->json('message') ?? $response->json('error_description') ?? \Illuminate\Support\Str::limit(trim($response->body()), 200);
-
-        return "{$what} (HTTP {$response->status()}" . ($detail ? ": {$detail}" : '') . ')';
-    }
-
-    protected function uploadMediaToLinkedIn($account, $mediaResult, $post): array
-    {
-        try {
-            $s3Url = $mediaResult['s3_url']; 
-            $extension = $mediaResult['extension'];
-            $isImage = in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'gif']);
-            
-            // 1. FIX: Download the current media file, NOT the global $post->media array
-            $downloadResponse = Http::timeout(300)->get($s3Url);
-            if (!$downloadResponse->successful()) {
-                return [
-                    'success' => false,
-                    'message' => 'Failed to download asset from source URL: ' . $s3Url
-                ];
-            }
-
-            $fileContent = $downloadResponse->body();
-            
-            // 2. FIX: Dynamically read mime-type and content-length for this specific file
-            $mimeType = $downloadResponse->header('Content-Type') ?? ($isImage ? 'image/jpeg' : 'video/mp4');
-            $fileSize = strlen($fileContent);
-          
-            $urn = $isImage
-                ? $this->uploadLinkedinImage($account, $fileContent, $mimeType, $fileSize, $account->access_token, $mediaResult)
-                : $this->uploadLinkedinVideo($account, $fileContent, $mimeType, $fileSize, $account->access_token, $mediaResult);
-
-            if (!$urn) {
-                return [
-                    'success' => false,
-                    'message' => 'Failed to upload media item to LinkedIn'
-                ];
-            }
-
-            return [
-                'success' => true,
-                'urns' => [$urn]
-            ];
-        } catch (\Exception $e) {
-            Log::error('Upload media to LinkedIn failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return [
-                'success' => false,
-                'message' => $e->getMessage()
-            ];
-        }
-    }
-
-   /**
-    * Upload image to LinkedIn
-    */
-   protected function uploadLinkedinImage($account, $fileContent, string $mimeType, int $fileSize, string $accessToken, $mediaResult)
-   {
-       try {
-           $initResponse = Http::withHeaders([
-               'Authorization' => 'Bearer ' . $accessToken,
-               'X-Restli-Protocol-Version' => '2.0.0',
-               'Linkedin-Version' => $this->linkedinVersion,
-           ])->post($this->baseUrl . "images?action=initializeUpload", [
-               'initializeUploadRequest' => [
-                   'owner' => 'urn:li:organization:' . $account->platform_account_id,
-               ]
-           ]);
-
-           if (!$initResponse->successful()) {
-               Log::error('LinkedIn image init failed', [
-                   'response' => $initResponse->body()
-               ]);
-               $this->lastUploadError = $this->linkedinError($initResponse, 'image upload could not start');
-               return null;
-           }
-
-           $uploadData = $initResponse->json('value');
-           $uploadUrl = $uploadData['uploadUrl'];
-           $imageUrn = $uploadData['image'];
-
-           $uploadFileResponse = Http::withHeaders([
-               'Authorization' => 'Bearer ' . $accessToken,
-               'Content-Type' => $mimeType,
-           ])->withBody($fileContent, $mimeType)->put($uploadUrl);
-
-           if (!$uploadFileResponse->successful()) {
-               Log::error('LinkedIn image upload failed', [
-                   'response' => $uploadFileResponse->body()
-               ]);
-               $this->lastUploadError = $this->linkedinError($uploadFileResponse, 'image upload was rejected');
-               return null;
-           }
-
-           return $imageUrn;
-       } catch (\Exception $e) {
-           Log::error('LinkedIn image upload exception', [
-               'error' => $e->getMessage()
-           ]);
-           return null;
-       }
-   }
-
-   /**
-    * Upload video to LinkedIn
-    */
-   protected function uploadLinkedinVideo($account, $fileContent, string $mimeType, int $fileSize, string $accessToken, $mediaResult)
-   {
-       try {
-           $initResponse = Http::withHeaders([
-               'Authorization' => 'Bearer ' . $accessToken,
-               'X-Restli-Protocol-Version' => '2.0.0',
-               'Linkedin-Version' => $this->linkedinVersion,
-           ])->post($this->baseUrl . "videos?action=initializeUpload", [
-               'initializeUploadRequest' => [
-                   'owner' => 'urn:li:organization:' . $account->platform_account_id,
-                   'fileSizeBytes' => $fileSize,
-                   'uploadCaptions' => false,
-                   'uploadThumbnail' => false,
-               ]
-           ]);
-          
-           if (!$initResponse->successful()) {
-               Log::error('LinkedIn video init failed', [
-                   'response' => $initResponse->body()
-               ]);
-               $this->lastUploadError = $this->linkedinError($initResponse, 'video upload could not start');
-               return null;
-           }
-
-           $uploadData = $initResponse->json('value');
-           $uploadInstructions = $uploadData['uploadInstructions'];
-           $videoUrn = $uploadData['video'];
-           $uploadToken = $uploadData['uploadToken'] ?? '';
-
-           $uploadedPartIds = [];
-           foreach ($uploadInstructions as $instruction) {
-               $partUrl = $instruction['uploadUrl'];
-               $firstByte = $instruction['firstByte'];
-               $lastByte = $instruction['lastByte'];
-
-               $chunk = substr($fileContent, $firstByte, $lastByte - $firstByte + 1);
-
-               $uploadPartResponse = Http::withHeaders([
-                   'Authorization' => 'Bearer ' . $accessToken,
-                   'Content-Type' => 'application/octet-stream',
-               ])->withBody($chunk, 'application/octet-stream')->put($partUrl);
-
-               if (!$uploadPartResponse->successful()) {
-                   Log::error('LinkedIn video part upload failed', [
-                       'response' => $uploadPartResponse->body(),
-                       'part' => $firstByte . '-' . $lastByte
-                   ]);
-                   return null;
-               }
-
-               // LinkedIn API expects the ETag value enclosed in quotes or clean string
-               $uploadedPartIds[] = $uploadPartResponse->header('ETag');
-           }
-
-           $finalizeResponse = Http::withHeaders([
-               'Authorization' => 'Bearer ' . $accessToken,
-               'X-Restli-Protocol-Version' => '2.0.0',
-               'Linkedin-Version' => $this->linkedinVersion,
-           ])->post("https://api.linkedin.com/rest/videos?action=finalizeUpload", [
-               'finalizeUploadRequest' => [
-                   'video' => $videoUrn,
-                   'uploadToken' => $uploadToken,
-                   'uploadedPartIds' => $uploadedPartIds,
-               ]
-           ]);
-
-           if (!$finalizeResponse->successful()) {
-               Log::error('LinkedIn video finalize failed', [
-                   'response' => $finalizeResponse->body()
-               ]);
-               return null;
-           }
-
-           return $videoUrn;
-       } catch (\Exception $e) {
-           Log::error('LinkedIn video upload exception', [
-               'error' => $e->getMessage()
-           ]);
-           return null;
-       }
-   }
-
-
-   /**
-     * Publish comment reply on LinkedIn
+    /**
+     * Comment on a post, or reply to a comment, as the Page:
+     * POST /rest/socialActions/{postUrn | commentUrn}/comments with
+     * {actor: urn:li:organization:{id}, object: post URN, message: {text},
+     *  parentComment: commentUrn (replies)}.
+     * learn.microsoft.com/linkedin/marketing/community-management/shares/comments-api
+     * Needs w_organization_social_feed. The new comment's id comes back in
+     * x-restli-id and its URN as commentUrn - kept, so it can be replied to.
+     * A refusal never changes the post or the comment being answered.
+     *
+     * @param  Post|PostComment  $target  the post (type 'comment') or the comment answered
      */
-    public function publishComment($data, $comment)
+    public function publishComment($data, $target, $type = 'reply')
     {
-        $this->ensureValidToken($comment->post);
-        
-        // LinkedIn nested comments endpoint format: /rest/socialActions/{parentCommentUrn}/comments
-        $parentCommentUrn = urlencode($comment->comment_id);
-        $endpoint = $this->baseUrl . "/socialActions/{$parentCommentUrn}/comments";
-
-        // LinkedIn expects actor URN and message text in JSON format
-        $payload = [
-            'actor' => $comment->socialAccount->platform_account_id, // e.g., 'urn:li:person:XXXX' or 'urn:li:organization:XXXX'
-            'message' => [
-                'text' => $data['body']
-            ]
-        ];
-
-        $response = $this->api->request(
-            'post',
-            $endpoint,
-            [
-                'Authorization' => "Bearer {$comment->socialAccount->access_token}",
-                'Content-Type'  => 'application/json',
-                'LinkedIn-Version' => $this->linkedinVersion,
-                'X-Restli-Protocol-Version' => '2.0.0'
-            ],
-            $payload,
-            'json'
-        );
-
-        if (!$response->successful()) {
-            return $this->errorResponse($comment, $response);
+        $post = $target instanceof Post ? $target : $target->post;
+        $account = $post?->socialAccount;
+        if (! $post?->post_id || ! $account) {
+            return ['success' => false, 'message' => 'This post isn’t on LinkedIn, so it can’t be commented on.'];
+        }
+        if (! $this->refreshAccountToken($account)) {
+            return ['success' => false, 'message' => 'Your LinkedIn connection has expired - reconnect LinkedIn Pages in Connections and try again.'];
         }
 
-        // LinkedIn returns the new comment URN in the response header 'x-restli-id' or body
-        $newCommentId = $response->header('x-restli-id') ?? $response->json()['id'] ?? null;
+        $reply = $target instanceof PostComment;
+        $parentUrn = $reply ? $this->commentUrn($target, $post, $account) : null;
+        if ($reply && ! $parentUrn) {
+            return ['success' => false, 'message' => 'LinkedIn didn’t return this comment any more - it may have been deleted on LinkedIn.'];
+        }
 
-        return $this->storeComment($comment, $data, $newCommentId);
+        $payload = array_filter([
+            'actor' => 'urn:li:organization:' . $account->platform_account_id,
+            'object' => $post->post_id,
+            'message' => ['text' => (string) ($data['body'] ?? '')],
+            'parentComment' => $parentUrn,
+        ]);
+        $response = Http::withHeaders($this->restHeaders($account))->acceptJson()
+            ->post($this->baseUrl . 'socialActions/' . rawurlencode($parentUrn ?? $post->post_id) . '/comments', $payload);
+
+        if (! $response->successful()) {
+            $message = $response->json('message') ?? $response->body();
+            Log::warning('LinkedIn comment refused.', ['post_id' => $post->id, 'status' => $response->status(), 'error' => $message]);
+
+            return ['success' => false, 'status' => $response->status(), 'message' => in_array($response->status(), [401, 403], true)
+                ? "LinkedIn refused the comment ({$message}). Commenting as the Page needs w_organization_social_feed - reconnect LinkedIn Pages."
+                : "LinkedIn didn’t post the comment: {$message}"];
+        }
+
+        $id = (string) ($response->header('x-restli-id') ?: $response->json('id') ?: '');
+        $urn = $response->json('commentUrn')
+            ?? ($parentUrn && $id !== '' && preg_match('/^urn:li:comment:\((.+),\d+\)$/', $parentUrn, $m) ? "urn:li:comment:({$m[1]},{$id})" : null);
+
+        $comment = PostComment::create([
+            'platform' => 'linkedin',
+            'comment_id' => $urn ?: ($id !== '' ? $id : null),
+            'parent_comment_id' => $reply ? $target->id : null,
+            'post_id' => $post->id,
+            'user_id' => Auth::id() ?? $post->user_id,
+            'social_account_id' => $account->id,
+            'user_name' => $account->name ?: (Auth::user()->name ?? 'Your Page'),
+            'user_avatar_url' => $account->avatar_url,
+            'content' => (string) ($data['body'] ?? ''),
+            'sender_type' => 'support',
+            'is_reply' => $reply,
+            'status' => 'approved',
+            'posted_at' => now(),
+        ]);
+
+        return ['success' => true, 'message' => $reply ? 'Reply posted on LinkedIn.' : 'Comment posted on LinkedIn.', 'data' => $comment];
     }
 
     /**
-     * Store comment
+     * The comment's URN - urn:li:comment:({activity},{id}) - which LinkedIn
+     * needs to reply to it. Comments imported before URNs were kept hold only
+     * the numeric id: re-read the post's comments once, which stores them.
      */
-    private function storeComment($comment, $data, $commentId)
+    private function commentUrn(PostComment $comment, Post $post, SocialAccount $account): ?string
     {
-        $comment = PostComment::create([
-            'content'           => $data['body'] ?? '',
-            'sender_type'       => 'support',
-            'platform'          => 'linkedin',
-            'parent_comment_id' => $comment->id,
-            'user_id'           => Auth::user()->id,
-            'sender_name'       => Auth::user()->name,
-            'post_id'           => $comment->post?->id,
-            'is_read'           => 0,
-            'is_reply'          => true,
-            'user_name'         => 'support',
-            'comment_id'        => $commentId,
-            'social_account_id'   => $comment->socialAccount?->id
-        ]);
+        if (str_starts_with((string) $comment->comment_id, 'urn:li:comment:')) {
+            return $comment->comment_id;
+        }
 
-        return [
-            'message' => '',
-            'success' => true,
-            'data'    => $comment
-        ];
+        $this->fetchAndStoreComments($account, $post);
+        $fresh = $comment->fresh();
+
+        return $fresh && str_starts_with((string) $fresh->comment_id, 'urn:li:comment:') ? $fresh->comment_id : null;
     }
 
     /**
@@ -1275,7 +1100,9 @@ class LinkedInPostService
             if ($id === '' || ! empty($comment['parentComment'])) {
                 continue;
             }
-            $urn = $comment['commentUrn'] ?? $comment['$URN'] ?? null;
+            // The URN is what a reply needs; build it from the thread when not sent.
+            $urn = $comment['commentUrn'] ?? $comment['$URN']
+                ?? (isset($comment['object']) && str_starts_with((string) $comment['object'], 'urn:li:activity:') ? "urn:li:comment:({$comment['object']},{$id})" : null);
             $actor = (string) ($comment['actor'] ?? '');
             $own = $actor === $orgUrn;
             $existing = PostComment::where('post_id', $post->id)->whereIn('comment_id', array_filter([$id, $urn]))->first();
@@ -1304,9 +1131,9 @@ class LinkedInPostService
                 if (! $values['user_avatar_url']) {
                     unset($values['user_avatar_url']);
                 }
-                $existing->update($existing->sender_type === 'support' && ! $own ? array_intersect_key($values, array_flip(['content', 'likes', 'imported_at'])) : $values);
+                $existing->update(($urn ? ['comment_id' => $urn] : []) + ($existing->sender_type === 'support' && ! $own ? array_intersect_key($values, array_flip(['content', 'likes', 'imported_at'])) : $values));
             } else {
-                PostComment::create(['comment_id' => $id, 'post_id' => $post->id] + $values);
+                PostComment::create(['comment_id' => $urn ?: $id, 'post_id' => $post->id] + $values);
             }
         }
 
