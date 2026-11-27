@@ -821,15 +821,25 @@ class SocialAuthService
 
     public const LINKEDIN_SCOPES = [...self::LINKEDIN_REQUIRED_SCOPES, ...self::LINKEDIN_OPTIONAL_SCOPES];
 
-    /** Settings key of the scopes this LinkedIn app turned out not to be approved for. */
+    /** Settings key prefix of the scopes a LinkedIn app turned out not to be approved for. */
     public const LINKEDIN_REFUSED_SCOPES = 'posts.linkedin.refused_scopes';
+
+    /**
+     * Refusals are remembered per LinkedIn app (client id): what one app
+     * refused says nothing about the next - switching posts.linkedin.client_id
+     * to another app must not keep its scopes out.
+     */
+    public static function linkedinRefusedKey(): string
+    {
+        return self::LINKEDIN_REFUSED_SCOPES . '.' . preg_replace('/[^A-Za-z0-9]/', '', (string) adminSetting('posts.linkedin.client_id'));
+    }
 
     /** @return string[] */
     public static function linkedinScopes(): array
     {
         $configured = trim((string) adminSetting('posts.linkedin.scopes'));
         $scopes = $configured !== '' ? preg_split('/[\s,]+/', $configured) : self::LINKEDIN_SCOPES;
-        $refused = array_filter(explode(',', (string) adminSetting(self::LINKEDIN_REFUSED_SCOPES)));
+        $refused = array_filter(explode(',', (string) adminSetting(self::linkedinRefusedKey())));
 
         return array_values(array_diff(array_filter($scopes), $refused));
     }
@@ -863,11 +873,11 @@ class SocialAuthService
             return [];
         }
         preg_match_all('/[Ss]cope\s*["\'“”]?([a-z_]+)["\'“”]?\s*is not authorized/', $decoded, $m);
-        $refused = array_filter(explode(',', (string) adminSetting(self::LINKEDIN_REFUSED_SCOPES)));
+        $refused = array_filter(explode(',', (string) adminSetting(self::linkedinRefusedKey())));
         // Required scopes are never dropped - without them there's no connection.
         $new = array_values(array_diff(array_intersect($m[1], self::LINKEDIN_OPTIONAL_SCOPES), $refused));
         if ($new) {
-            \App\Support\Settings::set(self::LINKEDIN_REFUSED_SCOPES, implode(',', array_merge($refused, $new)));
+            \App\Support\Settings::set(self::linkedinRefusedKey(), implode(',', array_merge($refused, $new)));
             Log::info('LinkedIn app is not approved for scopes; connecting without them.', ['scopes' => $new]);
         }
 

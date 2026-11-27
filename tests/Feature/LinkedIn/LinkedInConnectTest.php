@@ -145,7 +145,7 @@ class LinkedInConnectTest extends TestCase
         $this->assertStringContainsString('w_organization_social', session('error'));
 
         // An optional scope already dropped and refused again: no redirect loop.
-        \App\Support\Settings::set(SocialAuthService::LINKEDIN_REFUSED_SCOPES, 'rw_organization_admin');
+        \App\Support\Settings::set(SocialAuthService::linkedinRefusedKey(), 'rw_organization_admin');
         session(['social_oauth_state_linkedin' => 'state-1']);
         $response = app(SocialAuthService::class)->callback('linkedin', '', 'state-1', null, 'Scope "rw_organization_admin" is not authorized for your application');
         $this->assertStringNotContainsString('linkedin.com/oauth', $response->getTargetUrl());
@@ -175,7 +175,17 @@ class LinkedInConnectTest extends TestCase
         $this->assertStringNotContainsString('linkedin.com/oauth', $response->getTargetUrl());
         $this->assertStringContainsString('Scope "rw_organization_admin" is not authorized', session('error'));
         $this->assertStringContainsString('posts.linkedin.client_id', session('error'));
-        $this->assertNull(adminSetting(SocialAuthService::LINKEDIN_REFUSED_SCOPES));
+        $this->assertNull(adminSetting(SocialAuthService::linkedinRefusedKey()));
+    }
+
+    public function test_a_scope_refused_by_one_app_is_asked_again_with_another_app(): void
+    {
+        app(SocialAuthService::class)->callback('linkedin', '', 'state-1', null, 'Scope "r_organization_social_feed" is not authorized for your application');
+        $this->assertNotContains('r_organization_social_feed', $this->requestedScopes(app(SocialAuthService::class)->redirect('linkedin')));
+
+        // posts.linkedin.client_id switched to the Community Management app.
+        \App\Support\Settings::set('posts.linkedin.client_id', 'li-community-app');
+        $this->assertContains('r_organization_social_feed', $this->requestedScopes(app(SocialAuthService::class)->redirect('linkedin')));
     }
 
     public function test_the_callback_url_sent_is_the_non_localized_one(): void
