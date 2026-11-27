@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\AdServices\LinkedinAdService;
 use App\Services\SocialAuth\SocialAuthService;
 use App\Support\Settings;
+use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -47,8 +48,41 @@ class LinkedInAdAccountsTest extends TestCase
         ]);
     }
 
-    public function test_connections_sign_in_keeps_only_managed_company_page_accounts(): void
+    public function test_the_posting_sign_in_never_saves_ad_accounts(): void
     {
+        // Content posting (posts.linkedin, Community Management API) and Ads
+        // (ads.linkedin, Advertising API) are separate LinkedIn apps: the
+        // posting token isn't valid for ad accounts, so they aren't read.
+        session(['social_oauth_state_linkedin' => 's']);
+        app(SocialAuthService::class)->callback('linkedin', 'code', 's');
+
+        $this->assertSame(0, SocialAccount::where('account_type', 'ad_account')->count());
+        Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), 'adAccountUsers') || str_contains($r->url(), 'adAccounts/'));
+        Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), 'oauth/v2/accessToken') && $r['client_id'] === 'posts.linkedin-id');
+    }
+
+    public function test_posting_and_ads_consents_use_their_own_app_and_scopes(): void
+    {
+        $query = function ($response) {
+            parse_str((string) parse_url($response->getTargetUrl(), PHP_URL_QUERY), $q);
+
+            return [$q['client_id'], explode(' ', $q['scope'])];
+        };
+
+        [$postingApp, $posting] = $query(app(SocialAuthService::class)->redirect('linkedin'));
+        [$adsApp, $ads] = $query(app(\App\Services\AdServices\LinkedinAdService::class)->redirect('linkedin', 'state'));
+
+        $this->assertSame(['posts.linkedin-id', 'ads.linkedin-id'], [$postingApp, $adsApp]);
+        $this->assertSame([], array_intersect($posting, ['r_ads', 'rw_ads', 'r_ads_reporting']));
+        $this->assertContains('r_organization_social_feed', $posting);
+        $this->assertSame(['r_ads', 'rw_ads', 'r_ads_reporting', 'w_organization_social', 'r_organization_social'], $ads);
+        $this->assertSame([], array_intersect($ads, ['r_organization_social_feed', 'w_organization_social_feed']));
+    }
+
+    public function test_single_app_sign_in_keeps_only_managed_company_page_accounts(): void
+    {
+        // One LinkedIn app with both products (flag linkedin.single_app): ads come along.
+        Settings::set('connections.flags.linkedin.single_app', '1');
         $old = SocialAccount::create(['user_id' => $this->user->id, 'platform' => 'linkedin', 'platform_account_id' => '2', 'name' => 'Zaheer Ahmad', 'account_type' => 'ad_account', 'access_token' => 't', 'has_ads_permission' => true]);
 
         session(['social_oauth_state_linkedin' => 's']);

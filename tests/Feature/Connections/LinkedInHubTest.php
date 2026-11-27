@@ -51,9 +51,23 @@ class LinkedInHubTest extends TestCase
         $result = app(LinkedInDriver::class)->validate($connection);
 
         $this->assertSame(SocialConnection::ACTIVE, $result->status);
-        $this->assertSame(['ads', 'insights'], $result->capabilities);
+        // Ad reporting is part of Ads; LinkedIn "insights" are Page statistics on the Pages step.
+        $this->assertSame(['ads'], $result->capabilities);
         $this->assertSame('current', $result->fresh()->access_token); // mirrored from the account
         Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), 'introspectToken') && $r['client_id'] === 'li-ads' && $r['token'] === 'current');
+    }
+
+    public function test_each_linkedin_app_only_counts_its_own_capabilities(): void
+    {
+        // Each app's token is introspected with that app's own credentials.
+        Http::fake(['*' => fn (HttpRequest $r) => Http::response(['active' => true, 'status' => 'active', 'scope' => $r['client_id'] === 'li-ads'
+            // The Ads app holds w_organization_social/r_organization_social for sponsored posts - not a posting connection.
+            ? 'r_ads,rw_ads,r_ads_reporting,w_organization_social,r_organization_social'
+            : 'r_organization_admin,w_organization_social,rw_organization_admin,r_organization_social_feed,w_organization_social_feed'])]);
+
+        $this->assertSame(['ads'], app(LinkedInDriver::class)->validate($this->connection())->capabilities);
+        $this->assertSame(['posting', 'insights', 'engagement'],
+            app(LinkedInDriver::class)->validate($this->connection(['step' => LinkedInDriver::PAGES, 'provider_app' => 'posts.linkedin']))->capabilities);
     }
 
     public function test_introspection_statuses(): void

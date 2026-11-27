@@ -777,23 +777,33 @@ class SocialAuthService
     // =====================================================================
 
     /**
-     * Scopes a LinkedIn Page connection asks for. The first four are the ones
-     * it always used (posting, Page list, likes/comments counts). LinkedIn's
-     * current Community Management docs put more behind newer permissions:
-     * - r_organization_social_feed: list a Page post's comments (without it
-     *   LinkedIn answers "Not enough permissions to access:
-     *   partnerApiSocialActions.GET_ALL"); w_organization_social_feed: comment
-     *   and react as the Page.  .../community-management/shares/comments-api
+     * LinkedIn content posting runs on its own LinkedIn app (posts.linkedin.*,
+     * Community Management API); ads run on another (ads.linkedin.*,
+     * Advertising API - LinkedinAdService). LinkedIn grants the _feed scopes
+     * only to a Community Management app, and that product can't share an app
+     * with others, so the two consents never mix.
+     *
+     * Required - without them there's no Page connection:
+     * - r_organization_admin: the Pages the member administers (organizationAcls)
+     * - w_organization_social: publish, edit and delete as the Page
+     * Optional - dropped automatically if the app isn't approved for one
+     * (linkedinScopeRefused()):
+     * - r_organization_social: post counts (socialActions summary)
      * - rw_organization_admin: post statistics (impressions, clicks) and the
-     *   social-action webhook.  .../organizations/share-statistics
-     * Only scopes the LinkedIn app is approved for can be requested; one it
-     * isn't approved for is learned from LinkedIn's unauthorized_scope_error
-     * and left out from then on (linkedinScopeRefused()).
+     *   social-action webhook   .../organizations/share-statistics
+     * - r_organization_social_feed: list a post's comments (otherwise
+     *   "Not enough permissions to access: partnerApiSocialActions.GET_ALL")
+     * - w_organization_social_feed: reply and react as the Page
+     * - r_organization_followers: the Page's follower data
+     * Posting is as the Page only, so no member scopes (w_member_social) are asked.
      */
-    public const LINKEDIN_SCOPES = [
-        'w_member_social', 'r_organization_admin', 'r_organization_social', 'w_organization_social',
-        'r_organization_social_feed', 'w_organization_social_feed', 'rw_organization_admin',
+    public const LINKEDIN_REQUIRED_SCOPES = ['r_organization_admin', 'w_organization_social'];
+
+    public const LINKEDIN_OPTIONAL_SCOPES = [
+        'r_organization_social', 'rw_organization_admin', 'r_organization_social_feed', 'w_organization_social_feed', 'r_organization_followers',
     ];
+
+    public const LINKEDIN_SCOPES = [...self::LINKEDIN_REQUIRED_SCOPES, ...self::LINKEDIN_OPTIONAL_SCOPES];
 
     /** Settings key of the scopes this LinkedIn app turned out not to be approved for. */
     public const LINKEDIN_REFUSED_SCOPES = 'posts.linkedin.refused_scopes';
@@ -839,7 +849,7 @@ class SocialAuthService
         preg_match_all('/[Ss]cope\s*["\'“”]?([a-z_]+)["\'“”]?\s*is not authorized/', $decoded, $m);
         $refused = array_filter(explode(',', (string) adminSetting(self::LINKEDIN_REFUSED_SCOPES)));
         // Only optional scopes can be dropped - without the posting ones there's no connection.
-        $new = array_values(array_diff(array_intersect($m[1], array_slice(self::LINKEDIN_SCOPES, 4)), $refused));
+        $new = array_values(array_diff(array_intersect($m[1], self::LINKEDIN_OPTIONAL_SCOPES), $refused));
         if ($new) {
             \App\Support\Settings::set(self::LINKEDIN_REFUSED_SCOPES, implode(',', array_merge($refused, $new)));
             Log::info('LinkedIn app is not approved for scopes; connecting without them.', ['scopes' => $new]);
@@ -949,59 +959,66 @@ class SocialAuthService
             }
         }
 
-        $adAccountsResponse = $this->api->get($baseUrl . 'adAccountUsers', $headers, [
-            'q' => 'authenticatedUser',
-        ]);
+        // Ad accounts come from the separate LinkedIn Ads connection
+        // (LinkedinAdService, ads.linkedin.* app) - never from this posting
+        // token, which isn't valid for the Advertising API. Only when one app
+        // carries both products (flag linkedin.single_app) are they read here.
         $skippedLinkedinAds = [];
-
-        foreach ($adAccountsResponse['data']['elements'] ?? [] as $entry) {
-            $accountUrn = $entry['account'] ?? null;
-
-            if (!$accountUrn || !preg_match('#urn:li:sponsoredAccount:(\d+)#', $accountUrn, $matches)) {
-                continue;
-            }
-
-            $accountId = $matches[1];
-            $accountResponse = $this->api->get($baseUrl . 'adAccounts/' . $accountId, $headers);
-            $account = $accountResponse['success'] ? $accountResponse['data'] : [];
-
-            // Active Company Page ad accounts you manage only
-            // (LinkedInAdAccounts); ones saved earlier stop being offered.
-            if ($reason = LinkedInAdAccounts::exclusionReason($account, $entry['role'] ?? null)) {
-                $skippedLinkedinAds[$reason] = ($skippedLinkedinAds[$reason] ?? 0) + 1;
-                SocialAccount::where(['platform' => 'linkedin', 'platform_account_id' => $accountId, 'user_id' => $userId, 'account_type' => 'ad_account'])
-                    ->update(['has_ads_permission' => false, 'social_connection_id' => null]);
-
-                continue;
-            }
-
-            if (! AccountOwnership::allows('linkedin', $accountId, $userId, $account['name'] ?? null)) {
-                continue;
-            }
-            $linkedinAdAccount = SocialAccount::updateOrCreate(
-                ['platform' => 'linkedin', 'platform_account_id' => $accountId, 'user_id' => $userId],
-                [
-                    'name' => $account['name'] ?? "LinkedIn Ad Account {$accountId}",
-                    'account_type' => 'ad_account',
-                    'access_token' => $accessToken,
-                    ...(! empty($token['refresh_token']) ? ['refresh_token' => $token['refresh_token']] : []),
-                    'is_token_valid' => true,
-                    ...GrantedScopes::attributes($grantedScopes),
-                    'expires_at' => $expiresAt,
-                    'has_ads_permission' => true,
-                    // profile_id: the Company Page sponsored posts are authored as.
-                    'metadata' => array_filter(['currency' => $account['currency'] ?? null, 'profile_id' => LinkedInAdAccounts::organizationId($account)]),
-                ]
-            );
-            $linkedinAdAccount->syncAdDetails([
-                'currency' => $account['currency'] ?? null,
+        if (ConnectionFlags::on('linkedin.single_app')) {
+            $adAccountsResponse = $this->api->get($baseUrl . 'adAccountUsers', $headers, [
+                'q' => 'authenticatedUser',
             ]);
-            $adAccountsConnected++;
-            $assetIds[] = $linkedinAdAccount->id;
-        }
+            $skippedLinkedinAds = [];
 
-        if (!$adAccountsResponse['success']) {
-            Log::info('LinkedIn adAccountUsers not available for this token.', ['status' => $adAccountsResponse['status'] ?? null]);
+            foreach ($adAccountsResponse['data']['elements'] ?? [] as $entry) {
+                $accountUrn = $entry['account'] ?? null;
+
+                if (!$accountUrn || !preg_match('#urn:li:sponsoredAccount:(\d+)#', $accountUrn, $matches)) {
+                    continue;
+                }
+
+                $accountId = $matches[1];
+                $accountResponse = $this->api->get($baseUrl . 'adAccounts/' . $accountId, $headers);
+                $account = $accountResponse['success'] ? $accountResponse['data'] : [];
+
+                // Active Company Page ad accounts you manage only
+                // (LinkedInAdAccounts); ones saved earlier stop being offered.
+                if ($reason = LinkedInAdAccounts::exclusionReason($account, $entry['role'] ?? null)) {
+                    $skippedLinkedinAds[$reason] = ($skippedLinkedinAds[$reason] ?? 0) + 1;
+                    SocialAccount::where(['platform' => 'linkedin', 'platform_account_id' => $accountId, 'user_id' => $userId, 'account_type' => 'ad_account'])
+                        ->update(['has_ads_permission' => false, 'social_connection_id' => null]);
+
+                    continue;
+                }
+
+                if (! AccountOwnership::allows('linkedin', $accountId, $userId, $account['name'] ?? null)) {
+                    continue;
+                }
+                $linkedinAdAccount = SocialAccount::updateOrCreate(
+                    ['platform' => 'linkedin', 'platform_account_id' => $accountId, 'user_id' => $userId],
+                    [
+                        'name' => $account['name'] ?? "LinkedIn Ad Account {$accountId}",
+                        'account_type' => 'ad_account',
+                        'access_token' => $accessToken,
+                        ...(! empty($token['refresh_token']) ? ['refresh_token' => $token['refresh_token']] : []),
+                        'is_token_valid' => true,
+                        ...GrantedScopes::attributes($grantedScopes),
+                        'expires_at' => $expiresAt,
+                        'has_ads_permission' => true,
+                        // profile_id: the Company Page sponsored posts are authored as.
+                        'metadata' => array_filter(['currency' => $account['currency'] ?? null, 'profile_id' => LinkedInAdAccounts::organizationId($account)]),
+                    ]
+                );
+                $linkedinAdAccount->syncAdDetails([
+                    'currency' => $account['currency'] ?? null,
+                ]);
+                $adAccountsConnected++;
+                $assetIds[] = $linkedinAdAccount->id;
+            }
+
+            if (!$adAccountsResponse['success']) {
+                Log::info('LinkedIn adAccountUsers not available for this token.', ['status' => $adAccountsResponse['status'] ?? null]);
+            }
         }
 
         if ($orgsConnected === 0 && $adAccountsConnected === 0) {
@@ -1025,7 +1042,9 @@ class SocialAuthService
 
         return redirect()->route($this->returnRoute())->with(
             'success',
-            trim("Connected {$orgsConnected} LinkedIn Organization(s) and {$adAccountsConnected} ad account(s). " . LinkedInAdAccounts::skippedSummary($skippedLinkedinAds))
+            ConnectionFlags::on('linkedin.single_app')
+                ? trim("Connected {$orgsConnected} LinkedIn Organization(s) and {$adAccountsConnected} ad account(s). " . LinkedInAdAccounts::skippedSummary($skippedLinkedinAds))
+                : "Connected {$orgsConnected} LinkedIn Organization(s) for posting. Connect LinkedIn Ads separately to manage ad accounts."
         );
     }
 

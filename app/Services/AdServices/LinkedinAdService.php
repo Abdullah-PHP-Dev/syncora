@@ -105,58 +105,30 @@ class LinkedinAdService
         }
     }
 
+    /**
+     * The LinkedIn Ads consent (ads.linkedin.* app, Advertising API) - kept
+     * apart from content posting (posts.linkedin.* app, Community Management
+     * API; SocialAuthService::LINKEDIN_SCOPES). Only what this module uses:
+     * - r_ads / rw_ads: ad accounts, campaign groups, campaigns, creatives
+     * - r_ads_reporting: adAnalytics (the Ads Dashboard's real spend)
+     * - w_organization_social / r_organization_social: the sponsored (dark)
+     *   Page post each Sponsored Content creative is built on (POST /rest/posts)
+     * Lead Gen, Conversions, Matched Audiences and Events aren't built, so
+     * their scopes aren't asked for.
+     */
+    public const SCOPES = ['r_ads', 'rw_ads', 'r_ads_reporting', 'w_organization_social', 'r_organization_social'];
+
     public function redirect($platform, $state)
     {
         $clientId = adminSetting('ads.linkedin.client_id');
-
-        // Define authorized scopes as an array
-        $scopes = [
-            'openid',
-            'profile',
-            'email',
-            'r_ads',
-            'rw_ads',
-            'r_ads_reporting',
-        ];
 
         $query = http_build_query([
             'response_type' => 'code',
             'client_id'     => $clientId,
             'redirect_uri'  => $this->getCallbackUrl(),
             'state'         => $state,
-            // r_ads: read ad accounts/campaigns/creatives. rw_ads: create/
-            // manage them. r_ads_reporting: the adAnalytics finder - the
-            // pull-only substitute for the webhook LinkedIn doesn't offer,
-            // see class docblock.
-            //
-            // w_organization_social/r_organization_social: reproduced live
-            // - Sponsored Content ads (storeCreative() -> createSponsoredPost())
-            // always create a real Post object first and reference it from
-            // the Creative, and that POST /rest/posts call is gated by
-            // LinkedIn's Community Management API product/permission
-            // (partnerApiPostsExternal.CREATE), entirely separate from the
-            // Advertising API scopes above - an ads-only token that never
-            // requested these two scopes gets "Not enough permissions to
-            // access: partnerApiPostsExternal.CREATE" the moment it tries
-            // to create that Post, even though every ads-only call
-            // (campaign group, campaign) succeeds fine.
-            //
-            // IMPORTANT: adding these scopes here only produces a token
-            // that actually carries them once the LinkedIn Developer app
-            // behind ads.linkedin.client_id has the Community Management
-            // API product approved (LinkedIn's own docs: "How do I gain
-            // access to the Community Management API if I already have
-            // Advertising API access?" - a separate app-review/approval
-            // step on LinkedIn's Developer Portal, not something this
-            // scope string alone can grant). Until that's approved,
-            // LinkedIn's consent screen may reject the whole authorize
-            // request as unauthorized_scope_error rather than silently
-            // dropping the unapproved scopes - and any LinkedIn account
-            // already connected (this app shares one SocialAccount row
-            // for posting+ads per platform) needs a fresh reconnect
-            // through this redirect() to get a token that actually has
-            // these scopes; the old token can't gain them retroactively.
-            'scope'         => 'r_ads rw_ads r_ads_reporting w_organization_social r_organization_social',
+            // Ads scopes only (ads.linkedin.* app, Advertising API) - see SCOPES.
+            'scope'         => implode(' ', self::SCOPES),
         ]);
 
         return Redirect::to('https://www.linkedin.com/oauth/v2/authorization?' . $query);
@@ -189,13 +161,13 @@ class LinkedinAdService
                 'error_description' => request()->input('error_description'),
             ]);
 
-            return redirect()->route('admin.ads.dashboard')->with('error', 'LinkedIn refused the ads authorization: ' . (request()->input('error_description') ?: request()->input('error')));
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', 'LinkedIn refused the ads authorization: ' . (request()->input('error_description') ?: request()->input('error')));
         }
 
         $code = request()->input('code');
 
         if (!$code) {
-            return redirect()->route('admin.ads.dashboard')->with('error', 'LinkedIn did not return an authorization code.');
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', 'LinkedIn did not return an authorization code.');
         }
 
         $tokenResponse = $this->apiService->post(
@@ -217,7 +189,7 @@ class LinkedinAdService
                 'body'   => $tokenResponse['body'] ?? ($tokenResponse['error'] ?? null),
             ]);
 
-            return redirect()->route('admin.ads.dashboard')->with('error', $tokenResponse['data']['error_description'] ?? 'Failed to exchange code for a LinkedIn access token.');
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', $tokenResponse['data']['error_description'] ?? 'Failed to exchange code for a LinkedIn access token.');
         }
 
         $data = $tokenResponse['data'];
@@ -250,7 +222,7 @@ class LinkedinAdService
                 'body'   => $accountsResponse['body'] ?? ($accountsResponse['error'] ?? null),
             ]);
 
-            return redirect()->route('admin.ads.dashboard')->with('error', $accountsResponse['data']['message'] ?? 'Connected, but could not fetch your LinkedIn Ad Accounts.');
+            return redirect()->route(HubReturn::route('admin.ads.dashboard'))->with('error', $accountsResponse['data']['message'] ?? 'Connected, but could not fetch your LinkedIn Ad Accounts.');
         }
 
         $connected = 0;

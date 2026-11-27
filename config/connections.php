@@ -63,11 +63,16 @@ return [
             'insights' => [],
         ],
 
+        // Two LinkedIn apps, two consents: the Pages step (posts.linkedin,
+        // Community Management API) and the Ads step (ads.linkedin,
+        // Advertising API) each have their own map in step_capabilities, so
+        // the scopes Ads needs for sponsored posts never count as "posting".
         'linkedin' => [
-            'posting' => ['w_organization_social', 'w_member_social'],
+            'posting' => ['w_organization_social'],
             'messaging' => [],
             'ads' => ['rw_ads', 'r_ads'],
-            'insights' => ['r_organization_admin', 'r_organization_social', 'r_ads_reporting'],
+            'insights' => ['rw_organization_admin', 'r_organization_admin', 'r_organization_social'],
+            'engagement' => ['r_organization_social_feed', 'w_organization_social_feed'],
         ],
 
         'tiktok' => [
@@ -150,6 +155,8 @@ return [
         'linkedin' => [
             'posting' => ['step' => App\Services\Connections\Drivers\LinkedInDriver::PAGES],
             'insights' => ['step' => App\Services\Connections\Drivers\LinkedInDriver::PAGES, 'partial' => true],
+            // Reading and replying to comments: the _feed scopes, Community Management API only.
+            'engagement' => ['step' => App\Services\Connections\Drivers\LinkedInDriver::PAGES],
             'ads' => ['step' => App\Services\Connections\Drivers\LinkedInDriver::ADS],
             // LinkedIn has no page-messaging API.
             'messaging' => ['step' => null],
@@ -191,6 +198,14 @@ return [
     'step_capabilities' => [
         App\Services\Connections\Drivers\TikTokDriver::COMMENTS => [
             'engagement' => ['comment.list', 'comment.list.manage'],
+        ],
+        App\Services\Connections\Drivers\LinkedInDriver::PAGES => [
+            'posting' => ['w_organization_social'],
+            'insights' => ['rw_organization_admin', 'r_organization_admin', 'r_organization_social'],
+            'engagement' => ['r_organization_social_feed', 'w_organization_social_feed'],
+        ],
+        App\Services\Connections\Drivers\LinkedInDriver::ADS => [
+            'ads' => ['rw_ads', 'r_ads', 'r_ads_reporting'],
         ],
     ],
 

@@ -12,10 +12,15 @@ use Illuminate\Support\Facades\Http;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * LinkedIn (docs/connection-hub-design.md §3, audit §3): Company Pages on
- * posts.linkedin and Ads on ads.linkedin - two apps until Community
- * Management Standard tier is added to the Ads app (flag
- * linkedin.single_app; folding them is a later step).
+ * LinkedIn (docs/connection-hub-design.md §3, audit §3): two LinkedIn apps,
+ * two consents, never mixed -
+ * - Pages: posts.linkedin.* (Community Management API) - publishing,
+ *   comments (_feed scopes), Page statistics. SocialAuthService::LINKEDIN_SCOPES.
+ * - Ads: ads.linkedin.* (Advertising API) - ad accounts, campaigns,
+ *   reporting, sponsored posts. LinkedinAdService::SCOPES.
+ * LinkedIn's Community Management API can't share an app with other
+ * products, and only it grants the _feed scopes. Flag linkedin.single_app
+ * folds both into one consent for an app that has both.
  *
  * Validation uses LinkedIn's token introspection (active / expired /
  * revoked + granted scopes). LinkedIn documents no revoke endpoint, so a
@@ -82,6 +87,7 @@ class LinkedInDriver extends BaseDriver
                 'description' => __('connections.platforms.linkedin.steps.pages.description'),
                 'primary' => true,
                 'available' => (bool) adminSetting('posts.linkedin.client_id'),
+                'note' => ConnectionFlags::on('linkedin.single_app') ? null : __('connections.platforms.linkedin.steps.pages.note'),
             ],
             [
                 'key' => self::ADS,

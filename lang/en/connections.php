@@ -405,7 +405,8 @@ return [
         'linkedin' => [
             'posting' => ['account' => 'A LinkedIn Page where you are an admin.'],
             'insights' => ['account' => 'A LinkedIn Page where you are an admin.', 'note' => 'Page statistics only. Ad reporting comes with Ads.'],
-            'ads' => ['account' => 'A LinkedIn ad account.', 'note' => 'Uses a separate LinkedIn sign-in.'],
+            'ads' => ['account' => 'A LinkedIn ad account.', 'note' => 'Uses a separate LinkedIn sign-in (LinkedIn Advertising API app).'],
+            'engagement' => ['account' => 'A LinkedIn Page where you are an admin.', 'note' => 'Reading and replying to comments needs LinkedIn’s Community Management API on the posting app.'],
             'messaging' => ['note' => 'LinkedIn does not offer a messaging API for Pages.'],
         ],
         'tiktok' => [
@@ -499,12 +500,13 @@ return [
             'steps' => [
                 'pages' => [
                     'label' => 'LinkedIn Pages',
-                    'description' => 'Post to the Company Pages you administer.',
+                    'description' => 'Post to the Company Pages you administer, and read their comments and statistics.',
+                    'note' => 'LinkedIn Community Management API app - separate from Ads.',
                 ],
                 'ads' => [
                     'label' => 'LinkedIn Ads',
                     'description' => 'Campaign Manager ad accounts where you have a role.',
-                    'note' => 'Separate LinkedIn app until Community Management is added to the Ads app.',
+                    'note' => 'LinkedIn Advertising API app - separate from posting.',
                 ],
             ],
         ],
