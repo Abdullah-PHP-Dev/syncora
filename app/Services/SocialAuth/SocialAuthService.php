@@ -110,6 +110,13 @@ class SocialAuthService
             return $this->redirect('linkedin');
         }
 
+        if ($providerError && $platform === 'linkedin' && str_contains(html_entity_decode($providerError, ENT_QUOTES), 'is not authorized for your application')) {
+            Log::warning('LinkedIn posting app is missing a required scope.', ['error' => $providerError]);
+
+            return redirect()->route($this->returnRoute())->with('error', 'LinkedIn connection failed: ' . html_entity_decode($providerError, ENT_QUOTES)
+                . '. Content posting needs w_organization_social and rw_organization_admin on the LinkedIn app set in posts.linkedin.client_id - check that app’s Auth tab on linkedin.com/developers.');
+        }
+
         if ($providerError) {
             Log::warning(ucfirst($platform) . ' OAuth returned an error.', ['error' => $providerError]);
 
@@ -783,24 +790,33 @@ class SocialAuthService
      * only to a Community Management app, and that product can't share an app
      * with others, so the two consents never mix.
      *
-     * Required - without them there's no Page connection:
-     * - r_organization_admin: the Pages the member administers (organizationAcls)
-     * - w_organization_social: publish, edit and delete as the Page
-     * Optional - dropped automatically if the app isn't approved for one
+     * Matched to the posting app's approved scopes (its Auth tab, checked
+     * 2026-11-27: r_basicprofile, w_member_social(_feed),
+     * w_organization_social(_feed), r_organization_social(_feed),
+     * r_organization_followers, rw_organization_admin, r_member_*Analytics,
+     * r_1st_connections_size). LinkedIn rejects the whole consent if any
+     * requested scope isn't on that list - r_organization_admin is not (the
+     * Community Management API grants rw_organization_admin instead).
+     *
+     * Required - no Page connection without them:
+     * - w_organization_social: publish, edit and delete as the Page (Posts API)
+     * - rw_organization_admin: the Pages the member administers
+     *   (organizationAcls), their names (organizations/{id}), post statistics
+     *   (impressions, clicks) and the social-action webhook
+     * Optional - dropped automatically if an app isn't approved for one
      * (linkedinScopeRefused()):
      * - r_organization_social: post counts (socialActions summary)
-     * - rw_organization_admin: post statistics (impressions, clicks) and the
-     *   social-action webhook   .../organizations/share-statistics
      * - r_organization_social_feed: list a post's comments (otherwise
      *   "Not enough permissions to access: partnerApiSocialActions.GET_ALL")
      * - w_organization_social_feed: reply and react as the Page
      * - r_organization_followers: the Page's follower data
-     * Posting is as the Page only, so no member scopes (w_member_social) are asked.
+     * Posting is as the Page only, so no member scopes (w_member_social,
+     * r_basicprofile) are asked.
      */
-    public const LINKEDIN_REQUIRED_SCOPES = ['r_organization_admin', 'w_organization_social'];
+    public const LINKEDIN_REQUIRED_SCOPES = ['w_organization_social', 'rw_organization_admin'];
 
     public const LINKEDIN_OPTIONAL_SCOPES = [
-        'r_organization_social', 'rw_organization_admin', 'r_organization_social_feed', 'w_organization_social_feed', 'r_organization_followers',
+        'r_organization_social', 'r_organization_social_feed', 'w_organization_social_feed', 'r_organization_followers',
     ];
 
     public const LINKEDIN_SCOPES = [...self::LINKEDIN_REQUIRED_SCOPES, ...self::LINKEDIN_OPTIONAL_SCOPES];
@@ -848,7 +864,7 @@ class SocialAuthService
         }
         preg_match_all('/[Ss]cope\s*["\'“”]?([a-z_]+)["\'“”]?\s*is not authorized/', $decoded, $m);
         $refused = array_filter(explode(',', (string) adminSetting(self::LINKEDIN_REFUSED_SCOPES)));
-        // Only optional scopes can be dropped - without the posting ones there's no connection.
+        // Required scopes are never dropped - without them there's no connection.
         $new = array_values(array_diff(array_intersect($m[1], self::LINKEDIN_OPTIONAL_SCOPES), $refused));
         if ($new) {
             \App\Support\Settings::set(self::LINKEDIN_REFUSED_SCOPES, implode(',', array_merge($refused, $new)));

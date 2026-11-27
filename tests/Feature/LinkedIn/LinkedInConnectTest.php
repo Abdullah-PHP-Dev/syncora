@@ -117,7 +117,7 @@ class LinkedInConnectTest extends TestCase
 
         $this->assertStringStartsWith('https://www.linkedin.com/oauth/v2/authorization?', $response->getTargetUrl());
         $this->assertSame(SocialAuthService::LINKEDIN_SCOPES, $this->requestedScopes($response));
-        foreach (['r_organization_social_feed', 'w_organization_social_feed', 'rw_organization_admin', 'w_organization_social', 'r_organization_admin'] as $scope) {
+        foreach (['r_organization_social_feed', 'w_organization_social_feed', 'rw_organization_admin', 'w_organization_social', 'r_organization_followers'] as $scope) {
             $this->assertContains($scope, $this->requestedScopes($response));
         }
     }
@@ -149,6 +149,41 @@ class LinkedInConnectTest extends TestCase
         session(['social_oauth_state_linkedin' => 'state-1']);
         $response = app(SocialAuthService::class)->callback('linkedin', '', 'state-1', null, 'Scope "rw_organization_admin" is not authorized for your application');
         $this->assertStringNotContainsString('linkedin.com/oauth', $response->getTargetUrl());
+    }
+
+    public function test_the_consent_asks_only_for_scopes_the_posting_app_has(): void
+    {
+        // The posting app's Auth tab (2026-11-27). LinkedIn rejects the whole
+        // consent for any scope outside it - r_organization_admin was one.
+        $approved = ['r_basicprofile', 'w_member_social', 'w_member_social_feed', 'w_organization_social', 'w_organization_social_feed', 'r_organization_social',
+            'r_organization_social_feed', 'r_organization_followers', 'rw_organization_admin', 'r_member_postAnalytics', 'r_member_profileAnalytics', 'r_1st_connections_size'];
+
+        $scopes = $this->requestedScopes(app(SocialAuthService::class)->redirect('linkedin'));
+
+        $this->assertSame([], array_diff($scopes, $approved));
+        $this->assertNotContains('r_organization_admin', $scopes);
+        foreach (['openid', 'profile', 'email', 'r_liteprofile', 'r_emailaddress'] as $notGranted) {
+            $this->assertNotContains($notGranted, $scopes);
+        }
+        $this->assertContains('rw_organization_admin', $scopes);
+    }
+
+    public function test_a_refused_required_scope_explains_what_the_app_needs(): void
+    {
+        $response = app(SocialAuthService::class)->callback('linkedin', '', 'state-1', null, 'Scope &quot;rw_organization_admin&quot; is not authorized for your application');
+
+        $this->assertStringNotContainsString('linkedin.com/oauth', $response->getTargetUrl());
+        $this->assertStringContainsString('Scope "rw_organization_admin" is not authorized', session('error'));
+        $this->assertStringContainsString('posts.linkedin.client_id', session('error'));
+        $this->assertNull(adminSetting(SocialAuthService::LINKEDIN_REFUSED_SCOPES));
+    }
+
+    public function test_the_callback_url_sent_is_the_non_localized_one(): void
+    {
+        parse_str((string) parse_url(app(SocialAuthService::class)->redirect('linkedin')->getTargetUrl(), PHP_URL_QUERY), $query);
+
+        $this->assertStringEndsWith('/social-accounts/linkedin/callback', $query['redirect_uri']);
+        $this->assertStringNotContainsString('/en/', $query['redirect_uri']);
     }
 
     public function test_the_refresh_token_is_kept_on_the_posting_account(): void
