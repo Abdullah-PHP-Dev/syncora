@@ -1011,7 +1011,7 @@ class LinkedInPostService
                 $fill['likes'] = (int) ($actions->json('likesSummary.totalLikes') ?? 0);
                 $fill['comments'] = (int) ($actions->json('commentsSummary.aggregatedTotalComments') ?? $actions->json('commentsSummary.totalFirstLevelComments') ?? 0);
             } else {
-                $errors['social_actions'] = $this->readError($actions, 'r_organization_social');
+                $errors['social_actions'] = $this->readError($actions, 'r_organization_social / r_organization_social_feed');
             }
         } catch (\Throwable $e) {
             $errors['social_actions'] = $e->getMessage();
@@ -1038,12 +1038,19 @@ class LinkedInPostService
             $errors['statistics'] = $e->getMessage();
         }
 
-        if ($fill !== [] && ! isset($errors['social_actions']) && ($commentsError = $this->fetchAndStoreComments($account, $post))) {
+        // Comment text is its own permission (r_organization_social_feed) -
+        // read it even when the socialActions summary was refused.
+        $commentsError = $this->fetchAndStoreComments($account, $post);
+        if ($commentsError) {
             $errors['comments'] = $commentsError;
+        }
+        // The counts came from statistics: a refused summary isn't a problem then.
+        if (isset($errors['social_actions']) && ! isset($errors['statistics']) && isset($fill['comments'])) {
+            unset($errors['social_actions']);
         }
         $this->recordSync($post, $fill, $errors);
 
-        return $fill !== [];
+        return $fill !== [] || ! $commentsError;
     }
 
     /** totalShareStatistics of one post: [] when LinkedIn has none yet, ['error' => ..] on refusal. */

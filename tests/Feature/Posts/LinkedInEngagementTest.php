@@ -213,6 +213,26 @@ class LinkedInEngagementTest extends TestCase
         $response->assertOk()->assertViewHas('post', fn ($post) => collect($post['engagement']['comments'])->pluck('content')->all() === ['Congrats!']);
     }
 
+    public function test_comments_are_read_even_when_the_summary_is_refused(): void
+    {
+        // Production, post 295: partnerApiSocialActions.GET refused, statistics allowed.
+        $refused = Http::response(['status' => 403, 'message' => 'Not enough permissions to access: partnerApiSocialActions.GET.20260601'], 403);
+        $this->fakeLinkedIn([
+            self::API . 'socialActions/' . rawurlencode(self::URN) . '/comments*' => Http::response(['elements' => [
+                ['id' => '5001', 'actor' => 'urn:li:person:abc', 'message' => ['text' => 'First!'], 'created' => ['time' => 1764100000000]],
+                ['id' => '5002', 'actor' => 'urn:li:person:def', 'message' => ['text' => 'Great post'], 'created' => ['time' => 1764200000000]],
+            ]]),
+            self::API . 'socialActions/' . rawurlencode(self::URN) => $refused,
+        ]);
+
+        $this->assertTrue(app(LinkedInPostService::class)->syncEngagement($this->post->fresh('socialAccount')));
+
+        $post = $this->post->fresh();
+        $this->assertSame([12, 4, 1500], [$post->likes, $post->comments, $post->impressions]); // from statistics
+        $this->assertSame(['Great post', 'First!'], PostComment::where('post_id', $post->id)->orderByDesc('posted_at')->pluck('content')->all());
+        $this->assertNull($post->platform_metadata['engagement_errors']); // counts came through another way
+    }
+
     public function test_ugc_posts_use_the_ugcposts_parameter(): void
     {
         $this->post->forceFill(['post_id' => 'urn:li:ugcPost:7400000000000000002'])->save();
