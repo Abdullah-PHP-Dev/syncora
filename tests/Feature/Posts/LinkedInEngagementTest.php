@@ -233,6 +233,64 @@ class LinkedInEngagementTest extends TestCase
         $this->assertNull($post->platform_metadata['engagement_errors']); // counts came through another way
     }
 
+    private function fakeCommenters(array $overrides = []): void
+    {
+        $this->fakeLinkedIn($overrides + [
+            self::API . 'socialActions/' . rawurlencode(self::URN) . '/comments*' => Http::response(['elements' => [
+                ['id' => '6001', 'actor' => 'urn:li:person:A8xe03Qt10', 'message' => ['text' => 'Sent my CV'], 'created' => ['time' => 1764100000000]],
+                ['id' => '6002', 'actor' => 'urn:li:organization:2414183', 'message' => ['text' => 'Congrats from Acme'], 'created' => ['time' => 1764200000000]],
+            ]]),
+            self::API . 'people/*' => Http::response(['id' => 'A8xe03Qt10', 'localizedFirstName' => 'Sara', 'localizedLastName' => 'Ali',
+                'profilePicture' => ['displayImage' => 'urn:li:digitalmediaAsset:C4D03AQ']]),
+            self::API . 'organizationsLookup*' => Http::response(['results' => ['2414183' => ['id' => 2414183, 'localizedName' => 'Acme Corp',
+                'logoV2' => ['original' => 'urn:li:digitalmediaAsset:D4E0BAQ', 'cropped' => 'urn:li:digitalmediaAsset:D4E0BAQ']]]]),
+            self::API . 'images/' . rawurlencode('urn:li:image:C4D03AQ') => Http::response(['id' => 'urn:li:image:C4D03AQ', 'downloadUrl' => 'https://media.licdn.com/sara.jpg']),
+            self::API . 'images/' . rawurlencode('urn:li:image:D4E0BAQ') => Http::response(['id' => 'urn:li:image:D4E0BAQ', 'downloadUrl' => 'https://media.licdn.com/acme.png']),
+        ]);
+    }
+
+    public function test_commenters_show_their_name_and_picture(): void
+    {
+        $this->fakeCommenters();
+
+        app(LinkedInPostService::class)->syncEngagement($this->post->fresh('socialAccount'));
+
+        $this->assertSame(
+            ['Congrats from Acme' => ['Acme Corp', 'https://media.licdn.com/acme.png'], 'Sent my CV' => ['Sara Ali', 'https://media.licdn.com/sara.jpg']],
+            PostComment::where('post_id', $this->post->id)->orderByDesc('posted_at')->get()->mapWithKeys(fn ($c) => [$c->content => [$c->user_name, $c->user_avatar_url]])->all()
+        );
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === self::API . 'people/(id:A8xe03Qt10)');
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === self::API . 'organizationsLookup?ids=List(2414183)');
+    }
+
+    public function test_commenters_are_looked_up_once_a_day_not_every_sync(): void
+    {
+        $this->fakeCommenters();
+
+        app(LinkedInPostService::class)->syncEngagement($this->post->fresh('socialAccount'));
+        app(LinkedInPostService::class)->syncEngagement($this->post->fresh('socialAccount'));
+
+        // people, organizationsLookup and two images - once, not again on the second sync.
+        $lookups = collect(Http::recorded())->filter(fn ($pair) => preg_match('#/rest/(people|organizationsLookup|images)#', $pair[0]->url()));
+        $this->assertCount(4, $lookups);
+    }
+
+    public function test_a_refused_profile_lookup_keeps_linkedin_member_and_never_wipes_a_known_name(): void
+    {
+        $refused = Http::response(['status' => 403, 'message' => 'Not enough permissions to access: people.GET'], 403);
+        $this->fakeCommenters([self::API . 'people/*' => $refused]);
+
+        app(LinkedInPostService::class)->syncEngagement($this->post->fresh('socialAccount'));
+        $member = PostComment::where('comment_id', '6001')->first();
+        $this->assertSame(['LinkedIn member', null], [$member->user_name, $member->user_avatar_url]);
+
+        // A name found earlier stays when a later lookup is refused.
+        $member->update(['user_name' => 'Sara Ali', 'user_avatar_url' => 'https://media.licdn.com/sara.jpg']);
+        \Illuminate\Support\Facades\Cache::flush();
+        app(LinkedInPostService::class)->syncEngagement($this->post->fresh('socialAccount'));
+        $this->assertSame(['Sara Ali', 'https://media.licdn.com/sara.jpg'], [$member->fresh()->user_name, $member->fresh()->user_avatar_url]);
+    }
+
     public function test_ugc_posts_use_the_ugcposts_parameter(): void
     {
         $this->post->forceFill(['post_id' => 'urn:li:ugcPost:7400000000000000002'])->save();

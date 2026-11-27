@@ -1267,8 +1267,10 @@ class LinkedInPostService
 
         $orgUrn = 'urn:li:organization:' . $account->platform_account_id;
         usort($elements, fn ($a, $b) => ($b['created']['time'] ?? 0) <=> ($a['created']['time'] ?? 0));
+        $elements = array_slice($elements, 0, $limit);
+        $profiles = $this->actorProfiles($account, array_column($elements, 'actor'));
 
-        foreach (array_slice($elements, 0, $limit) as $comment) {
+        foreach ($elements as $comment) {
             $id = (string) ($comment['id'] ?? '');
             if ($id === '' || ! empty($comment['parentComment'])) {
                 continue;
@@ -1282,7 +1284,8 @@ class LinkedInPostService
                 'platform' => 'linkedin',
                 'user_id' => $account->user_id,
                 'social_account_id' => $account->id,
-                'user_name' => $own ? ($account->name ?: 'Your Page') : ($this->actorName($comment) ?? 'LinkedIn member'),
+                'user_name' => $own ? ($account->name ?: 'Your Page') : ($this->actorName($comment) ?? $profiles[$actor]['name'] ?? 'LinkedIn member'),
+                'user_avatar_url' => $own ? ($account->avatar_url ?: ($profiles[$actor]['avatar'] ?? null)) : ($profiles[$actor]['avatar'] ?? null),
                 'content' => (string) ($comment['message']['text'] ?? ''),
                 'likes' => (int) ($comment['likesSummary']['totalLikes'] ?? 0),
                 'sender_type' => $own ? 'support' : 'customer',
@@ -1294,6 +1297,13 @@ class LinkedInPostService
 
             if ($existing) {
                 // A reply sent from SocialEaz keeps its author; only LinkedIn's figures change.
+                // A lookup that failed this time never wipes a name or picture found before.
+                if ($values['user_name'] === 'LinkedIn member' && $existing->user_name) {
+                    unset($values['user_name']);
+                }
+                if (! $values['user_avatar_url']) {
+                    unset($values['user_avatar_url']);
+                }
                 $existing->update($existing->sender_type === 'support' && ! $own ? array_intersect_key($values, array_flip(['content', 'likes', 'imported_at'])) : $values);
             } else {
                 PostComment::create(['comment_id' => $id, 'post_id' => $post->id] + $values);
@@ -1301,6 +1311,119 @@ class LinkedInPostService
         }
 
         return null;
+    }
+
+    /**
+     * Name and picture of each commenter, by actor URN. LinkedIn's comments
+     * carry only the URN, so each is looked up once a day (cached; a refusal
+     * is cached for an hour so a sync never hammers the API):
+     * - urn:li:organization (a company, or the Page itself):
+     *   GET /rest/organizationsLookup?ids=List({id}) - "doesn't require
+     *   administrator access" - localizedName and logoV2.
+     *   learn.microsoft.com/linkedin/marketing/community-management/organizations/organization-lookup-api
+     * - urn:li:person: GET /rest/people/(id:{id}) - localizedFirstName,
+     *   localizedLastName, profilePicture.displayImage. LinkedIn may refuse
+     *   other members' profiles to Page apps; then they stay "LinkedIn member".
+     * Pictures are image URNs, turned into a URL with GET /rest/images/{urn}
+     * (downloadUrl - a signed link that expires, so it is re-read daily).
+     *
+     * @param  string[]  $actors
+     * @return array<string, array{name: ?string, avatar: ?string}>
+     */
+    private function actorProfiles(SocialAccount $account, array $actors): array
+    {
+        $profiles = [];
+        foreach (array_unique(array_filter($actors, 'is_string')) as $actor) {
+            $cached = \Illuminate\Support\Facades\Cache::get('linkedin-actor:' . $actor);
+            if (is_array($cached)) {
+                $profiles[$actor] = $cached;
+                continue;
+            }
+
+            try {
+                $profile = $this->lookupActor($account, $actor);
+            } catch (\Throwable $e) {
+                Log::info('LinkedIn commenter lookup threw.', ['actor' => $actor, 'error' => $e->getMessage()]);
+                $profile = null;
+            }
+            $profiles[$actor] = $profile ?? ['name' => null, 'avatar' => null];
+            \Illuminate\Support\Facades\Cache::put('linkedin-actor:' . $actor, $profiles[$actor], $profile ? now()->addDay() : now()->addHour());
+        }
+
+        return $profiles;
+    }
+
+    /** @return array{name: ?string, avatar: ?string}|null */
+    private function lookupActor(SocialAccount $account, string $actor): ?array
+    {
+        $headers = $this->restHeaders($account);
+
+        if (preg_match('/^urn:li:organization:(\d+)$/', $actor, $m)) {
+            $response = Http::withHeaders($headers)->get($this->baseUrl . 'organizationsLookup?ids=List(' . $m[1] . ')');
+            $org = $response->json('results.' . $m[1]);
+            if (! $response->successful() || ! is_array($org)) {
+                Log::info('LinkedIn organization lookup refused.', ['actor' => $actor, 'status' => $response->status(), 'error' => $response->json('message')]);
+
+                return null;
+            }
+
+            return [
+                'name' => $org['localizedName'] ?? null,
+                'avatar' => $this->imageUrl($account, $org['logoV2']['cropped'] ?? $org['logoV2']['original'] ?? null),
+            ];
+        }
+
+        if (preg_match('/^urn:li:person:(.+)$/', $actor, $m)) {
+            $response = Http::withHeaders($headers)->get($this->baseUrl . 'people/(id:' . rawurlencode($m[1]) . ')');
+            if (! $response->successful()) {
+                Log::info('LinkedIn member lookup refused.', ['actor' => $actor, 'status' => $response->status(), 'error' => $response->json('message')]);
+
+                return null;
+            }
+            $person = $response->json();
+            $first = $person['localizedFirstName'] ?? $this->localized($person['firstName'] ?? null);
+            $last = $person['localizedLastName'] ?? $this->localized($person['lastName'] ?? null);
+            $name = trim(implode(' ', array_filter([$first, $last], 'is_string')));
+
+            return [
+                'name' => $name !== '' ? $name : null,
+                'avatar' => $this->imageUrl($account, $person['profilePicture']['displayImage'] ?? null),
+            ];
+        }
+
+        return null;
+    }
+
+    /** {"localized": {"en_US": "Sara"}, "preferredLocale": {...}} -> "Sara" */
+    private function localized($field): ?string
+    {
+        if (! is_array($field) || ! is_array($field['localized'] ?? null)) {
+            return is_string($field) ? $field : null;
+        }
+        $locale = isset($field['preferredLocale']['language']) ? $field['preferredLocale']['language'] . '_' . ($field['preferredLocale']['country'] ?? '') : null;
+
+        return $field['localized'][$locale] ?? (array_values($field['localized'])[0] ?? null);
+    }
+
+    /** An image / digital media asset URN as a downloadable URL (GET /rest/images/{urn}). */
+    private function imageUrl(SocialAccount $account, ?string $urn): ?string
+    {
+        if (! is_string($urn) || $urn === '') {
+            return null;
+        }
+        if (str_starts_with($urn, 'http')) {
+            return $urn;
+        }
+        // Images API takes image URNs; a digitalmediaAsset URN shares its id.
+        $urn = preg_replace('/^urn:li:digitalmediaAsset:/', 'urn:li:image:', $urn);
+        $response = Http::withHeaders($this->restHeaders($account))->get($this->baseUrl . 'images/' . rawurlencode($urn));
+        if (! $response->successful()) {
+            Log::info('LinkedIn image lookup refused.', ['image' => $urn, 'status' => $response->status(), 'error' => $response->json('message')]);
+
+            return null;
+        }
+
+        return $response->json('downloadUrl');
     }
 
     /** "First Last" when LinkedIn decorated the actor (actor~), else null. */
